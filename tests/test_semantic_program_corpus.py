@@ -217,14 +217,25 @@ def test_fork_join_corpus_covers_every_operation_triple_per_split() -> None:
 
 
 def test_fork_join_programs_are_exact_and_all_steps_are_load_bearing() -> None:
-    examples = build_semantic_program_fork_join_corpus()
+    examples = build_semantic_program_fork_join_corpus(source_order_registers=True)
 
     for example in examples:
         assert len(example.inputs) == 4
         assert len(example.instructions) == 3
+        assert list(example.input_spans) == sorted(
+            example.input_spans,
+            key=lambda span: span.start,
+        )
         assert example.instructions[0].depends_on == ()
         assert example.instructions[1].depends_on == ()
         assert example.instructions[2].depends_on == (0, 1)
+        for instruction in example.instructions[:2]:
+            for register, span in zip(
+                instruction.instruction.args,
+                instruction.argument_spans,
+                strict=True,
+            ):
+                assert example.input_spans[register] == span
         assert isinstance(example.program.run(example.inputs), int)
         offsets = _character_offsets(example.source_text)
         ir = project_example_to_ir(

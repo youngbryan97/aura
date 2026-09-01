@@ -450,9 +450,25 @@ class SemanticProgramTransducer:
             step_args: list[int] = []
             for position in range(2):
                 role = f"argument:{step}:{position}"
-                feature = _pool(hidden, spans[role])
-                label, confidence = self.argument_heads[step][position].predict(feature)
-                step_args.append(int(label))
+                span = spans[role]
+                input_matches = [
+                    index
+                    for index in range(self.input_count)
+                    if span == spans[f"input:{index}"]
+                ]
+                if len(input_matches) == 1:
+                    argument = input_matches[0]
+                    confidence = min(
+                        pointer_scores[role],
+                        pointer_scores[f"input:{argument}"],
+                    )
+                else:
+                    feature = _pool(hidden, span)
+                    label, confidence = self.argument_heads[step][position].predict(
+                        feature
+                    )
+                    argument = int(label)
+                step_args.append(argument)
                 confidences[role] = confidence
             arguments.append((step_args[0], step_args[1]))
 

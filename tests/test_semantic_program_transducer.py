@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -365,3 +366,49 @@ def test_training_refuses_mixed_program_geometry() -> None:
 
     with pytest.raises(ValueError, match="geometries differ"):
         fit_semantic_program_transducer(mixed)
+
+
+def test_direct_input_arguments_resolve_from_grounded_span_identity() -> None:
+    training = [
+        _three_step_example((first, second, third), topology)
+        for topology in range(4)
+        for first, second, third in zip(
+            _OPERATIONS,
+            _OPERATIONS[1:] + _OPERATIONS[:1],
+            _OPERATIONS[2:] + _OPERATIONS[:2],
+            strict=True,
+        )
+    ]
+    model = fit_semantic_program_transducer(training)
+    held_out = _three_step_example(("add", "sub", "mul"), 0, split="test")
+    input_spans = held_out.ir.input_spans
+    instructions = list(held_out.ir.instructions)
+    instructions[0] = SemanticIRInstruction(
+        op=instructions[0].op,
+        args=(0, 1),
+        operation_span=instructions[0].operation_span,
+        argument_spans=(input_spans[0], input_spans[1]),
+        depends_on=(),
+    )
+    grounded = replace(
+        held_out,
+        ir=SemanticProgramIR(
+            source_token_ids=held_out.ir.source_token_ids,
+            source_text_sha256=held_out.ir.source_text_sha256,
+            input_spans=input_spans,
+            instructions=tuple(instructions),
+            report_value=held_out.ir.report_value,
+            model_basis_receipt_sha256=held_out.ir.model_basis_receipt_sha256,
+            transducer_receipt_sha256=held_out.ir.transducer_receipt_sha256,
+        ),
+    )
+
+    outcome = model.decode(
+        source_token_ids=grounded.ir.source_token_ids,
+        hidden_states=grounded.hidden_states,
+        source_text_sha256=grounded.ir.source_text_sha256,
+        model_basis_sha256=_MODEL_BASIS,
+    )
+
+    assert outcome.ir is not None
+    assert outcome.ir.instructions[0].args == (0, 1)

@@ -617,7 +617,11 @@ def _fork_join(
             depends_on=(0, 1),
         ),
     )
-    return builder, ("in0", "in1", "in2", "in3"), annotations
+    input_labels = tuple(f"in{index}" for index in range(4))
+    source_order = tuple(
+        sorted(input_labels, key=lambda label: builder.span(label).start)
+    )
+    return builder, source_order, annotations
 
 
 _CONSTRUCTIONS: Final = {
@@ -871,8 +875,14 @@ def build_semantic_program_fork_join_corpus(
     *,
     seed: int = 1618033,
     examples_per_operation_triple: int = 1,
+    source_order_registers: bool = False,
 ) -> tuple[SemanticProgramExample, ...]:
-    """Return a construction- and topology-disjoint three-step corpus."""
+    """Return a construction- and topology-disjoint three-step corpus.
+
+    The historical corpus preserves generator register identities for exact
+    evidence replay.  The source-order variant makes input identity observable:
+    register ``i`` is the ``i``th input mention in the source text.
+    """
 
     if examples_per_operation_triple < 1:
         raise ValueError("fork-join corpus needs at least one example per operation triple")
@@ -902,9 +912,43 @@ def build_semantic_program_fork_join_corpus(
                             values,
                             topology,
                         )
+                        if source_order_registers:
+                            input_order = tuple(
+                                int(label.removeprefix("in"))
+                                for label in input_labels
+                            )
+                            if set(input_order) != {0, 1, 2, 3}:
+                                raise AssertionError(
+                                    "fork-join renderer did not expose every input once"
+                                )
+                            register_map = {
+                                old_register: new_register
+                                for new_register, old_register in enumerate(input_order)
+                            }
+                            corpus_values = tuple(values[index] for index in input_order)
+                            corpus_annotations = tuple(
+                                SemanticInstructionAnnotation(
+                                    instruction=Instruction(
+                                        item.instruction.op,
+                                        tuple(
+                                            register_map.get(argument, argument)
+                                            for argument in item.instruction.args
+                                        ),
+                                    ),
+                                    operation_span=item.operation_span,
+                                    argument_spans=item.argument_spans,
+                                    depends_on=item.depends_on,
+                                )
+                                for item in annotations
+                            )
+                            corpus_input_labels = input_labels
+                        else:
+                            corpus_values = values
+                            corpus_annotations = annotations
+                            corpus_input_labels = tuple(f"in{index}" for index in range(4))
                         contrast_id = (
                             f"{construction_id}:{topology.topology_id}:"
-                            f"{sample_index}:{values}"
+                            f"{sample_index}:{corpus_values}"
                         )
                         examples.append(
                             SemanticProgramExample(
@@ -912,17 +956,17 @@ def build_semantic_program_fork_join_corpus(
                                     construction_id,
                                     topology.topology_id,
                                     operation_tuple,
-                                    values,
+                                    corpus_values,
                                 ),
                                 construction_id=construction_id,
                                 topology_id=topology.topology_id,
                                 split=split,
                                 source_text=builder.text,
-                                inputs=values,
+                                inputs=corpus_values,
                                 input_spans=tuple(
-                                    builder.span(label) for label in input_labels
+                                    builder.span(label) for label in corpus_input_labels
                                 ),
-                                instructions=annotations,
+                                instructions=corpus_annotations,
                                 report_value=6,
                                 contrast_id=contrast_id,
                             )
