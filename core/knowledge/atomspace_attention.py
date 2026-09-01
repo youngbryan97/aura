@@ -29,17 +29,18 @@ def spread_importance_touches(space: "AtomSpace") -> int:
     :meth:`spread_importance` returns STI moved, which is the benefit
     side; this is the price.
     """
+    # Counted and spread under ONE hold of the lock. Counting first and then
+    # calling spread_importance() takes the lock twice, sorts the focus twice,
+    # and lets the focus change in between - so the price reported would be
+    # for a spread that did not happen.
     touched = 0
     with space._lock:
-        focus = [
-            space._records[atom]
-            for atom, sti in space.attentional_focus()
-            if sti > 0 and atom in space._records
-        ]
-        for rec in focus:
-            touched += 1 + len(space._neighbors_locked(rec.atom))
-    space.spread_importance()
+        for atom, sti in space.attentional_focus():
+            if sti > 0 and atom in space._records:
+                touched += 1 + len(space._neighbors_locked(space._records[atom].atom))
+        space.spread_importance()
     return touched
+
 
 def neighbours(space: "AtomSpace", atom: Atom) -> list[Atom]:
     """Everything one hop from ``atom`` through the metagraph.

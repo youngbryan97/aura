@@ -680,3 +680,43 @@ def test_the_tracking_evidence_carries_the_occluder_case():
     assert occluder["stayed_one_thing"]
     assert occluder["distinct_tracks"] == 1
     assert occluder["a_snapshot_would_see"] > occluder["distinct_tracks"]
+
+
+def test_the_spread_price_is_for_the_spread_that_happened():
+    """Counting under one lock hold and spreading under another lets the focus
+    change in between, so the reported price is for a spread that did not
+    happen."""
+    from core.knowledge.atomspace import Link, Node, TruthValue
+    from core.knowledge.atomspace_attention import spread_importance_touches
+
+    space = AtomSpace(sti_fund=10_000.0, focus_size=8)
+    hub = Node("Concept", "hub")
+    space.add(hub, TruthValue(0.9, 10.0), source="t")
+    for i in range(6):
+        leaf = Node("Concept", f"leaf{i}")
+        space.add(leaf, TruthValue(0.9, 10.0), source="t")
+        space.add(Link("Inheritance", (leaf, hub)), TruthValue(0.8, 8.0), source="t")
+    space.stimulate(hub)
+
+    before = space.get_av(hub).sti
+    touched = spread_importance_touches(space)
+    # It counted something, and it also spread: one call, both halves.
+    assert touched > 1
+    assert space.get_av(hub).sti < before
+
+
+def test_saving_a_store_off_the_loop_produces_the_same_file():
+    import asyncio
+    import tempfile
+
+    from core.knowledge.atomspace_persistence import load, save, save_async
+
+    space, _red, _sq = _populated()
+    with tempfile.TemporaryDirectory() as tmp:
+        sync_path, async_path = Path(tmp) / "s.json", Path(tmp) / "a.json"
+        save(space, sync_path)
+        assert asyncio.run(save_async(space, async_path)) == len(space)
+        assert sync_path.read_text() == async_path.read_text()
+
+        fresh = AtomSpace(max_atoms=1000)
+        assert load(fresh, async_path) == len(space)

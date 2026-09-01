@@ -1655,18 +1655,39 @@ def test_worker_retry_replaces_weaker_rejected_incumbent() -> None:
 
 
 def test_live_surface_quality_retry_preserves_valid_prefill_cache():
+    """A surface-quality retry must not throw away a cache that is still valid.
+
+    Found by AST rather than by matching the source text of the condition:
+    the same guard reformatted across three lines stopped matching a
+    single-line literal, and the test reported a missing invariant that was
+    sitting right there.
+    """
+    import ast
     from pathlib import Path
 
     source = Path("core/brain/llm/mlx_worker.py").read_text(encoding="utf-8")
-    start = source.index(
-        "if internal_attempt < max_internal_retries and not surface_wall_exceeded:"
-    )
-    end = source.index("continue", start)
-    retry_branch = source[start:end]
+    tree = ast.parse(source)
 
-    assert "prompt_cache_lru.clear()" not in retry_branch
-    assert "_clear_mlx_cache(mx)" not in retry_branch
-    assert "surface_retry_started = time.monotonic()" in retry_branch
+    wanted = {"internal_attempt", "max_internal_retries", "surface_wall_exceeded"}
+    branches = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.If)
+        and wanted <= {n.id for n in ast.walk(node.test) if isinstance(n, ast.Name)}
+    ]
+    assert branches, (
+        "no branch guards the surface-quality retry on both the attempt count "
+        "and the surface wall"
+    )
+    for branch in branches:
+        body = "\n".join(ast.unparse(stmt) for stmt in branch.body)
+        assert "prompt_cache_lru.clear()" not in body
+        assert "_clear_mlx_cache(mx)" not in body
+    assert any(
+        "surface_retry_started = time.monotonic()"
+        in "\n".join(ast.unparse(stmt) for stmt in branch.body)
+        for branch in branches
+    )
 
 
 def test_volatile_state_context_is_appended_so_the_kv_prefix_stays_cacheable():
