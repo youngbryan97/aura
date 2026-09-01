@@ -166,7 +166,7 @@ _SNAPSHOT_SCHEMA = "aura.atomspace.snapshot.v1"
 
 
 def _encode_atom(atom: Atom) -> Any:
-    """One atom as JSON. Links nest, which is the whole point of a metagraph."""
+    """Encode one atom as JSON, nesting links to preserve metagraph structure."""
     if isinstance(atom, Node):
         return ["n", atom.atype, atom.name]
     if isinstance(atom, Variable):

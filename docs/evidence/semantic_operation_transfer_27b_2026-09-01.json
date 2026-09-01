@@ -1,0 +1,69 @@
+{
+  "schema": "aura.semantic_operation_transfer_evidence.v1",
+  "source_commit": "d57485f90916fd7b0e8637148e4c3964f70deb30",
+  "claim_boundary": "gold-operation-span representation diagnostic across synthetic arithmetic and sequence language; the counterfactual-centered view requires an answer-blind factorial target batch and is not an end-to-end or single-request decoder",
+  "family_identity_available_to_classifier": false,
+  "geometry_available_to_treatment_classifier": false,
+  "expected_answers_available_to_training": false,
+  "expected_answers_available_to_evaluation": false,
+  "absolute_span_mean_test_program_exact": {
+    "arithmetic_to_fork_join": "124/192",
+    "arithmetic_to_sequence_binary": "37/48",
+    "fork_join_to_arithmetic": "128/128",
+    "fork_join_to_sequence_binary": "44/48",
+    "sequence_binary_to_arithmetic": "95/128",
+    "sequence_binary_to_fork_join": "27/192"
+  },
+  "counterfactual_centered_test_program_exact": {
+    "arithmetic_to_fork_join": "192/192",
+    "arithmetic_to_sequence_binary": "47/48",
+    "fork_join_to_arithmetic": "128/128",
+    "fork_join_to_sequence_binary": "48/48",
+    "sequence_binary_to_arithmetic": "128/128",
+    "sequence_binary_to_fork_join": "179/192"
+  },
+  "zero_token_overlap_centered_directions": {
+    "arithmetic_to_sequence_binary": {
+      "treatment": "47/48",
+      "coefficient_lesion": "12/48",
+      "label_permutation": "0/48",
+      "geometry_only": "12/48",
+      "token_lookup": "12/48"
+    },
+    "fork_join_to_sequence_binary": {
+      "treatment": "48/48",
+      "coefficient_lesion": "12/48",
+      "label_permutation": "0/48",
+      "geometry_only": "12/48",
+      "token_lookup": "12/48"
+    },
+    "sequence_binary_to_arithmetic": {
+      "treatment": "128/128",
+      "coefficient_lesion": "8/128",
+      "label_permutation": "0/128",
+      "geometry_only": "32/128",
+      "token_lookup": "8/128"
+    },
+    "sequence_binary_to_fork_join": {
+      "treatment": "179/192",
+      "coefficient_lesion": "3/192",
+      "label_permutation": "0/192",
+      "geometry_only": "24/192",
+      "token_lookup": "3/192",
+      "program_one_sided_exact_p_vs_geometry": 2.1895288505075267e-47
+    }
+  },
+  "feature_manifest_sha256s": {
+    "arithmetic": "9ffd830ce9250b6ef9ef07a1e2f59de90b90832342dd00ee513dff9f82eff3d6",
+    "fork_join": "55b873814f49f75599db2dad857911af954cc55559070599b6f49489cbb2e66b",
+    "sequence_binary": "b2da11920ff42653c0de6218a820c2b49a2b5b3dc564cec2438d212fa2a7fdaa"
+  },
+  "campaign_report_sha256": "1c02b02ba8dd238a1e92884695e87e86e84f5494a0db8432787b47c3977c9bb1",
+  "verification_sha256": "ea710dfc98dfcc85b4551b2d7b0b5615356338f8122f2b3269079d9e2a1f3791",
+  "raw_records_reloaded": 1296,
+  "program_arm_rows_recounted": 14720,
+  "paired_tests_recounted": 96,
+  "frozen_replay_exact": true,
+  "verified": true,
+  "serving_authority": false
+}

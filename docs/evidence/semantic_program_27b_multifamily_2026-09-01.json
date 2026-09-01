@@ -1,0 +1,40 @@
+{
+  "schema": "aura.semantic_program_multifamily_evidence.v1",
+  "source_commit": "e8382791ce15fff308e0a768a5b5c9f53ff79982",
+  "claim_boundary": "one family-router-free transducer fit jointly to arithmetic and mixed sequence-pointer programs at one fixed two-instruction geometry; not variable-geometry transfer, serving authority, broad-domain reasoning, or frontier reasoning evidence",
+  "shared_model_count": 1,
+  "family_router_present": false,
+  "expected_answers_available_to_training": false,
+  "arithmetic": {
+    "test_total": 128,
+    "treatment_answer_exact": 59,
+    "treatment_program_exact": 59,
+    "hidden_token_shuffle_program_exact": 15,
+    "coefficient_lesion_program_exact": 0,
+    "label_permutation_program_exact": 1,
+    "program_one_sided_exact_p_vs_shuffle": 1.9456941613427148e-10
+  },
+  "sequence_binary": {
+    "test_total": 48,
+    "treatment_answer_exact": 35,
+    "treatment_program_exact": 35,
+    "hidden_token_shuffle_program_exact": 17,
+    "coefficient_lesion_program_exact": 0,
+    "label_permutation_program_exact": 0,
+    "program_one_sided_exact_p_vs_shuffle": 0.0001385807991027832
+  },
+  "feature_manifest_sha256s": {
+    "arithmetic": "9ffd830ce9250b6ef9ef07a1e2f59de90b90832342dd00ee513dff9f82eff3d6",
+    "sequence_binary": "b2da11920ff42653c0de6218a820c2b49a2b5b3dc564cec2438d212fa2a7fdaa"
+  },
+  "shared_coefficient_sha256": "8ce6e1c93da0feb1d609c244c35db72fe01e14cb0c573f89c7364518565d7e7c",
+  "transducer_receipt_sha256": "f3aa484d9a3761560fa5ec6199b92a592da4e3a186c78b67ae5d050da1fd05de",
+  "campaign_report_sha256": "c5f8d71f7016bff162b0269e80286d01091fd8993a458cf1985fa6e0de3e0819",
+  "verification_sha256": "e3c046da6be252916c05133e3151c8bd7b70cd1ecc3d1f6320d67ca07a7d928c",
+  "raw_records_reloaded": 720,
+  "task_rows_independently_recounted": 1776,
+  "paired_tests_independently_recounted": 24,
+  "frozen_refit_exact": true,
+  "verified": true,
+  "serving_authority": false
+}
