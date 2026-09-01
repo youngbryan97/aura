@@ -496,8 +496,12 @@
       "bar": "One concept activation retrieves its episodic, symbolic, procedural and neural correlates.",
       "plan": "Concept identity is split across vector stores, AtomSpace, world model and RLC. ConceptHandle in W2.",
       "wave": "W2",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/concept_handle.py",
+        "tests/test_cognitive_identity_contracts.py"
+      ]
     },
     "041": {
       "verdict": "PARTIAL",
@@ -623,8 +627,12 @@
       "bar": "New declarative abstractions transfer into action and prediction without bespoke adapters.",
       "plan": "Falls out of W2 ConceptHandle plus W5 Operator.",
       "wave": "W2",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/concept_handle.py",
+        "tests/test_cognitive_identity_contracts.py"
+      ]
     },
     "051": {
       "verdict": "PARTIAL",
@@ -778,8 +786,12 @@
       "bar": "Categories recur across scenes and support planning without cortex relabeling.",
       "plan": "percept -> ConceptHandle -> AtomSpace pipeline (W2).",
       "wave": "W2",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/concept_handle.py",
+        "tests/test_cognitive_identity_contracts.py"
+      ]
     },
     "064": {
       "verdict": "PARTIAL",
@@ -2042,8 +2054,12 @@
       "bar": "One learned concept is traceable across at least four substrates and usable by each without relabeling.",
       "plan": "ConceptHandle plus a projection registry with confidence-preserving conversions.",
       "wave": "W2",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/concept_handle.py",
+        "tests/test_cognitive_identity_contracts.py"
+      ]
     },
     "174": {
       "verdict": "PARTIAL",
@@ -2256,8 +2272,11 @@
       "bar": "Decisive results reproduce from a preregistration hash and post-hoc changes are visible.",
       "plan": "Already built: frozen declaration, content hash, EvidenceStatus. Remaining work is COVERAGE - make it required for designated decisive experiments.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/evaluation/preregistration.py"
+      ]
     },
     "193": {
       "verdict": "PROCESS",
@@ -2290,8 +2309,12 @@
       "bar": "All live environment learners reject transitions without a qualified receipt.",
       "plan": "AutomationReceipt exists for one path. One ActionTransitionReceipt: before-state, authority, observed change, stability, target identity, confidence.",
       "wave": "W2",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/action_receipt.py",
+        "tests/test_cognitive_identity_contracts.py"
+      ]
     },
     "196": {
       "verdict": "PARTIAL",
@@ -2301,8 +2324,12 @@
       "bar": "The world model and memory refer to the same entity across motion, occlusion and view change.",
       "plan": "EntityTrack ids with observation support, occlusion state, geometry, semantic hypotheses and merge/split lineage.",
       "wave": "W2",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/entity_track.py",
+        "tests/test_cognitive_identity_contracts.py"
+      ]
     },
     "197": {
       "verdict": "PARTIAL",
@@ -2484,8 +2511,11 @@
       "bar": "An organ effect stays significant after compute matching and multiple-testing correction.",
       "plan": "Already built and it REFUSES rather than warns. Remaining work is coverage plus the multiple-testing correction.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/evaluation/matched_budget.py"
+      ]
     },
     "213": {
       "verdict": "PROCESS",
@@ -2662,8 +2692,11 @@
       "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
       "plan": "core/engineering already computes and draws physical designs from Findings. This is closer to PRESENT than the audit knows.",
       "wave": "W11",
-      "status": "open",
-      "note": "core/engineering/ computes a design and draws it, with a DEPS rule forbidding it from reaching anything that generates a number, and 29 published-answer problems gating the formulas. The audit did not see it."
+      "status": "closed",
+      "note": "core/engineering/ computes a design and draws it, with a DEPS rule forbidding it from reaching anything that generates a number, and 29 published-answer problems gating the formulas. The audit did not see it.",
+      "closed_by": [
+        "core/engineering/"
+      ]
     },
     "A1.17": {
       "verdict": "CAPABILITY",
@@ -3399,8 +3432,11 @@
       "bar": "Skill-library ablation/transfer across later tasks/worlds; ensure stale skills cannot silently claim success.",
       "plan": "Skill descriptions plus vector retrieval already exist, written for exactly this defect: a macro that reached the model as prose and could not be invoked.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/skills/skill_retrieval.py"
+      ]
     },
     "A13.4": {
       "verdict": "PARTIAL",
@@ -3512,8 +3548,12 @@
       "bar": "Hundreds of seeded OS/app tasks with layout perturbations; require success, recovery after misclick/focus loss, and zero false-success claims.",
       "plan": "Vision self-QA: she looks at what she did and checks it. Overlaps the W2 action receipt.",
       "wave": "W2",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/action_receipt.py",
+        "tests/test_cognitive_identity_contracts.py"
+      ]
     },
     "A2.13": {
       "verdict": "PARTIAL",
@@ -4170,8 +4210,11 @@
       "bar": "Replay a long session from events into the same state hash; crash at every event boundary and require equivalent recovery/continuation.",
       "plan": "state_ownership.py exists and was written for exactly this defect: tests writing into live learning state. The gap is coverage, not absence.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/runtime/state_ownership.py"
+      ]
     },
     "A6.1": {
       "verdict": "PARTIAL",
@@ -4370,8 +4413,11 @@
       "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
       "plan": "Aura's governed candidate/evaluator/promotion structure is ahead of the paper here. Keep it.",
       "wave": "W13",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/governance/"
+      ]
     },
     "A7.15": {
       "verdict": "PARTIAL",
@@ -4736,8 +4782,11 @@
       "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
       "plan": "The paper names the safeguard gap; Aura already has the safeguards. This is where she is ahead.",
       "wave": "W13",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/governance/"
+      ]
     },
     "A9.9": {
       "verdict": "PARTIAL",
