@@ -57,6 +57,31 @@ class Shape:
     discrete: bool = False
     #: Whether what she wants can be measured on a state.
     countable_goal: bool = False
+    #: How big the thing is, across and down. Two worlds of the same size that
+    #: take the same acts move the same way whoever drew them.
+    across: int = 0
+    down: int = 0
+
+    def of_this_kind(self) -> str:
+        """A name for the KIND of world this is, rather than for this one.
+
+        What she learns is otherwise filed under the thing she learned it in —
+        an application and an address — so a second world that moves in
+        exactly the same way starts as ignorant as the first did, and the
+        fortieth is no better off than the second. Two worlds are of a kind
+        when they are the same size, take the same number of acts, and are
+        countable in the same ways; and worlds of a kind move alike, which is
+        the only claim this makes.
+
+        Deliberately not part of it: what she has worked out about the
+        transition, since that is the thing being carried and keying on it
+        would mean only worlds she has already solved ever match.
+        """
+        if not self.acts or not (self.across and self.down):
+            return ""
+        size = "small" if self.discrete else "open"
+        counted = "counted" if self.countable_goal else "uncounted"
+        return f"a {self.across}x{self.down} {size} world, {self.acts} acts, {counted}"
 
     def named(self) -> str:
         """The shape, said in a line."""
@@ -103,6 +128,8 @@ def recognise(
         world_moves_too=_world_adds_things(knows_how_it_moves),
         discrete=_is_small_and_countable(state),
         countable_goal=_is_countable(toward),
+        across=int(getattr(state, "columns", 0) or 0),
+        down=int(getattr(state, "rows", 0) or 0),
     )
     suits = _what_suits(shape)
     logger.info("this is %s", suits.says())

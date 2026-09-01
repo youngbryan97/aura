@@ -1743,6 +1743,60 @@ def _how_full(reading: Any) -> float:
     return float(reading.occupied()) / float(places)
 
 
+#: What she learned in one world carries to another world of the same kind,
+#: and what stays behind.
+#:
+#: A rule about how a thing moves is about the kind of thing, so it carries.
+#: Which of her keys do anything, what has worked from a position of a given
+#: shape, whether the world adds things of its own, which lines were worth
+#: holding — all of those are about the kind too.
+#:
+#: What does not carry is everything about WHERE: which part of this screen
+#: answers to her, the grid it is drawn on, which of its places move rather
+#: than report, and how to get to it. Two worlds of a kind move alike; they
+#: are not drawn alike, and carrying a band from one to another would put her
+#: keystrokes into the wrong part of the second.
+CARRIES_TO_A_WORLD_LIKE_IT = ("moves", "acts", "skill", "world", "lines", "lines_held")
+
+
+def _the_kind_of_world_this_is(state: Any, acts: Sequence[str], toward: str) -> str:
+    """A name this world shares with every world that moves like it."""
+    try:
+        from core.agency.what_kind_of_problem import recognise  # noqa: PLC0415
+
+        return recognise(
+            acts=list(acts), knows_how_it_moves=None, state=state, toward=toward
+        ).shape.of_this_kind()
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "screen_pursuit", exc, severity="info", action="acted without naming the kind"
+        )
+        return ""
+
+
+def _no_more_than_a_fresh_one_is_worth(held: Any) -> float:
+    """How much of another world's evidence to carry: the conclusion, not the
+    confidence.
+
+    A rule that survived two hundred acts somewhere else is not two hundred
+    acts of evidence about here. Carried whole it would take two hundred
+    disagreements to overturn, and she would play a world she had misread for
+    an hour rather than a handful of moves. Discounted to exactly what it
+    takes to establish a rule here from scratch, it starts her off knowing
+    what she knew and loses to the first few things this world does
+    differently — which is what evidence from somewhere else is worth.
+    """
+    from core.perception.how_it_moves import ENOUGH_TO_TRUST  # noqa: PLC0415
+
+    counts = [
+        value
+        for value in ((held or {}).get("tried") or {}).values()
+        if isinstance(value, (int, float))
+    ]
+    most = max(counts, default=0)
+    return min(1.0, ENOUGH_TO_TRUST / most) if most > ENOUGH_TO_TRUST else 1.0
+
+
 async def _the_best_reading_available(
     observation: dict[str, Any],
     band: tuple[float, float, float, float] | None,
@@ -2275,6 +2329,8 @@ async def pursue_on_screen(
     # fact about it, and a few acts that disagree should overturn it.
     this_world = named(target_app, expect_page or open_page)
     knew = recall(this_world)
+    # And whether she has been anywhere LIKE it, asked once she has seen it.
+    like_it: dict[str, Any] = {"kind": "", "looked": False}
     if knew:
         logger.info("she has been in %r before: %s", this_world, sorted(knew))
     # Which of her acts do anything here, found out rather than declared.
@@ -3339,6 +3395,58 @@ async def pursue_on_screen(
                         if one.name == wants or one.name not in foreseeable
                     ]
 
+            # Has she been anywhere LIKE this before.
+            #
+            # What she learns is filed under the thing she learned it in, so
+            # a second world that moves in exactly the same way used to start
+            # as ignorant as the first, and the fortieth was no better off
+            # than the second. Two worlds are of a kind when they are the
+            # same size, take the same acts and are countable in the same
+            # ways — and worlds of a kind move alike, which is the whole of
+            # what gets carried.
+            #
+            # Asked once, on the first reading worth naming a kind from, and
+            # only where this world has taught her nothing yet.
+            if (
+                not like_it["looked"]
+                and laid_out is not None
+                and laid_out.occupied()
+                and knows.rules is not None
+                and not knows.rules.seen
+            ):
+                like_it["looked"] = True
+                like_it["kind"] = _the_kind_of_world_this_is(
+                    laid_out,
+                    [option.name for option in available],
+                    success_when or _what_there_is_to_aim_at(laid_out),
+                )
+                elsewhere = recall(like_it["kind"]) if like_it["kind"] else {}
+                if elsewhere:
+                    carried = _no_more_than_a_fresh_one_is_worth(elsewhere.get("moves"))
+                    knows.rules.__dict__.update(
+                        HowItMoves.from_memory(
+                            elsewhere.get("moves") or {}, carried
+                        ).__dict__
+                    )
+                    skilled.__dict__.update(
+                        WhatWorkedBefore.from_memory(
+                            elsewhere.get("skill") or {}, carried
+                        ).__dict__
+                    )
+                    world.__dict__.update(
+                        WhatTheWorldDoes.from_memory(
+                            elsewhere.get("world") or {}, carried
+                        ).__dict__
+                    )
+                    _tell(
+                        f"I have been somewhere like this before — {like_it['kind']} — "
+                        "so I will start from what that moved like."
+                    )
+                    logger.info(
+                        "borrowed from %r at %.2f trust: %s",
+                        like_it["kind"], carried, knows.rules.says(),
+                    )
+
             # Where each move would lead, when she has worked out how this
             # moves and there is anything to prefer one future over another by.
             ahead: dict[str, tuple[float, str]] = {}
@@ -3979,6 +4087,28 @@ async def pursue_on_screen(
             "approach": plan["held"].as_memory() if plan["held"] is not None else {},
         },
     )
+    # And the half of it that is about the KIND of world rather than this one,
+    # filed under the kind, so the next world that moves like this starts
+    # knowing how it moves. Written only when she got far enough to have
+    # worked the rule out, because a record of what she failed to establish
+    # would be carried into every world of the kind and slow each of them down.
+    if like_it["kind"] and knows.rules is not None and knows.rules.rule() is not None:
+        kept = remember(
+            like_it["kind"],
+            {
+                part: value
+                for part, value in {
+                    "moves": knows.rules.as_memory(),
+                    "acts": can_do.as_memory(),
+                    "skill": skilled.as_memory(),
+                    "world": world.as_memory(),
+                    "lines": lines.as_memory(),
+                }.items()
+                if part in CARRIES_TO_A_WORLD_LIKE_IT
+            },
+        )
+        if kept:
+            logger.info("what worlds like %r move like, kept", like_it["kind"])
     # What a cycle of this actually cost, so the next watched goal asks for
     # enough time to make the moves it is allowed to make.
     spent = max(0.0, time.monotonic() - began)
