@@ -2518,11 +2518,21 @@ def _macros_admitted_as_new_words() -> int:
     def check() -> int:
         kinds.WAYS_TO_BUILD["one after another"] = widening.one_after_another
         closure = kinds.addressings()
-        composed = [
-            (name, tuple(word(at, 4) % 4 for at in range(4)))
-            for name, word in closure.items()
-            if ", then " in name
-        ]
+        composed = []
+        for name, word in closure.items():
+            if ", then " not in name:
+                continue
+            try:
+                composed.append(
+                    (name, tuple(word(at, 4) % 4 for at in range(4)))
+                )
+            except IndexError:
+                # A word read off examples of another length refuses length
+                # four, which is the language being honest rather than a word
+                # admitted wrongly. It is not a candidate for this measurement
+                # and letting the refusal escape reported it as a claim whose
+                # prediction crashed.
+                continue
         states = [(1, 2, 3, 4), (5, 6, 7, 8), (9, 1, 2, 6)]
         admitted = 0
         for _name, where in composed[:8]:

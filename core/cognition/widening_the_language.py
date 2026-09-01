@@ -213,6 +213,13 @@ def _already_said_by(at: dict[int, tuple[int, ...]], already: Any) -> str | None
                 for size, found in at.items()
             ):
                 return str(name)
+        except IndexError:
+            # DerivedAddressing raises this when asked at a length it was
+            # never seen at, which is the word declining rather than an error.
+            # A word that cannot answer at this length is not the word that
+            # already says this, and letting the refusal escape turned a
+            # correct refusal into a crashed claim prediction.
+            continue
         except (TypeError, ValueError, ZeroDivisionError):
             continue
     return None

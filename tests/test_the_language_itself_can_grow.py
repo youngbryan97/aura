@@ -222,9 +222,36 @@ def test_it_enlarges_what_she_could_say_about_anything():
     """
     before_words = len(addressings())
     before_meanings = len(list(every_meaning()))
+
+    # One derived WORD: read off what she was shown, so it adds a fixed
+    # number of meanings and no more.
+    # A name the authored algebra does not already hold: widening with
+    # "one along" replaces the word of that name and adds nothing.
+    assert "two along" not in WHERE_FROM
+    widen_with_addressing(
+        "two along", DerivedAddressing("two along", {4: (2, 3, 0, 1)})
+    )
+    after_a_word = len(list(every_meaning()))
+    word_added = after_a_word - before_meanings
+
+    # One WAY OF BUILDING: it takes every word she has, including the one
+    # just derived, so what it adds scales with the vocabulary.
     a_way_of_building_nobody_wrote(needs_two_addressings())
+    after_a_way = len(list(every_meaning()))
+    way_added = after_a_way - after_a_word
+
     assert len(addressings()) > before_words
-    assert len(list(every_meaning())) > before_meanings * 10
+    # The property, and not a chosen multiple of it: a word adds an
+    # increment, a way of building multiplies. The assertion here used to be
+    # "more than ten times the meanings", which is a number nobody measured -
+    # the real figure is 6.5x on this algebra, and the test had been red for
+    # however long that was true.
+    assert word_added > 0, "a derived word added no meanings at all"
+    assert way_added > word_added * 2, (
+        f"a way of building added {way_added} where a word added {word_added}; "
+        "it is not reaching families the word could not"
+    )
+    assert after_a_way > before_meanings * 2
 
 
 def test_and_it_applies_to_words_she_derives_later():
@@ -262,3 +289,36 @@ def test_the_way_of_building_composes_two_words_in_turn():
 def test_a_word_is_never_composed_with_itself():
     made = one_after_another({"a": lambda i, n: i})
     assert made == {}
+
+
+def test_a_word_that_refuses_a_length_is_not_the_word_that_already_says_this():
+    """A refusal is an answer, and letting it escape crashed a claim.
+
+    DerivedAddressing raises IndexError when asked at a length it was never
+    seen at — deliberately, because a correspondence read off four cells says
+    nothing about six. _already_said_by caught TypeError, ValueError and
+    ZeroDivisionError and not that one, so a language holding any word of
+    another length made every claim prediction that walked the closure die
+    with 'was never seen at length 4'. It passed alone and failed in a run of
+    twenty-five files, which is the order-dependence shape, not a flake.
+    """
+    from core.cognition.widening_the_language import (
+        DerivedAddressing,
+        an_addressing_nobody_wrote,
+    )
+
+    # A word the language knows only at length three.
+    only_at_three = DerivedAddressing(name="short", at={3: (2, 0, 1)})
+    with pytest.raises(IndexError):
+        only_at_three(0, 4)
+
+    # Deriving at length four must not die on it.
+    derived = an_addressing_nobody_wrote(
+        [
+            ((1, 2, 3, 4), (4, 1, 2, 3)),
+            ((5, 6, 7, 8), (8, 5, 6, 7)),
+        ],
+        already={"short": only_at_three},
+    )
+    assert derived is not None
+    assert derived(0, 4) == 3
