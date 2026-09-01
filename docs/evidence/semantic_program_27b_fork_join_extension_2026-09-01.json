@@ -1,0 +1,43 @@
+{
+  "schema": "aura.semantic_program_family_extension_verification.v1",
+  "source_commit": "8b57babd9d4d2bd6ec28a616f3773bb455c01fd1",
+  "claim_boundary": "bounded resident-27B language-to-program transfer from the two-step chain family to construction-held-out four-input three-step fork-join synthetic integer arithmetic; not broad-domain, frontier-reasoning, or serving evidence",
+  "corpus_kind": "fork_join_4x3_source_order",
+  "feature_manifest_sha256": "f653712b69f98de8d463de73fb05724cddf9dae9bc890c7feafadefe31c110fe",
+  "model_basis_sha256": "dc0005aca93edbb7260dacb93a74cedeb0e16c8e19f963acb9c4b02e18f566b0",
+  "transducer_receipt_sha256": "a4ce19a336bc5f608e0a59e1e46768b285229d97e0e71ba77e856baccb26c539",
+  "held_out_total": 384,
+  "mechanism_progression": {
+    "arbitrary_input_identity": {
+      "program_exact": 8,
+      "answer_exact": 23,
+      "report_sha256": "23c7a68f5e5d2f5a7e75e8d2987d557ea37dcfcb66d8f48d2c3ce08bc5cc02d5"
+    },
+    "source_order_input_identity": {
+      "program_exact": 100,
+      "answer_exact": 179,
+      "report_sha256": "8612ca645c5d66fa8d422899167c0ed463e4769c78d98ffabf52c3bcb7c81cdc"
+    },
+    "source_order_plus_causal_referent_binding": {
+      "program_exact": 198,
+      "answer_exact": 206,
+      "report_sha256": "73b0bf78bb1783375d878be8510c8bfdb3df04b7049c62b091bdd8f143778ed5"
+    }
+  },
+  "paired_program_controls": {
+    "coefficient_lesion_test": {"treatment_only": 104, "control_only": 0, "one_sided_exact_p": 4.930380657631324e-32},
+    "coefficient_lesion_validation": {"treatment_only": 94, "control_only": 0, "one_sided_exact_p": 5.048709793414476e-29},
+    "hidden_token_shuffle_test": {"treatment_only": 101, "control_only": 0, "one_sided_exact_p": 3.944304526105059e-31},
+    "hidden_token_shuffle_validation": {"treatment_only": 88, "control_only": 0, "one_sided_exact_p": 3.2311742677852644e-27},
+    "label_permutation_test": {"treatment_only": 103, "control_only": 0, "one_sided_exact_p": 9.860761315262648e-32},
+    "label_permutation_validation": {"treatment_only": 94, "control_only": 0, "one_sided_exact_p": 5.048709793414476e-29}
+  },
+  "raw_feature_records_reloaded": 576,
+  "task_rows_independently_recounted": 1728,
+  "campaign_replay_exact": true,
+  "deterministic_refit_exact": true,
+  "expected_answers_available_to_training": false,
+  "verification_sha256": "33f22cf31bdf8642923ff26c41ee1657313f198af6f888bb5be61ef205fad256",
+  "verified": true,
+  "serving_authority": false
+}
