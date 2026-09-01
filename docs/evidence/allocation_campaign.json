@@ -1,0 +1,60 @@
+{
+  "allocation": {
+    "adaptive": {
+      "mean": 17.8763,
+      "share_of_oracle": 0.8769
+    },
+    "adaptive_beats_rotation": 195,
+    "adaptive_beats_single": 146,
+    "of": 200,
+    "oracle": {
+      "mean": 20.3867,
+      "share_of_oracle": 1.0
+    },
+    "static_rotation": {
+      "mean": 12.24,
+      "share_of_oracle": 0.6004
+    },
+    "static_single": {
+      "mean": 12.1949,
+      "share_of_oracle": 0.5982
+    }
+  },
+  "cards": [
+    "035",
+    "039"
+  ],
+  "claim_boundary": "synthetic method-return and search-tree worlds at a fixed unit budget; measures the allocation policy in core.cognition.cognitive_cost, not Aura's scheduling of any real cognitive work",
+  "config": {
+    "branches": 8,
+    "budget": 24,
+    "expansions": 40,
+    "methods": 6,
+    "seed": 1618033,
+    "trials": 200
+  },
+  "equal_compute": {
+    "allocation_units_per_arm": 24,
+    "basis": "every arm spends the same number of units; only where differs",
+    "search_expansions_per_arm": 40
+  },
+  "schema": "aura.allocation_campaign.v1",
+  "search": {
+    "fixed_depth": {
+      "mean": 0.653,
+      "share_of_oracle": 0.6561
+    },
+    "fixed_depth_reached": 5.0,
+    "median_deepest_reached": 33.0,
+    "of": 200,
+    "oracle": {
+      "mean": 0.9953,
+      "share_of_oracle": 1.0
+    },
+    "value_guided": {
+      "mean": 0.9202,
+      "share_of_oracle": 0.9246
+    },
+    "value_guided_beats_fixed_depth": 194
+  }
+}

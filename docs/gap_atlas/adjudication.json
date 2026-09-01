@@ -709,6 +709,7 @@
     },
     "035": {
       "bar": "Adaptive allocation beats static frequencies at equal compute.",
+      "campaign_run": "200 tasks, 24 units to every arm, 6 methods with returns unknown at the start. Adaptive allocation through ValueOfComputation reaches 87.7% of an oracle that knew the returns; a fixed rotation reaches 60.0% and a blind commitment 59.8%. Adaptive beats the rotation on 195 of 200 and the commitment on 146 of 200 - the commitment gets lucky about one time in six, which is the shape a real comparison has (docs/evidence/allocation_campaign.json)",
       "card_subject": "NARS continuously allocates finite processor time among concurrent tasks according to dynamic priority.",
       "closed_by": [
         "core/cognition/cognitive_cost.py",
@@ -719,7 +720,7 @@
         "core/mind_tick.py"
       ],
       "note": "",
-      "outstanding": "a matched-compute A/B of the value-of-computation scheduler against the fixed cadences",
+      "outstanding": "",
       "plan": "Aura's loops are operationally scheduled. Value-per-compute scheduling over the W7 budget.",
       "status": "closed",
       "verdict": "PARTIAL",
@@ -785,6 +786,7 @@
     },
     "039": {
       "bar": "Search keeps high-value branches better than fixed depth at equal compute.",
+      "campaign_run": "200 searches, 40 expansions to every arm, 8 branches whose payoff saturates with depth so digging is not free. Value-guided search reaches 92.5% of an oracle that knew the best branch; fixed depth reaches 65.6%, opening all 8 to depth 5. Guided wins 194 of 200 and reaches a median depth of 33 on the branch that was paying (docs/evidence/allocation_campaign.json)",
       "card_subject": "NARS assigns new inference tasks budgets based on truth/complexity/premises.",
       "closed_by": [
         "core/cognition/cognitive_cost.py",
@@ -795,7 +797,7 @@
         "core/cognition/impasse.py"
       ],
       "note": "",
-      "outstanding": "a search campaign comparing derived child budgets against fixed depth at equal compute",
+      "outstanding": "",
       "plan": "Derive child budgets from parent value, uncertainty, complexity and information gain (W7).",
       "status": "closed",
       "verdict": "ABSENT",

@@ -410,3 +410,77 @@ def test_the_world_model_evidence_carries_the_sweep_not_a_single_point():
         row["latent_control_success"] >= row["reconstruction_control_success"]
         for row in sweep
     )
+
+
+# ── spending the same budget somewhere better ─────────────────────────────
+#
+# Cards 035 and 039. Both say "at equal compute", which is the whole demand:
+# a policy that thinks harder and does better has shown nothing.
+
+
+def test_adaptive_allocation_beats_a_fixed_cadence_on_the_same_budget():
+    import random
+
+    from tools.campaigns.allocation_campaign import allocation_trial
+
+    rng = random.Random(21)
+    rows = [allocation_trial(methods=6, budget=24, rng=rng) for _ in range(120)]
+    adaptive = sum(r["adaptive"] for r in rows)
+    assert adaptive > sum(r["static_rotation"] for r in rows)
+    assert adaptive > sum(r["static_single"] for r in rows)
+    # And short of the oracle, which is what makes it a measurement.
+    assert adaptive < sum(r["oracle"] for r in rows)
+    # Equal compute is the point: every arm spends the same units.
+    assert {r["units_spent"] for r in rows} == {24.0}
+
+
+def test_value_guided_search_beats_fixed_depth_on_the_same_expansions():
+    import random
+
+    from tools.campaigns.allocation_campaign import search_trial
+
+    rng = random.Random(22)
+    rows = [search_trial(branches=8, expansions=40, rng=rng) for _ in range(120)]
+    guided = sum(r["value_guided"] for r in rows)
+    assert guided > sum(r["fixed_depth"] for r in rows)
+    assert guided < sum(r["oracle"] for r in rows)
+    assert {r["expansions"] for r in rows} == {40.0}
+
+
+def test_the_branch_payoff_saturates_so_digging_is_not_free():
+    """Without this the guided arm wins because of the world, not the policy."""
+    import random
+
+    from tools.campaigns import allocation_campaign as ac
+
+    ac._BRANCH_QUALITY = [1.0]
+    rng = random.Random(0)
+    early = ac._branch_value(0, 2, rng) - ac._branch_value(0, 1, rng)
+    late = ac._branch_value(0, 40, rng) - ac._branch_value(0, 39, rng)
+    assert late < early
+
+
+def test_the_allocation_evidence_reports_against_an_oracle():
+    payload = _sealed("allocation_campaign.json")
+    assert set(payload["cards"]) == {"035", "039"}
+    assert payload["equal_compute"]["allocation_units_per_arm"] > 0
+    assert payload["equal_compute"]["search_expansions_per_arm"] > 0
+
+    allocation = payload["allocation"]
+    assert allocation["adaptive"]["share_of_oracle"] > allocation["static_rotation"][
+        "share_of_oracle"
+    ]
+    assert allocation["adaptive"]["share_of_oracle"] > allocation["static_single"][
+        "share_of_oracle"
+    ]
+    assert allocation["adaptive"]["share_of_oracle"] < 1.0
+
+    search = payload["search"]
+    assert search["value_guided"]["share_of_oracle"] > search["fixed_depth"][
+        "share_of_oracle"
+    ]
+    assert search["value_guided"]["share_of_oracle"] < 1.0
+    # Not a clean sweep: a blind arm gets lucky sometimes, and a result that
+    # never lost would mean the world was built to make it win.
+    assert search["value_guided_beats_fixed_depth"] < search["of"]
+    assert allocation["adaptive_beats_single"] < allocation["of"]
