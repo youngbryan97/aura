@@ -2910,6 +2910,33 @@ def _the_gap_that_should_not_be_there() -> int:
     return wrong
 
 
+def _transfer_that_went_the_wrong_way() -> int:
+    """Ways the cross-domain result fails its own control. Must be none.
+
+    Two: the piece failing to help on a domain whose term contains it, and the
+    piece helping on one whose term does not. The second is the one that
+    matters — help on the control would mean the help elsewhere was about
+    something other than the piece.
+    """
+    from tools.run_grown_against_reset_heads import run_transfer
+
+    with_it = without = control_with = control_without = usable = 0
+    for seed in range(2000, 2006):
+        row = run_transfer(seed=seed, families=4, within=2.0, deepest=4)
+        if "why" in row:
+            continue
+        usable += 1
+        with_it += row["related_with"]
+        without += row["related_without"]
+        control_with += row["apart_with"]
+        control_without += row["apart_without"]
+    if usable < 4:
+        return 1
+    return (0 if with_it >= without else 1) + (
+        0 if control_with == control_without else 1
+    )
+
+
 def _install_language_growth_claims(suite: Any) -> None:
     """What she can do to the language she makes rules out of.
 
@@ -2977,6 +3004,14 @@ def _install_language_growth_claims(suite: Any) -> None:
             "exhausts its meter rather than returning",
             _universality_certificates_that_fail,
             "core/cognition/what_the_floor_can_say.py",
+        ),
+        (
+            "test_what_she_wrote_carries_to_a_different_surface",
+            "a piece written on one surface helps on a domain whose term "
+            "contains it and does not help on one whose term does not, with the "
+            "before-and-after states of the two domains looking unrelated",
+            _transfer_that_went_the_wrong_way,
+            "tools/run_grown_against_reset_heads.py",
         ),
         (
             "test_keeping_what_she_wrote_makes_the_next_one_easier",
@@ -3167,6 +3202,28 @@ def _install_language_growth_claims(suite: Any) -> None:
                 "merely large. Four of the seven arithmetic heads are shown "
                 "definable from the other three, so the instruction set is doing "
                 "no work"
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "A way of computing written on one surface carries to a family "
+                "whose states look unrelated but whose structure contains it, and "
+                "does not carry to one that does not contain it."
+            ),
+            test="test_what_she_wrote_carries_to_a_different_surface",
+            owner="tools/run_grown_against_reset_heads.py",
+            asserted_in="core/cognition/a_way_of_computing_she_wrote.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "sixteen seeds, six families each, different words on each "
+                "domain so the states look unrelated. Related: 96 of 96 with the "
+                "piece against 77 without. Control, whose term does not contain "
+                "the piece anywhere: 96 and 96. The relation is constructed "
+                "rather than found, and that is the limit of the claim — it "
+                "shows the piece is what carries, not that any real pair of "
+                "domains stands in this relation"
             ),
         )
     )

@@ -92,3 +92,66 @@ def test_a_constant_family_is_not_offered_as_evidence() -> None:
     assert made is not None
     for _before, after in made.transitions:
         assert len(set(after)) > 1
+
+
+# ── experiment F: does it carry to a family that looks nothing like it? ───
+
+
+@pytest.mark.slow
+def test_what_she_wrote_carries_to_a_different_surface_and_not_to_an_unrelated_one() -> None:
+    """One structure, learned on one surface, tested on another and on neither.
+
+    The three domains differ in surface — a different pair of words, so the
+    before-and-after states look unrelated — and in what is underneath. The
+    related domain's term contains the piece she wrote on the first; the
+    control's term does not contain it anywhere.
+
+    Sixteen seeds, six families each:
+
+        related    with the piece 96/96    without it 77/96
+        unrelated  with the piece 96/96    without it 96/96
+
+    The relation is constructed rather than found, and saying so is the point:
+    this shows the piece is what carries, not that any real pair of domains
+    stands in this relation.
+    """
+    from tools.run_grown_against_reset_heads import run_transfer
+
+    with_it = without = control_with = control_without = 0
+    usable = 0
+    for seed in range(2000, 2006):
+        row = run_transfer(seed=seed, families=4, within=2.0, deepest=4)
+        if "why" in row:
+            continue
+        usable += 1
+        with_it += row["related_with"]
+        without += row["related_without"]
+        control_with += row["apart_with"]
+        control_without += row["apart_without"]
+
+    assert usable >= 4, "too few seeds produced a usable domain"
+    assert with_it >= without, (with_it, without)
+    assert control_with == control_without, (control_with, control_without)
+
+
+@pytest.mark.slow
+def test_the_control_domain_really_does_not_contain_the_piece() -> None:
+    """The negative control is only a control if it is negative."""
+    import random
+
+    from tools.run_grown_against_reset_heads import Agent, _a_family_from, _attempt, _contains
+    from core.cognition.an_invented_kind import WHERE_FROM
+
+    rng = random.Random(2001)
+    names = sorted(WHERE_FROM)
+    made = _a_family_from(rng, (names[0], names[1]), [], 4)
+    assert made is not None
+    learned = Agent("learned")
+    assert _attempt(learned, made[0], 2.0)[0]
+    piece = learned.library[-1]
+
+    apart = _a_family_from(
+        rng, (names[2], names[3]), [], 4, must_not_contain=piece
+    )
+    assert apart is not None
+    assert not _contains(apart[1], piece)

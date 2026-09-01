@@ -232,6 +232,119 @@ def run_stream(
     }
 
 
+# ── experiment F: does it carry to a family that looks nothing like it? ──
+
+
+def _a_family_from(
+    rng: random.Random,
+    over: tuple[str, str],
+    library: list[Code],
+    deepest: int,
+    *,
+    must_contain: Code | None = None,
+    must_not_contain: Code | None = None,
+) -> tuple[Family, Code] | None:
+    """A family whose term is drawn under a containment condition."""
+    first, second = WHERE_FROM[over[0]], WHERE_FROM[over[1]]
+    bodies = list(
+        itertools.islice(
+            every_code(
+                deepest=deepest, variables=6, constants=(0, 1, 2), also=tuple(library)
+            ),
+            4000,
+        )
+    )
+    rng.shuffle(bodies)
+    for body in bodies[:600]:
+        if how_long(body) < 2:
+            continue
+        if must_contain is not None and not _contains(body, must_contain):
+            continue
+        if must_not_contain is not None and _contains(body, must_not_contain):
+            continue
+        places = _correspondence(body, first, second)
+        if places is None:
+            continue
+        transitions = []
+        for size, wanted in places.items():
+            before = tuple(range(100, 100 + size))
+            transitions.append((before, tuple(before[one] for one in wanted)))
+        return (
+            Family(
+                transitions=transitions,
+                over=over,
+                from_a_term_of=how_long(body),
+            ),
+            body,
+        )
+    return None
+
+
+def run_transfer(
+    *, seed: int, families: int, within: float, deepest: int
+) -> dict[str, Any]:
+    """One structure, learned on one surface, tested on another and on neither.
+
+    The three domains differ in surface — a different pair of words, so the
+    before-and-after states look unrelated — and in what is underneath. The
+    related domain's term contains the piece she wrote on the first; the
+    control's term does not contain it at all.
+
+    Both conditions get the same families, the same budget and the same words.
+    The only difference is whether the library holds what the first domain
+    taught her.
+    """
+    rng = random.Random(seed)
+    names = sorted(WHERE_FROM)
+    here, there = (names[0], names[1]), (names[2], names[3])
+
+    # The first domain, and what she writes on it.
+    made = _a_family_from(rng, here, [], deepest)
+    if made is None:
+        return {"seed": seed, "why": "no family on the first domain"}
+    first_family, latent = made
+    learned = Agent("learned")
+    solved, _cost = _attempt(learned, first_family, within)
+    if not solved or not learned.library:
+        return {"seed": seed, "why": "nothing written on the first domain"}
+    piece = learned.library[-1]
+
+    related: list[Family] = []
+    apart: list[Family] = []
+    while len(related) < families:
+        one = _a_family_from(rng, there, [piece], deepest, must_contain=piece)
+        if one is not None:
+            related.append(one[0])
+        elif len(related) == 0 and len(apart) == 0:
+            return {"seed": seed, "why": "no related family"}
+        else:
+            break
+    while len(apart) < families:
+        one = _a_family_from(rng, there, [], deepest, must_not_contain=piece)
+        if one is None:
+            break
+        apart.append(one[0])
+
+    def score(pool: list[Family], library: list[Code]) -> int:
+        got = 0
+        for family in pool:
+            agent = Agent("probe", library=list(library))
+            ok, _ = _attempt(agent, family, within)
+            got += 1 if ok else 0
+        return got
+
+    return {
+        "seed": seed,
+        "piece": how_long(piece),
+        "related": len(related),
+        "apart": len(apart),
+        "related_with": score(related, [piece]),
+        "related_without": score(related, []),
+        "apart_with": score(apart, [piece]),
+        "apart_without": score(apart, []),
+    }
+
+
 def main() -> int:
     ask = argparse.ArgumentParser(description=__doc__)
     ask.add_argument("--blocks", type=int, default=5)
@@ -240,7 +353,38 @@ def main() -> int:
     ask.add_argument("--within", type=float, default=4.0)
     ask.add_argument("--deepest", type=int, default=3)
     ask.add_argument("--out", default="")
+    ask.add_argument("--transfer", action="store_true",
+                     help="run the cross-domain check instead")
     said = ask.parse_args()
+
+    if said.transfer:
+        rows = [
+            run_transfer(
+                seed=2000 + seed,
+                families=said.per_block,
+                within=said.within,
+                deepest=said.deepest,
+            )
+            for seed in range(said.seeds)
+        ]
+        usable = [one for one in rows if "why" not in one]
+        for one in rows:
+            print(one)
+        if usable:
+            print(
+                "\nrelated  with %d  without %d   |   apart  with %d  without %d"
+                % (
+                    sum(one["related_with"] for one in usable),
+                    sum(one["related_without"] for one in usable),
+                    sum(one["apart_with"] for one in usable),
+                    sum(one["apart_without"] for one in usable),
+                )
+            )
+        if said.out:
+            from pathlib import Path
+
+            Path(said.out).write_text(json.dumps(rows, indent=2), encoding="utf-8")
+        return 0
 
     began = time.monotonic()
     found: list[dict[str, Any]] = []

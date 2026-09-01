@@ -1,0 +1,162 @@
+[
+  {
+    "seed": 2000,
+    "piece": 3,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 3,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2001,
+    "piece": 3,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 6,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2002,
+    "piece": 3,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 6,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2003,
+    "piece": 3,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 3,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2004,
+    "piece": 1,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 6,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2005,
+    "piece": 3,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 4,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2006,
+    "piece": 3,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 4,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2007,
+    "piece": 3,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 4,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2008,
+    "piece": 3,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 4,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2009,
+    "piece": 1,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 6,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2010,
+    "piece": 1,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 6,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2011,
+    "piece": 3,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 6,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2012,
+    "piece": 1,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 6,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2013,
+    "piece": 3,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 5,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2014,
+    "piece": 3,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 4,
+    "apart_with": 6,
+    "apart_without": 6
+  },
+  {
+    "seed": 2015,
+    "piece": 3,
+    "related": 6,
+    "apart": 6,
+    "related_with": 6,
+    "related_without": 4,
+    "apart_with": 6,
+    "apart_without": 6
+  }
+]
