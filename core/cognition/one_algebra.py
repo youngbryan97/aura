@@ -43,6 +43,7 @@ from typing import Any, Callable, Iterator, Mapping, Sequence
 
 __all__ = [
     "HEADS",
+    "HOW_MANY_PARTS",
     "Term",
     "what_it_rests_on",
     "a_maker_she_wrote",
@@ -135,6 +136,30 @@ HEADS: dict[str, Callable[[int, int], int]] = {
     "left over": _left_over,
     "below": _below,
     "same as": _same,
+}
+
+#: How many parts each head takes, for every head ``run`` can evaluate.
+#:
+#: One table, because there were two and they disagreed. ``run`` has always
+#: evaluated "over again"; ``read_back`` listed the heads it would accept and
+#: that head was not among them, so a maker she wrote using it was written
+#: down correctly, refused on the way back in, and logged as a term that does
+#: not read. The head the docstring above calls the one with a shape no
+#: fixed-length composition has was the one that could not survive a restart.
+#:
+#: Deriving the check from this table rather than from a second literal is
+#: what stops it happening again: a head added to ``run`` and not to here has
+#: no arity, and :func:`read_back` refuses it loudly instead of silently.
+HOW_MANY_PARTS: dict[str, int] = {
+    **dict.fromkeys(HEADS, 2),
+    "where": 0,
+    "many": 0,
+    "fixed": 0,
+    "hole": 0,
+    "through": 2,
+    "undo": 2,
+    "over again": 2,
+    "if": 3,
 }
 
 
@@ -784,14 +809,12 @@ def read_back(row: Any) -> Term | None:
     if not isinstance(row, dict):
         return None
     head = str(row.get("head") or "")
-    if head not in HEADS and head not in {
-        "where", "many", "fixed", "hole", "through", "undo", "if",
-    }:
+    wanted = HOW_MANY_PARTS.get(head)
+    if wanted is None:
         return None
     parts = tuple(
         part for part in (read_back(one) for one in row.get("parts") or ()) if part
     )
-    wanted = {"through": 2, "undo": 2, "if": 3}.get(head, 2 if head in HEADS else 0)
     if len(parts) != wanted:
         return None
     return Term(head=head, parts=parts, value=row.get("value"))
