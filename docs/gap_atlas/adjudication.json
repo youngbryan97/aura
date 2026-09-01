@@ -952,8 +952,12 @@
       "bar": "Learned attention improves unseen-task sample efficiency against static weights.",
       "plan": "Salience weights are hand-tuned beside a real ECAN. Learn allocation from downstream causal value (W9).",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/attention_policy.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "063": {
       "verdict": "PARTIAL",
@@ -1512,8 +1516,12 @@
       "bar": "At equal compute, attention-gated inference beats scan, random and top-degree baselines on held-out graph reasoning.",
       "plan": "STI/LTI exist without scale evidence. Stress-test allocation, rent, spreading and forgetting on a large learned graph.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/attention_policy.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "102": {
       "verdict": "PARTIAL",
@@ -1548,8 +1556,12 @@
       "bar": "A schematic learned in one domain materially improves search in an unrelated structurally analogous domain.",
       "plan": "Same as 182. Graph templates with variables, preconditions, causal effects and structure mapping.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/structure_mapping.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "105": {
       "verdict": "PARTIAL",
@@ -1813,8 +1825,12 @@
       "bar": "Frozen Aura clears thresholds on held-out environments with no task-specific code change.",
       "plan": "Build the bench from what she can already reach: browser, desktop apps, terminal, 2D games, simulators.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "123": {
       "verdict": "PARTIAL",
@@ -1850,8 +1866,12 @@
       "bar": "Novel interfaces acquire useful action vocabularies from interaction at a low unsafe-action rate.",
       "plan": "Vocabularies are restricted for safety by design; learn affordance-conditioned proposals inside the governed bound.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "126": {
       "verdict": "PARTIAL",
@@ -1861,8 +1881,12 @@
       "bar": "Routine embodied tasks execute at lower latency while novel or high-stakes tasks escalate to cortex.",
       "plan": "The escalation half is the safety-preserving version and matches Aura's design.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "127": {
       "verdict": "PARTIAL",
@@ -1872,8 +1896,12 @@
       "bar": "Success degrades sublinearly with horizon and recovery restores from injected failures.",
       "plan": "100-1000 action episodes with injected focus and perception faults.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "128": {
       "verdict": "PARTIAL",
@@ -1883,8 +1911,12 @@
       "bar": "Self-generated experience improves held-out competence against equal random interaction compute.",
       "plan": "ContinuousSelfPlay exists; the value-of-information curriculum and promotion gate do not.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/curriculum_optimiser.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "129": {
       "verdict": "PARTIAL",
@@ -1909,8 +1941,12 @@
       "bar": "No sensorimotor claim rests on a single environment; leave-one-family-out is reported.",
       "plan": "A promotion rule enforced in the claim registry.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "131": {
       "verdict": "PARTIAL",
@@ -1920,8 +1956,12 @@
       "bar": "Novel grounded labels learned through interaction improve instruction following without text-only demonstrations.",
       "plan": "Link linguistic ConceptHandles to tracked entities and outcomes from lived episodes.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "132": {
       "verdict": "PARTIAL",
@@ -1931,8 +1971,12 @@
       "bar": "Held-out worlds succeed on the same pursuit code with zero environment-name branches.",
       "plan": "Directly checkable: count and quarantine environment-name branches, then run held-out.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "133": {
       "verdict": "PARTIAL",
@@ -1942,8 +1986,12 @@
       "bar": "Moving objects stay continuously tracked and prediction beats sparse snapshots.",
       "plan": "Video-rate feature stream with adaptive compression into the world model.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "134": {
       "verdict": "PARTIAL",
@@ -1953,8 +2001,12 @@
       "bar": "Recovery rate and time are measured and improve independently of nominal-task success.",
       "plan": "Fault injection: wrong focus, stale frames, missed clicks, occlusion.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "135": {
       "verdict": "ABSENT",
@@ -1964,8 +2016,12 @@
       "bar": "Aura learns partner and opponent models that improve outcomes across repeated interactions.",
       "plan": "Simulated partners with persistent identity and partial observability.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/agent_model.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "136": {
       "verdict": "ABSENT",
@@ -1975,8 +2031,12 @@
       "bar": "Scaling curves predict new-environment performance and reveal bottlenecks before architectural additions.",
       "plan": "Depends on 122.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "137": {
       "verdict": "PROCESS",
@@ -1986,8 +2046,12 @@
       "bar": "Reported transfer survives a locked runner unavailable during development.",
       "plan": "Freeze environment-family splits before tuning; the preregistration hash already supports it.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "138": {
       "verdict": "SCALE",
@@ -1997,8 +2061,12 @@
       "bar": "A frozen encoder improves held-out prediction and planning across visual domains against a from-scratch encoder.",
       "plan": "64-D observations, replay 500. Local pretraining or teacher distillation with provenance and licensing.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "139": {
       "verdict": "SCALE",
@@ -2008,8 +2076,12 @@
       "bar": "Latents preserve object and action structure by linear probe and planning success.",
       "plan": "Hierarchical visual latent encoder feeding the VRNN, optionally frozen.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "140": {
       "verdict": "PARTIAL",
@@ -2019,8 +2091,12 @@
       "bar": "A latent predictor beats the reconstruction objective on downstream planning at equal compute.",
       "plan": "The VRNN reconstructs observation vectors and folds reconstruction error into surprise. Add a latent-target objective as a second arm and measure.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "141": {
       "verdict": "ABSENT",
@@ -2030,8 +2106,12 @@
       "bar": "Passive pretraining improves first-interaction prediction in unseen environments without teaching policies.",
       "plan": "Separate passive observational pretraining from active causal refinement.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "142": {
       "verdict": "PARTIAL",
@@ -2041,8 +2121,12 @@
       "bar": "Counterfactual action predictions are calibrated and improve model-predictive control.",
       "plan": "Action-conditioned GRU exists on a small space. Add an uncertainty ensemble.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "143": {
       "verdict": "OVERSTATED",
@@ -2052,8 +2136,12 @@
       "bar": "A frozen world model achieves zero or few-shot manipulation in held-out layouts.",
       "plan": "Aura has no robot. The transferable half is image-goal planning in a physics simulator; real hardware is out of scope and should be declared so.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "144": {
       "verdict": "PARTIAL",
@@ -2063,8 +2151,12 @@
       "bar": "Objects keep identity through occlusion and support causal planning in unseen scenes.",
       "plan": "Object-centric temporal tracks connected to ConceptHandles. Overlaps 196.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "145": {
       "verdict": "PARTIAL",
@@ -2074,8 +2166,12 @@
       "bar": "Affordance predictions reduce invalid actions in unseen tasks.",
       "plan": "Affordance learning is symbolic and GUI-centric. Learn heads from visual state plus action outcome.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "146": {
       "verdict": "SCALE",
@@ -2085,8 +2181,12 @@
       "bar": "Predictions stay useful across seconds and minutes and support hierarchical planning.",
       "plan": "Multi-timescale latent predictors and event segmentation. Overlaps 197.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "147": {
       "verdict": "PARTIAL",
@@ -2096,8 +2196,12 @@
       "bar": "One frozen latent encoder supports classification, tracking, prediction and planning above baselines.",
       "plan": "Freeze and probe on independent tasks with no finetuning.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "148": {
       "verdict": "PARTIAL",
@@ -2107,8 +2211,12 @@
       "bar": "Predicted confidence matches empirical transition error and improves epistemic action selection.",
       "plan": "Posterior and prior variance are exposed; confidence is a simple function of surprise. Calibrate with reliability diagrams.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "149": {
       "verdict": "PARTIAL",
@@ -2118,8 +2226,12 @@
       "bar": "Hybrid rollouts beat symbolic-only and neural-only prediction on stochastic unseen tasks.",
       "plan": "imagine() exists. Integrate with symbolic world rules through one StateHypothesis.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "150": {
       "verdict": "PARTIAL",
@@ -2129,8 +2241,12 @@
       "bar": "The same object and task are recognised across layouts, scales, themes and transforms without new rules.",
       "plan": "Screen geometry adaptation is engineered and brittle. Augmentation and object-centric normalisation.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "151": {
       "verdict": "PROCESS",
@@ -2140,8 +2256,12 @@
       "bar": "Every world-model result is traceable to a frozen data and model pair.",
       "plan": "WorldModelDataCard: sources, frames, environments, action coverage, leakage, representation version.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "152": {
       "verdict": "EVIDENCE",
@@ -2151,8 +2271,12 @@
       "bar": "A world-model treatment improves success and sample efficiency under equal action budgets.",
       "plan": "Matched MPC vs reactive vs symbolic-planner arms on the same observations; matched_budget already refuses unmatched verdicts.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "153": {
       "verdict": "ABSENT",
@@ -2162,8 +2286,12 @@
       "bar": "A scaling law identifies whether Aura is data-, model- or interface-limited.",
       "plan": "Several bounded sizes before further investment. This is 213 applied to the world model.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "154": {
       "verdict": "CAPABILITY",
@@ -2540,8 +2668,12 @@
       "bar": "One learned policy improves held-out performance at fixed compute with interpretable allocation shifts.",
       "plan": "Workspace salience, ECAN and perception priority are three policies. One policy consuming downstream causal value.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/attention_policy.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "182": {
       "verdict": "PARTIAL",
@@ -2551,8 +2683,12 @@
       "bar": "A strategy learned in A improves B with different surface vocabulary; a shuffled mapping does not.",
       "plan": "The shuffled-mapping null is what makes it a result rather than a demo.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/structure_mapping.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "183": {
       "verdict": "PARTIAL",
@@ -2758,8 +2894,12 @@
       "bar": "The planner chooses a temporal level and long-horizon predictions beat flat rollout.",
       "plan": "Fast sensory, action, episode and long-term causal timescales with abstraction links. Overlaps 146.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "198": {
       "verdict": "PARTIAL",
@@ -2770,8 +2910,12 @@
       "bar": "A recovered causal graph predicts unseen interventions better than a correlational model.",
       "plan": "Structural causal hypotheses over learned entities, distinguished by intervention.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/world_model/prediction_quality.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "199": {
       "verdict": "PARTIAL",
@@ -2844,8 +2988,12 @@
       "bar": "Repeated interaction predicts partner actions better than the language prior alone and transfers across contexts.",
       "plan": "Agent beliefs, goals and reliability as revisable hypotheses grounded in interaction. The language-prior control is the whole test.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/agent_model.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "204": {
       "verdict": "PARTIAL",
@@ -2855,8 +3003,12 @@
       "bar": "False-belief and partial-observability tasks are solved through explicit perspective state; lesions break them selectively.",
       "plan": "Bounded perspective contexts in AtomSpace with provenance and depth limits.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/agent_model.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "205": {
       "verdict": "PARTIAL",
@@ -3073,8 +3225,12 @@
       "bar": "A self-generated curriculum improves a frozen downstream suite more than random or manual-equivalent experience.",
       "plan": "Select tasks maximising expected learning progress subject to governance and resource limits.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/curriculum_optimiser.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "220": {
       "verdict": "PARTIAL",
@@ -4844,8 +5000,12 @@
       "bar": "Zero/few-shot tasks in unseen environments without environment-specific API; compare generations and transfer.",
       "plan": "Cross-world learned control. Same programme as 122/132.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "A6.10": {
       "verdict": "PARTIAL",
@@ -4855,8 +5015,12 @@
       "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
       "plan": "A policy for primitive acts instead of a model call per act. Card 126.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "A6.11": {
       "verdict": "PARTIAL",
@@ -4866,8 +5030,12 @@
       "bar": "Skill-library ablation/transfer across later tasks/worlds; ensure stale skills cannot silently claim success.",
       "plan": "Skill transfer through the policy. Card 131.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "A6.12": {
       "verdict": "PARTIAL",
@@ -4877,8 +5045,12 @@
       "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
       "plan": "Sandboxed environment learning. Aura's governance is ahead here; the sandbox is the enforcement half.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "A6.2": {
       "verdict": "PARTIAL",
@@ -4888,8 +5060,12 @@
       "bar": "Zero/few-shot tasks in unseen environments without environment-specific API; compare generations and transfer.",
       "plan": "A skill heritage is data, not architecture. The transferable half is the W5 registry holding hundreds of learned options.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "A6.3": {
       "verdict": "PARTIAL",
@@ -4899,8 +5075,12 @@
       "bar": "Sealed heterogeneous battery, multiple seeds, same Qwen weights/tools/context, matched budgets; report absolute score, Aura-minus-base delta, confidence intervals, latency and failure taxonomy.",
       "plan": "Reasoning inside the embodied loop rather than beside it - card 126's escalation split.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "A6.4": {
       "verdict": "PARTIAL",
@@ -4925,8 +5105,12 @@
       "bar": "Versioned dataset manifests; compare before/after on untouched tasks and monitor regressions/forgetting.",
       "plan": "Self-directed play with a value-of-information curriculum. Card 128.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/curriculum_optimiser.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "A6.6": {
       "verdict": "PARTIAL",
@@ -4951,8 +5135,12 @@
       "bar": "Curriculum vs random/fixed under matched environment steps; compare milestone speed, diversity, loops and downstream transfer.",
       "plan": "Model-generated tasks and rewards, governed. Card 219.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/curriculum_optimiser.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "A6.8": {
       "verdict": "PARTIAL",
@@ -4962,8 +5150,12 @@
       "bar": "Base-model parity on multimodal benchmarks plus delayed-recall/action-grounding tasks; preregister an acceptable integration-regression tolerance.",
       "plan": "Fast perception-action coupling: the policy acts, the cortex is consulted. Card 126.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "A6.9": {
       "verdict": "PARTIAL",
@@ -4973,8 +5165,12 @@
       "bar": "Every promoted architectural claim has a run bundle bound to commit/model/hardware/tasks and reproducible by a separate verifier.",
       "plan": "World diversity. Card 122.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/environment_bench.py",
+        "tests/test_environment_and_world.py"
+      ]
     },
     "A7.1": {
       "verdict": "PARTIAL",
