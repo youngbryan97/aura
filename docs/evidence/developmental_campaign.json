@@ -1,0 +1,107 @@
+{
+  "cards": [
+    "072",
+    "129",
+    "168",
+    "203"
+  ],
+  "claim_boundary": "a synthetic sub-structure library, a synthetic tool set and a synthetic partner; measures whether the campaign machinery reports growth, tool learning and partner modelling correctly and voids on the confounds, not Aura's development over its own life",
+  "config": {
+    "blocks": 10,
+    "contexts": 5,
+    "interactions": 400,
+    "length": 12,
+    "seed": 1618033,
+    "tasks_per_block": 60,
+    "tool_trials": 400,
+    "tools": 6
+  },
+  "development": {
+    "blocks": 10,
+    "contaminated_fraction": 0.0,
+    "context_parity": true,
+    "context_tokens_per_arm": 2048,
+    "deltas": [
+      0.0,
+      0.12121212121212133,
+      0.14242424242424245,
+      0.1454545454545454,
+      0.16060606060606064,
+      0.1621212121212121,
+      0.156060606060606,
+      0.15909090909090906,
+      0.18787878787878798,
+      0.19999999999999996
+    ],
+    "effect": "compounding",
+    "lesion_restores_baseline": true,
+    "library_growth": [
+      927,
+      1491,
+      1901,
+      2237,
+      2543,
+      2812,
+      3052,
+      3253,
+      3428,
+      3572
+    ],
+    "regression_rate": 0.0,
+    "slope": 0.014444444444444439,
+    "slope_ci": [
+      0.005873806558738059,
+      0.023163196207888936
+    ],
+    "statement": "the gap grows with experience (slope +0.01444) and lesioning the acquired artifacts erases it",
+    "tasks_growth_made_worse": 0,
+    "tasks_scored": 600,
+    "void": false,
+    "void_because": []
+  },
+  "partner": {
+    "held_out_context": "topic4",
+    "in_context": {
+      "delta": 0.5325,
+      "learned_something": true,
+      "measurable": true,
+      "model_accuracy": 0.765,
+      "n": 400,
+      "prior_accuracy": 0.2325
+    },
+    "interactions": 400,
+    "per_context_variant_transfers": false,
+    "reliability": {
+      "by_topic": {
+        "topic0": 0.8313253012048193,
+        "topic1": 0.7941176470588235,
+        "topic2": 0.7884615384615384,
+        "topic3": 0.6666666666666666
+      },
+      "highest": [
+        "topic0",
+        0.8313253012048193
+      ],
+      "lowest": [
+        "topic3",
+        0.6666666666666666
+      ],
+      "measured": true,
+      "spread": 0.16465863453815266
+    },
+    "transfer_partner_model_accuracy": 0.73,
+    "transfer_per_context_model_accuracy": 0.27,
+    "transfer_prior_accuracy": 0.27,
+    "transfer_trials": 100,
+    "transfers": true
+  },
+  "schema": "aura.developmental_campaign.v1",
+  "tools": {
+    "competence_is": "ten correct choices in a row",
+    "demonstrated_accuracy": 0.995,
+    "demonstrations_to_competence": 14,
+    "static_accuracy": 0.325,
+    "tools": 6,
+    "trials": 400
+  }
+}

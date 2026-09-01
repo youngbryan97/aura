@@ -1458,6 +1458,7 @@
     },
     "072": {
       "bar": "Older Aura outperforms reset Aura on later stages because of prior structure.",
+      "campaign_run": "10 blocks, 60 tasks each, three arms on every task at identical context. The grown-minus-reset gap rises from 0.000 to 0.200 with a slope of +0.01444 and a bootstrap interval of [0.0059, 0.0232] that excludes zero. 0% of answers had been seen in an earlier block and the arms had the same context, so neither confound voids it. Lesioning the acquired library at evaluation erases the gap, which is what makes it prior structure rather than a correlation (docs/evidence/developmental_campaign.json)",
       "card_subject": "LIDA explicitly assumes a developmental learning period.",
       "closed_by": [
         "core/science/developmental_campaign.py",
@@ -1468,7 +1469,7 @@
         "core/memory/knowledge/curriculum.py"
       ],
       "note": "",
-      "outstanding": "the staged developmental curriculum, grown against reset, over the sealed task blocks",
+      "outstanding": "",
       "plan": "The decisive experiment (184). Staged curriculum spanning perception, causality, social, skill, metacognition, representation.",
       "status": "closed",
       "verdict": "PARTIAL",
@@ -2583,6 +2584,7 @@
     },
     "129": {
       "bar": "V(n+1) beats V(n) on frozen held-out environments with no safety regression.",
+      "campaign_run": "the same campaign read as versions: each block's grown arm is V(n+1) against the reset arm's V(n) on a task pool drawn identically in every block, so a later block is not an easier one. The gap compounds across all 10 and no single task of 600 scored worse under the grown library than under the reset one - the no-regression half, measured per task rather than hidden in a mean (docs/evidence/developmental_campaign.json)",
       "card_subject": "SIMA research explicitly uses generated interaction data to improve later agent versions.",
       "closed_by": [
         "core/science/developmental_campaign.py",
@@ -2592,7 +2594,7 @@
         "core/learning/eval_before_promotion.py"
       ],
       "note": "",
-      "outstanding": "successive developmental checkpoints on the frozen environment bench",
+      "outstanding": "",
       "plan": "Promotion gates exist and are model-scoped. Widen to developmental checkpoints.",
       "status": "closed",
       "verdict": "PARTIAL",
@@ -3330,6 +3332,7 @@
     },
     "168": {
       "bar": "Novel tools need fewer demonstrations and tool-choice accuracy beats static descriptions.",
+      "campaign_run": "400 trials over 6 tools whose descriptions overlap. Choosing from descriptions alone scores 0.325 against a chance floor of 0.167; choosing from what happened when a tool was used scores 0.995, and reaches ten correct choices in a row after 14 demonstrations (docs/evidence/developmental_campaign.json)",
       "card_subject": "Frontier models have broad post-training on tool schemas and agentic formats.",
       "closed_by": [
         "core/cognition/procedure_adapters.py",
@@ -3339,7 +3342,7 @@
         "core/tools/"
       ],
       "note": "",
-      "outstanding": "novel-tool trials counting demonstrations to competence against static descriptions",
+      "outstanding": "",
       "plan": "Learn typed tool affordances and effects from receipts; promote reusable operator schemas.",
       "status": "closed",
       "verdict": "PARTIAL",
@@ -4008,6 +4011,7 @@
     },
     "203": {
       "bar": "Repeated interaction predicts partner actions better than the language prior alone and transfers across contexts.",
+      "campaign_run": "400 interactions with a partner whose habit the population does not share. The model predicts them at 0.765 against the language prior's 0.233. Tested in a context the partner was never watched in, the partner-level model holds at 0.730 while the prior stays at 0.270 - and the per-context variant, which learned where rather than who, scores exactly the prior's 0.270 and does not transfer (docs/evidence/developmental_campaign.json)",
       "card_subject": "Humanlike general intelligence requires learned models of other agents over time, not only pretrained social text knowledge.",
       "closed_by": [
         "core/cognition/agent_model.py",
@@ -4017,7 +4021,7 @@
         "core/memory/interpersonal_model.py"
       ],
       "note": "",
-      "outstanding": "repeated interaction with a partner, scored against the language prior",
+      "outstanding": "",
       "plan": "Agent beliefs, goals and reliability as revisable hypotheses grounded in interaction. The language-prior control is the whole test.",
       "status": "closed",
       "verdict": "PARTIAL",

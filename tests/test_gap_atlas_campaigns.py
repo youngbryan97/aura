@@ -484,3 +484,83 @@ def test_the_allocation_evidence_reports_against_an_oracle():
     # never lost would mean the world was built to make it win.
     assert search["value_guided_beats_fixed_depth"] < search["of"]
     assert allocation["adaptive_beats_single"] < allocation["of"]
+
+
+# ── grown against reset, and the lesion that makes it causal ──────────────
+#
+# Cards 072, 129, 168 and 203.
+
+
+def test_growth_survives_the_three_confounds_and_the_lesion_erases_it():
+    from tools.campaigns.developmental_campaign_run import run_campaign
+
+    result = run_campaign(blocks=8, tasks_per_block=40, length=12, seed=31)
+    assert not result["void"], result["void_because"]
+    assert result["contaminated_fraction"] == 0.0
+    assert result["context_parity"]
+    # The gap grows, and the interval excludes zero.
+    assert result["slope"] > 0
+    assert result["slope_ci"][0] > 0
+    # The half that makes it causal rather than correlated.
+    assert result["lesion_restores_baseline"]
+
+
+def test_growth_never_made_a_single_task_worse():
+    """Card 129's other half. A mean that improved can hide the tasks it cost."""
+    from tools.campaigns.developmental_campaign_run import run_campaign
+
+    result = run_campaign(blocks=8, tasks_per_block=40, length=12, seed=31)
+    assert result["tasks_scored"] > 0
+    assert result["tasks_growth_made_worse"] == 0
+
+
+def test_demonstrations_beat_a_description_that_is_better_than_chance():
+    from tools.campaigns.developmental_campaign_run import tool_learning
+
+    result = tool_learning(tools=6, trials=400, seed=31)
+    chance = 1.0 / 6
+    # A baseline at chance is not a baseline; this one reads the descriptions
+    # and gets real information out of them.
+    assert result["static_accuracy"] > chance
+    assert result["demonstrated_accuracy"] > result["static_accuracy"]
+    assert result["demonstrations_to_competence"] is not None
+    assert result["demonstrations_to_competence"] < result["trials"]
+
+
+def test_knowing_the_partner_beats_the_prior_and_carries_to_a_new_context():
+    from tools.campaigns.developmental_campaign_run import partner_model
+
+    result = partner_model(interactions=400, contexts=5, seed=31)
+    seen = result["in_context"]
+    assert seen["measurable"] and seen["learned_something"]
+    assert seen["model_accuracy"] > seen["prior_accuracy"]
+    assert result["transfers"]
+    assert (
+        result["transfer_partner_model_accuracy"]
+        > result["transfer_prior_accuracy"]
+    )
+
+
+def test_a_model_that_learned_the_context_instead_of_the_partner_cannot_transfer():
+    """The negative control that makes transfer a claim rather than a word."""
+    from tools.campaigns.developmental_campaign_run import partner_model
+
+    result = partner_model(interactions=400, contexts=5, seed=31)
+    assert not result["per_context_variant_transfers"]
+    assert result["transfer_per_context_model_accuracy"] < result[
+        "transfer_partner_model_accuracy"
+    ]
+
+
+def test_the_developmental_evidence_carries_all_four_arms():
+    payload = _sealed("developmental_campaign.json")
+    assert set(payload["cards"]) == {"072", "129", "168", "203"}
+    development = payload["development"]
+    assert not development["void"]
+    assert development["lesion_restores_baseline"]
+    assert development["tasks_growth_made_worse"] == 0
+    assert payload["tools"]["demonstrated_accuracy"] > payload["tools"][
+        "static_accuracy"
+    ]
+    assert payload["partner"]["transfers"]
+    assert not payload["partner"]["per_context_variant_transfers"]
