@@ -1,4 +1,4 @@
-.PHONY: skill-scope skill-scope-baseline lock-advisories release-dry-run release-ready lint-surface lint-surface-grow product-facts threat-model red-team method-size-changed deps-generate deps-check deps-gate lockfiles lockfiles-check review-policy branch-protection branch-protection-policy typed-surface typed-surface-baseline typecheck-changed coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline architecture-lint gap-atlas cognitive-complexity reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report rlc-27b-inventory rlc-27b-tissue rlc-27b-grounding rlc-27b-mtp rlc-27b-package rlc-27b-steering-plan rlc-27b-queue rlc-27b-critical-path rlc-27b-execution-plan rlc-27b-readiness rlc-27b-preflight
+.PHONY: skill-scope skill-scope-baseline lock-advisories release-dry-run release-ready lint-surface lint-surface-grow product-facts threat-model red-team method-size-changed deps-generate deps-check deps-gate lockfiles lockfiles-check review-policy branch-protection branch-protection-policy typed-surface typed-surface-baseline typecheck-changed coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline architecture-lint gap-atlas campaigns cognitive-complexity reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report rlc-27b-inventory rlc-27b-tissue rlc-27b-grounding rlc-27b-mtp rlc-27b-package rlc-27b-steering-plan rlc-27b-queue rlc-27b-critical-path rlc-27b-execution-plan rlc-27b-readiness rlc-27b-preflight
 
 
 PYTHON ?= python
@@ -275,6 +275,26 @@ architecture-lint:
 gap-atlas:
 	@echo "📋 Checking the comparative-review gap atlas..."
 	@$(PYTHON) tools/gap_atlas.py --check
+
+# The campaigns behind seventeen gap-atlas cards. Not a gate: these take
+# minutes and rewrite docs/evidence/, so they run when a result is being
+# re-established, not on every change. tests/test_gap_atlas_campaigns.py is
+# the gate, and it checks that each tool still runs and that the sealed
+# evidence still says what the card was closed on.
+campaigns:
+	@echo "🔬 Re-running the gap-atlas campaigns (rewrites docs/evidence/)..."
+	@$(PYTHON) tools/campaigns/atomspace_scale.py --sizes 10000,50000,100000,500000,1000000
+	@$(PYTHON) tools/campaigns/ecan_stress.py --atoms 40000 --trials 40
+	@$(PYTHON) tools/campaigns/procedure_lifetime.py --tasks 64 --firings 2000000
+	@$(PYTHON) tools/campaigns/procedure_lifetime.py --tasks 32 --firings 400000 \
+		--sweep-decay 0.98,0.99,0.995,0.999,1.0
+	@$(PYTHON) tools/campaigns/world_model_campaign.py --trials 40
+	@$(PYTHON) tools/campaigns/allocation_campaign.py --trials 200
+	@$(PYTHON) tools/campaigns/developmental_campaign_run.py
+	@$(PYTHON) tools/campaigns/retrieval_latency_campaign.py --recalls 800
+	@$(PYTHON) tools/campaigns/steering_campaign.py --tasks 400
+	@$(PYTHON) tools/campaigns/tracking_campaign.py --sequences 200
+	@echo "✅ Campaigns complete; docs/evidence/ rewritten"
 
 layering:
 	@echo "🏛  Checking architectural layering (DEPS include rules)..."
