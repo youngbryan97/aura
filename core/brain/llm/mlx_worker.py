@@ -153,6 +153,121 @@ _FLAG_SURFACE_RETRY_WALL_S = _declare_flag(
 )
 logger = logging.getLogger("MLXWorker")
 
+# One language-to-IR observation must stay small enough to yield immediately
+# to a foreground turn. Character admission happens before tokenization;
+# token admission happens before the model forward.
+_HIDDEN_SEQUENCE_MAX_INPUT_CHARS = 4096
+_HIDDEN_SEQUENCE_MAX_TOKENS = 512
+_HIDDEN_SEQUENCE_MAX_WIDTH = 32768
+
+
+def _encode_hidden_sequence_response(
+    *,
+    model: Any,
+    tokenizer: Any,
+    text: str,
+    request_id: str,
+    encoder_cache: dict[str, Any],
+    worker_identity: Mapping[str, Any],
+    metal_semaphore: Any,
+) -> dict[str, Any]:
+    """Encode one bounded token sequence with one non-generative forward."""
+
+    if type(text) is not str:
+        raise TypeError("hidden sequence text must be a string")
+    input_char_count = len(text)
+    if input_char_count < 1:
+        raise ValueError("hidden sequence text must not be empty")
+    if input_char_count > _HIDDEN_SEQUENCE_MAX_INPUT_CHARS:
+        raise ValueError(
+            "hidden sequence input exceeds "
+            f"{_HIDDEN_SEQUENCE_MAX_INPUT_CHARS} characters"
+        )
+
+    raw_token_ids = tokenizer.encode(text)
+    if not isinstance(raw_token_ids, (list, tuple)):
+        try:
+            raw_token_ids = list(raw_token_ids)
+        except TypeError as exc:
+            raise TypeError("tokenizer returned a non-sequence") from exc
+    token_ids = [int(token_id) for token_id in raw_token_ids]
+    token_count = len(token_ids)
+    if token_count < 1:
+        raise ValueError("hidden sequence tokenization was empty")
+    if token_count > _HIDDEN_SEQUENCE_MAX_TOKENS:
+        raise ValueError(
+            "hidden sequence input exceeds "
+            f"{_HIDDEN_SEQUENCE_MAX_TOKENS} tokens"
+        )
+    if any(token_id < 0 for token_id in token_ids):
+        raise ValueError("hidden sequence token ids must be nonnegative")
+
+    from core.brain.nonparametric_generation import MLXEncoder
+
+    if encoder_cache.get("encoder") is None:
+        encoder_cache["encoder"] = MLXEncoder(model, tokenizer)
+    encoder = encoder_cache["encoder"]
+    with metal_semaphore:
+        hidden = encoder.encode_hidden_sequence_ids(token_ids)
+
+    shape = tuple(getattr(hidden, "shape", ()))
+    if len(shape) != 2 or shape[0] != token_count:
+        raise ValueError(
+            "hidden sequence shape does not match token count: "
+            f"tokens={token_count} shape={shape}"
+        )
+    hidden_size = int(shape[1])
+    if hidden_size < 1 or hidden_size > _HIDDEN_SEQUENCE_MAX_WIDTH:
+        raise ValueError(f"hidden sequence width is invalid: {hidden_size}")
+
+    import numpy as np
+
+    hidden_array = np.asarray(hidden, dtype="<f4", order="C")
+    if not np.all(np.isfinite(hidden_array)):
+        raise ValueError("hidden sequence contains non-finite values")
+    norms = np.linalg.norm(hidden_array, axis=1)
+    invalid_norms = np.flatnonzero(np.abs(norms - 1.0) > 1e-4)
+    if invalid_norms.size:
+        row_index = int(invalid_norms[0])
+        raise ValueError(
+            f"hidden sequence row {row_index} is not unit normalized: "
+            f"{float(norms[row_index])}"
+        )
+    hidden_state_bytes = hidden_array.tobytes(order="C")
+    hidden_state_sha256 = hashlib.sha256(hidden_state_bytes).hexdigest()
+
+    return {
+        "id": request_id,
+        "action": "encode_hidden_sequence",
+        "status": "ok",
+        "token_ids": token_ids,
+        "hidden_state_bytes": hidden_state_bytes,
+        "hidden_shape": [token_count, hidden_size],
+        "hidden_dtype": "float32_le",
+        "receipt": {
+            "schema": "aura.hidden_sequence_encoding.v1",
+            "request_id": request_id,
+            "action": "encode_hidden_sequence",
+            "input_char_count": input_char_count,
+            "token_count": token_count,
+            "hidden_size": hidden_size,
+            "hidden_state_bytes": len(hidden_state_bytes),
+            "hidden_state_sha256": hidden_state_sha256,
+            "transport": "packed_float32_le",
+            "limits": {
+                "max_input_chars": _HIDDEN_SEQUENCE_MAX_INPUT_CHARS,
+                "max_tokens": _HIDDEN_SEQUENCE_MAX_TOKENS,
+                "max_hidden_size": _HIDDEN_SEQUENCE_MAX_WIDTH,
+            },
+            "model_basis": dict(worker_identity),
+            "forward_passes": 1,
+            "causal_full_sequence": True,
+            "sampling": False,
+            "generated_tokens": 0,
+            "generated_text": False,
+        },
+    }
+
 
 def _record_mlx_degradation(
     exc: BaseException,
@@ -11601,6 +11716,38 @@ def _mlx_worker_loop(
                     response.update({"status": "ok", "vectors": vectors})
                 except (AttributeError, IndexError, RuntimeError, TypeError, ValueError) as exc:
                     response.update({"status": "error", "message": f"{type(exc).__name__}: {exc}"})
+                ipc_writer.put(response)
+
+            elif action == "encode_hidden_sequence":
+                request_id = str(job.get("id") or "")
+                response: dict[str, Any] = {
+                    "id": request_id,
+                    "action": "encode_hidden_sequence",
+                }
+                try:
+                    response = _encode_hidden_sequence_response(
+                        model=model,
+                        tokenizer=tokenizer,
+                        text=job.get("text"),
+                        request_id=request_id,
+                        encoder_cache=_hidden_encoder,
+                        worker_identity=_current_worker_identity(),
+                        metal_semaphore=metal_semaphore,
+                    )
+                except (
+                    AttributeError,
+                    IndexError,
+                    OverflowError,
+                    RuntimeError,
+                    TypeError,
+                    ValueError,
+                ) as exc:
+                    response.update(
+                        {
+                            "status": "error",
+                            "message": f"{type(exc).__name__}: {exc}",
+                        }
+                    )
                 ipc_writer.put(response)
 
             elif action == "ping":

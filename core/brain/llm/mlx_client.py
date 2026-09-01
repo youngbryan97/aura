@@ -61,7 +61,12 @@ from core.utils.memory_monitor import get_memory_pressure_snapshot
 from core.utils.task_tracker import get_task_tracker
 
 from .chat_format import format_chatml_messages, format_chatml_prompt
-from .mlx_worker import _mlx_worker_loop
+from .mlx_worker import (
+    _HIDDEN_SEQUENCE_MAX_INPUT_CHARS,
+    _HIDDEN_SEQUENCE_MAX_TOKENS,
+    _HIDDEN_SEQUENCE_MAX_WIDTH,
+    _mlx_worker_loop,
+)
 
 #: Returned by an extracted block that did NOT return early. A unique
 #: object, so no value a block legitimately returns can be mistaken for it.
@@ -3001,6 +3006,7 @@ def _requested_output_contract_generation_floor(contract: Any) -> int:
 _TERMINAL_WORKER_ACTIONS: frozenset[str] = frozenset(
     {
         "encode_hidden",
+        "encode_hidden_sequence",
         "generate",
         "generate_batch",
         "latent_reason",
@@ -11813,6 +11819,234 @@ class MLXLocalClient:
             return []
         vectors = response.get("vectors")
         return vectors if isinstance(vectors, list) else []
+
+    async def encode_hidden_sequence(
+        self,
+        text: str,
+        *,
+        timeout_s: float = 8.0,
+    ) -> dict[str, Any] | None:
+        """Return token-level resident hidden states without generating text.
+
+        ``None`` means the optional observation could not own the resident
+        lane immediately. Invalid input or an invalid worker response raises;
+        a caller must not confuse corrupt neural evidence with backpressure.
+        """
+
+        if type(text) is not str:
+            raise TypeError("hidden sequence text must be a string")
+        if not text:
+            raise ValueError("hidden sequence text must not be empty")
+        if len(text) > _HIDDEN_SEQUENCE_MAX_INPUT_CHARS:
+            raise ValueError(
+                "hidden sequence input exceeds "
+                f"{_HIDDEN_SEQUENCE_MAX_INPUT_CHARS} characters"
+            )
+
+        process = getattr(self, "_process", None)
+        refusal = ""
+        if getattr(self, "_shutting_down", False):
+            refusal = "shutting_down"
+        elif not getattr(self, "_init_done", False):
+            refusal = "worker_not_initialised"
+        elif process is None or not process.is_alive():
+            refusal = "worker_not_resident"
+        elif _foreground_owner_active():
+            refusal = "foreground_active"
+        elif int(getattr(self, "_active_generations", 0) or 0) > 0:
+            refusal = "foreground_busy"
+        elif getattr(self, "_warmup_in_flight", False):
+            refusal = "worker_warming"
+        if refusal:
+            logger.info("Hidden-sequence read declined: %s", refusal)
+            return None
+
+        request_id = uuid.uuid4().hex
+        action = "encode_hidden_sequence"
+        owner_label = "model_hidden_sequence"
+        if not self._try_acquire_request_lock(
+            owner_label=owner_label,
+            owner_token=request_id,
+        ):
+            logger.info("Hidden-sequence read declined: request_lane_busy")
+            return None
+
+        future: SharedFuture | None = None
+        detached = False
+        lane_protected = False
+        response: Any = None
+        try:
+            process = getattr(self, "_process", None)
+            if _foreground_owner_active():
+                logger.info("Hidden-sequence read declined: foreground_active_after_lane")
+                return None
+            if (
+                getattr(self, "_shutting_down", False)
+                or not getattr(self, "_init_done", False)
+                or process is None
+                or not process.is_alive()
+                or int(getattr(self, "_active_generations", 0) or 0) > 0
+                or getattr(self, "_warmup_in_flight", False)
+            ):
+                logger.info("Hidden-sequence read declined: worker_changed_after_lane")
+                return None
+            if not await self._set_durable_lane_preemptible(False):
+                logger.info("Hidden-sequence read declined: model_lane_fence_lost")
+                return None
+            lane_protected = True
+            if _foreground_owner_active():
+                logger.info("Hidden-sequence read declined: foreground_active_after_fence")
+                return None
+
+            self._job_seq_counter += 1
+            request = {
+                "id": request_id,
+                "seq": self._job_seq_counter,
+                "action": action,
+                "text": text,
+            }
+            future = _new_shared_future()
+            self._pending_generations[request_id] = future
+            self._current_gen_future = future
+            self._active_generations += 1
+            self._active_generation_started_at = time.time()
+            await run_io_bound(
+                self._req_q.put,
+                self._authorize_job(
+                    request,
+                    principal="mlx_client.encode_hidden_sequence",
+                ),
+                True,
+                2.0,
+            )
+            response = await _await_shared_future(future, timeout_s=max(1.0, timeout_s))
+        except TimeoutError:
+            if future is None:
+                return None
+            detached = self._register_detached_worker_request(
+                request_id,
+                future,
+                owner_label=owner_label,
+            )
+            if detached:
+                return None
+            try:
+                response = future.result()
+            except (
+                cfutures.CancelledError,
+                cfutures.InvalidStateError,
+                asyncio.CancelledError,
+            ):
+                return None
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise RuntimeError(
+                f"hidden sequence IPC failed: {type(exc).__name__}: {exc}"
+            ) from exc
+        finally:
+            try:
+                if future is not None and not detached:
+                    await asyncio.shield(
+                        self._finish_generation_ownership(request_id, future, None)
+                    )
+                elif lane_protected and not detached:
+                    released = await asyncio.shield(
+                        self._set_durable_lane_preemptible(True)
+                    )
+                    if not released:
+                        self._durable_lane_release_owed = True
+            finally:
+                if not detached:
+                    self._release_request_lock_if_owned(
+                        owner_label=owner_label,
+                        owner_token=request_id,
+                    )
+
+        if not isinstance(response, dict):
+            raise RuntimeError("hidden sequence worker response is not an object")
+        if response.get("id") != request_id or response.get("action") != action:
+            raise RuntimeError("hidden sequence worker response identity mismatch")
+        if response.get("status") != "ok":
+            message = str(response.get("message") or "worker rejected request")
+            raise RuntimeError(f"hidden sequence worker error: {message[:240]}")
+        return self._validate_hidden_sequence_response(text, response)
+
+    def _validate_hidden_sequence_response(
+        self,
+        text: str,
+        response: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        token_ids = response.get("token_ids")
+        hidden_state_bytes = response.get("hidden_state_bytes")
+        hidden_shape = response.get("hidden_shape")
+        hidden_dtype = response.get("hidden_dtype")
+        receipt = response.get("receipt")
+        if not isinstance(token_ids, list) or not (
+            1 <= len(token_ids) <= _HIDDEN_SEQUENCE_MAX_TOKENS
+        ):
+            raise RuntimeError("hidden sequence token ids are malformed")
+        if any(type(token_id) is not int or token_id < 0 for token_id in token_ids):
+            raise RuntimeError("hidden sequence token ids are malformed")
+        if not isinstance(receipt, dict):
+            raise RuntimeError("hidden sequence receipt is missing")
+
+        hidden_size = receipt.get("hidden_size")
+        if type(hidden_size) is not int or not (
+            1 <= hidden_size <= _HIDDEN_SEQUENCE_MAX_WIDTH
+        ):
+            raise RuntimeError("hidden sequence width is malformed")
+        expected_shape = [len(token_ids), hidden_size]
+        if hidden_shape != expected_shape or hidden_dtype != "float32_le":
+            raise RuntimeError("hidden sequence shape or dtype is malformed")
+        if not isinstance(hidden_state_bytes, bytes):
+            raise RuntimeError("hidden sequence payload is not packed bytes")
+        expected_bytes = len(token_ids) * hidden_size * 4
+        if len(hidden_state_bytes) != expected_bytes:
+            raise RuntimeError("hidden sequence payload length is malformed")
+
+        import numpy as np
+
+        hidden_states = np.frombuffer(hidden_state_bytes, dtype="<f4").reshape(
+            len(token_ids), hidden_size
+        )
+        if not np.all(np.isfinite(hidden_states)):
+            raise RuntimeError("hidden sequence payload is not finite")
+        norms = np.linalg.norm(hidden_states, axis=1)
+        if np.any(np.abs(norms - 1.0) > 1e-4):
+            raise RuntimeError("hidden sequence payload is not unit normalized")
+
+        expected_limits = {
+            "max_input_chars": _HIDDEN_SEQUENCE_MAX_INPUT_CHARS,
+            "max_tokens": _HIDDEN_SEQUENCE_MAX_TOKENS,
+            "max_hidden_size": _HIDDEN_SEQUENCE_MAX_WIDTH,
+        }
+        expected_identity = self.get_worker_identity_snapshot()
+        expected_receipt = {
+            "schema": "aura.hidden_sequence_encoding.v1",
+            "request_id": response.get("id"),
+            "action": "encode_hidden_sequence",
+            "input_char_count": len(text),
+            "token_count": len(token_ids),
+            "hidden_size": hidden_size,
+            "hidden_state_bytes": expected_bytes,
+            "hidden_state_sha256": hashlib.sha256(hidden_state_bytes).hexdigest(),
+            "transport": "packed_float32_le",
+            "limits": expected_limits,
+            "model_basis": expected_identity,
+            "forward_passes": 1,
+            "causal_full_sequence": True,
+            "sampling": False,
+            "generated_tokens": 0,
+            "generated_text": False,
+        }
+        if receipt != expected_receipt:
+            raise RuntimeError(
+                "hidden sequence receipt does not match the request or model basis"
+            )
+        return {
+            "token_ids": list(token_ids),
+            "hidden_states": hidden_states.copy(),
+            "receipt": copy.deepcopy(receipt),
+        }
 
     def soft_cancel_active_generation(
         self, reason: str = "foreground_preemption"
