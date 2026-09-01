@@ -339,7 +339,21 @@ def test_geometry_is_learned_for_four_inputs_and_three_steps() -> None:
     assert (model.input_count, model.step_count) == (4, 3)
     assert model.training_receipt["input_count"] == 4
     assert model.training_receipt["step_count"] == 3
+    assert model.training_receipt["classifier_sharing"] == "across_step_slots"
+    assert model.training_receipt["shared_argument_support"] == [
+        [0, 1, 2, 4, 5],
+        [1, 2, 3, 4, 5],
+    ]
     assert len(model.pointer_heads) == 13
+    assert all(
+        head.to_dict() == model.operation_heads[0].to_dict()
+        for head in model.operation_heads
+    )
+    assert all(
+        heads[position].to_dict() == model.argument_heads[0][position].to_dict()
+        for heads in model.argument_heads
+        for position in range(2)
+    )
     assert outcome.ir is not None
     assert outcome.ir.to_program() == held_out.ir.to_program()
     assert semantic_program_transducer_from_dict(model.to_dict()).to_dict() == model.to_dict()

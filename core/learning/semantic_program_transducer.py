@@ -76,7 +76,12 @@ _RECEIPT_FIELDS: Final = {
     "correctness_authority",
     "receipt_sha256",
 }
-_RECEIPT_FIELDS_V2: Final = _RECEIPT_FIELDS | {"input_count", "step_count"}
+_RECEIPT_FIELDS_V2: Final = _RECEIPT_FIELDS | {
+    "classifier_sharing",
+    "input_count",
+    "shared_argument_support",
+    "step_count",
+}
 
 
 def _sha(value: Any) -> str:
@@ -333,6 +338,22 @@ class SemanticProgramTransducer:
                 and (
                     receipt.get("input_count") != self.input_count
                     or receipt.get("step_count") != self.step_count
+                    or receipt.get("classifier_sharing") != "across_step_slots"
+                    or receipt.get("shared_argument_support")
+                    != [
+                        sorted(int(label) for label in self.argument_heads[0][position].labels)
+                        for position in range(2)
+                    ]
+                    or any(
+                        head.to_dict() != self.operation_heads[0].to_dict()
+                        for head in self.operation_heads[1:]
+                    )
+                    or any(
+                        heads[position].to_dict()
+                        != self.argument_heads[0][position].to_dict()
+                        for heads in self.argument_heads[1:]
+                        for position in range(2)
+                    )
                 )
             )
             or any(
@@ -562,6 +583,10 @@ def fit_semantic_program_transducer(
         raise ValueError("semantic transducer training hidden widths differ")
     input_count, step_count = next(iter(geometries))
     roles = _pointer_roles(input_count, step_count)
+    legacy = (input_count, step_count) == (
+        SEMANTIC_TRANSDUCER_INPUTS,
+        SEMANTIC_TRANSDUCER_STEPS,
+    )
 
     pointer_heads: dict[str, LinearPointerHead] = {}
     token_features = np.concatenate([item.hidden_states for item in training], axis=0)
@@ -593,43 +618,81 @@ def fit_semantic_program_transducer(
             end_bias,
         )
 
-    operation_heads: list[LinearClassifierHead] = []
-    argument_heads: list[tuple[LinearClassifierHead, LinearClassifierHead]] = []
-    for step in range(step_count):
-        operation_heads.append(
-            _fit_classifier(
-                np.stack(
-                    [
-                        _pool(
-                            item.hidden_states,
-                            item.ir.instructions[step].operation_span,
-                        )
-                        for item in training
-                    ]
-                ),
-                [item.ir.instructions[step].op for item in training],
-            )
-        )
-        step_argument_heads: list[LinearClassifierHead] = []
-        for position in range(2):
-            step_argument_heads.append(
+    if legacy:
+        operation_heads: list[LinearClassifierHead] = []
+        argument_heads: list[tuple[LinearClassifierHead, LinearClassifierHead]] = []
+        for step in range(step_count):
+            operation_heads.append(
                 _fit_classifier(
                     np.stack(
                         [
                             _pool(
                                 item.hidden_states,
-                                item.ir.instructions[step].argument_spans[position],
+                                item.ir.instructions[step].operation_span,
                             )
                             for item in training
                         ]
                     ),
-                    [
-                        str(item.ir.instructions[step].args[position])
-                        for item in training
-                    ],
+                    [item.ir.instructions[step].op for item in training],
                 )
             )
-        argument_heads.append((step_argument_heads[0], step_argument_heads[1]))
+            step_argument_heads: list[LinearClassifierHead] = []
+            for position in range(2):
+                step_argument_heads.append(
+                    _fit_classifier(
+                        np.stack(
+                            [
+                                _pool(
+                                    item.hidden_states,
+                                    item.ir.instructions[step].argument_spans[position],
+                                )
+                                for item in training
+                            ]
+                        ),
+                        [
+                            str(item.ir.instructions[step].args[position])
+                            for item in training
+                        ],
+                    )
+                )
+            argument_heads.append((step_argument_heads[0], step_argument_heads[1]))
+    else:
+        shared_operation = _fit_classifier(
+            np.stack(
+                [
+                    _pool(item.hidden_states, instruction.operation_span)
+                    for item in training
+                    for instruction in item.ir.instructions
+                ]
+            ),
+            [
+                instruction.op
+                for item in training
+                for instruction in item.ir.instructions
+            ],
+        )
+        shared_arguments = tuple(
+            _fit_classifier(
+                np.stack(
+                    [
+                        _pool(
+                            item.hidden_states,
+                            instruction.argument_spans[position],
+                        )
+                        for item in training
+                        for instruction in item.ir.instructions
+                    ]
+                ),
+                [
+                    str(instruction.args[position])
+                    for item in training
+                    for instruction in item.ir.instructions
+                ],
+            )
+            for position in range(2)
+        )
+        operation_heads = [shared_operation for _ in range(step_count)]
+        argument_heads = [shared_arguments for _ in range(step_count)]
 
     coefficient_body = {
         "pointer_heads": {
@@ -672,14 +735,21 @@ def fit_semantic_program_transducer(
         "generated_compiler_text_available": False,
         "correctness_authority": False,
     }
-    legacy = (input_count, step_count) == (
-        SEMANTIC_TRANSDUCER_INPUTS,
-        SEMANTIC_TRANSDUCER_STEPS,
-    )
     if not legacy:
         receipt_body["schema"] = SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
         receipt_body["input_count"] = input_count
         receipt_body["step_count"] = step_count
+        receipt_body["classifier_sharing"] = "across_step_slots"
+        receipt_body["shared_argument_support"] = [
+            sorted(
+                {
+                    instruction.args[position]
+                    for item in training
+                    for instruction in item.ir.instructions
+                }
+            )
+            for position in range(2)
+        ]
     receipt = {**receipt_body, "receipt_sha256": _sha(receipt_body)}
     return SemanticProgramTransducer(
         schema=(
