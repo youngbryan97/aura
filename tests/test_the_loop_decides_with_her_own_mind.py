@@ -47,7 +47,7 @@ def screen(monkeypatch):
     """A screen that changes only when a move is one that works."""
     state = {"pressed": [], "text": "board 2", "works": {"up"}, "spoken": []}
 
-    async def read(app_name=""):
+    async def read(app_name="", over=None):
         return {"ok": True, "text": state["text"], "layout": [], "bounds": []}
 
     async def press(key, *, expect_app=""):

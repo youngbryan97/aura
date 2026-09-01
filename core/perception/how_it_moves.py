@@ -42,6 +42,7 @@ from core.perception.what_is_there import Arrangement, Cell
 
 __all__ = [
     "HowItMoves",
+    "prediction_held",
     "Rule",
     "RULES",
     "CARRIES",
@@ -788,6 +789,22 @@ class HowItMoves:
                 said = f"{said}; closest is {name} at {right}/{tried}"
             return f"{said})"
         return f"this {rule.name} — right {self.confidence():.0%} of {self.tried.get(rule.name, 0)}"
+
+
+def prediction_held(predicted: Any, seen: Any) -> bool:
+    """Whether a foretold arrangement is what turned up.
+
+    The same test the rules are scored by, offered to whoever holds a
+    prediction. A claim about what a move does is only interesting if being
+    wrong about it means something, and the meaning has to be the same
+    wherever it is checked — a rule discredited here and credited there is two
+    models wearing one name.
+    """
+
+    try:
+        return _near_enough(predicted, seen)
+    except (AttributeError, TypeError):
+        return False
 
 
 def _near_enough(

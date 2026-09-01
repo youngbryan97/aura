@@ -31,6 +31,7 @@ import logging
 import re
 import time
 from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import replace
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -3487,6 +3488,46 @@ async def pursue_on_screen(
 
                 return Step(name=f"begin again with {label!r}", action=begin_again)
 
+            # What she actually expects to see, when she knows how this moves.
+            #
+            # A move carries a claim, and the claim is what her being right
+            # gets measured by — the length of her plans, which part of the
+            # screen she believes answers to her, and what her moves are worth
+            # are all read off that verdict. The claim on offer was "the view
+            # will be different", which almost any keystroke satisfies: LIVE
+            # 2026-09-01 every move on a real board came back
+            # predicted='the view to be different after left', held=True, and
+            # holding meant nothing.
+            #
+            # She has a better claim available and was not making it. The rule
+            # she worked out by watching says what the arrangement becomes,
+            # exactly, and that claim can be wrong — which is the only kind
+            # worth checking, because being wrong about it is her model of
+            # this world being wrong.
+            foretold_by_the_rule = None
+            try:
+                foretold_by_the_rule = knows.rules.expect(laid_out, key)
+            except (AttributeError, TypeError, ValueError):
+                foretold_by_the_rule = None
+            if foretold_by_the_rule is not None:
+                from core.perception.how_it_moves import prediction_held
+
+                was = chosen.expected or chosen.chosen.expectation
+                chosen.expected = replace(
+                    was,
+                    becomes=foretold_by_the_rule,
+                    # Checked the way the rules themselves are scored, so a
+                    # tile the world deals does not read as her being wrong.
+                    becomes_holds=(
+                        lambda after, foretold=foretold_by_the_rule: prediction_held(
+                            foretold, knows.rules.the_thing(after)
+                        )
+                    ),
+                    describes=(
+                        was.describes
+                        or f"the thing to become what {key} makes of it"
+                    ),
+                )
             pending["deliberation"] = chosen
             pending["before"] = seen
             pending["arranged"] = laid_out

@@ -41,7 +41,7 @@ def screen(monkeypatch):
     """A screen that only changes when a key is pressed."""
     state = {"n": 0, "pressed": [], "saw_demand": False}
 
-    async def read(app_name=""):
+    async def read(app_name="", over=None):
         state["saw_demand"] = state["saw_demand"] or perception_is_demanded()
         return {
             "ok": True,
@@ -308,7 +308,7 @@ def _blocked_screen(monkeypatch, labels, *, tiles_after_clear=True):
     """A screen that shows a modal until something dismisses it."""
     state = {"cleared": False, "pressed": [], "clicks": []}
 
-    async def read(app_name=""):
+    async def read(app_name="", over=None):
         if state["cleared"]:
             return {"ok": True, "text": "DONE", "layout": [{"text": "DONE", "center_y": 0.5}]}
         return {
@@ -449,7 +449,7 @@ def test_a_blocker_that_will_not_clear_is_reported_not_repeated(monkeypatch):
     """
     state = {"pressed": []}
 
-    async def read(app_name=""):
+    async def read(app_name="", over=None):
         return {
             "ok": True,
             "text": "welcome tutorial would you like",

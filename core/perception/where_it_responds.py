@@ -366,6 +366,37 @@ def within(
     return _laid_out(inside) or text
 
 
+def _where_the_lines_put_it(text: Any) -> list[dict[str, Any]]:
+    """Places for a reading that came back as prose.
+
+    A line is a row and the nth word of a line is its nth column. By its place
+    in the line rather than by where its characters sit: text is not drawn at
+    an even pitch, so a row reading "16 32 64 4" and a row reading "2 4 8 2"
+    put their four values at quite different distances along, and binning
+    those by distance makes five columns out of four. Counting instead is
+    exact for anything laid out and no worse than honest for anything else.
+
+    The positions are shares of the reading rather than of the window, because
+    that is the frame the text itself is in, and every later step works in
+    shares.
+    """
+    lines = [line.split() for line in str(text or "").splitlines()]
+    lines = [words for words in lines if words]
+    if not lines:
+        return []
+    widest = max(len(words) for words in lines)
+    tall = len(lines)
+    return [
+        {
+            "text": said,
+            "center_x": (column + 0.5) / widest,
+            "center_y": (row + 0.5) / tall,
+        }
+        for row, words in enumerate(lines)
+        for column, said in enumerate(words)
+    ]
+
+
 def what_is_there(
     observation: dict[str, Any],
     band: tuple[float, float, float, float] | None,
@@ -400,7 +431,27 @@ def what_is_there(
     used, which is what she has.
     """
     inside: list[tuple[float, float, str]] = []
-    for region in observation.get("layout") or []:
+    positioned = observation.get("layout") or []
+    if not positioned:
+        # A reading with words in it and no coordinates is still a reading.
+        #
+        # Everything downstream — whether anything moved, what the rule of
+        # this world is, what a move would lead to, how near the goal she is
+        # — is asked of the arrangement and of nothing else. So a reader that
+        # hands back the text without saying where any of it sat left her
+        # entirely blind while the words were sitting right there, and every
+        # move she made came back "nothing changed" because two empty
+        # arrangements are equal. Lines and the gaps between them are the
+        # layout the text itself carries; used, it is coarse, and coarse is
+        # the difference between a world she can model and no world at all.
+        positioned = _where_the_lines_put_it(observation.get("text"))
+        # And the band does not apply to them. A band names part of a WINDOW;
+        # these places are shares of the reading, which is whatever was
+        # captured — so there is no part of it left to select, and selecting
+        # anyway crops the whole reading away. Measured: a band of the middle
+        # third discarded every invented place and put her back at nothing.
+        band = None
+    for region in positioned:
         said = str(region.get("text") or "").strip()
         if not said:
             continue

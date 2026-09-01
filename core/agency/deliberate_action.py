@@ -80,6 +80,15 @@ class Expectation:
     #: kept its arrangement, and ignored against a flat one.
     at_place: str = ""
     keeping: tuple[str, ...] = ()
+    #: What she expects the thing itself to become, when she has worked out
+    #: how it moves. A claim of this kind is the only one whose failure says
+    #: her model of the world is wrong, which is the thing worth knowing.
+    becomes: Any = None
+    #: How to tell whether that came true, supplied by whoever foretold it.
+    #: The one who can predict also says what counts as the prediction
+    #: holding — a world that deals a tile of its own has not falsified a
+    #: claim about what her own act moves.
+    becomes_holds: Any = None
 
     def check(self, before: str, after: str) -> Verdict:
         missing: list[str] = []
@@ -124,8 +133,20 @@ class Expectation:
         missing = (why,) if not ok and "did not appear" in why else ()
         lingering = (why,) if not ok and "still there" in why else ()
         elsewhere = (why,) if not ok and not missing and not lingering else ()
+        # And the sharpest claim of all, when she had one: that the thing
+        # would become this. Checked last because it subsumes the rest — a
+        # foretold arrangement says where everything is, not merely that
+        # something appeared.
+        foretold_ok = True
+        if self.becomes is not None and callable(self.becomes_holds):
+            try:
+                foretold_ok = bool(self.becomes_holds(after))
+            except (AttributeError, TypeError, ValueError):
+                foretold_ok = True
+            if not foretold_ok and not (missing or lingering or elsewhere):
+                elsewhere = ("what she foretold is not what turned up",)
         return Verdict(
-            held=ok and not stuck,
+            held=ok and not stuck and foretold_ok,
             observed_change=moved,
             missing=missing or elsewhere,
             lingering=lingering,
@@ -141,7 +162,15 @@ class Expectation:
         answers to her, and the record of what her moves lead to are all read
         off that verdict.
         """
-        return bool(self.contains or self.absent or (self.at_place and self.keeping))
+        # A foretold arrangement always says something: it is the claim that
+        # can be wrong in the most ways, and being right by it is the only
+        # verdict that means her model of this world is sound.
+        return bool(
+            self.becomes is not None
+            or self.contains
+            or self.absent
+            or (self.at_place and self.keeping)
+        )
 
     def is_empty(self) -> bool:
         return not (self.contains or self.absent or self.changed)
