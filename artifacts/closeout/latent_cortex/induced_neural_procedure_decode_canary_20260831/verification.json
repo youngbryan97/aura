@@ -1,0 +1,66 @@
+{
+  "claim_boundary": "resident decoded-answer transfer of a family-blind induced procedure through authenticated learned neural tissue under matched causal controls; not natural-language compilation, open-domain reasoning, unrestricted serving, static fusion, or frontier performance",
+  "gain_count": 7,
+  "independent_exact_by_arm": {
+    "coefficient_lesion": 1,
+    "matched_wire_base": 1,
+    "matched_wrong_input": 0,
+    "matched_wrong_state": 0,
+    "ordinary_base": 1,
+    "treatment": 8
+  },
+  "induction_basis": {
+    "path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-cp1022-integration/artifacts/closeout/latent_cortex/induced_neural_procedure_canary_20260831",
+    "program_sha": "sha256:4a6b1b5bef844bd80700aecec86429b135ee039a4d27113ff8ab37e4c924b2b1",
+    "result_receipt_sha256": "1be0d3fbef4081093280578b99eabab458a1cf58d10523e8e3e7e16e7f2a3c36",
+    "support_count": 16,
+    "task_count": 96,
+    "task_set_sha256": "831b0468085fa4c71998b4e367217f24c971d44fe4f5ec1088a1924d8a5bf327",
+    "verification_receipt_sha256": "1738791aa2343b45ad2f2f548e95070ca192d661fb77c214d7833b9a0e4fc195"
+  },
+  "input_receipt_sha256": "ffcaab272171398a9229242da82ffb9b02a1979b31594f9d1c57f33e7b32cd82",
+  "journal_identity": {
+    "decode_count": 48,
+    "event_count": 50,
+    "final_receipt_sha256": "e48e9d18e4cdc581cd17aa44bb36d819e8e9b1e37458a3411378318b13e2baab",
+    "path": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-cp1022-integration/artifacts/closeout/latent_cortex/induced_neural_procedure_decode_canary_20260831/journal.jsonl",
+    "sha256": "af85a40a510a08340cd266a757bda98df9068782b167c8858c1a83677eefda53"
+  },
+  "model_identity": {
+    "config_sha256": "11ce6fab918333fbeaebf3ec3ff99f5e12227eb06a1a2c1c3fe4fd8d1488876b",
+    "path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+    "weights_index_sha256": "a2161f6a6c9f7c434145f97a4a4262a74eb3e16a95088e713754eb108b198511"
+  },
+  "paired_one_sided_exact_p": 0.0078125,
+  "program_sha": "sha256:4a6b1b5bef844bd80700aecec86429b135ee039a4d27113ff8ab37e4c924b2b1",
+  "regression_count": 0,
+  "resident_manifest_identity": {
+    "active_model_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+    "base_model": "/Users/bryan/.aura/models/Qwen3.8-27B-4bit-3e6447f082e8",
+    "fused_at": 1787550884,
+    "path": "/Users/bryan/.aura/live-source/training/fused-model/active.json",
+    "schema_version": 3,
+    "sha256": "0d893b98ba7089708ea474be9364855326d077c724684b219560a175d86eb385",
+    "tag": "cp954-27b-resident"
+  },
+  "schema": "aura.rlc.induced_neural_procedure_decode_verification.v1",
+  "source_commit": "db04d0461959518d176ec00025592958eb2ea372",
+  "source_sha256s": {
+    "core/brain/llm/chat_format.py": "c613729298a92158d65900487a0ab8dc5ab0d27a98c663947346d15471352e08",
+    "core/brain/llm/latent_cortex/semantic_neural_composition_decode.py": "a7f6e4b027687c5a4948577a92aff9839c67cba5085574d5974480f7bf32e995",
+    "core/brain/llm/latent_cortex/systematic_neural_alu.py": "141a3d16aa891be182b30c38707a3f15c208734574e5af32459a8f25ac105a72",
+    "core/brain/llm/unified_recurrent_transfer_decode.py": "7bc2d7e0fe741b0760775a39449b33db506b0a6fd76cb9e3667951d9a67b4a78",
+    "core/learning/induced_neural_procedure.py": "3578de9e2a07a5470e26e87571524477d89a0f1650fb011927b71f8a297e993a",
+    "core/learning/procedure_induction.py": "a87e5ad2d9985bc886a2dcb3b1cad87443fd42e263ea5c0f474e6625cb1e537a",
+    "core/learning/semantic_neural_composition.py": "7dd66cdd3afcd912507f4dc88fc49a43a3d53c3895f34fde7b7bb1d0895c75ba",
+    "core/learning/semantic_neural_machine.py": "c3defb6ca618f8617363cc16f8f311111c890eb10b331c6b3dfbec5479e6c382",
+    "tools/run_induced_neural_procedure_canary.py": "665e6806401fb393f1eb86dfee48b475287c7082606bc90d448f0e71d40bf96c",
+    "tools/run_induced_neural_procedure_decode_canary.py": "a42fabb18103982af064d46b655fa9a9647d4ee777c4873b6d4914f778264e6f",
+    "tools/verify_induced_neural_procedure_canary.py": "71ebcefb9289cf5c08d678ae40702e7cdceff0fd36507ab5a8b75a5061d98502",
+    "tools/verify_induced_neural_procedure_decode_canary.py": "faef302652108567d4c8f9ef0937b5d3e99c4e7d9f432dc211246dc607d0771c"
+  },
+  "task_count": 8,
+  "verification_receipt_sha256": "a9af92cbe307a3561885301f770e6f592f9eb6ef6e5370a47c71f3036d59f0ba",
+  "verified": true,
+  "verifier_source_sha256": "faef302652108567d4c8f9ef0937b5d3e99c4e7d9f432dc211246dc607d0771c"
+}

@@ -79,6 +79,7 @@ preregistered campaigns with committed seeds.
 | **Capability gain, 32B trained intrinsic recurrence** | **`BOUNDED_WOW_SIGNAL` (CP566).** A different mechanism: the answer's own token stream re-enters the middle block, and the controller is trained on typed traces. On a frozen four-domain cohort of 60 typed tasks the trained controller answered 60/60 exactly against 16/60 for ordinary decode; matched wire base 7, coefficient lesion 5, wrong-state control 0; 44 gains, 0 regressions, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. Adjudicated, replicated, lesion-dependent, and bounded to four named executable families. |
 | **Cross-generation recovery on the fused 27B** | **`BOUNDED_WOW_SIGNAL` (CP1011).** A separately seeded 60-task cohort on the descriptor-bound Qwen3.8-27B resident cortex returned treatment 60/60, ordinary decode 0/60, matched wire 6, coefficient lesion 4, wrong-state 0; 60 gains, 0 regressions, exact *p* = 8.67 × 10⁻¹⁹. Independent verification replayed all 300 rows and runtime verification passed 120/120 exact plus 120/120 lesion disruptions. This establishes bounded mechanism portability across two cortex generations, not general model superiority. |
 | **Family-blind procedure acquisition into neural tissue** | **SUPPORTED, BOUNDED (2026-08-31).** A generic inducer received 16 examples without a family label or solver, froze a depth-2 procedure, and a family-blind SSA lowerer executed it through learned arithmetic tissue at 96/96 exact on fresh inputs. Coefficient and wrong-input lesions disrupted 96/96, the no-procedure control solved 1/96, and 15 shuffled-output null searches found no fit. |
+| **Resident decode of an induced neural procedure** | **SUPPORTED, BOUNDED (2026-08-31).** The fused 27B decoded the induced procedure's authenticated neural state at 8/8 exact against ordinary 1/8, wire 1/8, coefficient lesion 1/8, wrong-input 0/8 and wrong-state 0/8. Seven gains, no regressions, exact paired one-sided *p* = 0.0078125; all 48 rows independently replayed. |
 | **Recurrence-native training** | **OPEN, and now partly answered.** The dividend did come from training the checkpoint to use recurrence, on the bounded families above. Broad transfer is still open, and every CP-numbered checkpoint since is about that. |
 | **Broad reasoning gain, fusion, frontier performance** | **NOT CLAIMED.** No checkpoint in this programme authorizes any of them, and each entry in the ledger says so explicitly — including CP566, whose adjudication ships its limitations line inside the same receipt as its verdict. |
 
@@ -128,14 +129,21 @@ The programme used a 1.5B vehicle while the historical resident 32B stayed live,
   replay verified 96/96 fresh transfers and causal coefficient, wrong-input
   and no-procedure controls. The primitive vocabulary and value types remain
   fixed; natural-language compilation, resident decode and broad reasoning are
-  still open.
+  still open at this stage.
+- **The induced procedure now survives resident decode.** A separate six-arm
+  canary passed the induced neural state to the fused 27B answer surface. The
+  treatment was exact 8/8; ordinary, wire and coefficient-lesion arms each
+  solved 1/8, and wrong-input and wrong-state controls solved 0/8. Independent
+  replay verified seven conversions, no regressions and exact paired one-sided
+  *p* = 0.0078125. This closes serialization for the bounded procedure, not
+  language-to-program learning or broad transfer.
 
-Next bounded step: carry an induced procedure through resident 27B decode with
-matched lesions, then replace example tables with a learned token-level
-language-to-IR transducer and expand the equal-compute battery beyond the fixed
-primitive vocabulary. Regenerating the 27B-specific recurrent adapters and CAA
-vectors remains a separate migration task; portable typed tissue does not
-authorize either model-basis component by association.
+Next bounded step: replace example tables with a learned token-level
+language-to-IR transducer, then replicate across distinct held-out procedures
+and linguistic constructions beyond the fixed primitive vocabulary.
+Regenerating the 27B-specific recurrent adapters and CAA vectors remains a
+separate migration task; portable typed tissue does not authorize either
+model-basis component by association.
 
 ### Two negative results that were void
 

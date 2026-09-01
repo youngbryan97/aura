@@ -269,6 +269,7 @@ program traces instead of answers. That is where the gain came from.
 | Capability gain, **trained intrinsic** recurrence, 32B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 16/60 for ordinary decode, lesion-dependent, *p* = 5.7 × 10⁻¹⁴ |
 | Cross-generation recovery, trained semantic tissue, 27B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 0/60 ordinary decode on a separate fresh cohort; wire 6, coefficient lesion 4, wrong-state 0; *p* = 8.67 × 10⁻¹⁹ |
 | Family-blind procedure acquisition into neural tissue | **SUPPORTED, BOUNDED** — one depth-2 procedure induced from 16 examples, then 96/96 exact on fresh inputs; coefficient and wrong-input controls failed 96/96, no-procedure solved 1/96, shuffled-output nulls found 0/15 |
+| Resident decode of the induced neural procedure | **SUPPORTED, BOUNDED** — treatment 8/8, ordinary 1/8, wire 1/8, coefficient lesion 1/8, wrong-input 0/8, wrong-state 0/8; seven gains, no regressions, *p* = 0.0078125 |
 | Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
 
 `BOUNDED_WOW_SIGNAL` is the adjudicator's own verdict string, and *bounded* is
@@ -300,8 +301,17 @@ was exact on 96/96 fresh inputs. Coefficient and guaranteed-wrong-input lesions
 disrupted all 96, the no-procedure control solved 1/96, no depth-one shortcut
 fit, and fifteen shuffled-output searches found no program. This establishes
 bounded procedure acquisition and neural execution over a fixed primitive
-vocabulary. It does not establish natural-language compilation, resident
-decode, open-domain reasoning or unrestricted serving.
+vocabulary.
+
+A second frozen canary carried that same induced program and authenticated
+neural result through the fused resident 27B's answer surface. Treatment was
+8/8 exact against 1/8 ordinary decode; syntax-only wire and coefficient lesion
+were also 1/8, while wrong-input and wrong-state controls were 0/8. Seven
+ordinary failures converted with no regressions, exact paired one-sided
+*p* = 0.0078125. Independent replay reconstructed all 48 decodes and the
+50-event journal. This does not establish natural-language compilation,
+open-domain reasoning, unrestricted serving, static fusion or frontier
+performance.
 
 One family — misleading premise — gained nothing, and the reason is worth
 stating rather than averaging away: ordinary decode was already at ceiling there

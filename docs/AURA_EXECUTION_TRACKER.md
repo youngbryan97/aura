@@ -52475,3 +52475,26 @@ natural-language compilation, open-domain reasoning, resident decode,
 unrestricted serving or frontier performance. The next bridge is a learned
 token-level semantic transducer that maps language into validated typed IR,
 followed by resident decoded-answer controls.
+
+## Checkpoint 2026-08-31: The Induced Procedure Reaches Resident Decode
+
+The verified family-blind induction artifact was loaded as the only procedure
+authority. On eight fresh tasks, a six-arm counterbalanced canary passed its
+lowered state through the fused Qwen3.8-27B resident answer surface. Generation
+had no family label, expected answer or verifier trace. Each task and arm used
+one greedy decode; a hash rotation counterbalanced order.
+
+Treatment decoded 8/8 exactly. Ordinary decode, syntax-matched wire and the
+coefficient lesion each solved 1/8; matched wrong-input and wrong-state controls
+solved 0/8. Seven ordinary failures converted with no regressions, for exact
+paired one-sided *p* = 0.0078125. The model-active stage took 105.967 seconds.
+An independent process reconstructed the frozen program and every neural state,
+reparsed all raw responses, verified source/model/manifest/basis identity, and
+replayed the chained 50-event journal covering all 48 decodes.
+
+This closes the bounded path from examples to induced procedure to learned
+neural tissue to resident decoded answer. It does not establish
+natural-language compilation, open-domain reasoning, unrestricted serving,
+static fusion or frontier performance. The remaining generalization hinge is a
+learned token-level language-to-typed-IR transducer plus cross-procedure and
+cross-construction replication.

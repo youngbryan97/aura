@@ -1245,6 +1245,34 @@ def install_runtime_validation() -> dict[str, Any]:
     )
     suite.add_test(
         ValidationTest(
+            name="induced_neural_procedure_reaches_resident_decode",
+            description=(
+                "a family-blind induced procedure reaches an exact resident-model "
+                "answer while coefficient, wrong-input, wrong-state, and wire "
+                "controls remain below treatment"
+            ),
+            required_capability="",
+            observation=Observation(
+                name="induced_procedure_decode_certificate_is_verified",
+                value=True,
+                source=(
+                    "artifacts/closeout/latent_cortex/"
+                    "induced_neural_procedure_decode_canary_20260831/verification.json"
+                ),
+            ),
+            predict=lambda _m: (
+                _induced_neural_procedure_decode_certificate_holds()
+            ),
+            score=lambda p, o: boolean_score(
+                bool(p),
+                expected=bool(o.value),
+                subject="resident decode of an induced neural procedure",
+            ),
+            owner="tools/verify_induced_neural_procedure_decode_canary.py",
+        )
+    )
+    suite.add_test(
+        ValidationTest(
             name="neural_transition_tissue_enters_complete_engine",
             description=(
                 "a wrong incumbent is replaceable by systematic teacher-removed "
@@ -1651,6 +1679,30 @@ def install_runtime_validation() -> dict[str, Any]:
                 "value types were fixed. This is not natural-language compilation, "
                 "open-domain reasoning, resident decode, unrestricted serving, or "
                 "frontier performance."
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "Aura's resident 27B decoded exact answers from a family-blind "
+                "induced two-operation procedure carried through learned neural "
+                "tissue on eight fresh tasks."
+            ),
+            test="induced_neural_procedure_reaches_resident_decode",
+            owner="tools/verify_induced_neural_procedure_decode_canary.py",
+            asserted_in=(
+                "artifacts/closeout/latent_cortex/"
+                "induced_neural_procedure_decode_canary_20260831/verification.json"
+            ),
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "Independent replay verified treatment 8/8, ordinary decode 1/8, "
+                "syntax-matched wire 1/8, coefficient lesion 1/8, wrong-input 0/8, "
+                "wrong-state 0/8, seven paired gains, zero regressions, and exact "
+                "one-sided p=0.0078125. The primitive vocabulary and support examples "
+                "were fixed. This is not natural-language compilation, open-domain "
+                "reasoning, unrestricted serving, static fusion, or frontier performance."
             ),
         )
     )
@@ -3379,6 +3431,93 @@ def _induced_neural_procedure_certificate_holds() -> bool:
         and verification.get("verifier_source_sha256") == verifier_sha
         and verification.get("claim_boundary") == expected_boundary
         and verification.get("input_receipt_sha256") == result.get("receipt_sha256")
+    )
+
+
+def _induced_neural_procedure_decode_certificate_holds() -> bool:
+    import hashlib
+    import json
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    artifact_root = (
+        root
+        / "artifacts/closeout/latent_cortex/"
+        "induced_neural_procedure_decode_canary_20260831"
+    )
+    try:
+        result = json.loads((artifact_root / "result.json").read_text(encoding="utf-8"))
+        verification = json.loads(
+            (artifact_root / "verification.json").read_text(encoding="utf-8")
+        )
+        source_hashes = result["source_sha256s"]
+        current_hashes = {
+            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
+            for relative in source_hashes
+        }
+        verifier_path = root / "tools/verify_induced_neural_procedure_decode_canary.py"
+        verifier_sha = hashlib.sha256(verifier_path.read_bytes()).hexdigest()
+        manifest_path = pathlib.Path(result["resident_manifest_identity"]["path"])
+        manifest_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+
+    expected_exact = {
+        "ordinary_base": 1,
+        "matched_wire_base": 1,
+        "treatment": 8,
+        "coefficient_lesion": 1,
+        "matched_wrong_input": 0,
+        "matched_wrong_state": 0,
+    }
+    expected_boundary = (
+        "resident decoded-answer transfer of a family-blind induced procedure through "
+        "authenticated learned neural tissue under matched causal controls; not "
+        "natural-language compilation, open-domain reasoning, unrestricted serving, "
+        "static fusion, or frontier performance"
+    )
+    program = result.get("program")
+    arms = result.get("arms")
+    observed_exact = (
+        {arm: arms.get(arm, {}).get("exact") for arm in expected_exact}
+        if isinstance(arms, dict)
+        else {}
+    )
+    journal = verification.get("journal_identity")
+    return bool(
+        result.get("schema")
+        == "aura.rlc.induced_neural_procedure_decode_canary.v1"
+        and result.get("admitted") is True
+        and result.get("task_count") == 8
+        and result.get("decode_calls_per_arm_per_task") == 1
+        and result.get("arm_order") == "task_hash_rotated"
+        and isinstance(program, dict)
+        and program.get("expression") == "idiv(add(in0, in1), in2)"
+        and program.get("depth") == 2
+        and observed_exact == expected_exact
+        and result.get("gain_count") == 7
+        and result.get("regression_count") == 0
+        and result.get("family_label_available_to_generation") is False
+        and result.get("expected_answer_available_to_generation") is False
+        and result.get("verifier_trace_available_to_generation") is False
+        and result.get("claim_boundary") == expected_boundary
+        and current_hashes == source_hashes
+        and manifest_sha == result["resident_manifest_identity"]["sha256"]
+        and verification.get("schema")
+        == "aura.rlc.induced_neural_procedure_decode_verification.v1"
+        and verification.get("verified") is True
+        and verification.get("source_commit") == result.get("source_commit")
+        and verification.get("source_sha256s") == source_hashes
+        and verification.get("program_sha") == program.get("sha")
+        and verification.get("independent_exact_by_arm") == expected_exact
+        and verification.get("gain_count") == 7
+        and verification.get("regression_count") == 0
+        and verification.get("paired_one_sided_exact_p") == 0.0078125
+        and verification.get("claim_boundary") == expected_boundary
+        and verification.get("input_receipt_sha256") == result.get("receipt_sha256")
+        and verification.get("verifier_source_sha256") == verifier_sha
+        and isinstance(journal, dict)
+        and journal.get("decode_count") == 48
+        and journal.get("event_count") == 50
     )
 
 
