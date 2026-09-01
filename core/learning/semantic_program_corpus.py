@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import random
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import partial
 from typing import Final, Literal
@@ -907,70 +907,131 @@ def build_semantic_program_fork_join_corpus(
                 for join_op in operations:
                     operation_tuple = (first_op, second_op, join_op)
                     for sample_index, values in enumerate(sample_values):
-                        builder, input_labels, annotations = renderer(
-                            operation_tuple,
-                            values,
-                            topology,
-                        )
-                        if source_order_registers:
-                            input_order = tuple(
-                                int(label.removeprefix("in"))
-                                for label in input_labels
-                            )
-                            if set(input_order) != {0, 1, 2, 3}:
-                                raise AssertionError(
-                                    "fork-join renderer did not expose every input once"
-                                )
-                            register_map = {
-                                old_register: new_register
-                                for new_register, old_register in enumerate(input_order)
-                            }
-                            corpus_values = tuple(values[index] for index in input_order)
-                            corpus_annotations = tuple(
-                                SemanticInstructionAnnotation(
-                                    instruction=Instruction(
-                                        item.instruction.op,
-                                        tuple(
-                                            register_map.get(argument, argument)
-                                            for argument in item.instruction.args
-                                        ),
-                                    ),
-                                    operation_span=item.operation_span,
-                                    argument_spans=item.argument_spans,
-                                    depends_on=item.depends_on,
-                                )
-                                for item in annotations
-                            )
-                            corpus_input_labels = input_labels
-                        else:
-                            corpus_values = values
-                            corpus_annotations = annotations
-                            corpus_input_labels = tuple(f"in{index}" for index in range(4))
-                        contrast_id = (
-                            f"{construction_id}:{topology.topology_id}:"
-                            f"{sample_index}:{corpus_values}"
-                        )
                         examples.append(
-                            SemanticProgramExample(
-                                example_id=_fork_join_example_id(
-                                    construction_id,
-                                    topology.topology_id,
-                                    operation_tuple,
-                                    corpus_values,
-                                ),
+                            _build_fork_join_example(
                                 construction_id=construction_id,
-                                topology_id=topology.topology_id,
                                 split=split,
-                                source_text=builder.text,
-                                inputs=corpus_values,
-                                input_spans=tuple(
-                                    builder.span(label) for label in corpus_input_labels
-                                ),
-                                instructions=corpus_annotations,
-                                report_value=6,
-                                contrast_id=contrast_id,
+                                renderer=renderer,
+                                topology=topology,
+                                operations=operation_tuple,
+                                values=values,
+                                sample_index=sample_index,
+                                source_order_registers=source_order_registers,
                             )
                         )
+    return tuple(examples)
+
+
+def _build_fork_join_example(
+    *,
+    construction_id: str,
+    split: CorpusSplit,
+    renderer: Callable[..., tuple[
+        _AnnotatedText,
+        tuple[str, str, str, str],
+        tuple[SemanticInstructionAnnotation, ...],
+    ]],
+    topology: ForkJoinTopology,
+    operations: tuple[str, str, str],
+    values: tuple[int, int, int, int],
+    sample_index: int,
+    source_order_registers: bool,
+) -> SemanticProgramExample:
+    builder, input_labels, annotations = renderer(operations, values, topology)
+    if source_order_registers:
+        input_order = tuple(int(label.removeprefix("in")) for label in input_labels)
+        if set(input_order) != {0, 1, 2, 3}:
+            raise AssertionError("fork-join renderer did not expose every input once")
+        register_map = {
+            old_register: new_register
+            for new_register, old_register in enumerate(input_order)
+        }
+        corpus_values = tuple(values[index] for index in input_order)
+        corpus_annotations = tuple(
+            SemanticInstructionAnnotation(
+                instruction=Instruction(
+                    item.instruction.op,
+                    tuple(
+                        register_map.get(argument, argument)
+                        for argument in item.instruction.args
+                    ),
+                ),
+                operation_span=item.operation_span,
+                argument_spans=item.argument_spans,
+                depends_on=item.depends_on,
+            )
+            for item in annotations
+        )
+        corpus_input_labels = input_labels
+    else:
+        corpus_values = values
+        corpus_annotations = annotations
+        corpus_input_labels = tuple(f"in{index}" for index in range(4))
+    contrast_id = (
+        f"{construction_id}:{topology.topology_id}:"
+        f"{sample_index}:{corpus_values}"
+    )
+    return SemanticProgramExample(
+        example_id=_fork_join_example_id(
+            construction_id,
+            topology.topology_id,
+            operations,
+            corpus_values,
+        ),
+        construction_id=construction_id,
+        topology_id=topology.topology_id,
+        split=split,
+        source_text=builder.text,
+        inputs=corpus_values,
+        input_spans=tuple(builder.span(label) for label in corpus_input_labels),
+        instructions=corpus_annotations,
+        report_value=6,
+        contrast_id=contrast_id,
+    )
+
+
+def build_semantic_program_fork_join_factorial_corpus(
+    *,
+    seed: int = 2718281,
+    examples_per_cell: int = 1,
+) -> tuple[SemanticProgramExample, ...]:
+    """Cross wording, graph topology, and balanced primitive coverage."""
+
+    if examples_per_cell < 1:
+        raise ValueError("factorial fork-join corpus needs at least one sample per cell")
+    rng = random.Random(seed)
+    operations = tuple(_OPERATION_LANGUAGE)
+    operation_cover = tuple(
+        (first, second, operations[(first_index + second_index) % len(operations)])
+        for first_index, first in enumerate(operations)
+        for second_index, second in enumerate(operations)
+    )
+    examples: list[SemanticProgramExample] = []
+    for construction_id, split, renderer in _FORK_JOIN_CONSTRUCTIONS:
+        for topology in _FORK_JOIN_TOPOLOGIES:
+            sample_values = tuple(
+                (
+                    rng.randint(80, 97),
+                    rng.randint(40, 59),
+                    rng.randint(15, 29),
+                    rng.randint(2, 9),
+                )
+                for _ in range(examples_per_cell)
+            )
+            for operation_tuple in operation_cover:
+                for sample_index, values in enumerate(sample_values):
+                    examples.append(
+                        _build_fork_join_example(
+                            construction_id=construction_id,
+                            split=split,
+                            renderer=renderer,
+                            topology=topology,
+                            operations=operation_tuple,
+                            values=values,
+                            sample_index=sample_index,
+                            source_order_registers=True,
+                        )
+                    )
     return tuple(examples)
 
 
@@ -1044,6 +1105,7 @@ __all__ = [
     "SemanticInstructionAnnotation",
     "SemanticProgramExample",
     "build_semantic_program_corpus",
+    "build_semantic_program_fork_join_factorial_corpus",
     "build_semantic_program_fork_join_corpus",
     "project_example_to_ir",
 ]

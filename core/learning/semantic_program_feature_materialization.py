@@ -35,6 +35,7 @@ from core.learning.semantic_program_corpus import (
     SemanticProgramExample,
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
+    build_semantic_program_fork_join_factorial_corpus,
     project_example_to_ir,
 )
 from core.learning.semantic_program_ir import semantic_program_ir_from_dict
@@ -50,10 +51,12 @@ GOLD_PROJECTION_SCHEMA: Final = "aura.semantic_program_gold_projection.v1"
 CHAIN_CORPUS_KIND: Final = "chain_3x2"
 FORK_JOIN_CORPUS_KIND: Final = "fork_join_4x3"
 FORK_JOIN_SOURCE_ORDER_CORPUS_KIND: Final = "fork_join_4x3_source_order"
+FORK_JOIN_FACTORIAL_CORPUS_KIND: Final = "fork_join_4x3_factorial16"
 SEMANTIC_CORPUS_KINDS: Final = frozenset(
     {
         CHAIN_CORPUS_KIND,
         FORK_JOIN_CORPUS_KIND,
+        FORK_JOIN_FACTORIAL_CORPUS_KIND,
         FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
     }
 )
@@ -173,6 +176,11 @@ def build_semantic_program_corpus_for_config(
             seed=config.seed,
             examples_per_operation_triple=config.examples_per_operation_pair,
             source_order_registers=True,
+        )
+    if config.corpus_kind == FORK_JOIN_FACTORIAL_CORPUS_KIND:
+        return build_semantic_program_fork_join_factorial_corpus(
+            seed=config.seed,
+            examples_per_cell=config.examples_per_operation_pair,
         )
     raise AssertionError("validated semantic corpus kind is unreachable")
 
@@ -1383,6 +1391,7 @@ __all__ = [
     "FEATURE_MANIFEST_SCHEMA",
     "FEATURE_RECORD_SCHEMA",
     "FORK_JOIN_CORPUS_KIND",
+    "FORK_JOIN_FACTORIAL_CORPUS_KIND",
     "FORK_JOIN_SOURCE_ORDER_CORPUS_KIND",
     "LoadedSemanticFeatureBundle",
     "LoadedSemanticFeatureExample",

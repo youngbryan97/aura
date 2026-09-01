@@ -30,7 +30,12 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--max-examples", type=int, default=576)
     parser.add_argument(
         "--corpus-kind",
-        choices=("chain_3x2", "fork_join_4x3", "fork_join_4x3_source_order"),
+        choices=(
+            "chain_3x2",
+            "fork_join_4x3",
+            "fork_join_4x3_source_order",
+            "fork_join_4x3_factorial16",
+        ),
         default="chain_3x2",
     )
     parser.add_argument(

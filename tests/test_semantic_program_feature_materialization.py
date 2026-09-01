@@ -21,6 +21,7 @@ from core.learning.semantic_program_corpus import (
 from core.learning.semantic_program_feature_materialization import (
     FAMILY_FEATURE_CONFIG_SCHEMA,
     FORK_JOIN_CORPUS_KIND,
+    FORK_JOIN_FACTORIAL_CORPUS_KIND,
     FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
     SemanticFeatureConfig,
     SemanticFeatureMaterializationError,
@@ -282,6 +283,24 @@ def test_source_order_fork_join_family_declares_observable_register_identity(
         == sorted(example.input_spans, key=lambda span: span.start)
         for example in corpus
     )
+
+
+def test_factorial_fork_join_family_reconstructs_from_declared_config() -> None:
+    config = SemanticFeatureConfig(
+        seed=2718281,
+        max_examples=1296,
+        corpus_kind=FORK_JOIN_FACTORIAL_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+    )
+
+    corpus = build_semantic_program_corpus_for_config(config)
+
+    assert len(corpus) == 1296
+    assert {split: sum(item.split == split for item in corpus) for split in (
+        "train",
+        "validation",
+        "test",
+    )} == {"train": 432, "validation": 432, "test": 432}
 
 
 def test_bundle_rejects_record_tampering(tmp_path: Path) -> None:

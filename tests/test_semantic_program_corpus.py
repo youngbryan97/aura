@@ -5,6 +5,7 @@ import pytest
 from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
+    build_semantic_program_fork_join_factorial_corpus,
     project_example_to_ir,
 )
 
@@ -247,3 +248,26 @@ def test_fork_join_programs_are_exact_and_all_steps_are_load_bearing() -> None:
         )
         assert ir.to_program() == example.program
         assert ir.receipt()["all_steps_causally_load_bearing"] is True
+
+
+def test_factorial_fork_join_separates_wording_from_graph_topology() -> None:
+    examples = build_semantic_program_fork_join_factorial_corpus()
+
+    assert len(examples) == 1296
+    assert {split: sum(item.split == split for item in examples) for split in (
+        "train",
+        "validation",
+        "test",
+    )} == {"train": 432, "validation": 432, "test": 432}
+    for construction in {item.construction_id for item in examples}:
+        selected = [item for item in examples if item.construction_id == construction]
+        assert len({item.topology_id for item in selected}) == 9
+        for position in range(3):
+            support = {
+                item.instructions[position].instruction.op for item in selected
+            }
+            assert support == {"add", "sub", "mul", "idiv"}
+    assert all(
+        list(item.input_spans) == sorted(item.input_spans, key=lambda span: span.start)
+        for item in examples
+    )
