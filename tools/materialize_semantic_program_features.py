@@ -16,6 +16,8 @@ if str(_REPO_ROOT) not in sys.path:
 
 
 def _arguments() -> argparse.Namespace:
+    from core.brain.llm.hidden_sequence_contract import HIDDEN_SEQUENCE_REPRESENTATIONS
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -41,7 +43,7 @@ def _arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--representation",
-        choices=("final_hidden_v1", "lexical_contextual_v1"),
+        choices=sorted(HIDDEN_SEQUENCE_REPRESENTATIONS),
         default="final_hidden_v1",
     )
     parser.add_argument("--hidden-timeout-s", type=float, default=120.0)

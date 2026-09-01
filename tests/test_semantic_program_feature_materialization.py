@@ -38,6 +38,7 @@ from core.learning.semantic_program_feature_materialization import (
     select_bounded_semantic_examples,
     tokenize_with_offsets,
 )
+from tools import materialize_semantic_program_features as materializer_cli
 
 
 def _sha(value: object) -> str:
@@ -66,6 +67,25 @@ def test_hidden_sequence_channel_widths_follow_the_versioned_packing_contract() 
     )
     with pytest.raises(ValueError, match="divisible by three"):
         hidden_sequence_channel_widths(LEXICAL_MID_FINAL_V1, 15361)
+
+
+def test_materializer_cli_accepts_shared_hidden_representation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "materialize_semantic_program_features.py",
+            "--model",
+            "/tmp/model",
+            "--output",
+            "/tmp/output",
+            "--representation",
+            LEXICAL_MID_FINAL_V1,
+        ],
+    )
+
+    assert materializer_cli._arguments().representation == LEXICAL_MID_FINAL_V1
 
 
 class _CharacterTokenizer:
