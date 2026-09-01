@@ -577,6 +577,26 @@ async def _screen_size() -> tuple[int, int]:
         return (0, 0)
 
 
+def _bound_to_a_window(key: str, expect_app: str) -> bool:
+    """Whether this keystroke knows what will receive it.
+
+    The rule was written down and not enforced: every keystroke but one has to
+    be bound to a window, and a run that could not name what it was looking at
+    sent its keys with nothing bound and the guard passed them through. That
+    is not a weaker version of aiming, it is the unaimed case the rule exists
+    for — thirty-five moves of a game played into a chat window, every one of
+    them reported as a success.
+
+    Knowing what she is acting on is a precondition of acting, not a detail of
+    it. Where she cannot say whether the keyboard belongs to a browser, a
+    terminal or the window she was reading, she has no business pressing
+    anything into it.
+    """
+    if str(key or "").strip().lower() == DECLINES_AND_NOTHING_ELSE:
+        return True
+    return bool(str(expect_app or "").strip())
+
+
 async def press(key: str, *, expect_app: str = "") -> bool:
     """Press one of the allowed keys. False if it is not one of them.
 
@@ -588,6 +608,9 @@ async def press(key: str, *, expect_app: str = "") -> bool:
     """
     name = str(key or "").strip().lower()
     if name not in PRESSABLE_KEYS:
+        return False
+    if not _bound_to_a_window(name, expect_app):
+        logger.info("not pressing %r: nothing is bound to receive it", name)
         return False
     from core.capabilities.host_automation import get_host_automation
 
@@ -610,6 +633,9 @@ async def press_many(keys: Sequence[str], *, expect_app: str = "") -> int:
     wanted = [str(key or "").strip().lower() for key in keys]
     wanted = [key for key in wanted if key in PRESSABLE_KEYS]
     if not wanted:
+        return 0
+    if not all(_bound_to_a_window(key, expect_app) for key in wanted):
+        logger.info("not pressing %s: nothing is bound to receive them", wanted)
         return 0
     from core.capabilities.host_automation import get_host_automation
 
@@ -1759,6 +1785,21 @@ def _how_full(reading: Any) -> float:
 CARRIES_TO_A_WORLD_LIKE_IT = ("moves", "acts", "skill", "world", "lines", "lines_held")
 
 
+def _what_she_could_not_learn_from(dropped: dict[str, int]) -> str:
+    """The moves she made and learned nothing from, said out loud.
+
+    A move whose before and after could not be compared is a move that cost
+    her a keystroke and taught her nothing, and it was thrown away in silence.
+    The only trace was the rule staying unworked-out, which reads as a hard
+    world rather than as evidence going missing on the way to the learner.
+    """
+    lost = {why: count for why, count in (dropped or {}).items() if count}
+    if not lost:
+        return ""
+    said = ", ".join(f"{count} to {why}" for why, count in sorted(lost.items()))
+    return f" | could not learn from {said}"
+
+
 def _the_thing_she_is_acting_in(whole: Any, lattice: Any, like: Any = None) -> Any:
     """The thing inside a reading — unless she is already holding its frame.
 
@@ -2268,6 +2309,7 @@ async def pursue_on_screen(
     from core.perception.the_lattice_she_holds import TheLatticeSheHolds
     from core.perception.what_moves_within_itself import MovesWithinItself
     from core.perception.what_the_world_does import WhatTheWorldDoes
+    from core.perception.where_am_i import where_am_i
     from core.perception.where_it_responds import (
         Responsive,
         describe,
@@ -2363,6 +2405,8 @@ async def pursue_on_screen(
     knew = recall(this_world)
     # And whether she has been anywhere LIKE it, asked once she has seen it.
     like_it: dict[str, Any] = {"kind": "", "looked": False}
+    # Moves she made and could not learn from, by what stopped her.
+    dropped: dict[str, int] = {"not the thing itself": 0, "a different frame": 0}
     if knew:
         logger.info("she has been in %r before: %s", this_world, sorted(knew))
     # Which of her acts do anything here, found out rather than declared.
@@ -2995,6 +3039,12 @@ async def pursue_on_screen(
             if (
                 pending["arranged"] is not None
                 and previous.chosen is not None
+                and not looking_at_the_thing
+            ):
+                dropped["not the thing itself"] += 1
+            if (
+                pending["arranged"] is not None
+                and previous.chosen is not None
                 and looking_at_the_thing
             ):
                 # What a rule said would happen, before it is folded in. The
@@ -3004,6 +3054,16 @@ async def pursue_on_screen(
                 world.watched(foretold, knows.rules.the_thing(laid_out))
                 if _in_the_same_grid(responds["lattice"], pending["arranged"], laid_out):
                     knows.watched(pending["arranged"], previous.chosen.name, laid_out)
+                else:
+                    # Counted, because it used to be silent.
+                    #
+                    # A pair thrown away here is a move she made and learned
+                    # nothing from, and nothing said so. LIVE 2026-08-31:
+                    # fifty-four moves, one of them watched, and the only
+                    # trace was a line saying how this moves is not worked out
+                    # yet — which reads as a hard world rather than as
+                    # evidence going missing on the way to the learner.
+                    dropped["a different frame"] += 1
                 # And whether it left her better off, against the kind of
                 # position it was made from. This is experience turning into
                 # skill: the same triple she learns the world's rules from
@@ -3070,12 +3130,13 @@ async def pursue_on_screen(
                 )
                 if len(moves) % 6 == 0 and knows.rules is not None:
                     logger.info(
-                        "after %d move(s): %s%s | reading %dx%d",
+                        "after %d move(s): %s%s | reading %dx%d%s",
                         len(moves),
                         knows.rules.says(),
                         _what_she_is_not_reading(knows.rules),
                         laid_out.rows,
                         laid_out.columns,
+                        _what_she_could_not_learn_from(dropped),
                     )
             # Learned from the same measurement. A move that changed nothing
             # is the control: whatever still changed across it was changing
@@ -3766,6 +3827,29 @@ async def pursue_on_screen(
             # cycles that had committed to two to four moves each produced
             # fifty-three moves between them, one screen reading apiece.
             sequence = [key, *follow_on] if follow_on else [key]
+            # Before the body moves: is this where she should be.
+            #
+            # Everything that asked this before asked the machine — is the
+            # right application frontmost, what window was the reading scoped
+            # to, what address does the browser report. All of that can be
+            # perfectly true while she types into the wrong thing, because a
+            # reading scoped to the right application contains whatever that
+            # application is showing, and after a stray click that is a
+            # different page.
+            #
+            # She can see the screen, so she answers it the way anybody does:
+            # the thing she is acting in is the thing whose places she has
+            # been acting on, and she is holding those places.
+            here = where_am_i(laid_out, lattice=lattice, asked_for=goal)
+            if not here.the_thing_is_here:
+                if narrate:
+                    _tell(here.said())
+                logger.info("not pressing anything: %s", here.said())
+                if target_app:
+                    await _bring_the_thing_back_to_the_front(target_app)
+                pending["arranged"] = None
+                pending["whole"] = None
+                return None
             # Intent, then action. Said before the body moves, because that is
             # the order a person doing something narrates it in.
             #

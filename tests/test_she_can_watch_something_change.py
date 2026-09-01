@@ -174,7 +174,7 @@ def test_a_malformed_success_pattern_falls_back_to_plain_text():
 
 
 def test_a_wedged_capture_ends_the_cycle_rather_than_acting_blind(monkeypatch):
-    async def hang(app_name=""):
+    async def hang(app_name="", over=None):
         await asyncio.sleep(30)
 
     monkeypatch.setattr(sp, "read_screen", hang)
@@ -295,11 +295,21 @@ def test_the_target_app_is_reported_on_the_receipt(screen):
     assert result["target_app"] == "Preview"
 
 
-def test_an_unaimed_run_is_still_possible(screen):
-    """Not every pursuit drives an app; watching one needs no aim."""
+def test_a_run_with_no_named_app_still_knows_what_it_is_typing_into(screen):
+    """She can see the screen, so she is never typing into nothing.
+
+    This asserted the opposite: that a run given no application presses its
+    keys with nothing bound to receive them. That is not a gentler kind of
+    aiming, it is the unaimed case every guard here exists for — measured
+    live, thirty-five moves of a game played into a chat window, every one
+    reported as a success. Where she was not told which application to drive,
+    the one she is looking at is the answer, and it is the same one for every
+    keystroke of the run."""
     _run(policy=_alternating, max_cycles=30)
 
-    assert all(app == "" for _key, app in screen["pressed"])
+    aimed = {app for _key, app in screen["pressed"]}
+    assert screen["pressed"], "no keys were pressed"
+    assert len(aimed) == 1, f"her keystrokes went to more than one place: {aimed}"
 
 
 # ── Clearing what blocks the content ──────────────────────────────────────
