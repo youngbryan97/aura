@@ -279,8 +279,19 @@ HOW_MANY_PARTS: dict[str, int] = {
 
 
 def how_long(code: Code) -> int:
-    """Symbols in the term, written out. The ruler nothing can move."""
-    return 1 + sum(how_long(part) for part in code.parts)
+    """Symbols in the term, written out. The ruler nothing can move.
+
+    Walked with a stack rather than by recursion. A term the machine can run
+    can be thousands deep, and a length function that overflows on a term the
+    evaluator handles would make the ruler the shorter of the two.
+    """
+    counted = 0
+    edge = [code]
+    while edge:
+        here = edge.pop()
+        counted += 1
+        edge.extend(here.parts)
+    return counted
 
 
 # ── the machine ───────────────────────────────────────────────────────────
