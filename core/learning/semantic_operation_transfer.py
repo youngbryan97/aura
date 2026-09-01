@@ -19,7 +19,7 @@ from core.learning.semantic_program_campaign import training_examples_from_featu
 from core.learning.semantic_program_feature_materialization import LoadedSemanticFeatureBundle
 from core.learning.semantic_program_transducer import LinearClassifierHead, _fit_classifier
 
-SEMANTIC_OPERATION_TRANSFER_SCHEMA: Final = "aura.semantic_operation_transfer.v1"
+SEMANTIC_OPERATION_TRANSFER_SCHEMA: Final = "aura.semantic_operation_transfer.v2"
 _ARITHMETIC_PRIMITIVES: Final = frozenset({"add", "sub", "mul", "idiv"})
 _FINAL_CHANNEL: Final = "final_causal_hidden"
 
@@ -41,6 +41,7 @@ class SemanticOperationObservation:
     family: str
     split: str
     example_id: str
+    contrast_id: str
     step: int
     label: str
     feature: np.ndarray
@@ -54,6 +55,7 @@ class SemanticOperationObservation:
             not self.family
             or self.split not in {"train", "validation", "test"}
             or not self.example_id
+            or not self.contrast_id
             or type(self.step) is not int
             or self.step < 0
             or self.label not in _ARITHMETIC_PRIMITIVES
@@ -98,6 +100,7 @@ def operation_observations_from_bundle(
                     family=family,
                     split=example.split,
                     example_id=str(raw.metadata["example_id"]),
+                    contrast_id=str(raw.metadata["contrast_id"]),
                     step=step,
                     label=instruction.op,
                     feature=_normalized_mean(final_hidden[span.start : span.end]),
@@ -117,6 +120,43 @@ def operation_observations_from_bundle(
     if not result:
         raise ValueError(f"semantic operation family has no arithmetic evidence: {family}")
     return tuple(result)
+
+
+def counterfactual_center_operation_observations(
+    rows: Sequence[SemanticOperationObservation],
+) -> tuple[SemanticOperationObservation, ...]:
+    """Remove construction context using answer-blind factorial contrast sets."""
+
+    groups: dict[tuple[str, str, str, int], list[SemanticOperationObservation]] = (
+        defaultdict(list)
+    )
+    for item in rows:
+        groups[(item.family, item.split, item.contrast_id, item.step)].append(item)
+    means = {
+        key: np.mean(np.stack([item.feature for item in values]), axis=0)
+        for key, values in groups.items()
+    }
+    centered: list[SemanticOperationObservation] = []
+    for item in rows:
+        key = (item.family, item.split, item.contrast_id, item.step)
+        feature = item.feature - means[key]
+        norm = float(np.linalg.norm(feature))
+        if norm <= 1e-8:
+            raise ValueError("semantic operation contrast set has no residual signal")
+        centered.append(
+            SemanticOperationObservation(
+                family=item.family,
+                split=item.split,
+                example_id=item.example_id,
+                contrast_id=item.contrast_id,
+                step=item.step,
+                label=item.label,
+                feature=feature / norm,
+                token_surface=item.token_surface,
+                geometry_feature=item.geometry_feature,
+            )
+        )
+    return tuple(centered)
 
 
 def _lesion(head: LinearClassifierHead) -> LinearClassifierHead:
@@ -270,24 +310,34 @@ def run_semantic_operation_transfer(
     compatibility = establish_semantic_training_representation_compatibility(
         {name: bundle.manifest for name, bundle in bundles.items()}
     )
-    observations = {
+    absolute_observations = {
         name: operation_observations_from_bundle(name, bundle)
         for name, bundle in bundles.items()
     }
-    directions = {
-        "sequence_to_arithmetic": _evaluate_direction(
-            source=observations["sequence_binary"],
-            target=observations["arithmetic"],
-        ),
-        "sequence_to_fork_join": _evaluate_direction(
-            source=observations["sequence_binary"],
-            target=observations["fork_join"],
-        ),
-        "arithmetic_fork_join_to_sequence": _evaluate_direction(
-            source=(*observations["arithmetic"], *observations["fork_join"]),
-            target=observations["sequence_binary"],
-        ),
+    centered_observations = {
+        name: counterfactual_center_operation_observations(rows)
+        for name, rows in absolute_observations.items()
     }
+    direction_pairs = (
+        ("arithmetic", "fork_join"),
+        ("arithmetic", "sequence_binary"),
+        ("fork_join", "arithmetic"),
+        ("fork_join", "sequence_binary"),
+        ("sequence_binary", "arithmetic"),
+        ("sequence_binary", "fork_join"),
+    )
+
+    def evaluate_all(
+        observations: Mapping[str, Sequence[SemanticOperationObservation]],
+    ) -> dict[str, Any]:
+        return {
+            f"{source}_to_{target}": _evaluate_direction(
+                source=observations[source],
+                target=observations[target],
+            )
+            for source, target in direction_pairs
+        }
+
     body = {
         "schema": SEMANTIC_OPERATION_TRANSFER_SCHEMA,
         "feature_manifest_sha256s": {
@@ -295,7 +345,16 @@ def run_semantic_operation_transfer(
             for name, bundle in sorted(bundles.items())
         },
         "representation_compatibility": compatibility,
-        "directions": directions,
+        "representation_views": {
+            "absolute_span_mean": {
+                "counterfactual_target_batch_required": False,
+                "directions": evaluate_all(absolute_observations),
+            },
+            "counterfactual_centered_span_mean": {
+                "counterfactual_target_batch_required": True,
+                "directions": evaluate_all(centered_observations),
+            },
+        },
         "gold_operation_spans_available": True,
         "expected_answers_available_to_training": False,
         "expected_answers_available_to_evaluation": False,
@@ -303,8 +362,9 @@ def run_semantic_operation_transfer(
         "geometry_available_to_treatment_classifier": False,
         "serving_authority": False,
         "claim_boundary": (
-            "bounded gold-operation-span semantic transfer across synthetic arithmetic "
-            "and sequence language; not end-to-end program acquisition"
+            "bounded gold-operation-span representation diagnostic across synthetic "
+            "arithmetic and sequence language; the centered view also requires an "
+            "answer-blind factorial target batch and is not a single-request decoder"
         ),
     }
     return {**body, "report_sha256": _sha(body)}
@@ -313,6 +373,7 @@ def run_semantic_operation_transfer(
 __all__ = [
     "SEMANTIC_OPERATION_TRANSFER_SCHEMA",
     "SemanticOperationObservation",
+    "counterfactual_center_operation_observations",
     "operation_observations_from_bundle",
     "run_semantic_operation_transfer",
 ]

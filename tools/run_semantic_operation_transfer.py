@@ -55,7 +55,7 @@ def main() -> int:
         print(
             json.dumps(
                 {
-                    "schema": "aura.semantic_operation_transfer_cli.v1",
+                    "schema": "aura.semantic_operation_transfer_cli.v2",
                     "complete": False,
                     "error": f"{type(exc).__name__}: {exc}",
                 },
@@ -68,21 +68,31 @@ def main() -> int:
     print(
         json.dumps(
             {
-                "schema": "aura.semantic_operation_transfer_cli.v1",
+                "schema": "aura.semantic_operation_transfer_cli.v2",
                 "complete": True,
                 "report_sha256": report["report_sha256"],
-                "directions": {
-                    name: {
-                        split: {
-                            "program_exact": result["arms"]["treatment"][
-                                "program_exact"
-                            ],
-                            "program_total": result["program_count"],
-                            "surface_overlap_count": result["surface_overlap_count"],
+                "representation_views": {
+                    view_name: {
+                        "counterfactual_target_batch_required": view[
+                            "counterfactual_target_batch_required"
+                        ],
+                        "directions": {
+                            name: {
+                                split: {
+                                    "program_exact": result["arms"]["treatment"][
+                                        "program_exact"
+                                    ],
+                                    "program_total": result["program_count"],
+                                    "surface_overlap_count": result[
+                                        "surface_overlap_count"
+                                    ],
+                                }
+                                for split, result in direction["splits"].items()
+                            }
+                            for name, direction in view["directions"].items()
                         }
-                        for split, result in direction["splits"].items()
                     }
-                    for name, direction in report["directions"].items()
+                    for view_name, view in report["representation_views"].items()
                 },
             },
             sort_keys=True,

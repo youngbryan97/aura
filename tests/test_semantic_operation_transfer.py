@@ -5,6 +5,7 @@ import numpy as np
 from core.learning.semantic_operation_transfer import (
     SemanticOperationObservation,
     _evaluate_direction,
+    counterfactual_center_operation_observations,
 )
 
 
@@ -19,6 +20,7 @@ def _rows(family: str, split: str) -> tuple[SemanticOperationObservation, ...]:
                 family=family,
                 split=split,
                 example_id=f"{family}-{split}-{index}",
+                contrast_id=f"{family}-{split}",
                 step=0,
                 label=label,
                 feature=feature,
@@ -46,3 +48,31 @@ def test_operation_transfer_measures_programs_and_surface_overlap() -> None:
         }
         assert result["arms"]["coefficient_lesion"]["program_exact"] < 4
         assert result["arms"]["label_permutation"]["program_exact"] == 0
+
+
+def test_counterfactual_centering_removes_shared_context_without_labels() -> None:
+    rows = _rows("source", "train")
+    nuisance = np.asarray((9.0, 7.0, 5.0, 3.0), dtype=np.float32)
+    shifted = tuple(
+        SemanticOperationObservation(
+            family=item.family,
+            split=item.split,
+            example_id=item.example_id,
+            contrast_id=item.contrast_id,
+            step=item.step,
+            label=item.label,
+            feature=item.feature + nuisance,
+            token_surface=item.token_surface,
+            geometry_feature=item.geometry_feature,
+        )
+        for item in rows
+    )
+
+    centered = counterfactual_center_operation_observations(shifted)
+
+    assert np.allclose(
+        np.mean(np.stack([item.feature for item in centered]), axis=0),
+        0.0,
+        atol=2e-8,
+    )
+    assert [item.label for item in centered] == [item.label for item in rows]
