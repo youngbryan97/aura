@@ -1,7 +1,7 @@
 {
   "1.1 Substrate idle drift (100 ticks, no input)": {
     "status": "PASS",
-    "L2_drift": "5.2496"
+    "L2_drift": "5.1059"
   },
   "1.2 Neurochemical drift without stimulus": {
     "status": "PASS",
@@ -9,7 +9,7 @@
   },
   "1.3 Different histories produce different states": {
     "status": "PASS",
-    "L2_divergence": "0.4730"
+    "L2_divergence": "0.5207"
   },
   "2.1 Workspace competition resolves to single winner": {
     "status": "PASS",
@@ -82,7 +82,7 @@
   },
   "5.8 Lesion specificity: substrate runs without NCS, NCS works without GWT": {
     "status": "PASS",
-    "substrate_drift": "3.7429",
+    "substrate_drift": "3.7275",
     "standalone_valence": "0.2870"
   },
   "5.9 Double dissociation: GWT lesion spares valence, valence lesion spares GWT": {
@@ -97,7 +97,7 @@
   },
   "6.1 Substrate processes input without any report channel": {
     "status": "PASS",
-    "state_change": "1.8588"
+    "state_change": "1.8577"
   },
   "6.2 Chemicals respond to stimulus without narration": {
     "status": "PASS",
@@ -128,17 +128,17 @@
   },
   "6.7 Report ablation preserves processing (no HOT called)": {
     "status": "PASS",
-    "substrate_drift": "1.5440",
+    "substrate_drift": "1.5605",
     "chemicals_changed": "10"
   },
   "6.8 Substrate velocity non-zero without report channel": {
     "status": "PASS",
-    "velocity_norm": "0.1129"
+    "velocity_norm": "0.1134"
   },
   "7.1 State carries temporal history (autocorrelation)": {
     "status": "PASS",
     "lag1_correlation": "0.9970",
-    "lag10_correlation": "0.7710"
+    "lag10_correlation": "0.7657"
   },
   "7.2 Affective tone carries over across ticks": {
     "status": "PASS",
@@ -164,7 +164,7 @@
   },
   "7.6 Running substrate differs from fresh (state accumulates)": {
     "status": "PASS",
-    "L2_running_vs_fresh": "3.6337"
+    "L2_running_vs_fresh": "3.6578"
   },
   "7.7 Temporal binding: vitality tracks degradation trend": {
     "status": "PASS",
@@ -180,7 +180,7 @@
   },
   "8.1 Substrate processes without metacognitive access": {
     "status": "PASS",
-    "substrate_norm": "1.8425",
+    "substrate_norm": "1.8455",
     "hot_available": "True",
     "note": "substrate dynamics persist even if HOT is not invoked"
   },
@@ -191,7 +191,7 @@
   },
   "8.3 First-order discrimination without HOT": {
     "status": "PASS",
-    "pattern_discrimination_distance": "5.4084"
+    "pattern_discrimination_distance": "5.3705"
   },
   "8.4 HOT confidence tracking": {
     "status": "PASS",
@@ -201,7 +201,7 @@
   },
   "8.5 Performance > 0 while access == 0 (blindsight dissociation)": {
     "status": "PASS",
-    "performance_signal": "0.2714",
+    "performance_signal": "0.2715",
     "access_signal": "0.0000"
   },
   "8.6 Restoring access recovers both performance and broadcast": {
@@ -211,13 +211,13 @@
   },
   "9.1 Similar states -> similar qualia, different states -> different qualia": {
     "status": "PASS",
-    "dist_similar": "1.2580",
-    "dist_different": "11.0723",
-    "ratio": "8.80x"
+    "dist_similar": "1.2555",
+    "dist_different": "11.1111",
+    "ratio": "8.85x"
   },
   "9.2 Qualia descriptor dimensionality": {
     "status": "PASS",
-    "total_dimensions": "17",
+    "total_dimensions": "21",
     "layers": "subconceptual + conceptual + predictive + workspace + witness",
     "phenomenal_richness_A": "0.3478",
     "phenomenal_richness_C": "0.4869"
@@ -257,12 +257,12 @@
   },
   "10.1 Text-only baseline lacks dynamics": {
     "status": "PASS",
-    "aura_drift": "3.7572",
+    "aura_drift": "3.7507",
     "text_only_drift": "0.0000"
   },
   "10.2 Phi is positive (no-substrate baseline = 0)": {
     "status": "PASS",
-    "phi_s": "0.11321",
+    "phi_s": "0.19314",
     "is_complex": "True",
     "baseline_phi": "0.0 (no substrate)"
   },
@@ -347,14 +347,14 @@
   "T4.14 Self-prediction error is measurable": {
     "status": "PASS",
     "num_cycles": "20",
-    "mean_error": "0.0301",
-    "max_error": "0.0854"
+    "mean_error": "0.0302",
+    "max_error": "0.0859"
   },
   "T4.15 Self-prediction model improves with experience": {
     "status": "PASS",
-    "early_mean_error": "0.0384",
+    "early_mean_error": "0.0386",
     "trained_mean_error": "0.0070",
-    "improvement": "0.0314"
+    "improvement": "0.0316"
   },
   "T4.16 Closed loop: induce -> detect -> regulate -> verify": {
     "status": "PASS",
@@ -366,9 +366,9 @@
   "T4.17 Temporal integration window spans multiple lags": {
     "status": "PASS",
     "lag1_corr": "0.9987",
-    "lag5_corr": "0.9719",
+    "lag5_corr": "0.9712",
     "positive_lags_above_0_1": "5",
-    "all_lag_corrs": "['0.999', '0.995', '0.989', '0.982', '0.972']"
+    "all_lag_corrs": "['0.999', '0.995', '0.989', '0.981', '0.971']"
   },
   "T4.18 Spontaneous initiative from internal drives": {
     "status": "PASS",
@@ -396,7 +396,7 @@
   "T4.22 Multi-step inference uses workspace (reasoning wins over affect)": {
     "status": "PASS",
     "winner_source": "reasoning_step_1",
-    "inhibited_count": "2"
+    "inhibited_count": "0"
   },
   "T4.23 Internal revision: HOT dampens high arousal": {
     "status": "PASS",
@@ -432,29 +432,29 @@
   "T4.28 Perturbational Complexity Index (zlib compression ratio)": {
     "status": "PASS",
     "raw_bytes": "3200",
-    "compressed_bytes": "147",
-    "compression_ratio": "0.0459"
+    "compressed_bytes": "150",
+    "compression_ratio": "0.0469"
   },
   "T4.29 PCI: perturbation propagates globally": {
     "status": "PASS",
     "compression_complexity": "0.0184",
-    "neurons_affected": "63"
+    "neurons_affected": "64"
   },
   "T4.30 PCI stable across seeds (CV < 0.5)": {
     "status": "PASS",
-    "pci_values": "['0.0248', '0.0244', '0.0262', '0.0277', '0.0178']",
-    "coefficient_of_variation": "0.1401"
+    "pci_values": "['0.0267', '0.0236', '0.0247', '0.0281', '0.0172']",
+    "coefficient_of_variation": "0.1571"
   },
   "T4.31 Zero-constraint exploratory activity (non-dormant)": {
     "status": "PASS",
     "active_neurons": "64",
-    "unique_binary_states": "63"
+    "unique_binary_states": "57"
   },
   "T4.32 Ontological shock > normal surprise": {
     "status": "PASS",
-    "normal_surprise_divergence": "21.8852",
-    "ontological_shock_divergence": "69.1398",
-    "ratio": "3.16x"
+    "normal_surprise_divergence": "20.3377",
+    "ontological_shock_divergence": "69.1860",
+    "ratio": "3.40x"
   },
   "T4.33 Theory convergence: all indicators active during rich processing": {
     "status": "PASS",

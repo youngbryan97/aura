@@ -1,57 +1,57 @@
 {
   "Param diversity: temperature std": {
     "ok": "True",
-    "temperature_std": 0.0123,
-    "temperature_range": "[0.500, 0.540]"
+    "temperature_std": 0.0201,
+    "temperature_range": "[0.668, 0.766]"
   },
   "Param diversity: token budget std": {
     "ok": "True",
-    "token_std": 22.4,
-    "token_range": "[657, 748]"
+    "token_std": 38.4,
+    "token_range": "[619, 768]"
   },
   "Mood vector pairwise distance": {
     "ok": "True",
-    "mean_dist": 0.2907,
-    "min_dist": 0.0175,
-    "max_dist": 0.7989
+    "mean_dist": 0.2314,
+    "min_dist": 0.024,
+    "max_dist": 0.6334
   },
   "Temperature tracks arousal": {
     "ok": true,
-    "calm_temp": 0.5,
-    "excited_temp": 0.718,
-    "delta": 0.218
+    "calm_temp": 0.543,
+    "excited_temp": 0.887,
+    "delta": 0.344
   },
   "State distance predicts param distance": {
     "ok": "True",
-    "pearson_r": 0.9408,
+    "pearson_r": 0.8874,
     "p_value": 0.0,
-    "mean_state_dist": 0.257,
-    "mean_param_dist": 0.0539
+    "mean_state_dist": 0.1992,
+    "mean_param_dist": 0.096
   },
   "Receptor adaptation attenuates DA": {
-    "ok": "True",
-    "da_fresh": "0.8606",
-    "da_saturated": "0.6777",
-    "attenuation_pct": "21.3"
+    "ok": true,
+    "da_fresh": 0.8757,
+    "da_saturated": 0.8553,
+    "attenuation_pct": 2.3
   },
   "Valence->tokens correlation": {
     "ok": true,
-    "pearson_r": 0.9999,
+    "pearson_r": 0.9958,
     "p_value": 0.0
   },
   "STDP trajectory divergence": {
     "ok": true,
-    "divergence": 0.3004
+    "divergence": 0.4511
   },
   "FE scales with prediction error": {
     "ok": true,
-    "fe_low_pe": 0.263,
-    "fe_high_pe": 0.2787,
-    "urgency_low": 0.2641
+    "fe_low_pe": 0.2643,
+    "fe_high_pe": 0.2811,
+    "urgency_low": 0.2662
   },
   "Action urgency scales with FE": {
     "ok": true,
-    "urgency_high_pe": 0.3136
+    "urgency_high_pe": 0.3176
   },
   "Critical depletion changes inference": {
     "ok": true,
@@ -75,20 +75,20 @@
   "Circumplex produces diverse narratives": {
     "ok": true,
     "distinct_narratives": 4,
-    "examples": "['Somatically stable.', 'Somatically comfortable and engaged.', 'Somatically calm and settled.']"
+    "examples": "['Somatically alert and energized.', 'Somatically tired and withdrawn.', 'Somatically calm and settled.']"
   },
   "State reversal: positive -> more tokens": {
     "ok": "True",
-    "pos_mean_tokens": 756.0,
-    "neg_mean_tokens": 650.0
+    "pos_mean_tokens": 768.0,
+    "neg_mean_tokens": 633.0
   },
   "Extreme states diverge from human baseline": {
     "ok": "True",
-    "mean_param_divergence": "0.564"
+    "mean_param_divergence": 0.2845
   },
   "Substrate idle drift (100 ticks)": {
     "ok": true,
-    "L2_drift": 6.0075
+    "L2_drift": 6.0148
   },
   "Homeostasis degradation changes context": {
     "ok": true,
@@ -110,16 +110,16 @@
   },
   "STDP surprise ratio": {
     "ok": true,
-    "low_surprise_change": 0.00705,
-    "high_surprise_change": 0.18579,
+    "low_surprise_change": 0.000323,
+    "high_surprise_change": 0.008501,
     "ratio": 26.35
   },
   "Threat vs reward produce different cascades": {
-    "ok": "True",
-    "threat_valence": "-0.07",
-    "reward_valence": "0.272",
-    "threat_stress": "0.342",
-    "reward_stress": "0.025"
+    "ok": true,
+    "threat_valence": -0.022,
+    "reward_valence": 0.28,
+    "threat_stress": 0.275,
+    "reward_stress": 0.011
   },
   "Different emotions win over noise": {
     "ok": true,
@@ -132,34 +132,34 @@
   },
   "Perturbation propagates to other neurons": {
     "ok": true,
-    "neurons_affected": 62,
+    "neurons_affected": 61,
     "total_neurons": 64
   },
   "Shuffled W produces different trajectory": {
     "ok": true,
-    "divergence": 6.9201
+    "divergence": 6.9782
   },
   "State transfer carries behavioral bias": {
-    "ok": "True",
-    "transferred_valence": "-0.187",
-    "neg_source_valence": "-0.187",
-    "pos_source_valence": "0.494",
-    "dist_to_neg_source": "0.001",
-    "dist_to_pos_source": "0.68"
+    "ok": true,
+    "transferred_valence": -0.156,
+    "neg_source_valence": -0.156,
+    "pos_source_valence": 0.458,
+    "dist_to_neg_source": 0.0,
+    "dist_to_pos_source": 0.614
   },
   "Real NCS has stronger valence-stress structure": {
     "ok": "True",
-    "real_corr": "-0.9326",
+    "real_corr": -0.9228,
     "random_corr": 0.0569
   },
   "Zero W produces degenerate dynamics": {
     "ok": true,
-    "divergence_vs_real": 2.3342
+    "divergence_vs_real": 2.356
   },
   "Full stack effective dimensionality": {
     "ok": true,
-    "full_stack_edim": 1.31,
-    "ncs_only_edim": 1.29
+    "full_stack_edim": 1.47,
+    "ncs_only_edim": 1.3
   },
   "All 6 theory indicators present": {
     "ok": true,
@@ -172,23 +172,23 @@
   },
   "Quality space has categorical structure": {
     "ok": "True",
-    "within_mean": 0.2771,
-    "between_mean": 0.3817,
-    "separation_ratio": 1.377
+    "within_mean": 0.2274,
+    "between_mean": 0.3309,
+    "separation_ratio": 1.455
   },
   "Quality space is multi-dimensional": {
     "ok": "True",
-    "pc1_var": 0.9017,
-    "pc2_var": 0.0861,
-    "pc3_var": 0.0075
+    "pc1_var": 0.8903,
+    "pc2_var": 0.0894,
+    "pc3_var": 0.013
   },
   "Perturbation complexity (intact system)": {
     "ok": true,
-    "complexity": 0.3238
+    "complexity": 0.3247
   },
   "Intact vs shuffled divergence": {
     "ok": true,
-    "final_state_divergence": 4.928
+    "final_state_divergence": 4.9952
   },
   "Phi=0 removes GWT boost (anesthesia)": {
     "ok": true,
@@ -198,6 +198,6 @@
   "Will produces valid decisions": {
     "ok": true,
     "outcome": "proceed",
-    "receipt": "will_0f8917a20c6"
+    "receipt": "will_68d88901d03"
   }
 }

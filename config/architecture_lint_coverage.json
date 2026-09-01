@@ -22,6 +22,12 @@
     "experiments",
     "research"
   ],
+  "clean_room": [
+    "core/cognition",
+    "core/evidence",
+    "core/knowledge",
+    "core/science"
+  ],
   "declared_probes": [
     "research/consciousness/introspective_accuracy.py"
   ]

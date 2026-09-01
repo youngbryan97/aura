@@ -353,3 +353,56 @@ def test_the_cards_that_close_on_a_harness_say_so():
         "building the harness that would measure a win is not the win, and the entries "
         "that closed on a harness have to say which campaign is still to run"
     )
+
+
+# ── the clean-room rule can fire ──────────────────────────────────────────
+
+def _lint():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "architecture_lint", ROOT / "tools/architecture_lint.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["architecture_lint"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_a_rival_copyright_line_is_caught(tmp_path):
+    """A rule that cannot match reports green forever."""
+    module = _lint()
+    probe = ROOT / "core" / "_cleanroom_probe"
+    probe.mkdir(exist_ok=True)
+    (probe / "vendored.py").write_text("# Copyright (c) OpenCog Foundation\n")
+    try:
+        findings = module.check_clean_room([str(probe.relative_to(ROOT))])
+        assert any("copyright" in f.message for f in findings)
+    finally:
+        (probe / "vendored.py").unlink()
+        probe.rmdir()
+
+
+def test_importing_a_rival_runtime_is_caught():
+    module = _lint()
+    probe = ROOT / "core" / "_cleanroom_probe"
+    probe.mkdir(exist_ok=True)
+    (probe / "vendored.py").write_text("import nengo\n")
+    try:
+        findings = module.check_clean_room([str(probe.relative_to(ROOT))])
+        assert any("vendored code" in f.message for f in findings)
+    finally:
+        (probe / "vendored.py").unlink()
+        probe.rmdir()
+
+
+def test_the_tree_carries_no_rival_source():
+    module = _lint()
+    coverage = json.loads((ROOT / "config/architecture_lint_coverage.json").read_text())
+    assert module.check_clean_room(coverage["clean_room"]) == []
+
+
+def test_the_clean_room_rule_covers_where_the_adaptation_happened():
+    coverage = json.loads((ROOT / "config/architecture_lint_coverage.json").read_text())
+    covered = set(coverage["clean_room"])
+    assert {"core/cognition", "core/evidence", "core/knowledge", "core/science"} <= covered

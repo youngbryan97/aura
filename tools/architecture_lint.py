@@ -21,6 +21,12 @@ to the modules built under it, it holds.
   field set changes without the version moving. Two definitions of one message
   is how the half-wired channels happened.
 
+* **A rival's source never enters the tree.** Everything adapted from another
+  architecture is adapted from its published description. A file carrying a
+  rival project's copyright line, or importing a rival package, is vendored
+  code however it got here, and the licence question is not one this repository
+  wants to have. The rule checks for both.
+
 * **Research does not import production.** A module under an experimental path
   may not import the live runtime. The dependency is the reverse of the one
   people expect and it is the one that bites: an experiment that imports the
@@ -64,6 +70,13 @@ DEFAULT_COVERAGE: dict[str, list[str]] = {
     "research_isolation": [
         "experiments",
         "research",
+    ],
+    #: Everything adapted from another architecture during the gap-atlas work.
+    "clean_room": [
+        "core/cognition",
+        "core/evidence",
+        "core/knowledge",
+        "core/science",
     ],
     #: Probes whose purpose is to read live state. Reading the live snapshot is
     #: what introspective_accuracy MEASURES; forbidding it would delete the
@@ -220,7 +233,55 @@ def check_research_isolation(
     return findings
 
 
+#: Packages whose presence means rival source was imported rather than adapted.
+RIVAL_PACKAGES = (
+    "nengo", "nengo_spa", "hyperon", "opencog", "pyswip", "clarion", "pysoar",
+)
+
+
+def check_clean_room(paths: list[str]) -> list[Finding]:
+    """No rival copyright, no rival package import."""
+    findings: list[Finding] = []
+    for rel in paths:
+        base = ROOT / rel
+        candidates = sorted(base.rglob("*.py")) if base.is_dir() else [base]
+        for path in candidates:
+            if not path.exists():
+                continue
+            source = path.read_text(errors="replace")
+            relative = str(path.relative_to(ROOT))
+            for number, line in enumerate(source.splitlines(), start=1):
+                lowered = line.lower()
+                if "copyright" in lowered and any(
+                    name in lowered
+                    for name in ("soar", "opencog", "nengo", "hyperon", "deepmind", "meta platforms")
+                ):
+                    findings.append(Finding(
+                        "clean_room", relative, number,
+                        "carries a rival project's copyright line; adapt from the "
+                        "published description instead of the source",
+                    ))
+            tree = _parse(path)
+            if tree is None:
+                continue
+            for node in ast.walk(tree):
+                module = ""
+                if isinstance(node, ast.ImportFrom):
+                    module = node.module or ""
+                elif isinstance(node, ast.Import):
+                    module = node.names[0].name if node.names else ""
+                root = module.split(".")[0]
+                if root in RIVAL_PACKAGES:
+                    findings.append(Finding(
+                        "clean_room", relative, node.lineno,
+                        f"imports {module}; a rival runtime in the tree is vendored code "
+                        "however it got here",
+                    ))
+    return findings
+
+
 CHECKS = {
+    "clean_room": check_clean_room,
     "composition": check_composition,
     "stateless": check_stateless,
     "contract_version": check_contract_version,
