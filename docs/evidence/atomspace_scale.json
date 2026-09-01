@@ -1,0 +1,79 @@
+{
+  "card": "098",
+  "claim_boundary": "single-process in-memory AtomSpace throughput and read latency at the stated atom counts on this host; not a distributed or persistent store comparison",
+  "reads_per_size": 20000,
+  "schema": "aura.atomspace_scale.v1",
+  "seed": 1618033,
+  "sizes": [
+    {
+      "atoms_per_second": 272796,
+      "build_seconds": 0.055,
+      "ecan_cycle_seconds": 0.0017,
+      "ecan_focus": 64,
+      "ecan_sti_moved": 216.2,
+      "held": 14997,
+      "point_read_us_p50": 0.291,
+      "point_read_us_p99": 0.833,
+      "requested": 10000,
+      "resident_bytes_per_atom": 972.3,
+      "typed_match_results": 4998,
+      "typed_match_seconds": 0.0078
+    },
+    {
+      "atoms_per_second": 212855,
+      "build_seconds": 0.352,
+      "ecan_cycle_seconds": 0.0059,
+      "ecan_focus": 64,
+      "ecan_sti_moved": 220.0,
+      "held": 74997,
+      "point_read_us_p50": 0.625,
+      "point_read_us_p99": 1.083,
+      "requested": 50000,
+      "resident_bytes_per_atom": 786.2,
+      "typed_match_results": 24998,
+      "typed_match_seconds": 0.0431
+    },
+    {
+      "atoms_per_second": 187748,
+      "build_seconds": 0.799,
+      "ecan_cycle_seconds": 0.0114,
+      "ecan_focus": 64,
+      "ecan_sti_moved": 240.0,
+      "held": 150001,
+      "point_read_us_p50": 0.75,
+      "point_read_us_p99": 1.25,
+      "requested": 100000,
+      "resident_bytes_per_atom": 429.0,
+      "typed_match_results": 50000,
+      "typed_match_seconds": 0.0858
+    },
+    {
+      "atoms_per_second": 164076,
+      "build_seconds": 4.571,
+      "ecan_cycle_seconds": 0.0569,
+      "ecan_focus": 64,
+      "ecan_sti_moved": 224.0,
+      "held": 749999,
+      "point_read_us_p50": 0.917,
+      "point_read_us_p99": 1.708,
+      "requested": 500000,
+      "resident_bytes_per_atom": 785.0,
+      "typed_match_results": 249999,
+      "typed_match_seconds": 0.4968
+    },
+    {
+      "atoms_per_second": 176040,
+      "build_seconds": 8.521,
+      "ecan_cycle_seconds": 0.0954,
+      "ecan_focus": 64,
+      "ecan_sti_moved": 208.0,
+      "held": 1500001,
+      "point_read_us_p50": 0.833,
+      "point_read_us_p99": 1.375,
+      "requested": 1000000,
+      "resident_bytes_per_atom": 474.4,
+      "typed_match_results": 500000,
+      "typed_match_seconds": 0.8396
+    }
+  ]
+}

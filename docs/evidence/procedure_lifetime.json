@@ -1,0 +1,89 @@
+{
+  "audited": {
+    "firings": 2000000,
+    "firings_per_second": 502155,
+    "median_firings_to_notice": 7999.0,
+    "of": 64,
+    "peak_live_procedures": 192,
+    "peak_resident_mb": 102.0,
+    "retired": 64,
+    "seconds": 3.98,
+    "shift_at_firing": 1000000,
+    "wrong_firings_after_shift": 6642,
+    "wrong_rate_after_shift": 0.8237
+  },
+  "cards": [
+    "026",
+    "A12.4",
+    "A12.5",
+    "A12.6"
+  ],
+  "claim_boundary": "synthetic accelerated lifetime over compiled procedures with a planted distribution shift; measures the utility accounting, not task competence in any real environment",
+  "compilation": {
+    "compiled": 64,
+    "compression_ratio": 242,
+    "episode_steps_before": 242,
+    "incidental_kept": 64,
+    "provisional_median": 5.0,
+    "refused": 0,
+    "runs_per_task": 6,
+    "steps_after_compilation": 1,
+    "support_kept_max": 5,
+    "support_kept_median": 5.0,
+    "support_kept_min": 5
+  },
+  "config": {
+    "firings": 2000000,
+    "pays_after": 0.18,
+    "pays_before": 0.92,
+    "prune_every": 1000,
+    "runs_per_task": 6,
+    "seed": 1618033,
+    "shift_at": 0.5,
+    "tasks": 64
+  },
+  "generalisation": {
+    "conditions_dropped": 128,
+    "widened": 64
+  },
+  "schema": "aura.procedure_lifetime.v1",
+  "steady_world_control": {
+    "firings": 2000000,
+    "firings_per_second": 268176,
+    "median_firings_to_notice": null,
+    "of": 64,
+    "peak_live_procedures": 64,
+    "peak_resident_mb": 108.2,
+    "retired": 0,
+    "seconds": 7.46,
+    "shift_at_firing": 1000000,
+    "wrong_firings_after_shift": 80094,
+    "wrong_rate_after_shift": 0.0801
+  },
+  "transfer_and_lesion": {
+    "fired_on_unseen": 512,
+    "fired_when_lesioned": 0,
+    "lesion_prevents_firing": true,
+    "lesioned_states_offered": 2560,
+    "unseen_fire_rate": 1.0,
+    "unseen_states_offered": 512
+  },
+  "unaudited_control": {
+    "firings": 2000000,
+    "firings_per_second": 269615,
+    "median_firings_to_notice": null,
+    "of": 64,
+    "peak_live_procedures": 64,
+    "peak_resident_mb": 104.9,
+    "retired": 0,
+    "seconds": 7.42,
+    "shift_at_firing": 1000000,
+    "wrong_firings_after_shift": 819550,
+    "wrong_rate_after_shift": 0.8196
+  },
+  "useful_old_procedures_surviving": {
+    "kept": 64,
+    "of": 64
+  },
+  "wrong_firings_avoided": 812908
+}

@@ -76,6 +76,21 @@ __all__ = [
     "compose",
 ]
 
+#: Decay on the recency-weighted success rate, read off a sweep rather than
+#: chosen: tools/campaigns/procedure_lifetime.py --sweep-decay measures, for
+#: each value, how long a rule keeps firing after the world moves and how many
+#: still-working rules get retired when it does not. At 0.99 a shift is
+#: noticed in 999 firings against 21,999 with no decay, and one rule in
+#: thirty-two is retired that should not have been — the same as 0.98, so the
+#: value sits on a flat stretch and not on an edge. The table is in
+#: docs/evidence/procedure_lifetime_halflife.json.
+_RECENT_DECAY = 0.99
+
+#: How much effective sample the recent rate needs before retirement listens
+#: to it rather than the lifetime average. Below this the recent estimate is a
+#: short run, and retiring on a short run is how a system forgets what works.
+_RECENT_WEIGHT_FLOOR = 30.0
+
 
 class Backend(StrEnum):
     """Which learner made this, and therefore what executes it."""
@@ -164,9 +179,14 @@ class Signature:
         return any(p.key in produced for p in self.preconditions) or not self.preconditions
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class ProceduralValue:
     """What a procedure is worth, in one arithmetic every backend computes into.
+
+    Keyword-only on purpose. ``ProceduralValue(0.9, 2.0, 0.1)`` reads the same
+    before and after a field is added in the middle and means something else,
+    and a success rate that silently becomes a cost is not a thing a test can
+    be relied on to catch.
 
     ``value_when_it_works`` is in whatever unit the caller uses consistently —
     seconds saved, tokens saved, tasks completed. ``match_cost`` and
@@ -175,7 +195,21 @@ class ProceduralValue:
     """
 
     p_success: float = 0.5
+    #: The same rate weighted toward what happened lately. ``p_success`` is a
+    #: lifetime average, and over a long life it cannot be moved: a rule right
+    #: a million times needs about ninety thousand misses before the average
+    #: crosses the retirement threshold, which is ninety thousand wrong
+    #: firings. This is the estimate retirement actually asks.
+    recent_success: float = 0.5
+    #: Effective sample behind ``recent_success``, so a two-use estimate is
+    #: not trusted the way a two-hundred-use one is.
+    recent_weight: float = 0.0
     value_when_it_works: float = 0.0
+    #: What one wrong firing costs. Without this term a rule that fails four
+    #: times in five still "pays", because only its wins are priced — which is
+    #: the utility problem chunking systems are known for, expressed as
+    #: arithmetic the registry could not previously represent.
+    cost_when_it_fails: float = 0.0
     match_cost: float = 0.0
     risk_cost: float = 0.0
     uses: int = 0
@@ -186,24 +220,81 @@ class ProceduralValue:
     transfer_tier: str = "same_instance"
 
     @property
+    def rate_that_decides(self) -> float:
+        """Which success rate retirement should use, and why.
+
+        The recent rate, once enough uses stand behind it to be a measurement
+        rather than a run of luck; the lifetime rate before that. Retirement
+        asks whether a rule is paying now, and a lifetime average answers a
+        different question.
+        """
+        if self.recent_weight < _RECENT_WEIGHT_FLOOR:
+            return self.p_success
+        # The optimistic reading of the recent evidence. Retirement is the
+        # decision whose expensive mistake is the false one: a rule retired on
+        # an unlucky run has to be impassed and compiled again, and the states
+        # it covered go unhandled until then.
+        from core.cognition.procedural_generalization import wilson_upper_bound
+
+        trials = round(self.recent_weight)
+        return wilson_upper_bound(round(self.recent_success * trials), trials)
+
+    @property
     def net(self) -> float:
-        """Expected value per use, minus what keeping it costs."""
-        return self.p_success * self.value_when_it_works - self.match_cost - self.risk_cost
+        """Expected value per use: what it wins, less what it loses and costs.
+
+        ``match_cost`` and ``risk_cost`` are charged on every use — they are
+        what holding the rule costs whatever it does. ``cost_when_it_fails``
+        is charged only on the firings that miss, which is the term that lets
+        a rule stop paying as its success rate falls.
+        """
+        rate = self.rate_that_decides
+        return (
+            rate * self.value_when_it_works
+            - (1.0 - rate) * self.cost_when_it_fails
+            - self.match_cost
+            - self.risk_cost
+        )
 
     @property
     def pays(self) -> bool:
         return self.net > 0.0
 
     def observed(self, *, success: bool, at: float, value: float | None = None) -> "ProceduralValue":
-        """Fold in one use. ``p_success`` becomes measured rather than assumed."""
+        """Fold in one use. ``p_success`` becomes measured rather than assumed.
+
+        A reported value is averaged over the uses that worked, not written
+        over the top of the old one. Last-write-wins let a single lucky run
+        restate what the whole rule is worth, which is not a measurement of
+        anything and made the retirement threshold depend on which use came
+        last. A value reported on a failure is ignored: the field is what the
+        procedure is worth *when it works*.
+        """
         uses = self.uses + 1
         successes = self.successes + (1 if success else 0)
+        # Exponentially weighted, so the estimate has a horizon instead of a
+        # memory. The weight saturates at 1/(1-alpha), which is what makes
+        # rate_that_decides able to say "enough recent evidence".
+        alpha = _RECENT_DECAY
+        weight = self.recent_weight * alpha + 1.0
+        recent = (
+            self.recent_success * self.recent_weight * alpha + (1.0 if success else 0.0)
+        ) / weight
+        worth = self.value_when_it_works
+        if success and value is not None:
+            worth = (
+                (self.value_when_it_works * self.successes + value) / successes
+                if successes
+                else value
+            )
         return replace(
             self,
             uses=uses,
             successes=successes,
             p_success=successes / uses,
-            value_when_it_works=self.value_when_it_works if value is None else value,
+            recent_success=recent,
+            recent_weight=weight,
+            value_when_it_works=worth,
             last_used=at,
         )
 
@@ -216,8 +307,12 @@ class ProceduralValue:
     def to_dict(self) -> dict[str, Any]:
         return {
             "p_success": self.p_success,
+            "recent_success": self.recent_success,
+            "recent_weight": self.recent_weight,
+            "rate_that_decides": self.rate_that_decides,
             "wilson_floor": self.wilson_floor(),
             "value_when_it_works": self.value_when_it_works,
+            "cost_when_it_fails": self.cost_when_it_fails,
             "match_cost": self.match_cost,
             "risk_cost": self.risk_cost,
             "net": self.net,
@@ -233,7 +328,7 @@ class Origin:
     """Where a procedure came from, so it can explain itself.
 
     Card 022's bar: any procedure produces a minimal reproducible account of
-    why it exists. That is these five fields, and none is optional for a
+    why it exists. That is these six fields, and none is optional for a
     procedure a learner compiled — a rule that cannot say what it was compiled
     from cannot be audited when it fires wrongly.
     """
@@ -244,6 +339,14 @@ class Origin:
     causal_events: tuple[int, ...] = ()
     counterexamples: tuple[str, ...] = ()
     rejected_conditions: tuple[str, ...] = ()
+    #: Conditions kept without evidence that they gate anything: present in
+    #: every run the rule was compiled from, and holding a different value
+    #: each time. These are the ones a witness can drop.
+    provisional_conditions: tuple[str, ...] = ()
+    #: Conditions dropped, each naming the run that succeeded without it.
+    #: Written "key<-witness", so a widening can be audited the same way a
+    #: narrowing can.
+    generalisations: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -253,6 +356,8 @@ class Origin:
             "causal_events": list(self.causal_events),
             "counterexamples": list(self.counterexamples),
             "rejected_conditions": list(self.rejected_conditions),
+            "provisional_conditions": list(self.provisional_conditions),
+            "generalisations": list(self.generalisations),
         }
 
 
@@ -486,6 +591,7 @@ class ProcedureRegistry:
                 value=ProceduralValue(
                     p_success=parent.value.p_success,
                     value_when_it_works=parent.value.value_when_it_works,
+                    cost_when_it_fails=parent.value.cost_when_it_fails,
                     match_cost=parent.value.match_cost,
                     risk_cost=parent.value.risk_cost,
                     transfer_tier=parent.value.transfer_tier,
@@ -499,6 +605,66 @@ class ProcedureRegistry:
                 parts=(parent.procedure_id,),
             )
             return child
+
+    def generalise(
+        self, procedure_id: str, drop: str, *, witness: str
+    ) -> Procedure | None:
+        """Widen a procedure after a run succeeded without one of its conditions.
+
+        The counterpart of :meth:`specialise`, and the reason it has to exist:
+        a registry that can only ever add conditions gets monotonically more
+        specific over a lifetime, which is how a compiler that learned the room
+        instead of the task never finds out. Success traces alone cannot tell a
+        needed read from an incidental one — both are present every time — so
+        the evidence that drops a condition is a run that did without it.
+
+        ``witness`` names that run. There is no unwitnessed generalisation:
+        dropping a condition because it looks incidental is guessing, and the
+        guess fires on every state the condition was keeping it out of.
+        """
+        if not witness:
+            raise ValueError(
+                f"generalising {procedure_id!r} by dropping {drop!r} needs a run that "
+                "succeeded without it; a condition dropped on suspicion widens the "
+                "rule over exactly the states it was excluding"
+            )
+        with self._lock:
+            parent = self._procedures.get(procedure_id)
+            if parent is None:
+                return None
+            kept = tuple(
+                p for p in parent.signature.preconditions if p.key != drop
+            )
+            if len(kept) == len(parent.signature.preconditions):
+                return None
+            origin = parent.origin or Origin(learner=parent.backend.value)
+            return self.register(
+                f"{parent.name}-{drop}",
+                parent.backend,
+                Signature(preconditions=kept, effects=parent.signature.effects),
+                program=parent.program,
+                value=ProceduralValue(
+                    p_success=parent.value.p_success,
+                    value_when_it_works=parent.value.value_when_it_works,
+                    cost_when_it_fails=parent.value.cost_when_it_fails,
+                    # One fewer condition to check is one less to pay for.
+                    match_cost=parent.value.match_cost * (
+                        len(kept) / len(parent.signature.preconditions)
+                    ),
+                    risk_cost=parent.value.risk_cost,
+                    transfer_tier=parent.value.transfer_tier,
+                ),
+                origin=replace(
+                    origin,
+                    support_keys=tuple(
+                        k for k in origin.support_keys if k != drop
+                    ),
+                    generalisations=(*origin.generalisations, f"{drop}<-{witness}"),
+                ),
+                evidence=parent.evidence,
+                reversibility=parent.reversibility,
+                parts=(parent.procedure_id,),
+            )
 
     def merge(self, keep_id: str, absorb_id: str) -> Procedure:
         """Two procedures turned out to be one. Evidence adds; sources do not double count."""

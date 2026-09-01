@@ -43,6 +43,7 @@ engineering design.
 from __future__ import annotations
 
 import argparse
+import re
 import json
 import sys
 from collections import Counter, defaultdict
@@ -137,11 +138,52 @@ def _integration_problems(cid: str, entry: dict) -> list[str]:
     return problems
 
 
+#: A campaign result is only a result if the file it names is on disk and a
+#: test reads it. Without both, ``campaign_run`` is a sentence, and a sentence
+#: is exactly what ``outstanding`` exists to prevent being mistaken for
+#: evidence.
+_EVIDENCE_RE = re.compile(r"docs/evidence/[\w./-]+\.json")
+
+
+def _campaign_problems(cid: str, entry: dict) -> list[str]:
+    """Whether a claimed campaign actually left evidence a test checks."""
+    note = entry.get("campaign_run") or ""
+    if not note:
+        return []
+    named = _EVIDENCE_RE.findall(note)
+    if not named:
+        return [
+            f"[{cid}]: campaign_run describes a result but names no evidence file. "
+            "A result with nothing on disk behind it is a sentence."
+        ]
+    problems = []
+    for relative in named:
+        if not (ROOT / relative).exists():
+            problems.append(
+                f"[{cid}]: campaign_run names {relative}, which is not there."
+            )
+            continue
+        readers = [
+            path
+            for path in ROOT.glob("tests/test_*.py")
+            if relative.rsplit("/", 1)[-1] in path.read_text(encoding="utf-8")
+        ]
+        if not readers:
+            problems.append(
+                f"[{cid}]: no test reads {relative}, so nothing notices when the "
+                "campaign and its evidence drift apart."
+            )
+    return problems
+
+
 def _demonstration_problems(cid: str, entry: dict) -> list[str]:
     bar = (entry.get("bar") or "").lower()
     if not any(word in bar for word in DEMONSTRATION_WORDS):
         return []
     if entry.get("outstanding"):
+        return []
+    if entry.get("campaign_run"):
+        # The campaign was run and left evidence; _campaign_problems checks it.
         return []
     return [
         f"[{cid}]: the bar names a demonstrated result ({bar[:70]}...) and the entry "
@@ -180,6 +222,7 @@ def check() -> int:
                     problems.append(f"[{cid}]: closed_by names {path}, which does not exist")
             problems.extend(_integration_problems(cid, entry))
             problems.extend(_demonstration_problems(cid, entry))
+        problems.extend(_campaign_problems(cid, entry))
 
     orphans = set(entries) - {card["id"] for card in cards}
     problems.extend(f"[{cid}]: adjudicated but not a card in the report" for cid in sorted(orphans))

@@ -188,6 +188,12 @@ class TraceCompiler:
                 p_success=1.0,
                 # Measured from the deliberation these runs actually spent.
                 value_when_it_works=median,
+                # A chunk that fires and is wrong costs the same deliberation
+                # over again, because the work it displaced still has to
+                # happen. Without this term a rule that misses four times in
+                # five still shows a positive net and is never retired, which
+                # is the utility problem by another name.
+                cost_when_it_fails=median,
                 match_cost=0.001 * len(shared),
                 uses=len(traces),
                 successes=len(traces),
@@ -201,6 +207,12 @@ class TraceCompiler:
                         {d.key for t in traces for d in t.support} - set(shared)
                     )
                 ),
+                # Kept as conditions but never seen to matter: present in every
+                # run and different in every run. Success traces cannot tell
+                # these from real preconditions, so they are named here for the
+                # first run that succeeds without one to drop through
+                # ProcedureRegistry.generalise.
+                provisional_conditions=varied,
             ),
         )
         with self._lock:

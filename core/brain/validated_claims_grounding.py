@@ -31,6 +31,8 @@ from __future__ import annotations
 
 import re
 
+from core.runtime.errors import record_degradation
+
 __all__ = ["CLAIMS_HEADER", "asks_for_own_evidence", "validated_claims_block"]
 
 CLAIMS_HEADER = "## WHAT YOU HAVE ACTUALLY MEASURED ABOUT YOURSELF"
@@ -118,6 +120,7 @@ def validated_claims_block(prompt: str) -> str:
             return ""
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         pass
+    built = True
     try:
         from core.organism.model_validation import get_suite, install_runtime_validation
 
@@ -128,11 +131,28 @@ def validated_claims_block(prompt: str) -> str:
             # honest thing is to build it rather than to report having no
             # evidence — which is what she then tells the person, and it reads
             # as a denial of everything the register holds.
-            install_runtime_validation()
+            try:
+                install_runtime_validation()
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                built = False
+                record_degradation(
+                    "validated_claims_grounding",
+                    exc,
+                    action="reported the register as unbuildable rather than as empty",
+                )
             claims = list(get_suite().claims())
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         return ""
     if not claims:
+        # A register that failed to build and one that genuinely holds nothing
+        # are different facts, and saying the first when the second is true
+        # tells the person a fault happened that did not.
+        if built:
+            return (
+                "The validated-claim register is empty in this process: nothing "
+                "is registered to support, which is not the same as nothing "
+                "having been established."
+            )
         return (
             "The validated-claim registry could not be built in this process, "
             "so nothing can be supported from it right now. That is a fact "

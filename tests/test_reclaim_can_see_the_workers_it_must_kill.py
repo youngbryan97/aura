@@ -12,6 +12,7 @@ then killed stateful non-model children. The gateway role is the authority.
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -223,12 +224,42 @@ def test_watchdog_asks_for_exactly_its_shortfall(monkeypatch) -> None:
         ladder_shed=lambda: (0, 0),
         process_exit=lambda code: None,
     )
-    sample = type("S", (), {"managed_rss_mb": 48237.0, "swap_used_gb": 0.0})()
+    # Derived from the ceiling, not hardcoded above it. A fixed 48237 MB is
+    # over the ceiling on a 64GB host and under it on a 96GB one, so the test
+    # asserted "not from a constant" while depending on one — and it read as
+    # order-dependence whenever a neighbouring test changed what this process
+    # believes the host holds.
+    over_by_mb = 7_277.0
+    breached = dog.thresholds.hard_mb + over_by_mb
+    sample = type("S", (), {"managed_rss_mb": breached, "swap_used_gb": 0.0})()
     killed = dog._terminate_workers(sample, already_freed=0)
 
-    expected = int((48237.0 - dog.thresholds.hard_mb) * (1024 * 1024))
     assert killed == 1
-    assert asked["bytes"] == expected
+    assert asked["bytes"] == int(over_by_mb * (1024 * 1024))
+
+
+def test_the_shortfall_is_measured_from_wherever_the_ceiling_is(monkeypatch) -> None:
+    """Two hosts, two ceilings, the same breach: the same ask."""
+    asked: list[int | None] = []
+
+    def _terminator(*, free_at_least_bytes=None):
+        asked.append(free_at_least_bytes)
+        return 1
+
+    for ceiling in (20_000.0, 53_084.0):
+        dog = mw.MemoryWatchdog(
+            worker_terminator=_terminator,
+            gc_collect=lambda: 0,
+            ladder_shed=lambda: (0, 0),
+            process_exit=lambda code: None,
+        )
+        dog.thresholds = replace(dog.thresholds, hard_mb=ceiling)
+        sample = type(
+            "S", (), {"managed_rss_mb": ceiling + 512.0, "swap_used_gb": 0.0}
+        )()
+        dog._terminate_workers(sample, already_freed=0)
+
+    assert asked == [int(512.0 * (1024 * 1024))] * 2
 
 
 def test_swap_driven_reclaim_still_sheds_workers(monkeypatch) -> None:

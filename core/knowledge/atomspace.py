@@ -24,6 +24,7 @@ implications on the event bus (``atomspace.derived``).
 """
 from __future__ import annotations
 
+import os
 import threading
 import time
 from dataclasses import dataclass, field
@@ -157,6 +158,33 @@ class Link(Atom):
     def __str__(self) -> str:
         inner = " ".join(str(a) for a in self.outgoing)
         return f"({self.atype} {inner})"
+
+
+#: Snapshot format id. A version in the file rather than in a comment, so a
+#: store written by an older build is refused instead of half-loaded.
+_SNAPSHOT_SCHEMA = "aura.atomspace.snapshot.v1"
+
+
+def _encode_atom(atom: Atom) -> Any:
+    """One atom as JSON. Links nest, which is the whole point of a metagraph."""
+    if isinstance(atom, Node):
+        return ["n", atom.atype, atom.name]
+    if isinstance(atom, Variable):
+        return ["v", atom.name]
+    if isinstance(atom, Link):
+        return ["l", atom.atype, [_encode_atom(a) for a in atom.outgoing]]
+    raise TypeError(f"cannot encode {type(atom).__name__}")
+
+
+def _decode_atom(row: Any) -> Atom:
+    kind = row[0]
+    if kind == "n":
+        return Node(row[1], row[2])
+    if kind == "v":
+        return Variable(row[1])
+    if kind == "l":
+        return Link(row[1], tuple(_decode_atom(a) for a in row[2]))
+    raise ValueError(f"unknown atom encoding {kind!r}")
 
 
 # Conventional type names (plain strings, like Hyperon's symbols).
@@ -596,6 +624,36 @@ class AtomSpace:
                 moved += share
         return moved
 
+    def spread_importance_touches(self) -> int:
+        """Spread, and say how many atoms it cost to do it.
+
+        Attention is only worth comparing against a cheaper policy at equal
+        compute, and "equal compute" for a graph policy is atoms touched.
+        :meth:`spread_importance` returns STI moved, which is the benefit
+        side; this is the price.
+        """
+        touched = 0
+        with self._lock:
+            focus = [
+                self._records[atom]
+                for atom, sti in self.attentional_focus()
+                if sti > 0 and atom in self._records
+            ]
+            for rec in focus:
+                touched += 1 + len(self._neighbors_locked(rec.atom))
+        self.spread_importance()
+        return touched
+
+    def neighbours(self, atom: Atom) -> list[Atom]:
+        """Everything one hop from ``atom`` through the metagraph.
+
+        Public because a baseline that walks the graph has to be able to walk
+        the same graph. A comparison where only one arm can see the structure
+        is not a comparison.
+        """
+        with self._lock:
+            return sorted(self._neighbors_locked(atom), key=str)
+
     def collect_rent(self) -> float:
         """Charge proportional rent on all STI back into the fund (decay)."""
         collected = 0.0
@@ -611,6 +669,142 @@ class AtomSpace:
                     rec.av.sti = 0.0
             self._sti_fund = min(self._sti_fund + collected, self._sti_fund_capacity)
         return collected
+
+    # ── persistence ───────────────────────────────────────────────────
+
+    def snapshot(self) -> dict[str, Any]:
+        """Everything the store holds, in a form that survives the process.
+
+        Truth, attention and per-source attribution all travel. Dropping the
+        sources would make a reloaded store forget that two assertions came
+        from one witness, and the next revision would double-count evidence
+        the original refused — a store that loses its provenance on restart is
+        not the same store.
+        """
+        with self._lock:
+            return {
+                "schema": _SNAPSHOT_SCHEMA,
+                "sti_fund": self._sti_fund,
+                "forgotten_total": self._forgotten_total,
+                "derived_total": self._derived_total,
+                "duplicate_assertions": self._duplicate_assertions,
+                "unattributed_assertions": self._unattributed_assertions,
+                "atoms": [
+                    {
+                        "atom": _encode_atom(rec.atom),
+                        "tv": [rec.tv.strength, rec.tv.count],
+                        "av": [rec.av.sti, rec.av.lti, rec.av.vlti],
+                        "added_at": rec.added_at,
+                        "sources": {
+                            name: [tv.strength, tv.count]
+                            for name, tv in rec.sources.items()
+                        },
+                        "unattributed": (
+                            [rec.unattributed.strength, rec.unattributed.count]
+                            if rec.unattributed is not None
+                            else None
+                        ),
+                    }
+                    for rec in self._records.values()
+                ],
+            }
+
+    def save(self, path: "os.PathLike[str] | str") -> int:
+        """Write a snapshot atomically. Returns the atom count written.
+
+        Through the file write gateway, so the temp-then-rename is the same
+        one every other durable write in this process uses: a crash part-way
+        leaves the previous snapshot intact rather than a half file that loads
+        as a smaller store.
+        """
+        import json as _json
+        from pathlib import Path as _Path
+
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        payload = self.snapshot()
+        get_file_write_gateway().write_text(
+            _Path(path), _json.dumps(payload, separators=(",", ":")) + "\n"
+        )
+        return len(payload["atoms"])
+
+    def restore(self, payload: Mapping[str, Any]) -> int:
+        """Replace this store's contents with a snapshot. Returns atoms loaded.
+
+        Refuses a payload it does not recognise rather than loading the part it
+        understands: a store that silently comes back smaller is worse than
+        one that refuses to come back.
+        """
+        if payload.get("schema") != _SNAPSHOT_SCHEMA:
+            raise ValueError(
+                f"snapshot schema {payload.get('schema')!r} is not "
+                f"{_SNAPSHOT_SCHEMA!r}; refusing to load part of it"
+            )
+        rows = payload.get("atoms")
+        if not isinstance(rows, list):
+            raise ValueError("snapshot has no atom list")
+        rebuilt: dict[Atom, _Record] = {}
+        for row in rows:
+            atom = _decode_atom(row["atom"])
+            strength, count = row["tv"]
+            sti, lti, vlti = row["av"]
+            unattributed = row.get("unattributed")
+            rebuilt[atom] = _Record(
+                atom=atom,
+                tv=TruthValue(float(strength), float(count)),
+                av=AttentionValue(float(sti), float(lti), bool(vlti)),
+                added_at=float(row.get("added_at", time.time())),
+                sources={
+                    name: TruthValue(float(s), float(c))
+                    for name, (s, c) in (row.get("sources") or {}).items()
+                },
+                unattributed=(
+                    TruthValue(float(unattributed[0]), float(unattributed[1]))
+                    if unattributed is not None
+                    else None
+                ),
+            )
+        with self._lock:
+            self._records = rebuilt
+            self._by_type = {}
+            self._incoming = {}
+            for atom in rebuilt:
+                if isinstance(atom, (Node, Link)):
+                    self._by_type.setdefault(atom.atype, set()).add(atom)
+                if isinstance(atom, Link):
+                    for child in atom.outgoing:
+                        self._incoming.setdefault(child, set()).add(atom)
+            self._sti_fund = float(payload.get("sti_fund", self._sti_fund_capacity))
+            self._forgotten_total = int(payload.get("forgotten_total", 0))
+            self._derived_total = int(payload.get("derived_total", 0))
+            self._duplicate_assertions = int(payload.get("duplicate_assertions", 0))
+            self._unattributed_assertions = int(
+                payload.get("unattributed_assertions", 0)
+            )
+            return len(rebuilt)
+
+    def load(self, path: "os.PathLike[str] | str") -> int:
+        """Read a snapshot written by :meth:`save`. Returns atoms loaded."""
+        import json as _json
+        from pathlib import Path as _Path
+
+        return self.restore(_json.loads(_Path(path).read_text(encoding="utf-8")))
+
+    def reset_attention(self) -> float:
+        """Return every atom's STI to the fund, keeping truth and structure.
+
+        A second task that starts on the first task's salience is not a second
+        task. Long-term importance is left alone: it is the record of what has
+        repeatedly mattered, which is not a thing one task gets to clear.
+        Returns the STI reclaimed.
+        """
+        with self._lock:
+            reclaimed = 0.0
+            for rec in self._records.values():
+                reclaimed += rec.av.sti
+                rec.av.sti = 0.0
+            self._sti_fund = self._sti_fund_capacity
+            return reclaimed
 
     def forget(self) -> list[Atom]:
         """Evict the least-important atoms when over capacity (ECAN forgetting).

@@ -1,0 +1,60 @@
+{
+  "arms": {
+    "breadth_first": {
+      "mean_recall": 0.0559,
+      "median_recall": 0.056,
+      "share_of_ceiling": 0.8738
+    },
+    "ecan": {
+      "mean_recall": 0.0536,
+      "median_recall": 0.055,
+      "share_of_ceiling": 0.8383
+    },
+    "random": {
+      "mean_recall": 0.0018,
+      "median_recall": 0.002,
+      "share_of_ceiling": 0.0273
+    },
+    "scan": {
+      "mean_recall": 0.0016,
+      "median_recall": 0.0,
+      "share_of_ceiling": 0.025
+    },
+    "top_degree": {
+      "mean_recall": 0.0018,
+      "median_recall": 0.001,
+      "share_of_ceiling": 0.0281
+    }
+  },
+  "atoms_held": 199751,
+  "card": "101",
+  "claim_boundary": "recall at a fixed read budget on a synthetic community graph where relevance is correlated with structure; not a claim about attention on Aura's live knowledge",
+  "config": {
+    "atoms": 40000,
+    "budget": 64,
+    "communities": 40,
+    "cross_rate": 0.08,
+    "seed": 1618033,
+    "seeds": 4,
+    "ticks": 3,
+    "trials": 40
+  },
+  "ecan_beats_breadth_first": {
+    "of": 40,
+    "ties": 10,
+    "wins": 11
+  },
+  "ecan_beats_top_degree": {
+    "of": 40,
+    "ties": 0,
+    "wins": 40
+  },
+  "matched_compute": {
+    "basis": "atom touches during spreading, spent again by the walk",
+    "breadth_first_seconds_median": 6.7943,
+    "ecan_seconds_median": 0.7981,
+    "median_atom_touches": 160532.5
+  },
+  "recall_ceiling": 0.064,
+  "schema": "aura.ecan_stress.v1"
+}

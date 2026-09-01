@@ -168,6 +168,25 @@ def wilson_lower_bound(successes: int, trials: int, *, z: float = 1.96) -> float
     return max(0.0, (centre - margin) / denom)
 
 
+def wilson_upper_bound(successes: int, trials: int, *, z: float = 1.96) -> float:
+    """Wilson score upper bound — the honest reading when the risk is the
+    other way round.
+
+    Promotion asks whether a rule is good enough and must not be fooled by a
+    lucky run, so it reads the lower bound. Retirement asks whether a rule has
+    stopped working, and being fooled by an UNlucky run retires something that
+    still pays. That reading is this one: retire only when even the optimistic
+    view of the evidence does not pay.
+    """
+    if trials <= 0:
+        return 1.0
+    p = successes / trials
+    denom = 1.0 + z * z / trials
+    centre = p + z * z / (2 * trials)
+    margin = z * math.sqrt((p * (1 - p) + z * z / (4 * trials)) / trials)
+    return min(1.0, (centre + margin) / denom)
+
+
 @dataclass
 class GeneralizedRule:
     """``conditions ⇒ resolution``, with the evidence that earned it."""

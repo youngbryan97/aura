@@ -76,11 +76,11 @@ def test_procedures_from_different_learners_are_ranked_by_the_same_number():
     registry = reset_procedure_registry_for_test()
     weak = registry.register(
         "weak chunk", Backend.CHUNK, sig(["x"], ["done"]),
-        origin=Origin(learner="impasse"), value=ProceduralValue(0.9, 1.0, 0.1),
+        origin=Origin(learner="impasse"), value=ProceduralValue(p_success=0.9, value_when_it_works=1.0, match_cost=0.1),
     )
     strong = registry.register(
         "strong macro", Backend.MACRO, sig(["x"], ["done"]),
-        value=ProceduralValue(0.8, 10.0, 0.1),
+        value=ProceduralValue(p_success=0.8, value_when_it_works=10.0, match_cost=0.1),
     )
     ranked = registry.match({"x": True})
     assert [p.procedure_id for p in ranked] == [strong.procedure_id, weak.procedure_id]
@@ -90,7 +90,7 @@ def test_procedures_from_different_learners_are_ranked_by_the_same_number():
 def test_a_procedure_that_stops_paying_is_retired_by_the_same_rule():
     registry = reset_procedure_registry_for_test()
     procedure = registry.register(
-        "flaky", Backend.MACRO, sig(["x"], ["done"]), value=ProceduralValue(0.9, 1.0, 0.5)
+        "flaky", Backend.MACRO, sig(["x"], ["done"]), value=ProceduralValue(p_success=0.9, value_when_it_works=1.0, match_cost=0.5)
     )
     for _ in range(10):
         registry.record_use(procedure.procedure_id, success=False)
@@ -102,7 +102,7 @@ def test_a_procedure_that_stops_paying_is_retired_by_the_same_rule():
 def test_one_failure_does_not_retire_a_procedure():
     registry = reset_procedure_registry_for_test()
     procedure = registry.register(
-        "new", Backend.MACRO, sig(["x"], ["done"]), value=ProceduralValue(1.0, 1.0, 0.1)
+        "new", Backend.MACRO, sig(["x"], ["done"]), value=ProceduralValue(p_success=1.0, value_when_it_works=1.0, match_cost=0.1)
     )
     registry.record_use(procedure.procedure_id, success=False)
     assert registry.prune() == []
@@ -185,11 +185,11 @@ def test_a_novel_skill_assembles_from_components_of_two_backends():
     registry = reset_procedure_registry_for_test()
     chunk = registry.register(
         "open", Backend.CHUNK, sig(["editor"], ["file_open"]),
-        origin=Origin(learner="impasse"), value=ProceduralValue(0.9, 10.0, 0.1),
+        origin=Origin(learner="impasse"), value=ProceduralValue(p_success=0.9, value_when_it_works=10.0, match_cost=0.1),
     )
     macro = registry.register(
         "save", Backend.MACRO, sig(["file_open"], ["saved"]),
-        value=ProceduralValue(0.95, 5.0, 0.1),
+        value=ProceduralValue(p_success=0.95, value_when_it_works=5.0, match_cost=0.1),
     )
     composed = compose(registry, [chunk, macro])
     assert [p.key for p in composed.signature.preconditions] == ["editor"]
@@ -199,8 +199,8 @@ def test_a_novel_skill_assembles_from_components_of_two_backends():
 
 def test_composition_multiplies_failure_and_adds_cost():
     registry = reset_procedure_registry_for_test()
-    a = registry.register("a", Backend.MACRO, sig(["s"], ["m"]), value=ProceduralValue(0.9, 2.0, 0.1))
-    b = registry.register("b", Backend.MACRO, sig(["m"], ["e"]), value=ProceduralValue(0.5, 3.0, 0.2))
+    a = registry.register("a", Backend.MACRO, sig(["s"], ["m"]), value=ProceduralValue(p_success=0.9, value_when_it_works=2.0, match_cost=0.1))
+    b = registry.register("b", Backend.MACRO, sig(["m"], ["e"]), value=ProceduralValue(p_success=0.5, value_when_it_works=3.0, match_cost=0.2))
     composed = compose(registry, [a, b])
     assert composed.value.p_success == pytest.approx(0.45)
     assert composed.value.match_cost == pytest.approx(0.3)
@@ -217,7 +217,7 @@ def test_a_learned_procedure_composes_with_a_tool_it_did_not_learn():
     registry = reset_procedure_registry_for_test()
     learned = registry.register(
         "find file", Backend.CHUNK, sig(["query"], ["path"]),
-        origin=Origin(learner="impasse"), value=ProceduralValue(0.9, 1.0),
+        origin=Origin(learner="impasse"), value=ProceduralValue(p_success=0.9, value_when_it_works=1.0),
     )
     tool = from_tool_schema("read_file", requires=["path"], produces=["contents"], registry=registry)
     composed = compose(registry, [learned, tool])
@@ -236,7 +236,7 @@ def test_a_counterexample_narrows_a_rule_without_deleting_it():
     registry = reset_procedure_registry_for_test()
     parent = registry.register(
         "broad", Backend.GENERALIZED_RULE, sig(["a"], ["done"]),
-        origin=Origin(learner="pg"), value=ProceduralValue(0.8, 5.0),
+        origin=Origin(learner="pg"), value=ProceduralValue(p_success=0.8, value_when_it_works=5.0),
     )
     child = registry.specialise(parent.procedure_id, Precondition("not_modal"), counterexample="case-7")
     assert len(child.signature.preconditions) == 2
@@ -251,12 +251,12 @@ def test_merging_two_procedures_pools_evidence_without_double_counting():
     registry = reset_procedure_registry_for_test()
     a = registry.register(
         "a", Backend.MACRO, sig(["x"], ["y"]),
-        value=ProceduralValue(0.8, 1.0, uses=10, successes=8),
+        value=ProceduralValue(p_success=0.8, value_when_it_works=1.0, uses=10, successes=8),
         evidence=observe(0.8, origin="run", ref="r1", mass=10.0, subject="p"),
     )
     b = registry.register(
         "b", Backend.MACRO, sig(["x"], ["y"]),
-        value=ProceduralValue(0.9, 1.0, uses=10, successes=9),
+        value=ProceduralValue(p_success=0.9, value_when_it_works=1.0, uses=10, successes=9),
         evidence=observe(0.9, origin="run", ref="r1", mass=10.0, subject="p"),
     )
     merged = registry.merge(a.procedure_id, b.procedure_id)
@@ -351,3 +351,207 @@ def test_the_cost_weights_travel_with_every_reading():
     index.observe("t", seconds=1.0)
     index.observe("t", seconds=0.5)
     assert index.trend("t")["weights"]["per_second"] == 5.0
+
+
+# ── a rule that stops working stops paying ────────────────────────────────
+#
+# Card 026 asked what the utility accounting does over an accelerated
+# lifetime with a distribution shift. Running it
+# (tools/campaigns/procedure_lifetime.py) found three things the arithmetic
+# could not express, and these are them.
+
+
+def test_a_failed_firing_costs_something():
+    """Without this term a rule wrong four times in five still 'pays'."""
+    free = ProceduralValue(p_success=0.2, value_when_it_works=1.0)
+    priced = ProceduralValue(
+        p_success=0.2, value_when_it_works=1.0, cost_when_it_fails=1.0
+    )
+    assert free.pays
+    assert not priced.pays
+    assert priced.net == pytest.approx(0.2 - 0.8)
+
+
+def test_the_lifetime_average_decides_until_there_is_recent_evidence():
+    value = ProceduralValue(p_success=0.9, value_when_it_works=1.0)
+    assert value.rate_that_decides == 0.9
+    for _ in range(3):
+        value = value.observed(success=False, at=0.0)
+    # Three uses is not a measurement; the lifetime rate still decides.
+    assert value.recent_weight < 30.0
+    assert value.rate_that_decides == pytest.approx(value.p_success)
+
+
+def test_a_rule_that_worked_a_million_times_can_still_be_retired():
+    """A lifetime average cannot be moved, which is the whole difficulty."""
+    value = ProceduralValue(
+        p_success=1.0,
+        value_when_it_works=1.0,
+        cost_when_it_fails=1.0,
+        uses=1_000_000,
+        successes=1_000_000,
+        recent_success=1.0,
+        recent_weight=100.0,
+    )
+    for _ in range(200):
+        value = value.observed(success=False, at=0.0)
+    assert value.p_success > 0.999, "the lifetime rate has barely moved"
+    assert not value.pays, "and it is retired anyway, on the recent evidence"
+
+
+def test_an_unlucky_run_does_not_retire_a_rule_that_still_works():
+    """Retirement reads the optimistic bound; a short bad run is not evidence."""
+    import random
+
+    from core.cognition.procedure import _RECENT_WEIGHT_FLOOR
+
+    rng = random.Random(7)
+    value = ProceduralValue(
+        p_success=0.92,
+        value_when_it_works=1.0,
+        cost_when_it_fails=1.0,
+        match_cost=0.005,
+    )
+    for _ in range(400):
+        value = value.observed(success=rng.random() < 0.92, at=0.0)
+    assert value.recent_weight >= _RECENT_WEIGHT_FLOOR
+    assert value.pays
+
+
+def test_a_reported_value_is_averaged_not_written_over():
+    value = ProceduralValue(p_success=1.0, value_when_it_works=0.0)
+    value = value.observed(success=True, at=0.0, value=10.0)
+    value = value.observed(success=True, at=0.0, value=0.0)
+    assert value.value_when_it_works == pytest.approx(5.0)
+
+
+def test_a_value_reported_on_a_failure_is_not_what_it_is_worth_when_it_works():
+    value = ProceduralValue(p_success=1.0, value_when_it_works=4.0, successes=1, uses=1)
+    value = value.observed(success=False, at=0.0, value=99.0)
+    assert value.value_when_it_works == pytest.approx(4.0)
+
+
+def test_the_value_object_refuses_positional_arguments():
+    """A field added in the middle silently changed what the third one meant."""
+    with pytest.raises(TypeError):
+        ProceduralValue(0.9, 2.0, 0.1)  # type: ignore[misc]
+
+
+# ── the registry can widen, not only narrow ───────────────────────────────
+
+
+def _compiled_with(registry, keys):
+    return registry.register(
+        "compiled:t",
+        Backend.CHUNK,
+        Signature(
+            preconditions=tuple(Precondition(key=k) for k in keys),
+            effects=(Effect(key="done"),),
+        ),
+        value=ProceduralValue(p_success=1.0, value_when_it_works=1.0, match_cost=0.001 * len(keys)),
+        origin=Origin(learner="test", support_keys=tuple(keys), provisional_conditions=("clock",)),
+    )
+
+
+def test_a_condition_is_dropped_only_by_a_run_that_did_without_it():
+    registry = reset_procedure_registry_for_test()
+    parent = _compiled_with(registry, ["goal", "board", "clock"])
+    with pytest.raises(ValueError, match="succeeded without it"):
+        registry.generalise(parent.procedure_id, "clock", witness="")
+
+
+def test_widening_keeps_the_parent_and_names_the_witness():
+    registry = reset_procedure_registry_for_test()
+    parent = _compiled_with(registry, ["goal", "board", "clock"])
+    child = registry.generalise(parent.procedure_id, "clock", witness="run-412")
+    assert child is not None
+    assert [p.key for p in child.signature.preconditions] == ["goal", "board"]
+    assert child.origin.generalisations == ("clock<-run-412",)
+    assert "clock" not in child.origin.support_keys
+    # Fewer conditions to check is less to pay for.
+    assert child.value.match_cost < parent.value.match_cost
+    # And the parent survives, for the states it still covers.
+    assert registry.get(parent.procedure_id) is not None
+
+
+def test_widening_a_condition_that_is_not_there_changes_nothing():
+    registry = reset_procedure_registry_for_test()
+    parent = _compiled_with(registry, ["goal"])
+    assert registry.generalise(parent.procedure_id, "battery", witness="r1") is None
+
+
+def test_the_compiler_names_the_conditions_a_witness_could_drop():
+    """A key present in every run and different every time gates nothing."""
+    from core.cognition.cognitive_event import EventGraph, Phase, ReadDependency
+    from core.cognition.trace_compiler import TraceCompiler
+
+    registry = reset_procedure_registry_for_test()
+    graph = EventGraph(capacity=256)
+    compiler = TraceCompiler(registry)
+    for run in range(4):
+        first = graph.record(
+            Phase.PERCEIVE,
+            "world",
+            "read",
+            reads=[
+                ReadDependency(key="goal", value_digest="goal:same"),
+                ReadDependency(key="clock", value_digest=f"clock:{run}"),
+            ],
+        )
+        last = graph.record(
+            Phase.APPLY, "actor", "do", parents=[first.seq], produced=["task:t:done"]
+        )
+        compiler.observe(graph, "t", last.seq)
+    result = compiler.compile("t")
+    assert result.compiled is not None
+    assert result.compiled.origin.provisional_conditions == ("clock",)
+    assert "goal" not in result.compiled.origin.provisional_conditions
+
+
+def test_a_compiled_chunk_prices_its_own_misses():
+    from core.cognition.cognitive_event import EventGraph, Phase, ReadDependency
+    from core.cognition.trace_compiler import TraceCompiler
+
+    registry = reset_procedure_registry_for_test()
+    graph = EventGraph(capacity=256)
+    compiler = TraceCompiler(registry)
+    for _ in range(4):
+        first = graph.record(
+            Phase.PERCEIVE,
+            "world",
+            "read",
+            reads=[ReadDependency(key="goal", value_digest="g")],
+            duration_s=0.01,
+        )
+        last = graph.record(
+            Phase.APPLY,
+            "actor",
+            "do",
+            parents=[first.seq],
+            produced=["task:t:done"],
+            duration_s=0.02,
+        )
+        compiler.observe(graph, "t", last.seq)
+    compiled = compiler.compile("t").compiled
+    assert compiled is not None
+    assert compiled.value.cost_when_it_fails == compiled.value.value_when_it_works > 0
+
+
+def test_the_optimistic_and_pessimistic_readings_bracket_the_rate():
+    from core.cognition.procedural_generalization import (
+        wilson_lower_bound,
+        wilson_upper_bound,
+    )
+
+    for successes, trials in ((3, 3), (8, 10), (50, 100), (900, 1000)):
+        low = wilson_lower_bound(successes, trials)
+        high = wilson_upper_bound(successes, trials)
+        assert low <= successes / trials <= high
+        assert high - low > 0.0
+    # No evidence is not evidence of failure.
+    assert wilson_upper_bound(0, 0) == 1.0
+    assert wilson_lower_bound(0, 0) == 0.0
+    # The interval narrows as evidence accumulates.
+    narrow = wilson_upper_bound(900, 1000) - wilson_lower_bound(900, 1000)
+    wide = wilson_upper_bound(9, 10) - wilson_lower_bound(9, 10)
+    assert narrow < wide
