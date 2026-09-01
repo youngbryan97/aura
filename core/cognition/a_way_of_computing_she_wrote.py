@@ -104,6 +104,9 @@ class AWayOfComputing:
     #: Lengths it was fitted at, and lengths it was only judged at.
     fitted_at: tuple[int, ...]
     judged_at: tuple[int, ...]
+    #: Candidates walked before this one. What the answer cost, in the unit
+    #: the search that failed is also counted in.
+    found_at: int = 0
 
     @property
     def how_long(self) -> int:
@@ -112,7 +115,8 @@ class AWayOfComputing:
     def describes(self) -> str:
         return (
             f"{self.how_long} symbols over {', '.join(self.over)}, fitted at "
-            f"{self.fitted_at} and held to {self.judged_at}"
+            f"{self.fitted_at} and held to {self.judged_at}, found after "
+            f"{self.found_at:,} candidate(s)"
         )
 
 
@@ -251,6 +255,7 @@ def a_way_of_computing_she_wrote(
 
     unseen = max(lengths) + 1
     began = time.monotonic()
+    walked = 0
     bodies: list[Code] = []
     stream = every_code(
         deepest=deepest,
@@ -281,6 +286,7 @@ def a_way_of_computing_she_wrote(
         judging = {size: wanted[size] for size in judged_at}
         unseen_only = {unseen: tables[unseen]}
         for body in so_far():
+            walked += 1
             if time.monotonic() - began >= within:
                 logger.info("gave up writing a way of computing after %.1fs", within)
                 return None
@@ -298,6 +304,7 @@ def a_way_of_computing_she_wrote(
                 over=(first_name, second_name),
                 fitted_at=fitted_at,
                 judged_at=judged_at,
+                found_at=walked,
             )
             logger.info("she wrote a way of computing: %s", found.describes())
             return found

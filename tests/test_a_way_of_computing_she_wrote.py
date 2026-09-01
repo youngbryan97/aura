@@ -216,3 +216,49 @@ def test_the_library_is_what_moves_the_horizon(_clean_registry) -> None:
     # moved the horizon" has to mean: not that a longer search succeeded, but
     # that the answer was short once the piece was a leaf.
     assert warm.how_long <= how_long(doubling) + len(WHAT_A_HEAD_IS_GIVEN) + 4
+
+
+def test_a_head_is_weighed_in_terms_to_walk_before_it_is_kept() -> None:
+    """The most expensive thing she can admit, priced on both sides.
+
+    A word is one more thing to put in a hole. A head is one more shape at
+    every node of every term, so it multiplies. The trade is the same unit as
+    everywhere else here — terms she would otherwise walk — and there is no
+    threshold to argue about: it pays when reaching the answer, plus the
+    branches it adds, is cheaper than the search that walked the whole space
+    and returned nothing.
+    """
+    from core.cognition.keeping_the_language_small import (
+        what_a_head_costs_the_search,
+    )
+
+    pays = what_a_head_costs_the_search(
+        "one that pays",
+        without=60_000,
+        with_it=90_000,
+        found_at=800,
+        walked_without_finding=5_000_000,
+    )
+    assert pays.pays
+    assert pays.adds == 30_000
+
+    costs = what_a_head_costs_the_search(
+        "one that does not",
+        without=60_000,
+        with_it=9_000_000,
+        found_at=4_000_000,
+        walked_without_finding=5_000_000,
+    )
+    assert not costs.pays
+
+
+def test_what_it_wrote_records_what_the_answer_cost() -> None:
+    found = a_way_of_computing_she_wrote(
+        _family(_both_places, (4, 5, 6, 7)),
+        now_sayable=lambda: False,
+        words=dict(WHERE_FROM),
+        within=30.0,
+    )
+    assert found is not None
+    assert found.found_at > 0
+    assert "candidate" in found.describes()

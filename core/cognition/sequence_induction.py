@@ -512,7 +512,39 @@ def _a_way_of_computing(
     if found is None:
         return None
     name = f"a way of computing she wrote ({len(DERIVED_HEADS)})"
+    # What it costs the search, measured on both sides before it goes in.
+    #
+    # A word is one more thing to put in a hole. A head is one more shape at
+    # every node of every term, so it multiplies rather than adds and it is
+    # the most expensive thing she can admit. The maker search above walked
+    # the positional space at this depth and found nothing; that is what the
+    # head has to be cheaper than.
+    from core.cognition.keeping_the_language_small import (
+        what_a_head_costs_the_search,
+    )
+    from core.cognition.one_algebra import every_term
+
+    def _how_many_terms() -> int:
+        counted = 0
+        for counted, _ in enumerate(  # noqa: B007
+            every_term((0, 1, 2), holes=2, deepest=2), start=1
+        ):
+            pass
+        return counted
+
+    without = _how_many_terms()
     the_head_she_wrote(name, 2, found.body)
+    worth = what_a_head_costs_the_search(
+        name,
+        without=without,
+        with_it=_how_many_terms(),
+        found_at=found.found_at,
+        walked_without_finding=without,
+    )
+    if not worth.pays:
+        logger.info("not keeping %s — %s", name, worth.describes())
+        forget_the_head(name)
+        return None
     # A head is only reachable through a word written over it, so the word it
     # was fitted on goes in with it.
     every = addressings()

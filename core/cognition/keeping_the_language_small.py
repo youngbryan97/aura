@@ -41,7 +41,9 @@ from core.cognition.what_it_costs_to_say import how_many_expressions
 
 __all__ = [
     "HowCapable",
+    "WhatAHeadIsWorth",
     "WhatAWordIsWorth",
+    "what_a_head_costs_the_search",
     "how_capable",
     "how_long_growth_can_last",
     "what_a_word_is_worth",
@@ -94,6 +96,71 @@ def what_a_word_is_worth(
         words, longest_at
     )
     return WhatAWordIsWorth(name=str(name), removes=int(removes), adds=int(adds))
+
+
+@dataclass(frozen=True)
+class WhatAHeadIsWorth:
+    """What admitting a way of COMPUTING removes from the search, and adds.
+
+    A word is one more thing to put in a hole. A head is one more shape at
+    every node of every term, so it multiplies rather than adds, and it is the
+    most expensive thing she can admit. The trade is the same trade and the
+    unit is the same unit — terms she would otherwise have to walk — but the
+    numbers are far larger and a head that does not pay is far worse than a
+    word that does not.
+    """
+
+    name: str
+    #: Terms the enumerator walks without it, and with it, at the same depth.
+    without: int
+    with_it: int
+    #: Where the answer appeared once it was there.
+    found_at: int
+    #: How far the search got without it and found nothing.
+    walked_without_finding: int
+
+    @property
+    def adds(self) -> int:
+        return max(0, self.with_it - self.without)
+
+    @property
+    def pays(self) -> bool:
+        """Whether the answer cost less than the search that did not find it.
+
+        No threshold and no weighting. The head turned a search that walked
+        that many terms and returned nothing into one that returned an answer
+        at that point; it pays when reaching the answer, plus the branches the
+        head added, is cheaper than the walk that failed.
+        """
+        return self.found_at + self.adds < self.walked_without_finding
+
+    def describes(self) -> str:
+        verdict = "pays" if self.pays else "costs more than it saves"
+        return (
+            f"{self.name!r} {verdict}: the answer at {self.found_at:,} terms "
+            f"plus {self.adds:,} branches it adds, against {self.walked_without_finding:,} "
+            "walked without it and nothing found"
+        )
+
+
+def what_a_head_costs_the_search(
+    name: str,
+    *,
+    without: int,
+    with_it: int,
+    found_at: int,
+    walked_without_finding: int,
+) -> WhatAHeadIsWorth:
+    """Weigh a head in terms-to-walk, measured on both sides."""
+    found = WhatAHeadIsWorth(
+        name=str(name),
+        without=max(0, int(without)),
+        with_it=max(0, int(with_it)),
+        found_at=max(0, int(found_at)),
+        walked_without_finding=max(0, int(walked_without_finding)),
+    )
+    logger.info("what a head is worth — %s", found.describes())
+    return found
 
 
 def what_to_merge(sayable: dict[Any, tuple[str, int]]) -> dict[str, str]:
