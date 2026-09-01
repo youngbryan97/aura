@@ -3643,6 +3643,36 @@ async def pursue_on_screen(
             # happened to be frontmost — reporting that nothing on screen
             # offered a move, half a second in, having never seen the board.
             target_app = reached.app
+    elif target_app:
+        # An application is a place too, and arriving at one was the only
+        # arrival nobody made.
+        #
+        # `reach` puts a page in front before anything looks at it, and the
+        # docstring above says why: a goal that names a place is not doing
+        # anything until she is there. An application named instead of a page
+        # got none of that. It was raised only reactively — when a reading
+        # came back covered, or when the thing changed shape — so the first
+        # look, the first decision and the first keystroke all happened
+        # against whatever was already frontmost.
+        #
+        # LIVE 2026-09-01: asked to play 2048, the run anchored to the
+        # installed "2048 Game", never launched it, read a job posting that
+        # was open in a browser behind everything, reasoned about its "Did you
+        # finish applying?" prompt, and made zero moves in 176 seconds.
+        if not await _bring_the_thing_back_to_the_front(target_app):
+            return {
+                "goal": goal,
+                "completed": False,
+                "outcome": "could_not_get_there",
+                "could_not_get_there": (
+                    f"{target_app!r} would not come to the front and would not start"
+                ),
+                "wanted": target_app,
+                "considered": [],
+                "moves": [],
+                "attempts": [],
+                "success_when": success_when,
+            }
 
     # A goal already met by what was left behind is a decision, not a finish.
     #

@@ -702,6 +702,38 @@ _ALREADY_THERE = frozenset({"is", "are", "was", "were", "already", "still"})
 _NOT_A_PLACE = frozenset({"it", "this", "that", "the game", "game", "them", "one", "some", "any"})
 #: Trailing words that describe where a thing lives rather than naming it.
 _LOCATION_TAIL = re.compile(r"\s+(?:online|on\s+the\s+web|on\s+the\s+internet|in\s+my\s+browser)$", re.IGNORECASE)
+
+
+def _they_said_on_the_web(text: str) -> bool:
+    """Whether the request pinned the thing to the web rather than this machine.
+
+    The same words the name is trimmed of, read as what they are: a routing
+    fact, not noise. "2048 online" and "2048" name the same thing in different
+    places, and only one of them is the application sitting in /Applications.
+
+    LIVE 2026-09-01: "Find 2048 online, play it, and get to a 256 tile" had
+    "online" stripped to get the name, the trimmed name matched an installed
+    2048.app, the place was cleared in favour of that app — and the run then
+    anchored to an application nobody launched while pursuing a job posting
+    that happened to be in front of the browser. Zero moves in 176 seconds.
+
+    Deliberately about where, not about what. A request that says nothing
+    either way is unchanged: a local application is usually the better answer
+    to a bare name, and this only declines to substitute one when the person
+    said otherwise.
+    """
+
+    return bool(_ON_THE_WEB.search(str(text or "")))
+
+
+#: "online", "on the web", "in the browser" — anywhere in the request, not
+#: only at the end of the name. "Find a 2048 game online for me" says it after
+#: the name; "open 2048 in my browser" says it after the verb.
+_ON_THE_WEB = re.compile(
+    r"\b(?:online|on\s+the\s+web|on\s+the\s+internet|in\s+(?:my\s+|the\s+)?browser|"
+    r"in\s+(?:chrome|safari|firefox|edge|arc)|web\s+version|browser\s+version)\b",
+    re.IGNORECASE,
+)
 #: Verbs that mean she is not there yet and has to get there.
 #:
 #: Deliberately wider than "open": a person says find, look up, pull up, go
@@ -825,7 +857,9 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     # Nothing here holds a list of applications: it asks the machine what is
     # installed, which is a fact about the machine rather than something I can
     # keep up to date.
-    if where and not app and "://" not in text:
+    # A local application only stands in for a named place when the request
+    # left the choice open. Saying "online" is the person choosing.
+    if where and not app and "://" not in text and not _they_said_on_the_web(text):
         installed = _an_application_here(where)
         if installed:
             app, where = installed, ""
@@ -833,7 +867,7 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     # the machine about the whole request. What settles whether a request has
     # a screen in it is not which verb it used; it is whether it names
     # something that is here.
-    if not app and not where and "://" not in text:
+    if not app and not where and "://" not in text and not _they_said_on_the_web(text):
         app = named_game or _an_application_here(text, only_chosen=True)
     in_browser = bool(where) or names_any(app, BROWSERS) or "://" in text
     return WatchedGoal(
