@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 from dataclasses import replace
 
@@ -11,6 +12,7 @@ from core.learning.semantic_input_grounding import (
     semantic_input_grounding_contract_from_dict,
     semantic_input_grounding_contract_from_tokenizer,
 )
+from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_ir import (
     SemanticIRInstruction,
     SemanticProgramIR,
@@ -27,6 +29,10 @@ from core.learning.semantic_program_shared_transducer import (
     _pointer_training_indices,
     fit_shared_semantic_program_transducer,
     shared_semantic_program_transducer_from_dict,
+)
+from core.learning.semantic_program_shared_verification import (
+    SEMANTIC_PROGRAM_SHARED_VERIFICATION_SOURCES,
+    verify_shared_semantic_program_campaign,
 )
 from core.learning.semantic_program_transducer import (
     LinearPointerHead,
@@ -354,3 +360,84 @@ def test_shared_campaign_records_family_controls_without_a_router(monkeypatch) -
     assert result.report["paired_program_controls"][
         "coefficient_lesion:test"
     ]["treatment_only"] > 0
+
+
+def test_shared_verifier_replays_frozen_arms_and_rejects_tampering(monkeypatch) -> None:
+    examples = _examples()
+    by_family = {
+        "short": tuple(item for item in examples if item.ir.n_inputs == 3),
+        "long": tuple(item for item in examples if item.ir.n_inputs == 4),
+    }
+    compatibility = {
+        "target_training_session_basis_sha256": _BASIS,
+        "receipt_sha256": "f" * 64,
+    }
+
+    def bind(grouped, *, compatibility):
+        assert compatibility["target_training_session_basis_sha256"] == _BASIS
+        return tuple(
+            replace(item, construction_id=f"{family}:{item.construction_id}")
+            for family in sorted(grouped)
+            for item in grouped[family]
+        )
+
+    for module in (
+        "core.learning.semantic_program_shared_campaign",
+        "core.learning.semantic_program_shared_verification",
+    ):
+        monkeypatch.setattr(
+            f"{module}.establish_semantic_training_representation_compatibility",
+            lambda _manifests: compatibility,
+        )
+        monkeypatch.setattr(
+            f"{module}.bind_training_examples_to_shared_representation",
+            bind,
+        )
+    manifests = {
+        "short": {"manifest_sha256": "1" * 64},
+        "long": {"manifest_sha256": "2" * 64},
+    }
+    result = run_shared_semantic_program_campaign_from_examples(
+        by_family,
+        manifests=manifests,
+        input_grounding=_grounding(),
+    )
+
+    class _Bundle:
+        def __init__(self, manifest, examples):
+            self.manifest = manifest
+            self.examples = examples
+
+    monkeypatch.setattr(
+        "core.learning.semantic_program_shared_verification."
+        "training_examples_from_feature_bundle",
+        lambda bundle: bundle.examples,
+    )
+    bundles = {
+        family: _Bundle(manifests[family], by_family[family])
+        for family in by_family
+    }
+    sources = {
+        relative: hashlib.sha256(relative.encode()).hexdigest()
+        for relative in SEMANTIC_PROGRAM_SHARED_VERIFICATION_SOURCES
+    }
+    verification = verify_shared_semantic_program_campaign(
+        bundles,
+        stored_model_payload=result.model.to_dict(),
+        stored_report=result.report,
+        source_sha256s=sources,
+    )
+    assert verification["verified"] is True
+    assert verification["test_program_exact"] == 4
+
+    tampered = copy.deepcopy(result.report)
+    tampered["arms"]["treatment:test"]["program_exact"] -= 1
+    body = {key: value for key, value in tampered.items() if key != "report_sha256"}
+    tampered["report_sha256"] = _sha(body)
+    with np.testing.assert_raises_regex(ValueError, "replayed arms differ"):
+        verify_shared_semantic_program_campaign(
+            bundles,
+            stored_model_payload=result.model.to_dict(),
+            stored_report=tampered,
+            source_sha256s=sources,
+        )
