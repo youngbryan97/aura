@@ -172,7 +172,7 @@ full before any of this was written.
   The current adversarial gate checks that a call does not raise, which is
   weaker than its name. ChatGPT caught this. Fix it: the gate must check a
   semantic contract.
-- [ ] **7.3** Transfer: `D_1 → a* → ΔC(D_2)` with `D_2` structurally distinct
+- [x] **7.3** Transfer: `D_1 → a* → ΔC(D_2)` with `D_2` structurally distinct
   enough that memorisation cannot explain the gain.
 
 ---
@@ -194,7 +194,7 @@ full before any of this was written.
 
 ## 9. Recursive participation (prompt §2.H)
 
-- [ ] **9.1** `a* ∈ construction(b*)`, read off the dependency graph rather than
+- [x] **9.1** `a* ∈ construction(b*)`, read off the dependency graph rather than
   off the spelling. `one_algebra.what_it_rests_on` already does this for words.
 - [ ] **9.2** Then `c*` depending on `b*`. Say formally what makes
   `A_0 → A_1 → A_2 → ...` genuine recursive development.
@@ -356,7 +356,7 @@ evaluator isolation; computational budgets. Show the information flow.
 - [x] **D** Generalisation. `H ∩ S = ∅`, outside the observed ranges.
 - [x] **E** Recursive reuse. `b*` depends on `a*`; lesion `a*` and the second
   invention disappears or costs substantially more.
-- [ ] **F** Cross-domain transfer. `D_1 → a* → ΔC(D_2)`; `D_3` negative control.
+- [x] **F** Cross-domain transfer. `D_1 → a* → ΔC(D_2)`; `D_3` negative control.
 - [x] **G** Developmental compounding. GROWN, RESET, LESIONED;
   `dΔ_n/dn > 0`; lesion returns performance toward RESET. Prevent answer
   leakage, context-size advantage, compute drift, task memorisation, easier
@@ -380,14 +380,14 @@ evaluator isolation; computational budgets. Show the information flow.
 - [ ] **18.5** Larger search budget with no language growth.
 - [ ] **18.6** Retrieval and memorisation.
 - [ ] **18.7** Macro-only compression.
-- [ ] **18.8** Shuffled residuals.
+- [x] **18.8** Shuffled residuals.
 - [ ] **18.9** Shuffled labels.
 - [ ] **18.10** Fake operator installation.
-- [ ] **18.11** Invented-operator lesion.
-- [ ] **18.12** Invention-mechanism lesion.
+- [x] **18.11** Invented-operator lesion.
+- [x] **18.12** Invention-mechanism lesion.
 - [ ] **18.13** Meta-invention lesion.
 - [ ] **18.14** Frozen prior version.
-- [ ] **18.15** Matched compute, context, tools, foundation model, exposure.
+- [x] **18.15** Matched compute, context, tools, foundation model, exposure.
 - [ ] **18.16** Inline-expansion control.
 - [ ] **18.17** Equal-persistent-bytes control.
 - [ ] **18.18** No-MDL and no-hidden-held-out ablations.

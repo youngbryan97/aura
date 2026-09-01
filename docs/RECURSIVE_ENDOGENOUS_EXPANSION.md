@@ -644,7 +644,11 @@ pickled, and recalled before the words that are written over them.
 
 **Gates.** `compile`, `lint`, `writing`, `layering`, `deps-check` and `smoke`
 green. The writing ratchet was at 77 against a baseline of 76 and is back at
-76.
+76. The full offline suite was run in twelve chunks; every failure it reported
+in the chunks completed so far was reproduced at the audited commit before any
+of this work, and the list is in
+`artifacts/endogenous/failures_that_predate_this_work.md`. The one exception,
+`governance-lint`, names a file the atomspace refactor touched.
 
 **Not yet migrated**, and named as such: `operator_invention.Candidate.fn`
 still takes a callable and still has no runtime caller;
@@ -662,7 +666,7 @@ still takes a callable and still has no runtime caller;
 | **C** | Novelty, at the strongest available tier | **proven** for Corollary 7.1 by Theorem 3; **proven** for Theorem 4 by diagonalisation; bounded for anything a search returns |
 | **D** | Generalisation, `H ∩ S = ∅`, outside the observed ranges | **run.** Correct at lengths 9, 11 and 16, none of them fitted or judged |
 | **E** | `b*` depends on `a*`; lesion `a*` and the second goes | **run at the grammar level.** Same family, same search, same budget: nothing with an empty library, the answer with one entry, and what it wrote is that entry plus four symbols |
-| **F** | Cross-domain transfer with a negative control | **not run** |
+| **F** | Cross-domain transfer with a negative control | **run.** Related domain 96/96 with the piece against 77 without; unrelated control 96 and 96 |
 | **G** | GROWN vs RESET vs LESIONED, `dΔ/dn > 0` | **run, at the grammar level, with its negative control** — see below |
 | **H** | The mechanism changes itself and wins on sealed invention tasks | **not run.** One component of the mechanism — the rule for what to try first — is now a term, replaceable and lesionable by the head path; nothing writes a better one, and no gain is claimed |
 | **I** | A second generation with no human code between | **not run** |
@@ -678,6 +682,24 @@ saves is taken back out. Required and not implemented: random candidate
 generator, fixed-DSL enumerator with a larger budget, retrieval, macro-only
 compression, inline expansion, equal-persistent-bytes, matched compute across
 GROWN and RESET.
+
+### Experiment F, as run
+
+Three domains, different words on each so the before-and-after states look
+unrelated. The related domain's term contains the piece she wrote on the first;
+the control's term does not contain it anywhere, and there is a test asserting
+that, because a negative control is only a control if it is negative.
+
+Sixteen seeds, six families each:
+
+| Domain | With the piece | Without it |
+|---|---|---|
+| structurally related, different surface | 96 / 96 | 77 / 96 |
+| unrelated | 96 / 96 | 96 / 96 |
+
+Nothing on the control. The relation is constructed rather than found, and the
+claim says so: this shows the piece is what carries, not that any real pair of
+domains stands in this relation.
 
 ### Experiment G, as run
 
@@ -896,6 +918,8 @@ whole mitigation, and it is not a proof.
   and lesionable by the same path a head is.
 - Both algebras computing on the floor exactly what their own interpreters
   compute, over 1,808,000 places, refusals included.
+- A piece written on one surface carrying to a structurally related domain
+  whose states look unrelated, and not carrying to an unrelated one.
 - Keeping what she wrote solving 150 of 150 families where resetting solves 78,
   with a gap of nought on the control stream in every block of every seed.
 
@@ -906,9 +930,10 @@ whole mitigation, and it is not a proof.
   rule, and the test suite asserts the rule in force at import is the authored
   one so that a later change cannot pass unnoticed. Experiments H and I are not
   run and no recursive self-improvement is claimed.
-- Cross-domain transfer and post-freeze evaluation. Compounding is shown on a
-  stream constructed to have shared structure, which is a weaker thing than
-  compounding on a distribution nobody constructed.
+- Post-freeze evaluation. Both the compounding and the transfer results are
+  measured on streams and relations this work constructed, which is a weaker
+  thing than either on a distribution nobody constructed. Experiment J is what
+  would close that, and it needs an independent party.
 - That the head mechanism helps on any real task family beyond the synthetic
   ones here.
 - That the library does not eventually worsen search.
@@ -970,13 +995,14 @@ Done, in order, each piece surviving into the final architecture:
 9. The search-cost gate, so a head that costs more than it saves cannot stay.
 10. The search order as a term, replaceable and lesionable by the head path.
 11. Both algebras compiled into the floor, agreeing over 1,808,000 places.
-12. Grown against reset against lesioned, with the negative control.
+12. Grown against reset against lesioned, and cross-domain transfer, each with
+    its negative control.
 
 Next, in the order that keeps every step in the final architecture:
 
 13. The inline-expansion control, so a name that bought nothing cannot pass as
    an abstraction. The search-cost probe is done.
-14. Cross-domain transfer with a negative control.
+14. Post-freeze tasks, which need an independent party.
 13. Widen the rule schema so its shape is a term rather than a signature (B2).
 14. Make the whole proposer a term, not only its ordering, and persist it. Only
     then are H and I even possible.
