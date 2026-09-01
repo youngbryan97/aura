@@ -2858,6 +2858,58 @@ def _a_way_of_computing_she_cannot_keep() -> int:
         DERIVED_HEADS.update(was)
 
 
+def _where_the_two_languages_disagree() -> int:
+    """Places the compiled floor term and the old interpreter differ. Must be none.
+
+    Both algebras, and refusals count as answers. A check comparing only the
+    places where both succeeded would have missed the one real defect this
+    found: substituting the inner expression into the body of ``through`` made
+    the floor lazy where the interpreter is strict, so a term dividing by
+    nothing refused in one language and answered nought in the other.
+    """
+    import itertools
+
+    from core.cognition.an_operation_that_generalises import every_expression
+    from core.cognition.one_algebra import every_term
+    from core.cognition.the_old_language_on_the_floor import (
+        operations_agree_everywhere,
+        they_agree_everywhere,
+    )
+
+    terms = list(itertools.islice(every_term((0, 1, 2, 3), holes=2, deepest=3), 900))
+    rules = list(itertools.islice(every_expression((0, 1, 2, 3), deepest=3), 900))
+    apart = len(they_agree_everywhere(terms, ("here", "one along"))["apart"])
+    apart += len(operations_agree_everywhere(rules)["apart"])
+    return apart
+
+
+def _the_gap_that_should_not_be_there() -> int:
+    """Ways the developmental result fails its own controls. Must be none.
+
+    Three: the grown condition losing a family the reset condition solved; the
+    gap failing to be there by the last block on a stream with structure in
+    it; and any gap at all on the stream with nothing to carry. The third is
+    the one that matters — a gain on the control would mean the gain on the
+    other stream was about something else.
+    """
+    from tools.run_grown_against_reset_heads import run_stream
+
+    shared = run_stream(
+        stream="shared", blocks=3, per_block=4, seed=1000, within=2.0, deepest=3
+    )
+    apart = run_stream(
+        stream="apart", blocks=3, per_block=4, seed=1000, within=2.0, deepest=3
+    )
+    wrong = sum(
+        1
+        for grown, reset in zip(shared["grown"], shared["reset"], strict=True)
+        if grown < reset
+    )
+    wrong += 0 if shared["grown"][-1] > shared["reset"][-1] else 1
+    wrong += 0 if apart["grown"] == apart["reset"] else 1
+    return wrong
+
+
 def _install_language_growth_claims(suite: Any) -> None:
     """What she can do to the language she makes rules out of.
 
@@ -2925,6 +2977,21 @@ def _install_language_growth_claims(suite: Any) -> None:
             "exhausts its meter rather than returning",
             _universality_certificates_that_fail,
             "core/cognition/what_the_floor_can_say.py",
+        ),
+        (
+            "test_keeping_what_she_wrote_makes_the_next_one_easier",
+            "on a stream of families with shared structure the agent that keeps "
+            "what it wrote solves more than the one reset between blocks, and on "
+            "a stream with nothing to carry the two are identical",
+            _the_gap_that_should_not_be_there,
+            "tools/run_grown_against_reset_heads.py",
+        ),
+        (
+            "test_both_her_algebras_compile_to_one_semantics",
+            "every positional term and every value expression computes on the "
+            "floor exactly what its own interpreter computes, refusals included",
+            _where_the_two_languages_disagree,
+            "core/cognition/the_old_language_on_the_floor.py",
         ),
         (
             "test_a_way_of_computing_she_wrote_is_kept_and_still_runs",
@@ -3100,6 +3167,54 @@ def _install_language_growth_claims(suite: Any) -> None:
                 "merely large. Four of the seven arithmetic heads are shown "
                 "definable from the other three, so the instruction set is doing "
                 "no work"
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "Keeping the ways of computing she wrote makes the next one "
+                "easier to write, on a stream of families with shared structure "
+                "and not on one without."
+            ),
+            test="test_keeping_what_she_wrote_makes_the_next_one_easier",
+            owner="tools/run_grown_against_reset_heads.py",
+            asserted_in="core/cognition/a_way_of_computing_she_wrote.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "five seeds, five blocks of six families, matched budget and "
+                "words, families drawn at random rather than chosen. Shared "
+                "stream: grown 150/150, reset 78, lesioned 70, with the gap by "
+                "block 0, 2, 2.6, 5.8, 4. Control stream with nothing to carry: "
+                "150, 150, 150 and a gap of nought in every block of every seed. "
+                "The gap is not monotone block to block, and the mechanism is "
+                "transparent — later families are drawn over earlier terms — so "
+                "this is compounding on a stream with structure rather than "
+                "evidence about any real task distribution"
+            ),
+            live_channels=("language.ways_of_building",),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "The two languages she thinks in are one semantics: a positional "
+                "term and a value expression are both terms of the same eighteen "
+                "heads, so an invention in either can be material for an "
+                "invention in the other."
+            ),
+            test="test_both_her_algebras_compile_to_one_semantics",
+            owner="core/cognition/the_old_language_on_the_floor.py",
+            asserted_in="core/cognition/one_algebra.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "12,000 positional terms over three pairs of words at seven "
+                "lengths — 1,296,000 places — and 8,000 value expressions over "
+                "512,000 pairs, complete agreement including every refusal. "
+                "Refusals are what earned the check: substituting rather than "
+                "binding inside `through` made the floor lazy where the "
+                "interpreter is strict, and a comparison that skipped refusals "
+                "would not have seen it"
             ),
         )
     )
