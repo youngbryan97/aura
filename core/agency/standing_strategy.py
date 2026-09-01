@@ -313,6 +313,12 @@ def _biggest_thing_in(situation: str) -> str:
 #: this it is a move, an answer, or encouragement.
 ENOUGH_WORDS = 4
 
+#: How much has to be about the situation, once the choosing and the act are
+#: taken out. Two, because one stray adverb — "I am choosing right, quickly" —
+#: is still a move, and two content words is the least that can say anything
+#: about where she is: "left edge", "top row", "corner clear".
+WORDS_ABOUT_THE_SITUATION = 2
+
 
 #: The longest a clause can run before it is trimmed. A plan said in one
 #: breath is a plan; past this it is the whole answer again.
@@ -424,15 +430,60 @@ def keeps_every_option_open(said: str, options: Sequence[ActionOption] = ()) -> 
     return all(name in words for name in names)
 
 
+#: Saying which one, without saying anything about the situation.
+#:
+#: "I am choosing right", "I'll go with left", "let's press up" — the words
+#: around the act carry no content of their own, so a line made only of them
+#: is the act with a sentence wrapped round it.
+_JUST_PICKING = re.compile(
+    r"\b(?:i|i'?m|i'?ll|im|we|we'?ll|let'?s|going|go|am|is|will|would|"
+    r"choose|choosing|chose|pick|picking|picked|press|pressing|play|playing|"
+    r"take|taking|move|moving|do|doing|make|making|try|trying|use|using|"
+    r"next|now|then|this|that|it|the|a|an|to|with|for|my|move|turn|one)\b",
+    re.IGNORECASE,
+)
+
+
 def _says_enough_to_be_an_approach(said: str, options: Sequence[ActionOption] = ()) -> bool:
-    """Whether this describes a way of going about it at all."""
+    """Whether this describes a way of going about it at all.
+
+    A line and a move are different kinds of thing. A move says which one; a
+    line says something about the situation that outlives the move — which is
+    the whole point of holding one, since an approach re-derived every move is
+    not an approach.
+
+    The test is what survives taking the act and the choosing away. "I am
+    choosing right" leaves nothing, so it is a move wearing a sentence. "Push
+    left to keep the top row in order" leaves the row and the order, which is
+    something to hold to and something that can stop being true.
+
+    LIVE 2026-09-01: "I am choosing **right** because the 'Did you finish
+    applying?' prompt is actively blocking the main feed" was taken as the
+    line she was holding. Counting its words got four and let it through, and
+    all four were the frame. She announced it, then pressed left.
+    """
     words = re.findall(r"[\w'-]+", str(said or ""))
     if len(words) < ENOUGH_WORDS:
         return False
     if keeps_every_option_open(said, options):
         return False
     names = {str(option.name or "").strip().lower() for option in options if option.name}
-    return " ".join(words).lower() not in names
+    if " ".join(words).lower() in names:
+        return False
+    # What is left once the choosing is gone, minus the acts themselves.
+    #
+    # Not "remove every direction word": a direction is also ordinary content.
+    # "Build up along the left edge" names an edge to build along, and taking
+    # "up" and "left" out of it leaves three words and loses a real line. What
+    # settles it is whether anything BUT the act survives — the line is a move
+    # exactly when it is exhausted by saying which one.
+    said_without_the_frame = _JUST_PICKING.sub(" ", " ".join(words))
+    content = [
+        word
+        for word in re.findall(r"[\w'-]+", said_without_the_frame)
+        if word.lower() not in names
+    ]
+    return len(content) >= WORDS_ABOUT_THE_SITUATION
 
 
 def read_strategy(
@@ -486,6 +537,22 @@ def read_strategy(
         # it names something to hold to, which is checked below either way.
         approach = _whole_words(text)
     if not approach:
+        return None
+    # A move is not a line, whatever else the answer mentions.
+    #
+    # This test existed and ran only where she had named nothing watchable,
+    # so a move with a reason attached went straight past it: the reason
+    # supplied something concrete to watch, and the thing being watched was
+    # never asked whether it was an approach at all.
+    #
+    # LIVE 2026-09-01, asked how to go about playing 2048: "I am choosing
+    # **right** because the 'Did you finish applying?' prompt is actively
+    # blocking the main feed". Held as the line, announced as the line, and
+    # sixteen seconds later she pressed left. A line that a single act
+    # exhausts cannot be held across the next one, which is the whole reason
+    # for having one.
+    if not _says_enough_to_be_an_approach(approach, options):
+        logger.info("that is a move, not a line to take: %r", approach[:200])
         return None
     # The line she is taking ends where the reason for it begins.
     #
