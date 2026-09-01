@@ -512,6 +512,20 @@ def test_cognitive_chat_mode_keeps_complex_implementation_deep():
     assert mode is ThinkingMode.DEEP
 
 
+def test_cognitive_chat_mode_does_not_read_explanation_subjects_as_execution():
+    from core.brain.types import ThinkingMode
+    from interface.routes import chat as chat_routes
+
+    user_message = (
+        "Does an asyncio.Lock prevent other tasks from running while one task holds it? "
+        "Give a concise complete explanation and one small runnable Python example."
+    )
+
+    assert chat_routes._select_cognitive_chat_mode(
+        user_message, user_message
+    ) is ThinkingMode.FAST
+
+
 def test_cognitive_chat_mode_keeps_lightweight_live_recall_state_fast():
     from core.brain.types import ThinkingMode
     from interface.routes import chat as chat_routes

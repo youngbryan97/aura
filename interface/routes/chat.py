@@ -3515,6 +3515,7 @@ def _is_lightweight_live_desktop_state_or_recall_turn(
 
 def _select_cognitive_chat_mode(user_message: str, effective_user_message: str):
     from core.brain.types import ThinkingMode
+    from core.language.semantic_work import INLINE_REPLY, build_semantic_work_contract
 
     shape = analyze_prompt_shape(user_message)
     text = _chat_memory_state._normalize_user_message(user_message)
@@ -3534,6 +3535,23 @@ def _select_cognitive_chat_mode(user_message: str, effective_user_message: str):
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat", exc)
         logger.debug("Self-process mode classification skipped: %s", exc)
+
+    # Inline answers already have one typed estimate of their obligations,
+    # answer surface, and planning work.  Re-reading their prose as bare
+    # substrings made subject matter look like an execution request: both
+    # "tasks from running" and "a runnable example" matched ``run`` and sent
+    # a concise conceptual question through a 1,024-token private-thinking
+    # floor.  Consume the shared work contract before considering external
+    # action complexity, so words used *inside* an explanation cannot change
+    # the lane that delivers it.
+    semantic_work = build_semantic_work_contract(user_message)
+    if semantic_work.delivery_mode == INLINE_REPLY:
+        return (
+            ThinkingMode.DEEP
+            if semantic_work.requires_deliberation
+            else ThinkingMode.FAST
+        )
+
     complex_markers = (
         "build",
         "debug",
