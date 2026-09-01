@@ -1285,7 +1285,7 @@ def install_runtime_validation() -> dict[str, Any]:
                 value=True,
                 source=(
                     "docs/evidence/"
-                    "semantic_program_27b_verification_2026-09-01.json"
+                    "semantic_program_27b_reverification_2026-09-01.json"
                 ),
             ),
             predict=lambda _m: _semantic_program_27b_certificate_holds(),
@@ -1295,6 +1295,33 @@ def install_runtime_validation() -> dict[str, Any]:
                 subject="resident semantic program and exact answer transfer",
             ),
             owner="tools/verify_semantic_program_campaign.py",
+        )
+    )
+    suite.add_test(
+        ValidationTest(
+            name="frozen_semantic_programs_transfer_to_fresh_cohort",
+            description=(
+                "the unchanged resident semantic transducer retains exact answer "
+                "transfer on separately seeded tasks across a worker restart"
+            ),
+            required_capability="",
+            observation=Observation(
+                name="frozen_semantic_replication_certificate_is_verified",
+                value=True,
+                source=(
+                    "docs/evidence/"
+                    "semantic_program_27b_frozen_replication_2026-09-01.json"
+                ),
+            ),
+            predict=lambda _m: (
+                _semantic_program_27b_replication_certificate_holds()
+            ),
+            score=lambda p, o: boolean_score(
+                bool(p),
+                expected=bool(o.value),
+                subject="frozen resident semantic transfer on a fresh cohort",
+            ),
+            owner="tools/verify_semantic_program_replication.py",
         )
     )
     suite.add_test(
@@ -1478,6 +1505,30 @@ def install_runtime_validation() -> dict[str, Any]:
                 "the UNKNOWN-vs-UNSUPPORTED property is measured on constructed "
                 "turns; no live turn has been audited, and the claim-pattern "
                 "table's recall against real confabulations is unmeasured"
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "On a separately seeded 256-task held-out cohort, Aura's frozen "
+                "resident 27B semantic transducer emitted 114 exact answers without "
+                "fitting or refitting."
+            ),
+            test="frozen_semantic_programs_transfer_to_fresh_cohort",
+            owner="tools/verify_semantic_program_replication.py",
+            asserted_in="docs/RECURSIVE_LATENT_CORTEX.md",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "The new 576-task cohort shared zero example ids with the training "
+                "campaign. A clean worker restart changed session identity while the "
+                "function-defining model basis remained exact. Treatment emitted "
+                "114/256 held-out answers against hidden-state shuffle 10/256 and "
+                "coefficient lesion 0/256. Independent verification reloaded 1,152 "
+                "raw feature records, replayed the frozen report, and recounted 1,728 "
+                "task-arm rows. This is fresh-example reuse inside one synthetic "
+                "arithmetic language and primitive vocabulary, not serving authority, "
+                "broad-domain gain, or frontier reasoning."
             ),
         )
     )
@@ -3577,7 +3628,7 @@ def _semantic_program_27b_certificate_holds() -> bool:
     root = pathlib.Path(__file__).resolve().parents[2]
     certificate_path = (
         root
-        / "docs/evidence/semantic_program_27b_verification_2026-09-01.json"
+        / "docs/evidence/semantic_program_27b_reverification_2026-09-01.json"
     )
     try:
         certificate = json.loads(certificate_path.read_text(encoding="utf-8"))
@@ -3638,6 +3689,69 @@ def _semantic_program_27b_certificate_holds() -> bool:
         and certificate.get("serving_authority") is False
         and certificate.get("claim_boundary") == expected_boundary
         and observed_answer_pairs == expected_answer_pairs
+        and current_source_sha256s == source_sha256s
+        and certificate.get("verification_sha256")
+        == hashlib.sha256(canonical).hexdigest()
+    )
+
+
+def _semantic_program_27b_replication_certificate_holds() -> bool:
+    import hashlib
+    import json
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    certificate_path = (
+        root
+        / "docs/evidence/"
+        "semantic_program_27b_frozen_replication_2026-09-01.json"
+    )
+    try:
+        certificate = json.loads(certificate_path.read_text(encoding="utf-8"))
+        source_sha256s = certificate["source_sha256s"]
+        current_source_sha256s = {
+            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
+            for relative in source_sha256s
+        }
+        body = {
+            key: value
+            for key, value in certificate.items()
+            if key != "verification_sha256"
+        }
+        canonical = json.dumps(
+            body,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode("ascii")
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+
+    compatibility = certificate.get("representation_compatibility")
+    expected_boundary = (
+        "bounded fresh synthetic semantic-program cohort on a function-identical "
+        "frozen transducer across worker sessions; no broad-domain claim"
+    )
+    return bool(
+        certificate.get("schema")
+        == "aura.semantic_program_fresh_cohort_verification.v1"
+        and certificate.get("verified") is True
+        and certificate.get("frozen_replay_exact") is True
+        and certificate.get("raw_training_records_reloaded") == 576
+        and certificate.get("raw_replication_records_reloaded") == 576
+        and certificate.get("task_rows_independently_recounted") == 1728
+        and certificate.get("paired_tests_independently_recounted") == 16
+        and certificate.get("held_out_total") == 256
+        and certificate.get("held_out_treatment_answer_exact") == 114
+        and certificate.get("held_out_hidden_shuffle_answer_exact") == 10
+        and certificate.get("held_out_coefficient_lesion_answer_exact") == 0
+        and certificate.get("expected_answers_available_to_training") is False
+        and certificate.get("serving_authority") is False
+        and certificate.get("claim_boundary") == expected_boundary
+        and isinstance(compatibility, dict)
+        and compatibility.get("coefficients_changed") is False
+        and compatibility.get("hidden_states_changed") is False
+        and compatibility.get("serving_authority") is False
         and current_source_sha256s == source_sha256s
         and certificate.get("verification_sha256")
         == hashlib.sha256(canonical).hexdigest()

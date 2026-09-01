@@ -271,6 +271,7 @@ program traces instead of answers. That is where the gain came from.
 | Family-blind procedure acquisition into neural tissue | **SUPPORTED, BOUNDED** — one depth-2 procedure induced from 16 examples, then 96/96 exact on fresh inputs; coefficient and wrong-input controls failed 96/96, no-procedure solved 1/96, shuffled-output nulls found 0/15 |
 | Resident decode of the induced neural procedure | **SUPPORTED, BOUNDED** — treatment 8/8, ordinary 1/8, wire 1/8, coefficient lesion 1/8, wrong-input 0/8, wrong-state 0/8; seven gains, no regressions, *p* = 0.0078125 |
 | Resident 27B language-to-program transfer | **SUPPORTED, BOUNDED** — exact execution emitted 134/256 held-out answers from learned model-bound semantics; exact program recovery was 133/256, against hidden-state shuffle 14/256, coefficient lesion 0/256 and label permutation 4/256 |
+| Frozen fresh-cohort semantic transfer | **SUPPORTED, REPLICATED, BOUNDED** — the unchanged transducer emitted 114/256 exact held-out answers on a separately seeded numeric cohort after a clean worker restart, against hidden-state shuffle 10/256 and coefficient lesion 0/256 |
 | Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
 
 `BOUNDED_WOW_SIGNAL` is the adjudicator's own verdict string, and *bounded* is
@@ -324,6 +325,19 @@ permutation 4/256. An independent, source-bound replay reloaded all 576 feature
 records, reproduced the coefficients and report exactly, and recounted all
 1,344 task-arm rows. The result is bounded to the synthetic arithmetic grammar;
 serving and broad-domain transfer remain open.
+The campaign was reverified after the replication tooling changed two bound
+source files; the first certificate remains the immutable historical record,
+and the current claim reads the new source-matched certificate.
+
+The coefficients were then frozen and evaluated on a separately seeded cohort
+with no task overlap. A clean worker restart changed its process identity but
+left the complete neural-function basis identical. Without fitting or refitting,
+exact execution emitted 114/256 held-out answers; hidden-state shuffle reached
+10/256 and coefficient lesion 0/256. Independent verification reloaded both
+576-record bundles, replayed the frozen result exactly, and recounted 1,728
+task-arm rows. This establishes fresh-example reuse inside the same bounded
+language and primitive system. It does not establish new procedure families,
+open-domain transfer, or serving authority.
 
 One family — misleading premise — gained nothing, and the reason is worth
 stating rather than averaging away: ordinary decode was already at ceiling there

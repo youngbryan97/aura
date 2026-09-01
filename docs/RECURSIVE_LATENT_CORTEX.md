@@ -81,6 +81,7 @@ preregistered campaigns with committed seeds.
 | **Family-blind procedure acquisition into neural tissue** | **SUPPORTED, BOUNDED (2026-08-31).** A generic inducer received 16 examples without a family label or solver, froze a depth-2 procedure, and a family-blind SSA lowerer executed it through learned arithmetic tissue at 96/96 exact on fresh inputs. Coefficient and wrong-input lesions disrupted 96/96, the no-procedure control solved 1/96, and 15 shuffled-output null searches found no fit. |
 | **Resident decode of an induced neural procedure** | **SUPPORTED, BOUNDED (2026-08-31).** The fused 27B decoded the induced procedure's authenticated neural state at 8/8 exact against ordinary 1/8, wire 1/8, coefficient lesion 1/8, wrong-input 0/8 and wrong-state 0/8. Seven gains, no regressions, exact paired one-sided *p* = 0.0078125; all 48 rows independently replayed. |
 | **Resident 27B language-to-program transfer** | **SUPPORTED, BOUNDED (2026-09-01).** A model-bound linear transducer learned token roles, primitive operations and register arguments from answer-blind resident hidden states. On 256 instructions whose construction combinations were absent from training, exact execution emitted the right answer on **134/256**; the recovered program itself was exact on **133/256**. Matched controls reached hidden-state shuffle 14/256, coefficient lesion 0/256 and label permutation 4/256. A source-bound verifier reloaded 576 feature records, reproduced the coefficients and report, and recounted 1,344 task-arm rows. |
+| **Frozen fresh-cohort semantic transfer** | **SUPPORTED, REPLICATED, BOUNDED (2026-09-01).** The unchanged transducer was evaluated after a clean worker restart on 576 separately seeded tasks with zero example overlap. Its function-defining model, tokenizer, source, adapter, steering, recurrence and quantization basis matched exactly while session identity changed. Exact execution emitted **114/256** held-out answers against hidden-state shuffle 10/256 and coefficient lesion 0/256. Independent verification reloaded both feature bundles and recounted 1,728 task-arm rows. |
 | **Recurrence-native training** | **OPEN, and now partly answered.** The dividend did come from training the checkpoint to use recurrence, on the bounded families above. Broad transfer is still open, and every CP-numbered checkpoint since is about that. |
 | **Broad reasoning gain, fusion, frontier performance** | **NOT CLAIMED.** No checkpoint in this programme authorizes any of them, and each entry in the ledger says so explicitly — including CP566, whose adjudication ships its limitations line inside the same receipt as its verdict. |
 
@@ -144,11 +145,19 @@ The programme used a 1.5B vehicle while the historical resident 32B stayed live,
   Exact objective execution emitted 134/256 held-out answers; matched
   hidden-state, coefficient and label controls reached 14, 0 and 4. Expected
   answers were used only after execution for scoring. The certificate binds
-  the feature basis, learned coefficients, report and verifier source.
+  the feature basis, learned coefficients, report and verifier source. A second
+  certificate reproduced the result after the replication work changed two
+  bound source files; the first certificate remains an immutable historical
+  record, while the current claim reads the source-matched re-verification.
+- **The semantic transducer survives fresh examples and a worker restart.** A
+  second 576-task cohort used a new seed and shared no example ids with the
+  training campaign. The frozen coefficients emitted 114/256 exact held-out
+  answers against 10/256 under hidden-state shuffle and 0/256 under coefficient
+  lesion. The compatibility receipt excludes only PID, boot id and boot signing
+  identity; every field that can change the neural function must remain exact.
 
-Next bounded step: freeze this transducer and test fresh numeric cohorts, then
-expand to distinct procedures, richer constructions and additional reasoning
-families beyond the fixed primitive vocabulary.
+Next bounded step: expand to distinct procedures, richer constructions and
+additional reasoning families beyond the fixed primitive vocabulary.
 Regenerating the 27B-specific recurrent adapters and CAA vectors remains a
 separate migration task; portable typed tissue does not authorize either
 model-basis component by association.

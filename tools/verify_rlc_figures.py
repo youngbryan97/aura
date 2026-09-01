@@ -91,7 +91,10 @@ CP1011_RUNTIME = (
     "runtime_verification.json"
 )
 SEMANTIC_PROGRAM_27B = (
-    "docs/evidence/semantic_program_27b_verification_2026-09-01.json"
+    "docs/evidence/semantic_program_27b_reverification_2026-09-01.json"
+)
+SEMANTIC_PROGRAM_27B_REPLICATION = (
+    "docs/evidence/semantic_program_27b_frozen_replication_2026-09-01.json"
 )
 PREREG = "artifacts/current/latent_campaign_prereg_20260717.json"
 RUN2 = "artifacts/current/latent_campaign_1p5b_run2.json"
@@ -237,6 +240,12 @@ FIGURES: tuple[Figure, ...] = (
     Figure("label permutation 4/256", SEMANTIC_PROGRAM_27B,
            lambda d: f"label permutation {_semantic_control_answers(d, 'label_permutation')}/{d['held_out_total']}",
            why="27B semantic-program label null"),
+    Figure("114/256", SEMANTIC_PROGRAM_27B_REPLICATION,
+           lambda d: f"{d['held_out_treatment_answer_exact']}/{d['held_out_total']}",
+           why="27B frozen semantic-program exact answers"),
+    Figure("hidden-state shuffle 10/256", SEMANTIC_PROGRAM_27B_REPLICATION,
+           lambda d: f"hidden-state shuffle {d['held_out_hidden_shuffle_answer_exact']}/{d['held_out_total']}",
+           why="27B frozen semantic-program hidden-state lesion"),
     Figure("21/72", RUN2, lambda d: f"{_ablation_totals(d)['vanilla']}/72"),
     Figure("(7–13/72)", RUN2, lambda d: _arm_range(d)),
     # Accuracies are recorded to four places and quoted to three. Rounding is

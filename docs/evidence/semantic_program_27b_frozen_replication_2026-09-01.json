@@ -1,0 +1,57 @@
+{
+  "claim_boundary": "bounded fresh synthetic semantic-program cohort on a function-identical frozen transducer across worker sessions; no broad-domain claim",
+  "expected_answers_available_to_training": false,
+  "frozen_replay_exact": true,
+  "held_out_coefficient_lesion_answer_exact": 0,
+  "held_out_hidden_shuffle_answer_exact": 10,
+  "held_out_total": 256,
+  "held_out_treatment_answer_exact": 114,
+  "paired_tests_independently_recounted": 16,
+  "raw_replication_records_reloaded": 576,
+  "raw_training_records_reloaded": 576,
+  "replication_feature_manifest_sha256": "17e4ab8f0b034607bbfe61f3b1cb071a55890005cf501e8f4a1606ec6448b85f",
+  "replication_report_sha256": "638b0fc99bccc53112b36563636dbf9f75872a60ad6855e444d9ba1bd7be198b",
+  "representation_compatibility": {
+    "coefficient_sha256": "c80ba4cc94ee5c4143c6284169152efd869f2d7d75b06fb7e354d3643e6ba06c",
+    "coefficients_changed": false,
+    "hidden_states_changed": false,
+    "receipt_sha256": "bddaa57685a30bbbd6d956ff09cfc7c2f85a9fb56c25feff49bba158874a52c6",
+    "replication_feature_manifest_sha256": "17e4ab8f0b034607bbfe61f3b1cb071a55890005cf501e8f4a1606ec6448b85f",
+    "replication_session_basis_sha256s": [
+      "7c5cbc991553fee88cb8063d19c8ea72268882ce203ca8e7dd930dc77673784f"
+    ],
+    "representation_basis_sha256": "f07d588e0da2ece3484ceb697f460eb7b440b92890a02919dfc2cf60791b7c57",
+    "schema": "aura.semantic_representation_compatibility.v1",
+    "serving_authority": false,
+    "session_only_fields": [
+      "worker_action_capture_identity",
+      "worker_boot_id",
+      "worker_pid"
+    ],
+    "training_feature_manifest_sha256": "41297a3e952aab49632cac0fe7c31d285fb0cd687afcec4218f9782a64110017",
+    "training_session_basis_sha256": "fc95c32e03b5f23e0e8d1c0cb3c83584236f5177ac755a1529ccfebe0a033e9a",
+    "transducer_receipt_sha256": "ae770d0f705aba2f566fecc4b62f46096bba0c6254136e21792a829966f660ef"
+  },
+  "schema": "aura.semantic_program_fresh_cohort_verification.v1",
+  "serving_authority": false,
+  "source_sha256s": {
+    "core/brain/llm/latent_cortex/runtime_identity.py": "7b6c37fd2085dce468964603de4c4cf102fec80f86622a7c4be34e84cbcb19eb",
+    "core/learning/semantic_program_basis.py": "10d490c775b5c12fa45387dec791be7973c6b4db68de07ad8048ab4a16270d08",
+    "core/learning/semantic_program_campaign.py": "bf2a53525045a125b88cfae0239fb40ed3d910545b1cda0ae5f79f93e8eb82cb",
+    "core/learning/semantic_program_corpus.py": "adad9baffa80e5472453558250bc36f787b8b720f5a66b5eb33a92e5dc9dd19a",
+    "core/learning/semantic_program_evaluation.py": "5f92acfea77d0196d6f9cf40744a65a98b14f8ecc8e10f08e469fb2d4e2bfb2a",
+    "core/learning/semantic_program_execution.py": "12acb4f8ac55bfc102455503895358e644fe7d9242ec55fca112feeaa3a0e86f",
+    "core/learning/semantic_program_feature_materialization.py": "d0c29652e9bee300c4efba52531367be47ebaed48b8898056dac9935d1aa6774",
+    "core/learning/semantic_program_ir.py": "5839c41588b29e1517fc9d6ca568605e54228cff6e5511422dfb0234092e0ced",
+    "core/learning/semantic_program_replication.py": "48b0df87e0ed0894992bc655238f422d6d2712b44f5dc286c252bbb1f293f81e",
+    "core/learning/semantic_program_replication_verification.py": "5ed0176ed9cf2a3deed119f61f668b6b174186eb7937d1880f022f0ae28c0c23",
+    "core/learning/semantic_program_transducer.py": "2f79b2ec3fefc73a99ff1dbb03659d0b516790992458f5f0df4353391eaeedcc",
+    "tools/run_semantic_program_replication.py": "09a71f5e54a227c3882b6b3e3afe22520640b0891c413f3782f8b45618858f9d",
+    "tools/verify_semantic_program_replication.py": "08e0d35495847b520b7354f467c2d0df55db53af5f6c6c0428bf34ab993510be"
+  },
+  "task_rows_independently_recounted": 1728,
+  "training_feature_manifest_sha256": "41297a3e952aab49632cac0fe7c31d285fb0cd687afcec4218f9782a64110017",
+  "transducer_receipt_sha256": "ae770d0f705aba2f566fecc4b62f46096bba0c6254136e21792a829966f660ef",
+  "verification_sha256": "6983850119b3d8294907867f80614eede9a69b01c7431c02573ccb6bcbc84e6d",
+  "verified": true
+}
