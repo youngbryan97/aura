@@ -109,14 +109,48 @@ class TheLatticeSheHolds:
         held = frozenset(places)
         if len(held) < 2 or held == self._built_from:
             return False
+        # A place that already fits is not news about the shape.
+        #
+        # These places are gathered over acts, so the set grows as she watches
+        # — and rebuilding from the larger set moves every line, because a
+        # line is the mean of the places on it. The frame then changes under
+        # her on the turn she learns something, and the two readings either
+        # side of that turn are in different frames however alike they look.
+        # LIVE 2026-08-31: a correct four-by-four lattice, and one comparison
+        # in forty survived to teach her how the world moves.
+        #
+        # So places that land on the lines she holds, and that describe no
+        # more lines than she holds, leave them exactly where they are. More
+        # lines is a bigger view of the same thing and is taken: early on she
+        # has seen two of a board's places, the gap between them is the whole
+        # board, and everything fits inside it — a frame that could not grow
+        # would freeze there.
         across = _lines_through([x / 100 for x, _y in held])
         down = _lines_through([y / 100 for _x, y in held])
         if not across or not down:
+            return False
+        if (
+            self.held
+            and (len(down), len(across)) == (self.rows, self.columns)
+            and all(self._sits_on_a_line(x / 100, y / 100) for x, y in held)
+        ):
+            self._built_from, self.from_acts = held, acts
             return False
         self.across_at, self.down_at = across, down
         self._built_from, self.from_acts = held, acts
         self.would_not_fit = 0
         return True
+
+    def _sits_on_a_line(self, across: float, down: float) -> bool:
+        """Whether a place lands on the lattice she is already holding."""
+        if not self.held:
+            return False
+        return (
+            abs(self.across_at[_nearest_to(across, self.across_at)] - across)
+            <= _between(self.across_at)
+            and abs(self.down_at[_nearest_to(down, self.down_at)] - down)
+            <= _between(self.down_at)
+        )
 
     def fit(self, said: Sequence[tuple[float, float, str]]) -> Arrangement | None:
         """This reading placed into the lattice she is holding.
