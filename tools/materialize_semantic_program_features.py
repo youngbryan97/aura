@@ -44,6 +44,19 @@ def _arguments() -> argparse.Namespace:
 
 
 async def _run(args: argparse.Namespace) -> dict[str, object]:
+    from core.runtime.desktop_boot_safety import configure_mlx_process_device
+
+    parent_device = configure_mlx_process_device(
+        "cpu",
+        reason="semantic_feature_materializer_parent",
+        force=True,
+    )
+    if not parent_device.get("verified"):
+        raise RuntimeError(
+            "semantic feature parent MLX device is unverified: "
+            f"{parent_device.get('reason', 'unknown')}"
+        )
+
     from mlx_lm.utils import load_tokenizer
 
     from core.brain.llm.mlx_client import get_mlx_client
@@ -121,6 +134,7 @@ async def _run(args: argparse.Namespace) -> dict[str, object]:
         "reason": result.reason,
         "model_path": str(model),
         "campaign_pid": os.getpid(),
+        "parent_mlx_device": parent_device["device"],
     }
 
 
