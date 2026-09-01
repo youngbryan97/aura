@@ -1273,6 +1273,32 @@ def install_runtime_validation() -> dict[str, Any]:
     )
     suite.add_test(
         ValidationTest(
+            name="resident_semantic_programs_execute_exact_answers",
+            description=(
+                "a model-bound transducer recovers executable semantics from resident "
+                "27B hidden states on held-out language constructions and exact "
+                "execution emits the independently checked answer"
+            ),
+            required_capability="",
+            observation=Observation(
+                name="resident_semantic_program_certificate_is_verified",
+                value=True,
+                source=(
+                    "docs/evidence/"
+                    "semantic_program_27b_verification_2026-09-01.json"
+                ),
+            ),
+            predict=lambda _m: _semantic_program_27b_certificate_holds(),
+            score=lambda p, o: boolean_score(
+                bool(p),
+                expected=bool(o.value),
+                subject="resident semantic program and exact answer transfer",
+            ),
+            owner="tools/verify_semantic_program_campaign.py",
+        )
+    )
+    suite.add_test(
+        ValidationTest(
             name="neural_transition_tissue_enters_complete_engine",
             description=(
                 "a wrong incumbent is replaceable by systematic teacher-removed "
@@ -1703,6 +1729,29 @@ def install_runtime_validation() -> dict[str, Any]:
                 "one-sided p=0.0078125. The primitive vocabulary and support examples "
                 "were fixed. This is not natural-language compilation, open-domain "
                 "reasoning, unrestricted serving, static fusion, or frontier performance."
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "On 256 construction-held-out synthetic arithmetic instructions, "
+                "Aura's resident 27B hidden language state supplied enough learned "
+                "semantics for exact objective execution to emit 134 correct answers."
+            ),
+            test="resident_semantic_programs_execute_exact_answers",
+            owner="tools/verify_semantic_program_campaign.py",
+            asserted_in="docs/RECURSIVE_LATENT_CORTEX.md",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "A source-bound independent replay reloaded 576 resident feature "
+                "records, reproduced the learned coefficients and complete campaign "
+                "report, and recounted 1,344 task-arm rows. Treatment emitted exact "
+                "answers on 134/256 held-out tasks against 14/256 after hidden-token "
+                "shuffle, 0/256 after coefficient lesion, and 4/256 after label "
+                "permutation. Expected answers were absent from training. This is "
+                "bounded model-to-program transfer on a synthetic arithmetic grammar, "
+                "not unrestricted serving, broad-domain gain, or frontier reasoning."
             ),
         )
     )
@@ -3518,6 +3567,80 @@ def _induced_neural_procedure_decode_certificate_holds() -> bool:
         and isinstance(journal, dict)
         and journal.get("decode_count") == 48
         and journal.get("event_count") == 50
+    )
+
+
+def _semantic_program_27b_certificate_holds() -> bool:
+    import hashlib
+    import json
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    certificate_path = (
+        root
+        / "docs/evidence/semantic_program_27b_verification_2026-09-01.json"
+    )
+    try:
+        certificate = json.loads(certificate_path.read_text(encoding="utf-8"))
+        source_sha256s = certificate["source_sha256s"]
+        current_source_sha256s = {
+            relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
+            for relative in source_sha256s
+        }
+        body = {
+            key: value
+            for key, value in certificate.items()
+            if key != "verification_sha256"
+        }
+        canonical = json.dumps(
+            body,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode("ascii")
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+
+    expected_boundary = (
+        "bounded resident-27B semantic program acquisition and exact answer "
+        "execution on construction-held-out synthetic arithmetic language; "
+        "not broad-domain or frontier reasoning evidence"
+    )
+    answer_controls = certificate.get("paired_answer_controls")
+    expected_answer_pairs = {
+        "coefficient_lesion:test": (48, 0),
+        "coefficient_lesion:validation": (86, 0),
+        "hidden_token_shuffle:test": (40, 1),
+        "hidden_token_shuffle:validation": (81, 0),
+        "label_permutation:test": (47, 0),
+        "label_permutation:validation": (83, 0),
+    }
+    observed_answer_pairs = (
+        {
+            key: (value.get("treatment_only"), value.get("control_only"))
+            for key, value in answer_controls.items()
+        }
+        if isinstance(answer_controls, dict)
+        else {}
+    )
+    return bool(
+        certificate.get("schema")
+        == "aura.semantic_program_campaign_verification.v1"
+        and certificate.get("verified") is True
+        and certificate.get("deterministic_refit_exact") is True
+        and certificate.get("campaign_replay_exact") is True
+        and certificate.get("raw_feature_records_reloaded") == 576
+        and certificate.get("task_rows_independently_recounted") == 1344
+        and certificate.get("held_out_total") == 256
+        and certificate.get("held_out_treatment_program_exact") == 133
+        and certificate.get("held_out_treatment_answer_exact") == 134
+        and certificate.get("expected_answers_available_to_training") is False
+        and certificate.get("serving_authority") is False
+        and certificate.get("claim_boundary") == expected_boundary
+        and observed_answer_pairs == expected_answer_pairs
+        and current_source_sha256s == source_sha256s
+        and certificate.get("verification_sha256")
+        == hashlib.sha256(canonical).hexdigest()
     )
 
 

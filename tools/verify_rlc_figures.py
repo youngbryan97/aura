@@ -90,6 +90,9 @@ CP1011_RUNTIME = (
     "artifacts/migration/27b/recovery/cp1003-semantic-canary/"
     "runtime_verification.json"
 )
+SEMANTIC_PROGRAM_27B = (
+    "docs/evidence/semantic_program_27b_verification_2026-09-01.json"
+)
 PREREG = "artifacts/current/latent_campaign_prereg_20260717.json"
 RUN2 = "artifacts/current/latent_campaign_1p5b_run2.json"
 SWEEP_32B = "artifacts/current/latent_lab_32b_exp1_templated.json"
@@ -168,6 +171,19 @@ def _ordinary_by_family(adj: Any) -> dict[str, int]:
     }
 
 
+def _semantic_control_answers(certificate: Any, control: str) -> int:
+    treatment = int(certificate["held_out_treatment_answer_exact"])
+    pairs = certificate["paired_answer_controls"]
+    selected = [
+        values
+        for key, values in pairs.items()
+        if key.startswith(f"{control}:")
+    ]
+    return treatment - sum(
+        int(values["treatment_only"]) for values in selected
+    ) + sum(int(values["control_only"]) for values in selected)
+
+
 FIGURES: tuple[Figure, ...] = (
     Figure("60/60", CP566, lambda d: f"{_arm('treatment')(d)}/{d['task_count']}",
            why="CP566 treatment arm"),
@@ -206,6 +222,21 @@ FIGURES: tuple[Figure, ...] = (
            why="CP1011 paired one-sided exact p"),
     Figure("9.229 / 38.696 ms", CP1011_RUNTIME,
            lambda d: f"{_p50(d)} / {_max(d)} ms"),
+    Figure("134/256", SEMANTIC_PROGRAM_27B,
+           lambda d: f"{d['held_out_treatment_answer_exact']}/{d['held_out_total']}",
+           why="27B semantic-program exact answers"),
+    Figure("133/256", SEMANTIC_PROGRAM_27B,
+           lambda d: f"{d['held_out_treatment_program_exact']}/{d['held_out_total']}",
+           why="27B semantic-program exact programs"),
+    Figure("hidden-state shuffle 14/256", SEMANTIC_PROGRAM_27B,
+           lambda d: f"hidden-state shuffle {_semantic_control_answers(d, 'hidden_token_shuffle')}/{d['held_out_total']}",
+           why="27B semantic-program hidden-state lesion"),
+    Figure("coefficient lesion 0/256", SEMANTIC_PROGRAM_27B,
+           lambda d: f"coefficient lesion {_semantic_control_answers(d, 'coefficient_lesion')}/{d['held_out_total']}",
+           why="27B semantic-program coefficient lesion"),
+    Figure("label permutation 4/256", SEMANTIC_PROGRAM_27B,
+           lambda d: f"label permutation {_semantic_control_answers(d, 'label_permutation')}/{d['held_out_total']}",
+           why="27B semantic-program label null"),
     Figure("21/72", RUN2, lambda d: f"{_ablation_totals(d)['vanilla']}/72"),
     Figure("(7–13/72)", RUN2, lambda d: _arm_range(d)),
     # Accuracies are recorded to four places and quoted to three. Rounding is

@@ -270,6 +270,7 @@ program traces instead of answers. That is where the gain came from.
 | Cross-generation recovery, trained semantic tissue, 27B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 0/60 ordinary decode on a separate fresh cohort; wire 6, coefficient lesion 4, wrong-state 0; *p* = 8.67 × 10⁻¹⁹ |
 | Family-blind procedure acquisition into neural tissue | **SUPPORTED, BOUNDED** — one depth-2 procedure induced from 16 examples, then 96/96 exact on fresh inputs; coefficient and wrong-input controls failed 96/96, no-procedure solved 1/96, shuffled-output nulls found 0/15 |
 | Resident decode of the induced neural procedure | **SUPPORTED, BOUNDED** — treatment 8/8, ordinary 1/8, wire 1/8, coefficient lesion 1/8, wrong-input 0/8, wrong-state 0/8; seven gains, no regressions, *p* = 0.0078125 |
+| Resident 27B language-to-program transfer | **SUPPORTED, BOUNDED** — exact execution emitted 134/256 held-out answers from learned model-bound semantics; exact program recovery was 133/256, against hidden-state shuffle 14/256, coefficient lesion 0/256 and label permutation 4/256 |
 | Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
 
 `BOUNDED_WOW_SIGNAL` is the adjudicator's own verdict string, and *bounded* is
@@ -312,6 +313,17 @@ ordinary failures converted with no regressions, exact paired one-sided
 50-event journal. This does not establish natural-language compilation,
 open-domain reasoning, unrestricted serving, static fusion or frontier
 performance.
+
+The next bridge learns semantics from the resident 27B's own hidden language
+state. A generic linear transducer learned token spans, primitive operations
+and register arguments from five construction families without expected
+answers. On four held-out construction combinations, exact objective execution
+emitted 134/256 correct answers and recovered 133/256 complete programs.
+Hidden-token shuffle reached 14/256, coefficient lesion 0/256 and label
+permutation 4/256. An independent, source-bound replay reloaded all 576 feature
+records, reproduced the coefficients and report exactly, and recounted all
+1,344 task-arm rows. The result is bounded to the synthetic arithmetic grammar;
+serving and broad-domain transfer remain open.
 
 One family — misleading premise — gained nothing, and the reason is worth
 stating rather than averaging away: ordinary decode was already at ceiling there
