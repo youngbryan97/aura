@@ -475,7 +475,7 @@ class GlobalWorkspace:
 
     def _tie_through_impasse_bus(
         self, tied: tuple[str, ...], by_source: dict
-    ) -> "CognitiveCandidate | None":
+    ) -> CognitiveCandidate | None:
         """Offer the tie to the architecture-wide impasse mechanism.
 
         Returns the candidate a handler chose, or ``None`` when nothing

@@ -51,8 +51,13 @@
       "bar": "A repeated task gets cheaper because a procedure compiled from its own trace; lesioning it restores novice cost.",
       "plan": "Three compilers already exist over different episode types. Compile from the W3 event DAG into the W5 Procedure registry.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "005": {
       "verdict": "PARTIAL",
@@ -63,8 +68,13 @@
       "bar": "Procedures from different learners compete under one value contract and demote when value turns negative.",
       "plan": "Chunk EV and Wilson-bounded rule confidence are both correct and not the same number. Unify as ProceduralValue; keep both as backends.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "006": {
       "verdict": "PARTIAL",
@@ -246,8 +256,13 @@
       "bar": "A future impasse resolves from a learned chunk without invoking the original solver.",
       "plan": "Chunk resolution is a label string. Make learned output a typed assertion/preference/operator in the W4 preference algebra.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "020": {
       "verdict": "PARTIAL",
@@ -276,8 +291,12 @@
       "bar": "Ten times the rules costs much less than ten times the decision matching.",
       "plan": "Python linear scan today. Add a discrimination index over the W5 Procedure registry and benchmark growth.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "022": {
       "verdict": "PARTIAL",
@@ -288,8 +307,13 @@
       "bar": "Any procedure produces a minimal reproducible explanation of why it exists.",
       "plan": "Persist origin impasse, dependency DAG, rejected conditions, counterexamples, utility and firings on the Procedure record.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "023": {
       "verdict": "PARTIAL",
@@ -375,8 +399,13 @@
       "bar": "The same learner and planner consume GUI, file, puzzle and social operators.",
       "plan": "Doing ASTs, tools, skills and RLC opcodes are four representations. One Operator signature in W5.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "029": {
       "verdict": "PARTIAL",
@@ -733,8 +762,12 @@
       "bar": "Practice decreases deliberation while novelty restores it.",
       "plan": "Duplicate of 218. One automaticity index over cortex tokens, planner expansions and procedure hits.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/automaticity.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "056": {
       "verdict": "ABSENT",
@@ -784,8 +817,13 @@
       "bar": "Coverage and precision improve without runaway rule count.",
       "plan": "Add split/merge/specialisation driven by counterexamples to the W5 registry; the EV prune already bounds count.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "060": {
       "verdict": "PARTIAL",
@@ -888,8 +926,13 @@
       "bar": "Different learners produce procedures that compete under one representation.",
       "plan": "Same as 172. SituationPattern -> Operator -> PredictedEffect.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "067": {
       "verdict": "PARTIAL",
@@ -2057,8 +2100,12 @@
       "bar": "Novel tools need fewer demonstrations and tool-choice accuracy beats static descriptions.",
       "plan": "Learn typed tool affordances and effects from receipts; promote reusable operator schemas.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "169": {
       "verdict": "ENGINEERING",
@@ -2112,8 +2159,13 @@
       "bar": "Procedures learned by different subsystems are matched, composed, valued and executed through one registry.",
       "plan": "Procedure with typed preconditions, program, effects, cost, risk, evidence, provenance and executable backends.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "173": {
       "verdict": "ABSENT",
@@ -2139,8 +2191,13 @@
       "bar": "Repeated heterogeneous tasks show falling deliberation cost from automatically acquired procedures.",
       "plan": "The trace compiler over W3, emitting into W5. Pairs with the 218 automaticity index as its measurement.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "175": {
       "verdict": "PARTIAL",
@@ -2283,8 +2340,12 @@
       "bar": "At least one learned abstraction reaches the structural-analogue or unrelated-domain tier with causal benefit.",
       "plan": "Define the transfer tiers and require every transfer claim to name its tier. Cheap, and it disciplines every other claim.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "187": {
       "verdict": "PARTIAL",
@@ -2441,8 +2502,13 @@
       "bar": "Novel multi-step skills assemble from previously learned components across at least two backends.",
       "plan": "Typed input/output/effect signatures on all procedures plus a composing planner. Follows W5.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "200": {
       "verdict": "PARTIAL",
@@ -2667,8 +2733,12 @@
       "bar": "Practice monotonically reduces executive cost until novelty causes de-automatisation.",
       "plan": "Cortex tokens, planning expansions, workspace competitions, procedure hits and latency per recurring task. The measurement for 174.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/automaticity.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "219": {
       "verdict": "PARTIAL",
@@ -3338,8 +3408,12 @@
       "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
       "plan": "Indexed production matching. Card 021.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "A12.19": {
       "verdict": "PARTIAL",
@@ -3422,8 +3496,13 @@
       "bar": "Previously hundreds-step episode becomes one/few-step reusable response on related unseen states; required-condition lesion prevents firing.",
       "plan": "Many firings compressed into one rule. Card 174.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "A12.7": {
       "verdict": "PARTIAL",
@@ -3433,8 +3512,13 @@
       "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
       "plan": "Transfer through generalised chunks. Card 019.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "A12.8": {
       "verdict": "PARTIAL",
@@ -3532,8 +3616,13 @@
       "bar": "Debugger reconstructs promoted rule/action without log scraping or module-specific interpretation.",
       "plan": "Skills as inspectable code. Card 092.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "A13.15": {
       "verdict": "PARTIAL",
@@ -3543,8 +3632,13 @@
       "bar": "Same correctness/evidence at lower p50/p95 and peak memory; matched-quality requirement.",
       "plan": "Retrieve only the few relevant skills - already how retrieval works; make top-k a measured parameter.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "A13.2": {
       "verdict": "PARTIAL",
@@ -3555,8 +3649,13 @@
       "bar": "Skill-library ablation/transfer across later tasks/worlds; ensure stale skills cannot silently claim success.",
       "plan": "An EXECUTABLE skill library. Aura's already is - macro_skill.py registers a learned macro as a callable tool. The gap is the typed option schema.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "A13.3": {
       "verdict": "PRESENT",
@@ -3580,8 +3679,13 @@
       "bar": "Skill-library ablation/transfer across later tasks/worlds; ensure stale skills cannot silently claim success.",
       "plan": "Recursive composition of learned skills. Present in the library; not typed. Card 199.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "A13.5": {
       "verdict": "PARTIAL",
@@ -3613,8 +3717,13 @@
       "bar": "Curriculum vs random/fixed under matched environment steps; compare milestone speed, diversity, loops and downstream transfer.",
       "plan": "Completed and failed task tracking as first-class state.",
       "wave": "W5",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "A13.8": {
       "verdict": "PARTIAL",
@@ -4333,8 +4442,13 @@
       "bar": "Tool-heavy research/data tasks: compare tokens, round trips, latency, error rate and final correctness against sequential model-driven calls.",
       "plan": "Typed Action, Observation and Executor. This is the W5 Operator plus the W2 action receipt.",
       "wave": "W12",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/procedure.py",
+        "core/cognition/procedure_adapters.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "A5.9": {
       "verdict": "PRESENT",
