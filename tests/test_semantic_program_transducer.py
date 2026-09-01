@@ -105,6 +105,7 @@ def _example(
         split=split,
         construction_id="synthetic-sequential" if split == "train" else "held-out-clause",
         topology_id=topology_id,
+        public_inputs=(12, 6, 3),
     )
 
 
@@ -208,6 +209,7 @@ def test_training_refuses_mixed_model_bases_and_nonunit_evidence() -> None:
             split="train",
             construction_id="broken",
             topology_id="broken",
+            public_inputs=example.public_inputs,
         )
 
 

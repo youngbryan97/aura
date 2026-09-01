@@ -43,6 +43,8 @@ def test_evaluation_separates_semantics_from_source_attribution() -> None:
 
     assert treatment.program_exact == treatment.total == 64
     assert treatment.full_ir_exact == treatment.total
+    assert treatment.answer_exact == treatment.total
+    assert treatment.answer_emitted == treatment.total
     assert grounding_lesion.full_ir_exact < treatment.full_ir_exact
 
 

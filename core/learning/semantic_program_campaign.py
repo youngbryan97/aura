@@ -25,7 +25,7 @@ from core.learning.semantic_program_transducer import (
     fit_semantic_program_transducer,
 )
 
-SEMANTIC_PROGRAM_CAMPAIGN_SCHEMA: Final = "aura.semantic_program_campaign.v1"
+SEMANTIC_PROGRAM_CAMPAIGN_SCHEMA: Final = "aura.semantic_program_campaign.v2"
 
 
 def _sha(value: Any) -> str:
@@ -52,6 +52,7 @@ def training_examples_from_feature_bundle(
             split=str(item.metadata["split"]),
             construction_id=str(item.metadata["construction_id"]),
             topology_id=str(item.metadata["topology_id"]),
+            public_inputs=tuple(int(value) for value in item.metadata["inputs"]),
         )
         for item in bundle.examples
     )
@@ -177,7 +178,8 @@ def run_semantic_program_campaign(
         "held_out_total": held_out_total,
         "arms": arms,
         "paired_controls": paired,
-        "expected_answers_available": False,
+        "expected_answers_available_to_training": False,
+        "expected_answers_available_to_evaluation": True,
         "verifier_traces_available": False,
         "generated_compiler_text_available": False,
         "serving_authority": False,

@@ -108,6 +108,7 @@ class SemanticTransducerTrainingExample:
     split: str
     construction_id: str
     topology_id: str
+    public_inputs: tuple[int, ...]
 
     def __post_init__(self) -> None:
         hidden = _hidden_array(self.hidden_states)
@@ -117,6 +118,12 @@ class SemanticTransducerTrainingExample:
             raise ValueError("semantic transducer training input arity is unsupported")
         if len(self.ir.instructions) != SEMANTIC_TRANSDUCER_STEPS:
             raise ValueError("semantic transducer training step count is unsupported")
+        if (
+            not isinstance(self.public_inputs, tuple)
+            or len(self.public_inputs) != self.ir.n_inputs
+            or any(type(value) is not int for value in self.public_inputs)
+        ):
+            raise ValueError("semantic transducer public inputs are invalid")
         if self.split not in {"train", "validation", "test"}:
             raise ValueError("semantic transducer split is invalid")
         if not self.construction_id or not self.topology_id:

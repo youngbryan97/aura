@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 
+from core.learning.semantic_program_execution import execute_semantic_program
 from core.learning.semantic_program_ir import SemanticIRInstruction, SemanticProgramIR
 from core.learning.semantic_program_transducer import (
     LinearClassifierHead,
@@ -44,6 +45,8 @@ class SemanticProgramEvaluation:
     input_span_exact: int
     attribution_exact: int
     full_ir_exact: int
+    answer_emitted: int
+    answer_exact: int
     rows: tuple[dict[str, Any], ...]
 
     @property
@@ -68,6 +71,8 @@ class SemanticProgramEvaluation:
             "attribution_exact": self.attribution_exact,
             "full_ir_exact": self.full_ir_exact,
             "full_ir_accuracy": self.full_ir_accuracy,
+            "answer_emitted": self.answer_emitted,
+            "answer_exact": self.answer_exact,
             "rows": list(self.rows),
         }
 
@@ -93,6 +98,8 @@ def evaluate_semantic_program_transducer(
         "input_span_exact": 0,
         "attribution_exact": 0,
         "full_ir_exact": 0,
+        "answer_emitted": 0,
+        "answer_exact": 0,
     }
     rows: list[dict[str, Any]] = []
     for item in selected:
@@ -106,6 +113,16 @@ def evaluate_semantic_program_transducer(
             model_basis_sha256=item.ir.model_basis_receipt_sha256,
         )
         predicted = outcome.ir
+        predicted_answer: int | None = None
+        if predicted is not None:
+            try:
+                predicted_answer = execute_semantic_program(
+                    predicted,
+                    item.public_inputs,
+                ).result
+            except (RuntimeError, TypeError, ValueError):
+                predicted_answer = None
+        expected_answer = item.ir.to_program().run(item.public_inputs)
         accepted = predicted is not None
         program_exact = bool(
             predicted is not None and predicted.to_program() == item.ir.to_program()
@@ -141,6 +158,10 @@ def evaluate_semantic_program_transducer(
             and predicted is not None
             and predicted.source_token_ids == item.ir.source_token_ids
         )
+        answer_emitted = predicted_answer is not None
+        answer_exact = bool(
+            predicted_answer is not None and predicted_answer == expected_answer
+        )
         values = {
             "accepted": accepted,
             "program_exact": program_exact,
@@ -149,6 +170,8 @@ def evaluate_semantic_program_transducer(
             "input_span_exact": input_span_exact,
             "attribution_exact": attribution_exact,
             "full_ir_exact": full_ir_exact,
+            "answer_emitted": answer_emitted,
+            "answer_exact": answer_exact,
         }
         for key, value in values.items():
             counts[key] += int(value)
