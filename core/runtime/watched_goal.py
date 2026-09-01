@@ -395,11 +395,54 @@ _ASKS_POLITELY_RE = re.compile(
 )
 
 
+#: Asking her to SAY something is asking, whatever punctuation it carries.
+#:
+#: "Tell me about the history of tile games" wants an answer, and it is an
+#: imperative with a full stop — so nothing about its shape says question.
+#: What makes it one is that the thing requested is an utterance: these are
+#: the verbs of saying, addressed to the person asking, and that is a closed
+#: class in the same way the wh-words are. A request to DO something to a
+#: thing and a request to be TOLD about it read alike and are not alike.
+_ASKS_TO_BE_TOLD_RE = re.compile(
+    r"^\s*(?:please\s+)?(?:tell|show|remind)\s+(?:me|us)\b"
+    r"|^\s*(?:please\s+)?(?:explain|describe|summari[sz]e)\b",
+    re.IGNORECASE,
+)
+
+#: A medium named BEFORE the thing is what she is being asked to work in.
+#:
+#: "Search the web for 2048 strategy guides" and "find 2048 online" name the
+#: same two things in opposite orders, and the order is the whole difference:
+#: in the first the web is what she is to search and the game is what she is
+#: looking for words about; in the second the game is what she is to find and
+#: the web is where it is. So this is not a list of lookup verbs — it is
+#: which of the two the sentence puts first.
+#: The same media named as things rather than as places. "On the web" says
+#: where something is; "the web" is a thing that can be searched, and which
+#: of the two she was handed is what the order decides.
+_A_MEDIUM = re.compile(
+    r"\b(?:the\s+(?:web|internet|net)|google|the\s+browser|online)\b",
+    re.IGNORECASE,
+)
+
+
+def _the_medium_comes_first(text: str, thing: str) -> bool:
+    """Whether the request is to search a medium rather than to act on a thing."""
+    said = str(text or "")
+    medium = _A_MEDIUM.search(said)
+    if medium is None or not str(thing or "").strip():
+        return False
+    named = re.search(re.escape(str(thing).split()[0]), said, re.IGNORECASE)
+    return named is not None and medium.start() < named.start()
+
+
 def _is_asking(text: str) -> bool:
     """Whether the turn is a question rather than something to be done."""
     said = str(text or "").strip()
     if _ASKS_POLITELY_RE.match(said):
         return False
+    if _ASKS_TO_BE_TOLD_RE.match(said):
+        return True
     return said.endswith("?") or bool(_ASKS_RE.match(said))
 
 
@@ -819,6 +862,8 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     # list of doing-verbs it replaces — nobody invents a new way to start a
     # question.
     named_game = "" if _is_asking(text) else _a_game_here(text)
+    if named_game and _the_medium_comes_first(text, named_game):
+        named_game = ""
     if not cue and not named_game:
         return None
     if _nothing_to_watch(text):
