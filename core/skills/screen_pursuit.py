@@ -1759,6 +1759,39 @@ def _how_full(reading: Any) -> float:
 CARRIES_TO_A_WORLD_LIKE_IT = ("moves", "acts", "skill", "world", "lines", "lines_held")
 
 
+def _the_thing_she_is_acting_in(whole: Any, lattice: Any, like: Any = None) -> Any:
+    """The thing inside a reading — unless she is already holding its frame.
+
+    The crop keeps the largest regular block in a reading, and which block
+    that is depends on which places happen to be filled. So a reading placed
+    into a four-by-four lattice came back four by four and was then cut to
+    three by four, or four by three, differently almost every glance. The
+    comparison that teaches her how a world moves needs both readings in the
+    SAME frame, and it slices the frame's own lines along with the cells, so
+    nearly every pair was thrown away.
+
+    LIVE 2026-08-31 on the real game: a correct four-by-four lattice held
+    across forty acts, and one comparison out of forty reached the rule. So
+    "how this moves is not worked out yet" after fifty-four moves, and a full
+    language generation for every move of a world she had already read
+    correctly.
+
+    A lattice is what she has instead of a crop. Working the frame out afresh
+    from a reading that was just placed into one is asking the question she is
+    holding the answer to.
+    """
+    from core.perception.the_thing_itself import the_thing_itself  # noqa: PLC0415
+
+    if (
+        lattice is not None
+        and getattr(lattice, "held", False)
+        and whole is not None
+        and (whole.rows, whole.columns) == (lattice.rows, lattice.columns)
+    ):
+        return whole
+    return the_thing_itself(whole, like=like)
+
+
 def _the_kind_of_world_this_is(state: Any, acts: Sequence[str], toward: str) -> str:
     """A name this world shares with every world that moves like it."""
     try:
@@ -2233,7 +2266,6 @@ async def pursue_on_screen(
     from core.agency.worth_thinking_about import worth_a_pass
     from core.perception.how_it_moves import HowItMoves
     from core.perception.the_lattice_she_holds import TheLatticeSheHolds
-    from core.perception.the_thing_itself import the_thing_itself
     from core.perception.what_moves_within_itself import MovesWithinItself
     from core.perception.what_the_world_does import WhatTheWorldDoes
     from core.perception.where_it_responds import (
@@ -2858,8 +2890,9 @@ async def pursue_on_screen(
             answering=answering,
             lattice=lattice,
         )
-        laid_out = the_thing_itself(
+        laid_out = _the_thing_she_is_acting_in(
             whole,
+            lattice,
             like=_worth_holding(
                 pending["arranged"], pending["whole"], pending.setdefault("shapes", {})
             ),
