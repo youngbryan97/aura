@@ -21,7 +21,7 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument(
         "--representation",
         choices=("final_hidden_v1", "lexical_contextual_v1"),
-        default="lexical_contextual_v1",
+        default="final_hidden_v1",
     )
     parser.add_argument("--hidden-timeout-s", type=float, default=120.0)
     parser.add_argument("--idle-wait-s", type=float, default=0.0)

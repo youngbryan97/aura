@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from core.brain.llm.hidden_sequence_contract import (
-    LEXICAL_CONTEXTUAL_V1,
+    FINAL_HIDDEN_V1,
     hidden_sequence_channels,
     hidden_sequence_schema,
 )
@@ -59,7 +59,7 @@ class _FeatureClient:
         representation: str = "final_hidden_v1",
     ):
         assert timeout_s == 120.0
-        assert representation == LEXICAL_CONTEXTUAL_V1
+        assert representation == FINAL_HIDDEN_V1
         self.calls += 1
         token_ids = [ord(character) for character in text]
         states = np.zeros((len(token_ids), 8), dtype=np.float32)

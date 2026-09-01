@@ -25,8 +25,8 @@ from typing import Any, Final, Protocol
 import numpy as np
 
 from core.brain.llm.hidden_sequence_contract import (
+    FINAL_HIDDEN_V1,
     HIDDEN_SEQUENCE_REPRESENTATIONS,
-    LEXICAL_CONTEXTUAL_V1,
     hidden_sequence_channels,
     hidden_sequence_schema,
 )
@@ -97,7 +97,7 @@ class SemanticFeatureConfig:
     seed: int = 271828
     examples_per_operation_pair: int = 1
     max_examples: int = 576
-    representation: str = LEXICAL_CONTEXTUAL_V1
+    representation: str = FINAL_HIDDEN_V1
     hidden_timeout_s: float = 120.0
     idle_wait_s: float = 300.0
     idle_poll_s: float = 1.0
