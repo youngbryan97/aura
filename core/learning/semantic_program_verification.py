@@ -23,9 +23,14 @@ SEMANTIC_PROGRAM_VERIFICATION_SCHEMA: Final = (
     "aura.semantic_program_campaign_verification.v1"
 )
 SEMANTIC_PROGRAM_VERIFICATION_SOURCES: Final = (
+    "core/brain/llm/hidden_sequence_contract.py",
+    "core/learning/procedure_induction.py",
     "core/learning/semantic_program_campaign.py",
+    "core/learning/semantic_program_corpus.py",
     "core/learning/semantic_program_evaluation.py",
     "core/learning/semantic_program_execution.py",
+    "core/learning/semantic_program_feature_materialization.py",
+    "core/learning/semantic_program_ir.py",
     "core/learning/semantic_program_transducer.py",
     "core/learning/semantic_program_verification.py",
     "tools/verify_semantic_program_campaign.py",

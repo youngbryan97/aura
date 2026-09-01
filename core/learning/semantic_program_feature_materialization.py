@@ -868,7 +868,7 @@ def load_semantic_feature_bundle(
     return LoadedSemanticFeatureBundle(manifest=manifest, examples=tuple(loaded))
 
 
-def _write_bytes(
+async def _write_bytes(
     gateway: FileWriteGateway,
     path: Path,
     payload: bytes,
@@ -878,13 +878,13 @@ def _write_bytes(
 ) -> bool:
     with local_internal_governed_scope(source, domain="file_write"):
         if if_absent:
-            return gateway.write_bytes_if_absent(
+            return await gateway.write_bytes_if_absent_async(
                 path,
                 payload,
                 mode=0o600,
                 source=source,
             )
-        gateway.write_bytes(path, payload, source=source)
+        await gateway.write_bytes_async(path, payload, source=source)
     return True
 
 
@@ -1111,8 +1111,7 @@ async def materialize_semantic_program_features(
         }
         payload = _encode_record(metadata, local_token_ids, states)
         path = root / f"{example.example_id}{_RECORD_SUFFIX}"
-        created = await asyncio.to_thread(
-            _write_bytes,
+        created = await _write_bytes(
             writer,
             path,
             payload,
@@ -1132,9 +1131,8 @@ async def materialize_semantic_program_features(
                 total=len(selected),
                 config_sha256=config_sha256,
                 corpus_sha256=corpus_sha256,
-            )
-        await asyncio.to_thread(
-            _write_bytes,
+        )
+        await _write_bytes(
             writer,
             root / _STATUS_NAME,
             progress_status,
@@ -1184,8 +1182,7 @@ async def materialize_semantic_program_features(
         "evidence_absence": dict(_EVIDENCE_ABSENCE),
     }
     manifest = {**manifest_body, "manifest_sha256": _sha(manifest_body)}
-    await asyncio.to_thread(
-        _write_bytes,
+    await _write_bytes(
         writer,
         root / _MANIFEST_NAME,
         _canonical_bytes(manifest),
@@ -1205,8 +1202,7 @@ async def materialize_semantic_program_features(
         config_sha256=config_sha256,
         corpus_sha256=corpus_sha256,
     )
-    await asyncio.to_thread(
-        _write_bytes,
+    await _write_bytes(
         writer,
         root / _STATUS_NAME,
         complete_status,
