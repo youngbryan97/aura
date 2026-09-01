@@ -1,0 +1,67 @@
+{
+  "schema": "aura.semantic_program_typed_sequence_verification.v1",
+  "source_commit": "fdbc266477bee705f6a5a36b41222bc607c74617",
+  "claim_boundary": "bounded resident-27B semantic program acquisition and exact answer execution on construction-held-out synthetic typed sequence transformation and scalar aggregation language; not broad-domain or frontier reasoning evidence",
+  "corpus_kind": "sequence_chain_1x2_factorial",
+  "representation": "lexical_contextual_v1",
+  "design": {
+    "construction_count": 9,
+    "sequence_transform_count": 5,
+    "scalar_aggregation_count": 6,
+    "examples_per_operation_pair": 2,
+    "total_examples": 540,
+    "train_examples": 180,
+    "validation_examples": 180,
+    "test_examples": 180
+  },
+  "feature_manifest_sha256": "44e2c721cf522e028c4cd1f2aa19a784aaad9ba07c9de208b03c57c6315401bc",
+  "model_basis_sha256": "e43649046bde1c8b3bdbc49681fc7a6b6c22ba5dcb7fed1fdfdad43fb3196a3f",
+  "transducer_receipt_sha256": "743cc09ca78480a577bc3f16fb490e555ad2e1752b915c7bdadca4c596c9fb76",
+  "campaign_report_sha256": "efeb8f3ee5a2c296bc15c2f452548bdea102f9b8f7668b2772c52d3964e84c91",
+  "held_out": {
+    "total": 360,
+    "program_exact": 178,
+    "answer_exact": 239,
+    "program_accuracy": 0.49444444444444446,
+    "answer_accuracy": 0.6638888888888889
+  },
+  "held_out_answer_exact_by_arm": {
+    "treatment": 239,
+    "hidden_token_shuffle": 171,
+    "coefficient_lesion": 16,
+    "label_permutation": 51
+  },
+  "paired_answer_controls": {
+    "coefficient_lesion_test": {"treatment_only": 120, "control_only": 7, "one_sided_exact_p": 5.571296800461234e-28},
+    "coefficient_lesion_validation": {"treatment_only": 116, "control_only": 6, "one_sided_exact_p": 8.009329907103973e-28},
+    "hidden_token_shuffle_test": {"treatment_only": 41, "control_only": 14, "one_sided_exact_p": 0.0001776405593157393},
+    "hidden_token_shuffle_validation": {"treatment_only": 55, "control_only": 14, "one_sided_exact_p": 3.460958460029819e-07},
+    "label_permutation_test": {"treatment_only": 100, "control_only": 9, "one_sided_exact_p": 7.203401329871232e-21},
+    "label_permutation_validation": {"treatment_only": 106, "control_only": 9, "one_sided_exact_p": 1.8465784848991773e-22}
+  },
+  "operation_feature_selection_by_step": [
+    {
+      "modes": ["lexical_mean", "contextual_mean", "contextual_last"],
+      "leave_one_construction_out_correct": 156,
+      "leave_one_construction_out_total": 180,
+      "candidate_ensembles_evaluated": 41
+    },
+    {
+      "modes": ["lexical_mean", "contextual_mean", "contextual_last"],
+      "leave_one_construction_out_correct": 154,
+      "leave_one_construction_out_total": 180,
+      "candidate_ensembles_evaluated": 41
+    }
+  ],
+  "stored_model_sha256": "8aa9ebc007c96b17de7434f1bcf4d4ff78c2388c2cbf5dc16c49abf36797aa15",
+  "stored_report_sha256": "7bae23140ce05450b8fd4ce2184fe4a8688967784564776e1b199c8d18c24998",
+  "verification_file_sha256": "3ae3897b4ba25677f30b866cc3b576499717f0206d51878793ca25d656c61580",
+  "verification_sha256": "eaee9b4b8bb039bbbf15bdd0a167d1df0d1cf3831130e18605c80f1a75b64cd0",
+  "raw_feature_records_reloaded": 540,
+  "task_rows_independently_recounted": 1620,
+  "campaign_replay_exact": true,
+  "deterministic_refit_exact": true,
+  "expected_answers_available_to_training": false,
+  "verified": true,
+  "serving_authority": false
+}
