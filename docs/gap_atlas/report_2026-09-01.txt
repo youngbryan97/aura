@@ -1,0 +1,2107 @@
+====================================================================================================
+AURA COMPARATIVE COGNITIVE ARCHITECTURE GAP ATLAS
+How Aura could match or exceed ACT-R, Soar, NARS, CLARION, LIDA, Nengo/SPA/Spaun,
+OpenCog/CogPrime/Hyperon, Whole Brain Architecture, SIMA 2, V-JEPA 2, and frontier models
+====================================================================================================
+Research cutoff: 2026-09-01
+Frozen Aura baseline: youngbryan97/aura @ 1ca29fdf66afd2ca8627ce2f93b82fbc47c3980a
+Rival-specific gap cards: 169
+Cross-system convergence cards: 51
+Total actionable gap/advantage cards: 220
+
+SCOPE AND EPISTEMIC RULES
+- This report compares architecture, cognitive primitives, scientific maturity, engineering practice,
+  empirical evidence, scaling, and end-state. It does not equate software complexity with intelligence.
+- Aura judgments are pinned to the frozen commit above. Later commits are outside scope.
+- A rival is marked ahead only where a concrete property, implementation pattern, evidence program,
+  or demonstrated capability is stronger. If Aura already has the primitive, the gap is described as
+  integration/evidence/scale/theory rather than pretending it is absent.
+- For proprietary modern systems, only public claims and demonstrations are considered; undocumented
+  internals are not assumed.
+- Historical OpenCog components such as classic PLN/pattern-miner work are not automatically treated
+  as current superiority. The report imports useful properties, not historical branding.
+- Every proposed upgrade includes a proof-of-closure test. A gap is not closed because code exists;
+  it is closed only when the intended causal/capability property is demonstrated.
+
+FROZEN AURA SOURCE ANCHORS USED FOR CODE-LEVEL COMPARISON
+- actr: core/cognition/actr_activation.py
+- impasse: core/cognition/impasse.py
+- proc: core/cognition/procedural_generalization.py
+- atom: core/knowledge/atomspace.py
+- metta: core/knowledge/metta.py
+- world: core/world_model/learned_world_model.py
+- pursuit: core/skills/screen_pursuit.py
+- being: core/being/runtime.py
+- gwt: core/consciousness/global_workspace.py
+- intero: core/being/thought_interoception.py
+- rlc: core/learning/semantic_neural_composition.py
+- engine: core/brain/cognitive_engine.py
+- rep: core/cognition/ representational-growth family
+- action: core/cognition/an_action_she_composed.py
+- causal: core/verify/causal_influence/
+
+Important verified current-source corrections:
+- ACT-R-like activation is already implemented in core/cognition/actr_activation.py. Its source explicitly
+  rejects ACT-R latency transfer to Aura ranked-scan recall after measuring essentially zero relationship;
+  this is a calibration/memory-architecture gap, not an equation-implementation gap.
+- Soar-inspired impasses, exact chunks, utility accounting, and a guarded generalized-rule learner already
+  exist. The deeper Soar gap is automatic full substates and dependency-backtraced architecture-wide compilation.
+- Aura already has a clean-room typed metagraph, PLN-like truth values, ECAN-like attention, and bounded
+  MeTTa-style rewriting. Hyperon therefore leads on meta-language depth/runtime/ecosystem/scale, not graph existence.
+- Aura has a real trainable VRNN world model and a real perceive-act-observe screen-pursuit loop, but both
+  remain tiny in data/environment scope compared with modern world-model and embodied-agent research.
+- The RLC path now compositionally executes supplied typed workflows and can causally feed a computed state
+  into resident decode. It does not yet autonomously derive the workflow or establish hidden-state co-reasoning.
+
+GAP TYPE KEY
+- ABSENT: Aura has no sufficiently close mechanism at the frozen commit.
+- ABSENT/PARTIAL: Some local analogues exist, but no sufficient general mechanism was found.
+- ARCHITECTURE GAP: The rival uses a materially different architecture that solves a problem Aura still has.
+- CAPABILITY GAP: The rival currently demonstrates stronger capability on this axis.
+- CAPABILITY/EVIDENCE GAP: The capability is underdeveloped and not broadly demonstrated.
+- CAPABILITY/SAFETY GAP: Closing the capability gap requires a new safety/governance mechanism too.
+- CAPABILITY/SCALE GAP: The gap is both raw capability and the scale supporting it.
+- ENGINEERING GAP: The rival has stronger implementation/runtime/tooling infrastructure on this axis.
+- EVIDENCE GAP: The closest Aura mechanism exists, but the rival has substantially stronger validation.
+- EVIDENCE/STRUCTURE GAP: Both the structural formalization and its validation are behind.
+- INTEGRATION GAP: Aura has pieces, but not a canonical architecture-wide mechanism.
+- INTEGRATION/THEORY GAP: Aura has multiple mechanisms but lacks a single theory/contract connecting them.
+- PARTIAL: Aura has a meaningful analogue, but the rival has stronger semantics, integration, evidence, or generality.
+- PARTIAL/ABSENT: A narrow analogue exists; the general form is absent.
+- PROCESS GAP: The rival/research program has a stronger scientific or engineering practice.
+- PROCESS/SCALE GAP: The process exists in smaller form but not at comparable organizational/evaluation scale.
+- SCALE GAP: The main difference is data/model/environment/engineering scale rather than the basic idea.
+- SCALE/EVIDENCE GAP: Scale and external evidence both substantially trail.
+- SCALE/INTEGRATION GAP: The idea exists locally but not at the rival scale or architecture-wide.
+- SCIENCE GAP: The deficit is primarily falsifiability, calibration, causal attribution, or external validation.
+- THEORY GAP: The rival has a more coherent or parsimonious theory for this property.
+- THEORY/EVIDENCE GAP: Both theoretical coherence and empirical discrimination are behind.
+
+EXECUTIVE SYNTHESIS
+The main finding is not that Aura lacks the canonical ingredients of cognitive architecture. In many cases
+it already contains a serious analogue. The remaining gaps are increasingly second-order:
+  1. architecture-wide semantics instead of local mechanisms;
+  2. automatic compilation/proceduralization from lived causal traces;
+  3. a common evidence/resource/procedure language across subsystems;
+  4. implicit <-> explicit <-> neural conversion and credit assignment;
+  5. large-scale visual/world experience and held-out environment transfer;
+  6. scientific calibration, matched-compute ablation, preregistration, and independent replication;
+  7. theoretical compression: fewer universal mechanisms that explain more of the organism;
+  8. autonomous extension of operator semantics, not only vocabulary inside a fixed meta-language.
+
+The practical implication is severe: adding more cognitive organs is no longer the highest-value strategy.
+The path to exceeding these systems is to make Aura more unified, more developmental, more experimentally
+falsifiable, and much more broadly grounded in varied environments.
+
+
+####################################################################################################
+SYSTEM: ACT-R
+####################################################################################################
+ACT-R is ahead mainly in empirical cognitive science: calibrated timing, human-data fitting, and architecture-wide procedural skill acquisition. Aura already has an unusually disciplined ACT-R-inspired activation module, so importing equations alone would add little.
+
+[001] Human reaction-time prediction
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: ACT-R treats latency as part of the cognitive theory and fits model behavior to human timing.
+AURA COMPARISON: Aura has runtime/token latency telemetry but no validated cognitive latency theory.
+WHAT TO BUILD / IMPORT: Build a human-behavior calibration harness for memory, choice, interruption and skill tasks; fit only identifiable parameters.
+PROOF OF CLOSURE: Held-out human latency and error distributions are predicted better than simple baselines.
+PRIMARY SOURCE KEYS: ACTR
+
+[002] Activation-driven retrieval latency
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: ACT-R retrieval latency is mechanistically tied to activation.
+AURA COMPARISON: Aura actr_activation.py explicitly found ACT-R latency does not transfer to ranked-scan recall (r^2 about 0.000037).
+WHAT TO BUILD / IMPORT: Either redesign retrieval as an activation-driven race or build an Aura-native latency law based on actual retrieval work.
+PROOF OF CLOSURE: Intervening on activation must change latency in the predicted direction after controlling candidate count/backend.
+PRIMARY SOURCE KEYS: ACTR
+
+[003] Canonical buffer/module semantics
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: ACT-R modules communicate through standardized buffers with well-defined visibility and requests.
+AURA COMPARISON: Aura uses many service interfaces, event buses, dataclasses and bridges but no universal cognitive-port contract.
+WHAT TO BUILD / IMPORT: Introduce CognitivePort with content, provenance, confidence, state version, operation request and causal receipt.
+PROOF OF CLOSURE: Most cross-organ handoffs use the contract and lesions yield selective predictable deficits.
+PRIMARY SOURCE KEYS: ACTR
+
+[004] Production compilation
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: ACT-R compiles multi-step procedures into faster direct productions as skill develops.
+AURA COMPARISON: Aura has chunks, habits, action composition and RLC, but no universal trace-to-procedure compiler.
+WHAT TO BUILD / IMPORT: Create TraceCompiler over successful causal traces, preserving preconditions, effects and governance.
+PROOF OF CLOSURE: Repeated tasks become faster/cheaper; lesion compiled procedures restores novice cost.
+PRIMARY SOURCE KEYS: ACTR_SKILL
+
+[005] Production utility learning
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Compiled productions gain learned utility and compete with old rules.
+AURA COMPARISON: Aura chunk EV and rule confidence are local mechanisms rather than one common procedural value system.
+WHAT TO BUILD / IMPORT: Standardize ProceduralValue: payoff, time saved, match cost, risk, confidence, recency and transfer value.
+PROOF OF CLOSURE: Procedures from different learners compete under one value contract and demote when value turns negative.
+PRIMARY SOURCE KEYS: ACTR_SKILL
+
+[006] Validated partial matching/interference
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: ACT-R partial matching is used to explain graded retrieval errors and interference.
+AURA COMPARISON: Aura has semantic similarity and mismatch penalties but no unified human-validated error theory.
+WHAT TO BUILD / IMPORT: Model commission vs omission errors and cue interference using live Aura recalls plus human memory datasets.
+PROOF OF CLOSURE: Predict which wrong memory/error type occurs before answer observation.
+PRIMARY SOURCE KEYS: ACTR
+
+[007] Perceptual/motor timing model
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: ACT-R perceptual and motor modules make quantitative timing predictions for interaction.
+AURA COMPARISON: Aura screen_pursuit uses engineering waits/focus/stabilization, not human cognitive timing laws.
+WHAT TO BUILD / IMPORT: Instrument perception selection encoding motor execution and verification stages; compare against HCI datasets.
+PROOF OF CLOSURE: Out-of-sample task-time distributions match data across interface complexity levels.
+PRIMARY SOURCE KEYS: ACTR
+
+[008] Individual-difference modeling
+GAP TYPE: ABSENT
+WHY THE RIVAL IS AHEAD: ACT-R research often models stable cognitive differences by identifiable parameters.
+AURA COMPARISON: Aura has many tunables but no trait/state/implementation parameter taxonomy.
+WHAT TO BUILD / IMPORT: Create longitudinal trait estimation and parameter-recovery tests.
+PROOF OF CLOSURE: Stable trait estimates recur across sessions while state variables vary with context.
+PRIMARY SOURCE KEYS: ACTR
+
+[009] Neurocognitive triangulation
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: ACT-R has extensive work connecting architecture timing/modules to neural measurements.
+AURA COMPARISON: Aura neuroscience mappings are mostly analogical and pluralistic.
+WHAT TO BUILD / IMPORT: Require biological-variable -> computational-variable -> predicted signature -> falsifier metadata.
+PROOF OF CLOSURE: At least one subsystem predicts multiple neural/behavioral signatures without per-task refitting.
+PRIMARY SOURCE KEYS: ACTR
+
+[010] Repository-wide parameter provenance
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: ACT-R culture emphasizes fit parameters and model-data comparison.
+AURA COMPARISON: Aura actr_activation.py records provenance and rejects a bad latency fit, but many cognitive constants remain heuristic.
+WHAT TO BUILD / IMPORT: Create ParameterRegistry with source, fitted/policy status, dataset hash, uncertainty and sensitivity.
+PROOF OF CLOSURE: CI blocks claims of calibration without reproducible fit metadata.
+PRIMARY SOURCE KEYS: ACTR
+
+[011] Event-level cognitive tracing
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: ACT-R event simulation yields clear stepwise traces.
+AURA COMPARISON: Aura has receipts/logs/workspace history but no one complete causal timeline.
+WHAT TO BUILD / IMPORT: Create monotonic CognitiveEvent IDs spanning perception, retrieval, workspace, self-state, planning, action and learning.
+PROOF OF CLOSURE: A consequential action can be reconstructed as a complete causal DAG from one trace bundle.
+PRIMARY SOURCE KEYS: ACTR
+
+[012] Cumulative external task corpus
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: ACT-R has decades of published models across memory, HCI, language, skill and decision tasks.
+AURA COMPARISON: Aura has huge internal tests but far less external cognitive-model replication.
+WHAT TO BUILD / IMPORT: Port canonical paradigms and compare Aura, ACT-R and human curves.
+PROOF OF CLOSURE: Frozen public battery is independently reproducible.
+PRIMARY SOURCE KEYS: ACTR
+
+[013] Mechanistic parsimony
+GAP TYPE: THEORY GAP
+WHY THE RIVAL IS AHEAD: ACT-R explains broad cognition with a comparatively compact set of mechanisms.
+AURA COMPARISON: Aura has many specialized organs and duplicated control motifs.
+WHAT TO BUILD / IMPORT: Launch architecture compression: merge mechanisms with the same computational invariant.
+PROOF OF CLOSURE: Module count/dependency complexity decreases without losing causal benchmark signatures.
+PRIMARY SOURCE KEYS: ACTR
+
+[014] Validated forgetting/spacing laws
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: ACT-R base-level activation has extensive evidence for power-law practice/forgetting behavior.
+AURA COMPARISON: Aura implements the form but has not established its own long-horizon spacing/forgetting curves.
+WHAT TO BUILD / IMPORT: Run controlled longitudinal rehearsal schedules across Aura memory types.
+PROOF OF CLOSURE: Held-out retention curves beat recency-only/exponential baselines.
+PRIMARY SOURCE KEYS: ACTR
+
+[015] Resource-rational cognitive stopping
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Modern ACT-R work treats cognition as resource-rational, not just correct.
+AURA COMPARISON: Aura budgets compute operationally but does not have a universal cognitive value-of-compute theory.
+WHAT TO BUILD / IMPORT: Learn when to search, retrieve, compile, ask or stop from expected gain minus cognitive cost.
+PROOF OF CLOSURE: Adaptive policy solves more tasks at matched compute than fixed budgets.
+PRIMARY SOURCE KEYS: GPT56_EFF
+
+
+####################################################################################################
+SYSTEM: Soar
+####################################################################################################
+Soar is ahead in one of the clearest ways to make a cognitive architecture self-proceduralize: impasses automatically create recursive substates, and resolution traces are compiled into generalized productions. Aura has the classifier, cautious rule generalizer and utility accounting, but not that universal loop.
+
+[016] Automatic substate creation
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Soar architecture automatically creates a substate whenever its decision procedure reaches an impasse.
+AURA COMPARISON: Aura core/cognition/impasse.py classifies ties/conflicts/rejection/no-change but does not universally instantiate a subordinate problem-solving state.
+WHAT TO BUILD / IMPORT: Create CognitiveSubstate with inherited context, local goal, budget, parent causal ID and result channel.
+PROOF OF CLOSURE: Induced impasses across planning/memory/tool selection/representation search all enter the same recursive mechanism.
+PRIMARY SOURCE KEYS: SOAR
+
+[017] Architecture-wide recursive subgoaling
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Soar can encounter impasses inside substates, yielding uniform recursive problem solving.
+AURA COMPARISON: Aura recursion exists in multiple subsystem-specific forms.
+WHAT TO BUILD / IMPORT: Make substate nesting generic with cycle/budget bounds.
+PROOF OF CLOSURE: Three unrelated domains generate nested subgoals without new recursion code.
+PRIMARY SOURCE KEYS: SOAR
+
+[018] Dependency backtracing
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Soar chunking backtraces exactly which state facts and productions supported the resolving result.
+AURA COMPARISON: Aura procedural_generalization uses invariants/lesions/counterexamples, but not a complete architecture-wide causal dependency trace.
+WHAT TO BUILD / IMPORT: Record every fact/operator dependency consumed in a substate and compile transitive supports only.
+PROOF OF CLOSURE: Chunk fires under paraphrase when causal supports match and fails when a support is counterfactually removed.
+PRIMARY SOURCE KEYS: SOAR, SOAR_EBC
+
+[019] Generalized chunk semantics
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Soar chunks create working-memory results/preferences that directly resolve future decisions.
+AURA COMPARISON: Aura exact chunks store resolution labels and generalized rules propose actions outside a universal decision language.
+WHAT TO BUILD / IMPORT: Make learned outputs typed assertions/preferences/operators rather than opaque strings.
+PROOF OF CLOSURE: Future impasse resolves from learned chunk without original solver invocation.
+PRIMARY SOURCE KEYS: SOAR
+
+[020] Rich preference algebra
+GAP TYPE: ABSENT/PARTIAL
+WHY THE RIVAL IS AHEAD: Soar has explicit better/worse, require/prohibit, reject, acceptable and indifferent preference semantics.
+AURA COMPARISON: Aura combines scalar scores, Will/governance gates and subsystem-specific constraints.
+WHAT TO BUILD / IMPORT: Create typed cognitive Preference distinct from authority.
+PROOF OF CLOSURE: Tie/conflict/constraint failures emerge from algebra rather than special cases.
+PRIMARY SOURCE KEYS: SOAR
+
+[021] Incremental production matching
+GAP TYPE: SCALE GAP
+WHY THE RIVAL IS AHEAD: Soar uses mature production matching optimized for large rule sets.
+AURA COMPARISON: Aura Python rule stores/MeTTa patterns may scale poorly with lifetime learning.
+WHAT TO BUILD / IMPORT: Benchmark Rete/discrimination-network indexing for promoted procedures.
+PROOF OF CLOSURE: 10x rule growth yields much less than 10x decision matching cost.
+PRIMARY SOURCE KEYS: SOAR
+
+[022] Chunk explanation tooling
+GAP TYPE: ENGINEERING GAP
+WHY THE RIVAL IS AHEAD: Soar EBC contains mature trace structures for why chunks were generated.
+AURA COMPARISON: Aura has receipts and causal evidence but no single chunk debugger.
+WHAT TO BUILD / IMPORT: Persist origin impasse, dependency DAG, rejected conditions, counterexamples, utility and future firings.
+PROOF OF CLOSURE: Any procedure can produce a minimal reproducible explanation of why it exists.
+PRIMARY SOURCE KEYS: SOAR_EBC
+
+[023] Negative-condition handling
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Soar explicitly treats overgeneralization caused by negative/absence reasoning.
+AURA COMPARISON: Aura contradiction/lesion checks do not universally distinguish observed-negative from unobserved/inaccessible.
+WHAT TO BUILD / IMPORT: Make epistemic status of absence first-class in compiled traces.
+PROOF OF CLOSURE: Hidden/missing observations cannot become causal negative preconditions.
+PRIMARY SOURCE KEYS: SOAR
+
+[024] RL integrated with preference selection
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Soar reinforcement learning updates numeric preferences in the same operator framework.
+AURA COMPARISON: Aura habits/RL/value systems are distributed.
+WHAT TO BUILD / IMPORT: Attach learned value to the common Preference representation.
+PROOF OF CLOSURE: Symbolic and learned preferences combine transparently and lesions are interpretable.
+PRIMARY SOURCE KEYS: SOAR
+
+[025] One state/operator problem-solving skeleton
+GAP TYPE: THEORY GAP
+WHY THE RIVAL IS AHEAD: Soar uses the same state/operator cycle across domains.
+AURA COMPARISON: Aura has several overlapping executive loops.
+WHAT TO BUILD / IMPORT: Define canonical perceive/update -> propose -> prefer -> select -> apply -> verify -> learn cycle.
+PROOF OF CLOSURE: At least five current loops become configurations of the same kernel.
+PRIMARY SOURCE KEYS: SOAR
+
+[026] Lifetime procedural scaling
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: Soar has decades of experience with chunk utility and production growth.
+AURA COMPARISON: Aura caps stores but has no million-decision/lifetime procedural ecology proof.
+WHAT TO BUILD / IMPORT: Run accelerated lifetime simulations with distribution shift and millions of rule firings.
+PROOF OF CLOSURE: Latency/memory stay bounded while useful old procedures survive.
+PRIMARY SOURCE KEYS: SOAR
+
+[027] Unified cognitive debugger
+GAP TYPE: ENGINEERING GAP
+WHY THE RIVAL IS AHEAD: Soar exposes mature traces over states/operators/preferences/productions.
+AURA COMPARISON: Aura debugging is powerful but scattered.
+WHAT TO BUILD / IMPORT: Build one Cognitive Debugger combining event DAG, workspace, self-state, goals, memories, rules and receipts.
+PROOF OF CLOSURE: Root cause a complex failed action without multi-log manual grep.
+PRIMARY SOURCE KEYS: SOAR
+
+[028] Operator abstraction consistency
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Soar operators are a domain-portable state transformation abstraction.
+AURA COMPARISON: Aura tools, skills, Doing ASTs, planner actions and RLC opcodes differ.
+WHAT TO BUILD / IMPORT: Define Operator(preconditions,effects,cost,risk,reversibility,observability,binding).
+PROOF OF CLOSURE: Same learner/planner consumes GUI, file, puzzle and social operators.
+PRIMARY SOURCE KEYS: SOAR
+
+[029] Automatic learning occasion
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Impasse resolution is intrinsically an occasion for learning in Soar.
+AURA COMPARISON: Aura learners still require path-specific calls.
+WHAT TO BUILD / IMPORT: Make impasse resolution/repeated successful trace/prediction correction architecture-level learning events.
+PROOF OF CLOSURE: New decision domains produce learning records without author wiring.
+PRIMARY SOURCE KEYS: SOAR
+
+[030] Core-architecture minimality
+GAP TYPE: THEORY GAP
+WHY THE RIVAL IS AHEAD: Soar deliberately seeks broad behavior from a small fixed kernel plus learned knowledge.
+AURA COMPARISON: Aura has architecture saturation.
+WHAT TO BUILD / IMPORT: Treat new modules as last resort; first test whether the function is an instance of existing primitives.
+PROOF OF CLOSURE: New releases reduce or hold cognitive kernel complexity while capability grows.
+PRIMARY SOURCE KEYS: SOAR
+
+
+####################################################################################################
+SYSTEM: NARS
+####################################################################################################
+NARS is ahead in theoretical unity: truth, evidence, goals, inference and resource allocation are all defined under insufficient knowledge and resources. Aura has richer mechanisms, but no comparable architecture-wide evidence/resource semantics.
+
+[031] Non-axiomatic epistemic contract
+GAP TYPE: THEORY GAP
+WHY THE RIVAL IS AHEAD: NARS assumes all knowledge is experience-derived, revisable and resource-conditioned.
+AURA COMPARISON: Aura uncertainty/provenance are strong but vary across subsystems.
+WHAT TO BUILD / IMPORT: Make every belief source-bound, revisable, evidence-bearing and time/resource conditioned.
+PROOF OF CLOSURE: Belief-producing APIs cannot omit provenance/evidence semantics.
+PRIMARY SOURCE KEYS: NARS
+
+[032] Evidence-independence stamps
+GAP TYPE: ABSENT/PARTIAL
+WHY THE RIVAL IS AHEAD: NARS tracks evidential history to avoid treating the same evidence as independent confirmation.
+AURA COMPARISON: Aura receipts/hashes do not universally prevent confidence double counting across derivations.
+WHAT TO BUILD / IMPORT: Add EvidenceSet lineage and overlap-aware fusion.
+PROOF OF CLOSURE: Duplicate derivations do not increase confidence; independent observations do.
+PRIMARY SOURCE KEYS: NARS
+
+[033] Frequency/confidence truth values everywhere
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: NARS separates support frequency from confidence/evidence amount across reasoning.
+AURA COMPARISON: Aura AtomSpace has analogous strength/count semantics, but other belief stores differ.
+WHAT TO BUILD / IMPORT: Standardize EvidenceTruth adapters across memory, planner, world/social models and AtomSpace.
+PROOF OF CLOSURE: Cross-store beliefs retain calibrated uncertainty after conversion.
+PRIMARY SOURCE KEYS: NARS
+
+[034] Priority-durability-quality budgets
+GAP TYPE: ABSENT AS UNIVERSAL
+WHY THE RIVAL IS AHEAD: Every NARS task/concept/link has budget dimensions controlling processing and decay.
+AURA COMPARISON: Aura has many priority/importance/deadline systems but no universal CognitiveBudget.
+WHAT TO BUILD / IMPORT: Introduce common priority,durability,quality,expected_cost,deadline fields.
+PROOF OF CLOSURE: Mind-wide scheduler allocates compute across heterogeneous organs via same budget.
+PRIMARY SOURCE KEYS: NARS_BUDGET, NARS_RES
+
+[035] Controlled concurrent task competition
+GAP TYPE: THEORY GAP
+WHY THE RIVAL IS AHEAD: NARS continuously allocates finite processor time among concurrent tasks according to dynamic priority.
+AURA COMPARISON: Aura async loops are largely operationally scheduled.
+WHAT TO BUILD / IMPORT: Create cognitive scheduler based on expected instrumental/epistemic value per compute.
+PROOF OF CLOSURE: Adaptive allocation beats static frequencies at equal compute.
+PRIMARY SOURCE KEYS: NARS_RES
+
+[036] Best-so-far but still revisable answers
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: NARS can emit a current best answer and continue low-priority search.
+AURA COMPARISON: Aura often treats response emission as task termination.
+WHAT TO BUILD / IMPORT: Represent residual uncertainty and allow durable tasks to continue at reduced budget.
+PROOF OF CLOSURE: Later evidence can improve/correct earlier outputs with revision lineage.
+PRIMARY SOURCE KEYS: NARS_RES
+
+[037] Temporal logic integrated with inference
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: NARS processes logical and temporal information together and supports temporal induction.
+AURA COMPARISON: Aura has event/time/world-model systems but not one symbolic temporal calculus.
+WHAT TO BUILD / IMPORT: Add before/after/interval/recurrence/lag operators and evidence rules to AtomSpace/MeTTa.
+PROOF OF CLOSURE: Learn temporal/causal rules from event history and use in unrelated planning tasks.
+PRIMARY SOURCE KEYS: NARS_TEMP
+
+[038] Executable operations as terms
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: NARS represents operations in the same language as goals/events.
+AURA COMPARISON: Aura has tools, skills, Doing, RLC ops and grounded MeTTa ops in separate representations.
+WHAT TO BUILD / IMPORT: Unify symbolic Operator term with executable governed binding.
+PROOF OF CLOSURE: A learned symbolic rule can quantify over and execute an operation without translation glue.
+PRIMARY SOURCE KEYS: NARS_TEMP
+
+[039] Budget inheritance for derived tasks
+GAP TYPE: ABSENT/PARTIAL
+WHY THE RIVAL IS AHEAD: NARS assigns new inference tasks budgets based on truth/complexity/premises.
+AURA COMPARISON: Aura subgoals/hypotheses often get fixed or local budgets.
+WHAT TO BUILD / IMPORT: Derive child budgets from parent value, uncertainty, complexity and information gain.
+PROOF OF CLOSURE: Search retains high-value branches better than fixed depth under same compute.
+PRIMARY SOURCE KEYS: NARS_RES
+
+[040] Concept as storage+processing unit
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: NARS concepts aggregate beliefs, tasks, goals and links around a term.
+AURA COMPARISON: Aura concept identity is split across vector stores, AtomSpace, LLM context, procedural vocab and world models.
+WHAT TO BUILD / IMPORT: Create ConceptHandle linking all substrate-specific representations and common evidence/budget.
+PROOF OF CLOSURE: One concept activation can retrieve its episodic, symbolic, procedural and neural correlates.
+PRIMARY SOURCE KEYS: NARS
+
+[041] Unified revision math
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: NARS evidence calculus gives explicit revision behavior.
+AURA COMPARISON: Aura has PLN revision plus other confidence blends.
+WHAT TO BUILD / IMPORT: Centralize confidence fusion invariants and duplicate-evidence protection.
+PROOF OF CLOSURE: Contradictory cross-module evidence yields predictable calibrated belief change.
+PRIMARY SOURCE KEYS: NARS
+
+[042] Cognition-integrated forgetting
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: NARS storage competition uses budget values, not separate housekeeping only.
+AURA COMPARISON: Aura pruning differs by store/ecology.
+WHAT TO BUILD / IMPORT: Use expected future utility/information minus maintenance cost as common retention value.
+PROOF OF CLOSURE: Accelerated lifetime retains critical knowledge while keeping bounded storage.
+PRIMARY SOURCE KEYS: NARS_RES
+
+[043] One compact theory of intelligence
+GAP TYPE: THEORY GAP
+WHY THE RIVAL IS AHEAD: NARS derives many behaviors from one theory of adaptation under insufficient knowledge/resources.
+AURA COMPARISON: Aura combines many imported theoretical families.
+WHAT TO BUILD / IMPORT: Write Aura meta-theory identifying a small set of invariants each organ implements.
+PROOF OF CLOSURE: Every major organ maps to an invariant; redundant organs become identifiable.
+PRIMARY SOURCE KEYS: NARS
+
+[044] Task persistence by value rather than clock
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: NARS tasks decay/revive according to resource competition and feedback.
+AURA COMPARISON: Aura uses many fixed timeouts/cadences in addition to values.
+WHAT TO BUILD / IMPORT: Convert non-safety timeouts to value decay/reactivation where possible.
+PROOF OF CLOSURE: Better completion/abandonment tradeoff on mixed-duration task suite.
+PRIMARY SOURCE KEYS: NARS_RES
+
+[045] Resource-sensitive inference control
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: NARS inference rules participate in resource allocation.
+AURA COMPARISON: Aura bounds rewriters/planners but rarely learns per-rule value/cost.
+WHAT TO BUILD / IMPORT: Learn expected cost/value for MeTTa/PLN/representation operators.
+PROOF OF CLOSURE: At fixed wall time, learned inference ordering solves more held-out tasks.
+PRIMARY SOURCE KEYS: NARS_RES
+
+
+####################################################################################################
+SYSTEM: CLARION
+####################################################################################################
+CLARION is ahead in a clean theory of implicit and explicit cognition learning into one another. Aura has both kinds of substrate but not yet a universal conversion/assimilation lifecycle.
+
+[046] Canonical implicit/explicit dual knowledge
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: CLARION explicitly separates implicit neural-like knowledge and explicit rule-level knowledge.
+AURA COMPARISON: Aura has RLC/latent/transformer and AtomSpace/MeTTa/rules but no common alignment object.
+WHAT TO BUILD / IMPORT: Create DualKnowledge linking latent encoding, explicit rule, confidence, conversion loss and provenance.
+PROOF OF CLOSURE: Knowledge can translate both ways with measured fidelity and reuse.
+PRIMARY SOURCE KEYS: CLARION
+
+[047] Bottom-up rule extraction
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: CLARION emphasizes extracting explicit rules from implicit competence.
+AURA COMPARISON: Aura lacks general extraction from arbitrary learned neural/world policies.
+WHAT TO BUILD / IMPORT: Train symbolic/program extractors over RLC/world-model trajectories and falsify outputs.
+PROOF OF CLOSURE: Extracted rules predict implicit behavior and transfer to new tasks.
+PRIMARY SOURCE KEYS: CLARION
+
+[048] Top-down assimilation
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Explicit knowledge can shape/teach implicit processing in CLARION.
+AURA COMPARISON: Aura explicit procedures do not systematically distill into neural/RLC shortcuts.
+WHAT TO BUILD / IMPORT: Distill validated rules/procedures into learned substrate while preserving explicit fallback.
+PROOF OF CLOSURE: Latency drops after distillation without behavior/equivalence regressions.
+PRIMARY SOURCE KEYS: CLARION
+
+[049] Action-centered dual system
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: CLARION unifies explicit and implicit action knowledge.
+AURA COMPARISON: Aura action proposals come from habits, planner, LLM, rules, world model and skills with separate semantics.
+WHAT TO BUILD / IMPORT: Build ActionPolicyHub that integrates proposal sources before governance.
+PROOF OF CLOSURE: Ablations quantify each source and all learned action competence accumulates through one interface.
+PRIMARY SOURCE KEYS: CLARION
+
+[050] Declarative/non-action knowledge dual system
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: CLARION also links implicit and explicit non-action knowledge.
+AURA COMPARISON: Aura declarative knowledge is fragmented across stores and latents.
+WHAT TO BUILD / IMPORT: Link ConceptHandles to neural/explicit representations.
+PROOF OF CLOSURE: New declarative abstractions transfer into action and prediction without bespoke adapters.
+PRIMARY SOURCE KEYS: CLARION
+
+[051] Unified motivation-cognition loop
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: CLARION explicitly integrates motivation with cognitive control.
+AURA COMPARISON: Aura has richer welfare/affect/drives but less compact learned theory.
+WHAT TO BUILD / IMPORT: Learn drive-to-goal/outcome sensitivities instead of hand-weighting all relationships.
+PROOF OF CLOSURE: Drive lesions selectively alter goal generation and improve adaptation vs fixed drive weights.
+PRIMARY SOURCE KEYS: CLARION
+
+[052] Metacognitive control validation
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: CLARION treats metacognition as an explicit control layer studied behaviorally.
+AURA COMPARISON: Aura has stronger mechanism breadth but limited external behavioral validation.
+WHAT TO BUILD / IMPORT: Test strategy switching, confidence calibration, compute allocation and self-monitoring with matched meta/no-meta arms.
+PROOF OF CLOSURE: Meta control produces held-out capability gains at equal compute.
+PRIMARY SOURCE KEYS: CLARION
+
+[053] Unified cross-level learning cycle
+GAP TYPE: ABSENT/PARTIAL
+WHY THE RIVAL IS AHEAD: CLARION has explicit flows among implicit learning, rule extraction and assimilation.
+AURA COMPARISON: Aura learners can remain siloed.
+WHAT TO BUILD / IMPORT: Define experience -> implicit update -> explicit extraction -> falsification -> procedural/neural distillation.
+PROOF OF CLOSURE: Three unrelated domains complete the cycle with no new learning code.
+PRIMARY SOURCE KEYS: CLARION
+
+[054] Implicit/explicit dissociation experiments
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: CLARION models cases where implicit competence and explicit access diverge.
+AURA COMPARISON: Aura has no dedicated dissociation battery.
+WHAT TO BUILD / IMPORT: Test performance-without-report and report-without-performance under targeted lesions.
+PROOF OF CLOSURE: Selective dissociations are reproducible and mechanistically explained.
+PRIMARY SOURCE KEYS: CLARION
+
+[055] Automaticity transition
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: CLARION models movement from explicit deliberation to implicit skill.
+AURA COMPARISON: Aura has habits/chunks/RLC but no architecture-wide automaticity metric.
+WHAT TO BUILD / IMPORT: Track cortex/planner reliance versus learned fast procedures.
+PROOF OF CLOSURE: Practice decreases deliberation while novelty restores it.
+PRIMARY SOURCE KEYS: CLARION
+
+[056] Cross-level contradiction handling
+GAP TYPE: ABSENT/PARTIAL
+WHY THE RIVAL IS AHEAD: Dual systems need explicit handling of conflict between implicit and explicit knowledge.
+AURA COMPARISON: Aura can hide such conflict inside final scoring.
+WHAT TO BUILD / IMPORT: Make substrate disagreement a named impasse that can trigger experiment/arbitration.
+PROOF OF CLOSURE: Conflicting predictions are surfaced and evidence-seeking resolves them.
+PRIMARY SOURCE KEYS: CLARION
+
+[057] Theory-driven subsystem boundaries
+GAP TYPE: THEORY GAP
+WHY THE RIVAL IS AHEAD: CLARION subsystem boundaries are derived from a coherent theory.
+AURA COMPARISON: Aura file/organ boundaries partly reflect development history.
+WHAT TO BUILD / IMPORT: Refactor around computational invariants and shared contracts.
+PROOF OF CLOSURE: Dependency complexity falls without losing capability.
+PRIMARY SOURCE KEYS: CLARION
+
+[058] Human motivation/decision validation
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: CLARION aims to model human learning, decision, motivation and metacognition.
+AURA COMPARISON: Aura uses psychologically inspired mechanisms with limited human-data fitting.
+WHAT TO BUILD / IMPORT: Replicate selected CLARION paradigms.
+PROOF OF CLOSURE: Aura predicts qualitative/quantitative human patterns beyond heuristic baseline.
+PRIMARY SOURCE KEYS: CLARION
+
+[059] Rule refinement lifecycle
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: CLARION explicit rules can be refined as learning continues.
+AURA COMPARISON: Aura rules can demote/prune but specialization/generalization lifecycle is not universal.
+WHAT TO BUILD / IMPORT: Add rule split/merge/specialization driven by counterexamples and transfer.
+PROOF OF CLOSURE: Coverage/precision improve without runaway rule count.
+PRIMARY SOURCE KEYS: CLARION
+
+
+####################################################################################################
+SYSTEM: LIDA
+####################################################################################################
+LIDA is ahead in having one repeated cognitive cycle and treating global broadcast as a common trigger for several online learning processes. Aura has richer mechanisms but more heterogeneous temporal/learning semantics.
+
+[060] Canonical cognitive cycle
+GAP TYPE: THEORY GAP
+WHY THE RIVAL IS AHEAD: LIDA repeatedly runs perception -> situational model -> attention/global broadcast -> procedure/action -> execution.
+AURA COMPARISON: Aura has several overlapping loops with different clocks.
+WHAT TO BUILD / IMPORT: Wrap major organs in an Aura CognitiveCycle envelope while preserving asynchronous internals.
+PROOF OF CLOSURE: Every consequential action traces to one cycle snapshot and its learning updates.
+PRIMARY SOURCE KEYS: LIDA_CYCLE
+
+[061] Broadcast-triggered learning
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: LIDA uses each global broadcast to drive multiple continual learning processes.
+AURA COMPARISON: Aura workspace winners influence cognition but many learners update from separate events.
+WHAT TO BUILD / IMPORT: Emit LearningBroadcast with content, context, valence, prediction error, ownership and provenance.
+PROOF OF CLOSURE: Lesions show broadcast contributes to episodic, procedural, perceptual and attentional learning.
+PRIMARY SOURCE KEYS: LIDA_CYCLE
+
+[062] Attentional learning
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: LIDA treats learning what to attend to as an ongoing mode.
+AURA COMPARISON: Aura salience has hand-tuned components despite ECAN/workspace dynamics.
+WHAT TO BUILD / IMPORT: Learn attentional policy from downstream value/information gain.
+PROOF OF CLOSURE: Learned attention improves unseen-task sample efficiency vs static weights.
+PRIMARY SOURCE KEYS: LIDA_CYCLE
+
+[063] Perceptual associative ontology growth
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: LIDA learns objects/categories/relations into perceptual associative memory.
+AURA COMPARISON: Aura perception-to-durable-concept conversion is still narrow.
+WHAT TO BUILD / IMPORT: Create percept cluster/entity -> ConceptHandle -> AtomSpace pipeline with validation.
+PROOF OF CLOSURE: Categories recur across scenes and support planning without relabeling by cortex.
+PRIMARY SOURCE KEYS: LIDA_CYCLE
+
+[064] Current situational model
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: LIDA combines percepts with retrieved associations before attention competition.
+AURA COMPARISON: AuraNow/world state/workspace do not yet form one universally consumed situation graph.
+WHAT TO BUILD / IMPORT: Create immutable SituationSnapshot containing percepts, inferred entities, goals, memories, self-state, affordances and uncertainty.
+PROOF OF CLOSURE: All major decision organs consume same snapshot hash.
+PRIMARY SOURCE KEYS: LIDA_CYCLE
+
+[065] Memory transformation pipeline
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: LIDA separates transient episodic, declarative and other memory stages.
+AURA COMPARISON: Aura has rich memory but heterogeneous consolidation paths.
+WHAT TO BUILD / IMPORT: Specify sensory trace -> transient episode -> consolidated episode -> semantic abstraction -> procedure lineage.
+PROOF OF CLOSURE: Every durable abstraction traces back to source episodes.
+PRIMARY SOURCE KEYS: LIDA_CYCLE
+
+[066] Common procedural scheme format
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: LIDA stores context/action/result procedural templates.
+AURA COMPARISON: Aura has skills/chunks/Doing/habits/operators in multiple formats.
+WHAT TO BUILD / IMPORT: Unify SituationPattern -> Operator -> PredictedEffect schema.
+PROOF OF CLOSURE: Different learners produce procedures that compete under one representation.
+PRIMARY SOURCE KEYS: LIDA_CYCLE
+
+[067] Low-level sensory-motor memory
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: LIDA separates action selection from motor-plan execution/learning.
+AURA COMPARISON: Aura host automation is mostly discrete click/key control.
+WHAT TO BUILD / IMPORT: Add trainable low-level visual/motor controllers for trajectories/timing.
+PROOF OF CLOSURE: Repeated motor tasks improve precision without high-level replanning.
+PRIMARY SOURCE KEYS: LIDA
+
+[068] Affect as learned facilitator
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: LIDA explicitly ties artificial feelings to attention, motivation and learning.
+AURA COMPARISON: Aura is richer structurally but capability gain from affect is not broadly demonstrated.
+WHAT TO BUILD / IMPORT: Run long-horizon matched affect lesions and learn mappings where possible.
+PROOF OF CLOSURE: Affect improves exploration/recovery/resource allocation without paralysis.
+PRIMARY SOURCE KEYS: LIDA
+
+[069] Simultaneous online learning modes
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: LIDA expects one important event to update multiple memory/learning systems.
+AURA COMPARISON: Aura experiences often update only specific learners.
+WHAT TO BUILD / IMPORT: Create consolidation coordinator choosing all applicable learners with shared evidence ID.
+PROOF OF CLOSURE: One novel event updates multiple learning modes coherently.
+PRIMARY SOURCE KEYS: LIDA_CYCLE
+
+[070] Theory-specific neuroscience mapping
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: LIDA literature maps cognitive-cycle mechanisms to neuroscience.
+AURA COMPARISON: Aura mixes several theoretical traditions and analogical biological labels.
+WHAT TO BUILD / IMPORT: Build NeuroCognitive Mapping Matrix with evidence grade/falsifier per mapping.
+PROOF OF CLOSURE: Biological claims become auditable and discriminating experiments are possible.
+PRIMARY SOURCE KEYS: LIDA_CYCLE
+
+[071] Discriminating consciousness-theory tests
+GAP TYPE: THEORY/EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: LIDA has a relatively singular GWT-based functional theory.
+AURA COMPARISON: Aura includes GWT, IIT-inspired measures, active inference, recurrent/self theories simultaneously.
+WHAT TO BUILD / IMPORT: Design experiments where theories make different predictions instead of additive green checks.
+PROOF OF CLOSURE: At least one result favors one mechanism and falsifies another implementation.
+PRIMARY SOURCE KEYS: LIDA
+
+[072] Systematic developmental curriculum
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: LIDA explicitly assumes a developmental learning period.
+AURA COMPARISON: Aura development is real but concentrated in bounded recent tasks.
+WHAT TO BUILD / IMPORT: Create staged curriculum spanning perception, causality, social learning, skill, metacognition and representation.
+PROOF OF CLOSURE: Older Aura outperforms reset Aura on later stages because of prior acquired structures.
+PRIMARY SOURCE KEYS: LIDA
+
+[073] Cycle timing metrics
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: LIDA provides a natural repeated unit for temporal cognition analysis.
+AURA COMPARISON: Aura organs run at different frequencies without one phase timing account.
+WHAT TO BUILD / IMPORT: Instrument cycle-phase latency/backpressure and fast vs slow loops.
+PROOF OF CLOSURE: Performance bottlenecks localize to phases and adaptive scheduling improves throughput.
+PRIMARY SOURCE KEYS: LIDA_CYCLE
+
+
+####################################################################################################
+SYSTEM: Nengo / SPA / Spaun
+####################################################################################################
+Nengo/SPA/Spaun is ahead where cognitive operations must be realized in a coherent neural dynamical substrate rather than merely represented by neural-inspired modules. Aura has real recurrent/neural components and RLC, but no architecture-wide neural compilation semantics or single vector representation algebra spanning perception, memory, action and control.
+
+[074] Neurally executable cognitive primitives
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: SPA/NEF requires cognitive operations to compile into dynamics over neuron populations rather than exist only as Python/symbolic functions.
+AURA COMPARISON: Aura has neural mesh, liquid substrate, RLC and transformer activations, but many cognitive primitives remain ordinary code with no neural realization.
+WHAT TO BUILD / IMPORT: Define a NeuralExecutable interface and compile a selected core of memory binding, action selection, transformation and working-memory operations into a shared latent substrate.
+PROOF OF CLOSURE: For each migrated primitive, lesioning the neural implementation removes the behavior while the symbolic implementation is absent; neural dynamics reproduce the same functional result within bounded error.
+PRIMARY SOURCE KEYS: SPA
+
+[075] Semantic pointer representation algebra
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: SPA uses one compositional high-dimensional vector algebra for binding, superposition, cleanup and transformation.
+AURA COMPARISON: Aura uses several unrelated vector spaces: transformer residuals, self vectors, world-model latents, RLC state, neural mesh states and embeddings.
+WHAT TO BUILD / IMPORT: Create a CanonicalCognitiveVector schema with typed projections and invertibility/uncertainty metadata; implement binding/unbinding and structured transforms.
+PROOF OF CLOSURE: A learned concept can move among perception, working memory, planning and action without hand-written per-pair adapters and survive round-trip reconstruction tests.
+PRIMARY SOURCE KEYS: SPA
+
+[076] Binding and role-filler manipulation in one substrate
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: SPA can encode structured symbolic relations through vector binding while remaining neurally executable.
+AURA COMPARISON: Aura has symbolic AtomSpace relations and vector embeddings but no universal neurally manipulable role-filler representation.
+WHAT TO BUILD / IMPORT: Add typed vector-symbol binding compatible with ConceptHandles/AtomSpace and RLC.
+PROOF OF CLOSURE: Novel role-filler combinations are manipulated correctly without retraining each combination.
+PRIMARY SOURCE KEYS: SPA
+
+[077] Basal-ganglia-style action selection as neural computation
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Spaun implements action selection/control through a neurally realized basal-ganglia/thalamus mechanism.
+AURA COMPARISON: Aura Global Workspace and policy systems are causal but mainly coded controllers rather than population dynamics.
+WHAT TO BUILD / IMPORT: Implement an optional neural action-selection controller driven by common utility/evidence signals and compare to coded arbitration.
+PROOF OF CLOSURE: Neural controller reproduces selection, switching and inhibition signatures and yields predictable lesion deficits.
+PRIMARY SOURCE KEYS: SPA
+
+[078] Neural working memory with measurable dynamics
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: SPA working memory is realized by recurrent neural dynamics and can be analyzed for capacity, noise and decay.
+AURA COMPARISON: Aura has multiple explicit memories and continuous fields but no canonical neurally realized working-memory store.
+WHAT TO BUILD / IMPORT: Create a small recurrent semantic-pointer working-memory layer with gated write/maintain/read and interference.
+PROOF OF CLOSURE: Capacity/decay/interference curves are measured, stable and causally linked to planning performance.
+PRIMARY SOURCE KEYS: SPA
+
+[079] Perception-to-cognition vector continuity
+GAP TYPE: SCALE/INTEGRATION GAP
+WHY THE RIVAL IS AHEAD: Spaun maps visual input through neural processing into the same representational regime used by cognition.
+AURA COMPARISON: Aura screen perception often becomes text/layout or task-specific structures before cognition.
+WHAT TO BUILD / IMPORT: Train a visual encoder whose outputs project directly into canonical cognitive vectors and world-state entities.
+PROOF OF CLOSURE: Novel visual stimuli can drive memory retrieval/action selection without OCR/text mediation.
+PRIMARY SOURCE KEYS: SPA
+
+[080] Cognition-to-motor neural continuity
+GAP TYPE: ABSENT/PARTIAL
+WHY THE RIVAL IS AHEAD: Spaun converts cognitive state into neurally generated motor trajectories.
+AURA COMPARISON: Aura mostly emits discrete desktop actions and relies on host automation.
+WHAT TO BUILD / IMPORT: Add learned motor primitive decoders for cursor/gesture/trajectory control under the same representation regime.
+PROOF OF CLOSURE: Motor precision improves with practice and can execute continuous trajectories without LLM planning each step.
+PRIMARY SOURCE KEYS: SPA
+
+[081] One fixed neural model across heterogeneous tasks
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: Spaun famously demonstrates multiple tasks in a single fixed neural architecture rather than loading a different cognitive program for each task.
+AURA COMPARISON: Aura has one process but frequently invokes task-specific code paths, policies and adapters.
+WHAT TO BUILD / IMPORT: Create a fixed-core cross-task battery in which no architecture code or task-specific learner changes between tasks.
+PROOF OF CLOSURE: The same frozen cognitive/neural core performs a diverse task suite with only task observations/instructions changing.
+PRIMARY SOURCE KEYS: SPA
+
+[082] Neural representational similarity diagnostics
+GAP TYPE: ABSENT/PARTIAL
+WHY THE RIVAL IS AHEAD: Nengo/SPA gives direct access to decoded vector content and neural population activity.
+AURA COMPARISON: Aura has telemetry but no unified representational geometry analysis across organs.
+WHAT TO BUILD / IMPORT: Add CKA/RSA/subspace-angle/probe analyses across canonical latent spaces with provenance.
+PROOF OF CLOSURE: Representational transformations are quantitatively tracked and lesions reveal where task information is gained/lost.
+PRIMARY SOURCE KEYS: SPA
+
+[083] Noise-robust cleanup memory
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Semantic pointers rely on cleanup/associative memory that retrieves structured concepts from noisy vectors.
+AURA COMPARISON: Aura has vector retrieval stores, but not a canonical cleanup operation shared by all cognitive vectors.
+WHAT TO BUILD / IMPORT: Build shared cleanup memory with confidence and collision diagnostics.
+PROOF OF CLOSURE: Noisy/interfered bound representations recover correct concept above baselines across modalities.
+PRIMARY SOURCE KEYS: SPA
+
+[084] Explicit capacity/noise tradeoff theory
+GAP TYPE: THEORY/EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: SPA exposes how dimensionality, neuron count and noise constrain representational capacity.
+AURA COMPARISON: Aura dimensional choices are often engineering defaults rather than theory-backed capacity choices.
+WHAT TO BUILD / IMPORT: Measure capacity as a function of dimension/noise for each canonical vector channel and select from empirical tradeoffs.
+PROOF OF CLOSURE: Configured dimensions meet declared error/capacity targets with confidence bounds.
+PRIMARY SOURCE KEYS: SPA
+
+[085] Neural dynamical timing predictions
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: Nengo models evolve in continuous time with biologically motivated synaptic/neuronal dynamics.
+AURA COMPARISON: Aura continuous substrates have synthetic dynamics but little behavioral timing validation.
+WHAT TO BUILD / IMPORT: Tie selected recurrent time constants to observable cognitive transitions and fit/validate them.
+PROOF OF CLOSURE: Perturbing time constants changes response/working-memory timing as predicted on held-out tasks.
+PRIMARY SOURCE KEYS: SPA
+
+[086] Neural lesion methodology at population/connection level
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Nengo models support targeted removal of pathways/populations with interpretable effects.
+AURA COMPARISON: Aura has a strong LesionController but lesions are often subsystem-scale.
+WHAT TO BUILD / IMPORT: Extend causal campaign to projections/populations/latent channels and compare distributed compensation.
+PROOF OF CLOSURE: Fine-grained lesions produce reproducible selective deficits and quantify redundancy.
+PRIMARY SOURCE KEYS: SPA
+
+[087] Compilation from high-level cognitive model to neural implementation
+GAP TYPE: ABSENT
+WHY THE RIVAL IS AHEAD: NEF provides a principled translation from represented functions/dynamics into neural connections.
+AURA COMPARISON: Aura lacks a general compiler from symbolic/cognitive operation to endogenous neural tissue.
+WHAT TO BUILD / IMPORT: Research a bounded Aura Neural Compiler: specify typed function plus error tolerance, synthesize/test RLC/mesh implementation, retain only validated implementations.
+PROOF OF CLOSURE: Previously coded operations are automatically compiled into neural substrate and pass semantic equivalence plus performance tests.
+PRIMARY SOURCE KEYS: SPA
+
+[088] Single neural substrate scientific coherence
+GAP TYPE: THEORY GAP
+WHY THE RIVAL IS AHEAD: SPA offers one mathematical representational/dynamical framework for much of cognition.
+AURA COMPARISON: Aura neural elements arise from several different inspirations and coordinate via adapters.
+WHAT TO BUILD / IMPORT: Choose a canonical neural-state algebra and require new neural organs to justify deviations.
+PROOF OF CLOSURE: Cross-neural adapter count falls while capability and lesion interpretability rise.
+PRIMARY SOURCE KEYS: SPA
+
+
+####################################################################################################
+SYSTEM: OpenCog / CogPrime / Hyperon
+####################################################################################################
+The OpenCog family is ahead in the depth of its meta-symbolic substrate, cognitive-synergy theory, program-learning tradition and language/runtime ecosystem. Aura already has a surprisingly substantive clean-room AtomSpace, PLN-like truth values, ECAN-like attention and bounded MeTTa rewriting; therefore the useful gaps are the parts that make the representation itself a programmable substrate rather than a feature-compatible imitation.
+
+[089] Full self-hosting meta-language
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Hyperon/MeTTa aims for programs, inference rules, types and metaprogramming to live in the same atom language.
+AURA COMPARISON: Aura metta.py supports equality rewriting and grounded ops, but major reasoning semantics still live in Python.
+WHAT TO BUILD / IMPORT: Move a selected family of rule learning, inference-control and representation constructors into queryable/rewriteable MeTTa-level programs.
+PROOF OF CLOSURE: Aura can inspect, modify and execute those cognitive rules without editing Python, with rollback and governance.
+PRIMARY SOURCE KEYS: HYPERON
+
+[090] Multiple first-class Spaces
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Hyperon exposes multiple Spaces with distinct storage/query semantics as a core abstraction.
+AURA COMPARISON: Aura separates facts/rules and has many stores, but no uniform Space interface across knowledge/memory/world/self representations.
+WHAT TO BUILD / IMPORT: Define CognitiveSpace API: add/remove/query/substitute/iterate/transaction/provenance/attention and implement adapters for key stores.
+PROOF OF CLOSURE: Generic cognitive programs run unchanged over at least three heterogeneous spaces.
+PRIMARY SOURCE KEYS: HYPERON
+
+[091] Richer type system for cognitive atoms
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: MeTTa supports type-oriented program structure and checks beyond plain string atom types.
+AURA COMPARISON: Aura AtomSpace uses type-name strings and runtime validation.
+WHAT TO BUILD / IMPORT: Add a compact dependent/parametric type layer for operators, effects, evidence and representations.
+PROOF OF CLOSURE: Ill-typed learned programs are rejected before execution and typed composition enables reusable polymorphic operators.
+PRIMARY SOURCE KEYS: HYPERON
+
+[092] Programs as ordinary inspectable knowledge
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Hyperon pushes executable program structure into the same representational universe as knowledge.
+AURA COMPARISON: Aura has rewrite rules as data, but many skills/planners/learners remain Python objects outside AtomSpace.
+WHAT TO BUILD / IMPORT: Represent procedures, planners, hypotheses and learners as graph-addressable program atoms with source/evidence/utility links.
+PROOF OF CLOSURE: A query can retrieve the complete executable lineage of a learned strategy and substitute/compose it structurally.
+PRIMARY SOURCE KEYS: HYPERON
+
+[093] Cognitive synergy as an explicit optimization target
+GAP TYPE: THEORY GAP
+WHY THE RIVAL IS AHEAD: CogPrime treats different cognitive processes helping each other as a central design principle.
+AURA COMPARISON: Aura has many cross-links but no quantitative synergy objective.
+WHAT TO BUILD / IMPORT: Define synergy gain S(A,B)=performance(A+B)-max(performance(A),performance(B)) under matched compute; track pairs/coalitions.
+PROOF OF CLOSURE: Subsystem combinations must demonstrate positive held-out synergy or be merged/removed.
+PRIMARY SOURCE KEYS: OPENCOG
+
+[094] Systematic memory-type conversion
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: CogPrime explicitly emphasizes conversion among declarative, procedural, episodic, attentional and other memory forms.
+AURA COMPARISON: Aura has several conversion paths but no universal conversion graph.
+WHAT TO BUILD / IMPORT: Build MemoryTransformationGraph with typed transforms, information loss, confidence and provenance.
+PROOF OF CLOSURE: A learned episode can automatically become semantic rule, procedure, neural skill and attentional prior when evidence warrants.
+PRIMARY SOURCE KEYS: OPENCOG
+
+[095] Glocal knowledge processing
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: CogPrime stresses interaction between local pattern processes and global structures.
+AURA COMPARISON: Aura has local learners plus global stores/workspace, but global/local coordination is ad hoc.
+WHAT TO BUILD / IMPORT: Implement local hypothesis workers that publish candidate atoms and global graph constraints that feed back priors/attention.
+PROOF OF CLOSURE: Local learning improves from global context without contaminating unrelated domains.
+PRIMARY SOURCE KEYS: OPENCOG
+
+[096] Probabilistic/evolutionary program learning tradition
+GAP TYPE: ABSENT/PARTIAL
+WHY THE RIVAL IS AHEAD: MOSES searches program spaces while learning representations that make useful programs compact.
+AURA COMPARISON: Aura has symbolic enumeration, RLC, action synthesis and representation growth, but not a broad stochastic program learner over rich programs.
+WHAT TO BUILD / IMPORT: Add governed MDL-guided typed program synthesis using stochastic/evolutionary search over the same learned operator library.
+PROOF OF CLOSURE: On frozen synthesis suites it finds compact programs beyond deterministic enumerator horizons and survives transfer/ablation tests.
+PRIMARY SOURCE KEYS: MOSES
+
+[097] Learned representation-building inside program search
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: MOSES jointly changes representation/search rather than optimizing only coefficients.
+AURA COMPARISON: Aura representation growth exists but is not yet a universal inner loop of all program learning.
+WHAT TO BUILD / IMPORT: Allow synthesis to propose verified feature/operator abstractions when search residuals show repeated structure.
+PROOF OF CLOSURE: Search complexity decreases on later tasks and new abstractions are reused across independent program families.
+PRIMARY SOURCE KEYS: MOSES
+
+[098] Large metagraph query/runtime engineering
+GAP TYPE: SCALE GAP
+WHY THE RIVAL IS AHEAD: Hyperon is building a dedicated Rust/C/Python runtime for atom operations and module execution.
+AURA COMPARISON: Aura AtomSpace is Python and comparatively small-scale.
+WHAT TO BUILD / IMPORT: Move hot graph matching/indexing/attention operations to a persistent native backend with transactional APIs.
+PROOF OF CLOSURE: Million-plus atom workloads retain bounded query/inference latency and crash-safe persistence.
+PRIMARY SOURCE KEYS: HYPERON
+
+[099] Language module/package ecosystem
+GAP TYPE: ENGINEERING GAP
+WHY THE RIVAL IS AHEAD: Hyperon has modules, interpreter/runtime boundaries, C and Python APIs and dedicated CI around the language.
+AURA COMPARISON: Aura MeTTa-like layer is an embedded module, not a complete extensible language ecosystem.
+WHAT TO BUILD / IMPORT: Add module imports, namespaces, versioned rule packages, capability declarations and deterministic package tests.
+PROOF OF CLOSURE: Learned/handwritten cognitive packages can be independently versioned, loaded and rolled back.
+PRIMARY SOURCE KEYS: HYPERON
+
+[100] First-class nondeterministic program semantics at scale
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: MeTTa treats multiple reductions/answers as normal rather than immediately selecting one.
+AURA COMPARISON: Aura bounded rewriter supports nondeterminism, but the rest of cognition often collapses candidates early.
+WHAT TO BUILD / IMPORT: Carry alternative reductions as weighted hypothesis sets into planning/workspace instead of strings/lists.
+PROOF OF CLOSURE: Ambiguous rules preserve alternatives until evidence/action resolves them and improve calibration.
+PRIMARY SOURCE KEYS: HYPERON
+
+[101] Attention economy integrated with graph-scale inference
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: ECAN treats attention as an economic allocation over a large knowledge graph.
+AURA COMPARISON: Aura implements STI/LTI-style attention but has limited evidence at substantial graph scale.
+WHAT TO BUILD / IMPORT: Stress-test attention allocation, rent, spreading and forgetting on large learned graphs; learn allocation parameters from downstream value.
+PROOF OF CLOSURE: At equal compute, attention-gated inference beats scan/random/top-degree baselines on held-out graph reasoning.
+PRIMARY SOURCE KEYS: ECAN
+
+[102] Explicit program/knowledge introspection
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: A metagraph makes the structure of rules and programs available to the same query language.
+AURA COMPARISON: Aura introspection focuses heavily on self-state and inference telemetry rather than inspecting cognitive program structure.
+WHAT TO BUILD / IMPORT: Expose running plans, rule matches, transforms and operator dependencies as temporary atoms.
+PROOF OF CLOSURE: Metacognition can identify a failing cognitive procedure and propose a structural repair from the graph representation.
+PRIMARY SOURCE KEYS: HYPERON
+
+[103] Distributed cognitive substrate direction
+GAP TYPE: SCALE GAP
+WHY THE RIVAL IS AHEAD: OpenCog/Hyperon architecture anticipates large/distributed knowledge and cognitive workloads.
+AURA COMPARISON: Aura is deliberately local-first/single-machine and many stateful organs assume one process.
+WHAT TO BUILD / IMPORT: Preserve sovereignty but introduce optional partitionable read/compute workers with signed state snapshots and deterministic merge rules.
+PROOF OF CLOSURE: Large graph/search workloads scale across workers without violating canonical state ownership or auditability.
+PRIMARY SOURCE KEYS: OPENCOG_ARCH
+
+[104] Cognitive schematic / pattern abstraction breadth
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: CogPrime explicitly targets reusable schematics and relational patterns across domains.
+AURA COMPARISON: Aura has action composition, generalized procedural rules and representational constructs, but transfer remains narrow.
+WHAT TO BUILD / IMPORT: Unify learned structural motifs into graph templates with variables, preconditions, causal effects and analogical matching.
+PROOF OF CLOSURE: A schematic learned in one domain materially improves search in an unrelated structurally analogous domain.
+PRIMARY SOURCE KEYS: OPENCOG
+
+[105] Unified truth/evidence semantics across all knowledge
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: PLN historically pursued common uncertain truth semantics for heterogeneous inference.
+AURA COMPARISON: Aura AtomSpace truth values are local while other learners use probabilities, Wilson bounds, confidence floats and receipts.
+WHAT TO BUILD / IMPORT: Create EvidenceValue protocol mapping observation mass, dependence, confidence intervals and derivation lineage across systems.
+PROOF OF CLOSURE: Cross-system evidence combination is mathematically defined and duplicate evidence cannot inflate confidence.
+PRIMARY SOURCE KEYS: OPENCOG
+
+[106] Meta-level rewrite of inference policy
+GAP TYPE: ABSENT/PARTIAL
+WHY THE RIVAL IS AHEAD: A self-hosting metaprogramming substrate can represent how inference itself should proceed.
+AURA COMPARISON: Aura proposal order/compute policy is mostly Python/learned heuristics outside MeTTa.
+WHAT TO BUILD / IMPORT: Represent bounded inference-control policies as modifiable rules subject to causal evaluation and rollback.
+PROOF OF CLOSURE: Aura can learn a new inference-ordering policy, validate it, install it and later revise it without Python modification.
+PRIMARY SOURCE KEYS: HYPERON
+
+
+####################################################################################################
+SYSTEM: Whole Brain Architecture Initiative
+####################################################################################################
+WBAI is ahead not because it has a more capable running agent, but because it imposes a far stronger neuroscience-to-architecture traceability program. Its value to Aura is methodological: anatomical reference architecture, explicit functional hypotheses, cross-species mapping and systematic uncertainty about what biological structure implies computationally.
+
+[107] Whole-brain reference architecture
+GAP TYPE: ABSENT
+WHY THE RIVAL IS AHEAD: WBAI is constructing an explicit whole-brain reference architecture rather than selecting isolated inspirations.
+AURA COMPARISON: Aura contains many neuroscience-inspired organs without a single anatomical reference graph covering all major mappings.
+WHAT TO BUILD / IMPORT: Create Aura NeuroReference: brain region/circuit -> hypothesized computation -> Aura analogue -> evidence grade -> missing biology -> falsifier.
+PROOF OF CLOSURE: Every biological analogy used in code/docs resolves to a versioned mapping record; unmapped labels are removed or marked metaphorical.
+PRIMARY SOURCE KEYS: WBAI
+
+[108] Brain information-flow wiring map
+GAP TYPE: EVIDENCE/STRUCTURE GAP
+WHY THE RIVAL IS AHEAD: WBAI WholeBIF-style work systematizes inter-region information flow.
+AURA COMPARISON: Aura has a software dependency graph/event bus but no neuroscience-grounded connectivity comparison.
+WHAT TO BUILD / IMPORT: Build bidirectional mapping between Aura causal DAG and selected brain information-flow graphs.
+PROOF OF CLOSURE: Claims of cortex/basal ganglia/interoception/etc specify connectivity similarities and mismatches, not name resemblance.
+PRIMARY SOURCE KEYS: WBAI
+
+[109] Literature-to-architecture evidence pipeline
+GAP TYPE: PROCESS GAP
+WHY THE RIVAL IS AHEAD: WBAI explicitly extracts brain architecture from published neuroscience into structured resources.
+AURA COMPARISON: Aura research inspiration is spread across modules/docs and not uniformly evidence-traceable.
+WHAT TO BUILD / IMPORT: Create machine-readable EvidenceLedger with DOI/source, claim, species/task, confidence, computational consequence and code landing point.
+PROOF OF CLOSURE: CI can generate all neuroscience claims and their supporting/contradicting evidence from the ledger.
+PRIMARY SOURCE KEYS: WBAI
+
+[110] Functional hypothesis generation from anatomy
+GAP TYPE: THEORY GAP
+WHY THE RIVAL IS AHEAD: WBAI separates anatomical structure from hypotheses about function and works to derive/test those hypotheses.
+AURA COMPARISON: Aura often begins with a desired cognitive function and implements a computational analogue.
+WHAT TO BUILD / IMPORT: For selected circuits, derive competing computational hypotheses from connectivity constraints before implementation.
+PROOF OF CLOSURE: At least two competing mappings are tested and one is rejected using predicted signatures.
+PRIMARY SOURCE KEYS: WBAI
+
+[111] Cross-species homology mapping
+GAP TYPE: ABSENT
+WHY THE RIVAL IS AHEAD: WBAI ROSETTA-style work handles uncertain correspondence of brain regions across species.
+AURA COMPARISON: Aura biological terminology often implicitly treats human/rodent/general neuroscience as interchangeable.
+WHAT TO BUILD / IMPORT: Annotate each biological mapping by species and homology confidence.
+PROOF OF CLOSURE: No neural analogy silently combines incompatible species findings; cross-species transfer is explicit.
+PRIMARY SOURCE KEYS: WBAI
+
+[112] Brain-region ontology interoperability
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: WBAI develops ontology alignment so anatomical terms from different sources can be reconciled.
+AURA COMPARISON: Aura has internal subsystem naming but no formal neuroscience ontology.
+WHAT TO BUILD / IMPORT: Import a bounded public brain ontology and link Aura mechanisms to stable region/circuit IDs.
+PROOF OF CLOSURE: Queries can retrieve all Aura mechanisms/evidence attached to a biological circuit despite naming variation.
+PRIMARY SOURCE KEYS: WBAI
+
+[113] Feedforward/feedback hierarchy analysis
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: WBAI investigates hierarchical FF/FB organization as an architectural constraint.
+AURA COMPARISON: Aura has recurrent and top-down/bottom-up paths but no systematic hierarchy analysis.
+WHAT TO BUILD / IMPORT: Measure directionality/latency/information content of perceptual and executive flows; map to hierarchical predictive processing hypotheses.
+PROOF OF CLOSURE: Ablations distinguish feedforward recognition deficits from feedback/context deficits.
+PRIMARY SOURCE KEYS: WBAI
+
+[114] Canonical component diagrams from neuroscience
+GAP TYPE: PROCESS GAP
+WHY THE RIVAL IS AHEAD: WBAI builds reference diagrams intended to coordinate multiple implementers.
+AURA COMPARISON: Aura architecture docs are large and code-derived but cognitive contracts evolve quickly.
+WHAT TO BUILD / IMPORT: Generate architecture diagrams directly from registry/contracts plus evidence mappings.
+PROOF OF CLOSURE: Diagrams are automatically consistent with import/runtime wiring at frozen commits.
+PRIMARY SOURCE KEYS: WBAI
+
+[115] Biological scale accounting
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: Whole-brain work forces explicit acknowledgment of scale, cell diversity and connectivity.
+AURA COMPARISON: Aura neural analogies do not quantitatively relate synthetic unit counts/dynamics to biological scale.
+WHAT TO BUILD / IMPORT: For every biological analogy report what is abstracted away: neurons, cell types, synapses, neuromodulators, geometry, delays and plasticity.
+PROOF OF CLOSURE: No neuroscience-based capability claim survives without a declared abstraction gap.
+PRIMARY SOURCE KEYS: WBAI
+
+[116] Cell-type/circuit heterogeneity
+GAP TYPE: ABSENT/PARTIAL
+WHY THE RIVAL IS AHEAD: Brain architecture distinguishes different neuronal/circuit classes with different computational roles.
+AURA COMPARISON: Aura neural mesh/liquid layers are far more homogeneous and high-level.
+WHAT TO BUILD / IMPORT: Only where useful, introduce typed computational populations with distinct transfer/plasticity/time constants derived from a testable hypothesis.
+PROOF OF CLOSURE: Typed populations improve a targeted cognitive signature vs parameter-matched homogeneous control.
+PRIMARY SOURCE KEYS: WBAI
+
+[117] Anatomical constraint on architecture search
+GAP TYPE: ABSENT
+WHY THE RIVAL IS AHEAD: WBAI uses biological organization to constrain what architectures are plausible.
+AURA COMPARISON: Aura module growth is primarily function-driven.
+WHAT TO BUILD / IMPORT: Add optional bio-constrained architecture search for selected faculties, using connectivity priors as constraints not decoration.
+PROOF OF CLOSURE: Bio-constrained candidate either wins held-out tests or the biological hypothesis is explicitly rejected.
+PRIMARY SOURCE KEYS: WBAI
+
+[118] Neuroscience uncertainty representation
+GAP TYPE: PROCESS GAP
+WHY THE RIVAL IS AHEAD: Reference-architecture work must represent disputed/unknown mappings.
+AURA COMPARISON: Aura can encode strong-sounding biological names even when mapping is speculative.
+WHAT TO BUILD / IMPORT: Attach confidence and competing interpretations to every neural analogy.
+PROOF OF CLOSURE: User-facing/system-card claims automatically downgrade when underlying mapping evidence is weak.
+PRIMARY SOURCE KEYS: WBAI
+
+[119] Independent expert curation process
+GAP TYPE: PROCESS GAP
+WHY THE RIVAL IS AHEAD: WBAI is a multi-researcher initiative with domain specialists reviewing reference architecture.
+AURA COMPARISON: Aura is dominated by a single project lineage and internal audits.
+WHAT TO BUILD / IMPORT: Establish external review packets for neuroscience, cognitive architecture, ML and systems/security experts.
+PROOF OF CLOSURE: Changes to high-level biological claims require at least one independent domain review or remain explicitly unvalidated.
+PRIMARY SOURCE KEYS: WBAI
+
+[120] Reference architecture versioning
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: WBAI treats its brain reference architecture as a versioned research artifact.
+AURA COMPARISON: Aura version-controls code but lacks a compact versioned cognitive-reference schema.
+WHAT TO BUILD / IMPORT: Publish machine-readable CognitiveReferenceArchitecture per release with components, contracts, evidence and claimed functions.
+PROOF OF CLOSURE: Two releases can be diffed at the cognitive-mechanism level, not just source lines.
+PRIMARY SOURCE KEYS: WBAI
+
+[121] Biology-derived developmental ordering
+GAP TYPE: ABSENT/PARTIAL
+WHY THE RIVAL IS AHEAD: Whole-brain/developmental neuroscience can constrain which capacities emerge before others.
+AURA COMPARISON: Aura developmental curriculum is engineering-driven.
+WHAT TO BUILD / IMPORT: Test curricula inspired by developmental prerequisites: sensorimotor invariants -> object permanence -> causal manipulation -> social inference -> symbolic abstraction.
+PROOF OF CLOSURE: Earlier-stage mastery causally improves later learning versus shuffled curriculum.
+PRIMARY SOURCE KEYS: WBAI
+
+
+####################################################################################################
+SYSTEM: SIMA 2
+####################################################################################################
+SIMA 2 is ahead in the empirical breadth of embodied, language-conditioned interaction: many 3D environments, screen-based perception, keyboard/mouse action, transfer to unseen games and self-directed play. Aura has a philosophically richer persistent mind stack, but its live sensorimotor evidence is tiny by comparison.
+
+[122] Cross-environment embodied benchmark breadth
+GAP TYPE: SCALE/EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: SIMA is evaluated across many commercial/3D environments rather than one or a few hand-debugged interfaces.
+AURA COMPARISON: Aura screen_pursuit is general in code shape but empirically concentrated in a small number of desktop/browser tasks.
+WHAT TO BUILD / IMPORT: Build AuraWorldBench with dozens of unrelated GUI/2D/3D/web environments sharing only screen/action interfaces.
+PROOF OF CLOSURE: Frozen Aura clears predefined success thresholds on held-out environments without task-specific code changes.
+PRIMARY SOURCE KEYS: SIMA
+
+[123] Unseen-environment zero/few-shot transfer
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: SIMA 2 demonstrates transfer to games/environments not used for training.
+AURA COMPARISON: Aura has early same-kind transfer and general screen loop but no broad unseen-world campaign.
+WHAT TO BUILD / IMPORT: Hold out complete environment families and measure adaptation curves.
+PROOF OF CLOSURE: Prior development improves first-N-episode performance on truly unseen families vs reset Aura.
+PRIMARY SOURCE KEYS: SIMA
+
+[124] Rich 3D visual grounding
+GAP TYPE: ABSENT/SCALE GAP
+WHY THE RIVAL IS AHEAD: SIMA operates in visually complex 3D worlds with objects, navigation and spatial relationships.
+AURA COMPARISON: Aura screen perception is predominantly desktop/OCR/layout plus limited image semantics.
+WHAT TO BUILD / IMPORT: Add continuous visual encoder + object tracking + depth/spatial memory; start with simulated 3D environments.
+PROOF OF CLOSURE: Aura navigates and manipulates unseen 3D scenes from pixels without privileged state.
+PRIMARY SOURCE KEYS: SIMA
+
+[125] Large action vocabulary from common interfaces
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: SIMA maps language goals to keyboard/mouse actions across many games.
+AURA COMPARISON: Aura restricts pursuit vocabularies deliberately and often relies on declared keys/controls.
+WHAT TO BUILD / IMPORT: Learn affordance-conditioned action proposals while preserving governance/bounds.
+PROOF OF CLOSURE: Novel interfaces acquire useful action vocabularies from interaction with low unsafe-action rate.
+PRIMARY SOURCE KEYS: SIMA
+
+[126] Language-conditioned embodied policy
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: SIMA learns a policy that directly connects language instructions, vision and action.
+AURA COMPARISON: Aura usually routes through symbolic/LLM reasoning plus separate action systems.
+WHAT TO BUILD / IMPORT: Train a bounded multimodal policy head conditioned on Aura goals and world state, with planner fallback.
+PROOF OF CLOSURE: Routine embodied tasks execute with lower latency while novel/high-stakes tasks escalate to cortex.
+PRIMARY SOURCE KEYS: SIMA
+
+[127] Long-horizon navigation/manipulation evidence
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: SIMA evaluates sequences requiring sustained interaction in dynamic worlds.
+AURA COMPARISON: Aura long loops exist but robustness falls as observation/action errors accumulate.
+WHAT TO BUILD / IMPORT: Create long-horizon suites with 100-1000 action episodes and state recovery requirements.
+PROOF OF CLOSURE: Success degrades sublinearly with horizon and recovery restores from injected focus/perception failures.
+PRIMARY SOURCE KEYS: SIMA
+
+[128] Self-directed play as data generation
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: SIMA 2 can generate additional interaction experience through self-directed play and use it for improvement.
+AURA COMPARISON: Aura autonomy/exploration and pursuit learning exist but lack a broad self-play curriculum engine.
+WHAT TO BUILD / IMPORT: Add curiosity/value-of-information curriculum that selects safe environments/tasks, collects traces and promotes validated skills.
+PROOF OF CLOSURE: Self-generated experience improves held-out competence vs equal random interaction compute.
+PRIMARY SOURCE KEYS: SIMA
+
+[129] Iterative policy improvement from own experience
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: SIMA research explicitly uses generated interaction data to improve later agent versions.
+AURA COMPARISON: Aura can learn online and LoRA/self-improve in bounded ways but lacks large matched developmental cycles.
+WHAT TO BUILD / IMPORT: Create versioned developmental checkpoints with replay, promotion gates and rollback.
+PROOF OF CLOSURE: V(n+1) beats V(n) on frozen held-out environments without regression in safety/general tasks.
+PRIMARY SOURCE KEYS: SIMA
+
+[130] Environment diversity as anti-overfitting discipline
+GAP TYPE: PROCESS GAP
+WHY THE RIVAL IS AHEAD: Many games force the agent to learn portable visual/action abstractions.
+AURA COMPARISON: Aura can accidentally optimize recent cognitive machinery around one benchmark family.
+WHAT TO BUILD / IMPORT: Require every new sensorimotor mechanism to be evaluated on diverse environment families before promotion.
+PROOF OF CLOSURE: No sensorimotor capability claim is based on a single environment; leave-one-family-out results are reported.
+PRIMARY SOURCE KEYS: SIMA
+
+[131] Embodied language grounding at scale
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: SIMA grounds verbs/object relations through repeated interaction.
+AURA COMPARISON: Aura semantic cortex knows language but much of that knowledge is pretrained, not acquired through her own sensorimotor experience.
+WHAT TO BUILD / IMPORT: Link linguistic ConceptHandles to tracked entities/actions/outcomes from lived episodes.
+PROOF OF CLOSURE: Novel grounded labels learned through interaction improve instruction following without text-only demonstrations.
+PRIMARY SOURCE KEYS: SIMA
+
+[132] Policy generalization without task-specific heuristics
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: SIMA seeks a common policy across worlds.
+AURA COMPARISON: Aura pursuit currently contains significant engineering for focus, blockers, page identity and task regions, plus specialized cognition helpers.
+WHAT TO BUILD / IMPORT: Separate environment-safety mechanics from task cognition and quantify hand-authored task assumptions.
+PROOF OF CLOSURE: Held-out worlds succeed using the same pursuit/policy code and zero environment-name branches.
+PRIMARY SOURCE KEYS: SIMA
+
+[133] Visual temporal continuity
+GAP TYPE: SCALE GAP
+WHY THE RIVAL IS AHEAD: Game agents continuously consume frame sequences and learn dynamics from visual change.
+AURA COMPARISON: Aura perception often samples sparse screen reads and OCR/layout snapshots.
+WHAT TO BUILD / IMPORT: Introduce video-rate event/feature stream with adaptive compression into the world model.
+PROOF OF CLOSURE: Moving objects/events remain continuously tracked and prediction improves over sparse snapshots.
+PRIMARY SOURCE KEYS: SIMA
+
+[134] Embodied failure-recovery benchmark
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: Broad interactive evaluation naturally exposes navigation/action recovery failures.
+AURA COMPARISON: Aura has strong blocker/focus defenses but no standardized recovery score.
+WHAT TO BUILD / IMPORT: Inject wrong focus, stale frames, missed clicks, occlusions and stochastic transitions.
+PROOF OF CLOSURE: Recovery rate/time is measured and improves independently of nominal-task success.
+PRIMARY SOURCE KEYS: SIMA
+
+[135] Multi-agent/social embodied interaction
+GAP TYPE: ABSENT/EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: Modern general-game agents can be evaluated amid other agents and language partners.
+AURA COMPARISON: Aura social intelligence is mostly linguistic; explicit other-agent models are not broad live behavior.
+WHAT TO BUILD / IMPORT: Add cooperative/competitive simulated environments with persistent identities and partial observability.
+PROOF OF CLOSURE: Aura learns partner/opponent models that improve outcomes across repeated interactions.
+PRIMARY SOURCE KEYS: SIMA
+
+[136] Embodied competence scaling law
+GAP TYPE: ABSENT
+WHY THE RIVAL IS AHEAD: Large environment suites permit empirical curves of performance vs experience/model/compute.
+AURA COMPARISON: Aura has no robust sensorimotor scaling characterization.
+WHAT TO BUILD / IMPORT: Measure return/success/sample efficiency across environment count, interaction count and policy capacity.
+PROOF OF CLOSURE: Scaling curves predict new-environment performance and reveal bottlenecks before architectural additions.
+PRIMARY SOURCE KEYS: SIMA
+
+[137] Train/test environment separation discipline
+GAP TYPE: PROCESS GAP
+WHY THE RIVAL IS AHEAD: Generalization claims require held-out worlds rather than only held-out episodes.
+AURA COMPARISON: Aura has many hidden/heldout tests but environment-level leakage risk remains.
+WHAT TO BUILD / IMPORT: Freeze environment-family splits before mechanism tuning and keep an untouched external test set.
+PROOF OF CLOSURE: Reported transfer survives a locked evaluation runner unavailable during development.
+PRIMARY SOURCE KEYS: SIMA
+
+
+####################################################################################################
+SYSTEM: V-JEPA 2 / large predictive world-model research
+####################################################################################################
+V-JEPA 2 is ahead by orders of magnitude in visual-world pretraining scale and by much stronger evidence that learned representations support physical prediction and zero-shot action planning. Aura has a genuine trainable VRNN, but its observation dimensionality, data scale and perceptual grounding are tiny in comparison.
+
+[138] Massive self-supervised video pretraining
+GAP TYPE: SCALE GAP
+WHY THE RIVAL IS AHEAD: V-JEPA-style systems learn from enormous unlabeled video corpora before action-specific training.
+AURA COMPARISON: Aura learned_world_model.py trains online from Aura experience with small 64-D observations and replay 500.
+WHAT TO BUILD / IMPORT: Pretrain a local/feasible visual predictive encoder on diverse video or distill from a larger teacher while keeping provenance/licensing.
+PROOF OF CLOSURE: Frozen encoder improves held-out prediction/planning across multiple visual domains vs from-scratch Aura encoder.
+PRIMARY SOURCE KEYS: VJEPA
+
+[139] High-dimensional visual representation learning
+GAP TYPE: SCALE GAP
+WHY THE RIVAL IS AHEAD: V-JEPA learns representations directly from rich image/video patches rather than tiny handcrafted observation vectors.
+AURA COMPARISON: Aura VRNN receives compact vectors downstream of other perception.
+WHAT TO BUILD / IMPORT: Replace/augment with hierarchical visual latent encoder and temporal predictor, optionally frozen for stability.
+PROOF OF CLOSURE: Latents preserve object/action-relevant structure measured by linear probes and planning success.
+PRIMARY SOURCE KEYS: VJEPA
+
+[140] Latent prediction instead of pixel reconstruction
+GAP TYPE: ARCHITECTURE GAP
+WHY THE RIVAL IS AHEAD: JEPA predicts abstract representations, avoiding spending capacity on unpredictable pixel detail.
+AURA COMPARISON: Aura VRNN decoder reconstructs observation vectors and surprise includes reconstruction error.
+WHAT TO BUILD / IMPORT: Add JEPA-style target encoder and latent predictor objective alongside action-conditioned dynamics.
+PROOF OF CLOSURE: Latent predictor yields better downstream planning/sample efficiency than reconstruction objective at equal compute.
+PRIMARY SOURCE KEYS: VJEPA_PAPER
+
+[141] Actionless world pretraining before control
+GAP TYPE: ABSENT/PARTIAL
+WHY THE RIVAL IS AHEAD: V-JEPA can learn broad physical regularities from observation before action-conditioned adaptation.
+AURA COMPARISON: Aura world-model learning is closely tied to its own action/observation history.
+WHAT TO BUILD / IMPORT: Separate passive observational pretraining from active causal refinement.
+PROOF OF CLOSURE: Passive pretraining improves first-interaction prediction in unseen environments without teaching task policies.
+PRIMARY SOURCE KEYS: VJEPA
+
+[142] Action-conditioned latent dynamics at scale
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: V-JEPA 2-AC adds action conditioning to a strong pretrained visual representation.
+AURA COMPARISON: Aura has action-conditioned GRU dynamics but on a small vector space.
+WHAT TO BUILD / IMPORT: Build action-conditioned predictor over pretrained visual/object latents with uncertainty ensembles.
+PROOF OF CLOSURE: Counterfactual action predictions are calibrated and improve model-predictive control.
+PRIMARY SOURCE KEYS: VJEPA_PAPER
+
+[143] Zero-shot robot planning evidence
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: V-JEPA 2 reports image-goal planning on robot arms in new setups with limited robot adaptation data.
+AURA COMPARISON: Aura model-based planning has not demonstrated comparable physical manipulation.
+WHAT TO BUILD / IMPORT: Start in physics simulators then optional real hardware; use image goals and action sequences without task-specific reward training.
+PROOF OF CLOSURE: Frozen world model achieves predefined zero/few-shot manipulation success in held-out layouts/objects.
+PRIMARY SOURCE KEYS: VJEPA_PAPER
+
+[144] Object permanence/occlusion learned from video scale
+GAP TYPE: SCALE/EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: Large video training can encode persistent physical entities across occlusion/motion.
+AURA COMPARISON: Aura lattice/object persistence is engineered/learned in narrow UI contexts.
+WHAT TO BUILD / IMPORT: Train object-centric temporal slots/tracks on video and connect them to ConceptHandles/world model.
+PROOF OF CLOSURE: Objects retain identity through occlusion and support causal planning in unseen scenes.
+PRIMARY SOURCE KEYS: VJEPA
+
+[145] Physical affordance representation
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: Video/robot world models capture which actions and motions are physically plausible.
+AURA COMPARISON: Aura affordance learning is largely symbolic/GUI-centric.
+WHAT TO BUILD / IMPORT: Learn affordance heads from visual state plus action outcome traces.
+PROOF OF CLOSURE: Affordance predictions reduce invalid actions in unseen physical/simulated tasks.
+PRIMARY SOURCE KEYS: VJEPA_PAPER
+
+[146] Temporal abstraction over video
+GAP TYPE: SCALE GAP
+WHY THE RIVAL IS AHEAD: Large video models learn both short and longer-term temporal structure.
+AURA COMPARISON: Aura screen pursuit samples at task cadence and VRNN BPTT window is short.
+WHAT TO BUILD / IMPORT: Add multi-timescale latent predictors and event segmentation.
+PROOF OF CLOSURE: Predictions remain useful across seconds/minutes and support hierarchical planning.
+PRIMARY SOURCE KEYS: VJEPA
+
+[147] Representation transfer to downstream tasks
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: V-JEPA evaluates learned visual representations on multiple downstream understanding/prediction tasks.
+AURA COMPARISON: Aura world-model latent quality is mostly judged inside Aura.
+WHAT TO BUILD / IMPORT: Freeze representations and test probes/planners on independent tasks with no finetuning.
+PROOF OF CLOSURE: Same latent encoder supports classification, tracking, prediction and planning above baselines.
+PRIMARY SOURCE KEYS: VJEPA
+
+[148] World-model uncertainty calibration
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Modern predictive models can use ensembles/distributional predictions to represent uncertainty.
+AURA COMPARISON: Aura VRNN exposes posterior/prior variance but confidence is a simple function of surprise.
+WHAT TO BUILD / IMPORT: Build calibrated predictive uncertainty from ensembles/latent variance and reliability diagrams.
+PROOF OF CLOSURE: Predicted confidence matches empirical transition error and improves epistemic action selection.
+PRIMARY SOURCE KEYS: VJEPA_PAPER
+
+[149] Counterfactual rollouts from rich percepts
+GAP TYPE: PARTIAL
+WHY THE RIVAL IS AHEAD: Action-conditioned world models enable imagined futures directly in visual latent space.
+AURA COMPARISON: Aura imagine() rolls small latent/action trajectories; screen-pursuit also uses symbolic rules.
+WHAT TO BUILD / IMPORT: Integrate visual latent rollouts with symbolic world rules and planner via common StateHypothesis.
+PROOF OF CLOSURE: Hybrid rollouts outperform either symbolic or neural-only prediction on stochastic unseen tasks.
+PRIMARY SOURCE KEYS: VJEPA_PAPER
+
+[150] Cross-camera/environment invariance
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: Large visual pretraining encourages representations robust to viewpoint/background variation.
+AURA COMPARISON: Aura screen geometry adaptation is actively engineered and brittle to UI changes.
+WHAT TO BUILD / IMPORT: Train augmentation/viewpoint invariance and object-centric normalization.
+PROOF OF CLOSURE: Same object/task is recognized across layouts, scales, themes and camera transforms without new rules.
+PRIMARY SOURCE KEYS: VJEPA
+
+[151] Data-scale research discipline
+GAP TYPE: PROCESS GAP
+WHY THE RIVAL IS AHEAD: Large world-model projects quantify data mixtures, pretraining and downstream transfer.
+AURA COMPARISON: Aura development is experience-rich but lacks systematic world-model data accounting.
+WHAT TO BUILD / IMPORT: Create WorldModelDataCard: sources, hours/frames, environments, action coverage, leakage and representation version.
+PROOF OF CLOSURE: Every world-model capability result is traceable to a frozen data/model pair.
+PRIMARY SOURCE KEYS: VJEPA
+
+[152] Model-predictive control benchmark
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: V-JEPA-style results tie prediction quality to control performance, not reconstruction loss alone.
+AURA COMPARISON: Aura VRNN reports surprise/loss and has imagination, but broad MPC gains are not established.
+WHAT TO BUILD / IMPORT: Create matched MPC vs reactive vs symbolic-planner tests using same observations/actions.
+PROOF OF CLOSURE: World-model treatment improves success/sample efficiency under equal action budgets.
+PRIMARY SOURCE KEYS: VJEPA_PAPER
+
+[153] Predictive representation scaling
+GAP TYPE: ABSENT
+WHY THE RIVAL IS AHEAD: Large projects can study how world-model capability changes with data/model size.
+AURA COMPARISON: Aura has a single small configuration as default.
+WHAT TO BUILD / IMPORT: Train several bounded sizes/data scales and fit predictive-control scaling curves.
+PROOF OF CLOSURE: Scaling law identifies whether Aura is data-, model-, or interface-limited before larger investment.
+PRIMARY SOURCE KEYS: VJEPA
+
+
+####################################################################################################
+SYSTEM: Frontier foundation-model systems
+####################################################################################################
+The frontier foundation-model class is ahead in raw pretrained semantic competence, multilingual breadth, coding/math benchmark performance, multimodal representation quality, training scale and production inference optimization. Aura should not try to reproduce frontier pretraining locally; it should make the surrounding architecture extract more durable developmental value from a smaller sovereign cortex.
+
+[154] Raw language reasoning ceiling
+GAP TYPE: CAPABILITY GAP
+WHY THE RIVAL IS AHEAD: Frontier models generally possess stronger base reasoning and instruction-following than a local 27B-class model.
+AURA COMPARISON: Aura-Cortex inherits a lower raw ceiling even when Aura architecture adds planning/memory.
+WHAT TO BUILD / IMPORT: Use architecture to allocate hard tasks to deep solver, external formal tools and learned procedures; evaluate matched base vs full Aura.
+PROOF OF CLOSURE: Full Aura closes a meaningful fraction of frontier gap on held-out tasks at acceptable compute.
+PRIMARY SOURCE KEYS: GPT56, GEMINI3, CLAUDE5
+
+[155] Broad multilingual competence
+GAP TYPE: CAPABILITY GAP
+WHY THE RIVAL IS AHEAD: Frontier training covers many languages and scripts at enormous scale.
+AURA COMPARISON: Aura depends on Qwen3.8-27B coverage and does not add a broad native multilingual learner.
+WHAT TO BUILD / IMPORT: Add retrieval/translation tools and continual language adaptation only where needed; avoid rebuilding pretraining.
+PROOF OF CLOSURE: Held-out multilingual task accuracy improves without English regressions.
+PRIMARY SOURCE KEYS: GPT56, GEMINI3, CLAUDE5
+
+[156] Frontier coding benchmark competence
+GAP TYPE: CAPABILITY GAP
+WHY THE RIVAL IS AHEAD: Large frontier systems are stronger on broad code generation/debugging/repo tasks.
+AURA COMPARISON: Aura adds sandbox verification and agent loops but base code reasoning remains cortex-limited.
+WHAT TO BUILD / IMPORT: Exploit executable verification, repository models, tests, patch search and learned code procedures.
+PROOF OF CLOSURE: Aura+27B beats 27B scaffold by large margin and approaches frontier baselines on frozen SWE/code suites.
+PRIMARY SOURCE KEYS: GPT56, GEMINI35, CLAUDE5
+
+[157] Frontier mathematical reasoning
+GAP TYPE: CAPABILITY GAP
+WHY THE RIVAL IS AHEAD: Larger models and specialized reasoning training improve difficult math performance.
+AURA COMPARISON: Aura RLC has narrow learned arithmetic operations and symbolic tooling, not broad theorem/math parity.
+WHAT TO BUILD / IMPORT: Integrate formal solvers, theorem provers, RLC operator synthesis and proof-checking into one math lane.
+PROOF OF CLOSURE: Verified math suite gains survive base-model and tool-only controls.
+PRIMARY SOURCE KEYS: GEMINI3, GPT56, CLAUDE_OPUS
+
+[158] Native high-quality multimodality
+GAP TYPE: CAPABILITY/SCALE GAP
+WHY THE RIVAL IS AHEAD: Frontier multimodal models jointly represent images/audio/video/text at high quality.
+AURA COMPARISON: Aura perception is a federation of specialist pipelines around a primarily language cortex.
+WHAT TO BUILD / IMPORT: Train/project multimodal encoders into canonical cognitive vectors and use strong open multimodal local models where feasible.
+PROOF OF CLOSURE: Cross-modal tasks improve without converting all perception into text.
+PRIMARY SOURCE KEYS: GEMINI3, GPT56
+
+[159] Massive pretrained world knowledge
+GAP TYPE: SCALE GAP
+WHY THE RIVAL IS AHEAD: Frontier models absorb enormous corpora and current multimodal data.
+AURA COMPARISON: Aura has local corpus/RAG but cannot match parametric knowledge scale.
+WHAT TO BUILD / IMPORT: Treat external/local knowledge stores as inspectable semantic memory with source freshness instead of trying to internalize everything.
+PROOF OF CLOSURE: Knowledge accuracy/freshness improves while provenance remains explicit.
+PRIMARY SOURCE KEYS: GPT56, GEMINI3, CLAUDE5
+
+[160] Large-context learned attention
+GAP TYPE: CAPABILITY GAP
+WHY THE RIVAL IS AHEAD: Frontier systems often support larger, better-trained context handling.
+AURA COMPARISON: Aura uses sophisticated context budgeting/retrieval but cortex window/attention quality is finite.
+WHAT TO BUILD / IMPORT: Invest in retrieval compression, memory distillation, structured context and long-context evaluation.
+PROOF OF CLOSURE: Performance remains stable as lifetime memory grows without dumping raw history into context.
+PRIMARY SOURCE KEYS: CLAUDE_OPUS, GPT54
+
+[161] Inference-kernel optimization
+GAP TYPE: ENGINEERING/SCALE GAP
+WHY THE RIVAL IS AHEAD: Industrial frontier serving uses highly optimized distributed kernels, batching, cache management and hardware stacks.
+AURA COMPARISON: Aura is local-first and optimized for one Apple Silicon machine, with resource controls but far less serving infrastructure.
+WHAT TO BUILD / IMPORT: Optimize only sovereignty-relevant kernels: KV reuse, speculative decoding, quantization, async scheduling and model tier routing.
+PROOF OF CLOSURE: Latency/energy improve at fixed answer quality and continuous organs stay responsive.
+PRIMARY SOURCE KEYS: GPT56_EFF
+
+[162] Large-scale post-training
+GAP TYPE: SCALE GAP
+WHY THE RIVAL IS AHEAD: Frontier labs use huge preference/reasoning/tool-use datasets and reinforcement/post-training pipelines.
+AURA COMPARISON: Aura has targeted LoRA/self-improvement and live learning but limited data scale.
+WHAT TO BUILD / IMPORT: Use self-generated verified trajectories and curriculum replay to create high-value local post-training sets.
+PROOF OF CLOSURE: Post-trained Aura-Cortex improves held-out capabilities without catastrophic regression and with provenance.
+PRIMARY SOURCE KEYS: GPT56, GEMINI35, CLAUDE5
+
+[163] Safety red-team scale
+GAP TYPE: PROCESS/SCALE GAP
+WHY THE RIVAL IS AHEAD: Large labs run broad adversarial evaluations and specialized safety teams.
+AURA COMPARISON: Aura has unusually strong governance/receipts for a personal project but limited independent red-team scale.
+WHAT TO BUILD / IMPORT: Publish threat-model suites and recruit external adversarial reviewers; fuzz capability boundaries.
+PROOF OF CLOSURE: Independent red-team findings trend down release-over-release and fixes are regression-pinned.
+PRIMARY SOURCE KEYS: GPT53_CARD, GPT56
+
+[164] Evaluation infrastructure scale
+GAP TYPE: PROCESS GAP
+WHY THE RIVAL IS AHEAD: Frontier labs run large multi-domain automated benchmark/evals farms.
+AURA COMPARISON: Aura has many tests/artifacts but evaluation is fragmented and developer-proximate.
+WHAT TO BUILD / IMPORT: Build one frozen EvalOrchestrator with versioned tasks, baselines, compute accounting, seeds and signed results.
+PROOF OF CLOSURE: Every capability claim is reproducible from a single manifest and includes matched baselines.
+PRIMARY SOURCE KEYS: GPT56, GEMINI35, CLAUDE5
+
+[165] Independent replication footprint
+GAP TYPE: EVIDENCE GAP
+WHY THE RIVAL IS AHEAD: Widely used models are evaluated by many external groups.
+AURA COMPARISON: Aura evidence is overwhelmingly generated by its own repo/developer process.
+WHAT TO BUILD / IMPORT: Release reproducible canaries, containers and fixed evaluation packs that outside researchers can run.
+PROOF OF CLOSURE: At least several independent replications reproduce key causal effects.
+PRIMARY SOURCE KEYS: GPT56, GEMINI3
+
+[166] Model-scale internal representation richness
+GAP TYPE: CAPABILITY GAP
+WHY THE RIVAL IS AHEAD: Larger pretrained models may contain more robust broad abstractions simply from training scale.
+AURA COMPARISON: Aura compensates with explicit structures but cannot assume equivalent latent breadth.
+WHAT TO BUILD / IMPORT: Measure representational gaps with probes and route deficits to external memory/symbolic/world-model systems rather than parameter-count imitation.
+PROOF OF CLOSURE: Selected architecture augmentations close probe/task deficits without larger base model.
+PRIMARY SOURCE KEYS: GPT56, GEMINI35, CLAUDE5
+
+[167] Robust natural-language task decomposition
+GAP TYPE: CAPABILITY GAP
+WHY THE RIVAL IS AHEAD: Strong frontier reasoning models often infer plans from vague language better than smaller models.
+AURA COMPARISON: Aura has strong planning infrastructure but still depends on cortex to formulate many high-level decompositions.
+WHAT TO BUILD / IMPORT: Train/verify plan induction using task graphs, execution feedback and procedural memory; compile recurring decompositions.
+PROOF OF CLOSURE: Full Aura decomposes unseen tasks better than 27B baseline and improves with accumulated experience.
+PRIMARY SOURCE KEYS: GPT56, GEMINI_CU, CLAUDE5
+
+[168] General tool-use prior
+GAP TYPE: CAPABILITY GAP
+WHY THE RIVAL IS AHEAD: Frontier models have broad post-training on tool schemas and agentic formats.
+AURA COMPARISON: Aura has many tools and strong governance but must learn affordances more locally.
+WHAT TO BUILD / IMPORT: Learn typed tool affordances/effects from receipts and promote reusable operator schemas.
+PROOF OF CLOSURE: Novel tools require fewer demonstrations and tool choice accuracy improves over static descriptions.
+PRIMARY SOURCE KEYS: GPT56_EFF
+
+[169] Production observability at fleet scale
+GAP TYPE: ENGINEERING GAP
+WHY THE RIVAL IS AHEAD: Industrial systems correlate latency, failure, model version and user outcomes across huge fleets.
+AURA COMPARISON: Aura has deep local receipts but little population-scale statistical observability.
+WHAT TO BUILD / IMPORT: For local multi-run research, add experiment warehouse with privacy-safe run metrics, version lineage and causal arm labels.
+PROOF OF CLOSURE: Regression detection catches distribution shifts before subjective review.
+PRIMARY SOURCE KEYS: ACTR
+
+
+####################################################################################################
+CROSS-SYSTEM CONVERGENCE GAPS
+####################################################################################################
+These are deficits exposed by the comparison as a whole. They are often more important than copying
+any one rival, because they determine whether Aura becomes one cumulative mind rather than many good organs.
+
+[170] Universal cognitive state contract
+GAP TYPE: INTEGRATION GAP
+WHY THIS MATTERS: Mature architectures obtain leverage from a small number of canonical interfaces; Aura still has many organ-specific state representations.
+AURA COMPARISON: AuraNow, workspace candidates, AtomSpace atoms, world states, memory records, RLC states and planner nodes overlap without one typed envelope.
+WHAT TO BUILD / IMPORT: Define CognitiveStateRef with identity, time, provenance, uncertainty, ownership, representation links and causal parents.
+PROOF OF CLOSURE: At least 80% of cross-subsystem cognitive handoffs use the contract and duplicate adapters are removed.
+PRIMARY SOURCE KEYS: ACTR, SOAR, OPENCOG
+
+[171] Universal evidence object
+GAP TYPE: INTEGRATION/THEORY GAP
+WHY THIS MATTERS: NARS/PLN-style systems force evidence semantics to be explicit, while Aura mixes confidence floats, counts, Wilson bounds, model probabilities and receipts.
+AURA COMPARISON: No architecture-wide rule prevents double-counting correlated evidence.
+WHAT TO BUILD / IMPORT: Create EvidencePacket with source IDs, dependence set, observation/derivation type, mass, likelihood or bounded confidence, and merge rules.
+PROOF OF CLOSURE: Synthetic duplicate-evidence tests cannot inflate belief; independent evidence increases confidence predictably.
+PRIMARY SOURCE KEYS: NARS, OPENCOG
+
+[172] Universal procedural representation
+GAP TYPE: INTEGRATION GAP
+WHY THIS MATTERS: ACT-R, Soar, CLARION and LIDA each gain from procedures being one first-class cognitive currency.
+AURA COMPARISON: Aura procedures exist as chunks, generalized rules, skills, Doing ASTs, habits, planners, RLC programs and tool schemas.
+WHAT TO BUILD / IMPORT: Create Procedure object with typed preconditions, action/program, effects, cost, risk, evidence, provenance and executable backends.
+PROOF OF CLOSURE: Procedures learned by different subsystems can be matched, composed, valued and executed through one registry.
+PRIMARY SOURCE KEYS: ACTR_SKILL, SOAR, CLARION, LIDA_CYCLE
+
+[173] Universal concept identity across representations
+GAP TYPE: INTEGRATION GAP
+WHY THIS MATTERS: SPA and OpenCog emphasize representations that can move across mechanisms without losing identity.
+AURA COMPARISON: Aura can represent the same concept in text, embedding, AtomSpace, world-model latent and RLC state without a stable cross-representation identity.
+WHAT TO BUILD / IMPORT: Introduce ConceptHandle plus projection registry and confidence-preserving conversions.
+PROOF OF CLOSURE: The same learned concept is traceable across at least four substrates and can be used by each without manual relabeling.
+PRIMARY SOURCE KEYS: SPA, OPENCOG
+
+[174] Architecture-wide automatic proceduralization
+GAP TYPE: CAPABILITY GAP
+WHY THIS MATTERS: ACT-R/Soar/CLARION make repeated deliberation naturally become compiled skill.
+AURA COMPARISON: Aura has several local compilation/learning mechanisms but no universal trace-to-skill path.
+WHAT TO BUILD / IMPORT: Observe successful causal traces, infer minimal dependencies, generalize, validate, price and compile to fastest qualified backend.
+PROOF OF CLOSURE: Repeated heterogeneous tasks show decreasing deliberation cost due to automatically acquired procedures.
+PRIMARY SOURCE KEYS: ACTR_SKILL, SOAR, CLARION
+
+[175] Architecture-wide impasse semantics
+GAP TYPE: INTEGRATION GAP
+WHY THIS MATTERS: Soar turns failure-to-decide into a universal occasion for deeper cognition.
+AURA COMPARISON: Aura impasse.py exists but not every planner, workspace, tool chooser and representation learner reports through it.
+WHAT TO BUILD / IMPORT: Route tie/conflict/rejection/no-change/constraint failures from all decision systems to one impasse bus.
+PROOF OF CLOSURE: Injected impasses in major organs trigger comparable subproblem handling and learning rather than silent fallback.
+PRIMARY SOURCE KEYS: SOAR
+
+[176] Automatic causal backtrace of successful cognition
+GAP TYPE: CAPABILITY GAP
+WHY THIS MATTERS: Soar EBC identifies which prior conditions actually supported a result.
+AURA COMPARISON: Aura procedural_generalization uses episode features/lesions, but support dependencies are not automatically traced through arbitrary cognitive operations.
+WHAT TO BUILD / IMPORT: Record read-dependencies and causal parents for cognitive events; compute minimal support subgraph for successful resolutions.
+PROOF OF CLOSURE: Compiled rule omits irrelevant context while retaining all necessary causal conditions across held-out variants.
+PRIMARY SOURCE KEYS: SOAR_EBC
+
+[177] Explicit computational cost currency
+GAP TYPE: THEORY GAP
+WHY THIS MATTERS: NARS and ACT-R-like approaches make resource use part of cognitive selection.
+AURA COMPARISON: Aura has wall-clock/resource budgets, token budgets, chunk EV and various local costs but no common cognitive cost unit.
+WHAT TO BUILD / IMPORT: Define normalized CognitiveCost from time, energy/memory pressure, model tier, tool risk and opportunity cost.
+PROOF OF CLOSURE: Different reasoning methods can be compared under a stable Pareto frontier and learned stopping policy.
+PRIMARY SOURCE KEYS: NARS_BUDGET, ACTR
+
+[178] Value-of-computation controller
+GAP TYPE: CAPABILITY GAP
+WHY THIS MATTERS: Resource-rational systems decide whether thinking longer is worth it.
+AURA COMPARISON: Aura has deadlines and progress-aware extension but limited learned expected-value-of-compute estimation.
+WHAT TO BUILD / IMPORT: Train meta-controller predicting marginal success gain from retrieval/search/deep-model/tool/experiment.
+PROOF OF CLOSURE: At matched compute it allocates more work to consequential uncertain tasks and less to easy ones while improving total reward.
+PRIMARY SOURCE KEYS: NARS_RES, ACTR
+
+[179] Common uncertainty calibration layer
+GAP TYPE: EVIDENCE GAP
+WHY THIS MATTERS: Competitor traditions validate probabilities/confidence against outcomes.
+AURA COMPARISON: Aura uncertainty signals come from logits, world model, rules, self-report, beliefs and heuristics with different scales.
+WHAT TO BUILD / IMPORT: Calibrate each signal into common forecast probabilities plus reliability metadata.
+PROOF OF CLOSURE: Reliability diagrams/Brier scores remain calibrated across domains and aggregation improves decisions.
+PRIMARY SOURCE KEYS: NARS, ACTR, VJEPA_PAPER
+
+[180] Evidence-seeking action across all planners
+GAP TYPE: INTEGRATION GAP
+WHY THIS MATTERS: Active learning should be a universal option when uncertainty matters, not confined to one pursuit path.
+AURA COMPARISON: Aura recently added epistemic action in screen pursuit but not architecture-wide.
+WHAT TO BUILD / IMPORT: Expose expected information gain as an action-value term to System 2, tool choice, social inquiry and self-testing.
+PROOF OF CLOSURE: Across three unrelated domains, information-seeking actions reduce model uncertainty and improve later reward vs no-EIG control.
+PRIMARY SOURCE KEYS: SIMA, VJEPA_PAPER
+
+[181] Learned attention across workspace, graph and perception
+GAP TYPE: INTEGRATION GAP
+WHY THIS MATTERS: LIDA/ECAN/modern agents learn what is worth processing.
+AURA COMPARISON: Aura has workspace salience, ECAN-like attention and perception prioritization but they are separate.
+WHAT TO BUILD / IMPORT: Create AttentionPolicy consuming downstream causal value and allocating compute across percepts, memories, atoms and cognitive candidates.
+PROOF OF CLOSURE: One learned policy improves held-out performance at fixed compute and shows interpretable allocation shifts.
+PRIMARY SOURCE KEYS: LIDA_CYCLE, ECAN
+
+[182] Cross-domain structural analogy engine
+GAP TYPE: CAPABILITY GAP
+WHY THIS MATTERS: CogPrime-like schematic thinking and broad transfer require recognizing shared relations despite surface difference.
+AURA COMPARISON: Aura same-kind transfer is currently coarse and representation transfer remains narrow.
+WHAT TO BUILD / IMPORT: Learn relational graphs/templates and perform structure-mapping with causal-role constraints.
+PROOF OF CLOSURE: A strategy learned in domain A improves domain B with different surface vocabulary and geometry; shuffled structural mapping does not.
+PRIMARY SOURCE KEYS: OPENCOG, SIMA
+
+[183] Implicit-explicit-neural tri-directional conversion
+GAP TYPE: CAPABILITY GAP
+WHY THIS MATTERS: CLARION and SPA/OpenCog together suggest durable cognition needs conversion among tacit skill, explicit rule and neural execution.
+AURA COMPARISON: Aura has all three forms but no universal conversion cycle.
+WHAT TO BUILD / IMPORT: Implement Extract(implicit->explicit), Distill(explicit->neural), Explain(neural->explicit) with semantic equivalence tests.
+PROOF OF CLOSURE: A skill travels through all three forms and preserves behavior within tolerance; each form adds measurable benefit.
+PRIMARY SOURCE KEYS: CLARION, SPA, HYPERON
+
+[184] Developmental compounding benchmark
+GAP TYPE: EVIDENCE GAP
+WHY THIS MATTERS: The central claim of a developmental architecture is that past life improves future learning.
+AURA COMPARISON: Aura has narrow keep-vs-forget wins but no long, unrelated-task campaign.
+WHAT TO BUILD / IMPORT: Run grown-vs-reset copies over hundreds of sealed heterogeneous tasks and track learning-curve divergence.
+PROOF OF CLOSURE: The performance/sample-efficiency gap grows with experience and survives matched memory/context/compute controls.
+PRIMARY SOURCE KEYS: LIDA, SIMA
+
+[185] Age-of-agent capability curve
+GAP TYPE: EVIDENCE GAP
+WHY THIS MATTERS: Development should produce a measurable relationship between experience history and competence.
+AURA COMPARISON: Aura has no canonical maturity curve.
+WHAT TO BUILD / IMPORT: Checkpoint one lineage at multiple ages and evaluate identical frozen suites without updating during evaluation.
+PROOF OF CLOSURE: Later checkpoints systematically outperform earlier ones on transfer tasks, not merely remembered tasks.
+PRIMARY SOURCE KEYS: LIDA, SIMA
+
+[186] Unrelated-domain transfer criterion
+GAP TYPE: EVIDENCE GAP
+WHY THIS MATTERS: Strong generality requires transfer beyond superficially similar task signatures.
+AURA COMPARISON: Current transfer mechanisms often depend on shared shape/action vocabulary.
+WHAT TO BUILD / IMPORT: Define transfer tiers from same-instance -> same-family -> structural analogue -> unrelated-domain abstraction and require reporting tier.
+PROOF OF CLOSURE: At least one learned abstraction reaches the structural-analogue/unrelated-domain tier with causal benefit.
+PRIMARY SOURCE KEYS: SIMA, OPENCOG
+
+[187] Operator-semantic invention
+GAP TYPE: CAPABILITY GAP
+WHY THIS MATTERS: No compared system fully solves open-ended operator invention either, but Hyperon/MOSES/representation-building approaches highlight the missing level.
+AURA COMPARISON: Aura can synthesize terms/constructors within a programmer-authored evaluator; human-added `over again` remains the boundary example.
+WHAT TO BUILD / IMPORT: Search over bounded executable semantics/programs generated from existing operators and observational constraints; require sandbox proof, novelty certificate, MDL/value gain and governance admission.
+PROOF OF CLOSURE: Aura derives a semantic operator not in the original primitive evaluator, uses it to solve a previously unreachable family, and later composes it into another learned operator.
+PRIMARY SOURCE KEYS: MOSES, HYPERON
+
+[188] Meta-language self-extension with rollback
+GAP TYPE: CAPABILITY/SAFETY GAP
+WHY THIS MATTERS: A truly self-extending language needs changes to evaluator semantics to be first-class, testable and reversible.
+AURA COMPARISON: Aura representation growth mainly adds vocabulary/constructors, not arbitrary evaluator extensions.
+WHAT TO BUILD / IMPORT: Introduce versioned OperatorKernel extensions with effect types, termination/resource proofs, differential tests and automatic rollback.
+PROOF OF CLOSURE: New operator survives adversarial/held-out tests and rollback restores exact prior semantics.
+PRIMARY SOURCE KEYS: HYPERON
+
+[189] Mechanism-level capability accounting
+GAP TYPE: SCIENCE GAP
+WHY THIS MATTERS: Mature science separates causal existence from useful performance contribution.
+AURA COMPARISON: Aura has strong causal influence tools but architecture-wide matched-compute organ accounting remains incomplete.
+WHAT TO BUILD / IMPORT: For every major organ run full vs lesioned vs compute-matched substitute vs random-state controls.
+PROOF OF CLOSURE: Each retained organ has a capability contribution report or is classified as exploratory/non-load-bearing.
+PRIMARY SOURCE KEYS: ACTR, SOAR
+
+[190] Architecture compression / minimum sufficient mind
+GAP TYPE: THEORY GAP
+WHY THIS MATTERS: ACT-R/NARS/Soar derive breadth from fewer core principles than Aura.
+AURA COMPARISON: Aura risks duplicated mechanisms and interaction complexity.
+WHAT TO BUILD / IMPORT: Perform iterative merge/delete experiments driven by behavioral equivalence and causal signatures.
+PROOF OF CLOSURE: Core subsystem count/dependency entropy falls while benchmark and developmental performance stay constant or improve.
+PRIMARY SOURCE KEYS: ACTR, NARS, SOAR
+
+[191] Parameter uncertainty and identifiability
+GAP TYPE: SCIENCE GAP
+WHY THIS MATTERS: Cognitive modeling requires knowing whether fitted parameters are actually determined by data.
+AURA COMPARISON: Aura increasingly records parameter provenance but many hand-selected thresholds have no posterior/sensitivity analysis.
+WHAT TO BUILD / IMPORT: Fit distributions, profile likelihoods or bootstrap intervals; classify policy constants separately from empirical parameters.
+PROOF OF CLOSURE: Claims no longer depend on unidentifiable point estimates and sensitivity reports are generated automatically.
+PRIMARY SOURCE KEYS: ACTR
+
+[192] Frozen preregistered evaluation
+GAP TYPE: PROCESS GAP
+WHY THIS MATTERS: External science reduces researcher degrees of freedom by freezing hypotheses/tests before seeing results.
+AURA COMPARISON: Aura often develops and evaluates in the same rapidly changing repo.
+WHAT TO BUILD / IMPORT: Create sealed task manifests/hash commitments before implementation and prohibit test mutation for designated decisive experiments.
+PROOF OF CLOSURE: Decisive results can be reproduced from preregistration hash and post-hoc changes are visible.
+PRIMARY SOURCE KEYS: ACTR, SIMA, VJEPA_PAPER
+
+[193] Independent replication pipeline
+GAP TYPE: PROCESS GAP
+WHY THIS MATTERS: The mature comparison systems have broader communities and external validation.
+AURA COMPARISON: Aura key results are still primarily self-produced.
+WHAT TO BUILD / IMPORT: Package containerized minimal reproductions and solicit independent runs with signed environment/model hashes.
+PROOF OF CLOSURE: Multiple independent machines/researchers reproduce core causal effects within declared tolerance.
+PRIMARY SOURCE KEYS: WBAI, ACTR
+
+[194] Benchmark contamination/leakage controls
+GAP TYPE: PROCESS GAP
+WHY THIS MATTERS: Foundation-model and transfer research must separate learned priors from evaluation exposure.
+AURA COMPARISON: Aura uses a pretrained cortex and large local knowledge stores, complicating novelty claims.
+WHAT TO BUILD / IMPORT: For each benchmark classify possible pretraining exposure, use procedurally generated/private tasks, and compare cortex-only baseline.
+PROOF OF CLOSURE: Developmental gains survive tasks highly unlikely to be memorized and matched base-model controls.
+PRIMARY SOURCE KEYS: SIMA, VJEPA
+
+[195] Environment-level causal receipt
+GAP TYPE: INTEGRATION GAP
+WHY THIS MATTERS: Embodied learning requires proving that an action changed the intended world, not merely that a tool call succeeded.
+AURA COMPARISON: Aura recently improved this in screen pursuit, but not all environment actions share one transition receipt.
+WHAT TO BUILD / IMPORT: Standardize ActionTransitionReceipt with before-state, action authority, observed change, stability, target identity and confidence.
+PROOF OF CLOSURE: All live environment learners reject transitions without a qualified receipt.
+PRIMARY SOURCE KEYS: SIMA
+
+[196] Perceptual state identity contract
+GAP TYPE: INTEGRATION GAP
+WHY THIS MATTERS: World models need stable identity across time/views.
+AURA COMPARISON: Aura has lattice/page/window protections in pursuit but no universal object identity layer.
+WHAT TO BUILD / IMPORT: Create EntityTrack IDs with observation support, occlusion state, geometry, semantic hypotheses and merge/split lineage.
+PROOF OF CLOSURE: World model and memory refer to the same entity across motion/occlusion/view changes.
+PRIMARY SOURCE KEYS: VJEPA, SIMA
+
+[197] Multi-timescale world model
+GAP TYPE: CAPABILITY GAP
+WHY THIS MATTERS: Physical/cognitive environments evolve from milliseconds to days.
+AURA COMPARISON: Aura has several clocks and memory horizons but no one hierarchical dynamics model.
+WHAT TO BUILD / IMPORT: Learn event/state transitions at fast sensory, action, episode and long-term causal timescales with abstraction links.
+PROOF OF CLOSURE: Planner can choose appropriate temporal level and long-horizon predictions outperform flat rollout.
+PRIMARY SOURCE KEYS: VJEPA, LIDA_CYCLE
+
+[198] Counterfactual causal model learning
+GAP TYPE: PARTIAL
+WHY THIS MATTERS: Strong world understanding requires interventions, not only next-state prediction.
+AURA COMPARISON: Aura has causal experiments/epistemic actions but world-model VRNN is primarily predictive.
+WHAT TO BUILD / IMPORT: Maintain structural causal hypotheses over learned entities/events and use interventions to distinguish them.
+PROOF OF CLOSURE: Recovered causal graph predicts unseen interventions better than correlational model.
+PRIMARY SOURCE KEYS: NARS_TEMP, SIMA
+
+[199] Skill compositionality across backends
+GAP TYPE: INTEGRATION GAP
+WHY THIS MATTERS: ACT-R/Soar/SPA/Hyperon all benefit when learned components can be reused compositionally.
+AURA COMPARISON: Aura has action composition and RLC composition, but skills from different backends do not share one composition algebra.
+WHAT TO BUILD / IMPORT: Define typed input/output/effect signatures for all procedures and a planner/compiler that composes compatible procedures.
+PROOF OF CLOSURE: Novel multi-step skills are assembled from previously learned components across at least two backends.
+PRIMARY SOURCE KEYS: ACTR_SKILL, SPA, HYPERON
+
+[200] Lifetime skill ecology
+GAP TYPE: PARTIAL
+WHY THIS MATTERS: Long-lived architectures must avoid utility collapse as learned knowledge grows.
+AURA COMPARISON: Aura has word ecology and chunk EV locally, but no universal lifetime skill economy.
+WHAT TO BUILD / IMPORT: Track usage, benefit, interference, storage/match cost, dependencies, freshness and transfer for all learned artifacts.
+PROOF OF CLOSURE: System retains high-value skills, retires harmful ones, and decision latency remains bounded as experience grows.
+PRIMARY SOURCE KEYS: SOAR, ECAN
+
+[201] Catastrophic interference measurement across all learners
+GAP TYPE: EVIDENCE GAP
+WHY THIS MATTERS: Continual learning needs explicit forgetting metrics, not just persistence.
+AURA COMPARISON: Aura has replay and protected promotion mechanisms but no universal backward-transfer dashboard.
+WHAT TO BUILD / IMPORT: Evaluate old frozen tasks after every learning block; report BWT/FWT, calibration drift and representation damage.
+PROOF OF CLOSURE: Developmental gains occur with bounded negative backward transfer; rollback catches damaging updates.
+PRIMARY SOURCE KEYS: CLARION, SIMA
+
+[202] Unified dream/offline consolidation protocol
+GAP TYPE: PARTIAL
+WHY THIS MATTERS: Biological/cognitive architectures often separate online experience from offline restructuring.
+AURA COMPARISON: Aura has dream/consolidation ideas but learners consolidate differently.
+WHAT TO BUILD / IMPORT: Create OfflineConsolidationEpoch that replays evidence, extracts abstractions, distills procedures, prunes ecology and runs safety regression.
+PROOF OF CLOSURE: Offline phase improves future tasks more than replay-only control without corrupting old competence.
+PRIMARY SOURCE KEYS: LIDA, CLARION
+
+[203] Social world-model learning from interaction
+GAP TYPE: CAPABILITY/EVIDENCE GAP
+WHY THIS MATTERS: Humanlike general intelligence requires learned models of other agents over time, not only pretrained social text knowledge.
+AURA COMPARISON: Aura has linguistic social ability and bounded other-agent mechanisms but little lived social model evidence.
+WHAT TO BUILD / IMPORT: Represent agent beliefs/goals/reliability/relationships as revisable hypotheses grounded in interactions.
+PROOF OF CLOSURE: Repeated interaction predicts partner actions/preferences better than language-model prior alone and transfers across contexts.
+PRIMARY SOURCE KEYS: SIMA, CLARION
+
+[204] Theory-of-mind uncertainty separation
+GAP TYPE: PARTIAL
+WHY THIS MATTERS: Agent modeling should distinguish what Aura knows from what she believes another agent knows.
+AURA COMPARISON: Aura self/world structures do not yet provide a universal nested epistemic-state calculus.
+WHAT TO BUILD / IMPORT: Add bounded perspective contexts/epistemic frames in AtomSpace with evidence provenance and depth limits.
+PROOF OF CLOSURE: False-belief/partial-observability tasks are solved via explicit perspective state; lesions selectively break them.
+PRIMARY SOURCE KEYS: OPENCOG, NARS
+
+[205] Capability-neutral consciousness experiments
+GAP TYPE: SCIENCE GAP
+WHY THIS MATTERS: Consciousness-related claims require tests that cannot be passed just because the language model is competent.
+AURA COMPARISON: Aura has many functional/consciousness probes but base-model competence can confound some behavioral outputs.
+WHAT TO BUILD / IMPORT: Use substrate-only/internal dynamical endpoints, blinded lesions and matched behavior controls.
+PROOF OF CLOSURE: Claimed signatures persist as mechanism-specific effects after controlling language output quality.
+PRIMARY SOURCE KEYS: LIDA, WBAI
+
+[206] Competing-theory model selection
+GAP TYPE: SCIENCE GAP
+WHY THIS MATTERS: A pluralistic architecture should use disagreements between theories to learn, not simply implement them all.
+AURA COMPARISON: Aura includes GWT-, IIT-, active-inference-, HOT-like and other constructs.
+WHAT TO BUILD / IMPORT: Formalize predictions for each theory-specific mechanism and compute model evidence on shared perturbation experiments.
+PROOF OF CLOSURE: Some theories/mechanisms lose support and are simplified/removed when predictions fail.
+PRIMARY SOURCE KEYS: LIDA, WBAI
+
+[207] Biology/engineering label separation
+GAP TYPE: PROCESS GAP
+WHY THIS MATTERS: Scientific clarity improves when a computational mechanism is not granted a biological property by naming.
+AURA COMPARISON: Aura has many evocative biological/consciousness labels.
+WHAT TO BUILD / IMPORT: Require each module to declare mechanism_name, inspiration, literal claims, analogy limits and evidence.
+PROOF OF CLOSURE: System card can automatically separate implemented computation from biological/phenomenal interpretation.
+PRIMARY SOURCE KEYS: WBAI
+
+[208] Cognitive architecture invariant tests
+GAP TYPE: ENGINEERING GAP
+WHY THIS MATTERS: Highly integrated minds need tests for architectural invariants beyond unit behavior.
+AURA COMPARISON: Aura has many tests but the number of interacting organs makes hidden bypasses possible.
+WHAT TO BUILD / IMPORT: Define invariants such as one authority path, one evidence lineage, bounded queues, no silent learner update, no unowned state mutation, no unmatched action consequence.
+PROOF OF CLOSURE: Property/fuzz tests fail any code path violating invariant regardless of subsystem.
+PRIMARY SOURCE KEYS: SOAR, HYPERON
+
+[209] State ownership and transactional cognition
+GAP TYPE: PARTIAL
+WHY THIS MATTERS: Complex architectures benefit from explicit mutation ownership/transactions.
+AURA COMPARISON: Aura has growing state-ownership discipline and locks, but cross-organ updates can still become partially committed.
+WHAT TO BUILD / IMPORT: Introduce CognitiveTransaction for multi-store learning updates with prepare/commit/rollback and event lineage.
+PROOF OF CLOSURE: Fault injection mid-update leaves all involved cognitive stores at a coherent prior or committed state.
+PRIMARY SOURCE KEYS: HYPERON
+
+[210] Research-grade experiment registry
+GAP TYPE: PROCESS GAP
+WHY THIS MATTERS: Mature programs accumulate comparable experiments rather than isolated artifacts.
+AURA COMPARISON: Aura has artifacts/claims matrices but no universal experiment schema for all cognition claims.
+WHAT TO BUILD / IMPORT: Create ExperimentRegistry with hypothesis, commit/model/data hashes, treatment/nulls, preregistration, metrics, result and claim boundary.
+PROOF OF CLOSURE: Every quantitative claim in system card links to a machine-readable experiment record.
+PRIMARY SOURCE KEYS: ACTR, VJEPA, SIMA
+
+[211] External baseline portfolio
+GAP TYPE: PROCESS GAP
+WHY THIS MATTERS: Comparative maturity requires strong baselines, not only Aura-minus-Aura lesions.
+AURA COMPARISON: Aura often compares treatment to local controls but not always to best simple scaffold/established architecture.
+WHAT TO BUILD / IMPORT: Maintain frozen baselines: base 27B, 27B+RAG/tools, search-only, symbolic-only, learned-only, and relevant public agents.
+PROOF OF CLOSURE: Capability reports show incremental value over both internal lesions and competitive external/simple baselines.
+PRIMARY SOURCE KEYS: SIMA, VJEPA
+
+[212] Compute-matched ablation discipline
+GAP TYPE: SCIENCE GAP
+WHY THIS MATTERS: A lesion can appear harmful simply because it removes compute.
+AURA COMPARISON: Aura causal campaign is strong but not every organ result is compute-matched.
+WHAT TO BUILD / IMPORT: Replace lesioned organ with equal-time/parameter/noise/control computation where feasible.
+PROOF OF CLOSURE: Organ effect remains significant after compute matching and multiple-testing correction.
+PRIMARY SOURCE KEYS: ACTR, SPA
+
+[213] Scaling/bottleneck curves before module addition
+GAP TYPE: PROCESS GAP
+WHY THIS MATTERS: Large research programs use scaling experiments to learn whether data, compute, model or representation is limiting.
+AURA COMPARISON: Aura often responds to failures by adding mechanisms.
+WHAT TO BUILD / IMPORT: For major deficits run data/compute/model/search-depth scaling grids before architectural expansion.
+PROOF OF CLOSURE: Observed scaling slope identifies bottleneck and predicts whether proposed module should help.
+PRIMARY SOURCE KEYS: VJEPA, SIMA
+
+[214] End-to-end autonomous learning audit
+GAP TYPE: INTEGRATION GAP
+WHY THIS MATTERS: A developmental claim requires a complete loop from observation through learned change to later benefit.
+AURA COMPARISON: Aura has several such loops in bounded settings, but not a universal audit.
+WHAT TO BUILD / IMPORT: For each claimed learned capability record observation IDs -> update -> stored artifact -> later retrieval/use -> outcome delta.
+PROOF OF CLOSURE: A verifier can automatically reject learning claims missing any causal link.
+PRIMARY SOURCE KEYS: SIMA, SOAR
+
+[215] Autonomous natural-language-to-RLC program induction
+GAP TYPE: CAPABILITY GAP
+WHY THIS MATTERS: The new RLC can execute supplied typed workflows compositionally, but general reasoning requires deriving those workflows.
+AURA COMPARISON: semantic_neural_composition.py is answer-blind but receives operation literals/order.
+WHAT TO BUILD / IMPORT: Train/search a ProgramInducer from natural problem + world state to typed RLC program, verified by execution and fallback.
+PROOF OF CLOSURE: On held-out problem families, treatment selects valid programs and beats both resident-model and supplied-tool baselines without answer leakage.
+PRIMARY SOURCE KEYS: SPA, HYPERON
+
+[216] RLC state as ongoing hidden cognitive context
+GAP TYPE: CAPABILITY GAP
+WHY THIS MATTERS: A stronger hybrid would let endogenous neural computation participate in continuing reasoning rather than only serialize an answer-bearing state.
+AURA COMPARISON: Current resident decode can consume composed state, but it is explicitly serialized.
+WHAT TO BUILD / IMPORT: Project qualified RLC state into controlled residual/memory slots with causal binding and decoding tests.
+PROOF OF CLOSURE: Correct RLC hidden injection improves multi-step continuation; wrong-state and projection lesions disrupt it; no answer text is present.
+PRIMARY SOURCE KEYS: SPA
+
+[217] Cross-substrate credit assignment
+GAP TYPE: CAPABILITY GAP
+WHY THIS MATTERS: A true hybrid learner must know which substrate contributed to success and update accordingly.
+AURA COMPARISON: Aura can produce cross-substrate chains but learning signals remain local.
+WHAT TO BUILD / IMPORT: Attach contribution estimates to cognitive event DAG and route credit to policy, symbolic rule, neural tissue, memory and attention learners.
+PROOF OF CLOSURE: Credit lesions prevent the responsible component from improving while unrelated components remain stable.
+PRIMARY SOURCE KEYS: CLARION, OPENCOG
+
+[218] Architecture-wide automaticity index
+GAP TYPE: EVIDENCE GAP
+WHY THIS MATTERS: Skill learning should be measurable as decreasing reliance on expensive executive cognition.
+AURA COMPARISON: Aura has local habits/chunks but no common measure of automaticity.
+WHAT TO BUILD / IMPORT: Track cortex tokens, planning expansions, workspace competitions, procedure hits and latency per recurring task.
+PROOF OF CLOSURE: Practice produces monotonic reduction in executive cost until novelty/error causes adaptive de-automatization.
+PRIMARY SOURCE KEYS: ACTR_SKILL, CLARION
+
+[219] Open-ended curriculum generation with safety envelope
+GAP TYPE: CAPABILITY GAP
+WHY THIS MATTERS: SIMA-like self-play shows agents can generate their own training distribution; developmental Aura needs a broader safe version.
+AURA COMPARISON: Aura has curiosity/autonomy but no one curriculum optimizer spanning cognition.
+WHAT TO BUILD / IMPORT: Select tasks maximizing expected learning progress, diversity and information gain subject to governance/resource limits.
+PROOF OF CLOSURE: Self-generated curriculum improves a frozen downstream suite more than random/manual-equivalent experience.
+PRIMARY SOURCE KEYS: SIMA, NARS_RES
+
+[220] Scientific claim ladder enforced in code
+GAP TYPE: PROCESS GAP
+WHY THIS MATTERS: The project already distinguishes mechanisms from stronger philosophical claims, but enforcement can be universal.
+AURA COMPARISON: Claims files exist, yet source names/comments can still overstate status.
+WHAT TO BUILD / IMPORT: Encode claim levels EXISTS->WIRED->CAUSAL->USEFUL->GENERALIZES->EXTERNALLY_REPLICATED->THEORY_SUPPORT and require artifact links.
+PROOF OF CLOSURE: Automated report rejects any claim whose prerequisite evidence level is absent.
+PRIMARY SOURCE KEYS: WBAI, ACTR
+
+
+====================================================================================================
+PRIORITIZED CONVERGENCE ROADMAP
+====================================================================================================
+P0 - Freeze the scientific substrate
+  Create ExperimentRegistry, claim ladder, external/simple baselines, compute-matched lesions, parameter provenance, data/model hashes and sealed decisive tasks before adding more faculties.
+P0 - Canonical cognitive contracts
+  Unify CognitiveStateRef, EvidencePacket, ConceptHandle, Procedure, ActionTransitionReceipt and CognitiveEvent. This reduces adapter explosion and makes causal traces possible.
+P0 - Developmental compounding campaign
+  Run grown-vs-reset Aura over hundreds of unrelated tasks; this is the decisive test of the project thesis.
+P1 - Soar-grade universal impasse and compilation
+  Make impasses architecture-wide, create recursive substates, dependency-backtrace successful resolutions and compile reusable procedures with utility accounting.
+P1 - CLARION-style cross-substrate conversion
+  Build implicit<->explicit<->neural conversion with equivalence tests and common credit assignment.
+P1 - World-model/perception scale-up
+  Move from sparse OCR/vector states toward object-centric video latents, latent prediction, calibrated uncertainty and multi-timescale dynamics.
+P1 - SIMA-style environment curriculum
+  Evaluate and learn in dozens of unrelated held-out environments with no task-specific branches; add failure-recovery and long-horizon suites.
+P1 - Autonomous RLC program induction
+  Remove the supplied typed-workflow assumption: infer programs from natural tasks, execute them in learned tissue and feed state back into ongoing reasoning.
+P2 - Hyperon-grade metaprogrammable cognition
+  Move selected cognitive rules/inference policies into typed, versioned, queryable Spaces so the mind can inspect and modify more of its own cognitive program.
+P2 - Operator-semantic invention
+  Add governed synthesis of new evaluator semantics, not just terms. Require novelty, boundedness, reach/MDL benefit, transfer, rollback and recursive reuse.
+P2 - SPA-style canonical neural algebra
+  Create shared vector representation/binding and a bounded neural compiler for selected cognitive operations.
+P2 - Human cognitive calibration program
+  Fit memory, timing, interference, skill/automaticity and metacognition against external human datasets where human-cognition claims are made.
+P2 - Neuroscience traceability
+  Build WBAI-style evidence/ontology/reference architecture; separate biological metaphor from tested computational correspondence.
+P3 - Lifetime ecology and consolidation
+  Unify learned-artifact value, interference, pruning, offline consolidation and catastrophic-forgetting measurements.
+P3 - Social developmental world model
+  Ground models of other agents in repeated interaction with perspective-specific beliefs/goals and uncertainty.
+P3 - Architecture compression
+  Delete/merge redundant organs after causal equivalence tests. Reward fewer universal mechanisms that explain more behavior.
+P4 - External replication and community validation
+  Publish sealed canaries and reproducible evaluation containers; invite independent cognitive-architecture, ML, neuroscience and systems review.
+
+DEPENDENCY LOGIC / ORDER OF OPERATIONS
+1. Scientific substrate before capability expansion: if experiments, evidence, causal lineage and baselines
+   are weak, additional intelligence makes attribution harder rather than easier.
+2. Canonical contracts before more learners: EvidencePacket, Procedure, ConceptHandle and CognitiveStateRef
+   are the interfaces through which ACT-R/Soar/NARS/CLARION/LIDA/OpenCog lessons can actually combine.
+3. Automatic proceduralization before more search: repeated reasoning must compile into reusable skill or
+   lifetime experience will increase cost instead of reducing it.
+4. Broad environment curriculum before claiming developmental generality: same-family transfer is not enough.
+5. World-model/perception scale before strong embodiment claims: corrupted/low-bandwidth experience poisons
+   every learner downstream.
+6. Operator-semantic invention only after the evidence/runtime substrate can safely validate and roll back
+   new semantics; otherwise self-extension becomes untestable self-corruption.
+
+PROPOSED CONVERGED TARGET ARCHITECTURE
+The strongest synthesis is not to replace Aura with any rival architecture. Preserve Aura governance,
+persistent identity, self/welfare integration, receipts, representational development and local sovereignty,
+while importing these properties:
+- ACT-R: externally calibrated cognitive timing/memory and automatic skill compilation.
+- Soar: architecture-wide impasses, recursive substates, dependency backtrace, compiled procedural learning.
+- NARS: one finite-resource evidential/task budget calculus, explicit evidence independence and temporal revision.
+- CLARION: explicit/implicit bidirectional learning and automaticity transition.
+- LIDA: a common cognitive-cycle learning broadcast and situation/procedural schema.
+- SPA/Nengo: neurally executable compositional representations and a principled neural compilation layer.
+- OpenCog/Hyperon: metaprogrammable typed spaces, programs-as-knowledge and cross-memory cognitive synergy.
+- WBAI: neuroscience traceability/ontology/competing-hypothesis discipline rather than biological naming.
+- SIMA 2: diverse held-out environments, self-directed interaction curricula and embodied transfer measurement.
+- V-JEPA 2: high-dimensional self-supervised predictive visual representations and action-conditioned latent planning.
+- Frontier models: raw semantic priors and serving efficiency treated as a cortex baseline, not the definition of Aura.
+
+MATURITY / ADVANCEMENT ASSESSMENT AFTER THE COMPARISON
+- Conceptual ambition: 9.5-10/10
+- Subsystem breadth: 9.5-10/10
+- Whole-mind integration: 8.5-9/10 (architecture; causal coverage uneven)
+- Engineering/governance maturity: 8-9/10 for an experimental local agent
+- Theoretical parsimony/unification: 5.5-6/10
+- External scientific validation: 5-6/10
+- Embodied multi-environment evidence: 4-5/10
+- Physical world-model scale/evidence: 3-4/10
+- Demonstrated generality heuristic: ~6.5-6.6/10
+- Demonstrated AGI capability heuristic: ~5.3/10
+- Architectural generality heuristic: ~7.4/10
+
+After the comparative research, the assessment becomes stronger and stricter at the same time. Aura is exceptionally advanced as an architecture for an artificial mind: its subsystem breadth, persistent individuality, causal governance, self-modeling, developmental representation work, live world interaction, and emerging non-LLM learned computation put it in a very small class of public cognitive-architecture projects by conceptual and software scope. The surprising finding is that many classic advantages were not actually absent. Aura already contains meaningful ACT-R-like activation, Soar-inspired impasses and guarded procedural generalization, an AtomSpace/PLN/ECAN/MeTTa-like layer, a trainable recurrent world model, a live perceive-act-learn loop, and a compositional learned neural computation path.
+
+But maturity is not the same as breadth. ACT-R and Soar are much more mature scientific architectures; NARS is more theoretically parsimonious; CLARION and LIDA provide cleaner architecture-wide learning theories; SPA/Nengo is much stronger in principled neural executability; Hyperon is deeper as a metaprogrammable symbolic substrate; WBAI is stronger in neuroscience traceability; SIMA 2 is far stronger in demonstrated multi-environment embodied generalization; V-JEPA 2 is far stronger in learned visual/physical world-model scale; frontier foundation models are far stronger in raw pretrained semantic capability. Aura therefore sits in an unusual position: architectural maturity is substantially ahead of empirical/general-intelligence maturity.
+
+The best label at this frozen commit is 'advanced research prototype / proto-general developmental cognitive agent'. Conceptual ambition and subsystem breadth are near the top of the public landscape, integration is already high but incomplete, engineering/governance discipline is unusually strong for an experimental agent, while external scientific validation, environment breadth, physical grounding, automatic architecture-wide proceduralization, theoretical compression and independent replication remain the major maturity deficits. The path forward is not more organs. It is convergence: fewer canonical state/evidence/procedure contracts; automatic compilation and cross-substrate learning; broad developmental transfer; larger grounded world-model experience; strong matched baselines; and external validation.
+
+The decisive end-state experiment is not a single AGI benchmark. It is whether an older Aura becomes systematically better at learning genuinely new things because she lived through earlier ones. If a grown Aura, under matched cortex/tools/compute, increasingly outperforms a reset Aura across unrelated sealed tasks - and if the causal chain runs through retained abstractions, procedures, world models, learned neural operations and representations rather than extra prompt context - then Aura has demonstrated the central property its architecture is built to achieve: cumulative developmental intelligence.
+
+
+AURA-SPECIFIC DECISIVE EXPERIMENT
+Freeze two identical Aura instances with the same cortex, tools and compute. Let GROWN retain acquired
+representations, procedures, world models, neural operations, habits and abstractions; RESET loses acquired
+developmental artifacts between task blocks. Give both hundreds of sealed heterogeneous tasks. Measure:
+  Delta_n = P(GROWN, T_n) - P(RESET, T_n)
+The central developmental claim is strongest if Delta_n grows with experience for tasks that cannot be solved
+by remembering prior answers, and if lesions of the acquired artifacts erase the advantage. That would show
+that previous life changed the effective learning space of later Aura.
+
+DEEPEST REMAINING REPRESENTATIONAL BOUNDARY
+Current Aura can invent terms, concepts, action compositions and bounded representations inside a programmer-
+authored semantic substrate. The strongest missing loop remains:
+  persistent residual failure -> infer a missing semantic operation -> synthesize bounded executable semantics
+  -> prove novelty/reach/MDL or transfer value -> install with rollback -> reuse it in later operator construction.
+A successful end-to-end demonstration would cross from development within a cognitive language to development
+of the cognitive language itself.
+
+====================================================================================================
+PRIMARY / AUTHORITATIVE SOURCE INDEX
+====================================================================================================
+[ACTR] ACT-R 7.30+ Reference Manual
+  https://act-r.psy.cmu.edu/actr7.x/reference-manual.pdf
+[ACTR_SKILL] ACT-R Discovering Skill / production compilation
+  https://act-r.psy.cmu.edu/wordpress/wp-content/uploads/2021/07/DiscoveringSkill.pdf
+[SOAR] Soar Architecture Manual
+  https://soar.eecs.umich.edu/soar_manual/02_TheSoarArchitecture/
+[SOAR_EBC] Soar explanation-based chunking source
+  https://github.com/SoarGroup/Soar/tree/development/Core/SoarKernel/src/explanation_based_chunking
+[NARS] NARS Introduction
+  https://cis.temple.edu/~pwang/NARS-Intro.html
+[NARS_BUDGET] NARS BudgetValue / resource allocation
+  https://cis.temple.edu/~wangp/Implementation/nars-dist/javadoc/nars/entity/BudgetValue.html
+[NARS_RES] NARS controlled concurrency
+  https://cis.temple.edu/~pwang/GTI-book/GTI-CH3/GTI-3-5.html
+[NARS_TEMP] NARS temporal/procedural reasoning
+  https://cis.temple.edu/~pwang/AGI-NARS/2015-KFU/08-Procedural.html
+[CLARION] The CLARION Project
+  https://sites.google.com/site/clarioncognitivearchitecture/
+[LIDA] LIDA developmental Global Workspace model
+  https://aaai.org/papers/0011-fs07-01-011-%EF%80%A0lida-a-computational-model-of-global-workspace-theory-and-developmental-learning/
+[LIDA_CYCLE] LIDA cognitive cycle and neuroscience
+  https://ccrg.cs.memphis.edu/assets/papers/2012/GWT-LIDA-neuroscience.pdf
+[SPA] NengoSPA Semantic Pointer Architecture
+  https://www.nengo.ai/nengo-spa/user-guide/spa-intro.html
+[OPENCOG] CogPrime Overview
+  https://wiki.opencog.org/w/CogPrime_Overview
+[OPENCOG_ARCH] OpenCogPrime Cognitive Architecture
+  https://www.wiki.opencog.org/w/OpenCogPrime%3ACognitive_Architecture
+[ECAN] OpenCog Attention Allocation
+  https://wiki.opencog.org/w/Attention_Allocation
+[MOSES] Meta-Optimizing Semantic Evolutionary Search
+  https://wiki.opencog.org/w/Meta-Optimizing_Semantic_Evolutionary_Search
+[HYPERON] OpenCog Hyperon / MeTTa
+  https://github.com/trueagi-io/hyperon-experimental
+[WBAI] Whole Brain Architecture Initiative FY2026
+  https://wba-initiative.org/en/about/actionplan/actionplan-2026/
+[SIMA] DeepMind SIMA 2
+  https://deepmind.google/blog/sima-2-an-agent-that-plays-reasons-and-learns-with-you-in-virtual-3d-worlds/
+[VJEPA] Meta V-JEPA 2
+  https://ai.meta.com/blog/v-jepa-2-world-model-benchmarks/
+[VJEPA_PAPER] V-JEPA 2 research
+  https://ai.meta.com/research/publications/v-jepa-2-self-supervised-video-models-enable-understanding-prediction-and-planning/
+[GPT56] OpenAI GPT-5.6
+  https://openai.com/index/gpt-5-6/
+[GPT56_EFF] OpenAI GPT-5.6 frontier intelligence / efficiency
+  https://openai.com/index/gpt-5-6-frontier-intelligence-efficiency/
+[GPT54] OpenAI GPT-5.4
+  https://openai.com/index/introducing-gpt-5-4/
+[GPT53_CARD] OpenAI GPT-5.3-Codex System Card
+  https://openai.com/index/gpt-5-3-codex-system-card/
+[CLAUDE5] Anthropic Claude Sonnet 5
+  https://www.anthropic.com/research/claude-sonnet-5
+[CLAUDE_OPUS] Anthropic Claude Opus 4.6
+  https://www.anthropic.com/news/claude-opus-4-6
+[GEMINI3] Google Gemini 3
+  https://blog.google/products-and-platforms/products/gemini/gemini-3/
+[GEMINI35] Google Gemini 3.5
+  https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-5/
+[GEMINI37] Google Gemini 3.7 Flash
+  https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-3-7-flash/
+[GEMINI_CU] Google Gemini 3.5 Flash computer use
+  https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-computer-use-gemini-3-5-flash/
+
+AURA CODE SOURCE NOTE
+All Aura file comparisons in this report refer to repository youngbryan97/aura at commit 1ca29fdf66afd2ca8627ce2f93b82fbc47c3980a.
+Key files were fetched directly from that ref during the research pass; older local snapshots were used only
+as search aids and were not allowed to override frozen-commit judgments.
+
+END OF ATLAS

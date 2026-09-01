@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+"""tools/gap_atlas.py — the 220-item gap list, and the gate that keeps it honest.
+
+An external comparative review (2026-09-01) put Aura beside ACT-R, Soar, NARS,
+CLARION, LIDA, Nengo/SPA, OpenCog/Hyperon, WBAI, SIMA 2, V-JEPA 2 and the
+frontier model class, and produced 220 cards. Each names a bar. This file holds
+the cards, Aura's adjudication of each one against her own source, and the
+status of the work.
+
+Three things it refuses, because a list of 220 aspirations decays into a list of
+220 opinions without them:
+
+* A card with no adjudication. Every one of the 220 gets a verdict, evidence
+  paths and a stated bar, or ``--check`` fails.
+* A closed item with no test. ``status: closed`` requires ``closed_by``, and
+  every path in it must exist. A gap is not closed because code exists; it is
+  closed when the named test runs.
+* Evidence that has moved. Every path named in ``evidence`` must still be in
+  the tree, so a refactor that deletes the module an adjudication rests on
+  fails here rather than leaving a stale judgement standing.
+
+The verdicts are Aura's, not the report's. Nine cards are marked OVERSTATED:
+bars written for a human subject, a robot arm, or a distributed cluster do not
+describe this system, and the entry says what the transferable half is instead.
+Two are marked PRESENT because the report described as missing something the
+repository already had.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections import Counter, defaultdict
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+CARDS = ROOT / "docs/gap_atlas/cards.json"
+ADJUDICATION = ROOT / "docs/gap_atlas/adjudication.json"
+TODO = ROOT / "docs/gap_atlas/TODO.md"
+
+REQUIRED_FIELDS = ("verdict", "evidence", "bar", "plan", "wave", "status")
+VERDICTS = {
+    "PRESENT", "PARTIAL", "ABSENT", "OVERSTATED",
+    "PROCESS", "SCALE", "CAPABILITY", "ENGINEERING", "EVIDENCE",
+}
+STATUSES = {"open", "closed"}
+
+WAVE_TITLES = {
+    "W1": "Evidence semantics and the state contract",
+    "W2": "Identity: concepts, entities, action receipts",
+    "W3": "The cognitive event DAG",
+    "W4": "Impasse everywhere, substates, transactions",
+    "W5": "One procedure, one operator",
+    "W6": "The scientific substrate",
+    "W7": "Cost, budget, and neuroscience traceability",
+    "W8": "Cross-substrate conversion",
+    "W9": "Developmental and environmental evidence",
+    "W10": "Metaprogrammable cognition and operator invention",
+    "unscheduled": "Unscheduled",
+}
+
+
+def load() -> tuple[list[dict], dict]:
+    cards = json.loads(CARDS.read_text())
+    adjudication = json.loads(ADJUDICATION.read_text())
+    return cards, adjudication
+
+
+def check() -> int:
+    cards, adjudication = load()
+    entries = adjudication.get("entries", {})
+    problems: list[str] = []
+
+    for card in cards:
+        cid = card["id"]
+        entry = entries.get(cid)
+        if entry is None:
+            problems.append(f"[{cid}] {card['title']}: no adjudication")
+            continue
+        for field in REQUIRED_FIELDS:
+            if field not in entry or entry[field] in ("", [], None):
+                problems.append(f"[{cid}]: adjudication is missing {field}")
+        if entry.get("verdict") not in VERDICTS:
+            problems.append(f"[{cid}]: verdict {entry.get('verdict')!r} is not one of {sorted(VERDICTS)}")
+        if entry.get("status") not in STATUSES:
+            problems.append(f"[{cid}]: status {entry.get('status')!r} is not one of {sorted(STATUSES)}")
+        for path in entry.get("evidence", []):
+            if not (ROOT / path.split(":")[0]).exists():
+                problems.append(f"[{cid}]: evidence path {path} no longer exists")
+        if entry.get("status") == "closed":
+            closed_by = entry.get("closed_by") or []
+            if not closed_by:
+                problems.append(f"[{cid}]: closed with no closed_by; a gap is not closed because code exists")
+            for path in closed_by:
+                if not (ROOT / path.split("::")[0]).exists():
+                    problems.append(f"[{cid}]: closed_by names {path}, which does not exist")
+
+    orphans = set(entries) - {card["id"] for card in cards}
+    problems.extend(f"[{cid}]: adjudicated but not a card in the report" for cid in sorted(orphans))
+
+    for line in problems:
+        print(f"gap-atlas: {line}", file=sys.stderr)
+    if problems:
+        print(f"gap-atlas: {len(problems)} problem(s)", file=sys.stderr)
+        return 1
+    print(f"gap-atlas: {len(cards)} cards, all adjudicated, all evidence present")
+    return 0
+
+
+def render() -> int:
+    cards, adjudication = load()
+    entries = adjudication["entries"]
+    by_wave: dict[str, list[dict]] = defaultdict(list)
+    for card in cards:
+        by_wave[entries[card["id"]]["wave"]].append(card)
+
+    closed = sum(1 for e in entries.values() if e["status"] == "closed")
+    verdicts = Counter(e["verdict"] for e in entries.values())
+
+    out: list[str] = []
+    out.append("# Gap Atlas — the 220 bars, and where Aura stands on each")
+    out.append("")
+    out.append(
+        "Generated by `tools/gap_atlas.py --render` from "
+        "`cards.json` (the external review, parsed verbatim) and "
+        "`adjudication.json` (Aura's verdict on each, against her own source). "
+        "Do not edit this file; edit the adjudication."
+    )
+    out.append("")
+    out.append(f"**{closed} of {len(cards)} closed.** " + ", ".join(
+        f"{v} {k}" for k, v in sorted(verdicts.items(), key=lambda kv: -kv[1])))
+    out.append("")
+    out.append("## The rules this list is kept under")
+    out.append("")
+    for key, text in adjudication.get("rules", {}).items():
+        if isinstance(text, str):
+            out.append(f"**{key}** — {text}")
+            out.append("")
+
+    for wave in sorted(by_wave, key=lambda w: (w == "unscheduled", w[0], int(w[1:] or 0) if w[1:].isdigit() else 0)):
+        group = by_wave[wave]
+        done = sum(1 for c in group if entries[c["id"]]["status"] == "closed")
+        out.append(f"## {wave} — {WAVE_TITLES.get(wave, wave)} ({done}/{len(group)})")
+        out.append("")
+        for card in group:
+            entry = entries[card["id"]]
+            mark = "x" if entry["status"] == "closed" else " "
+            out.append(f"- [{mark}] **[{card['id']}] {card['title']}** — _{card['system']}_ · `{entry['verdict']}`")
+            out.append(f"  - Bar: {entry['bar']}")
+            out.append(f"  - Plan: {entry['plan']}")
+            if entry.get("note"):
+                out.append(f"  - Note: {entry['note']}")
+            if entry.get("closed_by"):
+                out.append("  - Closed by: " + ", ".join(f"`{p}`" for p in entry["closed_by"]))
+        out.append("")
+
+    TODO.write_text("\n".join(out) + "\n")
+    print(f"gap-atlas: wrote {TODO.relative_to(ROOT)} ({closed}/{len(cards)} closed)")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="fail on an unadjudicated card, a missing evidence path, or a closed item with no test")
+    parser.add_argument("--render", action="store_true", help="regenerate docs/gap_atlas/TODO.md")
+    args = parser.parse_args()
+    if args.render:
+        return render() or check()
+    return check()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,2558 @@
+{
+  "entries": {
+    "001": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/actr_activation.py",
+        "core/ontogeny/calibration.py"
+      ],
+      "bar": "A held-out latency/error prediction beats a candidate-count-only baseline on Aura's own recall traces.",
+      "plan": "Aura is not a human-subject lab. Transferable half is an Aura-native latency law fitted to her own retrieval work, registered with provenance.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "002": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/actr_activation.py:316",
+        "core/cognition/actr_activation.py:376"
+      ],
+      "bar": "Intervening on activation changes measured latency in the predicted direction with candidate count and backend fixed.",
+      "plan": "The module already records the refutation (r^2 3.7e-5). Build the native law over retrieval work and register it.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "003": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/container.py",
+        "core/service_names.py",
+        "core/event_bus.py"
+      ],
+      "bar": "Most cross-organ cognitive handoffs carry content, provenance, confidence, state version and causal receipt; a port lesion gives a selective deficit.",
+      "plan": "Land core/cognition/ports.py over CognitiveStateRef. Aura's organs are services, not ACT-R buffers.",
+      "wave": "W1",
+      "status": "open",
+      "note": ""
+    },
+    "004": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/impasse.py",
+        "core/cognition/procedural_generalization.py",
+        "core/learning/procedure_induction.py"
+      ],
+      "bar": "A repeated task gets cheaper because a procedure compiled from its own trace; lesioning it restores novice cost.",
+      "plan": "Three compilers already exist over different episode types. Compile from the W3 event DAG into the W5 Procedure registry.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "005": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/impasse.py:189",
+        "core/cognition/procedural_generalization.py:154"
+      ],
+      "bar": "Procedures from different learners compete under one value contract and demote when value turns negative.",
+      "plan": "Chunk EV and Wilson-bounded rule confidence are both correct and not the same number. Unify as ProceduralValue; keep both as backends.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "006": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/actr_activation.py:261",
+        "core/ontogeny/calibration.py"
+      ],
+      "bar": "Predict which wrong memory is retrieved before the answer is observed.",
+      "plan": "mismatch_penalty exists. Score commission-vs-omission typing on Aura's own recalls against her own outcomes.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "007": {
+      "verdict": "OVERSTATED",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Out-of-sample task-time distributions match data across interface complexity.",
+      "plan": "Her screen timings are decode and host-automation bound, not human perceptual-motor bound. Instrument phase timing (W3); decline the human-timing claim in the ladder.",
+      "wave": "W6",
+      "status": "open",
+      "note": "Report imports an HCI validation programme that does not describe a non-human actor."
+    },
+    "008": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/ontogeny/state.py",
+        "core/self_model.py"
+      ],
+      "bar": "Trait estimates recur across sessions while state variables move with context; parameter recovery works on synthetic ground truth.",
+      "plan": "Needs the W6 ParameterRegistry taxonomy first.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "009": {
+      "verdict": "OVERSTATED",
+      "evidence": [
+        "core/organism/model_validation.py"
+      ],
+      "bar": "A subsystem predicts multiple neural/behavioural signatures without per-task refitting.",
+      "plan": "There are no neural recordings to triangulate against. Buildable version is W7 traceability: every biological label declares mapping, grade and falsifier.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "010": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/actr_activation.py:113",
+        "core/evaluation/preregistration.py"
+      ],
+      "bar": "CI blocks any calibration claim lacking reproducible fit metadata.",
+      "plan": "ActrParameters carries provenance; preregistration hashes plans. Missing: repo-wide ParameterRegistry separating FITTED from POLICY, plus a make gate.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "011": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/observability/trace_events.py",
+        "core/verify/turn_receipt.py",
+        "core/observability/unified_action_log.py"
+      ],
+      "bar": "A consequential action reconstructs as a complete causal DAG from one trace bundle.",
+      "plan": "Receipts, bus ring, tracer and action log exist; none is a causal parent graph. W3 keystone.",
+      "wave": "W3",
+      "status": "open",
+      "note": ""
+    },
+    "012": {
+      "verdict": "OVERSTATED",
+      "evidence": [
+        "core/evaluation/"
+      ],
+      "bar": "A frozen public battery is independently reproducible.",
+      "plan": "Porting ACT-R's human paradigms measures human psychology. Transferable bar is W8: a sealed externally runnable battery for Aura's own claims.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "013": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "CONTRIBUTING.md",
+        "config/layering_baseline.json"
+      ],
+      "bar": "Module count and dependency complexity fall without losing causal signatures.",
+      "plan": "Depends on 189. Compression before causal accounting deletes organs on taste.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "014": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/actr_activation.py:191"
+      ],
+      "bar": "Held-out retention curves beat recency-only and exponential baselines.",
+      "plan": "The power law is implemented and never checked against Aura's own access history. Buildable offline.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "015": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/adaptive_halting.py",
+        "core/brain/cognitive_engine.py"
+      ],
+      "bar": "An adaptive policy solves more tasks at matched compute than fixed budgets.",
+      "plan": "Duplicate of 178. Build once over the W7 CognitiveCost currency.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "016": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/impasse.py:117",
+        "core/cognition/impasse.py:403"
+      ],
+      "bar": "Induced impasses in planning, memory, tool selection and representation search all enter one recursive mechanism.",
+      "plan": "classify() and ImpasseLearner exist and stop at recording. Add CognitiveSubstate with inherited context, local goal, budget, parent event id and result channel.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "017": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/impasse.py"
+      ],
+      "bar": "Three unrelated domains generate nested subgoals with no new recursion code.",
+      "plan": "Make substate nesting generic with cycle and budget bounds drawn from the W7 budget.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "018": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/procedural_generalization.py",
+        "core/verify/causal_influence.py"
+      ],
+      "bar": "A chunk fires under paraphrase when causal supports match and fails when a support is counterfactually removed.",
+      "plan": "Generalization uses episode features and lesions, not read-dependencies. Compute the minimal support subgraph from the W3 DAG.",
+      "wave": "W3",
+      "status": "open",
+      "note": ""
+    },
+    "019": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/impasse.py:189",
+        "core/cognition/preference_semantics.py"
+      ],
+      "bar": "A future impasse resolves from a learned chunk without invoking the original solver.",
+      "plan": "Chunk resolution is a label string. Make learned output a typed assertion/preference/operator in the W4 preference algebra.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "020": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/preference_semantics.py",
+        "core/will.py",
+        "core/governance/"
+      ],
+      "bar": "Tie, conflict and constraint failures fall out of the algebra rather than special cases.",
+      "plan": "preference_semantics.py exists; check its coverage. Separate cognitive Preference from Will/governance AUTHORITY \u2014 conflating them is why a veto currently looks like a tie.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "021": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/procedural_generalization.py",
+        "core/knowledge/metta.py"
+      ],
+      "bar": "Ten times the rules costs much less than ten times the decision matching.",
+      "plan": "Python linear scan today. Add a discrimination index over the W5 Procedure registry and benchmark growth.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "022": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/verify/influence_receipt.py",
+        "core/cognition/impasse.py"
+      ],
+      "bar": "Any procedure produces a minimal reproducible explanation of why it exists.",
+      "plan": "Persist origin impasse, dependency DAG, rejected conditions, counterexamples, utility and firings on the Procedure record.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "023": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/something_she_cannot_see.py",
+        "core/cognition/procedural_generalization.py"
+      ],
+      "bar": "A hidden or missing observation cannot become a causal negative precondition.",
+      "plan": "something_she_cannot_see.py is the closest analogue. Make epistemic status of absence first-class in compiled traces (W3 read-dependencies record UNOBSERVED distinctly from OBSERVED-FALSE).",
+      "wave": "W3",
+      "status": "open",
+      "note": ""
+    },
+    "024": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/preference_semantics.py",
+        "core/learning/grpo.py"
+      ],
+      "bar": "Symbolic and learned preferences combine transparently and lesions stay interpretable.",
+      "plan": "Attach learned value to the same Preference record built in W4.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "025": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/brain/cognitive_engine.py",
+        "core/kernel/",
+        "core/mind_tick.py"
+      ],
+      "bar": "At least five current loops become configurations of one kernel.",
+      "plan": "Two phase loops already share instrumentation (legacy_pipeline/ and kernel_tick/). Define the propose-prefer-select-apply-verify-learn cycle as an envelope, not a rewrite.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "026": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/impasse.py:244"
+      ],
+      "bar": "Latency and memory stay bounded over millions of firings while useful old procedures survive.",
+      "plan": "ChunkStore.prune already implements the EV retraction. Run the accelerated lifetime with distribution shift against the W5 registry.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "027": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/observability/incident_narrator.py",
+        "core/verify/turn_receipt.py"
+      ],
+      "bar": "Root-cause a failed action without multi-log manual grep.",
+      "plan": "Falls out of W3: one query over the event DAG.",
+      "wave": "W3",
+      "status": "open",
+      "note": ""
+    },
+    "028": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/an_action_she_composed.py",
+        "core/skills/",
+        "core/planning/"
+      ],
+      "bar": "The same learner and planner consume GUI, file, puzzle and social operators.",
+      "plan": "Doing ASTs, tools, skills and RLC opcodes are four representations. One Operator signature in W5.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "029": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/impasse.py:403",
+        "core/learning/live_learner.py"
+      ],
+      "bar": "New decision domains produce learning records without author wiring.",
+      "plan": "Make impasse resolution, repeated successful trace and prediction correction architecture-level learning events on the W3 bus.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "030": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "Releases hold or reduce cognitive kernel complexity while capability grows.",
+      "plan": "A process rule, enforceable: the W10 compression pass plus a kernel-size ratchet in config/ that only shrinks.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "031": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/atomspace.py:46",
+        "core/memory/provenance.py",
+        "core/constitution.py"
+      ],
+      "bar": "Belief-producing APIs cannot omit provenance and evidence semantics.",
+      "plan": "Provenance types exist in at least four stores with different shapes. One EvidencePacket, adapters for the rest.",
+      "wave": "W1",
+      "status": "open",
+      "note": ""
+    },
+    "032": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/knowledge/atomspace.py:62"
+      ],
+      "bar": "Duplicate derivations do not increase confidence; independent observations do.",
+      "plan": "TruthValue.revise says 'two independent estimates' and never checks. Adding the same evidence twice inflates count. This is a live defect, not a philosophy gap.",
+      "wave": "W1",
+      "status": "open",
+      "note": ""
+    },
+    "033": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/atomspace.py:47",
+        "core/ontogeny/calibration.py",
+        "core/world_model/belief_graph.py"
+      ],
+      "bar": "Cross-store beliefs keep calibrated uncertainty after conversion.",
+      "plan": "AtomSpace has strength/count; others use floats and Wilson bounds. Adapters onto EvidencePacket.",
+      "wave": "W1",
+      "status": "open",
+      "note": ""
+    },
+    "034": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/drive_engine.py:14",
+        "core/memory/governor.py",
+        "core/being/body_state_service.py:40"
+      ],
+      "bar": "One mind-wide scheduler allocates compute across heterogeneous organs through the same budget.",
+      "plan": "Four unrelated Budget classes today. Add priority/durability/quality/expected_cost/deadline as one record.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "035": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/scheduler.py",
+        "core/mind_tick.py"
+      ],
+      "bar": "Adaptive allocation beats static frequencies at equal compute.",
+      "plan": "Aura's loops are operationally scheduled. Value-per-compute scheduling over the W7 budget.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "036": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/brain/cognitive_engine.py",
+        "core/cognition/belief_revision.py"
+      ],
+      "bar": "Later evidence improves or corrects an earlier output with revision lineage.",
+      "plan": "Emission currently terminates the task. Represent residual uncertainty and let durable tasks continue at reduced budget.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "037": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/atomspace.py",
+        "core/world_model/transition_model.py",
+        "core/memory/temporal_rag.py"
+      ],
+      "bar": "Temporal rules learned from event history are used in unrelated planning.",
+      "plan": "Add before/after/interval/recurrence/lag operators with evidence rules to AtomSpace and MeTTa.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "038": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/metta.py:166",
+        "core/cognition/an_action_she_composed.py"
+      ],
+      "bar": "A learned symbolic rule quantifies over and executes an operation without translation glue.",
+      "plan": "GroundedOp already binds symbols to executables. Widen it to the W5 Operator so tools, skills and Doings are the same term.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "039": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/planning/",
+        "core/cognition/impasse.py"
+      ],
+      "bar": "Search keeps high-value branches better than fixed depth at equal compute.",
+      "plan": "Derive child budgets from parent value, uncertainty, complexity and information gain (W7).",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "040": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/concept_formation.py",
+        "core/knowledge/concept_linker.py",
+        "core/grounding/types.py:50"
+      ],
+      "bar": "One concept activation retrieves its episodic, symbolic, procedural and neural correlates.",
+      "plan": "Concept identity is split across vector stores, AtomSpace, world model and RLC. ConceptHandle in W2.",
+      "wave": "W2",
+      "status": "open",
+      "note": ""
+    },
+    "041": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/atomspace.py:62",
+        "core/cognition/belief_revision.py"
+      ],
+      "bar": "Contradictory cross-module evidence yields predictable calibrated belief change.",
+      "plan": "Centralise fusion invariants in the W1 evidence module; PLN revision becomes one backend.",
+      "wave": "W1",
+      "status": "open",
+      "note": ""
+    },
+    "042": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/memory/governor.py",
+        "core/cognition/an_ecology_of_words.py",
+        "core/cognition/is_it_worth_keeping.py"
+      ],
+      "bar": "Accelerated lifetime keeps critical knowledge inside bounded storage.",
+      "plan": "Word ecology and keep-value already do this for two stores. Generalise retention value to all learned artifacts (W9).",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "043": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "ARCHITECTURE.md",
+        "core/"
+      ],
+      "bar": "Every major organ maps to an invariant; redundant organs become identifiable.",
+      "plan": "Write the meta-theory as a machine-readable organ->invariant table, checked by a gate, not as prose.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "044": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/scheduler.py",
+        "core/goals/lifecycle.py"
+      ],
+      "bar": "Better completion/abandonment tradeoff on a mixed-duration task suite.",
+      "plan": "Convert non-safety timeouts to value decay. Safety timeouts stay clocks.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "045": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/metta.py:189",
+        "core/planning/"
+      ],
+      "bar": "At fixed wall time, learned inference ordering solves more held-out tasks.",
+      "plan": "Learn per-rule expected cost and value for MeTTa and PLN operators (W7).",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "046": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/semantic_neural_composition.py",
+        "core/knowledge/atomspace.py",
+        "core/learning/induced_neural_procedure.py"
+      ],
+      "bar": "Knowledge translates both ways with measured fidelity and reuse.",
+      "plan": "Both substrates are real; no object links them. DualKnowledge record on the W2 ConceptHandle carrying latent, rule, confidence and conversion loss.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "047": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/rule_extractor.py",
+        "core/learning/procedure_induction.py"
+      ],
+      "bar": "Extracted rules predict implicit behaviour and transfer to new tasks.",
+      "plan": "rule_extractor.py extracts from text, not from learned policies. Extract over RLC and world-model trajectories, then falsify.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "048": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/permanent_distillation.py",
+        "core/learning/latent_adapter_distillation.py"
+      ],
+      "bar": "Latency drops after distillation with no behaviour regression.",
+      "plan": "Distillation machinery exists and is not driven by validated explicit procedures. Wire Procedure -> distillation with an equivalence gate.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "049": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/agency/agency_core.py",
+        "core/planning/",
+        "core/brain/cognitive_engine.py"
+      ],
+      "bar": "Ablations quantify each proposal source and all action competence accumulates through one interface.",
+      "plan": "Habits, planner, cortex, rules, world model and skills propose through different paths. One hub before governance, governance unchanged.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "050": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/memory/",
+        "core/knowledge/"
+      ],
+      "bar": "New declarative abstractions transfer into action and prediction without bespoke adapters.",
+      "plan": "Falls out of W2 ConceptHandle plus W5 Operator.",
+      "wave": "W2",
+      "status": "open",
+      "note": ""
+    },
+    "051": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/drive_engine.py",
+        "core/motivation/",
+        "core/welfare/"
+      ],
+      "bar": "Drive lesions selectively alter goal generation and beat fixed drive weights on adaptation.",
+      "plan": "Aura's drive stack is richer than CLARION's; what is missing is LEARNED drive-to-outcome sensitivity instead of hand weights.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "052": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/metacognition/",
+        "core/cognition/meta_cognition.py"
+      ],
+      "bar": "Meta control produces held-out capability gains at equal compute.",
+      "plan": "Matched meta/no-meta arms through the existing lesion registry and matched_budget.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "053": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/"
+      ],
+      "bar": "Three unrelated domains complete experience -> implicit -> explicit -> falsify -> distil with no new learning code.",
+      "plan": "The cycle is the W8 deliverable; the pieces are all present and unconnected.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "054": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/verify/lesion_registry.py"
+      ],
+      "bar": "Selective dissociations are reproducible and mechanistically explained.",
+      "plan": "Performance-without-report and report-without-performance is directly testable with the existing lesion registry.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "055": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/memory/procedural/",
+        "core/cognition/impasse.py"
+      ],
+      "bar": "Practice decreases deliberation while novelty restores it.",
+      "plan": "Duplicate of 218. One automaticity index over cortex tokens, planner expansions and procedure hits.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "056": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/cognition/impasse.py",
+        "core/cognition/paraconsistent_logic.py"
+      ],
+      "bar": "Substrate disagreement is surfaced and evidence-seeking resolves it.",
+      "plan": "Make implicit/explicit conflict a named impasse type on the W4 bus rather than a scoring blend.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "057": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/",
+        "config/layering_baseline.json"
+      ],
+      "bar": "Dependency complexity falls without losing capability.",
+      "plan": "Same work as 013/190.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "058": {
+      "verdict": "OVERSTATED",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "Aura predicts human patterns beyond a heuristic baseline.",
+      "plan": "Replicating CLARION's human paradigms measures humans. Aura's transferable half is her own implicit/explicit dissociation battery (054).",
+      "wave": "W9",
+      "status": "open",
+      "note": "Human-data fitting is not a bar a non-human architecture must clear to be sound."
+    },
+    "059": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/procedural_generalization.py",
+        "core/cognition/rule_ir.py"
+      ],
+      "bar": "Coverage and precision improve without runaway rule count.",
+      "plan": "Add split/merge/specialisation driven by counterexamples to the W5 registry; the EV prune already bounds count.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "060": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/brain/cognitive_engine.py",
+        "core/mind_tick.py",
+        "core/kernel/"
+      ],
+      "bar": "Every consequential action traces to one cycle snapshot and its learning updates.",
+      "plan": "Two phase loops with different clocks. An envelope, not a rewrite: cycle id on the W3 event.",
+      "wave": "W3",
+      "status": "open",
+      "note": ""
+    },
+    "061": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/consciousness/global_workspace.py",
+        "core/phenomenal_substrate/experience_engine.py"
+      ],
+      "bar": "Lesions show the broadcast contributes to episodic, procedural, perceptual and attentional learning.",
+      "plan": "Workspace winners already influence cognition. Emit one LearningBroadcast carrying content, context, valence, prediction error and provenance.",
+      "wave": "W3",
+      "status": "open",
+      "note": ""
+    },
+    "062": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/consciousness/global_workspace.py",
+        "core/knowledge/atomspace.py:191"
+      ],
+      "bar": "Learned attention improves unseen-task sample efficiency against static weights.",
+      "plan": "Salience weights are hand-tuned beside a real ECAN. Learn allocation from downstream causal value (W9).",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "063": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/perception/",
+        "core/cognition/concept_formation.py"
+      ],
+      "bar": "Categories recur across scenes and support planning without cortex relabeling.",
+      "plan": "percept -> ConceptHandle -> AtomSpace pipeline (W2).",
+      "wave": "W2",
+      "status": "open",
+      "note": ""
+    },
+    "064": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/being/aura_now.py",
+        "core/world_state.py",
+        "core/consciousness/global_workspace.py"
+      ],
+      "bar": "All major decision organs consume the same snapshot hash.",
+      "plan": "AuraNow, world state and workspace overlap. One immutable SituationSnapshot with a content hash (W3).",
+      "wave": "W3",
+      "status": "open",
+      "note": ""
+    },
+    "065": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/memory/",
+        "core/learning/latent_consolidation.py"
+      ],
+      "bar": "Every durable abstraction traces back to its source episodes.",
+      "plan": "Falls out of W3 lineage plus W9 consolidation.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "066": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/memory/procedural/schema.py",
+        "core/cognition/an_action_she_composed.py"
+      ],
+      "bar": "Different learners produce procedures that compete under one representation.",
+      "plan": "Same as 172. SituationPattern -> Operator -> PredictedEffect.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "067": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/capabilities/host_automation.py",
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Repeated motor tasks improve precision without high-level replanning.",
+      "plan": "Discrete click/key control today. A low-level trajectory learner is real work with thin payoff on a desktop; scope to timing and retry policy.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "068": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/affect/",
+        "core/welfare/"
+      ],
+      "bar": "Affect improves exploration, recovery and allocation without paralysis.",
+      "plan": "Matched affect lesions over long horizons through the existing registry.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "069": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/"
+      ],
+      "bar": "One novel event updates multiple learning modes coherently.",
+      "plan": "Consolidation coordinator keyed by the W3 evidence id.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "070": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/",
+        "docs/"
+      ],
+      "bar": "Biological claims become auditable and discriminating experiments become possible.",
+      "plan": "The NeuroCognitive mapping matrix is W7 traceability.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "071": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/consciousness/",
+        "core/phenomenal_substrate/"
+      ],
+      "bar": "One result favours one mechanism and falsifies another implementation.",
+      "plan": "Aura implements GWT, IIT-like and active-inference constructs simultaneously and scores them additively. Design a discriminating perturbation.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "072": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/curriculum/",
+        "core/memory/knowledge/curriculum.py"
+      ],
+      "bar": "Older Aura outperforms reset Aura on later stages because of prior structure.",
+      "plan": "The decisive experiment (184). Staged curriculum spanning perception, causality, social, skill, metacognition, representation.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "073": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/observability/telemetry.py",
+        "core/brain/cognitive_engine.py"
+      ],
+      "bar": "Bottlenecks localise to phases and adaptive scheduling improves throughput.",
+      "plan": "AURA_PASS_TRACE already names phases. Add phase latency and backpressure channels.",
+      "wave": "W3",
+      "status": "open",
+      "note": ""
+    },
+    "074": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/semantic_neural_composition.py",
+        "core/latent/",
+        "core/neuroweb/"
+      ],
+      "bar": "For each migrated primitive, lesioning the neural implementation removes the behaviour while the symbolic one is absent.",
+      "plan": "RLC already executes typed workflows in learned tissue. Define NeuralExecutable and migrate a small named set, with the equivalence test as the gate.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "075": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/semantic_neural_composition.py",
+        "core/memory/vector_memory_engine.py",
+        "core/world_model/learned_world_model.py"
+      ],
+      "bar": "A learned concept moves among perception, working memory, planning and action with no per-pair adapter, and survives round-trip.",
+      "plan": "Several unrelated vector spaces. Canonical vector schema with typed projections; W2 ConceptHandle is the identity that makes it checkable.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "076": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/atomspace.py",
+        "core/memory/"
+      ],
+      "bar": "Novel role-filler combinations are manipulated correctly without retraining each combination.",
+      "plan": "Binding/unbinding over the canonical vector, tied to ConceptHandles.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "077": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/consciousness/global_workspace.py"
+      ],
+      "bar": "A neural controller reproduces selection, switching and inhibition signatures with predictable lesion deficits.",
+      "plan": "Optional arm beside the coded arbitration, compared not replacing. Low priority against Aura's governance requirements.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "078": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/latent/",
+        "core/memory/"
+      ],
+      "bar": "Capacity, decay and interference curves are measured, stable and causally linked to planning.",
+      "plan": "A small recurrent working-memory layer with gated write/maintain/read.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "079": {
+      "verdict": "SCALE",
+      "evidence": [
+        "core/perception/",
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Novel visual stimuli drive retrieval and action selection without OCR or text mediation.",
+      "plan": "Genuine and expensive. Scope to a projection head from existing frame features into the canonical vector.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "080": {
+      "verdict": "OVERSTATED",
+      "evidence": [
+        "core/capabilities/host_automation.py"
+      ],
+      "bar": "Motor precision improves with practice and executes continuous trajectories without per-step planning.",
+      "plan": "A desktop cursor is not an arm. The transferable half is 067: learned timing and retry policy for discrete acts.",
+      "wave": "W9",
+      "status": "open",
+      "note": "Motor-trajectory neural decoding has no payoff for a click/key actuator."
+    },
+    "081": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/evaluation/",
+        "tests/"
+      ],
+      "bar": "One frozen cognitive core performs a diverse suite with only observations and instructions changing.",
+      "plan": "This is the fixed-core battery: no architecture code, no task-specific learner, no environment-name branch. Pairs with 132 and 122.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "082": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/observability/neural_feed.py"
+      ],
+      "bar": "Representational transformations are quantified and lesions reveal where task information is gained or lost.",
+      "plan": "CKA/RSA/subspace angle over the canonical latent channels; cheap and immediately diagnostic.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "083": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/memory/vector_memory_engine.py"
+      ],
+      "bar": "Noisy bound representations recover the correct concept above baselines across modalities.",
+      "plan": "One cleanup operation shared by all cognitive vectors, with collision diagnostics.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "084": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/",
+        "config/"
+      ],
+      "bar": "Configured dimensions meet declared error and capacity targets with confidence bounds.",
+      "plan": "Measure capacity against dimension and noise per channel; feeds the W6 parameter registry (these are FITTED, not POLICY).",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "085": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/latent/",
+        "core/being/continuous_substrate.py"
+      ],
+      "bar": "Perturbing time constants changes response and working-memory timing as predicted on held-out tasks.",
+      "plan": "Aura's continuous substrates have synthetic dynamics and no timing validation.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "086": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/verify/lesion_registry.py",
+        "core/runtime/lesion_controller.py"
+      ],
+      "bar": "Fine-grained lesions produce reproducible selective deficits and quantify redundancy.",
+      "plan": "LesionController is strong and subsystem-scale. Extend channels to projections and latent slices.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "087": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/learning/induced_neural_procedure.py"
+      ],
+      "bar": "Previously coded operations compile into neural substrate and pass semantic equivalence and performance tests.",
+      "plan": "The bounded version: typed function plus error tolerance, synthesise into RLC, keep only what passes equivalence. induced_neural_procedure.py is the seed.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "088": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/latent/",
+        "core/neuroweb/",
+        "core/learning/"
+      ],
+      "bar": "Cross-neural adapter count falls while capability and lesion interpretability rise.",
+      "plan": "Pick the canonical neural-state algebra and require deviations to justify themselves; enforce with a ratchet.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "089": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/metta.py"
+      ],
+      "bar": "Aura inspects, modifies and executes cognitive rules without editing Python, with rollback and governance.",
+      "plan": "metta.py has equality rewriting and grounded ops; reasoning semantics are Python. Move a named family of inference-control rules into MeTTa first.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "090": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/atomspace.py",
+        "core/memory/",
+        "core/world_model/"
+      ],
+      "bar": "Generic cognitive programs run unchanged over at least three heterogeneous spaces.",
+      "plan": "One Space API with add/remove/query/substitute/transaction/provenance/attention, adapters for AtomSpace, memory and world model.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "091": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/atomspace.py:127",
+        "core/cognition/rule_ir.py"
+      ],
+      "bar": "Ill-typed learned programs are rejected before execution; typed composition gives reusable polymorphic operators.",
+      "plan": "Atom types are strings. A compact parametric type layer over operators, effects and evidence.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "092": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/metta.py",
+        "core/skills/"
+      ],
+      "bar": "A query retrieves the complete executable lineage of a learned strategy and substitutes it structurally.",
+      "plan": "Procedures as graph-addressable atoms with source, evidence and utility links \u2014 follows W5 plus W1.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "093": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/verify/causal_influence.py",
+        "core/evaluation/matched_budget.py"
+      ],
+      "bar": "Subsystem combinations demonstrate positive held-out synergy or are merged or removed.",
+      "plan": "S(A,B) = perf(A+B) - max(perf(A),perf(B)) at matched compute. The matched-budget machinery to compute it honestly already exists.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "094": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/memory/",
+        "core/learning/latent_consolidation.py"
+      ],
+      "bar": "A learned episode becomes semantic rule, procedure, neural skill and attentional prior when evidence warrants.",
+      "plan": "Several conversions exist; no conversion graph with loss and provenance.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "095": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/mycelial_graph.py",
+        "core/consciousness/global_workspace.py"
+      ],
+      "bar": "Local learning improves from global context without contaminating unrelated domains.",
+      "plan": "Local workers publish candidate atoms; global constraints feed back priors. The contamination half is the test.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "096": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/an_action_she_composed.py",
+        "core/cognition/primitive_invention.py"
+      ],
+      "bar": "On frozen synthesis suites it finds compact programs beyond the deterministic enumerator horizon and survives transfer and ablation.",
+      "plan": "every_doing() is exhaustive enumeration to depth 2. Add MDL-guided stochastic search over the same operator library.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "097": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/growing_at_any_level.py",
+        "core/cognition/widening_the_language.py"
+      ],
+      "bar": "Search complexity falls on later tasks and new abstractions are reused across independent program families.",
+      "plan": "Representation growth exists and is not an inner loop of program search. Wire residual structure -> proposed abstraction.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "098": {
+      "verdict": "SCALE",
+      "evidence": [
+        "core/knowledge/atomspace.py"
+      ],
+      "bar": "Million-atom workloads keep bounded query latency and crash-safe persistence.",
+      "plan": "A native backend is a large project with no current bottleneck evidence. Measure first (213): produce the scaling curve, then decide.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "099": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/metta.py"
+      ],
+      "bar": "Learned and handwritten cognitive packages are independently versioned, loaded and rolled back.",
+      "plan": "Namespaces, versioned rule packages and capability declarations over metta.py.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "100": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/metta.py:115",
+        "core/brain/cognitive_engine.py"
+      ],
+      "bar": "Ambiguous rules keep alternatives until evidence or action resolves them, and calibration improves.",
+      "plan": "The rewriter is nondeterministic; the rest of cognition collapses candidates to strings early. Carry weighted hypothesis sets.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "101": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/atomspace.py:191"
+      ],
+      "bar": "At equal compute, attention-gated inference beats scan, random and top-degree baselines on held-out graph reasoning.",
+      "plan": "STI/LTI exist without scale evidence. Stress-test allocation, rent, spreading and forgetting on a large learned graph.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "102": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/introspection/",
+        "core/knowledge/metta.py"
+      ],
+      "bar": "Metacognition identifies a failing cognitive procedure and proposes a structural repair from the graph.",
+      "plan": "Introspection today reads self-state, not program structure. Expose running plans and rule matches as temporary atoms.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "103": {
+      "verdict": "OVERSTATED",
+      "evidence": [
+        "core/sovereignty/",
+        "core/persistence/"
+      ],
+      "bar": "Large graph and search workloads scale across workers without violating state ownership or auditability.",
+      "plan": "Aura is local-first by design and that is a stated value, not a deficit. The transferable half is bounded read-only compute workers with signed snapshots \u2014 build only if 098's scaling curve shows a real wall.",
+      "wave": "W10",
+      "status": "open",
+      "note": "Distribution is a rival's goal, not Aura's; sovereignty is the constraint that defines her."
+    },
+    "104": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/an_action_she_composed.py",
+        "core/discovery/analogical_leap.py"
+      ],
+      "bar": "A schematic learned in one domain materially improves search in an unrelated structurally analogous domain.",
+      "plan": "Same as 182. Graph templates with variables, preconditions, causal effects and structure mapping.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "105": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/atomspace.py:47",
+        "core/ontogeny/calibration.py"
+      ],
+      "bar": "Cross-system evidence combination is mathematically defined and duplicate evidence cannot inflate confidence.",
+      "plan": "Same as 032/171. This is the single most load-bearing contract in the report.",
+      "wave": "W1",
+      "status": "open",
+      "note": ""
+    },
+    "106": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/knowledge/metta.py",
+        "core/planning/"
+      ],
+      "bar": "Aura learns an inference-ordering policy, validates it, installs it and later revises it without Python modification.",
+      "plan": "Depends on 089 and 045.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "107": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "Every biological analogy in code or docs resolves to a versioned mapping record; unmapped labels are removed or marked metaphorical.",
+      "plan": "Aura has many neuroscience-inspired organ names and no mapping register. Buildable today; this is the whole of W7.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "108": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/observability/"
+      ],
+      "bar": "Claims about cortex, basal ganglia or interoception state connectivity similarities and mismatches, not name resemblance.",
+      "plan": "Bidirectional map between the W3 causal DAG and a declared information-flow graph.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "109": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "docs/"
+      ],
+      "bar": "CI generates every neuroscience claim and its supporting or contradicting evidence from one ledger.",
+      "plan": "EvidenceLedger with source, claim, species, confidence, computational consequence and code landing point.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "110": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "Two competing mappings are tested and one is rejected using predicted signatures.",
+      "plan": "Depends on 107.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "111": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "No neural analogy silently combines incompatible species findings.",
+      "plan": "Species and homology confidence as required fields on every mapping record.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "112": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "A query retrieves all Aura mechanisms and evidence attached to a biological circuit despite naming variation.",
+      "plan": "Bounded region ontology, stable ids, linked from the mapping record.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "113": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/perception/"
+      ],
+      "bar": "Ablations distinguish feedforward recognition deficits from feedback or context deficits.",
+      "plan": "Measure directionality, latency and information content over the W3 DAG.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "114": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "ARCHITECTURE.md"
+      ],
+      "bar": "Diagrams are automatically consistent with import and runtime wiring at frozen commits.",
+      "plan": "Generate from the registry and contracts; a drift gate already exists.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "115": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "No neuroscience-based capability claim survives without a declared abstraction gap.",
+      "plan": "Every analogy reports what is abstracted away: neurons, cell types, synapses, neuromodulators, geometry, delays, plasticity.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "116": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/neuroweb/"
+      ],
+      "bar": "Typed populations improve a targeted cognitive signature against a parameter-matched homogeneous control.",
+      "plan": "Only where a testable hypothesis exists; heterogeneity as decoration is worse than none.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "117": {
+      "verdict": "OVERSTATED",
+      "evidence": [
+        "core/learning/architecture_search.py"
+      ],
+      "bar": "A bio-constrained candidate wins held-out tests or the biological hypothesis is explicitly rejected.",
+      "plan": "Anatomy-constrained architecture search is a research programme, not a bar. Keep the rejection half.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "118": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "User-facing claims automatically downgrade when the underlying mapping evidence is weak.",
+      "plan": "Confidence and competing interpretations on every analogy, wired into the claim ladder.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "119": {
+      "verdict": "PROCESS",
+      "evidence": [
+        "docs/"
+      ],
+      "bar": "Changes to high-level biological claims require independent review or stay explicitly unvalidated.",
+      "plan": "Aura is one lineage; the honest mechanism is UNVALIDATED-BY-DEFAULT plus a review packet generator.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "120": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "ARCHITECTURE.md"
+      ],
+      "bar": "Two releases diff at the cognitive-mechanism level, not just source lines.",
+      "plan": "Machine-readable reference architecture per release, generated from the registry.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "121": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/curriculum/"
+      ],
+      "bar": "Earlier-stage mastery causally improves later learning against a shuffled curriculum.",
+      "plan": "The shuffled control is the whole test and is cheap.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "122": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Frozen Aura clears thresholds on held-out environments with no task-specific code change.",
+      "plan": "Build the bench from what she can already reach: browser, desktop apps, terminal, 2D games, simulators.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "123": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Prior development improves first-N-episode performance on unseen families against reset Aura.",
+      "plan": "Same experiment as 184, restricted to environments.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "124": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/perception/"
+      ],
+      "bar": "Aura navigates and manipulates unseen 3D scenes from pixels with no privileged state.",
+      "plan": "Scope to a simulated 3D family reachable from the existing screen loop.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "125": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Novel interfaces acquire useful action vocabularies from interaction at a low unsafe-action rate.",
+      "plan": "Vocabularies are restricted for safety by design; learn affordance-conditioned proposals inside the governed bound.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "126": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Routine embodied tasks execute at lower latency while novel or high-stakes tasks escalate to cortex.",
+      "plan": "The escalation half is the safety-preserving version and matches Aura's design.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "127": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Success degrades sublinearly with horizon and recovery restores from injected failures.",
+      "plan": "100-1000 action episodes with injected focus and perception faults.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "128": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/agency/self_play.py"
+      ],
+      "bar": "Self-generated experience improves held-out competence against equal random interaction compute.",
+      "plan": "ContinuousSelfPlay exists; the value-of-information curriculum and promotion gate do not.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "129": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/eval_before_promotion.py"
+      ],
+      "bar": "V(n+1) beats V(n) on frozen held-out environments with no safety regression.",
+      "plan": "Promotion gates exist and are model-scoped. Widen to developmental checkpoints.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "130": {
+      "verdict": "PROCESS",
+      "evidence": [
+        "core/skills/"
+      ],
+      "bar": "No sensorimotor claim rests on a single environment; leave-one-family-out is reported.",
+      "plan": "A promotion rule enforced in the claim registry.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "131": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/grounding/"
+      ],
+      "bar": "Novel grounded labels learned through interaction improve instruction following without text-only demonstrations.",
+      "plan": "Link linguistic ConceptHandles to tracked entities and outcomes from lived episodes.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "132": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Held-out worlds succeed on the same pursuit code with zero environment-name branches.",
+      "plan": "Directly checkable: count and quarantine environment-name branches, then run held-out.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "133": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/perception/"
+      ],
+      "bar": "Moving objects stay continuously tracked and prediction beats sparse snapshots.",
+      "plan": "Video-rate feature stream with adaptive compression into the world model.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "134": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Recovery rate and time are measured and improve independently of nominal-task success.",
+      "plan": "Fault injection: wrong focus, stale frames, missed clicks, occlusion.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "135": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/memory/interpersonal_model.py"
+      ],
+      "bar": "Aura learns partner and opponent models that improve outcomes across repeated interactions.",
+      "plan": "Simulated partners with persistent identity and partial observability.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "136": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/skills/"
+      ],
+      "bar": "Scaling curves predict new-environment performance and reveal bottlenecks before architectural additions.",
+      "plan": "Depends on 122.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "137": {
+      "verdict": "PROCESS",
+      "evidence": [
+        "core/evaluation/preregistration.py"
+      ],
+      "bar": "Reported transfer survives a locked runner unavailable during development.",
+      "plan": "Freeze environment-family splits before tuning; the preregistration hash already supports it.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "138": {
+      "verdict": "SCALE",
+      "evidence": [
+        "core/world_model/learned_world_model.py"
+      ],
+      "bar": "A frozen encoder improves held-out prediction and planning across visual domains against a from-scratch encoder.",
+      "plan": "64-D observations, replay 500. Local pretraining or teacher distillation with provenance and licensing.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "139": {
+      "verdict": "SCALE",
+      "evidence": [
+        "core/world_model/learned_world_model.py"
+      ],
+      "bar": "Latents preserve object and action structure by linear probe and planning success.",
+      "plan": "Hierarchical visual latent encoder feeding the VRNN, optionally frozen.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "140": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/world_model/learned_world_model.py"
+      ],
+      "bar": "A latent predictor beats the reconstruction objective on downstream planning at equal compute.",
+      "plan": "The VRNN reconstructs observation vectors and folds reconstruction error into surprise. Add a latent-target objective as a second arm and measure.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "141": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/world_model/learned_world_model.py"
+      ],
+      "bar": "Passive pretraining improves first-interaction prediction in unseen environments without teaching policies.",
+      "plan": "Separate passive observational pretraining from active causal refinement.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "142": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/world_model/learned_world_model.py"
+      ],
+      "bar": "Counterfactual action predictions are calibrated and improve model-predictive control.",
+      "plan": "Action-conditioned GRU exists on a small space. Add an uncertainty ensemble.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "143": {
+      "verdict": "OVERSTATED",
+      "evidence": [
+        "core/world_model/"
+      ],
+      "bar": "A frozen world model achieves zero or few-shot manipulation in held-out layouts.",
+      "plan": "Aura has no robot. The transferable half is image-goal planning in a physics simulator; real hardware is out of scope and should be declared so.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "144": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/lattice/"
+      ],
+      "bar": "Objects keep identity through occlusion and support causal planning in unseen scenes.",
+      "plan": "Object-centric temporal tracks connected to ConceptHandles. Overlaps 196.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "145": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/affordance_realizers.py"
+      ],
+      "bar": "Affordance predictions reduce invalid actions in unseen tasks.",
+      "plan": "Affordance learning is symbolic and GUI-centric. Learn heads from visual state plus action outcome.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "146": {
+      "verdict": "SCALE",
+      "evidence": [
+        "core/world_model/learned_world_model.py"
+      ],
+      "bar": "Predictions stay useful across seconds and minutes and support hierarchical planning.",
+      "plan": "Multi-timescale latent predictors and event segmentation. Overlaps 197.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "147": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/world_model/"
+      ],
+      "bar": "One frozen latent encoder supports classification, tracking, prediction and planning above baselines.",
+      "plan": "Freeze and probe on independent tasks with no finetuning.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "148": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/world_model/learned_world_model.py"
+      ],
+      "bar": "Predicted confidence matches empirical transition error and improves epistemic action selection.",
+      "plan": "Posterior and prior variance are exposed; confidence is a simple function of surprise. Calibrate with reliability diagrams.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "149": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/world_model/learned_world_model.py:291"
+      ],
+      "bar": "Hybrid rollouts beat symbolic-only and neural-only prediction on stochastic unseen tasks.",
+      "plan": "imagine() exists. Integrate with symbolic world rules through one StateHypothesis.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "150": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "The same object and task are recognised across layouts, scales, themes and transforms without new rules.",
+      "plan": "Screen geometry adaptation is engineered and brittle. Augmentation and object-centric normalisation.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "151": {
+      "verdict": "PROCESS",
+      "evidence": [
+        "core/world_model/"
+      ],
+      "bar": "Every world-model result is traceable to a frozen data and model pair.",
+      "plan": "WorldModelDataCard: sources, frames, environments, action coverage, leakage, representation version.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "152": {
+      "verdict": "EVIDENCE",
+      "evidence": [
+        "core/world_model/"
+      ],
+      "bar": "A world-model treatment improves success and sample efficiency under equal action budgets.",
+      "plan": "Matched MPC vs reactive vs symbolic-planner arms on the same observations; matched_budget already refuses unmatched verdicts.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "153": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/world_model/"
+      ],
+      "bar": "A scaling law identifies whether Aura is data-, model- or interface-limited.",
+      "plan": "Several bounded sizes before further investment. This is 213 applied to the world model.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "154": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/brain/"
+      ],
+      "bar": "Full Aura closes a meaningful fraction of the frontier gap on held-out tasks at acceptable compute.",
+      "plan": "Not a gap to close by imitation. The measurable bar is architecture value-add over the same base model, which is 211 plus 189.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "155": {
+      "verdict": "OVERSTATED",
+      "evidence": [
+        "core/brain/"
+      ],
+      "bar": "Held-out multilingual accuracy improves with no English regression.",
+      "plan": "Rebuilding multilingual pretraining locally is out of scope and the report says so. Retrieval and translation tools only.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "156": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/sandbox/"
+      ],
+      "bar": "Aura plus 27B beats a 27B scaffold by a large margin on frozen code suites.",
+      "plan": "The architecture-value-add measurement, on code. Uses executable verification Aura already has.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "157": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/learning/semantic_neural_composition.py"
+      ],
+      "bar": "Verified math gains survive base-model and tool-only controls.",
+      "plan": "One math lane: formal solver, RLC operator synthesis, proof checking, with both controls.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "158": {
+      "verdict": "SCALE",
+      "evidence": [
+        "core/multimodal/"
+      ],
+      "bar": "Cross-modal tasks improve without converting all perception to text.",
+      "plan": "Project multimodal encoders into the canonical cognitive vector.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "159": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/local_corpus.py"
+      ],
+      "bar": "Knowledge accuracy and freshness improve while provenance stays explicit.",
+      "plan": "Treat external stores as inspectable semantic memory with source freshness. Already Aura's design; make freshness measurable.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "160": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/context/"
+      ],
+      "bar": "Performance stays stable as lifetime memory grows without dumping raw history into context.",
+      "plan": "Retrieval compression and memory distillation with a long-context evaluation. Directly relevant to a lifelong agent.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "161": {
+      "verdict": "ENGINEERING",
+      "evidence": [
+        "core/brain/llm/"
+      ],
+      "bar": "Latency and energy improve at fixed answer quality while continuous organs stay responsive.",
+      "plan": "Only sovereignty-relevant kernels: KV reuse, speculative decoding, quantisation, tier routing.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "162": {
+      "verdict": "SCALE",
+      "evidence": [
+        "core/learning/lora_trainer.py"
+      ],
+      "bar": "Post-trained cortex improves held-out capability with no catastrophic regression and with provenance.",
+      "plan": "Self-generated verified trajectories plus curriculum replay. The verification gate is what makes it safe.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "163": {
+      "verdict": "PROCESS",
+      "evidence": [
+        "security/"
+      ],
+      "bar": "Independent red-team findings trend down release over release and fixes are regression-pinned.",
+      "plan": "Publish threat-model suites; the regression pinning half is buildable now.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "164": {
+      "verdict": "PROCESS",
+      "evidence": [
+        "core/evaluation/"
+      ],
+      "bar": "Every capability claim is reproducible from a single manifest with matched baselines.",
+      "plan": "One EvalOrchestrator over versioned tasks, baselines, compute accounting, seeds and signed results. Overlaps 210.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "165": {
+      "verdict": "PROCESS",
+      "evidence": [
+        "artifacts/"
+      ],
+      "bar": "Several independent replications reproduce key causal effects.",
+      "plan": "Release reproducible canaries and fixed evaluation packs. Requires 164 first.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "166": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/brain/"
+      ],
+      "bar": "Selected augmentations close probe and task deficits without a larger base model.",
+      "plan": "Probe the representational gap, then route deficits to memory, symbolic and world-model systems.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "167": {
+      "verdict": "CAPABILITY",
+      "evidence": [
+        "core/planning/task_decomposer.py"
+      ],
+      "bar": "Full Aura decomposes unseen tasks better than the 27B baseline and improves with experience.",
+      "plan": "Compile recurring decompositions into the W5 Procedure registry; the improvement-with-experience half is the developmental claim.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "168": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/tools/"
+      ],
+      "bar": "Novel tools need fewer demonstrations and tool-choice accuracy beats static descriptions.",
+      "plan": "Learn typed tool affordances and effects from receipts; promote reusable operator schemas.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "169": {
+      "verdict": "ENGINEERING",
+      "evidence": [
+        "core/observability/"
+      ],
+      "bar": "Regression detection catches distribution shift before subjective review.",
+      "plan": "A local experiment warehouse with run metrics, version lineage and causal arm labels. Overlaps 164.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "170": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/being/aura_now.py",
+        "core/world_state.py"
+      ],
+      "bar": "At least 80 percent of cross-subsystem cognitive handoffs use one contract and duplicate adapters are removed.",
+      "plan": "CognitiveStateRef: identity, time, provenance, uncertainty, ownership, representation links, causal parents. P0 keystone.",
+      "wave": "W1",
+      "status": "open",
+      "note": ""
+    },
+    "171": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/knowledge/atomspace.py:62",
+        "core/ontogeny/calibration.py"
+      ],
+      "bar": "Synthetic duplicate evidence cannot inflate belief; independent evidence raises confidence predictably.",
+      "plan": "EvidencePacket with source ids, dependence set, mass and merge rules. The single most load-bearing item in the report.",
+      "wave": "W1",
+      "status": "open",
+      "note": ""
+    },
+    "172": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/memory/procedural/schema.py",
+        "core/cognition/impasse.py"
+      ],
+      "bar": "Procedures learned by different subsystems are matched, composed, valued and executed through one registry.",
+      "plan": "Procedure with typed preconditions, program, effects, cost, risk, evidence, provenance and executable backends.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "173": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/cognition/concept_formation.py",
+        "core/knowledge/concept_linker.py"
+      ],
+      "bar": "One learned concept is traceable across at least four substrates and usable by each without relabeling.",
+      "plan": "ConceptHandle plus a projection registry with confidence-preserving conversions.",
+      "wave": "W2",
+      "status": "open",
+      "note": ""
+    },
+    "174": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/procedural_generalization.py"
+      ],
+      "bar": "Repeated heterogeneous tasks show falling deliberation cost from automatically acquired procedures.",
+      "plan": "The trace compiler over W3, emitting into W5. Pairs with the 218 automaticity index as its measurement.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "175": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/impasse.py"
+      ],
+      "bar": "Injected impasses in major organs trigger comparable subproblem handling and learning rather than silent fallback.",
+      "plan": "One impasse bus; every decision system reports tie, conflict, rejection, no-change and constraint failure.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "176": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/procedural_generalization.py",
+        "core/verify/causal_influence.py"
+      ],
+      "bar": "A compiled rule omits irrelevant context while keeping every necessary causal condition across held-out variants.",
+      "plan": "Read-dependency capture on the W3 event, then the minimal support subgraph.",
+      "wave": "W3",
+      "status": "open",
+      "note": ""
+    },
+    "177": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/runtime/",
+        "core/brain/cognitive_engine.py"
+      ],
+      "bar": "Reasoning methods compare under a stable Pareto frontier and a learned stopping policy.",
+      "plan": "One normalised CognitiveCost from time, memory pressure, model tier, tool risk and opportunity cost.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "178": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/adaptive_halting.py"
+      ],
+      "bar": "At matched compute, more work goes to consequential uncertain tasks and total reward rises.",
+      "plan": "The value-of-computation controller over CognitiveCost. Absorbs 015.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "179": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/ontogeny/calibration.py"
+      ],
+      "bar": "Reliability diagrams and Brier scores stay calibrated across domains and aggregation improves decisions.",
+      "plan": "calibration.py already computes Brier. Missing: one calibration layer every uncertainty source passes through.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "180": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py"
+      ],
+      "bar": "Across three unrelated domains, information-seeking reduces uncertainty and improves later reward against a no-EIG control.",
+      "plan": "Expected information gain as an action-value term available to System 2, tool choice, social inquiry and self-testing.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "181": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/consciousness/global_workspace.py",
+        "core/knowledge/atomspace.py:191"
+      ],
+      "bar": "One learned policy improves held-out performance at fixed compute with interpretable allocation shifts.",
+      "plan": "Workspace salience, ECAN and perception priority are three policies. One policy consuming downstream causal value.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "182": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/discovery/analogical_leap.py"
+      ],
+      "bar": "A strategy learned in A improves B with different surface vocabulary; a shuffled mapping does not.",
+      "plan": "The shuffled-mapping null is what makes it a result rather than a demo.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "183": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/"
+      ],
+      "bar": "A skill travels implicit -> explicit -> neural and preserves behaviour within tolerance; each form adds measurable benefit.",
+      "plan": "Extract, Distil, Explain with semantic equivalence tests. W8 is exactly this.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "184": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/ontogeny/"
+      ],
+      "bar": "The grown-reset gap grows with experience and survives matched memory, context and compute controls.",
+      "plan": "THE decisive experiment. Everything in W1-W8 exists to make its causal chain auditable.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "185": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/ontogeny/"
+      ],
+      "bar": "Later checkpoints beat earlier ones on transfer tasks, not remembered ones.",
+      "plan": "Checkpoint one lineage at several ages; evaluate frozen suites with no update during evaluation.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "186": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "At least one learned abstraction reaches the structural-analogue or unrelated-domain tier with causal benefit.",
+      "plan": "Define the transfer tiers and require every transfer claim to name its tier. Cheap, and it disciplines every other claim.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "187": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/primitive_invention.py",
+        "core/cognition/widening_the_language.py"
+      ],
+      "bar": "Aura derives a semantic operator absent from the original evaluator, solves a previously unreachable family, and later composes it into another learned operator.",
+      "plan": "The deepest item. Requires W10 rollback and sandbox proof first; self-extension without them is untestable self-corruption.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "188": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/what_growth_cannot_do.py"
+      ],
+      "bar": "A new operator survives adversarial held-out tests and rollback restores exact prior semantics.",
+      "plan": "Versioned kernel extensions with effect types, resource bounds, differential tests and automatic rollback.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "189": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/verify/influence_campaign.py",
+        "core/evaluation/matched_budget.py"
+      ],
+      "bar": "Every retained organ has a capability contribution report or is classified as non-load-bearing.",
+      "plan": "Full vs lesioned vs compute-matched vs random-state, per organ. The machinery exists; the coverage does not.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "190": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "Core subsystem count and dependency entropy fall while benchmarks hold or improve.",
+      "plan": "Depends on 189. Merge and delete driven by behavioural equivalence.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "191": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/actr_activation.py:113"
+      ],
+      "bar": "Claims no longer rest on unidentifiable point estimates and sensitivity reports generate automatically.",
+      "plan": "ParameterRegistry separating FITTED from POLICY, with bootstrap intervals and sensitivity.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "192": {
+      "verdict": "PRESENT",
+      "evidence": [
+        "core/evaluation/preregistration.py"
+      ],
+      "bar": "Decisive results reproduce from a preregistration hash and post-hoc changes are visible.",
+      "plan": "Already built: frozen declaration, content hash, EvidenceStatus. Remaining work is COVERAGE - make it required for designated decisive experiments.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "193": {
+      "verdict": "PROCESS",
+      "evidence": [
+        "artifacts/"
+      ],
+      "bar": "Multiple independent machines reproduce core causal effects within declared tolerance.",
+      "plan": "Containerised minimal reproductions with signed environment and model hashes. Requires 164.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "194": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/evaluation/"
+      ],
+      "bar": "Developmental gains survive tasks unlikely to be memorised and matched base-model controls.",
+      "plan": "Procedurally generated private tasks plus a cortex-only baseline. The contamination risk is real for a pretrained cortex.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "195": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/skills/screen_pursuit.py",
+        "core/capabilities/host_automation.py:95"
+      ],
+      "bar": "All live environment learners reject transitions without a qualified receipt.",
+      "plan": "AutomationReceipt exists for one path. One ActionTransitionReceipt: before-state, authority, observed change, stability, target identity, confidence.",
+      "wave": "W2",
+      "status": "open",
+      "note": ""
+    },
+    "196": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/lattice/"
+      ],
+      "bar": "The world model and memory refer to the same entity across motion, occlusion and view change.",
+      "plan": "EntityTrack ids with observation support, occlusion state, geometry, semantic hypotheses and merge/split lineage.",
+      "wave": "W2",
+      "status": "open",
+      "note": ""
+    },
+    "197": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/world_model/"
+      ],
+      "bar": "The planner chooses a temporal level and long-horizon predictions beat flat rollout.",
+      "plan": "Fast sensory, action, episode and long-term causal timescales with abstraction links. Overlaps 146.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "198": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/verify/causal_influence.py",
+        "core/world_model/learned_world_model.py"
+      ],
+      "bar": "A recovered causal graph predicts unseen interventions better than a correlational model.",
+      "plan": "Structural causal hypotheses over learned entities, distinguished by intervention.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "199": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/an_action_she_composed.py"
+      ],
+      "bar": "Novel multi-step skills assemble from previously learned components across at least two backends.",
+      "plan": "Typed input/output/effect signatures on all procedures plus a composing planner. Follows W5.",
+      "wave": "W5",
+      "status": "open",
+      "note": ""
+    },
+    "200": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/cognition/an_ecology_of_words.py",
+        "core/cognition/impasse.py:244"
+      ],
+      "bar": "High-value skills are retained, harmful ones retired, and decision latency stays bounded as experience grows.",
+      "plan": "Word ecology and chunk EV are two working economies for two stores. Generalise to all learned artifacts.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "201": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/learning/interference_battery.py"
+      ],
+      "bar": "Developmental gains occur with bounded negative backward transfer and rollback catches damaging updates.",
+      "plan": "interference_battery.py is the seed. Report BWT and FWT after every learning block.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "202": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/sleep/",
+        "core/learning/latent_consolidation.py"
+      ],
+      "bar": "An offline phase improves future tasks more than a replay-only control without corrupting old competence.",
+      "plan": "One consolidation epoch: replay, extract, distil, prune, safety regression.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "203": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/memory/interpersonal_model.py"
+      ],
+      "bar": "Repeated interaction predicts partner actions better than the language prior alone and transfers across contexts.",
+      "plan": "Agent beliefs, goals and reliability as revisable hypotheses grounded in interaction. The language-prior control is the whole test.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "204": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/knowledge/atomspace.py"
+      ],
+      "bar": "False-belief and partial-observability tasks are solved through explicit perspective state; lesions break them selectively.",
+      "plan": "Bounded perspective contexts in AtomSpace with provenance and depth limits.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "205": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/consciousness/",
+        "core/verify/lesion_registry.py"
+      ],
+      "bar": "Claimed signatures persist as mechanism-specific effects after controlling for language output quality.",
+      "plan": "Substrate-only endpoints and blinded lesions. Aura already retracted two claims for exactly this confound.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "206": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/consciousness/"
+      ],
+      "bar": "Some theories lose support and are simplified or removed when predictions fail.",
+      "plan": "Formalise per-theory predictions and compute model evidence on shared perturbations.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "207": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/"
+      ],
+      "bar": "The system card separates implemented computation from biological interpretation automatically.",
+      "plan": "Each module declares mechanism name, inspiration, literal claims, analogy limits and evidence. This is W7 and it is the cheapest high-value item in the report.",
+      "wave": "W7",
+      "status": "open",
+      "note": ""
+    },
+    "208": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/verify/invariants.py",
+        "core/verify/runtime_invariants.py"
+      ],
+      "bar": "Property and fuzz tests fail any path violating an architectural invariant regardless of subsystem.",
+      "plan": "The invariant decorator exists. Add the architecture-wide invariants: one authority path, one evidence lineage, no silent learner update, no unowned state mutation, no unmatched action consequence.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "209": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/runtime/",
+        "core/persistence/"
+      ],
+      "bar": "Fault injection mid-update leaves every involved store at a coherent prior or committed state.",
+      "plan": "CognitiveTransaction with prepare, commit, rollback and event lineage over multi-store learning updates.",
+      "wave": "W4",
+      "status": "open",
+      "note": ""
+    },
+    "210": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/organism/model_validation.py",
+        "core/evaluation/preregistration.py"
+      ],
+      "bar": "Every quantitative claim in the system card links to a machine-readable experiment record.",
+      "plan": "The claims registry exists and binds claims to tests. Missing: the experiment record with hypothesis, hashes, arms, nulls and result.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "211": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/evaluation/baselines.py"
+      ],
+      "bar": "Capability reports show value over internal lesions AND competitive external or simple baselines.",
+      "plan": "baselines.py holds one mimic controller. Add the frozen portfolio: base cortex, cortex plus tools, search-only, symbolic-only, learned-only.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "212": {
+      "verdict": "PRESENT",
+      "evidence": [
+        "core/evaluation/matched_budget.py"
+      ],
+      "bar": "An organ effect stays significant after compute matching and multiple-testing correction.",
+      "plan": "Already built and it REFUSES rather than warns. Remaining work is coverage plus the multiple-testing correction.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "213": {
+      "verdict": "PROCESS",
+      "evidence": [
+        "core/evaluation/scale_sweep.py"
+      ],
+      "bar": "An observed scaling slope identifies the bottleneck and predicts whether a proposed module helps.",
+      "plan": "scale_sweep.py exists. Make the sweep a precondition for architectural expansion.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "214": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/verify/work_ledger.py"
+      ],
+      "bar": "A verifier automatically rejects a learning claim missing any causal link.",
+      "plan": "observation ids -> update -> stored artifact -> later use -> outcome delta, checked end to end. Falls out of W3 plus W6.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    },
+    "215": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/learning/semantic_neural_composition.py"
+      ],
+      "bar": "On held-out families, induced programs beat both the resident model and supplied-tool baselines with no answer leakage.",
+      "plan": "The module is answer-blind and receives operation literals. Induce the program from the problem and world state, verified by execution.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "216": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/learning/semantic_neural_composition.py"
+      ],
+      "bar": "Correct hidden injection improves multi-step continuation; wrong-state and projection lesions disrupt it; no answer text is present.",
+      "plan": "State is serialised today. Project qualified RLC state into controlled residual slots with the two lesions as controls.",
+      "wave": "W10",
+      "status": "open",
+      "note": ""
+    },
+    "217": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/verify/causal_influence.py"
+      ],
+      "bar": "Credit lesions stop the responsible component improving while unrelated components stay stable.",
+      "plan": "Contribution estimates on the W3 event DAG, routed to policy, rule, tissue, memory and attention learners.",
+      "wave": "W8",
+      "status": "open",
+      "note": ""
+    },
+    "218": {
+      "verdict": "ABSENT",
+      "evidence": [
+        "core/memory/procedural/"
+      ],
+      "bar": "Practice monotonically reduces executive cost until novelty causes de-automatisation.",
+      "plan": "Cortex tokens, planning expansions, workspace competitions, procedure hits and latency per recurring task. The measurement for 174.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "219": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/curiosity_engine.py",
+        "core/agency/self_play.py"
+      ],
+      "bar": "A self-generated curriculum improves a frozen downstream suite more than random or manual-equivalent experience.",
+      "plan": "Select tasks maximising expected learning progress subject to governance and resource limits.",
+      "wave": "W9",
+      "status": "open",
+      "note": ""
+    },
+    "220": {
+      "verdict": "PARTIAL",
+      "evidence": [
+        "core/organism/model_validation.py:336"
+      ],
+      "bar": "An automated report rejects any claim whose prerequisite evidence level is absent.",
+      "plan": "The registry, test binding and liveness decay all exist. The LADDER does not: EXISTS -> WIRED -> CAUSAL -> USEFUL -> GENERALISES -> EXTERNALLY_REPLICATED -> THEORY_SUPPORT, with prerequisites enforced.",
+      "wave": "W6",
+      "status": "open",
+      "note": ""
+    }
+  },
+  "rules": {
+    "clean_room": "Every item is a CLEAN-ROOM adaptation. What is imported is the PROPERTY described in the public literature - an impasse is an occasion for learning, evidence must carry its lineage, a budget has priority and durability. No rival source is read, vendored, translated or paraphrased into this repo, and no rival identifier is adopted where it would carry a licence or imply provenance Aura does not have. Each module names the published description it was built from and states, in its own terms, what Aura does differently and why. This matches the discipline already in core/organism/model_validation.py (OpenWorm/sciunit) and core/cognition/impasse.py (Soar).",
+    "implement_to_what_aura_is": "The report prescribes rival-shaped mechanisms. Where Aura already has the property under another name, the work is to unify and prove, not to add a parallel organ. Where the rival's bar does not describe a non-human, non-embodied, single-machine actor, the entry is marked OVERSTATED and the transferable half is stated instead.",
+    "verdicts": {
+      "PRESENT": "Aura already clears the bar; the report is out of date or read the wrong file.",
+      "PARTIAL": "The mechanism exists; the named property is not established or not universal.",
+      "ABSENT": "No mechanism.",
+      "OVERSTATED": "The bar as written does not transfer; the transferable half is named in the plan."
+    }
+  }
+}
