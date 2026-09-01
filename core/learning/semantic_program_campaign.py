@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Final
 
+from core.brain.llm.hidden_sequence_contract import hidden_sequence_channel_widths
 from core.learning.semantic_program_evaluation import (
     coefficient_lesion,
     evaluate_semantic_program_transducer,
@@ -57,6 +58,11 @@ def training_examples_from_feature_bundle(
             topology_id=str(item.metadata["topology_id"]),
             public_inputs=tuple(
                 normalize_semantic_value(value) for value in item.metadata["inputs"]
+            ),
+            hidden_channels=tuple(item.metadata["worker_receipt"]["channels"]),
+            hidden_channel_widths=hidden_sequence_channel_widths(
+                str(item.metadata["worker_receipt"]["representation"]),
+                int(item.metadata["hidden_size"]),
             ),
         )
         for item in bundle.examples

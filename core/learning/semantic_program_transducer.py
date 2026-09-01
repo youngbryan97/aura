@@ -20,6 +20,7 @@ import json
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import combinations
 from typing import Any, Final
 
 import numpy as np
@@ -36,11 +37,15 @@ LEGACY_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v1"
 SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v2"
 TYPED_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v3"
 SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v4"
+MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v5"
 LEGACY_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v1"
 SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v2"
 TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v3"
 SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = (
     "aura.semantic_program_transducer_receipt.v4"
+)
+MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = (
+    "aura.semantic_program_transducer_receipt.v5"
 )
 SEMANTIC_TRANSDUCER_INPUTS: Final = 3
 SEMANTIC_TRANSDUCER_STEPS: Final = 2
@@ -98,6 +103,23 @@ _RECEIPT_FIELDS_V2: Final = _RECEIPT_FIELDS | {
 }
 _RECEIPT_FIELDS_V3: Final = _RECEIPT_FIELDS_V2 | {"argument_arities"}
 _RECEIPT_FIELDS_V4: Final = _RECEIPT_FIELDS_V3 | {"operation_support_by_step"}
+_RECEIPT_FIELDS_V5: Final = _RECEIPT_FIELDS_V4 | {
+    "hidden_channels",
+    "hidden_channel_widths",
+    "operation_feature_selection_by_step",
+}
+
+_FINAL_CAUSAL_CHANNEL: Final = "final_causal_hidden"
+_LEXICAL_CHANNEL: Final = "input_token_embedding"
+_OPERATION_FEATURE_MODES: Final = (
+    "span_mean",
+    "lexical_mean",
+    "contextual_mean",
+    "contextual_last",
+    "lexical_mean_contextual_last",
+    "lexical_mean_contextual_mean_contextual_last",
+)
+_MAX_OPERATION_VIEWS: Final = 3
 
 
 def _sha(value: Any) -> str:
@@ -175,6 +197,8 @@ class SemanticTransducerTrainingExample:
     construction_id: str
     topology_id: str
     public_inputs: tuple[SemanticValue, ...]
+    hidden_channels: tuple[str, ...] = ()
+    hidden_channel_widths: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
         hidden = _hidden_array(self.hidden_states)
@@ -193,7 +217,22 @@ class SemanticTransducerTrainingExample:
             raise ValueError("semantic transducer split is invalid")
         if not self.construction_id or not self.topology_id:
             raise ValueError("semantic transducer provenance is incomplete")
+        channels = self.hidden_channels or (_FINAL_CAUSAL_CHANNEL,)
+        channel_widths = self.hidden_channel_widths or (hidden.shape[1],)
+        if (
+            not isinstance(channels, tuple)
+            or not channels
+            or len(set(channels)) != len(channels)
+            or any(not isinstance(channel, str) or not channel for channel in channels)
+            or not isinstance(channel_widths, tuple)
+            or len(channel_widths) != len(channels)
+            or any(type(width) is not int or width < 1 for width in channel_widths)
+            or sum(channel_widths) != hidden.shape[1]
+        ):
+            raise ValueError("semantic transducer hidden channels are invalid")
         object.__setattr__(self, "hidden_states", hidden)
+        object.__setattr__(self, "hidden_channels", channels)
+        object.__setattr__(self, "hidden_channel_widths", channel_widths)
 
 
 @dataclass(frozen=True, slots=True)
@@ -302,15 +341,21 @@ class LinearClassifierHead:
         return int(self.weight.shape[1])
 
     def predict(self, feature: np.ndarray) -> tuple[str, float]:
+        probabilities = self.predict_probabilities(feature)
+        winner = int(np.argmax(probabilities))
+        return self.labels[winner], float(probabilities[winner])
+
+    def predict_probabilities(self, feature: np.ndarray) -> np.ndarray:
+        """Return a stable class distribution for auditable view ensembles."""
+
         vector = np.asarray(feature, dtype=np.float32).reshape(-1)
         if vector.shape != (self.width,) or not np.all(np.isfinite(vector)):
             raise ValueError("semantic classifier feature is invalid")
         logits = self.weight @ vector + self.bias
-        winner = int(np.argmax(logits))
         shifted = logits - float(np.max(logits))
         probabilities = np.exp(shifted)
         probabilities /= float(np.sum(probabilities))
-        return self.labels[winner], float(probabilities[winner])
+        return probabilities
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -318,6 +363,176 @@ class LinearClassifierHead:
             "weight": self.weight.tolist(),
             "bias": self.bias.tolist(),
         }
+
+
+@dataclass(frozen=True, slots=True)
+class MultiViewClassifierHead:
+    """Average independently fit semantic views without mixing their geometry."""
+
+    modes: tuple[str, ...]
+    heads: tuple[LinearClassifierHead, ...]
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.modes, tuple)
+            or not 1 <= len(self.modes) <= _MAX_OPERATION_VIEWS
+            or len(set(self.modes)) != len(self.modes)
+            or any(mode not in _OPERATION_FEATURE_MODES for mode in self.modes)
+            or not isinstance(self.heads, tuple)
+            or len(self.heads) != len(self.modes)
+            or any(head.labels != self.heads[0].labels for head in self.heads[1:])
+        ):
+            raise ValueError("semantic multiview classifier is invalid")
+
+    @property
+    def labels(self) -> tuple[str, ...]:
+        return self.heads[0].labels
+
+    def predict(self, features: Sequence[np.ndarray]) -> tuple[str, float]:
+        if len(features) != len(self.heads):
+            raise ValueError("semantic multiview features differ from their head")
+        probabilities = np.mean(
+            np.stack(
+                [
+                    head.predict_probabilities(feature)
+                    for head, feature in zip(self.heads, features, strict=True)
+                ]
+            ),
+            axis=0,
+        )
+        winner = int(np.argmax(probabilities))
+        return self.labels[winner], float(probabilities[winner])
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": "aura.semantic_program_multiview_classifier.v1",
+            "modes": list(self.modes),
+            "heads": [head.to_dict() for head in self.heads],
+        }
+
+
+def _channel_width(
+    name: str,
+    *,
+    hidden_channels: Sequence[str],
+    hidden_channel_widths: Sequence[int],
+) -> int:
+    try:
+        index = tuple(hidden_channels).index(name)
+    except ValueError as exc:
+        raise ValueError(f"semantic operation feature needs missing channel: {name}") from exc
+    return int(hidden_channel_widths[index])
+
+
+def _operation_feature_width(
+    mode: str,
+    *,
+    hidden_channels: Sequence[str],
+    hidden_channel_widths: Sequence[int],
+) -> int:
+    total = sum(hidden_channel_widths)
+    lexical = _channel_width(
+        _LEXICAL_CHANNEL,
+        hidden_channels=hidden_channels,
+        hidden_channel_widths=hidden_channel_widths,
+    )
+    contextual = _channel_width(
+        _FINAL_CAUSAL_CHANNEL,
+        hidden_channels=hidden_channels,
+        hidden_channel_widths=hidden_channel_widths,
+    )
+    widths = {
+        "span_mean": total,
+        "lexical_mean": lexical,
+        "contextual_mean": contextual,
+        "contextual_last": contextual,
+        "lexical_mean_contextual_last": lexical + contextual,
+        "lexical_mean_contextual_mean_contextual_last": lexical + 2 * contextual,
+    }
+    try:
+        return widths[mode]
+    except KeyError as exc:
+        raise ValueError("semantic operation feature mode is unsupported") from exc
+
+
+def _normalized_feature(value: np.ndarray) -> np.ndarray:
+    vector = np.asarray(value, dtype=np.float32).reshape(-1)
+    norm = float(np.linalg.norm(vector))
+    return vector / norm if norm > 1e-8 else vector
+
+
+def _operation_feature(
+    hidden: np.ndarray,
+    span: TokenSpan,
+    *,
+    mode: str,
+    hidden_channels: Sequence[str],
+    hidden_channel_widths: Sequence[int],
+) -> np.ndarray:
+    if span.end > hidden.shape[0]:
+        raise ValueError("semantic transducer span exceeds hidden sequence")
+    boundaries = np.cumsum((0, *hidden_channel_widths))
+    channels = {
+        name: hidden[:, boundaries[index] : boundaries[index + 1]]
+        for index, name in enumerate(hidden_channels)
+    }
+    lexical = channels.get(_LEXICAL_CHANNEL)
+    contextual = channels.get(_FINAL_CAUSAL_CHANNEL)
+    if lexical is None or contextual is None:
+        raise ValueError("semantic multiview evidence channels are incomplete")
+    lexical_span = lexical[span.start : span.end]
+    contextual_span = contextual[span.start : span.end]
+    values = {
+        "span_mean": np.mean(hidden[span.start : span.end], axis=0, dtype=np.float32),
+        "lexical_mean": np.mean(lexical_span, axis=0, dtype=np.float32),
+        "contextual_mean": np.mean(contextual_span, axis=0, dtype=np.float32),
+        "contextual_last": contextual_span[-1],
+        "lexical_mean_contextual_last": np.concatenate(
+            (np.mean(lexical_span, axis=0, dtype=np.float32), contextual_span[-1])
+        ),
+        "lexical_mean_contextual_mean_contextual_last": np.concatenate(
+            (
+                np.mean(lexical_span, axis=0, dtype=np.float32),
+                np.mean(contextual_span, axis=0, dtype=np.float32),
+                contextual_span[-1],
+            )
+        ),
+    }
+    try:
+        return _normalized_feature(values[mode])
+    except KeyError as exc:
+        raise ValueError("semantic operation feature mode is unsupported") from exc
+
+
+def _valid_feature_selection_receipts(
+    value: Any,
+    heads: Sequence[LinearClassifierHead | MultiViewClassifierHead],
+) -> bool:
+    if not isinstance(value, list) or len(value) != len(heads):
+        return False
+    for receipt, head in zip(value, heads, strict=True):
+        if not isinstance(head, MultiViewClassifierHead) or not isinstance(receipt, dict):
+            return False
+        if set(receipt) != {
+            "modes",
+            "leave_one_construction_out_correct",
+            "leave_one_construction_out_total",
+            "candidate_ensembles_evaluated",
+        }:
+            return False
+        correct = receipt.get("leave_one_construction_out_correct")
+        total = receipt.get("leave_one_construction_out_total")
+        if (
+            receipt.get("modes") != list(head.modes)
+            or type(correct) is not int
+            or type(total) is not int
+            or not 0 <= correct <= total
+            or total < 1
+            or type(receipt.get("candidate_ensembles_evaluated")) is not int
+            or receipt["candidate_ensembles_evaluated"] < 1
+        ):
+            return False
+    return True
 
 
 @dataclass(frozen=True, slots=True)
@@ -586,10 +801,12 @@ class SemanticProgramTransducer:
     step_count: int
     argument_arities: tuple[int, ...]
     pointer_heads: dict[str, LinearPointerHead]
-    operation_heads: tuple[LinearClassifierHead, ...]
+    operation_heads: tuple[LinearClassifierHead | MultiViewClassifierHead, ...]
     argument_heads: tuple[tuple[LinearClassifierHead, ...], ...]
     training_receipt: dict[str, Any]
     schema: str = SEMANTIC_TRANSDUCER_SCHEMA
+    hidden_channels: tuple[str, ...] = ()
+    hidden_channel_widths: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
         pointer_heads = dict(self.pointer_heads)
@@ -598,6 +815,8 @@ class SemanticProgramTransducer:
         expected_schema = (
             LEGACY_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
             if legacy
+            else MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
+            if self.schema == MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
             else SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
             if self.schema == SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
             else TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
@@ -612,6 +831,7 @@ class SemanticProgramTransducer:
                 SEMANTIC_TRANSDUCER_SCHEMA,
                 TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
                 SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+                MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
             }
             or type(self.hidden_size) is not int
             or self.hidden_size < 1
@@ -642,13 +862,61 @@ class SemanticProgramTransducer:
             or receipt.get("schema") != expected_schema
         ):
             raise ValueError("semantic transducer envelope is invalid")
-        all_heads = [*pointer_heads.values(), *self.operation_heads]
-        all_heads.extend(head for heads in self.argument_heads for head in heads)
-        if any(head.width != self.hidden_size for head in all_heads):
+        fixed_width_heads = [*pointer_heads.values()]
+        fixed_width_heads.extend(head for heads in self.argument_heads for head in heads)
+        multiview = self.schema == MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
+        hidden_channels = tuple(self.hidden_channels)
+        hidden_channel_widths = tuple(self.hidden_channel_widths)
+        if (
+            any(head.width != self.hidden_size for head in fixed_width_heads)
+            or (
+                multiview
+                and (
+                    not hidden_channels
+                    or len(hidden_channels) != len(hidden_channel_widths)
+                    or len(set(hidden_channels)) != len(hidden_channels)
+                    or any(
+                        not isinstance(channel, str) or not channel for channel in hidden_channels
+                    )
+                    or any(type(width) is not int or width < 1 for width in hidden_channel_widths)
+                    or sum(hidden_channel_widths) != self.hidden_size
+                    or any(
+                        not isinstance(head, MultiViewClassifierHead)
+                        or any(
+                            component.width
+                            != _operation_feature_width(
+                                mode,
+                                hidden_channels=hidden_channels,
+                                hidden_channel_widths=hidden_channel_widths,
+                            )
+                            for mode, component in zip(
+                                head.modes,
+                                head.heads,
+                                strict=True,
+                            )
+                        )
+                        for head in self.operation_heads
+                    )
+                )
+            )
+            or (
+                not multiview
+                and (
+                    hidden_channels
+                    or hidden_channel_widths
+                    or any(
+                        not isinstance(head, LinearClassifierHead) or head.width != self.hidden_size
+                        for head in self.operation_heads
+                    )
+                )
+            )
+        ):
             raise ValueError("semantic transducer heads disagree on hidden width")
         expected_receipt_fields = (
             _RECEIPT_FIELDS
             if legacy
+            else _RECEIPT_FIELDS_V5
+            if multiview
             else _RECEIPT_FIELDS_V4
             if self.schema == SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
             else _RECEIPT_FIELDS_V3
@@ -679,7 +947,11 @@ class SemanticProgramTransducer:
                     or receipt.get("classifier_sharing")
                     != (
                         "by_operation_support_and_argument_slot"
-                        if self.schema == SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
+                        if self.schema
+                        in {
+                            SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+                            MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+                        }
                         else "across_step_slots"
                     )
                     or receipt.get("shared_argument_support")
@@ -703,13 +975,29 @@ class SemanticProgramTransducer:
                         in {
                             TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
                             SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+                            MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
                         }
                         and receipt.get("argument_arities") != list(self.argument_arities)
                     )
                     or (
-                        self.schema == SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
+                        self.schema
+                        in {
+                            SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+                            MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+                        }
                         and receipt.get("operation_support_by_step")
                         != [sorted(head.labels) for head in self.operation_heads]
+                    )
+                    or (
+                        multiview
+                        and (
+                            receipt.get("hidden_channels") != list(hidden_channels)
+                            or receipt.get("hidden_channel_widths") != list(hidden_channel_widths)
+                            or not _valid_feature_selection_receipts(
+                                receipt.get("operation_feature_selection_by_step"),
+                                self.operation_heads,
+                            )
+                        )
                     )
                     or any(
                         left.labels == right.labels and left.to_dict() != right.to_dict()
@@ -760,6 +1048,8 @@ class SemanticProgramTransducer:
             raise ValueError("semantic transducer receipt does not match its model")
         object.__setattr__(self, "pointer_heads", pointer_heads)
         object.__setattr__(self, "training_receipt", receipt)
+        object.__setattr__(self, "hidden_channels", hidden_channels)
+        object.__setattr__(self, "hidden_channel_widths", hidden_channel_widths)
 
     def _coefficient_body(
         self,
@@ -792,14 +1082,20 @@ class SemanticProgramTransducer:
             SEMANTIC_TRANSDUCER_SCHEMA,
             TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
             SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+            MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+            MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
         }:
             payload["input_count"] = self.input_count
             payload["step_count"] = self.step_count
         if self.schema in {
             TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
             SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+            MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
         }:
             payload["argument_arities"] = list(self.argument_arities)
+        if self.schema == MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA:
+            payload["hidden_channels"] = list(self.hidden_channels)
+            payload["hidden_channel_widths"] = list(self.hidden_channel_widths)
         return payload
 
     def decode(
@@ -874,8 +1170,22 @@ class SemanticProgramTransducer:
         operations: list[str] = []
         operation_spans = tuple(spans[f"operation:{step}"] for step in range(self.step_count))
         for step in range(self.step_count):
-            op_feature = _pool(hidden, spans[f"operation:{step}"])
-            operation, confidence = self.operation_heads[step].predict(op_feature)
+            head = self.operation_heads[step]
+            if isinstance(head, MultiViewClassifierHead):
+                operation, confidence = head.predict(
+                    tuple(
+                        _operation_feature(
+                            hidden,
+                            spans[f"operation:{step}"],
+                            mode=mode,
+                            hidden_channels=self.hidden_channels,
+                            hidden_channel_widths=self.hidden_channel_widths,
+                        )
+                        for mode in head.modes
+                    )
+                )
+            else:
+                operation, confidence = head.predict(_pool(hidden, spans[f"operation:{step}"]))
             operations.append(operation)
             confidences[f"operation:{step}"] = confidence
 
@@ -896,6 +1206,7 @@ class SemanticProgramTransducer:
                 SEMANTIC_TRANSDUCER_SCHEMA,
                 TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
                 SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+                MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
             }
             else None
         )
@@ -1051,6 +1362,128 @@ def _fit_classifier(
     return LinearClassifierHead(classes, weight, bias)
 
 
+def _multiview_prediction(
+    heads: Sequence[LinearClassifierHead],
+    features: Sequence[np.ndarray],
+) -> str:
+    probabilities = np.mean(
+        np.stack(
+            [
+                head.predict_probabilities(feature)
+                for head, feature in zip(heads, features, strict=True)
+            ]
+        ),
+        axis=0,
+    )
+    return heads[0].labels[int(np.argmax(probabilities))]
+
+
+def _fit_multiview_operation_head(
+    rows: Sequence[tuple[SemanticTransducerTrainingExample, int]],
+    *,
+    hidden_channels: tuple[str, ...],
+    hidden_channel_widths: tuple[int, ...],
+) -> tuple[MultiViewClassifierHead, dict[str, Any]]:
+    """Select semantic views using construction-held-out training evidence only."""
+
+    constructions = sorted({item.construction_id for item, _ in rows})
+    labels = sorted({item.ir.instructions[step].op for item, step in rows})
+    if len(constructions) < 2 or len(labels) < 2:
+        raise ValueError("semantic multiview selection lacks construction or label support")
+    candidate_modes = tuple(_OPERATION_FEATURE_MODES)
+    candidates = tuple(
+        modes
+        for count in range(1, min(_MAX_OPERATION_VIEWS, len(candidate_modes)) + 1)
+        for modes in combinations(candidate_modes, count)
+    )
+    scored: list[tuple[int, int, int, tuple[str, ...]]] = []
+    for modes in candidates:
+        correct = 0
+        total = 0
+        valid = True
+        for held_out_construction in constructions:
+            fit_rows = tuple(row for row in rows if row[0].construction_id != held_out_construction)
+            held_out_rows = tuple(
+                row for row in rows if row[0].construction_id == held_out_construction
+            )
+            if {item.ir.instructions[step].op for item, step in fit_rows} != set(
+                labels
+            ) or not held_out_rows:
+                valid = False
+                break
+            heads = tuple(
+                _fit_classifier(
+                    np.stack(
+                        [
+                            _operation_feature(
+                                item.hidden_states,
+                                item.ir.instructions[step].operation_span,
+                                mode=mode,
+                                hidden_channels=hidden_channels,
+                                hidden_channel_widths=hidden_channel_widths,
+                            )
+                            for item, step in fit_rows
+                        ]
+                    ),
+                    [item.ir.instructions[step].op for item, step in fit_rows],
+                )
+                for mode in modes
+            )
+            for item, step in held_out_rows:
+                features = tuple(
+                    _operation_feature(
+                        item.hidden_states,
+                        item.ir.instructions[step].operation_span,
+                        mode=mode,
+                        hidden_channels=hidden_channels,
+                        hidden_channel_widths=hidden_channel_widths,
+                    )
+                    for mode in modes
+                )
+                correct += int(
+                    _multiview_prediction(heads, features) == item.ir.instructions[step].op
+                )
+                total += 1
+        if valid and total:
+            feature_width = sum(
+                _operation_feature_width(
+                    mode,
+                    hidden_channels=hidden_channels,
+                    hidden_channel_widths=hidden_channel_widths,
+                )
+                for mode in modes
+            )
+            scored.append((correct, -len(modes), -feature_width, modes))
+    if not scored:
+        raise ValueError("semantic multiview construction folds are not identifiable")
+    correct, _, _, selected_modes = max(scored)
+    selected_heads = tuple(
+        _fit_classifier(
+            np.stack(
+                [
+                    _operation_feature(
+                        item.hidden_states,
+                        item.ir.instructions[step].operation_span,
+                        mode=mode,
+                        hidden_channels=hidden_channels,
+                        hidden_channel_widths=hidden_channel_widths,
+                    )
+                    for item, step in rows
+                ]
+            ),
+            [item.ir.instructions[step].op for item, step in rows],
+        )
+        for mode in selected_modes
+    )
+    receipt = {
+        "modes": list(selected_modes),
+        "leave_one_construction_out_correct": correct,
+        "leave_one_construction_out_total": len(rows),
+        "candidate_ensembles_evaluated": len(scored),
+    }
+    return MultiViewClassifierHead(selected_modes, selected_heads), receipt
+
+
 def fit_semantic_program_transducer(
     examples: Sequence[SemanticTransducerTrainingExample],
 ) -> SemanticProgramTransducer:
@@ -1074,6 +1507,11 @@ def fit_semantic_program_transducer(
         raise ValueError("semantic transducer training geometries differ")
     if any(item.hidden_states.shape[1] != hidden_size for item in training):
         raise ValueError("semantic transducer training hidden widths differ")
+    channel_geometries = {(item.hidden_channels, item.hidden_channel_widths) for item in training}
+    if len(channel_geometries) != 1:
+        raise ValueError("semantic transducer training channel geometries differ")
+    hidden_channels, hidden_channel_widths = next(iter(channel_geometries))
+    multiview = hidden_channels == (_LEXICAL_CHANNEL, _FINAL_CAUSAL_CHANNEL)
     input_count, argument_arities = next(iter(geometries))
     step_count = len(argument_arities)
     roles = _pointer_roles(input_count, argument_arities)
@@ -1081,7 +1519,7 @@ def fit_semantic_program_transducer(
         SEMANTIC_TRANSDUCER_INPUTS,
         SEMANTIC_TRANSDUCER_STEPS,
         (2,) * SEMANTIC_TRANSDUCER_STEPS,
-    )
+    ) and not multiview
 
     pointer_heads: dict[str, LinearPointerHead] = {}
     token_features = np.concatenate([item.hidden_states for item in training], axis=0)
@@ -1111,8 +1549,9 @@ def fit_semantic_program_transducer(
             end_bias,
         )
 
+    feature_selection_by_step: list[dict[str, Any]] = []
     if legacy:
-        operation_heads: list[LinearClassifierHead] = []
+        operation_heads: list[LinearClassifierHead | MultiViewClassifierHead] = []
         argument_heads: list[tuple[LinearClassifierHead, LinearClassifierHead]] = []
         for step in range(step_count):
             operation_heads.append(
@@ -1151,26 +1590,42 @@ def fit_semantic_program_transducer(
             tuple(sorted({item.ir.instructions[step].op for item in training}))
             for step in range(step_count)
         )
-        operation_heads_by_support: dict[tuple[str, ...], LinearClassifierHead] = {}
+        operation_heads_by_support: dict[
+            tuple[str, ...], LinearClassifierHead | MultiViewClassifierHead
+        ] = {}
+        operation_selection_by_support: dict[tuple[str, ...], dict[str, Any]] = {}
         for support in sorted(set(operation_supports)):
             supported_steps = tuple(
                 step
                 for step, step_support in enumerate(operation_supports)
                 if step_support == support
             )
-            operation_heads_by_support[support] = _fit_classifier(
-                np.stack(
+            if multiview:
+                head, selection = _fit_multiview_operation_head(
+                    tuple((item, step) for item in training for step in supported_steps),
+                    hidden_channels=hidden_channels,
+                    hidden_channel_widths=hidden_channel_widths,
+                )
+                operation_heads_by_support[support] = head
+                operation_selection_by_support[support] = selection
+            else:
+                operation_heads_by_support[support] = _fit_classifier(
+                    np.stack(
+                        [
+                            _pool(
+                                item.hidden_states,
+                                item.ir.instructions[step].operation_span,
+                            )
+                            for item in training
+                            for step in supported_steps
+                        ]
+                    ),
                     [
-                        _pool(
-                            item.hidden_states,
-                            item.ir.instructions[step].operation_span,
-                        )
+                        item.ir.instructions[step].op
                         for item in training
                         for step in supported_steps
-                    ]
-                ),
-                [item.ir.instructions[step].op for item in training for step in supported_steps],
-            )
+                    ],
+                )
         shared_arguments = tuple(
             _fit_classifier(
                 np.stack(
@@ -1194,6 +1649,10 @@ def fit_semantic_program_transducer(
             for position in range(max(argument_arities))
         )
         operation_heads = [operation_heads_by_support[support] for support in operation_supports]
+        if multiview:
+            feature_selection_by_step = [
+                operation_selection_by_support[support] for support in operation_supports
+            ]
         argument_heads = [shared_arguments[:arity] for arity in argument_arities]
 
     coefficient_body = {
@@ -1225,14 +1684,16 @@ def fit_semantic_program_transducer(
     typed = any(arity != 2 for arity in argument_arities)
     if not legacy:
         receipt_body["schema"] = (
-            SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
+            MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
+            if multiview
+            else SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
             if typed
             else SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA
         )
         receipt_body["input_count"] = input_count
         receipt_body["step_count"] = step_count
         receipt_body["classifier_sharing"] = (
-            "by_operation_support_and_argument_slot" if typed else "across_step_slots"
+            "by_operation_support_and_argument_slot" if typed or multiview else "across_step_slots"
         )
         receipt_body["shared_argument_support"] = [
             sorted(
@@ -1245,16 +1706,22 @@ def fit_semantic_program_transducer(
             )
             for position in range(max(argument_arities))
         ]
-        if typed:
+        if typed or multiview:
             receipt_body["argument_arities"] = list(argument_arities)
             receipt_body["operation_support_by_step"] = [
                 list(support) for support in operation_supports
             ]
+        if multiview:
+            receipt_body["hidden_channels"] = list(hidden_channels)
+            receipt_body["hidden_channel_widths"] = list(hidden_channel_widths)
+            receipt_body["operation_feature_selection_by_step"] = feature_selection_by_step
     receipt = {**receipt_body, "receipt_sha256": _sha(receipt_body)}
     return SemanticProgramTransducer(
         schema=(
             LEGACY_SEMANTIC_TRANSDUCER_SCHEMA
             if legacy
+            else MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
+            if multiview
             else SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
             if typed
             else SEMANTIC_TRANSDUCER_SCHEMA
@@ -1268,6 +1735,8 @@ def fit_semantic_program_transducer(
         operation_heads=tuple(operation_heads),
         argument_heads=tuple(argument_heads),
         training_receipt=receipt,
+        hidden_channels=hidden_channels if multiview else (),
+        hidden_channel_widths=hidden_channel_widths if multiview else (),
     )
 
 
@@ -1299,6 +1768,25 @@ def _classifier_head_from_dict(value: Any) -> LinearClassifierHead:
     )
 
 
+def _operation_head_from_dict(
+    value: Any,
+) -> LinearClassifierHead | MultiViewClassifierHead:
+    if isinstance(value, dict) and value.get("schema") == (
+        "aura.semantic_program_multiview_classifier.v1"
+    ):
+        if (
+            set(value) != {"schema", "modes", "heads"}
+            or not isinstance(value.get("modes"), list)
+            or not isinstance(value.get("heads"), list)
+        ):
+            raise ValueError("serialized semantic multiview classifier is invalid")
+        return MultiViewClassifierHead(
+            modes=tuple(value["modes"]),
+            heads=tuple(_classifier_head_from_dict(head) for head in value["heads"]),
+        )
+    return _classifier_head_from_dict(value)
+
+
 def semantic_program_transducer_from_dict(payload: Any) -> SemanticProgramTransducer:
     """Load a transducer only when coefficients and receipt still agree."""
 
@@ -1327,6 +1815,7 @@ def semantic_program_transducer_from_dict(payload: Any) -> SemanticProgramTransd
     elif schema in {
         TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
         SIGNATURED_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
+        MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA,
     }:
         input_count = payload.get("input_count")
         step_count = payload.get("step_count")
@@ -1337,6 +1826,8 @@ def semantic_program_transducer_from_dict(payload: Any) -> SemanticProgramTransd
             "step_count",
             "argument_arities",
         }
+        if schema == MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA:
+            expected_fields |= {"hidden_channels", "hidden_channel_widths"}
     else:
         raise ValueError("serialized semantic transducer schema is invalid")
     if set(payload) != expected_fields:
@@ -1373,17 +1864,31 @@ def semantic_program_transducer_from_dict(payload: Any) -> SemanticProgramTransd
         step_count=step_count,
         argument_arities=argument_arities,
         pointer_heads={role: _pointer_head_from_dict(raw_pointers[role]) for role in roles},
-        operation_heads=tuple(_classifier_head_from_dict(value) for value in raw_operations),
+        operation_heads=tuple(_operation_head_from_dict(value) for value in raw_operations),
         argument_heads=tuple(
             tuple(_classifier_head_from_dict(value) for value in heads) for heads in raw_arguments
         ),
         training_receipt=payload["training_receipt"],
+        hidden_channels=(
+            tuple(payload["hidden_channels"])
+            if schema == MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
+            and isinstance(payload.get("hidden_channels"), list)
+            else ()
+        ),
+        hidden_channel_widths=(
+            tuple(payload["hidden_channel_widths"])
+            if schema == MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA
+            and isinstance(payload.get("hidden_channel_widths"), list)
+            else ()
+        ),
     )
 
 
 __all__ = [
     "LinearClassifierHead",
     "LinearPointerHead",
+    "MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_SCHEMA",
+    "MultiViewClassifierHead",
     "SEMANTIC_TRANSDUCER_INPUTS",
     "SEMANTIC_TRANSDUCER_SCHEMA",
     "SEMANTIC_TRANSDUCER_STEPS",

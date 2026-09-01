@@ -16,6 +16,7 @@ from core.learning.semantic_program_ir import SemanticIRInstruction, SemanticPro
 from core.learning.semantic_program_transducer import (
     LinearClassifierHead,
     LinearPointerHead,
+    MultiViewClassifierHead,
     SemanticProgramTransducer,
     SemanticTransducerTrainingExample,
 )
@@ -211,7 +212,18 @@ def coefficient_lesion(
         for role, head in model.pointer_heads.items()
     }
 
-    def lesion_classifier(head: LinearClassifierHead) -> LinearClassifierHead:
+    def lesion_classifier(
+        head: LinearClassifierHead | MultiViewClassifierHead,
+    ) -> LinearClassifierHead | MultiViewClassifierHead:
+        if isinstance(head, MultiViewClassifierHead):
+            return MultiViewClassifierHead(
+                head.modes,
+                tuple(
+                    lesion_classifier(component)
+                    for component in head.heads
+                    if isinstance(component, LinearClassifierHead)
+                ),
+            )
         return LinearClassifierHead(
             head.labels,
             np.zeros_like(head.weight),
@@ -243,6 +255,8 @@ def coefficient_lesion(
         operation_heads=operations,
         argument_heads=arguments,
         training_receipt=receipt,
+        hidden_channels=model.hidden_channels,
+        hidden_channel_widths=model.hidden_channel_widths,
     )
 
 

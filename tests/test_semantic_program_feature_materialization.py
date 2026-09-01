@@ -11,6 +11,8 @@ import pytest
 
 from core.brain.llm.hidden_sequence_contract import (
     FINAL_HIDDEN_V1,
+    LEXICAL_CONTEXTUAL_V1,
+    hidden_sequence_channel_widths,
     hidden_sequence_channels,
     hidden_sequence_schema,
 )
@@ -46,6 +48,16 @@ def _sha(value: object) -> str:
         allow_nan=False,
     ).encode("ascii")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def test_hidden_sequence_channel_widths_follow_the_versioned_packing_contract() -> None:
+    assert hidden_sequence_channel_widths(FINAL_HIDDEN_V1, 5120) == (5120,)
+    assert hidden_sequence_channel_widths(LEXICAL_CONTEXTUAL_V1, 10240) == (
+        5120,
+        5120,
+    )
+    with pytest.raises(ValueError, match="divisible by two"):
+        hidden_sequence_channel_widths(LEXICAL_CONTEXTUAL_V1, 10241)
 
 
 class _CharacterTokenizer:

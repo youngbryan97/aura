@@ -341,6 +341,66 @@ def test_typed_transducer_learns_unary_sequence_programs() -> None:
     assert replay.to_dict() == model.to_dict()
 
 
+def _lexical_contextual_example(
+    first_op: str,
+    second_op: str,
+    *,
+    construction: int,
+    split: str = "train",
+) -> SemanticTransducerTrainingExample:
+    base = _unary_sequence_example(first_op, second_op, split=split)
+    width = base.hidden_states.shape[1]
+    packed = np.concatenate((base.hidden_states, base.hidden_states), axis=1)
+    packed /= np.sqrt(2.0)
+    return replace(
+        base,
+        hidden_states=packed,
+        construction_id=f"lexical-contextual-{construction}",
+        hidden_channels=("input_token_embedding", "final_causal_hidden"),
+        hidden_channel_widths=(width, width),
+    )
+
+
+def test_multiview_typed_transducer_learns_and_binds_its_selected_views() -> None:
+    training = [
+        _lexical_contextual_example(first, second, construction=construction)
+        for construction in range(3)
+        for first in _SEQUENCE_FIRST_OPS
+        for second in _SEQUENCE_SECOND_OPS
+    ]
+    model = fit_semantic_program_transducer(training)
+    held_out = _lexical_contextual_example(
+        "unique",
+        "total",
+        construction=9,
+        split="test",
+    )
+    outcome = model.decode(
+        source_token_ids=held_out.ir.source_token_ids,
+        hidden_states=held_out.hidden_states,
+        source_text_sha256=held_out.ir.source_text_sha256,
+        model_basis_sha256=_MODEL_BASIS,
+    )
+    payload = model.to_dict()
+    replay = semantic_program_transducer_from_dict(payload)
+
+    assert model.schema == "aura.semantic_program_transducer.v5"
+    assert model.hidden_channel_widths == (training[0].hidden_states.shape[1] // 2,) * 2
+    assert all(head.to_dict()["schema"].endswith(".v1") for head in model.operation_heads)
+    assert all(
+        item["leave_one_construction_out_total"] == len(training)
+        for item in model.training_receipt["operation_feature_selection_by_step"]
+    )
+    assert outcome.accepted
+    assert outcome.ir is not None
+    assert outcome.ir.to_program() == held_out.ir.to_program()
+    assert replay.to_dict() == model.to_dict()
+
+    payload["training_receipt"]["operation_feature_selection_by_step"][0]["modes"] = ["span_mean"]
+    with pytest.raises(ValueError, match="receipt does not match"):
+        semantic_program_transducer_from_dict(payload)
+
+
 def _three_step_example(
     operations: tuple[str, str, str],
     topology_index: int,
