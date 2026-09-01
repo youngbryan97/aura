@@ -55,7 +55,7 @@ full before any of this was written.
 - **B2 — schema ceiling.** `Induced.read` fixes the rule shape to
   `after[i] = f(before[g(i,n)], before[h(i,n)])`. Arity two, one operation,
   value-blind addressing. No amount of word or maker invention changes it.
-- **B3 — two algebras.** `one_algebra.Term` (positional) and
+- **B3 — two algebras (CLOSED 2026-09-01).** `one_algebra.Term` (positional) and
   `an_operation_that_generalises.Expression` (value) have separate primitives,
   separate enumerators, separate serialisers. An invention in one cannot be
   material for an invention in the other, so recursion is blocked across them.
@@ -156,7 +156,7 @@ full before any of this was written.
 - [ ] **6.2** Require `Reach_B(A_t ∪ {a*}) ⊃ Reach_B(A_t)` with a witness
   program, and `K_sub(D | A_t ∪ {a*}) + cost(a*) < K_sub(D | A_t)` on the
   substrate ruler that `the_ruler_she_cannot_move` already fixes.
-- [ ] **6.3** Add the search-cost probe. `Reach_B` can shrink when the library
+- [x] **6.3** Add the search-cost probe. `Reach_B` can shrink when the library
   grows; admission must measure branching, not only corpus length.
 - [ ] **6.4** Add the inline-expansion control. Replace every use of `a*` with
   its body; if performance is unchanged under equal accounting, the name bought
@@ -237,7 +237,7 @@ full before any of this was written.
   invention enlarges `E(A_t)`. State what can still improve.
 - [x] **12.2** Definitional extensions are eliminable and add no meanings.
   Already argued in `what_growth_cannot_do`; make it a checked property.
-- [ ] **12.3** Resource-bounded growth. Under what assumptions does
+- [x] **12.3** Resource-bounded growth. Under what assumptions does
   `Reach_B(A_{t+1}) ⊃ Reach_B(A_t)` hold? Quantify the search reduction.
 - [x] **12.4** Finite memory. `|S| ≤ 2^{B_m}`. What forgetting, compression,
   merging, consolidation and structural replacement must therefore do.
@@ -330,9 +330,9 @@ evaluator isolation; computational budgets. Show the information flow.
   earn a caller.
 - [x] **16.2** How `operator_invention.py` changes.
 - [x] **16.3** How the representation algebra changes.
-- [ ] **16.4** How procedures consume invented semantics.
-- [ ] **16.5** How wake/sleep interacts.
-- [ ] **16.6** How shadow evolution interacts.
+- [x] **16.4** How procedures consume invented semantics.
+- [x] **16.5** How wake/sleep interacts.
+- [x] **16.6** How shadow evolution interacts.
 - [ ] **16.7** How the claim ladder measures it.
 - [ ] **16.8** How the cognitive event DAG records it.
 - [ ] **16.9** How rollback works.
@@ -357,7 +357,7 @@ evaluator isolation; computational budgets. Show the information flow.
 - [x] **E** Recursive reuse. `b*` depends on `a*`; lesion `a*` and the second
   invention disappears or costs substantially more.
 - [ ] **F** Cross-domain transfer. `D_1 → a* → ΔC(D_2)`; `D_3` negative control.
-- [ ] **G** Developmental compounding. GROWN, RESET, LESIONED;
+- [x] **G** Developmental compounding. GROWN, RESET, LESIONED;
   `dΔ_n/dn > 0`; lesion returns performance toward RESET. Prevent answer
   leakage, context-size advantage, compute drift, task memorisation, easier
   later tasks.
@@ -412,7 +412,7 @@ evaluator isolation; computational budgets. Show the information flow.
 - [ ] **19.12** Self-modification bypass.
 - [x] **19.13** Unsafe tool semantics.
 - [x] **19.14** Privilege expansion.
-- [ ] **19.15** Rollback after descendants depend on a removed operator.
+- [x] **19.15** Rollback after descendants depend on a removed operator.
 - [x] **19.16** Transactional installation: snapshot, sandbox, promote or roll
   back, with the rollback test behavioural rather than structural.
 
@@ -493,7 +493,7 @@ an intermediate mechanism that has to be thrown away.
   equivalence on a probe grid. Lose no current capability.
 - [x] **24.4** Derived heads, persisted, dispatched by the live `run`.
 - [x] **24.5** The diagonal witness, and the last strict expressiveness gain.
-- [ ] **24.6** Candidate generation into the universal space; `Candidate.fn`
+- [x] **24.6** Candidate generation into the universal space; `Candidate.fn`
   and `make: Callable` deleted.
 - [ ] **24.7** Ordinary cognition consumes universal artifacts.
 - [ ] **24.8** The proposer becomes a term.

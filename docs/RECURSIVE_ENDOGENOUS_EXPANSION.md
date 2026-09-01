@@ -60,7 +60,9 @@ operation, value-blind addressing. No word, maker or level changes it.
 **B3 — two algebras.** `one_algebra.Term` computes positions;
 `an_operation_that_generalises.Expression` computes values. Separate
 primitives, separate enumerators, separate serialisers. An invention in one
-cannot be material for an invention in the other.
+cannot be material for an invention in the other. **Closed:** both compile to
+the floor and both are checked against their own interpreter over a grid,
+refusals included.
 
 **B4 — a persistence hole.** `run` has always evaluated `over again`.
 `read_back` checked the head against a second hand-written list and that head
@@ -356,6 +358,28 @@ search reports where its answer appeared; and the enumerator is counted with
 the head and without it for the branches it adds. No threshold and no
 weighting. It pays, or it comes straight back out.
 
+### Both algebras, one semantics — `the_old_language_on_the_floor.py`
+
+Positional terms and value expressions both compile to floor terms, so an
+invention in either can be material for an invention in the other. That was the
+thing blocking recursion *across* the two languages, and it was invisible while
+each half worked on its own.
+
+Checked as behaviour rather than shape, refusals included: 12,000 positional
+terms over three pairs of words at seven lengths — 1,296,000 places — and 8,000
+value expressions over 512,000 pairs, complete agreement, every head and every
+way of combining covered.
+
+The refusal clause is what earned the check. Substituting the inner expression
+into the body of `through` made the floor lazy where the interpreter is strict,
+so `how many there are of where it is over where it is` divided by nothing in
+one language and answered nought in the other. A comparison that only looked at
+places where both succeeded would have shipped it.
+
+What remains after that is not a third algebra. It is the schema — a rule is
+still two sources and one operation — and that is a different ceiling, named in
+Part XIII rather than quietly closed.
+
 ### Information flow
 
     experience
@@ -639,7 +663,7 @@ still takes a callable and still has no runtime caller;
 | **D** | Generalisation, `H ∩ S = ∅`, outside the observed ranges | **run.** Correct at lengths 9, 11 and 16, none of them fitted or judged |
 | **E** | `b*` depends on `a*`; lesion `a*` and the second goes | **run at the grammar level.** Same family, same search, same budget: nothing with an empty library, the answer with one entry, and what it wrote is that entry plus four symbols |
 | **F** | Cross-domain transfer with a negative control | **not run** |
-| **G** | GROWN vs RESET vs LESIONED, `dΔ/dn > 0` | **not run** |
+| **G** | GROWN vs RESET vs LESIONED, `dΔ/dn > 0` | **run, at the grammar level, with its negative control** — see below |
 | **H** | The mechanism changes itself and wins on sealed invention tasks | **not run.** One component of the mechanism — the rule for what to try first — is now a term, replaceable and lesionable by the head path; nothing writes a better one, and no gain is claimed |
 | **I** | A second generation with no human code between | **not run** |
 | **J** | Post-freeze tasks by an independent party | **not run** |
@@ -654,6 +678,38 @@ saves is taken back out. Required and not implemented: random candidate
 generator, fixed-DSL enumerator with a larger budget, retrieval, macro-only
 compression, inline expansion, equal-persistent-bytes, matched compute across
 GROWN and RESET.
+
+### Experiment G, as run
+
+Three agents on the same families in the same order under the same per-family
+budget, the same words and the same search. GROWN keeps every head it writes
+and offers them as leaves next time; RESET is emptied between blocks; LESIONED
+keeps the library except its newest entry. Nobody picks which family follows
+which — the terms are drawn at random and the correspondence is read off
+whatever they compute.
+
+Two streams, and the difference is what makes the result mean anything. On the
+**shared** stream a family's term is drawn with the terms already found
+available, so there is structure a learner could carry forward. On the
+**apart** stream every term is drawn from the bedrock alone.
+
+Five seeds, five blocks of six families:
+
+| Stream | GROWN | RESET | LESIONED | Gap by block |
+|---|---|---|---|---|
+| shared | 150/150 | 78 | 70 | 0, 2, 2.6, 5.8, 4 |
+| apart | 150/150 | 150 | 150 | 0, 0, 0, 0, 0 |
+
+Nought on the control in every block of every seed. That is what says the gain
+on the other stream is about carrying something rather than about having run
+longer, and the lesion returns her to the reset condition or below it.
+
+Two things to say plainly. The gap is not monotone block to block — it reaches
+5.8 and falls to 4 — so what holds is that it is open by the end, not that it
+grows at every step. And the mechanism is transparent: later families are drawn
+over earlier terms by construction. This is compounding on a stream with
+structure in it. It is not evidence about any real task distribution, and
+experiment J is what would make it one.
 
 **Falsifiers.** The thesis fails if a larger search budget with no language
 growth matches the grown condition; if every claimed distinction is a macro; if
@@ -838,6 +894,10 @@ whole mitigation, and it is not a proof.
 - The rule deciding what to try first computing, as a term, exactly what the
   Python expression computed, over her real vocabulary — and being replaceable
   and lesionable by the same path a head is.
+- Both algebras computing on the floor exactly what their own interpreters
+  compute, over 1,808,000 places, refusals included.
+- Keeping what she wrote solving 150 of 150 families where resetting solves 78,
+  with a gap of nought on the control stream in every block of every seed.
 
 ### Not established
 
@@ -846,15 +906,17 @@ whole mitigation, and it is not a proof.
   rule, and the test suite asserts the rule in force at import is the authored
   one so that a later change cannot pass unnoticed. Experiments H and I are not
   run and no recursive self-improvement is claimed.
-- Cross-domain transfer, developmental compounding, and post-freeze evaluation.
+- Cross-domain transfer and post-freeze evaluation. Compounding is shown on a
+  stream constructed to have shared structure, which is a weaker thing than
+  compounding on a distribution nobody constructed.
 - That the head mechanism helps on any real task family beyond the synthetic
   ones here.
 - That the library does not eventually worsen search.
 
 ### Still authored, and open
 
-- **B2**, the rule schema: two sources, one operation.
-- **B3**, the value algebra: `an_operation_that_generalises` is separate.
+- **B2**, the rule schema: two sources, one operation. The remaining ceiling
+  above the floor, and no head or word changes it.
 - **B5**, `growing_at_any_level.grow_at` still takes a Python callable, and
   `operator_invention.Candidate.fn` still takes one and still has no caller.
 - The dependency graph, quarantine and rebuild for descendants of a removed
@@ -879,7 +941,7 @@ root; consciousness; AGI.
 | Self-hosting | the evaluator of the language is written in the language | `THE_INTERPRETER` agreeing with the machine | **yes** |
 | Metaprogrammable | programs construct and transform programs | quotation plus head synthesis | **yes** |
 | Open-ended | no authored ceiling on the computable semantics reachable | Theorem 6 plus J | **qualified**: the ceiling is gone by theorem; J is not run |
-| Developmental | earlier learning changes later learning capacity | G | **not shown**; only the horizon measurement, which is one step |
+| Developmental | earlier learning changes later learning capacity | G | **shown on a constructed stream**, with a flat negative control and a lesion; not shown on a distribution nobody constructed |
 | Recursively self-improving | improves the machinery producing future improvements | H, I, sealed, with lesion | **no** |
 | AGI | broad competence across independently designed domains | far more | **no** |
 
@@ -907,20 +969,20 @@ Done, in order, each piece surviving into the final architecture:
 8. The regress theorem, the executed gate argument, and the claims.
 9. The search-cost gate, so a head that costs more than it saves cannot stay.
 10. The search order as a term, replaceable and lesionable by the head path.
+11. Both algebras compiled into the floor, agreeing over 1,808,000 places.
+12. Grown against reset against lesioned, with the negative control.
 
 Next, in the order that keeps every step in the final architecture:
 
-11. The inline-expansion control, so a name that bought nothing cannot pass as
+13. The inline-expansion control, so a name that bought nothing cannot pass as
    an abstraction. The search-cost probe is done.
-12. The dependency graph: quarantine, cascade, rebuild.
-13. Compile `an_operation_that_generalises` into the floor and delete the
-    second algebra (B3).
-14. Widen the rule schema so its shape is a term rather than a signature (B2).
-15. Make the whole proposer a term, not only its ordering, and persist it. Only
+14. Cross-domain transfer with a negative control.
+13. Widen the rule schema so its shape is a term rather than a signature (B2).
+14. Make the whole proposer a term, not only its ordering, and persist it. Only
     then are H and I even possible.
-16. Freeze; commission the sealed family; run F, G, H, I and J.
+15. Freeze; commission the sealed family; run F, G, H, I and J.
 
-If step 15 needs a new human-written mechanism to pass, the design has failed
+If step 14 needs a new human-written mechanism to pass, the design has failed
 and this document should say so.
 
 ---
