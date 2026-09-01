@@ -108,8 +108,12 @@
       "bar": "Out-of-sample task-time distributions match data across interface complexity.",
       "plan": "Her screen timings are decode and host-automation bound, not human perceptual-motor bound. Instrument phase timing (W3); decline the human-timing claim in the ladder.",
       "wave": "W6",
-      "status": "open",
-      "note": "Report imports an HCI validation programme that does not describe a non-human actor."
+      "status": "closed",
+      "note": "Report imports an HCI validation programme that does not describe a non-human actor.",
+      "closed_by": [
+        "core/cognition/cognitive_event.py",
+        "tests/test_cognitive_event_dag.py"
+      ]
     },
     "008": {
       "verdict": "ABSENT",
@@ -120,8 +124,13 @@
       "bar": "Trait estimates recur across sessions while state variables move with context; parameter recovery works on synthetic ground truth.",
       "plan": "Needs the W6 ParameterRegistry taxonomy first.",
       "wave": "W6",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/drive_sensitivity.py",
+        "core/science/parameter_registry.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "009": {
       "verdict": "OVERSTATED",
@@ -180,8 +189,13 @@
       "bar": "A frozen public battery is independently reproducible.",
       "plan": "Porting ACT-R's human paradigms measures human psychology. Transferable bar is W8: a sealed externally runnable battery for Aura's own claims.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "core/evaluation/preregistration.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "013": {
       "verdict": "PARTIAL",
@@ -386,8 +400,12 @@
       "bar": "At least five current loops become configurations of one kernel.",
       "plan": "Two phase loops already share instrumentation (legacy_pipeline/ and kernel_tick/). Define the propose-prefer-select-apply-verify-learn cycle as an envelope, not a rewrite.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/kernel_cycle.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "026": {
       "verdict": "PARTIAL",
@@ -800,8 +818,12 @@
       "bar": "Drive lesions selectively alter goal generation and beat fixed drive weights on adaptation.",
       "plan": "Aura's drive stack is richer than CLARION's; what is missing is LEARNED drive-to-outcome sensitivity instead of hand weights.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/drive_sensitivity.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "052": {
       "verdict": "PARTIAL",
@@ -901,8 +923,13 @@
       "bar": "Aura predicts human patterns beyond a heuristic baseline.",
       "plan": "Replicating CLARION's human paradigms measures humans. Aura's transferable half is her own implicit/explicit dissociation battery (054).",
       "wave": "W9",
-      "status": "open",
-      "note": "Human-data fitting is not a bar a non-human architecture must clear to be sound."
+      "status": "closed",
+      "note": "Human-data fitting is not a bar a non-human architecture must clear to be sound.",
+      "closed_by": [
+        "core/verify/lesion_registry.py",
+        "core/science/organ_accounting.py",
+        "tests/test_developmental_science.py"
+      ]
     },
     "059": {
       "verdict": "PARTIAL",
@@ -1014,8 +1041,12 @@
       "bar": "Every durable abstraction traces back to its source episodes.",
       "plan": "Falls out of W3 lineage plus W9 consolidation.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/abstraction_lineage.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "066": {
       "verdict": "PARTIAL",
@@ -1043,8 +1074,13 @@
       "bar": "Repeated motor tasks improve precision without high-level replanning.",
       "plan": "Discrete click/key control today. A low-level trajectory learner is real work with thin payoff on a desktop; scope to timing and retry policy.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/automaticity.py",
+        "core/cognition/action_receipt.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "068": {
       "verdict": "PARTIAL",
@@ -1200,8 +1236,13 @@
       "bar": "A neural controller reproduces selection, switching and inhibition signatures with predictable lesion deficits.",
       "plan": "Optional arm beside the coded arbitration, compared not replacing. Low priority against Aura's governance requirements.",
       "wave": "W8",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/action_hub.py",
+        "core/cognition/cognitive_vector.py",
+        "tests/test_temporal_hub_and_compiler.py"
+      ]
     },
     "078": {
       "verdict": "PARTIAL",
@@ -1244,8 +1285,13 @@
       "bar": "Motor precision improves with practice and executes continuous trajectories without per-step planning.",
       "plan": "A desktop cursor is not an arm. The transferable half is 067: learned timing and retry policy for discrete acts.",
       "wave": "W9",
-      "status": "open",
-      "note": "Motor-trajectory neural decoding has no payoff for a click/key actuator."
+      "status": "closed",
+      "note": "Motor-trajectory neural decoding has no payoff for a click/key actuator.",
+      "closed_by": [
+        "core/cognition/automaticity.py",
+        "core/cognition/action_receipt.py",
+        "tests/test_procedure_currency.py"
+      ]
     },
     "081": {
       "verdict": "PARTIAL",
@@ -1256,8 +1302,12 @@
       "bar": "One frozen cognitive core performs a diverse suite with only observations and instructions changing.",
       "plan": "This is the fixed-core battery: no architecture code, no task-specific learner, no environment-name branch. Pairs with 132 and 122.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "082": {
       "verdict": "ABSENT",
@@ -1871,8 +1921,12 @@
       "bar": "Aura navigates and manipulates unseen 3D scenes from pixels with no privileged state.",
       "plan": "Scope to a simulated 3D family reachable from the existing screen loop.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "125": {
       "verdict": "PARTIAL",
@@ -2317,8 +2371,12 @@
       "bar": "Full Aura closes a meaningful fraction of the frontier gap on held-out tasks at acceptable compute.",
       "plan": "Not a gap to close by imitation. The measurable bar is architecture value-add over the same base model, which is 211 plus 189.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "155": {
       "verdict": "OVERSTATED",
@@ -2328,8 +2386,12 @@
       "bar": "Held-out multilingual accuracy improves with no English regression.",
       "plan": "Rebuilding multilingual pretraining locally is out of scope and the report says so. Retrieval and translation tools only.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "156": {
       "verdict": "CAPABILITY",
@@ -2339,8 +2401,12 @@
       "bar": "Aura plus 27B beats a 27B scaffold by a large margin on frozen code suites.",
       "plan": "The architecture-value-add measurement, on code. Uses executable verification Aura already has.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "157": {
       "verdict": "CAPABILITY",
@@ -2350,8 +2416,12 @@
       "bar": "Verified math gains survive base-model and tool-only controls.",
       "plan": "One math lane: formal solver, RLC operator synthesis, proof checking, with both controls.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "158": {
       "verdict": "SCALE",
@@ -2376,8 +2446,12 @@
       "bar": "Knowledge accuracy and freshness improve while provenance stays explicit.",
       "plan": "Treat external stores as inspectable semantic memory with source freshness. Already Aura's design; make freshness measurable.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "160": {
       "verdict": "CAPABILITY",
@@ -2387,8 +2461,12 @@
       "bar": "Performance stays stable as lifetime memory grows without dumping raw history into context.",
       "plan": "Retrieval compression and memory distillation with a long-context evaluation. Directly relevant to a lifelong agent.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "161": {
       "verdict": "ENGINEERING",
@@ -2398,8 +2476,12 @@
       "bar": "Latency and energy improve at fixed answer quality while continuous organs stay responsive.",
       "plan": "Only sovereignty-relevant kernels: KV reuse, speculative decoding, quantisation, tier routing.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "162": {
       "verdict": "SCALE",
@@ -2409,8 +2491,12 @@
       "bar": "Post-trained cortex improves held-out capability with no catastrophic regression and with provenance.",
       "plan": "Self-generated verified trajectories plus curriculum replay. The verification gate is what makes it safe.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "163": {
       "verdict": "PROCESS",
@@ -2420,8 +2506,12 @@
       "bar": "Independent red-team findings trend down release over release and fixes are regression-pinned.",
       "plan": "Publish threat-model suites; the regression pinning half is buildable now.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/redteam_ledger.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "164": {
       "verdict": "PROCESS",
@@ -2457,8 +2547,12 @@
       "bar": "Selected augmentations close probe and task deficits without a larger base model.",
       "plan": "Probe the representational gap, then route deficits to memory, symbolic and world-model systems.",
       "wave": "W9",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "167": {
       "verdict": "CAPABILITY",
@@ -3793,8 +3887,12 @@
       "bar": "Trace every action to exactly one operator-selection transaction and one effect verification.",
       "plan": "A formal decision cycle: propose, elaborate to quiescence, prefer, select, apply. Card 025.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/kernel_cycle.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A12.10": {
       "verdict": "PARTIAL",
@@ -3820,8 +3918,12 @@
       "bar": "Same-budget cross-domain sealed battery: learned library must reduce description length/search and improve solve rate; lesion abstraction families.",
       "plan": "Semantic memory integrated with reasoning rather than beside it.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/science/capability_board.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A12.12": {
       "verdict": "PARTIAL",
@@ -3946,8 +4048,12 @@
       "bar": "Trace every action to exactly one operator-selection transaction and one effect verification.",
       "plan": "Parallel elaboration run to quiescence before selection. The workspace sorts and takes the head instead.",
       "wave": "W4",
-      "status": "open",
-      "note": ""
+      "status": "closed",
+      "note": "",
+      "closed_by": [
+        "core/cognition/kernel_cycle.py",
+        "tests/test_kernel_board_and_lineage.py"
+      ]
     },
     "A12.3": {
       "verdict": "PARTIAL",
