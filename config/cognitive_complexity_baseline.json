@@ -1,8 +1,8 @@
 {
   "organs": 117,
   "cross_package_edges": 1893,
-  "dependency_entropy": 9.0781,
-  "kernel_lines": 561493,
+  "dependency_entropy": 9.0782,
+  "kernel_lines": 561625,
   "history": [
     {
       "raised": [
@@ -117,6 +117,33 @@
         "kernel_lines": 561493
       },
       "because": "AtomSpace split into store, persistence and attention-control modules to clear the 30-method ceiling; the import headers and TYPE_CHECKING blocks the split needs cost 63 lines"
+    },
+    {
+      "raised": [
+        "dependency_entropy",
+        "kernel_lines"
+      ],
+      "from": {
+        "dependency_entropy": 9.0781,
+        "kernel_lines": 561493
+      },
+      "to": {
+        "dependency_entropy": 9.0782,
+        "kernel_lines": 561542
+      },
+      "because": "the language fixes (IndexError as a refusal, the measured growth property) and the campaign-evidence rule in the gap-atlas gate"
+    },
+    {
+      "raised": [
+        "kernel_lines"
+      ],
+      "from": {
+        "kernel_lines": 561542
+      },
+      "to": {
+        "kernel_lines": 561625
+      },
+      "because": "the protected answer floor in fit_the_answer_to_the_time, the subordinate-clause guard in the question segmenter, and the conftest fixture that stops a background architecture build leaking into the next test's prompt"
     }
   ]
 }

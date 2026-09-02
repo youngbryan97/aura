@@ -2420,7 +2420,7 @@ A_REAL_ANSWER = 128
 
 
 def fit_the_answer_to_the_time(
-    prompt: Any, max_tokens: Any, asked_for: float
+    prompt: Any, max_tokens: Any, asked_for: float, *, floor: int = 0
 ) -> tuple[float, int]:
     """A budget and a length that fit each other, and fit what the caller waits.
 
@@ -2438,6 +2438,14 @@ def fit_the_answer_to_the_time(
     Reading the question is not optional and cannot be made shorter. Writing
     the answer can. So the time is stretched only as far as reading needs, and
     what does not fit after that comes out of the length.
+
+    ``floor`` is a length this turn may not be cut below — the protected
+    capability lane earns one by overriding the resource envelope, and without
+    it that override was applied and then undone here, silently, by a function
+    that knew nothing about the protection. Where a floor is given, the clock
+    stretches to afford it instead of the length shrinking; where even the
+    longest clock cannot, the cut happens and is recorded rather than being
+    the difference between two numbers nobody compared.
     """
     wanted = max(0, int(max_tokens or 0))
     budget = float(asked_for)
@@ -2457,10 +2465,35 @@ def fit_the_answer_to_the_time(
     )
     budget = max(budget, least)
 
+    # A protected length buys time rather than being shortened.
+    protected = max(0, int(floor or 0))
+    needed_for_floor = reading + protected / writing_rate if protected else 0.0
+    if protected:
+        budget = min(
+            float(InferenceGate._MAX_REQUEST_TIMEOUT_S), max(budget, needed_for_floor)
+        )
+
     # And a length that fits what is left after the reading.
     affordable = int(max(0.0, budget - reading) * writing_rate)
+    if protected and budget >= needed_for_floor:
+        # The clock was stretched to fit the floor, so the floor fits. Deriving
+        # the count back out of the stretched time loses a token to binary
+        # rounding and reports a protected floor as unaffordable by one.
+        affordable = max(affordable, protected)
     if affordable < wanted:
         wanted = max(A_REAL_ANSWER, affordable)
+    if protected and wanted < protected:
+        # The longest clock this gate allows still cannot afford the floor.
+        # Cutting is the only option left, and saying so is the difference
+        # between a measured limit and a protection that quietly did nothing.
+        logger.warning(
+            "🕝 A protected answer floor of %d tokens does not fit the longest "
+            "request clock (%.0fs reading, %.1f tok/s); cutting to %d.",
+            protected,
+            reading,
+            writing_rate,
+            wanted,
+        )
     return budget, wanted
 
 
@@ -13962,10 +13995,21 @@ class InferenceGate:
             for msg in (messages or ())
             if isinstance(msg, dict)
         )
+        # The protected capability lane overrode the resource envelope to get
+        # here; fitting the answer to the clock used to undo that override
+        # without knowing it existed, so a lane protected FROM truncation was
+        # truncated by the next transformation.
+        _protected_floor = (
+            int(max_tokens)
+            if protected_compact_capability_contract
+            and not bool(context.get("resource_stakes_blocked", False))
+            else 0
+        )
         settled_timeout_val, settled_max_tokens = fit_the_answer_to_the_time(
             dispatched_prompt_text,
             max_tokens,
             timeout_val,
+            floor=_protected_floor,
         )
         if settled_timeout_val != timeout_val:
             timeout_val = float(settled_timeout_val)

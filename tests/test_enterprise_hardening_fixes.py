@@ -2001,14 +2001,44 @@ def test_strict_answer_contract_is_deterministic_and_cache_isolated():
     # COMMENT above the live one — which reads
     # `... or prompt_cache_bypass`, a predicate that covers the strict
     # contract and more — so the assertion was passing on commented-out code.
-    live_source = "\n".join(
-        line for line in worker_source.splitlines() if not line.strip().startswith("#")
+    #
+    # Parsed rather than matched, for the second reason too: the live
+    # assignment was reformatted across two lines and the single-line literal
+    # stopped matching, so this reported a missing derivation that was sitting
+    # right there. A comment cannot survive parsing, so the first reason holds
+    # without the line filter.
+    import ast as _ast_bypass
+
+    def _derives_bypass(node: object) -> bool:
+        if not isinstance(node, _ast_bypass.Assign):
+            return False
+        if not any(
+            isinstance(t, _ast_bypass.Name) and t.id == "disable_prompt_cache"
+            for t in node.targets
+        ):
+            return False
+        value = node.value
+        if not (
+            isinstance(value, _ast_bypass.BoolOp)
+            and isinstance(value.op, _ast_bypass.Or)
+        ):
+            return False
+        names = {
+            n.id for n in _ast_bypass.walk(value) if isinstance(n, _ast_bypass.Name)
+        }
+        text = _ast_bypass.unparse(value)
+        return "prompt_cache_bypass" in names and "disable_prompt_cache" in text
+
+    assert any(
+        _derives_bypass(node)
+        for node in _ast_bypass.walk(_ast_bypass.parse(worker_source))
+    ), "disable_prompt_cache is not derived from the job flag OR prompt_cache_bypass"
+    # A def cannot be a comment either, so the parsed tree answers this one.
+    assert any(
+        isinstance(node, _ast_bypass.FunctionDef)
+        and node.name == "_job_requires_prompt_cache_bypass"
+        for node in _ast_bypass.walk(_ast_bypass.parse(worker_source))
     )
-    assert (
-        'disable_prompt_cache = bool(job.get("disable_prompt_cache", False))'
-        " or prompt_cache_bypass" in live_source
-    )
-    assert "def _job_requires_prompt_cache_bypass" in live_source
     assert 'prompt = _build_strict_answer_prompt(messages, prompt)' in worker_source
     assert "def _first_token_suppression_ids" in worker_source
     assert "def _normalize_strict_value_response" in worker_source
@@ -2035,9 +2065,23 @@ def test_strict_answer_contract_is_deterministic_and_cache_isolated():
     # rather than by matching one formatting of the condition. The guard grew
     # a `resume_applied` term and became a multi-line `if`, so the single-line
     # match failed about isolation that was still in force.
-    assert live_source.count("not disable_prompt_cache") >= live_source.count(
-        "fetch_nearest_cache("
-    ), "a prompt-cache read is not guarded by the bypass"
+    _worker_tree = _ast_bypass.parse(worker_source)
+    _guards = sum(
+        1
+        for node in _ast_bypass.walk(_worker_tree)
+        if isinstance(node, _ast_bypass.UnaryOp)
+        and isinstance(node.op, _ast_bypass.Not)
+        and isinstance(node.operand, _ast_bypass.Name)
+        and node.operand.id == "disable_prompt_cache"
+    )
+    _reads = sum(
+        1
+        for node in _ast_bypass.walk(_worker_tree)
+        if isinstance(node, _ast_bypass.Call)
+        and isinstance(node.func, _ast_bypass.Name)
+        and node.func.id == "fetch_nearest_cache"
+    )
+    assert _guards >= _reads, "a prompt-cache read is not guarded by the bypass"
     assert 'if strict_answer_contract:' in worker_source
 
 
@@ -2217,7 +2261,38 @@ def test_primary_benchmark_lane_does_not_become_user_facing_chat():
     assert "non-conforming benchmark draft" in gate_source
     assert "without treating the live Cortex lane as failed" in gate_source
     assert "elif not is_background and not explicit_background:" in gate_source
-    assert "use_rich_context = False if isolated_generation_contract or benchmark_request" in gate_source
+    # Parsed: the condition was wrapped in parentheses across three lines and
+    # the single-line literal stopped matching, so this reported a missing
+    # guard that was in force. Formatting is not the contract; the names in
+    # the condition are.
+    import ast as _ast_rich
+
+    def _rich_context_is_off_for(names: set[str]) -> bool:
+        for node in _ast_rich.walk(_ast_rich.parse(gate_source)):
+            if not isinstance(node, _ast_rich.Assign):
+                continue
+            if not any(
+                isinstance(t, _ast_rich.Name) and t.id == "use_rich_context"
+                for t in node.targets
+            ):
+                continue
+            if not isinstance(node.value, _ast_rich.IfExp):
+                continue
+            body = node.value.body
+            if not (isinstance(body, _ast_rich.Constant) and body.value is False):
+                continue
+            guarded = {
+                n.id
+                for n in _ast_rich.walk(node.value.test)
+                if isinstance(n, _ast_rich.Name)
+            }
+            if names <= guarded:
+                return True
+        return False
+
+    assert _rich_context_is_off_for(
+        {"isolated_generation_contract", "benchmark_request"}
+    ), "rich context is not switched off for the isolated and benchmark lanes"
     assert "if benchmark_request:" in gate_source
     assert "requested_cap_int = max(1, int(requested_cap))" in gate_source
     assert '"purpose",' in gate_source

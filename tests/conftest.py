@@ -561,6 +561,52 @@ def _fresh_conversation_transcript():
 
 
 @pytest.fixture(autouse=True)
+def _measured_host_rates_do_not_leak():
+    """One test's measured decode rate must not size the next test's answer.
+
+    core.brain.llm.mlx_client._HOST_RATES is a process-wide dict written by
+    any real generation, and every answer budget is computed from it through
+    fit_the_answer_to_the_time. A test that generated against a fake client
+    left a rate behind, and later tests in the same file got a different
+    token budget and failed for a reason nothing in them could explain:
+    test_background_primary_downgrades_timeout_and_tier and
+    test_foreground_cortex_warmup_admits_live_desktop_headroom both passed
+    alone and failed in their own file.
+
+    Restored, not zeroed: a test that measures still sees its own measurement.
+
+    The architecture index is here for the same reason and it is the one that
+    actually bit: get_overview() returns nothing until the index is built and
+    ~800 characters of subsystem map once it is, and the build runs on a
+    background thread one test starts and another finishes. The prompt got
+    longer between two tests, the answer budget is computed from how long the
+    prompt takes to read, and the budget came out at 368 tokens where the test
+    asked for 384.
+    """
+    saved_index = None
+    module = None
+    try:
+        from core.brain.llm import mlx_client
+    except ImportError:
+        mlx_client = None
+    try:
+        from core.self import architecture_index as module
+
+        saved_index = module._index
+    except ImportError:
+        module = None
+    saved_rates = dict(mlx_client._HOST_RATES) if mlx_client is not None else None
+    try:
+        yield
+    finally:
+        if mlx_client is not None and saved_rates is not None:
+            mlx_client._HOST_RATES.clear()
+            mlx_client._HOST_RATES.update(saved_rates)
+        if module is not None:
+            module._index = saved_index
+
+
+@pytest.fixture(autouse=True)
 def hermetic_resource_sandbox(tmp_path_factory):
     # Resource observation is test infrastructure, not test-owned payload. Put
     # it beside pytest's per-test directory so exact-directory transaction

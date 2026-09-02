@@ -342,17 +342,52 @@ def test_a_mechanism_bar_needs_neither():
     assert not module._demonstration_problems("X", entry)
 
 
-def test_the_cards_that_close_on_a_harness_say_so():
+def test_a_campaign_that_was_run_answers_the_bar_a_harness_cannot():
+    module = _atlas()
+    entry = {"bar": "the learned policy beats the static one", "closed_by": ["tests/x.py"]}
+    assert module._demonstration_problems("X", entry)
+    # A run campaign satisfies the bar, and only when it names evidence that
+    # is on disk and that a test reads - otherwise it is a sentence, which is
+    # the thing `outstanding` exists to stop being mistaken for a result.
+    entry["campaign_run"] = "it went well"
+    assert not module._demonstration_problems("X", entry)
+    assert module._campaign_problems("X", entry)
+    entry["campaign_run"] = "beat it (docs/evidence/nothing_here_at_all.json)"
+    assert module._campaign_problems("X", entry)
+
+
+def test_every_card_that_closes_on_a_harness_says_which_campaign():
+    """Not a count: the property. Counting broke the moment a campaign ran."""
     import json
 
+    module = _atlas()
     adjudication = json.loads((ROOT / "docs/gap_atlas/adjudication.json").read_text())
-    outstanding = [
-        cid for cid, entry in adjudication["entries"].items() if entry.get("outstanding")
+    entries = adjudication["entries"]
+
+    demonstration_bars = [
+        cid
+        for cid, entry in entries.items()
+        if any(
+            word in (entry.get("bar") or "").lower()
+            for word in module.DEMONSTRATION_WORDS
+        )
     ]
-    assert len(outstanding) >= 20, (
-        "building the harness that would measure a win is not the win, and the entries "
-        "that closed on a harness have to say which campaign is still to run"
-    )
+    assert demonstration_bars, "no card names a demonstrated result at all"
+
+    for cid in demonstration_bars:
+        entry = entries[cid]
+        assert entry.get("outstanding") or entry.get("campaign_run"), (
+            f"[{cid}] closes on a harness and says neither which campaign is "
+            "still to run nor which one was"
+        )
+        assert not module._campaign_problems(cid, entry), module._campaign_problems(
+            cid, entry
+        )
+
+    # And the two halves are both non-empty, so neither field is carrying the
+    # whole list by accident.
+    assert [c for c in demonstration_bars if entries[c].get("outstanding")]
+    assert [c for c in demonstration_bars if entries[c].get("campaign_run")]
 
 
 # ── the clean-room rule can fire ──────────────────────────────────────────

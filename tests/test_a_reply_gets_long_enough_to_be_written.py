@@ -97,3 +97,37 @@ def test_it_prices_the_prompt_after_final_compaction():
     window = source[priced : priced + 1200]
     assert "dispatched_prompt_text" in window
     assert "request_deadline.with_timeout(timeout_val)" in window
+
+
+def test_a_protected_length_buys_time_instead_of_being_shortened():
+    """The protected capability lane overrides the resource envelope to get a
+    budget, and fitting the answer to the clock used to undo that override
+    without knowing it existed."""
+    prompt = "x" * 6000
+    _budget, cut = fit_the_answer_to_the_time(prompt, 384, 20.0)
+    assert cut < 384, "this prompt and clock have to force a cut, or the test is empty"
+
+    budget, kept = fit_the_answer_to_the_time(prompt, 384, 20.0, floor=384)
+    assert kept == 384, "the protected floor was cut anyway"
+    assert budget > 20.0, "the clock did not stretch to afford the floor"
+
+
+def test_a_floor_the_longest_clock_cannot_afford_is_cut_and_said_out_loud(caplog):
+    """A protection that quietly did nothing is worse than a measured limit."""
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        _budget, kept = fit_the_answer_to_the_time(
+            "x" * 400_000, 4_000_000, 20.0, floor=4_000_000
+        )
+    assert kept < 4_000_000
+    assert any("protected answer floor" in r.message for r in caplog.records), (
+        "the floor was cut and nothing said so"
+    )
+
+
+def test_no_floor_leaves_the_old_behaviour_exactly_as_it_was():
+    prompt = "x" * 6000
+    assert fit_the_answer_to_the_time(prompt, 512, 50.0) == fit_the_answer_to_the_time(
+        prompt, 512, 50.0, floor=0
+    )

@@ -693,6 +693,19 @@ _ANOTHER_QUESTION_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: A piece opening with one of these is the CONDITION on the question after
+#: it, not a question of its own. "If you could change one thing about how I
+#: talk to you, what would it be?" is one ask; splitting it at the comma made
+#: "If you could change one thing about how I talk to you?" a part in its own
+#: right, and a reply that answered the actual question was reported as having
+#: left half of it alone. The same principle the relative pronouns are
+#: excluded under: a false split is worse here than a missed one.
+_A_CONDITION_NOT_A_QUESTION_RE = re.compile(
+    r"^\s*(?:if|when|whenever|while|unless|although|though|because|since|"
+    r"after|before|assuming|supposing|given\s+that|now\s+that|in\s+case)\b",
+    re.IGNORECASE,
+)
+
 
 def _coordinated_question_segments(text: str) -> tuple[str, ...]:
     """Split one sentence that asks several questions.
@@ -722,6 +735,12 @@ def _coordinated_question_segments(text: str) -> tuple[str, ...]:
         for part in pieces
         if len(part.split()) >= 2 or part.strip("? ").lower() in _A_QUESTION_ON_ITS_OWN
     ]
+    # A leading subordinate clause is the condition on what follows, and the
+    # sentence asks one thing. Dropping it here rather than never splitting
+    # keeps "if you want, what would you change, and why?" splitting into the
+    # two questions it really holds.
+    while kept and _A_CONDITION_NOT_A_QUESTION_RE.match(kept[0]):
+        kept = kept[1:]
     if len(kept) < 2:
         return ()
     # Each piece carries the question mark it shares, so a segment reads as

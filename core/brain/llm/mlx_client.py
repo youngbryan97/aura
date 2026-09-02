@@ -123,6 +123,26 @@ _COLD_START_HEADROOM = 2.0
 _UNMEASURED_DECODE_RATE = 8.0
 
 
+def reset_host_rates_for_test() -> dict[str, float]:
+    """Forget the measured host rates, and hand back what they were.
+
+    They are process-wide and written by any real generation, and every answer
+    budget is computed from them — so one test that generates decides how long
+    the next test's answer is allowed to be. Restoring what was there is the
+    caller's job; :func:`observed_rates` falls back to the unmeasured
+    constants until something measures again.
+    """
+    previous = dict(_HOST_RATES)
+    for key in _HOST_RATES:
+        _HOST_RATES[key] = 0.0
+    return previous
+
+
+def restore_host_rates_for_test(rates: dict[str, float]) -> None:
+    """Put back what :func:`reset_host_rates_for_test` handed over."""
+    _HOST_RATES.update(rates)
+
+
 def observed_rates() -> dict[str, float]:
     """Prefill and decode rates this host has been measured at, tokens a second."""
     return {
