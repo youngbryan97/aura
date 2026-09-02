@@ -837,6 +837,23 @@ class AutonomousInitiativeLoop:
             return False
         if not the_record().kept:
             return False
+        # Her drives, told to the value rather than fetched by it. They change
+        # what a change has to be worth; they never choose what it is.
+        try:
+            from core.cognition.how_sure_she_is import tell_her_the_drives
+
+            engine = optional_service("motivation_engine", default=None)
+            if engine is not None:
+                state = getattr(engine, "state", engine)
+                tell_her_the_drives(
+                    **{
+                        name: getattr(state, name)
+                        for name in ("curiosity", "growth", "integrity", "energy")
+                        if getattr(state, name, None) is not None
+                    }
+                )
+        except (ImportError, AttributeError, TypeError, ValueError):
+            logger.debug("no drives to tell her about", exc_info=True)
         loop = asyncio.get_running_loop()
         try:
             decided = await asyncio.wait_for(

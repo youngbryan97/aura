@@ -50,6 +50,7 @@ __all__ = [
     "more_likely_than_not_better",
     "sure_enough",
     "the_bar_right_now",
+    "tell_her_the_drives",
     "what_the_drives_say",
     "which_to_try",
 ]
@@ -209,8 +210,30 @@ def how_much_to_spend_on_developing() -> float:
     return 0.5 if whole <= 0 else max(0.0, min(1.0, per_change / whole))
 
 
+#: What her drives were last said to be. Pushed in rather than fetched: this
+#: package may not reach for a service, and it should not — a reading that
+#: goes and finds its own inputs is a reading with an opinion about where they
+#: live. Empty means nobody has said, which is a different thing from calm.
+_DRIVES: dict[str, float] = {}
+
+
+def tell_her_the_drives(**drives: Any) -> dict[str, float]:
+    """Say what curiosity, growth, integrity and energy are right now.
+
+    Called by whatever holds the motivation engine. Values outside nought and
+    one are clipped rather than refused, because a drive is a strength and a
+    caller with a different scale should not silence it.
+    """
+    for name, value in drives.items():
+        try:
+            _DRIVES[str(name)] = max(0.0, min(1.0, float(value)))
+        except (TypeError, ValueError):
+            continue
+    return dict(_DRIVES)
+
+
 def what_the_drives_say() -> dict[str, float]:
-    """Her drives, as numbers, or nothing where there is no live runtime.
+    """Her drives, as numbers, or nothing where nobody has said.
 
     Curiosity, growth, integrity and energy already exist and already move.
     What they did before was pick the work: a curiosity threshold launched a
@@ -222,24 +245,7 @@ def what_the_drives_say() -> dict[str, float]:
     prices things. Low energy raises it, because the cost of spending is higher
     when there is less. Neither picks anything.
     """
-    try:
-        from core.service_locator import optional_service
-    except ImportError:
-        return {}
-    engine = optional_service("motivation_engine", default=None)
-    if engine is None:
-        return {}
-    found: dict[str, float] = {}
-    for name in ("curiosity", "growth", "integrity", "energy"):
-        value = getattr(engine, name, None)
-        if value is None:
-            state = getattr(engine, "state", None)
-            value = getattr(state, name, None) if state is not None else None
-        try:
-            found[name] = max(0.0, min(1.0, float(value)))
-        except (TypeError, ValueError):
-            continue
-    return found
+    return dict(_DRIVES)
 
 
 def the_bar_right_now(*, a_question_is_waiting: bool = False) -> float:
