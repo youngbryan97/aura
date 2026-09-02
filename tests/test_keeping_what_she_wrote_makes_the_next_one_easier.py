@@ -21,6 +21,17 @@ Measured over five seeds, five blocks of six families:
     apart    GROWN 150/150   RESET 150   LESIONED 150
              gap by block 0, 0, 0, 0, 0
 
+The budget is a count of candidates, not a number of seconds, and that was a
+correction rather than a preference: on a wall clock this assertion failed
+twice in three runs, because two agents given the same seconds are not given
+the same search. Under a count it does not.
+
+The recurrence route is off throughout. With it on every family here is solved
+in one candidate whatever the library holds — four of four in every block of
+every condition — so the comparison would have nothing to compare. What is
+measured is what the library buys the ENUMERATION, and saying which of the two
+is being measured is the point.
+
 The bounded version below is what runs in CI. It asserts the shape rather than
 the exact numbers, because the exact numbers belong in
 `artifacts/endogenous/grown_against_reset.json` where they can be re-measured
@@ -37,10 +48,10 @@ from tools.run_grown_against_reset_heads import run_stream
 @pytest.mark.slow
 def test_the_gap_opens_only_where_there_is_something_to_carry() -> None:
     shared = run_stream(
-        stream="shared", blocks=3, per_block=4, seed=1000, within=2.0, deepest=3
+        stream="shared", blocks=3, per_block=3, seed=1000, within=1.0, deepest=3
     )
     apart = run_stream(
-        stream="apart", blocks=3, per_block=4, seed=1000, within=2.0, deepest=3
+        stream="apart", blocks=3, per_block=3, seed=1000, within=1.0, deepest=3
     )
 
     # On the stream with structure in it the gap is there by the end.
@@ -64,7 +75,7 @@ def test_the_gap_opens_only_where_there_is_something_to_carry() -> None:
 def test_the_library_is_what_grew_and_not_the_budget() -> None:
     """Matched compute, so the gap is not GROWN having been given more time."""
     shared = run_stream(
-        stream="shared", blocks=2, per_block=3, seed=1002, within=2.0, deepest=3
+        stream="shared", blocks=2, per_block=3, seed=1002, within=1.0, deepest=3
     )
     assert shared["library"] > 0
     # Every agent got the same per-family allowance; the only difference in
@@ -74,8 +85,9 @@ def test_the_library_is_what_grew_and_not_the_budget() -> None:
     from tools.run_grown_against_reset_heads import _attempt
 
     source = inspect.getsource(_attempt)
-    assert "within=within" in source
+    assert "most_candidates=" in source, "a wall clock is not a matched budget"
     assert "already=tuple(agent.library)" in source
+    assert "by_recurrence=False" in source
 
 
 def test_a_constant_family_is_not_offered_as_evidence() -> None:
