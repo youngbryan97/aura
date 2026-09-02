@@ -3270,7 +3270,8 @@ def _install_language_growth_claims(suite: Any) -> None:
                 "sixteen seeds, six families each, different words on each "
                 "domain so the states look unrelated. Related: 96 of 96 with the "
                 "piece against 77 without. Control, whose term does not contain "
-                "the piece anywhere: 96 and 96. The relation is constructed "
+                "the piece anywhere: 96 and 96. Measured on the search rather "
+                "than on admission, as above. The relation is constructed "
                 "rather than found, and that is the limit of the claim — it "
                 "shows the piece is what carries, not that any real pair of "
                 "domains stands in this relation"
@@ -3294,6 +3295,9 @@ def _install_language_growth_claims(suite: Any) -> None:
                 "stream: grown 150/150, reset 78, lesioned 70, with the gap by "
                 "block 0, 2, 2.6, 5.8, 4. Control stream with nothing to carry: "
                 "150, 150, 150 and a gap of nought in every block of every seed. "
+                "Measured on the SEARCH rather than on admission: these families "
+                "are all inside what the positional language says, so the gate "
+                "above the search would refuse every head as a shorter name. "
                 "The gap is not monotone block to block, and the mechanism is "
                 "transparent — later families are drawn over earlier terms — so "
                 "this is compounding on a stream with structure rather than "
@@ -3343,7 +3347,12 @@ def _install_language_growth_claims(suite: Any) -> None:
                 "search can reach is a few dozen symbols, which is Levin's bound "
                 "rather than a defect: the library is what moves the horizon, and "
                 "the measurement is that the same search at the same budget finds "
-                "nothing with an empty library and the answer with one entry"
+                "nothing with an empty library and the answer with one entry. "
+                "This claim is about the SEARCH and the persistence, not about "
+                "admission: on 120 families drawn at random the growth "
+                "classifier said the positional language already says it every "
+                "time, so no head has yet passed the full gate — see "
+                "tests/test_a_head_has_not_yet_earned_its_place.py"
             ),
             live_channels=("language.ways_of_building",),
         )

@@ -322,12 +322,17 @@ def an_operation_nobody_wrote(
     return derived
 
 
-def widen_with_addressing(name: str, addressing: DerivedAddressing) -> str:
+def widen_with_addressing(name: str, addressing: Any) -> str:
     """Put a derived addressing into the language every meaning is built from.
 
     This is the whole point. It is not a new hypothesis — it is a new WORD, and
     every hypothesis that can be formed afterwards may use it. The space she
     searches is strictly larger than the one she was given.
+
+    A word read off a table of places and a word written over a head she wrote
+    are different shapes, and both arrive here. Anything this reads off the
+    word is read with a default rather than an attribute, because a word this
+    function cannot describe is still a word it should install.
     """
     from core.cognition.an_invented_kind import WHERE_FROM
     from core.cognition.language_telemetry import note_the_language_grew
@@ -340,14 +345,14 @@ def widen_with_addressing(name: str, addressing: DerivedAddressing) -> str:
     logger.info(
         "the language grew: %d ways to say where a value comes from (%s)",
         len(WHERE_FROM),
-        addressing.growth or "not decided",
+        getattr(addressing, "growth", "") or "not decided",
     )
     note_the_language_grew()
     return said
 
 
 def _say_which_kind_of_growth_this_is(
-    addressing: DerivedAddressing, language: dict[str, Any]
+    addressing: Any, language: dict[str, Any]
 ) -> None:
     """Decide, and record, what admitting this word actually did.
 
@@ -365,7 +370,15 @@ def _say_which_kind_of_growth_this_is(
     from core.cognition.what_an_invention_buys import the_horizon_of
     from core.cognition.which_kind_of_growth import which_kind_of_growth
 
-    lengths = sorted(addressing.at)
+    # A word she wrote over a head she wrote is not a table of places, so it
+    # has no lengths to read off. Deciding the kind of growth for the HEAD is
+    # what core/cognition/sequence_induction.py does before installing it, and
+    # doing it twice from a shape this function cannot read would raise where
+    # it should say nothing.
+    at = getattr(addressing, "at", None)
+    if not isinstance(at, dict):
+        return
+    lengths = sorted(at)
     if not lengths:
         return
 

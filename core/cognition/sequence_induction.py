@@ -484,6 +484,66 @@ def _a_word_the_language_was_missing(
     return f"a new way of MAKING words rather than a word ({kept[0].name})"
 
 
+def _the_body_inside(head_body: Any) -> Any:
+    """A head's body with its binders off, so it can be a leaf in another."""
+    inside = head_body
+    while getattr(inside, "head", "") == "given a thing":
+        inside = inside.parts[0]
+    return inside
+
+
+def _which_kind_of_growth_this_head_is(
+    name: str,
+    found: Any,
+    pairs: Sequence[tuple[Sequence[Any], Sequence[Any]]],
+) -> str:
+    """Shorter name, longer reach, or a new distinction — decided, not assumed."""
+    from core.cognition.an_invented_kind import addressings
+    from core.cognition.one_algebra import DERIVED_HEADS, Head
+    from core.cognition.one_algebra import _where_each_came_from  # noqa: PLC2701
+    from core.cognition.what_an_invention_buys import the_horizon_of
+    from core.cognition.which_kind_of_growth import UNDECIDED, which_kind_of_growth
+
+    wanted = _where_each_came_from(pairs)
+    if not wanted:
+        return UNDECIDED
+
+    def says_it(word: Any) -> bool:
+        for size, places in wanted.items():
+            if size <= 0:
+                return False
+            for at in range(size):
+                try:
+                    if int(word(at, size)) % size != places[at]:
+                        return False
+                except (ArithmeticError, IndexError, RecursionError, TypeError,
+                        ValueError):
+                    return False
+        return True
+
+    taken: Head | None = DERIVED_HEADS.pop(name, None)
+    try:
+        given = {
+            one: word
+            for one, word in addressings().items()
+            if name not in one
+        }
+        return which_kind_of_growth(
+            says_it,
+            the_old_language=given,
+            horizon=the_horizon_of(2),
+            within=_HOW_LONG_A_CLASSIFICATION_GETS,
+        ).kind
+    finally:
+        if taken is not None:
+            DERIVED_HEADS[name] = taken
+
+
+#: What deciding the kind may spend. It is a search over the language without
+#: the head, and it runs once per admission rather than once per candidate.
+_HOW_LONG_A_CLASSIFICATION_GETS = 8.0
+
+
 def _a_way_of_computing(
     pairs: Sequence[tuple[Sequence[Any], Sequence[Any]]],
     sayable: Any,
@@ -495,10 +555,12 @@ def _a_way_of_computing(
     from core.cognition.an_invented_kind import addressings
     from core.cognition.one_algebra import (
         DERIVED_HEADS,
+        Head,
         Term,
         forget_the_head,
         the_head_she_wrote,
     )
+    from core.cognition.which_kind_of_growth import A_SHORTER_NAME
     from core.cognition.widening_the_language import widen_with_addressing
 
     found = a_way_of_computing_she_wrote(
@@ -507,7 +569,14 @@ def _a_way_of_computing(
         # What she has already written, offered as leaves. A head unreachable
         # today because its pieces are missing is short tomorrow because they
         # are not, and that is the whole of what accumulating means here.
-        already=tuple(one.body for one in DERIVED_HEADS.values()),
+        #
+        # The binders come off first. A head is stored closed over the six
+        # things a head is given, and a closed head handed to the search as a
+        # leaf is a function of six arguments where a number is wanted — so it
+        # never fits anywhere and the library bought nothing. Measured: with
+        # the binders on, a family needing a piece she already had came back
+        # unsolved; with them off, the same family came back solved.
+        already=tuple(_the_body_inside(one.body) for one in DERIVED_HEADS.values()),
     )
     if found is None:
         return None
@@ -545,6 +614,26 @@ def _a_way_of_computing(
         logger.info("not keeping %s — %s", name, worth.describes())
         forget_the_head(name)
         return None
+
+    # Which of the three things "the language grew" means, on this head.
+    #
+    # The control ChatGPT's response named and this codebase already had the
+    # machinery for: take the name away and look for the behaviour in the
+    # language without it. A head that merely spells something the positional
+    # terms already say is a shorter name, and a shorter name is not worth a
+    # shape at every node of every term.
+    #
+    # The head has to come out for the search, because every_term offers the
+    # heads she wrote and the classifier would otherwise find this one and
+    # report that the old language could say it all along.
+    kind = _which_kind_of_growth_this_head_is(name, found, pairs)
+    if kind == A_SHORTER_NAME:
+        logger.info("not keeping %s — it is a shorter name for something sayable", name)
+        forget_the_head(name)
+        return None
+    DERIVED_HEADS[name] = Head(
+        name=name, takes=2, body=found.body, kind=kind
+    )
     # A head is only reachable through a word written over it, so the word it
     # was fitted on goes in with it.
     every = addressings()

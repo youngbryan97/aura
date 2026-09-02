@@ -71,7 +71,9 @@ def test_she_writes_one_from_the_examples_alone() -> None:
     assert found is not None
     assert found.fitted_at and found.judged_at
     assert set(found.fitted_at) & set(found.judged_at) == set()
-    assert found.how_long <= 20
+    # The closed head carries the fixed point it is given, so what was
+    # written is the body inside rather than the whole thing.
+    assert found.how_long <= 24
 
 
 def test_what_she_wrote_computes_the_family_at_lengths_it_never_saw(
@@ -139,27 +141,85 @@ def test_it_refuses_where_the_correspondence_contradicts_itself() -> None:
     assert found is None
 
 
-def test_what_a_head_is_given_matches_what_the_interpreter_hands_it() -> None:
-    """Six things, in one order, agreed between the writer and the runner."""
-    from core.cognition import one_algebra
+@pytest.mark.parametrize(
+    ("which", "reads"),
+    [(5, "where"), (4, "how long"), (3, "the first here"), (2, "the second here")],
+)
+def test_what_a_head_is_given_arrives_where_the_writer_expects_it(
+    which, reads, _clean_registry
+) -> None:
+    """Seven things, in one order, agreed between the writer and the runner.
 
-    body = as_a_head(Code("the one it was given", value=0))
-    assert how_long(body) == 1 + len(WHAT_A_HEAD_IS_GIVEN)
-    source = one_algebra._a_head_she_wrote.__doc__ or ""
-    assert "floor" in source
-    the_head_she_wrote("hands back the last thing", 2, body)
-    try:
-        # The innermost binder is everything the second part says, so this
-        # head hands back a list; run() asks for a number and refuses.
-        with pytest.raises(ValueError):
-            run(
-                Term("hands back the last thing", parts=(Term("where"), Term("many"))),
-                0,
-                4,
-                (lambda at, size: at, lambda at, size: 0),
-            )
-    finally:
-        forget_the_head("hands back the last thing")
+    Checked by behaviour rather than by counting symbols, because the closed
+    head now carries the fixed point it is given and its length says nothing
+    about the order of its bindings.
+    """
+    the_head_she_wrote(
+        f"hands back {reads}", 2, as_a_head(Code("the one it was given", value=which))
+    )
+    term = Term(
+        f"hands back {reads}", parts=(Term("hole", value=0), Term("hole", value=1))
+    )
+    words = (lambda at, size: at, lambda at, size: (size - 1 - at) % size)
+    size = 5
+    got = [run(term, at, size, words) for at in range(size)]
+    want = {
+        5: [at for at in range(size)],
+        4: [size % size] * size,
+        3: [at for at in range(size)],
+        2: [(size - 1 - at) % size for at in range(size)],
+    }[which]
+    assert got == want, (which, reads, got, want)
+
+
+def test_the_head_can_refer_to_itself(_clean_registry) -> None:
+    """The binding that made a head able to say something new.
+
+    Before it, every head a search could write composed what the positional
+    algebra already composes — 120 families out of 120 classified as a shorter
+    name. A fixed point written out of application alone is thirty-eight
+    symbols, past anything shortest-first reaches, so it is supplied rather
+    than found. By the substitution argument it adds no meanings; it moves
+    what is reachable.
+    """
+    doubling = Code(
+        "if",
+        parts=(
+            Code("same as", parts=(Code("the one it was given", value=3), Code("a number", value=0))),
+            Code("a number", value=1),
+            Code(
+                "times",
+                parts=(
+                    Code("a number", value=2),
+                    Code(
+                        "of",
+                        parts=(
+                            Code(
+                                "of",
+                                parts=(
+                                    Code("the one it was given", value=6),
+                                    Code(
+                                        "minus",
+                                        parts=(
+                                            Code("the one it was given", value=3),
+                                            Code("a number", value=1),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                            Code("the one it was given", value=2),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+    the_head_she_wrote("two to the", 2, as_a_head(doubling))
+    term = Term("two to the", parts=(Term("where"), Term("many")))
+    words = (lambda at, size: at, lambda at, size: 0)
+    for size in (5, 7, 11):
+        got = [run(term, at, size, words) for at in range(size)]
+        assert got == [pow(2, at, size) for at in range(size)], size
 
 
 def test_the_library_is_what_moves_the_horizon(_clean_registry) -> None:
@@ -200,8 +260,15 @@ def test_the_library_is_what_moves_the_horizon(_clean_registry) -> None:
 
     family = _family(lambda at, size: 2**at, (4, 5, 6, 7))
 
+    # The recurrence route is turned off, because with it on this family is
+    # solved cold and the question of what the library buys does not arise.
+    # It is exactly the lesion: what is being measured here is enumeration.
     cold = a_way_of_computing_she_wrote(
-        family, now_sayable=lambda: False, words=dict(WHERE_FROM), within=20.0
+        family,
+        now_sayable=lambda: False,
+        words=dict(WHERE_FROM),
+        within=20.0,
+        by_recurrence=False,
     )
     warm = a_way_of_computing_she_wrote(
         family,
@@ -209,13 +276,14 @@ def test_the_library_is_what_moves_the_horizon(_clean_registry) -> None:
         words=dict(WHERE_FROM),
         already=(doubling,),
         within=20.0,
+        by_recurrence=False,
     )
     assert cold is None, "reachable without the piece, so the piece proved nothing"
     assert warm is not None, "unreachable even with the piece"
     # What it wrote is the piece plus a little, which is what "the library
     # moved the horizon" has to mean: not that a longer search succeeded, but
     # that the answer was short once the piece was a leaf.
-    assert warm.how_long <= how_long(doubling) + len(WHAT_A_HEAD_IS_GIVEN) + 4
+    assert warm.how_long <= how_long(doubling) + 4
 
 
 def test_a_head_is_weighed_in_terms_to_walk_before_it_is_kept() -> None:

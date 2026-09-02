@@ -195,11 +195,19 @@ class Head:
     name: str
     takes: int
     body: Any
+    #: Which of the three things "the language grew" means, on this head, from
+    #: core/cognition/which_kind_of_growth.py. Empty until it is classified,
+    #: and a head classified as a shorter name is not kept.
+    kind: str = ""
 
     def describes(self) -> str:
         from core.cognition.the_floor_she_stands_on import how_long
 
-        return f"{self.name!r}, {self.takes} part(s), {how_long(self.body)} symbols"
+        said = f", {self.kind}" if self.kind else ""
+        return (
+            f"{self.name!r}, {self.takes} part(s), "
+            f"{how_long(self.body)} symbols{said}"
+        )
 
 
 #: The heads she wrote. Empty at boot and filled from what was kept, which is
@@ -222,14 +230,14 @@ def parts_taken_by(head: str) -> int | None:
     return HOW_MANY_PARTS.get(head)
 
 
-def the_head_she_wrote(name: str, takes: int, body: Any) -> Head:
+def the_head_she_wrote(name: str, takes: int, body: Any, kind: str = "") -> Head:
     """Put a way of computing into the grammar itself.
 
     Nothing is judged here. Whether it earns its place is the same question
     asked of a word and a maker, and the same code asks it; this only makes it
     reachable once the answer is yes.
     """
-    made = Head(name=str(name), takes=max(1, int(takes)), body=body)
+    made = Head(name=str(name), takes=max(1, int(takes)), body=body, kind=str(kind))
     DERIVED_HEADS[made.name] = made
     logger.info("she wrote a way of computing: %s", made.describes())
     return made

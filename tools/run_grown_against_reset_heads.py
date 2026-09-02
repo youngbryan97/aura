@@ -176,12 +176,11 @@ def _attempt(agent: Agent, family: Family, within: float) -> tuple[bool, int]:
     )
     if found is None:
         return False, 0
-    body = found.body
-    # The library holds the body without its binders, so it can be a leaf.
-    inner = body
-    while inner.head == "given a thing":
-        inner = inner.parts[0]
-    if all(inner != one for one in agent.library):
+    # The library holds what she WROTE, so it can be a leaf in the next one.
+    # Taking the binders off the closed head would give the fixed point it is
+    # given rather than the body, which is why the body is kept beside it.
+    inner = found.written
+    if inner is not None and all(inner != one for one in agent.library):
         agent.library.append(inner)
     return True, found.found_at
 
