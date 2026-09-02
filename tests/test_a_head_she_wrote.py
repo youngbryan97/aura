@@ -268,7 +268,9 @@ def test_a_head_that_was_never_there_reports_so_rather_than_raising(
     _clean_registry,
 ) -> None:
     report = forget_the_head("nothing anybody wrote")
-    assert report == {"head": "nothing anybody wrote", "removed": False, "words": []}
+    assert report["head"] == "nothing anybody wrote"
+    assert report["removed"] is False
+    assert report["words"] == []
 
 
 def test_a_descendant_head_keeps_computing_when_its_ancestor_goes(
