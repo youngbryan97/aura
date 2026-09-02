@@ -22,8 +22,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Exact occurrence count at ratchet introduction (July 8, 2026): 1714.
 # ONLY goes down. Lowered to 1709 on 2026-08-25 when llm_health_router moved
-# seven inference-gate and orchestrator lookups onto the facade.
-RAW_GET_BUDGET = 1709
+# seven inference-gate and orchestrator lookups onto the facade, and to 1703
+# on 2026-09-01 when cognitive_integration_layer moved its nineteen — four
+# onto named resolvers and the rest onto optional_service, which is the
+# sanctioned wrapper for a seam that has no named resolver yet.
+RAW_GET_BUDGET = 1703
 
 # The facade itself is the one sanctioned wrapper around the container.
 FACADE = REPO_ROOT / "core" / "runtime" / "service_access.py"

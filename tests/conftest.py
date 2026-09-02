@@ -4,6 +4,7 @@ import builtins
 import contextlib
 import gc
 import inspect
+import logging
 import os
 import shutil
 import socket
@@ -16,7 +17,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-import logging
 
 # Log hermeticity: keep test logging out of the live ~/.aura/logs so suite
 # noise (test doubles, induced failures) never pollutes the running

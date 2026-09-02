@@ -4481,6 +4481,14 @@
       "scope": "<module>.save"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/knowledge/atomspace_persistence.py",
+      "scope": "<module>.save_async"
+    },
+    {
       "callee": "<file_write_gateway>.ensure_directory",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -14894,7 +14902,7 @@
       "category": "subprocess_gateway",
       "count": 1,
       "path": "core/organism/model_validation.py",
-      "scope": "<module>._historical_semantic_sources_hold"
+      "scope": "<module>._historical_semantic_sources_hold_at_binding"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
@@ -16146,6 +16154,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "6b6d8923d0a0db8f6cf0db316a17d4a2fe09a50c8b39d5156281ee5df8738309",
+  "inventory_sha256": "220cb5faecb45eb6e6401f883df8d96b81cd45548ca29158facf736285420812",
   "schema_version": 1
 }

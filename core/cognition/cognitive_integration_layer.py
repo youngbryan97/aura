@@ -17,6 +17,13 @@ from core.brain.reflex import get_reflex
 from core.config import config
 from core.container import ServiceContainer
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.service_access import (
+    optional_service,
+    resolve_kernel_interface,
+    resolve_llm_router,
+    resolve_memory_facade,
+    resolve_state_repository,
+)
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Cognition")
@@ -99,7 +106,7 @@ async def _extract_history(context: dict[str, Any] | None = None) -> list[dict[s
             ]
 
     try:
-        state_repo = ServiceContainer.get("state_repository", default=None)
+        state_repo = resolve_state_repository()
         if not state_repo:
             return []
 
@@ -133,7 +140,7 @@ async def _extract_history(context: dict[str, Any] | None = None) -> list[dict[s
 
 async def _run_inline_inference(message: str, history: list[dict[str, str]]) -> dict[str, Any] | None:
     try:
-        router = ServiceContainer.get("llm_router", default=None)
+        router = resolve_llm_router()
         if not router:
             return None
 
@@ -178,7 +185,7 @@ async def _run_inline_inference(message: str, history: list[dict[str, str]]) -> 
 
 def _inject_live_modifiers(data: dict[str, Any]) -> None:
     try:
-        repo = ServiceContainer.get("state_repository", default=None)
+        repo = resolve_state_repository()
         state = (
             getattr(repo, "_current", None)
             or getattr(repo, "_current_state", None)
@@ -205,7 +212,7 @@ def _inject_live_modifiers(data: dict[str, Any]) -> None:
 def _inject_packet_context(packet: Any) -> None:
     fragments: list[str] = []
     try:
-        experiencer = ServiceContainer.get("phenomenological_experiencer", default=None)
+        experiencer = optional_service("phenomenological_experiencer")
         pcs = getattr(experiencer, "phenomenal_context_string", "") if experiencer else ""
         if pcs:
             fragments.append(f"[Phenomenal state: {str(pcs)[:300]}]")
@@ -218,7 +225,7 @@ def _inject_packet_context(packet: Any) -> None:
         logger.error("Phenomenological context injection failed: %s", exc, exc_info=True)
 
     try:
-        synth = ServiceContainer.get("qualia_synthesizer", default=None)
+        synth = optional_service("qualia_synthesizer")
         if synth and hasattr(synth, "get_phenomenal_context"):
             qctx = synth.get_phenomenal_context()
             if qctx:
@@ -301,7 +308,7 @@ class CognitiveIntegrationLayer:
             # process. Advanced cognition can race the background autonomy boot,
             # so establish the canonical dependency here before activating its
             # consumer. Construction loads durable state and stays off-loop.
-            belief_engine = ServiceContainer.get("belief_revision_engine", default=None)
+            belief_engine = optional_service("belief_revision_engine")
             if belief_engine is None:
                 from core.epistemics.belief_revision import get_belief_revision_engine
 
@@ -311,7 +318,7 @@ class CognitiveIntegrationLayer:
 
             # 1. Resolve or Instantiate Components
             # We try to get them from the container first, then instantiate if missing
-            self.kernel = ServiceContainer.get("cognitive_kernel", default=None)
+            self.kernel = optional_service("cognitive_kernel")
             if not self.kernel:
                 from core.cognition.cognitive_kernel import get_cognitive_kernel
                 self.kernel = get_cognitive_kernel()
@@ -333,7 +340,7 @@ class CognitiveIntegrationLayer:
 
             # 2. Resolve or Instantiate InnerMonologue
             try:
-                self.monologue = ServiceContainer.get("inner_monologue", default=None)
+                self.monologue = optional_service("inner_monologue")
                 if not self.monologue:
                     from core.introspection.inner_monologue import get_inner_monologue
                     self.monologue = get_inner_monologue()
@@ -352,7 +359,7 @@ class CognitiveIntegrationLayer:
 
             # 3. Resolve or Instantiate LanguageCenter
             try:
-                self.language_center = ServiceContainer.get("language_center", default=None)
+                self.language_center = optional_service("language_center")
                 if not self.language_center:
                     from core.brain.language_center import get_language_center
                     self.language_center = get_language_center()
@@ -473,8 +480,8 @@ class CognitiveIntegrationLayer:
             await self.initialize()
 
         # Phase 23.4: Conceptual Engine Integration (Ava & Cortana)
-        ava = ServiceContainer.get("ava", default=None)
-        cortana = ServiceContainer.get("cortana", default=None)
+        ava = optional_service("ava")
+        cortana = optional_service("cortana")
         
         if ava:
             try:
@@ -494,8 +501,8 @@ class CognitiveIntegrationLayer:
         # turn is reasoned about defensively; EXTERNAL — protect the user and the
         # system boundary, stashing advice the response can surface.
         _levels = {"none": 0.0, "low": 0.3, "elevated": 0.6, "high": 1.0}
-        threat_watch = ServiceContainer.get("safe_surf", default=None)
-        ice = ServiceContainer.get("ice", default=None)
+        threat_watch = optional_service("safe_surf")
+        ice = optional_service("ice")
         if threat_watch or ice:
             try:
                 threat = threat_watch.scan(message) if threat_watch else None
@@ -509,7 +516,7 @@ class CognitiveIntegrationLayer:
                 self._last_threat_assessment = threat
                 self._last_intrusion_alert = intrusion
 
-                ki = ServiceContainer.get("kernel_interface", default=None)
+                ki = resolve_kernel_interface()
                 if ki is not None and getattr(ki, "is_ready", lambda: False)() and getattr(ki, "kernel", None):
                     st = getattr(ki.kernel, "state", None)
                     if st is not None and hasattr(getattr(st, "cognition", None), "modifiers"):
@@ -539,7 +546,7 @@ class CognitiveIntegrationLayer:
         # Phase 23.6: Affective attunement (Samantha). INTERNAL — sets affect
         # resonance/valence modifiers that colour Aura's tone; EXTERNAL — she meets
         # the person where they are emotionally instead of replying flat.
-        samantha = ServiceContainer.get("samantha", default=None)
+        samantha = optional_service("samantha")
         if samantha is not None:
             try:
                 _res = samantha.attune(message)
@@ -547,7 +554,7 @@ class CognitiveIntegrationLayer:
                 # where reading the emotion right matters most. Bounded, fail-open.
                 if _res.valence < -0.3 and _res.arousal > 0.5 and hasattr(samantha, "deep_attune"):
                     _res = await samantha.deep_attune(message, timeout=8.0)
-                ki = ServiceContainer.get("kernel_interface", default=None)
+                ki = resolve_kernel_interface()
                 if ki is not None and getattr(ki, "is_ready", lambda: False)() and getattr(ki, "kernel", None):
                     st = getattr(ki.kernel, "state", None)
                     if st is not None and hasattr(getattr(st, "cognition", None), "modifiers"):
@@ -636,7 +643,7 @@ class CognitiveIntegrationLayer:
                     )
                 else:
                     # AgencyCoordinator is registered as agency_coordinator in ServiceContainer
-                    agency = ServiceContainer.get("agency_coordinator", default=None)
+                    agency = optional_service("agency_coordinator")
                     if agency:
                         logger.info("🔍 [AGENCY] Tool use required. Dispatching to AgencyCoordinator.")
                         # Direct skill trigger for research
@@ -726,7 +733,7 @@ class CognitiveIntegrationLayer:
                 # If Cortana determines context is saturated, trigger memory eviction
                 if cortana.should_prune():
                     logger.warning("🧠 Cortana: Cognitive Overload detected. Evicting oldest context layers.")
-                    mem = ServiceContainer.get("memory_facade", default=None)
+                    mem = resolve_memory_facade()
                     if mem and hasattr(mem, "prune_context"):
                          mem.prune_context()
             except _CIL_RECOVERABLE_ERRORS as e:
@@ -822,7 +829,7 @@ class CognitiveIntegrationLayer:
     async def record_interaction(self, message: str, response: str, domain: str = "general"):
         """Commits a conversation turn to the memory system."""
         try:
-            mem = ServiceContainer.get("memory_facade", default=None)
+            mem = resolve_memory_facade()
             if mem and hasattr(mem, "commit_interaction"):
                 logger.info("💾 [MEMORY] Recording interaction to Episodic/Vector systems.")
                 await mem.commit_interaction(
