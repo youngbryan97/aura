@@ -403,3 +403,66 @@ def test_the_rollback_check_is_behavioural_not_structural():
     kernel.rollback("tri")
     wrong = {"succ": [99, 99, 99]}
     assert not kernel.behaviourally_identical((1, 2, 3), wrong)["identical"]
+
+
+# ── a candidate is a term, not a function ────────────────────────────────
+
+
+def test_a_candidate_can_be_a_term_and_the_kernel_runs_it() -> None:
+    """The thing this file exists to be the last step of, not the first.
+
+    A candidate arriving as a Python function is a candidate whose semantics
+    somebody else wrote. The kernel could always CHECK such a candidate; what
+    it could never do is have produced one. A term it can.
+    """
+    from core.cognition.the_floor_she_stands_on import (
+        A,
+        IF,
+        L,
+        MINUS,
+        N,
+        PLUS,
+        SAME,
+        V,
+        Y,
+        build,
+    )
+
+    triangular = build(
+        Y(
+            "sum",
+            L(
+                "n",
+                IF(
+                    SAME(V("n"), N(0)),
+                    N(0),
+                    PLUS(V("n"), A(V("sum"), MINUS(V("n"), N(1)))),
+                ),
+            ),
+        )
+    )
+    kernel = _kernel()
+    verdict = _consider(
+        kernel,
+        Candidate("tri", "sum 1..x", built_from=("succ",), term=triangular),
+    )
+    assert verdict.installed, verdict.detail
+    got = kernel.operators()["tri"]
+    assert got.invented
+    assert got.fn(5, None) == 15
+
+
+def test_a_candidate_with_neither_a_term_nor_a_function_is_refused() -> None:
+    kernel = _kernel()
+    verdict = _consider(kernel, Candidate("nothing at all", "a name"))
+    assert not verdict.installed
+    assert "a name is not a semantics" in verdict.detail
+
+
+def test_a_term_that_does_not_stop_is_refused_by_the_floor_not_by_luck() -> None:
+    from core.cognition.the_floor_she_stands_on import A, L, N, V, Y, build
+
+    forever = build(Y("go", L("n", A(V("go"), V("n")))))
+    verdict = _consider(_kernel(), Candidate("forever", "loop", term=forever))
+    assert not verdict.installed
+    assert verdict.rejection is not None

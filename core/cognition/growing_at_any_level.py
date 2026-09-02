@@ -36,6 +36,7 @@ from typing import Any, Callable, Sequence
 
 __all__ = [
     "Made",
+    "as_a_way_of_building",
     "Maker",
     "REGISTRY",
     "everything_makeable",
@@ -60,6 +61,9 @@ class Maker:
     name: str
     level: int
     make: Callable[[dict[str, Any]], dict[str, Any]]
+    #: The term it came from, where it came from one. Provenance, and the
+    #: thing that makes a maker at any level the same kind of object as a word.
+    term: Any = None
 
     def describes(self) -> str:
         return f"{self.name!r} at level {self.level}"
@@ -142,7 +146,7 @@ def what_it_reaches(level: int) -> int:
 def grow_at(
     level: int,
     name: str,
-    make: Callable[[dict[str, Any]], dict[str, Any]],
+    make: Any,
     *,
     now_sayable: Callable[[], bool],
 ) -> Made | None:
@@ -151,16 +155,35 @@ def grow_at(
     Refused when the family was already sayable, and rolled back when admitting
     it does not make it sayable. One function, whatever the level, which is
     what makes the tower a number rather than a pile of mechanisms.
+
+    ``make`` may be a TERM. That is the gap this module left when it collapsed
+    the levels: it made one registry hold every level and then took a Python
+    callable at each of them, so the tower was a number and the thing that
+    filled it was still mine. A term with a hole in it is a way of building
+    words — `one_algebra.as_a_maker` is the whole of the conversion — so a
+    term arriving here is turned into one and nothing else about the call
+    changes. A callable is still accepted, and every caller that passes one is
+    a test.
     """
     said = str(name or "").strip()
     if not said or said in REGISTRY:
+        return None
+    make = as_a_way_of_building(make)
+    if make is None:
         return None
     if now_sayable():
         # Nothing needed it. A maker earns its place by making something
         # possible, never by being available when nothing was blocked.
         return None
     below = tuple(sorted(everything_makeable(max(0, int(level) - 1))))
-    REGISTRY[said] = Maker(name=said, level=int(level), make=make)
+    from core.cognition.one_algebra import Term as PositionalTerm
+
+    REGISTRY[said] = Maker(
+        name=said,
+        level=int(level),
+        make=make,
+        term=getattr(make, "term", None),
+    )
     _publish(int(level))
     if not now_sayable():
         REGISTRY.pop(said, None)
@@ -172,6 +195,17 @@ def grow_at(
         said,
     )
     return Made(name=said, level=int(level), out_of=below)
+
+
+def as_a_way_of_building(make: Any) -> Callable[[dict[str, Any]], dict[str, Any]] | None:
+    """A term becomes a way of building; anything callable is already one."""
+    from core.cognition.one_algebra import Term, as_a_maker
+
+    if isinstance(make, Term):
+        return as_a_maker(make)
+    if callable(make):
+        return make
+    return None
 
 
 def grow_until_sayable(
@@ -198,7 +232,10 @@ def grow_until_sayable(
         said = str(name or "").strip()
         if not said or said in REGISTRY:
             continue
-        REGISTRY[said] = Maker(name=said, level=int(level), make=make)
+        built = as_a_way_of_building(make)
+        if built is None:
+            continue
+        REGISTRY[said] = Maker(name=said, level=int(level), make=built)
         put_in.append((int(level), said))
         _publish(int(level))
     if not now_sayable():

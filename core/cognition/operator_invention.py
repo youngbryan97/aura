@@ -93,13 +93,58 @@ class Residual:
 
 @dataclass(frozen=True, slots=True)
 class Candidate:
-    """A proposed operator, composed from what already exists."""
+    """A proposed operator, as a term rather than as a function.
+
+    ``term`` is a floor term — see
+    :mod:`core.cognition.the_floor_she_stands_on` — and it is what the kernel
+    runs. A candidate arriving as a Python function is a candidate whose
+    semantics somebody else wrote, which is the thing this whole file exists
+    to be the last step of rather than the first; the kernel could check such
+    a candidate but it could never have produced one.
+
+    ``fn`` is kept for the callers that still pass one, and every one of them
+    is a test. A candidate with a term uses the term; a candidate with neither
+    is refused before anything is run.
+    """
 
     name: str
     body: str
-    fn: Callable[..., Any]
-    built_from: tuple[str, ...]
+    fn: Callable[..., Any] | None = None
+    built_from: tuple[str, ...] = ()
     arity: int = 1
+    term: Any = None
+
+    def how_it_computes(self) -> Callable[..., Any] | None:
+        """What to run: the term where there is one, the function otherwise."""
+        if self.term is not None:
+            return _the_term_as_a_function(self.term)
+        return self.fn
+
+
+def _the_term_as_a_function(term: Any) -> Callable[..., Any]:
+    """A floor term, wrapped so the kernel's probes can call it.
+
+    Metered by the floor rather than by the kernel's own budget, because a
+    universal language has terms that do not stop and the kernel's budget
+    counts calls rather than reductions. A term that runs out is a term that
+    does not compute here, which is the same answer the budget already gives.
+    """
+    from core.cognition.the_floor_she_stands_on import Code, OutOfFuel, Stuck
+    from core.cognition.the_floor_she_stands_on import run as run_on_the_floor
+
+    def computes(one: Any, budget: Any = None) -> Any:
+        if budget is not None:
+            budget.step()
+        try:
+            return int(
+                run_on_the_floor(
+                    Code("of", parts=(term, Code("a number", value=int(one))))
+                )
+            )
+        except (OutOfFuel, Stuck) as exc:
+            raise TimeoutError(str(exc)) from exc
+
+    return computes
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,12 +252,22 @@ class OperatorKernel:
                 ),
             ))
 
+        computes = candidate.how_it_computes()
+        if computes is None:
+            return self._record(Verdict(
+                candidate.name, False, Rejection.RAISED,
+                detail=(
+                    "a candidate with neither a term nor a function computes "
+                    "nothing, and a name is not a semantics"
+                ),
+            ))
+
         # Bounded execution on every probe.
         outputs: list[Any] = []
         for probe in probes:
             budget = _Budget(STEP_BUDGET)
             try:
-                outputs.append(candidate.fn(probe, budget))
+                outputs.append(computes(probe, budget))
             except TimeoutError as exc:
                 return self._record(Verdict(
                     candidate.name, False, Rejection.NON_TERMINATING, detail=str(exc)
@@ -249,7 +304,7 @@ class OperatorKernel:
             ))
 
         # Reach: it must solve the family that was unreachable.
-        if not solves(candidate.fn, family):
+        if not solves(computes, family):
             return self._record(Verdict(
                 candidate.name, False, Rejection.NO_REACH, novel_on=tuple(novel_on),
                 detail=f"novel, and still does not solve {family!r}",
@@ -267,7 +322,7 @@ class OperatorKernel:
         passed = 0
         for probe in adversarial:
             try:
-                candidate.fn(probe, _Budget(STEP_BUDGET))
+                computes(probe, _Budget(STEP_BUDGET))
                 passed += 1
             except (TypeError, ValueError, ArithmeticError, LookupError,
                     RecursionError, TimeoutError):
@@ -289,7 +344,7 @@ class OperatorKernel:
                 default=-1,
             )
             self._operators[candidate.name] = Operator(
-                name=candidate.name, fn=candidate.fn, body=candidate.body,
+                name=candidate.name, fn=computes, body=candidate.body,
                 built_from=candidate.built_from, invented=True, generation=generation,
             )
         return self._record(Verdict(

@@ -204,3 +204,74 @@ def test_the_answering_path_grows_two_levels_when_the_family_needs_them():
     # it is not the claim — a better one landing first is an improvement, and
     # a test that pins the mechanism would report that as a regression.
     assert "added it to that language" in said
+
+
+# ── a maker at any level is a term, not a callable ───────────────────────
+
+
+def test_a_term_can_be_admitted_at_any_level() -> None:
+    """The gap this module left when it collapsed the levels.
+
+    It made one registry hold every level and then took a Python callable at
+    each of them, so the tower was a number and the thing that filled it was
+    still authored. A term with a hole in it IS a way of building words, and
+    that is the whole conversion.
+    """
+    from core.cognition.growing_at_any_level import REGISTRY, grow_at
+    from core.cognition.one_algebra import Term
+
+    was = dict(REGISTRY)
+    REGISTRY.clear()
+    try:
+        branching = Term(
+            "if",
+            (
+                Term("same as", (
+                    Term("left over", (Term("many"), Term("fixed", value=2))),
+                    Term("fixed", value=0),
+                )),
+                Term("hole", value=0),
+                Term("hole", value=1),
+            ),
+        )
+        asked = [False]
+
+        def now_sayable() -> bool:
+            # Unsayable until something is in the registry, which is what makes
+            # the admission a measurement rather than a formality.
+            said = bool(REGISTRY) and asked[0]
+            asked[0] = True
+            return said
+
+        made = grow_at(1, "a term at level one", branching, now_sayable=now_sayable)
+        assert made is not None
+        assert "a term at level one" in REGISTRY
+        assert REGISTRY["a term at level one"].term == branching
+    finally:
+        REGISTRY.clear()
+        REGISTRY.update(was)
+
+
+def test_something_that_is_neither_a_term_nor_callable_is_refused() -> None:
+    from core.cognition.growing_at_any_level import REGISTRY, grow_at
+
+    was = dict(REGISTRY)
+    REGISTRY.clear()
+    try:
+        assert grow_at(1, "not a maker", 7, now_sayable=lambda: False) is None
+        assert "not a maker" not in REGISTRY
+    finally:
+        REGISTRY.clear()
+        REGISTRY.update(was)
+
+
+def test_the_conversion_is_the_one_the_algebra_already_had() -> None:
+    from core.cognition.growing_at_any_level import as_a_way_of_building
+    from core.cognition.one_algebra import Term
+
+    term = Term("through", (Term("hole", value=0), Term("where")))
+    built = as_a_way_of_building(term)
+    assert built is not None
+    assert getattr(built, "term", None) == term
+    assert as_a_way_of_building(lambda words: dict(words)) is not None
+    assert as_a_way_of_building(None) is None
