@@ -145,9 +145,15 @@ def test_it_is_reached_only_where_the_index_language_is_proved_to_fail() -> None
 def test_the_live_path_answers_a_sort() -> None:
     from core.cognition.sequence_induction import answer_sequence_question
 
+    # Five examples, not three. Three values give three risked pairs and the
+    # ordering refuses to reach past the cells it saw — deliberately, and for
+    # the reason test_a_thin_world_does_not_reach_past_the_cells_it_saw
+    # states below. This test is about answering a sort, not about
+    # extrapolating one from evidence that was never risked.
     said = answer_sequence_question(
         "[3, 1, 2] becomes [1, 2, 3]. [1, 3, 2] becomes [1, 2, 3]. "
-        "[2, 1, 3] becomes [1, 2, 3]. What does [9, 4, 7] become?"
+        "[2, 1, 3] becomes [1, 2, 3]. [5, 4, 6] becomes [4, 5, 6]. "
+        "[8, 6, 7] becomes [6, 7, 8]. What does [9, 4, 7] become?"
     )
     assert "[4, 7, 9]" in said
     assert "ascending" in said
