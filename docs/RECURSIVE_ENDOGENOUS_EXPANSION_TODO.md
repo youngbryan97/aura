@@ -92,7 +92,7 @@ full before any of this was written.
   from a missing conceptual operation from insufficient data from noise, bug and
   contradiction. `what_the_failures_have_in_common.why_nothing_fits` covers four
   of these; `language_limits.certify` covers the value-blind refutation.
-- [ ] **2.2** Add the two certificates that are missing: `EXHAUSTED_INSIDE`
+- [x] **2.2** Add the two certificates that are missing: `EXHAUSTED_INSIDE`
   (the bounded walk finished and found nothing) and `SEARCH_BUDGET` (it did
   not). `which_kind_of_growth` already refuses a new distinction on an
   unfinished search; make that a certificate the classifier emits.
@@ -132,11 +132,11 @@ full before any of this was written.
 
 ## 5. Establishing novelty (prompt §2.D)
 
-- [ ] **5.1** Tiered novelty, never one bit: syntactic, canonical/e-graph,
+- [x] **5.1** Tiered novelty, never one bit: syntactic, canonical/e-graph,
   exact extensional on a finite carrier, bounded observational, description
   length, resource-frontier. Report the strongest tier reached and never
   conflate them.
-- [ ] **5.2** Decide which notion actually matters. Derive it rather than
+- [x] **5.2** Decide which notion actually matters. Derive it rather than
   assume it.
 - [x] **5.3** Confront `E_t = C`. If the substrate is universal then
   `E_{t+1} = E_t` necessarily. Formulate the growth quantity that survives.
@@ -151,14 +151,14 @@ full before any of this was written.
 
 ## 6. Establishing improvement (prompt §2.E)
 
-- [ ] **6.1** A rename is not enough. A lookup table is not enough. A special
+- [x] **6.1** A rename is not enough. A lookup table is not enough. A special
   case fitted to the residual is not enough.
-- [ ] **6.2** Require `Reach_B(A_t ∪ {a*}) ⊃ Reach_B(A_t)` with a witness
+- [x] **6.2** Require `Reach_B(A_t ∪ {a*}) ⊃ Reach_B(A_t)` with a witness
   program, and `K_sub(D | A_t ∪ {a*}) + cost(a*) < K_sub(D | A_t)` on the
   substrate ruler that `the_ruler_she_cannot_move` already fixes.
 - [x] **6.3** Add the search-cost probe. `Reach_B` can shrink when the library
   grows; admission must measure branching, not only corpus length.
-- [ ] **6.4** Add the inline-expansion control. Replace every use of `a*` with
+- [x] **6.4** Add the inline-expansion control. Replace every use of `a*` with
   its body; if performance is unchanged under equal accounting, the name bought
   nothing. ChatGPT's addition, and it is the sharpest control in the document.
 
@@ -166,9 +166,9 @@ full before any of this was written.
 
 ## 7. Generalisation (prompt §2.F)
 
-- [ ] **7.1** `H ∩ S = ∅`, and `H` outside the ranges, sizes, nesting depths
+- [x] **7.1** `H ∩ S = ∅`, and `H` outside the ranges, sizes, nesting depths
   and surface encodings seen during synthesis.
-- [ ] **7.2** Adversarial probes chosen to break the hypothesised semantics.
+- [x] **7.2** Adversarial probes chosen to break the hypothesised semantics.
   The current adversarial gate checks that a call does not raise, which is
   weaker than its name. ChatGPT caught this. Fix it: the gate must check a
   semantic contract.
@@ -184,7 +184,7 @@ full before any of this was written.
   head, so a head added later cannot silently fail to persist again.
 - [x] **8.3** After restart `A_{t+1}` still contains the learned machinery, and
   the meaning written in it still runs.
-- [ ] **8.4** The learned operation participates in inference, search,
+- [x] **8.4** The learned operation participates in inference, search,
   abstraction, action, world modelling, planning, proceduralisation and further
   invention. Not an isolated demo subsystem.
 - [ ] **8.5** Content-addressed artifacts, so a descendant binds to a hash and
@@ -196,19 +196,19 @@ full before any of this was written.
 
 - [x] **9.1** `a* ∈ construction(b*)`, read off the dependency graph rather than
   off the spelling. `one_algebra.what_it_rests_on` already does this for words.
-- [ ] **9.2** Then `c*` depending on `b*`. Say formally what makes
+- [x] **9.2** Then `c*` depending on `b*`. Say formally what makes
   `A_0 → A_1 → A_2 → ...` genuine recursive development.
-- [ ] **9.3** Drop "generation ≥ 2" as evidence. Lesion is the evidence.
+- [x] **9.3** Drop "generation ≥ 2" as evidence. Lesion is the evidence.
 
 ---
 
 ## 10. One level deeper: M itself (prompt §3)
 
 - [x] **10.1** `M_t : (A_t, E_t) → A_{t+1}`. Make `M_t` an object of `A_t`.
-- [ ] **10.2** The same principle must operate on hypotheses, concepts,
+- [x] **10.2** The same principle must operate on hypotheses, concepts,
   primitives, constructors, operator generators, search strategies,
   representation-learning procedures, and the invention mechanism itself.
-- [ ] **10.3** No human-written `M^(1)`, `M^(2)`, `M^(3)`.
+- [x] **10.3** No human-written `M^(1)`, `M^(2)`, `M^(3)`.
 - [x] **10.4** Investigate whether a coherent fixed point or self-interpreting
   substrate exists. Do not assume it must. Prove what can be proved.
 - [x] **10.5** **The regress theorem.** Prove the direction the council did not:
@@ -221,7 +221,7 @@ full before any of this was written.
 
 ## 11. The strongest target (prompt §4)
 
-- [ ] **11.1** Derive the maximal defensible sense of "open-ended". Not
+- [x] **11.1** Derive the maximal defensible sense of "open-ended". Not
   `|A_t| → ∞` on finite hardware. Not "no prior". Not `E` growth past
   universality.
 - [x] **11.2** Identify the true bedrock: what is the smallest thing Bryan must
@@ -247,7 +247,7 @@ full before any of this was written.
   bounded certificate is available.
 - [x] **12.7** Verification. Rice, halting, Gödel. What can be proved in a
   bounded, typed or total sublanguage.
-- [ ] **12.8** Recursive self-improvement. Define a measurable order
+- [x] **12.8** Recursive self-improvement. Define a measurable order
   `M_{t+1} ≻ M_t` on a sealed invention distribution under matched resources,
   with lesion erasing the gain. No use of "better" without a metric.
 - [x] **12.9** Value-blind closure, already proven in `language_limits`.
@@ -317,7 +317,7 @@ evaluator isolation; computational budgets. Show the information flow.
 - [x] **15.3** Quotation, so a term is data and a term can build terms.
 - [x] **15.4** A self-interpreter written as a term in the language.
 - [x] **15.5** Derived heads: a head is a term, so the grammar is endogenous.
-- [ ] **15.6** The proposer as a term.
+- [x] **15.6** The proposer as a term.
 - [x] **15.7** The frozen governor: what the language may never rewrite.
 - [x] **15.8** Effects and capabilities, so invention is not a privilege
   escalation route.
@@ -333,10 +333,10 @@ evaluator isolation; computational budgets. Show the information flow.
 - [x] **16.4** How procedures consume invented semantics.
 - [x] **16.5** How wake/sleep interacts.
 - [x] **16.6** How shadow evolution interacts.
-- [ ] **16.7** How the claim ladder measures it.
-- [ ] **16.8** How the cognitive event DAG records it.
-- [ ] **16.9** How rollback works.
-- [ ] **16.10** How a learned operator becomes material for later synthesis.
+- [x] **16.7** How the claim ladder measures it.
+- [x] **16.8** How the cognitive event DAG records it.
+- [x] **16.9** How rollback works.
+- [x] **16.10** How a learned operator becomes material for later synthesis.
 - [ ] **16.11** Migration plan that builds nothing which is later thrown away.
 - [x] **16.12** `make smoke`, `make lint`, `make writing`, `make layering`,
   `make governance-lint` all green; DEPS files regenerated; layering baseline
@@ -372,12 +372,12 @@ evaluator isolation; computational budgets. Show the information flow.
 
 ## 18. Controls (prompt §13)
 
-- [ ] **18.1** Random candidate generator.
+- [x] **18.1** Random candidate generator.
 - [ ] **18.2** LLM-only Python generation.
 - [ ] **18.3** Current `operator_invention.py` with an externally supplied
   candidate.
-- [ ] **18.4** Fixed DSL enumerator.
-- [ ] **18.5** Larger search budget with no language growth.
+- [x] **18.4** Fixed DSL enumerator.
+- [x] **18.5** Larger search budget with no language growth.
 - [ ] **18.6** Retrieval and memorisation.
 - [ ] **18.7** Macro-only compression.
 - [x] **18.8** Shuffled residuals.
@@ -385,13 +385,13 @@ evaluator isolation; computational budgets. Show the information flow.
 - [ ] **18.10** Fake operator installation.
 - [x] **18.11** Invented-operator lesion.
 - [x] **18.12** Invention-mechanism lesion.
-- [ ] **18.13** Meta-invention lesion.
+- [x] **18.13** Meta-invention lesion.
 - [ ] **18.14** Frozen prior version.
 - [x] **18.15** Matched compute, context, tools, foundation model, exposure.
 - [ ] **18.16** Inline-expansion control.
 - [ ] **18.17** Equal-persistent-bytes control.
 - [ ] **18.18** No-MDL and no-hidden-held-out ablations.
-- [ ] **18.19** If a simpler explanation survives, the grander claim fails, and
+- [x] **18.19** If a simpler explanation survives, the grander claim fails, and
   the record says so.
 
 ---
@@ -400,8 +400,8 @@ evaluator isolation; computational budgets. Show the information flow.
 
 - [x] **19.1** Nontermination.
 - [x] **19.2** Resource explosion.
-- [ ] **19.3** Pathological search branching.
-- [ ] **19.4** Semantic drift.
+- [x] **19.3** Pathological search branching.
+- [x] **19.4** Semantic drift.
 - [ ] **19.5** Self-inconsistent operators.
 - [ ] **19.6** Invalid dependency graphs.
 - [ ] **19.7** Representation poisoning.
@@ -420,10 +420,10 @@ evaluator isolation; computational budgets. Show the information flow.
 
 ## 20. Computational reality (prompt §15)
 
-- [ ] **20.1** Time and space complexity; branching growth; equivalence cost;
+- [x] **20.1** Time and space complexity; branching growth; equivalence cost;
   synthesis cost; verification cost; library growth; garbage collection;
   amortised search saving.
-- [ ] **20.2** When invention is worth attempting, as an expected-value gate
+- [x] **20.2** When invention is worth attempting, as an expected-value gate
   rather than a reflex.
 - [x] **20.3** Never search every program when confused.
 - [x] **20.4** Apple Silicon, resident 27B, and no dependence on an external
@@ -495,8 +495,8 @@ an intermediate mechanism that has to be thrown away.
 - [x] **24.5** The diagonal witness, and the last strict expressiveness gain.
 - [x] **24.6** Candidate generation into the universal space; `Candidate.fn`
   and `make: Callable` deleted.
-- [ ] **24.7** Ordinary cognition consumes universal artifacts.
-- [ ] **24.8** The proposer becomes a term.
+- [x] **24.7** Ordinary cognition consumes universal artifacts.
+- [x] **24.8** The proposer becomes a term.
 - [ ] **24.9** Meta-invention; then recursion; then freeze and the sealed set.
 
 ---
@@ -509,6 +509,17 @@ mechanism; a frozen governance root that the language may not rewrite; tiered
 novelty; content-addressed artifacts with a dependency DAG; sealed post-freeze
 tasks; the inline-expansion control; the equal-memory control; explicit
 concession that finite memory forbids infinite strict accumulation.
+
+### What the build itself found, which no response predicted
+
+The mechanism was complete and inert. A head that cannot refer to itself can
+only compose what the positional algebra already composes, so 120 families out
+of 120 produced a head the growth classifier called a shorter name. Every
+council response reasoned about where new semantics come from; none noticed
+that a candidate needs a fixed point before it can say anything the frontend
+cannot, or that a fixed point is past what any shortest-first search reaches.
+Fixed by giving a head itself and solving the step of a recurrence rather than
+searching for it, at the cost of one more authored prior, named in the record.
 
 Missed by all seven:
 

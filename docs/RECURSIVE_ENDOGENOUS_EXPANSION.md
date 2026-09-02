@@ -447,8 +447,8 @@ length and `i` a position. Put `B = max(n, c, 2)`. Then
 
 *Proof.* Induction over the heads, and the case list is exactly what `run`
 dispatches on. `where` gives at most `n`; `many` gives `n`; `fixed k` gives
-`c`; `hole` returns `words[k](i,n) mod max(1,n)` and is below `n` **whatever
-the word does**; `through`, `over again` and `undo` each return a place inside
+`c`; `hole` asks the word in that hole and brings the answer back inside the
+state, so it is below `n` **whatever the word does**; `through`, `over again` and `undo` each return a place inside
 the state and so are below `n`; `if` returns one of its arms; `below` and
 `same as` give nought or one; `plus` and `minus` of parts bounded by `B**L1`
 and `B**L2` are at most `2·B**max ≤ B**(L1+L2+1)`; `times` is exactly
