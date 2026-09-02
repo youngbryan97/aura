@@ -223,11 +223,28 @@ def test_the_decay_constant_matches_the_sweep_it_was_read_from():
     rows = {row["decay"]: row for row in payload["rows"]}
     assert _RECENT_DECAY in rows, "the constant is not a row in its own sweep"
     chosen = rows[_RECENT_DECAY]
-    slowest = max(rows.values(), key=lambda r: r["firings_to_notice"])
+
+    def _when(row: dict) -> float:
+        # None means the shift was never noticed at all, which is the slowest
+        # any arm can be rather than a missing number. Treating it as one
+        # crashed this test the moment the no-decay arm stopped retiring
+        # anything, which is the arm's whole point.
+        seen = row["firings_to_notice"]
+        return float("inf") if seen is None else float(seen)
+
+    slowest = max(rows.values(), key=_when)
     # The value earns its place: it notices a shift sooner than the arm with
     # no decay at all, and does not retire rules a steady world keeps.
-    assert chosen["firings_to_notice"] < slowest["firings_to_notice"]
+    assert _when(chosen) < _when(slowest)
+    assert chosen["retired_after_shift"] == chosen["of"]
     assert chosen["retired_with_no_shift"] <= chosen["of"] // 8
+    # And the no-decay arm is the one it has to beat.
+    no_decay = rows.get(1.0)
+    if no_decay is not None:
+        assert _when(chosen) < _when(no_decay)
+        assert chosen["wrong_firings_after_shift"] < no_decay[
+            "wrong_firings_after_shift"
+        ]
 
 
 # ── the store survives the process ────────────────────────────────────────

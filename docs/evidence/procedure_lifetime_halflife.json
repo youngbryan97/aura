@@ -11,43 +11,43 @@
   "rows": [
     {
       "decay": 0.98,
-      "firings_to_notice": 999,
+      "firings_to_notice": 2999.0,
       "of": 32,
       "retired_after_shift": 32,
-      "retired_with_no_shift": 1,
-      "wrong_firings_after_shift": 793
+      "retired_with_no_shift": 0,
+      "wrong_firings_after_shift": 2297
     },
     {
       "decay": 0.99,
-      "firings_to_notice": 999,
-      "of": 32,
-      "retired_after_shift": 32,
-      "retired_with_no_shift": 1,
-      "wrong_firings_after_shift": 793
-    },
-    {
-      "decay": 0.995,
-      "firings_to_notice": 1999,
-      "of": 32,
-      "retired_after_shift": 32,
-      "retired_with_no_shift": 1,
-      "wrong_firings_after_shift": 1346
-    },
-    {
-      "decay": 0.999,
       "firings_to_notice": 3999.0,
       "of": 32,
       "retired_after_shift": 32,
       "retired_with_no_shift": 0,
-      "wrong_firings_after_shift": 3550
+      "wrong_firings_after_shift": 3501
     },
     {
-      "decay": 1.0,
-      "firings_to_notice": 21999.0,
+      "decay": 0.995,
+      "firings_to_notice": 6999.0,
       "of": 32,
       "retired_after_shift": 32,
       "retired_with_no_shift": 0,
-      "wrong_firings_after_shift": 17810
+      "wrong_firings_after_shift": 6049
+    },
+    {
+      "decay": 0.999,
+      "firings_to_notice": 29999.0,
+      "of": 32,
+      "retired_after_shift": 32,
+      "retired_with_no_shift": 0,
+      "wrong_firings_after_shift": 24765
+    },
+    {
+      "decay": 1.0,
+      "firings_to_notice": null,
+      "of": 32,
+      "retired_after_shift": 0,
+      "retired_with_no_shift": 0,
+      "wrong_firings_after_shift": 164142
     }
   ],
   "schema": "aura.procedure_lifetime_halflife.v1"

@@ -1,13 +1,13 @@
 {
   "audited": {
     "firings": 2000000,
-    "firings_per_second": 502155,
+    "firings_per_second": 331066,
     "median_firings_to_notice": 7999.0,
     "of": 64,
     "peak_live_procedures": 192,
-    "peak_resident_mb": 102.0,
+    "peak_resident_mb": 100.5,
     "retired": 64,
-    "seconds": 3.98,
+    "seconds": 6.04,
     "shift_at_firing": 1000000,
     "wrong_firings_after_shift": 6642,
     "wrong_rate_after_shift": 0.8237
@@ -49,13 +49,13 @@
   "schema": "aura.procedure_lifetime.v1",
   "steady_world_control": {
     "firings": 2000000,
-    "firings_per_second": 268176,
+    "firings_per_second": 152053,
     "median_firings_to_notice": null,
     "of": 64,
     "peak_live_procedures": 64,
-    "peak_resident_mb": 108.2,
+    "peak_resident_mb": 104.5,
     "retired": 0,
-    "seconds": 7.46,
+    "seconds": 13.15,
     "shift_at_firing": 1000000,
     "wrong_firings_after_shift": 80094,
     "wrong_rate_after_shift": 0.0801
@@ -70,13 +70,13 @@
   },
   "unaudited_control": {
     "firings": 2000000,
-    "firings_per_second": 269615,
+    "firings_per_second": 157414,
     "median_firings_to_notice": null,
     "of": 64,
     "peak_live_procedures": 64,
-    "peak_resident_mb": 104.9,
+    "peak_resident_mb": 104.4,
     "retired": 0,
-    "seconds": 7.42,
+    "seconds": 12.71,
     "shift_at_firing": 1000000,
     "wrong_firings_after_shift": 819550,
     "wrong_rate_after_shift": 0.8196

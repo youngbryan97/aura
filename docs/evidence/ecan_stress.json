@@ -51,8 +51,8 @@
   },
   "matched_compute": {
     "basis": "atom touches during spreading, spent again by the walk",
-    "breadth_first_seconds_median": 6.7943,
-    "ecan_seconds_median": 0.7981,
+    "breadth_first_seconds_median": 13.6679,
+    "ecan_seconds_median": 1.3828,
     "median_atom_touches": 160532.5
   },
   "recall_ceiling": 0.064,
