@@ -3160,6 +3160,57 @@ def _rules_with_no_shape_that_do_not_hold() -> int:
     return wrong
 
 
+def _a_written_order_that_does_not_hold() -> int:
+    """Ways the meta-invention result fails its own protocol. Must be none.
+
+    Three: nothing written on the stream this is measured on; what was written
+    failing to beat the authored order on the half it never saw; and the lesion
+    failing to return the number to where it started. The second is the one
+    that matters — selection happens on the training half, so something is
+    usually found there, and the sealed half is what decides whether it meant
+    anything.
+    """
+    import itertools
+    import random
+
+    from core.cognition.an_invented_kind import WHERE_FROM
+    from core.cognition.one_algebra import every_term, holes_in
+    from core.cognition.the_order_she_tries_them_in import (
+        THE_ORDER,
+        forget_the_order,
+        the_order_she_uses,
+    )
+    from tools.run_meta_invention import (
+        _an_episode,
+        _an_order_she_writes,
+        meta_capability,
+    )
+
+    rng = random.Random(3000)
+    terms = [
+        one
+        for one in itertools.islice(every_term((0, 1, 2), holes=2, deepest=2), 8000)
+        if holes_in(one) == 2
+    ]
+    names = sorted(WHERE_FROM)
+    made: list[Any] = []
+    while len(made) < 60:
+        one = _an_episode(rng, terms, names)
+        if one is not None:
+            made.append(one)
+    training, sealed = made[0::2], made[1::2]
+
+    forget_the_order()
+    before = meta_capability(sealed, THE_ORDER)
+    written = _an_order_she_writes(training, deepest=4, within=45.0)
+    if written is None:
+        return 1
+    wrong = 0 if meta_capability(sealed, written) < before else 1
+    forget_the_order()
+    wrong += 0 if meta_capability(sealed, the_order_she_uses()) == before else 1
+    return wrong
+
+
 def _install_language_growth_claims(suite: Any) -> None:
     """What she can do to the language she makes rules out of.
 
@@ -3227,6 +3278,14 @@ def _install_language_growth_claims(suite: Any) -> None:
             "exhausts its meter rather than returning",
             _universality_certificates_that_fail,
             "core/cognition/what_the_floor_can_say.py",
+        ),
+        (
+            "test_she_writes_an_order_that_holds_on_episodes_it_never_saw",
+            "the rule deciding what to try first is replaced by one she wrote, it "
+            "ranks the winning word higher on invention episodes it never saw, and "
+            "putting the authored rule back removes the gain exactly",
+            _a_written_order_that_does_not_hold,
+            "tools/run_meta_invention.py",
         ),
         (
             "test_a_rule_with_no_shape_holds_where_it_was_never_fitted",
@@ -3442,6 +3501,31 @@ def _install_language_growth_claims(suite: Any) -> None:
                 "definable from the other three, so the instruction set is doing "
                 "no work"
             ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "One component of the machinery she invents with — the rule "
+                "deciding what to try first — has been replaced by one she wrote, "
+                "and the replacement holds on invention episodes it never saw."
+            ),
+            test="test_she_writes_an_order_that_holds_on_episodes_it_never_saw",
+            owner="tools/run_meta_invention.py",
+            asserted_in="core/cognition/the_order_she_tries_them_in.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "one stream of five. Sixty episodes split before anything was "
+                "written; an eight-symbol order written from the training half "
+                "moved the mean rank of the winning word on the SEALED half from "
+                "2.000 to 1.833, and putting the authored rule back returned it "
+                "to 2.000 exactly. On the other four streams what selection found "
+                "on the training half did not survive the sealed half — one of "
+                "them was `nought minus how long the word is`, which is a rule "
+                "saying prefer longer words. One meta-change with its control is "
+                "not a trend, and recursive self-improvement is not claimed"
+            ),
+            live_channels=("language.ways_of_building",),
         )
     )
     suite.add_claim(

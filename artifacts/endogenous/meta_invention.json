@@ -1,0 +1,23 @@
+{
+  "episodes": 60,
+  "training": 30,
+  "sealed": 30,
+  "before": {
+    "training": 2.033333333333333,
+    "sealed": 2
+  },
+  "seconds": 12.3,
+  "wrote": {
+    "symbols": 8
+  },
+  "after": {
+    "training": 1.7,
+    "sealed": 1.8333333333333333
+  },
+  "lesioned": {
+    "training": 2.033333333333333,
+    "sealed": 2
+  },
+  "better_on_sealed": true,
+  "lesion_restores": true
+}
