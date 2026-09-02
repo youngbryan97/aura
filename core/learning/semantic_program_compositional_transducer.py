@@ -64,8 +64,8 @@ from core.learning.semantic_program_transducer import (
     _operation_feature,
 )
 
-COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v10"
-COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v10"
+COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v11"
+COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v11"
 _OPERATION_MODE: Final = "contextual_mean"
 _RELATION_CHANNEL: Final = "middle_causal_hidden"
 _MAX_STEPS: Final = 16
@@ -76,6 +76,7 @@ _ARGUMENT_BEAM: Final = 128
 _ARGUMENT_MENTIONS_PER_DEFINITION: Final = 4
 _POINTER_HARD_NEGATIVES: Final = 16
 _OPERATION_PENALTY_POINTS: Final = 161
+_OPERATION_CHART_BEAM: Final = 16
 _DIRECTIONAL_RELATION_PARTS: Final = 3
 
 
@@ -480,6 +481,58 @@ def _best_nonoverlapping_nodes(
     return table[len(ordered)][count]
 
 
+def _best_nonoverlapping_node_charts(
+    nodes: Sequence[_OperationNode],
+    count: int,
+    *,
+    limit: int,
+) -> tuple[tuple[float, tuple[_OperationNode, ...]], ...]:
+    """Exact top-k cardinality-constrained weighted interval scheduling."""
+
+    if limit < 1:
+        raise ValueError("compositional operation-chart limit must be positive")
+    ordered = tuple(
+        sorted(nodes, key=lambda item: (item.span.end, item.span.start, -item.score))
+    )
+    previous: list[int] = []
+    for index, node in enumerate(ordered):
+        prior = index - 1
+        while prior >= 0 and ordered[prior].span.end > node.span.start:
+            prior -= 1
+        previous.append(prior)
+    table: list[list[tuple[tuple[float, tuple[_OperationNode, ...]], ...]]] = [
+        [() for _ in range(count + 1)] for _ in range(len(ordered) + 1)
+    ]
+    table[0][0] = ((0.0, ()),)
+    for index, node in enumerate(ordered, start=1):
+        for size in range(count + 1):
+            candidates = list(table[index - 1][size])
+            if size >= 1:
+                candidates.extend(
+                    (score + node.score, (*selected, node))
+                    for score, selected in table[previous[index - 1] + 1][size - 1]
+                )
+            unique: dict[tuple[tuple[int, int, str], ...], tuple[float, tuple[_OperationNode, ...]]] = {}
+            for candidate in candidates:
+                key = tuple(
+                    (item.span.start, item.span.end, item.operation)
+                    for item in candidate[1]
+                )
+                incumbent = unique.get(key)
+                if incumbent is None or candidate[0] > incumbent[0]:
+                    unique[key] = candidate
+            table[index][size] = tuple(
+                sorted(
+                    unique.values(),
+                    key=lambda item: (
+                        -item[0],
+                        tuple((node.span.start, node.span.end) for node in item[1]),
+                    ),
+                )[:limit]
+            )
+    return table[len(ordered)][count]
+
+
 def _operation_chart(
     nodes: Sequence[_OperationNode],
     *,
@@ -502,6 +555,35 @@ def _operation_chart(
             tuple((-node.span.start, -node.span.end) for node in item[1]),
         ),
     )[1]
+
+
+def _operation_chart_candidates(
+    nodes: Sequence[_OperationNode],
+    *,
+    max_steps: int,
+    length_penalty: float,
+    limit: int = _OPERATION_CHART_BEAM,
+) -> tuple[tuple[_OperationNode, ...], ...]:
+    candidates = [
+        (score - length_penalty * count, selected)
+        for count in range(1, max_steps + 1)
+        for score, selected in _best_nonoverlapping_node_charts(
+            nodes,
+            count,
+            limit=limit,
+        )
+    ]
+    return tuple(
+        selected
+        for _score, selected in sorted(
+            candidates,
+            key=lambda item: (
+                -item[0],
+                len(item[1]),
+                tuple((node.span.start, node.span.end) for node in item[1]),
+            ),
+        )[:limit]
+    )
 
 
 def _fit_argument_role_heads(
@@ -737,6 +819,12 @@ def _assign_typed_arguments(
     operation_nodes: Sequence[_OperationNode],
     argument_pointer_scores: LinearPointerSequenceScores,
 ) -> _TypedArgumentAssignment | None:
+    if (
+        len(operation_nodes) > 1
+        and not model.allow_computed_dependencies
+        and model.register_use_contract.intermediate_min_uses > 0
+    ):
+        return None
     proposals = list(
         argument_pointer_scores.decode_candidates(
             limit=_ARGUMENT_CANDIDATES,
@@ -1072,6 +1160,7 @@ class CompositionalSemanticProgramTransducer:
     max_definition_span_tokens: int
     max_argument_span_tokens_by_type: dict[str, int]
     register_use_contract: RegisterUseContract
+    operation_chart_beam: int
     operation_length_penalty: float
     argument_role_scale: float
     definition_relation_scale: float
@@ -1137,6 +1226,9 @@ class CompositionalSemanticProgramTransducer:
             or receipt.get("step_indexed_heads_present") is not False
             or receipt.get("argument_span_bounds") != argument_bounds
             or receipt.get("definition_span_bound") != self.max_definition_span_tokens
+            or type(self.operation_chart_beam) is not int
+            or not 1 <= self.operation_chart_beam <= _OPERATION_CHART_BEAM
+            or receipt.get("operation_chart_beam") != self.operation_chart_beam
             or receipt.get("register_use_contract") != self.register_use_contract.to_dict()
             or any(
                 receipt.get(field) is not False
@@ -1185,6 +1277,7 @@ class CompositionalSemanticProgramTransducer:
             "max_span_tokens": self.max_span_tokens,
             "max_definition_span_tokens": self.max_definition_span_tokens,
             "max_argument_span_tokens_by_type": self.max_argument_span_tokens_by_type,
+            "operation_chart_beam": self.operation_chart_beam,
             **self._coefficient_body(),
             "training_receipt": self.training_receipt,
         }
@@ -1304,6 +1397,19 @@ class CompositionalSemanticProgramTransducer:
     def dependency_lesion(self) -> CompositionalSemanticProgramTransducer:
         return self._with_coefficients(allow_computed_dependencies=False)
 
+    def chart_beam_lesion(self) -> CompositionalSemanticProgramTransducer:
+        """Keep every learned coefficient but consult only the first chart."""
+
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["operation_chart_beam"] = 1
+        return replace(
+            self,
+            operation_chart_beam=1,
+            training_receipt={**body, "receipt_sha256": _sha(body)},
+        )
+
     def register_use_lesion(self) -> CompositionalSemanticProgramTransducer:
         """Remove only the source-learned graph-use bounds."""
 
@@ -1367,20 +1473,31 @@ class CompositionalSemanticProgramTransducer:
             hidden_channels=self.hidden_channels,
             hidden_channel_widths=self.hidden_channel_widths,
         )
-        selected = _operation_chart(
+        charts = _operation_chart_candidates(
             nodes,
             max_steps=self.max_steps,
             length_penalty=self.operation_length_penalty,
+            limit=self.operation_chart_beam,
         )
-        if not selected:
+        if not charts:
             return SemanticTransductionOutcome(None, "operation_chart_empty", {}, {})
-        assigned = _assign_typed_arguments(
-            model=self,
-            hidden=hidden,
-            inputs=inputs,
-            input_spans=input_spans,
-            operation_nodes=selected,
-            argument_pointer_scores=argument_pointer_scores,
+        assigned = next(
+            (
+                candidate
+                for selected in charts
+                for candidate in (
+                    _assign_typed_arguments(
+                        model=self,
+                        hidden=hidden,
+                        inputs=inputs,
+                        input_spans=input_spans,
+                        operation_nodes=selected,
+                        argument_pointer_scores=argument_pointer_scores,
+                    ),
+                )
+                if candidate is not None
+            ),
+            None,
         )
         if assigned is None:
             return SemanticTransductionOutcome(None, "typed_argument_chart_empty", {}, {})
@@ -1677,7 +1794,8 @@ def fit_compositional_semantic_program_transducer(
             {instruction.op for item in training for instruction in item.ir.instructions}
         ),
         "operation_length_penalty_selection": penalty_rows,
-        "chart_decoder": "directional_joint_probability_interval_dag_v2",
+        "chart_decoder": "directional_joint_probability_kbest_interval_dag_v3",
+        "operation_chart_beam": _OPERATION_CHART_BEAM,
         "argument_span_bounds": max_argument_span_tokens_by_type,
         "definition_span_bound": max_definition_span_tokens,
         "definition_pointer_scale_selection": definition_pointer_rows,
@@ -1709,6 +1827,7 @@ def fit_compositional_semantic_program_transducer(
         max_definition_span_tokens=max_definition_span_tokens,
         max_argument_span_tokens_by_type=max_argument_span_tokens_by_type,
         register_use_contract=register_use_contract,
+        operation_chart_beam=_OPERATION_CHART_BEAM,
         operation_length_penalty=operation_length_penalty,
         argument_role_scale=1.0,
         definition_relation_scale=1.0,
@@ -1732,7 +1851,7 @@ def _pointer_from_dict(value: Any) -> LinearPointerHead:
 def compositional_semantic_program_transducer_from_dict(
     payload: Any,
 ) -> CompositionalSemanticProgramTransducer:
-    """Reload one immutable v10 transducer without fitting or calibration."""
+    """Reload one immutable v11 transducer without fitting or calibration."""
 
     if not isinstance(payload, Mapping):
         raise ValueError("compositional semantic transducer payload is invalid")
@@ -1792,6 +1911,12 @@ def compositional_semantic_program_transducer_from_dict(
                 str(key): value
                 for key, value in payload["register_use_contract"].items()
             }
+        ),
+        operation_chart_beam=int(
+            payload.get(
+                "operation_chart_beam",
+                payload["training_receipt"]["operation_chart_beam"],
+            )
         ),
         operation_length_penalty=float(payload["operation_length_penalty"]),
         argument_role_scale=float(payload["argument_role_scale"]),

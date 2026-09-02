@@ -22,6 +22,8 @@ from core.learning.semantic_program_compositional_transducer import (
     _best_penalized_operation_chart,
     _definition_span_candidates,
     _directional_relation_feature,
+    _operation_chart,
+    _operation_chart_candidates,
     _operation_order,
     _OperationNode,
     compositional_semantic_program_transducer_from_dict,
@@ -293,6 +295,7 @@ def test_compositional_transducer_assembles_typed_atoms_without_a_geometry_head(
         "distinct_arguments": True,
     }
     assert model.training_receipt["definition_pointer_scale_selection"]
+    assert replay.chart_beam_lesion().operation_chart_beam == 1
     assert replay.to_dict() == model.to_dict()
 
 
@@ -309,6 +312,12 @@ def test_compositional_transducer_binds_learned_type_limits_to_its_receipt() -> 
 
     payload = copy.deepcopy(model.to_dict())
     payload["register_use_contract"]["input_max_uses"] += 1
+
+    with pytest.raises(ValueError, match="envelope"):
+        compositional_semantic_program_transducer_from_dict(payload)
+
+    payload = copy.deepcopy(model.to_dict())
+    payload["operation_chart_beam"] += 1
 
     with pytest.raises(ValueError, match="envelope"):
         compositional_semantic_program_transducer_from_dict(payload)
@@ -357,6 +366,24 @@ def test_compositional_calibration_treats_a_missing_chart_as_a_refusal() -> None
         ((float("-inf"), ()),),
         penalty=0.0,
     ) == ()
+
+
+def test_compositional_kbest_chart_preserves_the_greedy_chart_then_falls_back() -> None:
+    nodes = (
+        _OperationNode(TokenSpan(0, 1), "add", 5.0, 5.0, 1.0),
+        _OperationNode(TokenSpan(0, 2), "sub", 4.0, 4.0, 1.0),
+        _OperationNode(TokenSpan(3, 4), "add", 3.0, 3.0, 1.0),
+    )
+
+    charts = _operation_chart_candidates(
+        nodes,
+        max_steps=2,
+        length_penalty=0.0,
+        limit=3,
+    )
+
+    assert charts[0] == _operation_chart(nodes, max_steps=2, length_penalty=0.0)
+    assert charts[1] == (nodes[1], nodes[2])
 
 
 def test_pointer_sequence_scores_reuse_one_validated_hidden_sequence() -> None:

@@ -209,6 +209,7 @@ def diagnose_compositional_transfer_lesions(
 
     arms = {
         "treatment": model,
+        "chart_beam_lesion": model.chart_beam_lesion(),
         "register_use_lesion": model.register_use_lesion(),
         "relation_lesion": model.relation_lesion(),
         "dependency_lesion": model.dependency_lesion(),
