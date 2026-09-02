@@ -14,7 +14,13 @@ from core.learning.semantic_input_grounding import (
     semantic_input_grounding_contract_from_tokenizer,
 )
 from core.learning.semantic_program_campaign import _sha
+from core.learning.semantic_program_compositional_campaign import (
+    diagnose_compositional_definition_relations,
+    diagnose_compositional_transfer_lesions,
+)
 from core.learning.semantic_program_compositional_transducer import (
+    _best_penalized_operation_chart,
+    _definition_span_candidates,
     _directional_relation_feature,
     _operation_order,
     _OperationNode,
@@ -260,6 +266,12 @@ def test_compositional_transducer_assembles_typed_atoms_without_a_geometry_head(
         split="test",
         arm="dependency_lesion",
     )
+    register_use = evaluate_shared_semantic_program_transducer(
+        replay.register_use_lesion(),
+        examples,
+        split="test",
+        arm="register_use_lesion",
+    )
 
     assert treatment.total == 4
     assert treatment.geometry_exact == treatment.total
@@ -268,9 +280,19 @@ def test_compositional_transducer_assembles_typed_atoms_without_a_geometry_head(
     assert treatment.answer_exact >= 2
     assert coefficient.program_exact < treatment.program_exact
     assert dependency.program_exact < treatment.program_exact
+    assert register_use.total == treatment.total
+    assert register_use.arm == "register_use_lesion"
     assert model.training_receipt["global_geometry_classifier_present"] is False
     assert model.training_receipt["step_indexed_heads_present"] is False
     assert model.training_receipt["family_router_present"] is False
+    assert model.register_use_contract.to_dict() == {
+        "input_min_uses": 1,
+        "input_max_uses": 1,
+        "intermediate_min_uses": 1,
+        "intermediate_max_uses": 1,
+        "distinct_arguments": True,
+    }
+    assert model.training_receipt["definition_pointer_scale_selection"]
     assert replay.to_dict() == model.to_dict()
 
 
@@ -281,6 +303,12 @@ def test_compositional_transducer_binds_learned_type_limits_to_its_receipt() -> 
     )
     payload = copy.deepcopy(model.to_dict())
     payload["max_argument_span_tokens_by_type"]["integer"] += 1
+
+    with pytest.raises(ValueError, match="envelope"):
+        compositional_semantic_program_transducer_from_dict(payload)
+
+    payload = copy.deepcopy(model.to_dict())
+    payload["register_use_contract"]["input_max_uses"] += 1
 
     with pytest.raises(ValueError, match="envelope"):
         compositional_semantic_program_transducer_from_dict(payload)
@@ -312,6 +340,82 @@ def test_compositional_relation_preserves_reference_direction() -> None:
 
     np.testing.assert_array_equal(forward[:4], reverse[:4])
     np.testing.assert_array_equal(forward[4:], -reverse[4:])
+
+
+def test_compositional_definition_envelope_always_contains_its_anchor() -> None:
+    anchor = TokenSpan(8, 10)
+
+    assert _definition_span_candidates(
+        anchor,
+        token_count=10,
+        max_span_tokens=1,
+    ) == (anchor,)
+
+
+def test_compositional_calibration_treats_a_missing_chart_as_a_refusal() -> None:
+    assert _best_penalized_operation_chart(
+        ((float("-inf"), ()),),
+        penalty=0.0,
+    ) == ()
+
+
+def test_pointer_sequence_scores_reuse_one_validated_hidden_sequence() -> None:
+    hidden = np.eye(3, dtype=np.float32)
+    pointer = LinearPointerHead(
+        np.asarray([1.0, 2.0, 3.0], dtype=np.float32),
+        0.5,
+        np.asarray([3.0, 2.0, 1.0], dtype=np.float32),
+        -0.5,
+    )
+    scores = pointer.score_sequence(hidden)
+
+    assert scores.score_span(TokenSpan(0, 1)) == pointer.score_span(
+        hidden,
+        TokenSpan(0, 1),
+    )
+    assert scores.decode_candidates(limit=4, max_span_tokens=2) == pointer.decode_candidates(
+        hidden,
+        limit=4,
+        max_span_tokens=2,
+    )
+
+
+def test_compositional_relation_diagnostic_separates_runtime_and_oracle_spans() -> None:
+    examples = _examples()
+    model = fit_compositional_semantic_program_transducer(
+        examples,
+        input_grounding=_grounding(),
+    )
+
+    report = diagnose_compositional_definition_relations(model, examples)
+
+    assert report["gold_reference_spans_available"] is True
+    assert report["gold_definition_spans_available_to_runtime_arm"] is False
+    assert report["expected_answers_available"] is False
+    assert report["serving_authority"] is False
+    assert report["splits"]["test"]["total"] == 20
+    assert report["splits"]["test"]["runtime_top1"] <= 20
+    assert report["splits"]["test"]["oracle_top1"] <= 20
+    assert sum(
+        row["total"] for row in report["splits"]["test"]["by_slot"].values()
+    ) == 20
+
+
+def test_compositional_lesion_diagnostic_replays_without_refitting() -> None:
+    examples = _examples()
+    model = fit_compositional_semantic_program_transducer(
+        examples,
+        input_grounding=_grounding(),
+    )
+
+    report = diagnose_compositional_transfer_lesions(model, examples)
+
+    assert report["fit_or_refit_calls"] == 0
+    assert report["expected_answers_available_to_decode"] is False
+    assert report["arms"]["treatment"]["test"]["total"] == 4
+    assert report["arms"]["coefficient_lesion"]["test"]["program_exact"] < report[
+        "arms"
+    ]["treatment"]["test"]["program_exact"]
 
 
 def test_shared_transducer_programs_replay_on_the_universal_floor() -> None:

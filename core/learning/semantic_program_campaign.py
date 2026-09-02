@@ -20,6 +20,7 @@ from core.learning.semantic_program_feature_materialization import (
     LoadedSemanticFeatureBundle,
 )
 from core.learning.semantic_program_ir import (
+    TokenSpan,
     normalize_semantic_value,
     semantic_program_ir_from_dict,
 )
@@ -49,26 +50,36 @@ def training_examples_from_feature_bundle(
 ) -> tuple[SemanticTransducerTrainingExample, ...]:
     """Convert a verified bundle without widening its evidence authority."""
 
-    examples = tuple(
-        SemanticTransducerTrainingExample(
-            ir=semantic_program_ir_from_dict(item.metadata["gold_ir"]),
-            hidden_states=item.hidden_states,
-            split=str(item.metadata["split"]),
-            construction_id=str(item.metadata["construction_id"]),
-            topology_id=str(item.metadata["topology_id"]),
-            public_inputs=tuple(
-                normalize_semantic_value(value) for value in item.metadata["inputs"]
-            ),
-            hidden_channels=tuple(item.metadata["worker_receipt"]["channels"]),
-            hidden_channel_widths=hidden_sequence_channel_widths(
-                str(item.metadata["worker_receipt"]["representation"]),
-                int(item.metadata["hidden_size"]),
-            ),
-            contrast_id=str(item.metadata.get("contrast_id", "")),
-            tokenizer_identity_sha256=str(item.metadata["tokenizer_identity_sha256"]),
+    converted: list[SemanticTransducerTrainingExample] = []
+    for item in bundle.examples:
+        ir = semantic_program_ir_from_dict(item.metadata["gold_ir"])
+        raw_definitions = item.metadata.get("register_definition_spans")
+        definitions = (
+            tuple(TokenSpan(int(span[0]), int(span[1])) for span in raw_definitions)
+            if isinstance(raw_definitions, list)
+            else (*ir.input_spans, *(step.operation_span for step in ir.instructions))
         )
-        for item in bundle.examples
-    )
+        converted.append(
+            SemanticTransducerTrainingExample(
+                ir=ir,
+                hidden_states=item.hidden_states,
+                split=str(item.metadata["split"]),
+                construction_id=str(item.metadata["construction_id"]),
+                topology_id=str(item.metadata["topology_id"]),
+                public_inputs=tuple(
+                    normalize_semantic_value(value) for value in item.metadata["inputs"]
+                ),
+                hidden_channels=tuple(item.metadata["worker_receipt"]["channels"]),
+                hidden_channel_widths=hidden_sequence_channel_widths(
+                    str(item.metadata["worker_receipt"]["representation"]),
+                    int(item.metadata["hidden_size"]),
+                ),
+                contrast_id=str(item.metadata.get("contrast_id", "")),
+                tokenizer_identity_sha256=str(item.metadata["tokenizer_identity_sha256"]),
+                register_definition_spans=definitions,
+            )
+        )
+    examples = tuple(converted)
     if len(examples) != bundle.manifest["example_count"]:
         raise ValueError("semantic campaign bundle count changed during conversion")
     if {item.split for item in examples} != {"train", "validation", "test"}:

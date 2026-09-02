@@ -213,6 +213,7 @@ class SemanticTransducerTrainingExample:
     hidden_channel_widths: tuple[int, ...] = ()
     contrast_id: str = ""
     tokenizer_identity_sha256: str = ""
+    register_definition_spans: tuple[TokenSpan, ...] = ()
 
     def __post_init__(self) -> None:
         hidden = _hidden_array(self.hidden_states)
@@ -231,6 +232,15 @@ class SemanticTransducerTrainingExample:
             raise ValueError("semantic transducer split is invalid")
         if not self.construction_id or not self.topology_id:
             raise ValueError("semantic transducer provenance is incomplete")
+        if self.register_definition_spans and (
+            len(self.register_definition_spans)
+            != self.ir.n_inputs + len(self.ir.instructions)
+            or any(
+                span.end > hidden.shape[0]
+                for span in self.register_definition_spans
+            )
+        ):
+            raise ValueError("semantic transducer register definitions are invalid")
         if self.tokenizer_identity_sha256 and not _is_sha256(
             self.tokenizer_identity_sha256
         ):
@@ -251,6 +261,50 @@ class SemanticTransducerTrainingExample:
         object.__setattr__(self, "hidden_states", hidden)
         object.__setattr__(self, "hidden_channels", channels)
         object.__setattr__(self, "hidden_channel_widths", channel_widths)
+
+
+@dataclass(frozen=True, slots=True)
+class LinearPointerSequenceScores:
+    """Validated pointer logits for one hidden sequence."""
+
+    start: np.ndarray
+    end: np.ndarray
+
+    def __post_init__(self) -> None:
+        start = np.asarray(self.start, dtype=np.float32).reshape(-1)
+        end = np.asarray(self.end, dtype=np.float32).reshape(-1)
+        if (
+            start.shape != end.shape
+            or start.size < 1
+            or not np.all(np.isfinite(start))
+            or not np.all(np.isfinite(end))
+        ):
+            raise ValueError("semantic pointer sequence scores are invalid")
+        object.__setattr__(self, "start", start)
+        object.__setattr__(self, "end", end)
+
+    def score_span(self, span: TokenSpan) -> float:
+        span.validate_bound(self.start.size)
+        return float(self.start[span.start] + self.end[span.end - 1])
+
+    def decode_candidates(
+        self,
+        *,
+        limit: int,
+        max_span_tokens: int = SEMANTIC_TRANSDUCER_MAX_SPAN_TOKENS,
+    ) -> tuple[tuple[TokenSpan, float], ...]:
+        if type(limit) is not int or limit < 1:
+            raise ValueError("semantic pointer candidate limit is invalid")
+        if type(max_span_tokens) is not int or max_span_tokens < 1:
+            raise ValueError("semantic pointer span limit is invalid")
+        candidates: list[tuple[TokenSpan, float]] = []
+        for start in range(self.start.size):
+            stop = min(self.start.size, start + max_span_tokens)
+            for end in range(start, stop):
+                span = TokenSpan(start, end + 1)
+                candidates.append((span, self.score_span(span)))
+        candidates.sort(key=lambda item: (-item[1], item[0].start, item[0].end))
+        return tuple(candidates[:limit])
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,35 +344,22 @@ class LinearPointerHead:
     ) -> tuple[tuple[TokenSpan, float], ...]:
         """Return the strongest distinct source spans in stable score order."""
 
-        if type(limit) is not int or limit < 1:
-            raise ValueError("semantic pointer candidate limit is invalid")
-        if type(max_span_tokens) is not int or max_span_tokens < 1:
-            raise ValueError("semantic pointer span limit is invalid")
+        return self.score_sequence(hidden).decode_candidates(
+            limit=limit,
+            max_span_tokens=max_span_tokens,
+        )
+
+    def score_sequence(self, hidden: np.ndarray) -> LinearPointerSequenceScores:
+        """Validate once and retain every endpoint score for repeated span queries."""
+
         matrix = _hidden_array(hidden, expected_width=self.width)
-        start_scores = matrix @ self.start_weight + self.start_bias
-        end_scores = matrix @ self.end_weight + self.end_bias
-        candidates: list[tuple[TokenSpan, float]] = []
-        for start in range(matrix.shape[0]):
-            stop = min(
-                matrix.shape[0],
-                start + max_span_tokens,
-            )
-            for end in range(start, stop):
-                candidates.append(
-                    (
-                        TokenSpan(start, end + 1),
-                        float(start_scores[start] + end_scores[end]),
-                    )
-                )
-        candidates.sort(key=lambda item: (-item[1], item[0].start, item[0].end))
-        return tuple(candidates[:limit])
+        return LinearPointerSequenceScores(
+            matrix @ self.start_weight + self.start_bias,
+            matrix @ self.end_weight + self.end_bias,
+        )
 
     def score_span(self, hidden: np.ndarray, span: TokenSpan) -> float:
-        matrix = _hidden_array(hidden, expected_width=self.width)
-        span.validate_bound(matrix.shape[0])
-        start_score = float(matrix[span.start] @ self.start_weight + self.start_bias)
-        end_score = float(matrix[span.end - 1] @ self.end_weight + self.end_bias)
-        return start_score + end_score
+        return self.score_sequence(hidden).score_span(span)
 
     def decode(self, hidden: np.ndarray) -> tuple[TokenSpan, float]:
         return self.decode_candidates(hidden, limit=1)[0]

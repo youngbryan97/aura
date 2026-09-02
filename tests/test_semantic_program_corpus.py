@@ -12,6 +12,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_sequence_reserved_alias_corpus,
     build_semantic_program_sequence_role_binding_corpus,
     project_example_to_ir,
+    project_register_definition_spans,
 )
 
 
@@ -420,9 +421,7 @@ def test_sequence_binary_corpus_is_deterministic_and_seeded() -> None:
 
 
 def test_sequence_cataphoric_corpus_separates_text_order_from_execution_order() -> None:
-    examples = build_semantic_program_sequence_cataphoric_corpus(
-        examples_per_operation_pair=2
-    )
+    examples = build_semantic_program_sequence_cataphoric_corpus(examples_per_operation_pair=2)
 
     assert len(examples) == 144
     assert {
@@ -461,17 +460,13 @@ def test_sequence_cataphoric_corpus_is_deterministic_and_seeded() -> None:
 
 
 def test_sequence_reserved_alias_corpus_teaches_input_aliases_without_arithmetic_topology() -> None:
-    examples = build_semantic_program_sequence_reserved_alias_corpus(
-        examples_per_operation_pair=2
-    )
+    examples = build_semantic_program_sequence_reserved_alias_corpus(examples_per_operation_pair=2)
     constructions = {
         split: {item.construction_id for item in examples if item.split == split}
         for split in ("train", "validation", "test")
     }
     expected_operations = {
-        (first, second)
-        for first in ("at", "count_of")
-        for second in ("add", "sub", "mul", "idiv")
+        (first, second) for first in ("at", "count_of") for second in ("add", "sub", "mul", "idiv")
     }
 
     assert len(examples) == 144
@@ -527,9 +522,7 @@ def test_sequence_reserved_alias_corpus_is_deterministic_and_seeded() -> None:
 
 
 def test_sequence_role_binding_corpus_teaches_implicit_input_roles() -> None:
-    examples = build_semantic_program_sequence_role_binding_corpus(
-        examples_per_operation_pair=2
-    )
+    examples = build_semantic_program_sequence_role_binding_corpus(examples_per_operation_pair=2)
 
     assert len(examples) == 144
     assert {
@@ -545,6 +538,11 @@ def test_sequence_role_binding_corpus_teaches_implicit_input_roles() -> None:
         assert second.argument_spans[reserved_position] != example.input_spans[2]
         assert "reserved operand" not in example.source_text.casefold()
         assert "earlier operand" not in example.source_text.casefold()
+        assert len(example.register_definition_spans) == 5
+        reserved_definition = example.register_definition_spans[2]
+        assert reserved_definition.start == example.input_spans[2].start
+        assert reserved_definition.end > example.input_spans[2].end
+        assert " as " in example.source_text[reserved_definition.start : reserved_definition.end]
         assert type(example.program.run(example.inputs)) is int
         ir = project_example_to_ir(
             example,
@@ -554,6 +552,12 @@ def test_sequence_role_binding_corpus_teaches_implicit_input_roles() -> None:
             transducer_receipt_sha256="b" * 64,
         )
         assert ir.to_program() == example.program
+        definitions = project_register_definition_spans(
+            example,
+            offset_mapping=_character_offsets(example.source_text),
+        )
+        assert definitions[2].start == ir.input_spans[2].start
+        assert definitions[2].end > ir.input_spans[2].end
 
 
 def test_sequence_role_binding_corpus_is_deterministic_and_seeded() -> None:

@@ -259,6 +259,11 @@ def test_materialization_publishes_only_after_cpu_reload(tmp_path: Path) -> None
         "validation": 128,
     }
     assert not any(item.metadata.get("source_text") for item in bundle.examples)
+    assert all(
+        len(item.metadata["register_definition_spans"])
+        == len(item.metadata["inputs"]) + len(item.metadata["gold_ir"]["instructions"])
+        for item in bundle.examples
+    )
 
 
 def test_standard_loader_reconstructs_the_manifest_seed(tmp_path: Path) -> None:

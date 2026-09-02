@@ -42,6 +42,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_sequence_reserved_alias_corpus,
     build_semantic_program_sequence_role_binding_corpus,
     project_example_to_ir,
+    project_register_definition_spans,
 )
 from core.learning.semantic_program_ir import (
     semantic_program_ir_from_dict,
@@ -50,7 +51,8 @@ from core.learning.semantic_program_ir import (
 from core.runtime.file_read_gateway import read_stable_bytes
 from core.runtime.file_write_gateway import FileWriteGateway, get_file_write_gateway
 
-FEATURE_RECORD_SCHEMA: Final = "aura.semantic_program_feature_record.v1"
+LEGACY_FEATURE_RECORD_SCHEMA: Final = "aura.semantic_program_feature_record.v1"
+FEATURE_RECORD_SCHEMA: Final = "aura.semantic_program_feature_record.v2"
 FEATURE_MANIFEST_SCHEMA: Final = "aura.semantic_program_feature_manifest.v1"
 FEATURE_STATUS_SCHEMA: Final = "aura.semantic_program_feature_status.v1"
 FEATURE_CONFIG_SCHEMA: Final = "aura.semantic_program_feature_config.v2"
@@ -62,15 +64,9 @@ FORK_JOIN_SOURCE_ORDER_CORPUS_KIND: Final = "fork_join_4x3_source_order"
 FORK_JOIN_FACTORIAL_CORPUS_KIND: Final = "fork_join_4x3_factorial16"
 SEQUENCE_CHAIN_CORPUS_KIND: Final = "sequence_chain_1x2_factorial"
 SEQUENCE_BINARY_CHAIN_CORPUS_KIND: Final = "sequence_binary_chain_3x2_factorial"
-SEQUENCE_CATAPHORIC_CORPUS_KIND: Final = (
-    "sequence_cataphoric_chain_3x2_factorial"
-)
-SEQUENCE_RESERVED_ALIAS_CORPUS_KIND: Final = (
-    "sequence_reserved_alias_chain_3x2_factorial"
-)
-SEQUENCE_ROLE_BINDING_CORPUS_KIND: Final = (
-    "sequence_role_binding_chain_3x2_factorial"
-)
+SEQUENCE_CATAPHORIC_CORPUS_KIND: Final = "sequence_cataphoric_chain_3x2_factorial"
+SEQUENCE_RESERVED_ALIAS_CORPUS_KIND: Final = "sequence_reserved_alias_chain_3x2_factorial"
+SEQUENCE_ROLE_BINDING_CORPUS_KIND: Final = "sequence_role_binding_chain_3x2_factorial"
 SEMANTIC_CORPUS_KINDS: Final = frozenset(
     {
         CHAIN_CORPUS_KIND,
@@ -347,7 +343,7 @@ def _is_sha256(value: Any) -> bool:
 
 
 def _example_public_identity(example: SemanticProgramExample) -> dict[str, Any]:
-    return {
+    identity = {
         "schema": example.schema,
         "example_id": example.example_id,
         "construction_id": example.construction_id,
@@ -365,6 +361,11 @@ def _example_public_identity(example: SemanticProgramExample) -> dict[str, Any]:
         },
         "contrast_id": example.contrast_id,
     }
+    if example.register_definition_spans:
+        identity["register_definition_spans"] = [
+            [span.start, span.end] for span in example.register_definition_spans
+        ]
+    return identity
 
 
 def select_bounded_semantic_examples(
@@ -723,7 +724,7 @@ def load_semantic_feature_record(
         raise SemanticFeatureMaterializationError(
             "semantic feature record metadata is invalid"
         ) from exc
-    expected_fields = {
+    base_fields = {
         "schema",
         "example_id",
         "split",
@@ -750,6 +751,12 @@ def load_semantic_feature_record(
         "hidden_states_sha256",
         "logical_payload_sha256",
     }
+    schema = metadata.get("schema") if isinstance(metadata, dict) else None
+    expected_fields = (
+        base_fields | {"register_definition_spans"}
+        if schema == FEATURE_RECORD_SCHEMA
+        else base_fields
+    )
     if not isinstance(metadata, dict) or set(metadata) != expected_fields:
         raise SemanticFeatureMaterializationError("semantic feature metadata fields differ")
     logical_hash = metadata.pop("logical_payload_sha256")
@@ -759,7 +766,7 @@ def load_semantic_feature_record(
     token_count = metadata.get("token_count")
     hidden_size = metadata.get("hidden_size")
     if (
-        metadata.get("schema") != FEATURE_RECORD_SCHEMA
+        schema not in {LEGACY_FEATURE_RECORD_SCHEMA, FEATURE_RECORD_SCHEMA}
         or metadata.get("token_dtype") != "int32_le"
         or metadata.get("hidden_dtype") != "float32_le"
         or type(token_count) is not int
@@ -769,6 +776,22 @@ def load_semantic_feature_record(
         or metadata.get("evidence_absence") != _EVIDENCE_ABSENCE
     ):
         raise SemanticFeatureMaterializationError("semantic feature metadata contract differs")
+    if schema == FEATURE_RECORD_SCHEMA:
+        definitions = metadata.get("register_definition_spans")
+        if (
+            not isinstance(definitions, list)
+            or not definitions
+            or any(
+                not isinstance(span, list)
+                or len(span) != 2
+                or any(type(value) is not int for value in span)
+                or not 0 <= span[0] < span[1] <= token_count
+                for span in definitions
+            )
+        ):
+            raise SemanticFeatureMaterializationError(
+                "semantic feature register definitions are invalid"
+            )
     array_offset = 4 + header_size
     token_bytes = token_count * 4
     hidden_bytes = token_count * hidden_size * 4
@@ -1309,6 +1332,10 @@ async def materialize_semantic_program_features(
             model_basis_receipt_sha256=model_basis_sha256,
             transducer_receipt_sha256=projection_receipt["receipt_sha256"],
         )
+        register_definition_spans = project_register_definition_spans(
+            example,
+            offset_mapping=offsets,
+        )
         metadata = {
             "schema": FEATURE_RECORD_SCHEMA,
             "example_id": example.example_id,
@@ -1327,6 +1354,9 @@ async def materialize_semantic_program_features(
             "lane_ownership_sha256": current_lane_receipt["receipt_sha256"],
             "gold_projection_receipt": projection_receipt,
             "gold_ir": gold_ir.to_dict(),
+            "register_definition_spans": [
+                [span.start, span.end] for span in register_definition_spans
+            ],
             "evidence_absence": dict(_EVIDENCE_ABSENCE),
         }
         payload = _encode_record(metadata, local_token_ids, states)

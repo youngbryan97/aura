@@ -334,6 +334,7 @@ class SemanticProgramExample:
     instructions: tuple[SemanticInstructionAnnotation, ...]
     report_value: int
     contrast_id: str
+    register_definition_spans: tuple[CharacterSpan, ...] = ()
     schema: str = SEMANTIC_PROGRAM_CORPUS_SCHEMA
 
     def __post_init__(self) -> None:
@@ -354,6 +355,12 @@ class SemanticProgramExample:
         for span in self.input_spans:
             _validate_character_span(span, self.source_text)
         n_inputs = len(self.inputs)
+        if self.register_definition_spans and len(self.register_definition_spans) != (
+            n_inputs + len(self.instructions)
+        ):
+            raise ValueError("semantic corpus register definitions have wrong arity")
+        for span in self.register_definition_spans:
+            _validate_character_span(span, self.source_text)
         for ordinal, annotated in enumerate(self.instructions):
             output = n_inputs + ordinal
             if any(argument >= output for argument in annotated.instruction.args):
@@ -1979,15 +1986,13 @@ def build_semantic_program_sequence_cataphoric_corpus(
             ).hexdigest()[:24]
             for first_op in _SEQUENCE_BINARY_SELECTORS:
                 for second_op in _SCALAR_CONTINUATIONS:
-                    source_text, input_spans, instructions = (
-                        _render_sequence_cataphoric_chain(
-                            construction_index=construction_index,
-                            first_op=first_op,
-                            second_op=second_op,
-                            values=public_sequence,
-                            selector=selector,
-                            adjustment=adjustment,
-                        )
+                    source_text, input_spans, instructions = _render_sequence_cataphoric_chain(
+                        construction_index=construction_index,
+                        first_op=first_op,
+                        second_op=second_op,
+                        values=public_sequence,
+                        selector=selector,
+                        adjustment=adjustment,
                     )
                     examples.append(
                         SemanticProgramExample(
@@ -2036,6 +2041,7 @@ def _render_sequence_reserved_alias_chain(
     str,
     tuple[CharacterSpan, CharacterSpan, CharacterSpan],
     tuple[SemanticInstructionAnnotation, SemanticInstructionAnnotation],
+    tuple[CharacterSpan, ...],
 ]:
     """Render an input alias independently of arithmetic-family language."""
 
@@ -2129,9 +2135,11 @@ def _render_sequence_reserved_alias_chain(
         )
 
     def append_reserved_definition() -> None:
+        builder.begin("definition:reserved")
         append_reserved_input()
         builder.append(" as " if role_bound else " under ")
         builder.append(reserved_definitions[construction_index])
+        builder.finish("definition:reserved")
 
     if construction_index == 0:
         builder.append("Put ")
@@ -2284,7 +2292,14 @@ def _render_sequence_reserved_alias_chain(
             depends_on=(0,),
         ),
     )
-    return builder.text, input_spans, instructions
+    register_definition_spans = (
+        input_spans[0],
+        input_spans[1],
+        builder.span("definition:reserved"),
+        builder.span("result:0"),
+        builder.span("operation:1"),
+    )
+    return builder.text, input_spans, instructions, register_definition_spans
 
 
 def build_semantic_program_sequence_reserved_alias_corpus(
@@ -2319,7 +2334,7 @@ def build_semantic_program_sequence_reserved_alias_corpus(
             ).hexdigest()[:24]
             for first_op in _SEQUENCE_BINARY_SELECTORS:
                 for second_op in _SCALAR_CONTINUATIONS:
-                    source_text, input_spans, instructions = (
+                    source_text, input_spans, instructions, _definition_spans = (
                         _render_sequence_reserved_alias_chain(
                             construction_index=construction_index,
                             first_op=first_op,
@@ -2384,16 +2399,19 @@ def build_semantic_program_sequence_role_binding_corpus(
             ).hexdigest()[:24]
             for first_op in _SEQUENCE_BINARY_SELECTORS:
                 for second_op in _SCALAR_CONTINUATIONS:
-                    source_text, input_spans, instructions = (
-                        _render_sequence_reserved_alias_chain(
-                            construction_index=construction_index,
-                            first_op=first_op,
-                            second_op=second_op,
-                            values=public_sequence,
-                            selector=selector,
-                            adjustment=adjustment,
-                            role_bound=True,
-                        )
+                    (
+                        source_text,
+                        input_spans,
+                        instructions,
+                        register_definition_spans,
+                    ) = _render_sequence_reserved_alias_chain(
+                        construction_index=construction_index,
+                        first_op=first_op,
+                        second_op=second_op,
+                        values=public_sequence,
+                        selector=selector,
+                        adjustment=adjustment,
+                        role_bound=True,
                     )
                     examples.append(
                         SemanticProgramExample(
@@ -2413,6 +2431,7 @@ def build_semantic_program_sequence_role_binding_corpus(
                             instructions=instructions,
                             report_value=4,
                             contrast_id=contrast_id,
+                            register_definition_spans=register_definition_spans,
                         )
                     )
     return tuple(examples)
@@ -2434,6 +2453,20 @@ def _character_to_token_span(
     if covered_start > span.start or covered_end < span.end:
         raise ValueError("tokenizer offsets do not cover a semantic source span")
     return TokenSpan(indices[0], indices[-1] + 1)
+
+
+def project_register_definition_spans(
+    example: SemanticProgramExample,
+    *,
+    offset_mapping: Sequence[tuple[int, int]],
+) -> tuple[TokenSpan, ...]:
+    """Project role-bearing register definitions without changing value grounding."""
+
+    character_spans = example.register_definition_spans or (
+        *example.input_spans,
+        *(instruction.operation_span for instruction in example.instructions),
+    )
+    return tuple(_character_to_token_span(span, offset_mapping) for span in character_spans)
 
 
 def project_example_to_ir(
@@ -2491,5 +2524,6 @@ __all__ = [
     "build_semantic_program_sequence_corpus",
     "build_semantic_program_sequence_reserved_alias_corpus",
     "build_semantic_program_sequence_role_binding_corpus",
+    "project_register_definition_spans",
     "project_example_to_ir",
 ]
