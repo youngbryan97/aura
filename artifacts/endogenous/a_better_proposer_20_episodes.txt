@@ -1,0 +1,8 @@
+{'seed': 5000, 'stream': 'shared', 'wrote': 68, 'sealed': 10, 'before': 618.1, 'after': 350.0, 'lesioned': 618.1, 'better_on_sealed': True, 'lesion_restores': True}
+{'seed': 5001, 'stream': 'shared', 'wrote': 68, 'sealed': 10, 'before': 617.9, 'after': 350.0, 'lesioned': 617.9, 'better_on_sealed': True, 'lesion_restores': True}
+{'seed': 5002, 'stream': 'shared', 'wrote': 68, 'sealed': 10, 'before': 596.7, 'after': 210.0, 'lesioned': 596.7, 'better_on_sealed': True, 'lesion_restores': True}
+{'seed': 5000, 'stream': 'apart', 'wrote': None, 'sealed': 10}
+{'seed': 5001, 'stream': 'apart', 'wrote': None, 'sealed': 10}
+{'seed': 5002, 'stream': 'apart', 'wrote': None, 'sealed': 10}
+
+[exited with code 0]

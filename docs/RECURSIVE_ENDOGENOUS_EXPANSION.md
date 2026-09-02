@@ -1210,20 +1210,31 @@ Done, in order, each piece surviving into the final architecture:
 13b. A rule whose shape is its own term, and which can make values.
 13c. An order she wrote, holding on sealed episodes, with its lesion.
 13d. That order reaching ordinary invention on families it never saw.
-
-Next, in the order that keeps every step in the final architecture:
-
 14. The inline-expansion control, so a name that bought nothing cannot pass as
-    an abstraction. The search-cost probe is done; this is the other half.
-15. The dependency graph: quarantine and rebuild. Cascade is done — removing a
-    head removes the words written over it — and the other two are not.
-16. Make the whole proposer a term, not only its ordering, and persist it. H
-    and I are run on the ordering; a third generation needs the rest.
-17. Freeze, and commission the sealed family from someone else. J is the only
-    experiment here that cannot be run from inside.
+    an abstraction. Head beats leaf on 6 of 6 seeds, forward and in one unit.
+15. The dependency graph: quarantine, rebuild, retract, and the cascade that
+    takes the words written over a head out with the head.
+16. The whole proposer as a term, written by her, kept, and lesionable.
 
-If step 16 needs a new human-written mechanism to pass, the design has failed
-and this document should say so.
+Step 16 needed no new human-written mechanism, which is what the design
+predicted and what would have refuted it. The proposer she writes is installed,
+persisted and removed by the code that installs, persists and removes a head,
+and the numbers are in
+[a_better_proposer_20_episodes.txt](../artifacts/endogenous/a_better_proposer_20_episodes.txt):
+on ten sealed families she never saw, the index at which the proposer offers
+the answer falls from 618.1 to 350.0, from 617.9 to 350.0 and from 596.7 to
+210.0 on three seeds, each lesion returns the number exactly, and the matched
+stream with no shared structure writes no proposer at all.
+
+That last run also corrected an earlier verdict here. Two of the three seeds
+failed at four training families and passed at ten, so the mechanism was never
+the problem; four families were not enough to fit a proposer that generalised.
+The four real defects behind the first failures are in Part XI.
+
+One item is still open, and it cannot be closed from inside:
+
+17. Freeze, and commission the sealed family from someone else. J is the only
+    experiment here that needs an independent party.
 
 ---
 
