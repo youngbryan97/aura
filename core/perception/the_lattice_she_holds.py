@@ -138,7 +138,12 @@ class TheLatticeSheHolds:
             return False
         self.across_at, self.down_at = across, down
         self._built_from, self.from_acts = held, acts
+        # Both counts were about the grid this replaces. Two things landing on
+        # one of the OLD grid's places says nothing about this one, and left
+        # standing it goes on reporting that something is sitting over a thing
+        # she can now read perfectly well.
         self.would_not_fit = 0
+        self.crowded_for = 0
         return True
 
     def _sits_on_a_line(self, across: float, down: float) -> bool:

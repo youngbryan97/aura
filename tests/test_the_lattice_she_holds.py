@@ -324,3 +324,22 @@ def test_the_rule_comes_out_on_the_geometry_of_a_real_reading() -> None:
     # there is any lattice to place them in.
     assert rules.confidence() > 0.9, rules.says()
     assert "slides and combines" in rules.says()
+
+
+def test_a_new_grid_does_not_inherit_the_old_one_s_complaints() -> None:
+    """Two things landing on one of the OLD grid's places says nothing about
+    this one. Left standing it goes on reporting that something is sitting
+    over a thing she can now read perfectly well."""
+    lattice = _held()
+    for _ in range(lattice.CHANGED_AFTER):
+        lattice.fit([(0.352, 0.203, "2"), (0.35, 0.20, "some prose")])
+    assert lattice.looks_covered()
+
+    wider = frozenset(
+        (int(round((0.20 + col * 0.15) * 100)), int(round((0.35 + row * 0.12) * 100)))
+        for row in range(4)
+        for col in range(5)
+    )
+    assert lattice.built_from(wider, acts=9)
+    assert not lattice.looks_covered()
+    assert not lattice.has_changed()
