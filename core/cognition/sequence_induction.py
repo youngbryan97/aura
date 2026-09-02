@@ -30,7 +30,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from core.cognition.language_limits import certify
 from core.cognition.primitive_invention import (
@@ -314,182 +314,184 @@ def _keep_what_she_worked_out() -> None:
         pass  # no-op: an unkept meaning still answers this question
 
 
-def _a_word_the_language_was_missing(
-    pairs: Sequence[tuple[Sequence[Any], Sequence[Any]]],
-) -> str | None:
-    """Derive a way of saying what these do, and add it to the language.
+@dataclass(frozen=True, slots=True)
+class _Situation:
+    """What every developmental action is handed: the cases, and the test."""
 
-    Returns what it is called, or nothing when the examples do not determine
-    one — values that repeat have no single source, and two examples of one
-    length that disagree describe no correspondence at all.
+    pairs: tuple[tuple[tuple[Any, ...], tuple[Any, ...]], ...]
+    sayable: Any
+
+
+def _a_kind_of_thing(situation: _Situation) -> str | None:
+    """A kind of thing before a new word, because it is the answer that holds.
+
+    When the failure splits the cases in two, what is missing is usually a
+    DISTINCTION and not an operation. Reading a correspondence off the examples
+    instead gives a word that works at the length it was read at and refuses
+    every other — right about these cases and silent about the next one. A
+    distinction is right about all of them, which is what makes it worth
+    having.
     """
-    from core.cognition.an_invented_kind import (
-        WAYS_TO_BUILD,
-        WHERE_FROM,
-        addressings,
-        induce_from,
-    )
-    from core.cognition.widening_the_language import (
-        an_addressing_nobody_wrote,
-        widen_with_addressing,
-    )
-
-    sayable = lambda: induce_from(pairs) is not None
-
-    # A kind of thing before a new word, because it is the answer that holds.
-    #
-    # When the failure splits the cases in two, what is missing is usually a
-    # DISTINCTION and not an operation. Reading a correspondence off the
-    # examples instead gives a word that works at the length it was read at
-    # and refuses every other — right about these cases and silent about the
-    # next one. A distinction is right about all of them, which is what makes
-    # it worth having.
     from core.cognition.a_kind_of_thing_she_named import (
         KINDS_OF_THING,
         a_kind_of_thing_she_named,
         a_way_of_building_over,
     )
+    from core.cognition.an_invented_kind import WAYS_TO_BUILD
 
-    named = a_kind_of_thing_she_named(pairs)
-    if named is not None:
-        maker, _over = a_way_of_building_over(named)
-        called = f"a way of saying it over {named.tells.name}"
-        if called not in WAYS_TO_BUILD:
-            WAYS_TO_BUILD[called] = maker
-            if sayable():
-                return (
-                    f"a kind of thing I had no name for ({named.tells.name}), "
-                    "and a way of saying things over it"
-                )
-            WAYS_TO_BUILD.pop(called, None)
-            KINDS_OF_THING.pop(named.name, None)
+    named = a_kind_of_thing_she_named(situation.pairs)
+    if named is None:
+        return None
+    maker, _over = a_way_of_building_over(named)
+    called = f"a way of saying it over {named.tells.name}"
+    if called in WAYS_TO_BUILD:
+        return None
+    WAYS_TO_BUILD[called] = maker
+    if situation.sayable():
+        return (
+            f"a kind of thing I had no name for ({named.tells.name}), "
+            "and a way of saying things over it"
+        )
+    WAYS_TO_BUILD.pop(called, None)
+    KINDS_OF_THING.pop(named.name, None)
+    return None
 
-    # Everything constructible, not merely the words written down. A candidate
-    # that some composition already produces is new spelling for an old
-    # meaning, and admitting it would report growth that did not happen.
-    closure = addressings()
-    found = an_addressing_nobody_wrote(pairs, already=closure)
-    if found is not None:
-        name = f"the way these move ({len(WHERE_FROM)})"
-        said = widen_with_addressing(name, found)
-        return f"a new way of saying where a value comes from ({said})" if said else None
 
-    # Nothing was MOVED, so no addressing describes it: the values were made
-    # rather than taken. Then what is missing is a way of combining a pair, and
-    # that is derivable too — given where the two came from, what was done with
-    # them is whatever the result was.
-    from core.cognition.an_invented_kind import WHAT_OF_IT
+def _a_way_of_saying_where_a_value_comes_from(situation: _Situation) -> str | None:
+    """Everything constructible, not merely the words written down.
+
+    A candidate that some composition already produces is new spelling for an
+    old meaning, and admitting it would report growth that did not happen.
+    """
+    from core.cognition.an_invented_kind import WHERE_FROM, addressings
+    from core.cognition.widening_the_language import (
+        an_addressing_nobody_wrote,
+        widen_with_addressing,
+    )
+
+    found = an_addressing_nobody_wrote(situation.pairs, already=addressings())
+    if found is None:
+        return None
+    name = f"the way these move ({len(WHERE_FROM)})"
+    said = widen_with_addressing(name, found)
+    return f"a new way of saying where a value comes from ({said})" if said else None
+
+
+def _a_way_of_combining_two_values(situation: _Situation) -> str | None:
+    """Nothing was MOVED, so no addressing describes it.
+
+    The values were made rather than taken. Then what is missing is a way of
+    combining a pair, and that is derivable too — given where the two came
+    from, what was done with them is whatever the result was.
+    """
+    from core.cognition.an_invented_kind import WHAT_OF_IT, addressings
     from core.cognition.widening_the_language import (
         an_operation_nobody_wrote,
         widen_with_operation,
     )
 
+    closure = addressings()
     for first in list(closure.values()):
         for second in list(closure.values()):
             done = an_operation_nobody_wrote(
-                pairs, first, second, already=list(WHAT_OF_IT.values())
+                situation.pairs, first, second, already=list(WHAT_OF_IT.values())
             )
             if done is None:
                 continue
             name = f"what was done with these ({len(WHAT_OF_IT)})"
             said = widen_with_operation(name, done)
             return f"a new way of combining two values ({said})" if said else None
+    return None
 
-    # No new WORD is enough. Then what is missing is a way of MAKING words.
-    #
-    # Tried last, because it enlarges the search enormously and every
-    # hypothesis it adds is another chance for a coincidence to win. But it is
-    # the only one of the three that helps with a family she has not met: a
-    # derived word is read off what she was shown and says nothing beyond it,
-    # while a way of building takes every word she has — including the derived
-    # ones — and makes more out of them.
+
+def _a_way_of_making_words_she_built(situation: _Situation) -> str | None:
+    """Build one before reaching for one that was written.
+
+    Activating a constructor somebody already wrote enlarges what she uses and
+    never what she has; a recipe she composes can describe something the source
+    does not contain.
+    """
     from core.cognition.a_constructor_she_built import a_constructor_she_built
-    from core.cognition.growing_at_any_level import grow_until_sayable, twice_over
-    from core.cognition.widening_the_language import one_after_another
 
-    # Build one before reaching for one that was written. Activating a
-    # constructor somebody already wrote enlarges what she uses and never what
-    # she has; a recipe she composes can describe something the source does not
-    # contain.
-    built = a_constructor_she_built(pairs, now_sayable=sayable)
-    if built is not None:
-        return f"a way of making words that I built rather than had ({built.name})"
+    built = a_constructor_she_built(situation.pairs, now_sayable=situation.sayable)
+    if built is None:
+        return None
+    return f"a way of making words that I built rather than had ({built.name})"
 
-    # A way of building she WRITES, rather than one she is handed.
-    #
-    # This used to offer two makers by name — "one after another" and "twice
-    # over" — so the levels had no ceiling and the thing supplying candidates
-    # for them did. Whatever she reached was inside the closure of
-    # composition, inversion and iteration, and a family needing anything else
-    # was unreachable however long she looked.
-    #
-    # A way of building is now a TERM with a hole in it, in the same algebra a
-    # word is a term in, so there is no list to be at the end of. Measured: the
-    # first family that branches on the size of the thing is served by a maker
-    # she wrote that is provably outside the closure of those three.
+
+def _a_way_of_building_words_she_wrote(situation: _Situation) -> str | None:
+    """A way of building she WRITES, rather than one she is handed.
+
+    This used to offer two makers by name — "one after another" and "twice
+    over" — so the levels had no ceiling and the thing supplying candidates for
+    them did. Whatever she reached was inside the closure of composition,
+    inversion and iteration, and a family needing anything else was unreachable
+    however long she looked. A way of building is now a TERM with a hole in it,
+    in the same algebra a word is a term in, so there is no list to be at the
+    end of.
+
+    Only where the LANGUAGE is what failed. Nothing fitting is not evidence
+    that a word is missing: it is equally what a search that went badly looks
+    like, and writing a new way of building words in answer to that is an
+    expensive way of being wrong.
+    """
     from core.cognition.one_algebra import a_maker_she_wrote
     from core.cognition.what_the_failures_have_in_common import why_nothing_fits
 
-    # Only where the LANGUAGE is what failed.
-    #
-    # Nothing fitting is not evidence that a word is missing: it is equally
-    # what a search that went badly looks like, and writing a new way of
-    # building words in answer to that is an expensive way of being wrong.
-    # The difference is readable — if something she can already say accounts
-    # for exactly the cases the best reading missed, then both halves are
-    # sayable and the whole is not, and what is missing is a way to join them.
-    why = why_nothing_fits(pairs)
+    why = why_nothing_fits(situation.pairs)
     if not why.is_the_language:
         logger.info("not reaching for a new word: %s", why.describes())
         return None
-    wrote = a_maker_she_wrote(pairs, now_sayable=sayable)
-    if wrote is not None:
-        return f"a way of building words that I wrote ({wrote.name})"
+    wrote = a_maker_she_wrote(situation.pairs, now_sayable=situation.sayable)
+    if wrote is None:
+        return None
+    return f"a way of building words that I wrote ({wrote.name})"
 
-    # And when no word, no operation, no recipe and no maker will do: a way of
-    # COMPUTING she writes, standing where a head stands.
-    #
-    # The rung above every other one, and the last, because a head is a term
-    # on a universal floor. Everything before this is a term in the positional
-    # algebra, and core/cognition/what_the_old_language_cannot_say.py proves
-    # what those terms are bounded by: a polynomial in the length of the state
-    # whose degree is the length of the term, uniform over every vocabulary
-    # she can build. A family past that is not short of words.
-    #
-    # Refused unless it makes the family sayable, and taken out again when it
-    # does not, because a head is a branch at every step of every search from
-    # now on and that is the most expensive thing she can add.
-    said = _a_way_of_computing(pairs, sayable)
-    if said is not None:
-        return said
 
-    # And when even a new way of computing will not do: a rule whose SHAPE is
-    # its own.
-    #
-    # Everything above this rung, including a head she writes, fits inside one
-    # sentence somebody wrote — `after[i] = what(before[g(i,n)],
-    # before[h(i,n)])`. Two sources, one operation, both value-blind. A family
-    # wanting three sources, or an operation depending on where it is, or a
-    # value that was never in the state, is unsayable however wide the
-    # vocabulary gets, and language_limits.certify already refuses to rule on
-    # the last of those because no rule about where a cell came from can
-    # produce it.
-    #
-    # A rule here is a floor term handed the whole state, so how many places
-    # it reads and whether it makes values are inside the term rather than
-    # fields in a record.
-    said = _a_rule_with_no_shape(pairs)
-    if said is not None:
-        return said
+def _a_way_of_computing_it(situation: _Situation) -> str | None:
+    """A way of COMPUTING she writes, standing where a head stands.
 
-    # And the ones that were written down, tried after, because a way she can
-    # reach by writing is worth more than one she can only be handed.
+    Everything below this is a term in the positional algebra, and
+    core/cognition/what_the_old_language_cannot_say.py proves what those terms
+    are bounded by: a polynomial in the length of the state whose degree is the
+    length of the term, uniform over every vocabulary she can build. A family
+    past that is not short of words.
+
+    Refused unless it makes the family sayable, and taken out again when it
+    does not, because a head is a branch at every step of every search from now
+    on and that is the most expensive thing she can add.
+    """
+    return _a_way_of_computing(situation.pairs, situation.sayable)
+
+
+def _a_rule_whose_shape_is_its_own(situation: _Situation) -> str | None:
+    """A rule whose SHAPE is its own.
+
+    Everything else, including a head she writes, fits inside one sentence
+    somebody wrote — `after[i] = what(before[g(i,n)], before[h(i,n)])`. Two
+    sources, one operation, both value-blind. A family wanting three sources,
+    or an operation depending on where it is, or a value that was never in the
+    state, is unsayable however wide the vocabulary gets, and
+    language_limits.certify already refuses to rule on the last of those
+    because no rule about where a cell came from can produce it.
+    """
+    return _a_rule_with_no_shape(situation.pairs)
+
+
+def _the_ways_of_making_words_that_were_written_down(
+    situation: _Situation,
+) -> str | None:
+    """The ones that were written down, because a way she can reach by writing
+    is worth more than one she can only be handed."""
+    from core.cognition.growing_at_any_level import grow_until_sayable, twice_over
+    from core.cognition.widening_the_language import one_after_another
+
     kept = grow_until_sayable(
         [
             (1, "one after another", one_after_another),
             (2, "twice over", twice_over),
         ],
-        now_sayable=sayable,
+        now_sayable=situation.sayable,
     )
     if not kept:
         return None
@@ -501,6 +503,165 @@ def _a_word_the_language_was_missing(
             + ")"
         )
     return f"a new way of MAKING words rather than a word ({kept[0].name})"
+
+
+#: The eight, in the order they were written. That order still decides what
+#: gets tried on a cold record, because a first occasion has nothing to read;
+#: from the second onward it is decided by what each one has been worth. What
+#: changed is not the order but the kind of thing that fixes it.
+_THE_EIGHT: tuple[tuple[str, str, str, Any], ...] = (
+    (
+        "a kind of thing she had no name for",
+        "the words",
+        "a kind of thing",
+        _a_kind_of_thing,
+    ),
+    (
+        "a way of saying where a value comes from",
+        "the words",
+        "a way of saying",
+        _a_way_of_saying_where_a_value_comes_from,
+    ),
+    (
+        "a way of combining two values",
+        "the words",
+        "a way of combining",
+        _a_way_of_combining_two_values,
+    ),
+    (
+        "a way of making words she built",
+        "the ways of building words",
+        "a way of making words",
+        _a_way_of_making_words_she_built,
+    ),
+    (
+        "a way of building words she wrote",
+        "the ways of building words",
+        "a way of building words",
+        _a_way_of_building_words_she_wrote,
+    ),
+    (
+        "a way of computing",
+        "the ways of computing",
+        "a way of computing",
+        _a_way_of_computing_it,
+    ),
+    (
+        "a rule whose shape is its own",
+        "the shapes a rule can have",
+        "a rule with no shape",
+        _a_rule_whose_shape_is_its_own,
+    ),
+    (
+        "the ways of making words that were written down",
+        "the ways of building words",
+        "a way of making words",
+        _the_ways_of_making_words_that_were_written_down,
+    ),
+)
+
+
+def _register_what_she_could_do() -> None:
+    """Put the eight in the registry, once."""
+    from core.cognition.what_she_could_do_next import (
+        WHAT_SHE_COULD_DO,
+        what_she_could_do,
+    )
+
+    for name, over, kind, do_it in _THE_EIGHT:
+        if name not in WHAT_SHE_COULD_DO:
+            what_she_could_do(name, over=over, kind=kind, do_it=do_it)
+
+
+def _what_family_this_is(
+    pairs: Sequence[tuple[Sequence[Any], Sequence[Any]]],
+) -> str:
+    """A key that recurs when the same shape of question recurs.
+
+    The lengths asked about, and whether the values were moved or made. Two
+    occasions of the same family share both; two families rarely do. Nothing
+    about the family's NAME is in it, because a name would let the record be
+    told what to count as recurrence rather than read it.
+    """
+    lengths = sorted({len(before) for before, _after in pairs})
+    made = any(
+        set(after) - set(before) for before, after in pairs
+    )
+    return f"{'made' if made else 'moved'} over {lengths}"
+
+
+def _a_word_the_language_was_missing(
+    pairs: Sequence[tuple[Sequence[Any], Sequence[Any]]],
+) -> str | None:
+    """Decide what to do about a language that could not say this, and do it.
+
+    This used to be a ladder: eight rungs, each running because the one above
+    it returned nothing. That is not a decision, and the ladder was itself a
+    hand-written account of what development can be.
+
+    Now the eight are entries, and which one runs is whichever is worth the
+    most — occasions ahead times what a change of that kind has saved before,
+    less what it costs, less what it costs when it fails, all four read off
+    `the_record_of_her_own_work`. On a cold record nothing has a history, so
+    everything is unpriced and the order is the order they were written, which
+    is exactly what this did before. From the second occasion it is decided by
+    measurement.
+
+    An action that is chosen and returns nothing is taken out of the running
+    and the choice is made again, so a failure narrows the field rather than
+    advancing a counter.
+    """
+    from core.cognition.an_invented_kind import (
+        how_many_were_walked,
+        induce_from,
+        start_counting_again,
+    )
+    from core.cognition.she_decides_to_develop import what_to_do_next
+    from core.cognition.the_record_of_her_own_work import note_an_episode
+    from core.cognition.what_she_could_do_next import the_actions_she_has
+
+    _register_what_she_could_do()
+    sayable = lambda: induce_from(pairs) is not None
+    situation = _Situation(
+        pairs=tuple((tuple(before), tuple(after)) for before, after in pairs),
+        sayable=sayable,
+    )
+    family = _what_family_this_is(pairs)
+
+    # What the ordinary search spent failing on this. Measured, not estimated:
+    # a search that finds nothing walks every meaning there is.
+    start_counting_again()
+    sayable()
+    costs_now = max(1, how_many_were_walked())
+
+    left = list(the_actions_she_has())
+    while left:
+        decided = what_to_do_next(family, costs_now=costs_now, among=left)
+        if decided.action is None:
+            logger.info("she is not developing: %s", decided.grounds)
+            note_an_episode(family, route=None, walked=costs_now)
+            return None
+        try:
+            said = decided.action.do_it(situation)
+        except Exception:  # noqa: BLE001 - a failed action is a result
+            logger.info("%s raised", decided.action.name, exc_info=True)
+            said = None
+        note_an_episode(
+            family,
+            route=decided.action.name if said else None,
+            walked=decided.worth.cost if decided.worth else costs_now,
+            admitted=decided.action.kind if said else None,
+        )
+        if said:
+            logger.info(
+                "she chose %s (%s) and it gave %s",
+                decided.action.name,
+                decided.because,
+                said,
+            )
+            return said
+        left = [one for one in left if one.name != decided.action.name]
+    return None
 
 
 def _the_body_inside(head_body: Any) -> Any:

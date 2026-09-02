@@ -48,7 +48,9 @@ __all__ = [
     "admit",
     "every_meaning",
     "forget",
+    "how_many_were_walked",
     "induce_from",
+    "start_counting_again",
     "interpretation_of",
 ]
 
@@ -404,6 +406,24 @@ def everything_that_fits(
     return distinct or fitting[:1]
 
 
+#: How many meanings the last search walked. What a failed search costs, in
+#: the one unit everything about developing is priced in, and a measurement
+#: rather than an estimate: a search that finds nothing walks all of them.
+_WALKED: list[int] = [0]
+
+
+def how_many_were_walked() -> int:
+    """Meanings walked since this was last reset."""
+    return _WALKED[0]
+
+
+def start_counting_again() -> int:
+    """Reset the walk counter and give back what it held."""
+    was = _WALKED[0]
+    _WALKED[0] = 0
+    return was
+
+
 def induce_from(
     transitions: Sequence[tuple[Sequence[Any], Sequence[Any]]],
 ) -> Induced | None:
@@ -431,6 +451,7 @@ def induce_from(
     if len(judging) < ENOUGH_HELD_BACK:
         return None
     for meaning in every_meaning():
+        _WALKED[0] += 1
         if not all(meaning.read(before) == after for before, after in solving):
             continue
         right = sum(1 for before, after in judging if meaning.read(before) == after)

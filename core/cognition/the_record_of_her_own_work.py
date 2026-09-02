@@ -54,6 +54,7 @@ __all__ = [
     "note_a_use",
     "recall_the_record",
     "the_record",
+    "what_it_has_cost",
 ]
 
 logger = logging.getLogger("Aura.TheRecordOfHerOwnWork")
@@ -167,6 +168,16 @@ def how_long_since(name: str) -> int | None:
     """Episodes since this entry was last used, or nothing if it never was."""
     at = _RECORD.last_used.get(str(name))
     return None if at is None else max(0, _RECORD.seen - at)
+
+
+def what_it_has_cost(route: str) -> int | None:
+    """What this route has cost on average, or nothing where it never ran.
+
+    The measured cost of a developmental action, so nothing has to estimate
+    what has already been observed.
+    """
+    spent = [one.walked for one in _RECORD.kept if one.route == route]
+    return int(round(sum(spent) / len(spent))) if spent else None
 
 
 def attribution() -> dict[str, dict[str, Any]]:
