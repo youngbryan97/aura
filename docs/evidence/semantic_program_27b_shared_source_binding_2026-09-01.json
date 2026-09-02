@@ -1,0 +1,8 @@
+{
+  "schema": "aura.historical_semantic_source_binding.v1",
+  "source_commit": "b39602704b002ae5f562365b78f032d20d8d1715",
+  "certificates": {
+    "semantic_program_27b_shared_variable_geometry_2026-09-01.json": "5d83557c0db0531f779620bc27982dcb70c6ee352dbb74f74e512752bc8da6c3"
+  },
+  "serving_authority": false
+}

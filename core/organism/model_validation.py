@@ -1326,6 +1326,34 @@ def install_runtime_validation() -> dict[str, Any]:
     )
     suite.add_test(
         ValidationTest(
+            name="shared_semantic_programs_recover_variable_geometry",
+            description=(
+                "one resident-27B transducer without a family router recovers "
+                "variable typed program geometry and executable semantics across "
+                "arithmetic, sequence, and fork-join families"
+            ),
+            required_capability="",
+            observation=Observation(
+                name="shared_variable_geometry_certificate_is_verified",
+                value=True,
+                source=(
+                    "docs/evidence/"
+                    "semantic_program_27b_shared_variable_geometry_2026-09-01.json"
+                ),
+            ),
+            predict=lambda _m: (
+                _semantic_program_27b_shared_variable_geometry_certificate_holds()
+            ),
+            score=lambda p, o: boolean_score(
+                bool(p),
+                expected=bool(o.value),
+                subject="shared resident semantic programs with variable geometry",
+            ),
+            owner="tools/verify_shared_semantic_program_campaign.py",
+        )
+    )
+    suite.add_test(
+        ValidationTest(
             name="neural_transition_tissue_enters_complete_engine",
             description=(
                 "a wrong incumbent is replaceable by systematic teacher-removed "
@@ -1803,6 +1831,29 @@ def install_runtime_validation() -> dict[str, Any]:
                 "permutation. Expected answers were absent from training. This is "
                 "bounded model-to-program transfer on a synthetic arithmetic grammar, "
                 "not unrestricted serving, broad-domain gain, or frontier reasoning."
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "One family-router-free resident 27B transducer recovered 258 of "
+                "368 complete variable-geometry programs and exact execution "
+                "emitted 292 correct answers across three typed families."
+            ),
+            test="shared_semantic_programs_recover_variable_geometry",
+            owner="tools/verify_shared_semantic_program_campaign.py",
+            asserted_in="docs/RECURSIVE_LATENT_CORTEX.md",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "Independent replay reproduced 258/368 exact programs and 292/368 "
+                "exact answers from one coefficient set across arithmetic, sequence, "
+                "and fork-join geometries. Hidden-token shuffle and coefficient lesion "
+                "each recovered 0/368 programs; both paired exact tests had "
+                "p=2.159e-78. Inputs were grounded by a tokenizer-bound exact grammar, "
+                "while step count, operation semantics, and definition references were "
+                "learned. This is bounded typed semantic acquisition, not serving "
+                "authority, unseen-schema induction, or a broad natural-language gain."
             ),
         )
     )
@@ -2745,13 +2796,13 @@ def _universality_certificates_that_fail() -> int:
     genuinely universal rather than merely large.
     """
     from core.cognition.the_floor_she_stands_on import (
-        Code,
-        L,
         MINUS,
-        N,
-        OutOfFuel,
         PLUS,
         TIMES,
+        Code,
+        L,
+        N,
+        OutOfFuel,
         V,
         build,
         run,
@@ -2806,9 +2857,8 @@ def _a_way_of_computing_she_cannot_keep() -> int:
         a_way_of_computing_she_wrote,
     )
     from core.cognition.an_invented_kind import WHERE_FROM
-    from core.cognition.one_algebra import DERIVED_HEADS, Term
+    from core.cognition.one_algebra import DERIVED_HEADS, Term, the_head_she_wrote
     from core.cognition.one_algebra import run as positional_run
-    from core.cognition.one_algebra import the_head_she_wrote
 
     def rule(at: int, size: int) -> int:
         return at + (at + 1) % size
@@ -4130,6 +4180,79 @@ def _semantic_program_27b_replication_certificate_holds() -> bool:
     )
 
 
+def _semantic_program_27b_shared_variable_geometry_certificate_holds() -> bool:
+    loaded = _sealed_certificate(
+        "docs/evidence/"
+        "semantic_program_27b_shared_variable_geometry_2026-09-01.json"
+    )
+    if loaded is None:
+        return False
+    certificate, expected_verification_sha256, certificate_path, root = loaded
+    try:
+        source_sha256s = certificate["source_sha256s"]
+    except (KeyError, TypeError):
+        return False
+
+    expected_boundary = (
+        "bounded typed semantic-program families with learned variable geometry, "
+        "operation semantics, and definition-reference relations; one transducer, "
+        "no family router, and no broad natural-language domain claim"
+    )
+    expected_program_controls = {
+        "coefficient_lesion": 0,
+        "hidden_token_shuffle": 0,
+    }
+    expected_family_programs = {
+        "arithmetic": 123,
+        "fork_join": 107,
+        "sequence": 28,
+    }
+    expected_family_answers = {
+        "arithmetic": 123,
+        "fork_join": 140,
+        "sequence": 29,
+    }
+    paired = certificate.get("paired_test_program_controls")
+    expected_pairs = {
+        "coefficient_lesion": (258, 0),
+        "hidden_token_shuffle": (258, 0),
+    }
+    observed_pairs = (
+        {
+            key: (value.get("treatment_only"), value.get("control_only"))
+            for key, value in paired.items()
+        }
+        if isinstance(paired, dict)
+        else {}
+    )
+    return bool(
+        certificate.get("schema")
+        == "aura.semantic_program_shared_verification.v1"
+        and certificate.get("verified") is True
+        and certificate.get("test_total") == 368
+        and certificate.get("test_program_exact") == 258
+        and certificate.get("test_answer_exact") == 292
+        and certificate.get("test_program_controls") == expected_program_controls
+        and certificate.get("family_test_program_exact") == expected_family_programs
+        and certificate.get("family_test_answer_exact") == expected_family_answers
+        and observed_pairs == expected_pairs
+        and all(
+            value.get("one_sided_exact_p") == 2.1590421387736112e-78
+            for value in paired.values()
+        )
+        and certificate.get("serving_authority") is False
+        and certificate.get("claim_boundary") == expected_boundary
+        and _historical_semantic_sources_hold_at_binding(
+            root,
+            certificate_path,
+            source_sha256s,
+            "docs/evidence/"
+            "semantic_program_27b_shared_source_binding_2026-09-01.json",
+        )
+        and certificate.get("verification_sha256") == expected_verification_sha256
+    )
+
+
 def _canary_artifact_bundle(
     relative_artifact_root: str, verifier_relative: str
 ) -> tuple[dict, dict, dict, str, pathlib.Path] | None:
@@ -4203,16 +4326,29 @@ def _historical_semantic_sources_hold(
 ) -> bool:
     """Verify measured source against committed blobs, never the evolving tree."""
 
+    return _historical_semantic_sources_hold_at_binding(
+        root,
+        certificate_path,
+        source_sha256s,
+        "docs/evidence/semantic_program_27b_source_binding_2026-09-01.json",
+    )
+
+
+def _historical_semantic_sources_hold_at_binding(
+    root: pathlib.Path,
+    certificate_path: pathlib.Path,
+    source_sha256s: dict[str, str],
+    binding_relative_path: str,
+) -> bool:
+    """Verify one measured source set against its immutable commit binding."""
+
     import hashlib
     import json
     import subprocess
 
     from core.runtime.subprocess_gateway import get_subprocess_gateway
 
-    binding_path = (
-        root
-        / "docs/evidence/semantic_program_27b_source_binding_2026-09-01.json"
-    )
+    binding_path = root / binding_relative_path
     try:
         binding = json.loads(binding_path.read_text(encoding="utf-8"))
         commit = binding["source_commit"]

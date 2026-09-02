@@ -272,6 +272,7 @@ program traces instead of answers. That is where the gain came from.
 | Resident decode of the induced neural procedure | **SUPPORTED, BOUNDED** — treatment 8/8, ordinary 1/8, wire 1/8, coefficient lesion 1/8, wrong-input 0/8, wrong-state 0/8; seven gains, no regressions, *p* = 0.0078125 |
 | Resident 27B language-to-program transfer | **SUPPORTED, BOUNDED** — exact execution emitted 134/256 held-out answers from learned model-bound semantics; exact program recovery was 133/256, against hidden-state shuffle 14/256, coefficient lesion 0/256 and label permutation 4/256 |
 | Frozen fresh-cohort semantic transfer | **SUPPORTED, REPLICATED, BOUNDED** — the unchanged transducer emitted 114/256 exact held-out answers on a separately seeded numeric cohort after a clean worker restart, against hidden-state shuffle 10/256 and coefficient lesion 0/256 |
+| Shared variable-geometry semantic programs | **SUPPORTED, BOUNDED** — one transducer with no family router recovered 258/368 complete programs and exact execution emitted 292/368 answers across arithmetic, sequence and fork/join geometries; hidden-token shuffle 0/368 and coefficient lesion 0/368, paired exact *p* = 2.16 × 10⁻⁷⁸ |
 | Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
 
 `BOUNDED_WOW_SIGNAL` is the adjudicator's own verdict string, and *bounded* is
@@ -340,6 +341,19 @@ exact execution emitted 114/256 held-out answers; hidden-state shuffle reached
 task-arm rows. This establishes fresh-example reuse inside the same bounded
 language and primitive system. It does not establish new procedure families,
 open-domain transfer, or serving authority.
+
+The fixed-geometry boundary has also moved. One shared transducer now receives
+tokenizer-grounded typed inputs and learns the remaining program structure from
+resident 27B hidden states. It predicts how many steps are present, which
+primitive each step applies, and whether each argument refers to an input or an
+earlier result. The same coefficient set handles two-step arithmetic,
+two-step sequence programs and three-step fork/join arithmetic without a family
+router. On held-out constructions it recovered 258/368 complete programs, and
+exact execution emitted 292/368 correct answers. Hidden-token shuffle and
+coefficient lesion each recovered 0/368 programs; both paired exact tests gave
+*p* = 2.16 × 10⁻⁷⁸. This establishes learned variable program geometry over the
+declared typed vocabulary. A new schema still needs support examples, and this
+result grants neither serving authority nor a broad natural-language claim.
 
 One family — misleading premise — gained nothing, and the reason is worth
 stating rather than averaging away: ordinary decode was already at ceiling there
