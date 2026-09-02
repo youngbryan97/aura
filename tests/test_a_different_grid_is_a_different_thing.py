@@ -69,15 +69,29 @@ def test_dropping_nothing_is_quiet() -> None:
     assert rules.seen == 0
 
 
-def test_the_pursuit_drops_it_when_the_grid_changes_shape() -> None:
-    """The wiring, and the condition: a change of SHAPE, which settles —
-    not every rebuild, which would thrash."""
+def test_the_pursuit_drops_it_in_both_places_it_has_to() -> None:
+    """Twice, because either one alone leaves the hole open.
+
+    During a run, when the grid corrects itself. And on loading, because the
+    counts are written down at the end and read back at the start — so a
+    sitting that began with the wrong grid poisons every sitting after it, and
+    the during-a-run correction never fires because by then the grid is
+    already right.
+    """
     from core.skills import screen_pursuit
 
     with open(screen_pursuit.__file__, encoding="utf-8") as handle:
         text = handle.read()
-    assert "learned_through_a_different_reading()" in text
-    where = text.index("learned_through_a_different_reading()")
-    near = text[where - 700 : where]
-    assert "built_from(" in near
-    assert "was != now" in near
+    at = [
+        where
+        for where in range(len(text))
+        if text.startswith("learned_through_a_different_reading()", where)
+    ]
+    assert len(at) == 2, f"expected both call sites, found {len(at)}"
+    around = [text[where - 800 : where] for where in at]
+    assert any("read_through" in one for one in around), (
+        "one of them must fire on what the remembered counts were read through"
+    )
+    assert any("built_from(" in one and "was != now" in one for one in around), (
+        "and one when the grid changes shape during a run"
+    )

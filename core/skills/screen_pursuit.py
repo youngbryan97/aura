@@ -2762,6 +2762,22 @@ async def pursue_on_screen(
         # each one. Where a thing is tends to keep, so it is remembered.
         "lattice": TheLatticeSheHolds.from_memory(knew.get("lattice") or {}),
     }
+    # And what she remembers about how the thing moves is dropped where it was
+    # read through a grid of a different shape from the one she is holding.
+    #
+    # Dropping it DURING a run, when the grid corrects itself, was not enough.
+    # The counts are written down at the end and read back at the start, so a
+    # sitting that began with the wrong grid poisons every sitting after it,
+    # and the correction never fires because by then the grid is already
+    # right. LIVE 2026-09-02: three sittings running, the grid correct in the
+    # last two, the rule stuck at two hundred and five right out of three
+    # hundred and one, and not one move looked ahead on in any of them.
+    if (
+        knows.rules is not None
+        and responds["lattice"].held
+        and knows.rules.read_through not in ((0, 0), (responds["lattice"].rows, responds["lattice"].columns))
+    ):
+        knows.rules.learned_through_a_different_reading()
     #: The few acts she reaches for, out of all the ones she could. A habit is
     #: worth carrying between sittings, so it is remembered too.
     reaches = TheOnesSheReachesFor.from_memory(

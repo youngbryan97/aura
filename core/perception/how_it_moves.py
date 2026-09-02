@@ -360,6 +360,10 @@ class HowItMoves:
     #: Every place that has ever held anything. What has not is not part of
     #: the thing, and something sitting beside it is at the edge of the thing.
     _ever_held: set[tuple[int, int]] = field(default_factory=set)
+    #: The shape of the grid everything here was read through. Remembered
+    #: evidence carries the conditions it was gathered under, so that it can
+    #: be dropped when they stop holding.
+    read_through: tuple[int, int] = (0, 0)
 
     # ── learning ─────────────────────────────────────────────────────────
 
@@ -537,6 +541,7 @@ class HowItMoves:
         self._ever_held.clear()
         self.counters.clear()
         self._started_again = False
+        self.read_through = (0, 0)
 
     def _stands_apart(self, place: tuple[int, int], seen: Arrangement) -> bool:
         """Whether nothing has ever been beside this, in a thing that is packed.
@@ -562,6 +567,7 @@ class HowItMoves:
         """One of her own moves, and what it did."""
         if not before.cells and not after.cells:
             return
+        self.read_through = (before.rows, before.columns)
         if (before.rows, before.columns) != (after.rows, after.columns):
             # Two readings that disagree about the shape of the thing cannot
             # be compared, and a comparison that cannot be made is not
@@ -849,6 +855,7 @@ class HowItMoves:
             "moved": self.moved,
             "right_when_it_moved": dict(self.right_when_it_moved),
             "tried_when_it_moved": dict(self.tried_when_it_moved),
+            "read_through": list(self.read_through),
         }
 
     @classmethod
@@ -861,7 +868,13 @@ class HowItMoves:
         what came back is not overwhelming.
         """
         if not isinstance(held, dict):
-            return cls()
+            shape = held.get("read_through") or ()
+        try:
+            through = (int(shape[0]), int(shape[1])) if len(shape) == 2 else (0, 0)
+        except (TypeError, ValueError):
+            # not a failure: a shape that is not two numbers is not a shape.
+            through = (0, 0)
+        got = cls()
         share = max(0.0, min(1.0, float(trust)))
 
         def carried(counts: Any) -> dict[str, int]:
@@ -873,15 +886,21 @@ class HowItMoves:
                 if isinstance(value, (int, float))
             }
 
-        tried = carried(held.get("tried"))
+        shape = held.get("read_through") or ()
+        try:
+            through = (int(shape[0]), int(shape[1])) if len(shape) == 2 else (0, 0)
+        except (TypeError, ValueError, IndexError):
+            # not a failure: a shape that is not two numbers is not a shape.
+            through = (0, 0)
         return cls(
             right=carried(held.get("right")),
-            tried=tried,
+            tried=carried(held.get("tried")),
             seen=int(round(float(held.get("seen") or 0) * share)),
             arrivals=int(round(float(held.get("arrivals") or 0) * share)),
             moved=int(round(float(held.get("moved") or 0) * share)),
             right_when_it_moved=carried(held.get("right_when_it_moved")),
             tried_when_it_moved=carried(held.get("tried_when_it_moved")),
+            read_through=through,
         )
 
     def says(self) -> str:
