@@ -672,8 +672,8 @@ still takes a callable and still has no runtime caller;
 | **C** | Novelty, at the strongest available tier | **proven** for Corollary 7.1 by Theorem 3; **proven** for Theorem 4 by diagonalisation; bounded for anything a search returns |
 | **D** | Generalisation, `H ∩ S = ∅`, outside the observed ranges | **run.** Correct at lengths 9, 11, 13 and 16, none of them fitted or judged |
 | **E** | `b*` depends on `a*`; lesion `a*` and the second goes | **run at the grammar level.** Same family, same search, same budget: nothing with an empty library, the answer with one entry, and what it wrote is that entry plus four symbols |
-| **F** | Cross-domain transfer with a negative control | **run.** Related domain 96/96 with the piece against 77 without; unrelated control 96 and 96 |
-| **G** | GROWN vs RESET vs LESIONED, `dΔ/dn > 0` | **run, at the grammar level, with its negative control** — see below |
+| **F** | Cross-domain transfer with a negative control | **run.** Related domain 87/96 with the piece against 71 without; unrelated control 90 and 90 |
+| **G** | GROWN vs RESET vs LESIONED, `dΔ/dn > 0` | **run, with its negative control** — 129/150 against 89, control flat |
 | **H** | The mechanism changes itself and wins on sealed invention tasks | **not run.** One component of the mechanism — the rule for what to try first — is now a term, replaceable and lesionable by the head path; nothing writes a better one, and no gain is claimed |
 | **I** | A second generation with no human code between | **not run** |
 | **J** | Post-freeze tasks by an independent party | **not run** |
@@ -700,8 +700,8 @@ Sixteen seeds, six families each:
 
 | Domain | With the piece | Without it |
 |---|---|---|
-| structurally related, different surface | 96 / 96 | 77 / 96 |
-| unrelated | 96 / 96 | 96 / 96 |
+| structurally related, different surface | 87 / 96 | 71 / 96 |
+| unrelated | 90 / 90 | 90 / 90 |
 
 Nothing on the control. The relation is constructed rather than found, and the
 claim says so: this shows the piece is what carries, not that any real pair of
@@ -725,19 +725,22 @@ Five seeds, five blocks of six families:
 
 | Stream | GROWN | RESET | LESIONED | Gap by block |
 |---|---|---|---|---|
-| shared | 150/150 | 78 | 70 | 0, 2, 2.6, 5.8, 4 |
-| apart | 150/150 | 150 | 150 | 0, 0, 0, 0, 0 |
+| shared | 129/150 | 89 | 81 | 0, 1, 2, 2.8, 2.2 |
+| apart | 147/150 | 148 | 148 | 0, 0, −0.2, 0, 0 |
 
-Nought on the control in every block of every seed. That is what says the gain
-on the other stream is about carrying something rather than about having run
-longer, and the lesion returns her to the reset condition or below it.
+The control does not open. That is what says the gain on the other stream is
+about carrying something rather than about having run longer, and the lesion
+returns her to the reset condition or below it.
 
-Two things to say plainly. The gap is not monotone block to block — it reaches
-5.8 and falls to 4 — so what holds is that it is open by the end, not that it
-grows at every step. And the mechanism is transparent: later families are drawn
-over earlier terms by construction. This is compounding on a stream with
-structure in it. It is not evidence about any real task distribution, and
-experiment J is what would make it one.
+Three things to say plainly. The control is not exactly nought at every block
+and is not asserted to be — every agent gets the same wall clock, and a family
+solved with a second to spare in one condition can miss it in another; what is
+asserted is that the gap does not open. The gap on the shared stream is not
+monotone — it reaches 2.8 and falls to 2.2 — so what holds is that it is open
+by the end, not that it grows at every step. And the mechanism is transparent:
+later families are drawn over earlier terms by construction. This is
+compounding on a stream with structure in it, not evidence about any real task
+distribution, and experiment J is what would make it one.
 
 **Falsifiers.** The thesis fails if a larger search budget with no language
 growth matches the grown condition; if every claimed distinction is a macro; if
@@ -934,9 +937,10 @@ whole mitigation, and it is not a proof.
 - Both algebras computing on the floor exactly what their own interpreters
   compute, over 1,808,000 places, refusals included.
 - A piece written on one surface carrying to a structurally related domain
-  whose states look unrelated, and not carrying to an unrelated one.
-- Keeping what she wrote solving 150 of 150 families where resetting solves 78,
-  with a gap of nought on the control stream in every block of every seed.
+  whose states look unrelated — 87 of 96 against 71 — and not carrying to an
+  unrelated one, where it is 90 and 90.
+- Keeping what she wrote solving 129 of 150 families where resetting solves 89,
+  with the gap not opening at all on the control stream.
 
 ### Not established
 

@@ -1,13 +1,7 @@
 [
   {
     "seed": 2000,
-    "piece": 3,
-    "related": 6,
-    "apart": 6,
-    "related_with": 6,
-    "related_without": 3,
-    "apart_with": 6,
-    "apart_without": 6
+    "why": "no related family"
   },
   {
     "seed": 2001,
@@ -74,7 +68,7 @@
     "piece": 3,
     "related": 6,
     "apart": 6,
-    "related_with": 6,
+    "related_with": 5,
     "related_without": 4,
     "apart_with": 6,
     "apart_without": 6
@@ -85,7 +79,7 @@
     "related": 6,
     "apart": 6,
     "related_with": 6,
-    "related_without": 4,
+    "related_without": 5,
     "apart_with": 6,
     "apart_without": 6
   },
@@ -104,8 +98,8 @@
     "piece": 1,
     "related": 6,
     "apart": 6,
-    "related_with": 6,
-    "related_without": 6,
+    "related_with": 5,
+    "related_without": 5,
     "apart_with": 6,
     "apart_without": 6
   },
@@ -145,7 +139,7 @@
     "related": 6,
     "apart": 6,
     "related_with": 6,
-    "related_without": 4,
+    "related_without": 1,
     "apart_with": 6,
     "apart_without": 6
   },
@@ -154,7 +148,7 @@
     "piece": 3,
     "related": 6,
     "apart": 6,
-    "related_with": 6,
+    "related_with": 5,
     "related_without": 4,
     "apart_with": 6,
     "apart_without": 6
