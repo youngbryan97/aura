@@ -273,6 +273,7 @@ program traces instead of answers. That is where the gain came from.
 | Resident 27B language-to-program transfer | **SUPPORTED, BOUNDED** — exact execution emitted 134/256 held-out answers from learned model-bound semantics; exact program recovery was 133/256, against hidden-state shuffle 14/256, coefficient lesion 0/256 and label permutation 4/256 |
 | Frozen fresh-cohort semantic transfer | **SUPPORTED, REPLICATED, BOUNDED** — the unchanged transducer emitted 114/256 exact held-out answers on a separately seeded numeric cohort after a clean worker restart, against hidden-state shuffle 10/256 and coefficient lesion 0/256 |
 | Shared variable-geometry semantic programs | **SUPPORTED, BOUNDED** — one transducer with no family router recovered 258/368 complete programs and exact execution emitted 292/368 answers across arithmetic, sequence and fork/join geometries; hidden-token shuffle 0/368 and coefficient lesion 0/368, paired exact *p* = 2.16 × 10⁻⁷⁸ |
+| Learned programs on the universal floor | **SUPPORTED, BOUNDED** — all 368/368 accepted frozen test programs had identical outcomes under the existing exact executor and Aura's universal metered floor: 366 matching values and two matching typed refusals across all three families, with 20/20 primitive semantics covered |
 | Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
 
 `BOUNDED_WOW_SIGNAL` is the adjudicator's own verdict string, and *bounded* is
@@ -354,6 +355,16 @@ coefficient lesion each recovered 0/368 programs; both paired exact tests gave
 *p* = 2.16 × 10⁻⁷⁸. This establishes learned variable program geometry over the
 declared typed vocabulary. A new schema still needs support examples, and this
 result grants neither serving authority nor a broad natural-language claim.
+
+Those learned programs no longer stop at a separate Python operation table.
+Every declared integer and sequence primitive now compiles into Aura's universal
+metered floor, along with the learned SSA references and typed public inputs. A
+separate no-refit replay compared both engines on all 368 accepted frozen test
+programs: 366 produced the same value and two produced the same typed refusal,
+for 368/368 agreement across arithmetic, sequence and fork/join. All 20 declared
+primitives have both floor semantics and a type signature; a new primitive
+without either is refused. The neural front end and endogenous substrate now
+share execution semantics. Learning a new schema from reused parts remains open.
 
 One family — misleading premise — gained nothing, and the reason is worth
 stating rather than averaging away: ordinary decode was already at ceiling there

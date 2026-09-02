@@ -1,0 +1,8 @@
+{
+  "schema": "aura.historical_semantic_source_binding.v1",
+  "source_commit": "9c2ee16bcd2a191fc40d5cd18e7bf62d98d5402b",
+  "certificates": {
+    "semantic_program_27b_floor_equivalence_2026-09-01.json": "1276ae26424c33697ad7003388e3e6f72c2096b60596cab390fb8ce614a14f6d"
+  },
+  "serving_authority": false
+}

@@ -1354,6 +1354,32 @@ def install_runtime_validation() -> dict[str, Any]:
     )
     suite.add_test(
         ValidationTest(
+            name="shared_semantic_programs_execute_on_universal_floor",
+            description=(
+                "every accepted frozen shared semantic test program has the same "
+                "value or typed refusal under the exact executor and Aura's "
+                "universal metered floor"
+            ),
+            required_capability="",
+            observation=Observation(
+                name="semantic_floor_equivalence_certificate_is_verified",
+                value=True,
+                source=(
+                    "docs/evidence/"
+                    "semantic_program_27b_floor_equivalence_2026-09-01.json"
+                ),
+            ),
+            predict=lambda _m: _semantic_program_27b_floor_certificate_holds(),
+            score=lambda p, o: boolean_score(
+                bool(p),
+                expected=bool(o.value),
+                subject="learned semantic programs on the universal metered floor",
+            ),
+            owner="tools/verify_semantic_program_floor_equivalence.py",
+        )
+    )
+    suite.add_test(
+        ValidationTest(
             name="neural_transition_tissue_enters_complete_engine",
             description=(
                 "a wrong incumbent is replaceable by systematic teacher-removed "
@@ -1854,6 +1880,27 @@ def install_runtime_validation() -> dict[str, Any]:
                 "while step count, operation semantics, and definition references were "
                 "learned. This is bounded typed semantic acquisition, not serving "
                 "authority, unseen-schema induction, or a broad natural-language gain."
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "All 368 accepted frozen shared semantic test programs had identical "
+                "outcomes under Aura's closed exact executor and universal metered floor."
+            ),
+            test="shared_semantic_programs_execute_on_universal_floor",
+            owner="tools/verify_semantic_program_floor_equivalence.py",
+            asserted_in="docs/RECURSIVE_LATENT_CORTEX.md",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "A separate no-refit process replayed the frozen transducer across 128 "
+                "arithmetic, 48 sequence, and 192 fork-join test programs. Both engines "
+                "returned the same value on 366 and the same typed refusal on two. All "
+                "20 declared primitives have floor semantics and type signatures; adding "
+                "one without both now refuses. Expected answers were absent. This unifies "
+                "execution semantics, but it is not unseen-schema induction, serving "
+                "authority, or a broad reasoning gain."
             ),
         )
     )
@@ -4257,6 +4304,81 @@ def _semantic_program_27b_shared_variable_geometry_certificate_holds() -> bool:
             source_sha256s,
             "docs/evidence/"
             "semantic_program_27b_shared_source_binding_2026-09-01.json",
+        )
+        and certificate.get("verification_sha256") == expected_verification_sha256
+    )
+
+
+def _semantic_program_27b_floor_certificate_holds() -> bool:
+    loaded = _sealed_certificate(
+        "docs/evidence/semantic_program_27b_floor_equivalence_2026-09-01.json"
+    )
+    if loaded is None:
+        return False
+    certificate, expected_verification_sha256, certificate_path, root = loaded
+    try:
+        source_sha256s = certificate["source_sha256s"]
+    except (KeyError, TypeError):
+        return False
+    expected_boundary = (
+        "the frozen shared semantic transducer's accepted test programs have "
+        "identical outcomes under the closed exact executor and universal metered "
+        "floor; no unseen-schema, serving, or broad reasoning claim"
+    )
+    expected_by_family = {
+        "arithmetic": {
+            "accepted": 128,
+            "agreements": 128,
+            "refusal_agreements": 0,
+            "value_agreements": 128,
+        },
+        "fork_join": {
+            "accepted": 192,
+            "agreements": 192,
+            "refusal_agreements": 1,
+            "value_agreements": 191,
+        },
+        "sequence": {
+            "accepted": 48,
+            "agreements": 48,
+            "refusal_agreements": 1,
+            "value_agreements": 47,
+        },
+    }
+    coverage = certificate.get("primitive_coverage")
+    return bool(
+        certificate.get("schema")
+        == "aura.semantic_program_floor_equivalence_verification.v1"
+        and certificate.get("verified") is True
+        and certificate.get("test_total") == 368
+        and certificate.get("accepted") == 368
+        and certificate.get("agreements") == 368
+        and certificate.get("value_agreements") == 366
+        and certificate.get("refusal_agreements") == 2
+        and certificate.get("by_family") == expected_by_family
+        and certificate.get("fit_or_refit_calls") == 0
+        and certificate.get("expected_answers_available") is False
+        and certificate.get("family_router_present") is False
+        and certificate.get("serving_authority") is False
+        and isinstance(coverage, dict)
+        and coverage.get("complete") is True
+        and len(coverage.get("declared", ())) == 20
+        and all(
+            coverage.get(field) == []
+            for field in (
+                "missing_semantics",
+                "missing_types",
+                "extra_semantics",
+                "extra_types",
+            )
+        )
+        and certificate.get("claim_boundary") == expected_boundary
+        and _historical_semantic_sources_hold_at_binding(
+            root,
+            certificate_path,
+            source_sha256s,
+            "docs/evidence/"
+            "semantic_program_27b_floor_source_binding_2026-09-01.json",
         )
         and certificate.get("verification_sha256") == expected_verification_sha256
     )
