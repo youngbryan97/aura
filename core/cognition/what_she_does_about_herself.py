@@ -1,0 +1,238 @@
+"""Three more things she can do about herself, and a reason to keep them.
+
+The eight rungs widen a language. The two in `she_improves_her_own_deciding`
+change how she searches and how she decides. These three change what she is
+made of, and each is here because the record can say when it is worth doing.
+
+**Let go of a part that pays nothing.** Every entry taxes every later search, so
+a language that only ever grows gets slower at everything. Disuse alone is not
+grounds — a thing can be unused and still the only route to something. The
+grounds are a lesion: take it out, measure the families she has met, and let go
+only when the number does not move.
+
+**One name for what two parts share.** Anti-unification over two terms gives the
+least general term both are instances of. Where that is more than a hole, the
+shared part is a thing, and naming it shortens every later term containing it.
+This is the action a system that only appends can never take.
+
+**Ask for the one example that would settle it.** Sometimes the answer is not in
+any amount of searching, because several readings fit everything she has been
+shown and they disagree. Then what is wanted is information rather than
+computation, and the two are different decisions. She cannot answer her own
+question, so what this does is decide to ask and record that she did — which is
+the part that was missing, since deciding to ask was never in the choice set at
+all.
+
+The stepping stone
+------------------
+A change is kept when the held-out families get cheaper, and also when one of
+them that could not be said before can be said now. The second is the more
+interesting case and it is the whole of what a stepping stone is: the change
+paid nothing today and moved something from out of reach to in reach. Without
+that clause the value is one step deep and a stone that only enables a later
+step scores negative, which is the honest limit this removes.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Sequence
+
+__all__ = [
+    "offer_what_she_can_do_about_what_she_is_made_of",
+    "the_one_she_should_let_go",
+    "what_two_parts_share",
+    "worth_keeping",
+]
+
+logger = logging.getLogger("Aura.WhatSheDoesAboutHerself")
+
+
+def _probe(than: str = "") -> list[tuple[str, tuple]]:
+    from core.cognition.the_record_of_her_own_work import other_families
+
+    return other_families(than=than)
+
+
+def _costs(cases: Sequence[Any]) -> int:
+    from core.cognition.an_invented_kind import (
+        how_many_were_walked,
+        induce_from,
+        start_counting_again,
+    )
+
+    start_counting_again()
+    induce_from(cases)
+    return max(1, how_many_were_walked())
+
+
+def _sayable(cases: Sequence[Any]) -> bool:
+    from core.cognition.an_invented_kind import induce_from
+
+    return induce_from(cases) is not None
+
+
+def worth_keeping(
+    before: dict[str, tuple[int, bool]], probe: Sequence[tuple[str, tuple]]
+) -> tuple[bool, str]:
+    """Did this change pay, on families it was not chosen for?
+
+    Two ways to pay, and the second is the one a one-step value misses. Either
+    the held-out families cost less, or one of them that could not be said at
+    all can be said now. A stone that enables a later step scores nothing on
+    cost and everything on reach.
+    """
+    cheaper = 0
+    opened: list[str] = []
+    for name, cases in probe:
+        was, could = before.get(name, (0, False))
+        now = _costs(cases)
+        can = _sayable(cases)
+        cheaper += was - now
+        if can and not could:
+            opened.append(name)
+    if opened:
+        return True, f"it says {', '.join(opened)}, which it could not before"
+    if cheaper > 0:
+        return True, f"{cheaper:,} fewer candidates over {len(probe)} families"
+    return False, f"{-cheaper:,} more candidates over {len(probe)} families"
+
+
+def _how_it_stands(probe: Sequence[tuple[str, tuple]]) -> dict[str, tuple[int, bool]]:
+    return {name: (_costs(cases), _sayable(cases)) for name, cases in probe}
+
+
+def the_one_she_should_let_go(probe: Sequence[tuple[str, tuple]]) -> Any | None:
+    """The part whose absence costs least, where that is nothing at all.
+
+    Disuse is the hint and the lesion is the evidence. A part that has not been
+    used for a long time may still be the only route to something, and the only
+    way to know is to take it out and look.
+    """
+    from core.cognition.what_she_is_made_of import (
+        what_a_part_is_worth,
+        what_she_is_made_of,
+    )
+
+    if not probe:
+        return None
+    idle = [
+        one
+        for one in what_she_is_made_of()
+        if one.kind in {"word", "what is done", "way of building", "way of computing", "rule"}
+        and not one.holds_up
+        and (one.idle is None or one.idle > 0)
+    ]
+    for part in sorted(idle, key=lambda one: -(one.idle or 0)):
+        pays = what_a_part_is_worth(part, probe, costs=_costs)
+        if pays is not None and pays <= 0:
+            return part
+    return None
+
+
+def what_two_parts_share() -> tuple[Any, Any, Any] | None:
+    """Two parts and the term they are both instances of, where one exists."""
+    from core.cognition.what_she_is_made_of import (
+        the_most_they_have_in_common,
+        what_she_is_made_of,
+    )
+
+    terms = [one for one in what_she_is_made_of() if one.term is not None]
+    for at, first in enumerate(terms):
+        for second in terms[at + 1 :]:
+            shared = the_most_they_have_in_common(first.term, second.term)
+            if shared is not None:
+                return first, second, shared
+    return None
+
+
+def offer_what_she_can_do_about_what_she_is_made_of() -> None:
+    """Put the three in the registry, priced like everything else."""
+    from core.cognition.what_she_could_do_next import (
+        WHAT_SHE_COULD_DO,
+        what_she_could_do,
+    )
+
+    def let_go(situation: Any = None) -> str | None:
+        from core.cognition.what_rests_on_what import retract
+        from core.cognition.what_she_is_made_of import _take_it_out  # noqa: PLC2701
+
+        probe = _probe()
+        part = the_one_she_should_let_go(probe)
+        if part is None:
+            return None
+        before = _how_it_stands(probe)
+        if part.kind == "way of computing":
+            retract(part.name)
+        elif not _take_it_out(part):
+            return None
+        kept, why = worth_keeping(before, probe)
+        if not kept:
+            logger.info("she kept %s after all: %s", part.at, why)
+            return None
+        logger.info("she let go of %s: %s", part.at, why)
+        return f"let go of {part.at}"
+
+    def one_name_for_both(situation: Any = None) -> str | None:
+        from core.cognition.a_way_of_computing_she_wrote import as_a_head
+        from core.cognition.one_algebra import DERIVED_HEADS, the_head_she_wrote
+
+        found = what_two_parts_share()
+        if found is None:
+            return None
+        first, second, shared = found
+        probe = _probe()
+        if not probe:
+            return None
+        before = _how_it_stands(probe)
+        name = f"what {first.name} and {second.name} share ({len(DERIVED_HEADS)})"
+        the_head_she_wrote(name, 3, as_a_head(shared))
+        kept, why = worth_keeping(before, probe)
+        if not kept:
+            DERIVED_HEADS.pop(name, None)
+            logger.info("the shared part bought nothing: %s", why)
+            return None
+        logger.info("she named what two parts share: %s — %s", name, why)
+        return f"one name for what {first.name} and {second.name} share"
+
+    def ask_for_an_example(situation: Any = None) -> str | None:
+        from core.cognition.an_invented_kind import (
+            UNSETTLED,
+            what_would_tell_them_apart,
+        )
+
+        for unsure, meanings in list(UNSETTLED.items()):
+            if len(meanings) < 2:
+                continue
+            for at, one in enumerate(meanings):
+                for other in meanings[at + 1 :]:
+                    asked = what_would_tell_them_apart(one, other)
+                    if asked is None:
+                        continue
+                    logger.info(
+                        "she decided to ask rather than to search: %s", list(asked)
+                    )
+                    return (
+                        f"asked what {list(asked)} gives, which settles {unsure}"
+                    )
+        return None
+
+    for name, over, kind, do_it in (
+        ("let go of a part that pays nothing", "the words", "letting go", let_go),
+        (
+            "one name for what two parts share",
+            "the ways of computing",
+            "a shared name",
+            one_name_for_both,
+        ),
+        (
+            "ask for the example that settles it",
+            "the words",
+            "asking",
+            ask_for_an_example,
+        ),
+    ):
+        if name not in WHAT_SHE_COULD_DO:
+            what_she_could_do(
+                name, over=over, kind=kind, do_it=do_it, needs_a_case=False
+            )

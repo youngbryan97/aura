@@ -406,22 +406,26 @@ def everything_that_fits(
     return distinct or fitting[:1]
 
 
-#: How many meanings the last search walked. What a failed search costs, in
-#: the one unit everything about developing is priced in, and a measurement
-#: rather than an estimate: a search that finds nothing walks all of them.
-_WALKED: list[int] = [0]
-
-
 def how_many_were_walked() -> int:
-    """Meanings walked since this was last reset."""
-    return _WALKED[0]
+    """Candidates walked since the counter was last reset.
+
+    What a failed search costs, in the one unit everything about developing is
+    priced in, and a measurement rather than an estimate: a search that finds
+    nothing walks all of them. The counter lives in
+    `the_record_of_her_own_work` so that every search reports to one place.
+    """
+    from core.cognition.the_record_of_her_own_work import steps_walked
+
+    return steps_walked()
 
 
 def start_counting_again() -> int:
     """Reset the walk counter and give back what it held."""
-    was = _WALKED[0]
-    _WALKED[0] = 0
-    return was
+    from core.cognition.the_record_of_her_own_work import (
+        start_counting_again as reset,
+    )
+
+    return reset()
 
 
 def induce_from(
@@ -450,8 +454,10 @@ def induce_from(
     judging = pairs[1::2]
     if len(judging) < ENOUGH_HELD_BACK:
         return None
+    from core.cognition.the_record_of_her_own_work import note_a_step
+
     for meaning in every_meaning():
-        _WALKED[0] += 1
+        note_a_step()
         if not all(meaning.read(before) == after for before, after in solving):
             continue
         right = sum(1 for before, after in judging if meaning.read(before) == after)

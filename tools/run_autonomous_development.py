@@ -98,6 +98,8 @@ from tools.run_grown_against_reset_heads import (  # noqa: E402
     Family,
     _a_family,
     _a_family_from,
+    _contains,
+    _correspondence,
 )
 
 
@@ -128,10 +130,35 @@ def _register() -> None:
 # ── the arms ──────────────────────────────────────────────────────────────
 
 
+#: Bodies drawn once and kept. Drawing them per family meant taking four
+#: thousand terms out of the enumerator on every attempt, forty attempts to a
+#: family, and the campaign spent ten minutes without printing a line. The pool
+#: is a property of the depth and the library, not of the family, so it is
+#: built once per pair of those.
+_POOL: dict[tuple[int, int], list[Code]] = {}
+
+
+def _bodies(library: list[Code], deepest: int) -> list[Code]:
+    key = (deepest, len(library))
+    if key not in _POOL:
+        _POOL[key] = list(
+            itertools.islice(
+                every_code(
+                    deepest=deepest,
+                    variables=6,
+                    constants=(0, 1, 2),
+                    also=tuple(library),
+                ),
+                4000,
+            )
+        )
+    return _POOL[key]
+
+
 def _a_family_she_cannot_say(
     rng: random.Random, *, over: tuple[str, str], library: list[Code], deepest: int,
     must_contain: Code | None = None, must_not_contain: Code | None = None,
-    tries: int = 40,
+    tries: int = 400,
 ) -> tuple[Family, Code] | None:
     """A family the positional language has no rule for, so the search is dear.
 
@@ -140,14 +167,26 @@ def _a_family_she_cannot_say(
     difference a better order could make. What costs is writing a way of
     computing, which is thousands, and that is where a saving is worth having.
     """
-    for _ in range(tries):
-        made = _a_family_from(
-            rng, over, library, deepest,
-            must_contain=must_contain, must_not_contain=must_not_contain,
-        )
-        if made is None:
+    first, second = WHERE_FROM[over[0]], WHERE_FROM[over[1]]
+    bodies = list(_bodies(library, deepest))
+    rng.shuffle(bodies)
+    for body in bodies[:tries]:
+        if how_long(body) < 2:
             continue
-        family, body = made
+        if must_contain is not None and not _contains(body, must_contain):
+            continue
+        if must_not_contain is not None and _contains(body, must_not_contain):
+            continue
+        places = _correspondence(body, first, second)
+        if places is None:
+            continue
+        transitions = []
+        for size, wanted in places.items():
+            before = tuple(range(100, 100 + size))
+            transitions.append((before, tuple(before[one] for one in wanted)))
+        family = Family(
+            transitions=transitions, over=over, from_a_term_of=how_long(body)
+        )
         if induce_from(family.transitions) is None:
             return family, body
     return None
@@ -466,7 +505,7 @@ def main() -> int:
         elif arm == "transfer":
             got = transfer(random.Random(said.seed), apart=False, within=said.within)
             found.append(got)
-            print(json.dumps(got))
+            print(json.dumps(got), flush=True)
             got = transfer(random.Random(said.seed), apart=True, within=said.within)
         elif arm == "recursion":
             got = recursion(rng, episodes_wanted=said.episodes, within=said.within)
@@ -480,7 +519,7 @@ def main() -> int:
             continue
         got["seconds"] = round(time.monotonic() - began, 1)
         found.append(got)
-        print(json.dumps(got))
+        print(json.dumps(got), flush=True)
     if said.out:
         Path(said.out).write_text(json.dumps(found, indent=2), encoding="utf-8")
     return 0

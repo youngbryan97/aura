@@ -97,35 +97,8 @@ def _cells(inside: str) -> tuple[Any, ...] | None:
 
 
 def _a_meaning_worked_out(question: SequenceQuestion) -> str | None:
-    """An answer, and then a decision about whether answering it cost too much.
-
-    The answer comes from `_work_the_meaning_out` below and is not changed by
-    anything here. What is here is the other half of development, and it is the
-    half a failure-driven ladder cannot have: the search WORKED, and it may
-    still have been dear enough to be worth doing something about.
-
-    Nothing about that is a special case. The same ranking runs on the same
-    record; all that differs is that the occasion was a success, so the test a
-    candidate has to pass is not "does this make the family sayable" — it
-    already is — but "does this make it cheaper", measured in the same unit,
-    with the change taken back out when it does not.
-    """
-    from core.cognition.an_invented_kind import (
-        how_many_were_walked,
-        start_counting_again,
-    )
-    from core.cognition.the_record_of_her_own_work import note_an_episode
-
-    start_counting_again()
-    said = _work_the_meaning_out(question)
-    walked = max(0, how_many_were_walked())
-    if said is None:
-        return None
-    pairs = [(one.before, one.after) for one in question.shown]
-    family = _what_family_this_is(pairs)
-    note_an_episode(family, route="a meaning she induced", walked=walked)
-    _she_may_improve_a_working_answer(pairs, family, walked)
-    return said
+    """An answer from a meaning she induced. Kept as its own step for the trace."""
+    return _work_the_meaning_out(question)
 
 
 def _everything_she_can_say() -> dict[str, dict]:
@@ -200,20 +173,32 @@ def _she_may_improve_a_working_answer(
     can never do it: there was no failure. The ranking can, because what it
     reads is the cost, and a cost is there whether or not the answer arrived.
 
-    A candidate is kept only when the family gets cheaper to say, and taken
-    back out when it does not, which is what stops this from filling the
-    language with things that made an answer look busier.
+    A candidate is kept only when OTHER families get cheaper to say, and taken
+    back out when they do not. Judging it on the family that provoked it is how
+    every compressor comes to overfit the incident that woke it: the change was
+    chosen because it helped there, so of course it helps there. The record
+    keeps the cases of a few families it has met, and those are the probe.
+
+    With nothing held out there is nothing to judge on, and the honest answer
+    is to make no change rather than to fall back on the trigger.
     """
     from core.cognition.she_decides_to_develop import what_to_do_next
-    from core.cognition.the_record_of_her_own_work import note_an_episode
+    from core.cognition.the_record_of_her_own_work import (
+        note_an_episode,
+        other_families,
+    )
     from core.cognition.what_she_could_do_next import the_actions_she_has
 
     _register_what_she_could_do()
+    held_out = other_families(than=family)
+    if not held_out:
+        logger.info("nothing held out to judge a change on, so making none")
+        return None
     decided = what_to_do_next(family, costs_now=walked, among=the_actions_she_has())
     if decided.action is None:
         return None
     held = _everything_she_can_say()
-    was = _what_it_costs_to_say(pairs)
+    was = sum(_what_it_costs_to_say(cases) for _name, cases in held_out)
     situation = _Situation(
         pairs=tuple((tuple(before), tuple(after)) for before, after in pairs),
         sayable=lambda: True,
@@ -224,7 +209,11 @@ def _she_may_improve_a_working_answer(
         logger.info("%s raised improving a working answer", decided.action.name,
                     exc_info=True)
         said = None
-    now = _what_it_costs_to_say(pairs) if said else was
+    now = (
+        sum(_what_it_costs_to_say(cases) for _name, cases in held_out)
+        if said
+        else was
+    )
     if not said or now >= was:
         _put_back(held)
         note_an_episode(
@@ -233,8 +222,10 @@ def _she_may_improve_a_working_answer(
             walked=decided.worth.cost if decided.worth else walked,
         )
         logger.info(
-            "she tried %s on a working answer and it did not pay: %d then %d",
+            "she tried %s on a working answer and it did not pay on %d held-out "
+            "families: %d then %d",
             decided.action.name,
+            len(held_out),
             was,
             now,
         )
@@ -246,10 +237,12 @@ def _she_may_improve_a_working_answer(
         admitted=decided.action.kind,
     )
     logger.info(
-        "she improved a working answer with %s: %d then %d",
+        "she improved a working answer with %s: %d then %d over %d held-out "
+        "families",
         decided.action.name,
         was,
         now,
+        len(held_out),
     )
     return said
 
@@ -720,15 +713,33 @@ _THE_EIGHT: tuple[tuple[str, str, str, Any], ...] = (
 
 
 def _register_what_she_could_do() -> None:
-    """Put the eight in the registry, once."""
+    """Put everything she could do in the registry, once.
+
+    The eight that widen a language, the two that change how she searches and
+    how she decides, and the three that change what she is made of. They are
+    ranked together and none of them is tried first for being written first;
+    what decides is what the record says each is worth.
+    """
+    from core.cognition.she_improves_her_own_deciding import (
+        offer_what_she_can_do_about_herself,
+    )
     from core.cognition.what_she_could_do_next import (
         WHAT_SHE_COULD_DO,
         what_she_could_do,
+    )
+    from core.cognition.what_she_does_about_herself import (
+        offer_what_she_can_do_about_what_she_is_made_of,
     )
 
     for name, over, kind, do_it in _THE_EIGHT:
         if name not in WHAT_SHE_COULD_DO:
             what_she_could_do(name, over=over, kind=kind, do_it=do_it)
+    # Bounded small, because these run on the path that answers a question and
+    # a search that finds nothing has still spent the time. What they may
+    # spend beyond this is decided by the ceiling, which is read off the
+    # family rather than set here.
+    offer_what_she_can_do_about_herself(within=4.0)
+    offer_what_she_can_do_about_what_she_is_made_of()
 
 
 def _what_family_this_is(
@@ -1091,6 +1102,37 @@ def _language() -> RelationLanguage:
 
 
 def answer_sequence_question(text: Any) -> str:
+    """The answer, what it cost, and a decision about whether that was too much.
+
+    The answer is whatever `_the_sequence_answer` gives and is not changed here.
+    What is here is the half of development a failure-driven ladder cannot
+    have: the search WORKED, and it may still have been dear enough to be worth
+    doing something about. Every answering path is wrapped, not only the one
+    that induces a meaning, because what a change is worth is read off what
+    answering costs and most answers do not come from that path.
+    """
+    from core.cognition.an_invented_kind import (
+        how_many_were_walked,
+        start_counting_again,
+    )
+    from core.cognition.the_record_of_her_own_work import note_an_episode
+
+    question = read_sequence_question(text)
+    if question is None:
+        return ""
+    start_counting_again()
+    said = _the_sequence_answer(text)
+    walked = max(0, how_many_were_walked())
+    if not said:
+        return said
+    pairs = [(one.before, one.after) for one in question.shown]
+    family = _what_family_this_is(pairs)
+    note_an_episode(family, route="an answer", walked=walked, about=pairs)
+    _she_may_improve_a_working_answer(pairs, family, walked)
+    return said
+
+
+def _the_sequence_answer(text: Any) -> str:
     """The answer and the rule behind it, or "" when there is nothing to say.
 
     The shape is kept afterwards, so a later question of the same kind is

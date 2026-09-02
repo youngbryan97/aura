@@ -43,6 +43,7 @@ from core.runtime.errors import record_degradation
 
 __all__ = [
     "Episode",
+    "HOW_MANY_CASES_ARE_KEPT",
     "HOW_MANY_EPISODES_ARE_KEPT",
     "attribution",
     "episodes",
@@ -50,9 +51,13 @@ __all__ = [
     "how_long_since",
     "how_often",
     "keep_the_record",
+    "note_a_step",
     "note_an_episode",
+    "other_families",
     "note_a_use",
     "recall_the_record",
+    "start_counting_again",
+    "steps_walked",
     "the_record",
     "what_it_has_cost",
 ]
@@ -67,6 +72,11 @@ HOW_MANY_EPISODES_ARE_KEPT = 512
 
 #: Set to send it somewhere else. Left alone in the live runtime; a test that
 #: wants its own file names one here.
+#: How many episodes keep their cases. Small: the cases are the only part of
+#: an episode that is not a number, and a probe wants a handful of families
+#: rather than a corpus.
+HOW_MANY_CASES_ARE_KEPT = 24
+
 _KEPT_AT: Path | None = None
 
 
@@ -99,6 +109,14 @@ class Episode:
     used: tuple[str, ...] = ()
     #: What was admitted because of it, where anything was.
     admitted: str | None = None
+    #: The cases themselves, for a few episodes, so a change can be judged on
+    #: something other than the occasion that provoked it.
+    #:
+    #: Judging a change on the trigger sample is how every compressor comes to
+    #: overfit the incident that woke it: the thing was chosen because it
+    #: helped there, so of course it helps there. Held-out families are the
+    #: only honest answer, and holding them out means keeping some.
+    about: tuple[tuple[tuple[Any, ...], tuple[Any, ...]], ...] = ()
     when: float = field(default_factory=time.monotonic)
 
     def describes(self) -> str:
@@ -127,6 +145,16 @@ class Record:
             self.uses[name] += 1
             self.last_used[name] = self.seen
         self.kept.append(episode)
+        # Only the newest few keep their cases; the rest keep their numbers.
+        holding = [one for one in self.kept if one.about]
+        for old in holding[:-HOW_MANY_CASES_ARE_KEPT]:
+            self.kept[self.kept.index(old)] = Episode(
+                family=old.family,
+                route=old.route,
+                walked=old.walked,
+                used=old.used,
+                admitted=old.admitted,
+            )
         if len(self.kept) > HOW_MANY_EPISODES_ARE_KEPT:
             # The instance goes, the counts stay. That is what finite memory
             # forces, and it is why the counts are kept beside the ring rather
@@ -135,6 +163,32 @@ class Record:
 
 
 _RECORD = Record()
+
+#: Candidates walked since the counter was last reset. The one unit everything
+#: about developing is priced in, and it has one home so that every search
+#: reports to the same place.
+#:
+#: Without this the positional search spent thousands of candidates and
+#: reported none, so every answer it gave priced at nothing, the ceiling was
+#: nothing, and no change was ever worth making on the path that answers most
+#: questions.
+_WALKED = [0]
+
+
+def note_a_step(how_many: int = 1) -> None:
+    """One more candidate walked. Called from inside a search, not around it."""
+    _WALKED[0] += max(0, int(how_many))
+
+
+def steps_walked() -> int:
+    return _WALKED[0]
+
+
+def start_counting_again() -> int:
+    """Reset the counter and give back what it held."""
+    was = _WALKED[0]
+    _WALKED[0] = 0
+    return was
 
 
 def the_record() -> Record:
@@ -153,6 +207,7 @@ def note_an_episode(
     walked: int,
     used: Sequence[str] = (),
     admitted: str | None = None,
+    about: Sequence[Any] = (),
 ) -> Episode:
     """Write down one occasion. Called from the answering path, not from a test."""
     made = Episode(
@@ -161,6 +216,9 @@ def note_an_episode(
         walked=max(0, int(walked)),
         used=tuple(str(one) for one in used),
         admitted=admitted,
+        about=tuple(
+            (tuple(before), tuple(after)) for before, after in (about or ())
+        ),
     )
     _RECORD.note(made)
     return made
@@ -195,6 +253,20 @@ def what_it_has_cost(route: str) -> int | None:
     """
     spent = [one.walked for one in _RECORD.kept if one.route == route]
     return int(round(sum(spent) / len(spent))) if spent else None
+
+
+def other_families(than: str) -> list[tuple[str, tuple]]:
+    """Families she has met that are not this one, with their cases.
+
+    What a change is judged on. A change chosen because it helps the family in
+    hand will help the family in hand; whether it helps anything else is the
+    question, and this is what answers it.
+    """
+    found: dict[str, tuple] = {}
+    for one in _RECORD.kept:
+        if one.family != than and one.about and one.family not in found:
+            found[one.family] = one.about
+    return sorted(found.items())
 
 
 def attribution() -> dict[str, dict[str, Any]]:
@@ -239,6 +311,9 @@ def keep_the_record() -> bool:
                 "walked": one.walked,
                 "used": list(one.used),
                 "admitted": one.admitted,
+                "about": [
+                    [list(before), list(after)] for before, after in one.about
+                ],
             }
             for one in _RECORD.kept
         ],
@@ -294,6 +369,11 @@ def recall_the_record() -> int:
                 walked=int(row.get("walked") or 0),
                 used=tuple(str(one) for one in row.get("used") or ()),
                 admitted=row.get("admitted"),
+                about=tuple(
+                    (tuple(pair[0]), tuple(pair[1]))
+                    for pair in row.get("about") or ()
+                    if isinstance(pair, list) and len(pair) == 2
+                ),
             )
         )
     return len(_RECORD.kept)

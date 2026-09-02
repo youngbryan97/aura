@@ -813,6 +813,16 @@ def discriminating_probe(
     return None
 
 
+def _note_a_step() -> None:
+    """One candidate walked, where the record is available to hear it."""
+    try:
+        from core.cognition.the_record_of_her_own_work import note_a_step
+
+        note_a_step()
+    except ImportError:  # no-op: counting is not what this module is for
+        pass
+
+
 def invent_relation(
     transitions: Sequence[Transition],
     *,
@@ -871,6 +881,12 @@ def invent_relation(
                 *({description for _f, description, _r in each} for each in options)
             )
             for family, description, rule in options[0]:
+                # One candidate considered, reported to the one counter every
+                # search reports to. Without it this path spent thousands and
+                # said it spent nothing, so every answer it gave priced at
+                # nothing and no change was ever worth making on the path that
+                # answers most questions.
+                _note_a_step()
                 if description in common and description not in out:
                     out[description] = (family, rule)
             return out
