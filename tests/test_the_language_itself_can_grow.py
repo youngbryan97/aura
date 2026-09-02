@@ -322,3 +322,17 @@ def test_a_word_that_refuses_a_length_is_not_the_word_that_already_says_this():
     )
     assert derived is not None
     assert derived(0, 4) == 3
+
+
+def test_a_word_that_will_not_answer_has_nothing_to_undo():
+    """Every caller in one_algebra catches a word's refusal as "this word
+    cannot answer here". _undone let it out, and a claim whose prediction
+    walked the language died with "was never seen at length 4"."""
+    from core.cognition.one_algebra import _undone
+
+    short = DerivedAddressing("short", {3: (2, 0, 1)})
+    # It answers where it was seen.
+    assert _undone(short)(2, 3) == 0
+    # And refuses where it was not, in this module's own vocabulary.
+    with pytest.raises(ValueError, match="nothing to undo"):
+        _undone(short)(0, 4)

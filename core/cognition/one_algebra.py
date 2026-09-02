@@ -661,7 +661,18 @@ def _after(first: Any, then: Any) -> Any:
 
 def _undone(word: Any) -> Any:
     def made(index: int, size: int) -> int:
-        found = [at for at in range(size) if int(word(at, size)) % size == index % size]
+        try:
+            found = [
+                at for at in range(size) if int(word(at, size)) % size == index % size
+            ]
+        except IndexError as refused:
+            # A word read off examples of another length refuses this one, and
+            # a word that cannot say where things go cannot say where they came
+            # from either. That is this function's "nothing to undo", not an
+            # error: every other caller in this module already catches the
+            # refusal, and this one let it out to become a claim whose
+            # prediction crashed.
+            raise ValueError("nothing to undo") from refused
         if len(found) != 1:
             raise ValueError("nothing to undo")
         return found[0]
