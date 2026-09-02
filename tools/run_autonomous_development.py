@@ -300,9 +300,14 @@ def transfer(rng: random.Random, *, apart: bool, within: float) -> dict[str, Any
     # Keep meeting families until one of them makes her write a way of
     # computing. A family answered with a new word leaves nothing shaped like a
     # term to carry across, so it is not a case this arm can measure.
+    # Four, not twelve. On a cold record every action is unpriced and each
+    # family costs about a minute of exploration, so a loop that keeps trying
+    # until it gets what it wants spends longer than the whole campaign. Four
+    # families and an honest "she wrote no head" is a result; twelve and a
+    # timeout is not.
     said = None
     piece = None
-    for _ in range(12):
+    for _ in range(4):
         first = _a_family_she_cannot_say(rng, over=here, library=[], deepest=3)
         if first is None:
             continue
@@ -315,7 +320,7 @@ def transfer(rng: random.Random, *, apart: bool, within: float) -> dict[str, Any
         return {
             "arm": "transfer",
             "apart": apart,
-            "why": "she wrote no head in twelve families",
+            "why": "she wrote no head in four families",
             "admitted": said,
         }
 

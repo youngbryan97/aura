@@ -840,11 +840,18 @@ def _a_word_the_language_was_missing(
 
             note_how_it_went(family, solved=False, probes=tuple(pairs[0][0]))
             return None
+        from core.cognition.she_decides_to_develop import (
+            _ALREADY_DECIDING,  # noqa: PLC2701
+        )
+
+        _ALREADY_DECIDING[0] = True
         try:
             said = decided.action.do_it(situation)
         except Exception:  # noqa: BLE001 - a failed action is a result
             logger.info("%s raised", decided.action.name, exc_info=True)
             said = None
+        finally:
+            _ALREADY_DECIDING[0] = False
         note_an_episode(
             family,
             route=decided.action.name if said else None,

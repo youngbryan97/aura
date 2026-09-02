@@ -133,6 +133,21 @@ class Decision:
 
 _TRACE: list[Stage] = []
 
+#: Whether a developmental episode is already running.
+#:
+#: Developing can cause development. Letting go of a part retracts it, a
+#: retraction leaves families that used to be sayable, and rebuilding those is
+#: an ordinary developmental objective — so the policy is asked again from
+#: inside a decision the policy made. Measured before this guard: eight hundred
+#: and thirty-four triggers on three families, eight hundred and twenty-seven of
+#: them refusals, which is a recursion bottoming out rather than a system
+#: deciding eight hundred times.
+#:
+#: One episode at a time. What is refused here is a re-entry and not an
+#: opportunity: the outer episode is still running and will record what came of
+#: it, so nothing is lost by declining to start a second inside it.
+_ALREADY_DECIDING = [False]
+
 
 def the_trace() -> tuple[Stage, ...]:
     return tuple(_TRACE)
@@ -140,6 +155,7 @@ def the_trace() -> tuple[Stage, ...]:
 
 def forget_the_trace() -> None:
     _TRACE.clear()
+    _ALREADY_DECIDING[0] = False
 
 
 def _note(what: str, started_by: str, about: str = "") -> Stage:
@@ -393,11 +409,14 @@ def she_decides_to_develop(
     # fixed rather than against a memory of what she would have said.
     expected = what_she_expects(decided.action.name, costs_now=costs_now)
     _note("prediction", decided.started_by, expected.describes())
+    _ALREADY_DECIDING[0] = True
     try:
         came_of_it = decided.action.do_it(situation)
     except Exception as exc:  # noqa: BLE001 - a failed action is a result
         logger.info("%s raised: %s", decided.action.name, exc)
         came_of_it = None
+    finally:
+        _ALREADY_DECIDING[0] = False
     _note(
         "evaluation",
         decided.started_by,
@@ -502,12 +521,27 @@ def what_is_worth_doing_now() -> Decision:
 def she_develops_herself() -> tuple[Decision, Any]:
     """Nobody asked. Choose, do it, and write down what came of it.
 
+    One at a time. A developmental action can cause development — retracting a
+    part leaves families to rebuild, and rebuilding is a developmental
+    objective — so without a guard the policy is asked again from inside a
+    decision it just made, and that recurses.
+
     The idle loop's whole episode, and the recording is the part that matters:
     an action that gives nothing has to cost something in the record, or the
     ranking picks it again next time and the loop is a loop rather than a
     development. A failure here is evidence, and the next choice is made with
     it.
     """
+    if _ALREADY_DECIDING[0]:
+        return (
+            Decision(
+                action=None,
+                worth=None,
+                because="refused",
+                grounds="an episode is already running; one at a time",
+            ),
+            None,
+        )
     decided = what_is_worth_doing_now()
     if decided.action is None:
         return decided, None
@@ -519,11 +553,14 @@ def she_develops_herself() -> tuple[Decision, Any]:
     each_costs = decided.worth.cost if decided.worth else 0
     expected = what_she_expects(decided.action.name, costs_now=each_costs)
     _note("prediction", "she", expected.describes())
+    _ALREADY_DECIDING[0] = True
     try:
         came_of_it = decided.action.do_it(None)
     except Exception as exc:  # noqa: BLE001 - a failed action is a result
         logger.info("%s raised: %s", decided.action.name, exc)
         came_of_it = None
+    finally:
+        _ALREADY_DECIDING[0] = False
     _note(
         "evaluation", "she", f"{decided.action.name} gave {came_of_it!r}"
     )
