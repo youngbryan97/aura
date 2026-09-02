@@ -1,0 +1,4 @@
+{"arm": "the harness", "forbidden calls": [], "clean": true, "lesions it does call": ["forget_the_order", "forget_the_record", "forget_the_trace", "forget_the_worth", "forget_what_worked"], "seconds": 0.0}
+{"arm": "initiation", "with a reason": "exploring", "without one": "refused", "the choice follows the value": true, "seconds": 0.0}
+
+[exited with code 144]

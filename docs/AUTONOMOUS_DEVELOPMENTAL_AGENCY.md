@@ -99,6 +99,15 @@ short. The order is a term, the proposer is a term, a way of computing is a
 term, and what a change is worth is a term. All four are installed, kept,
 lesioned and persisted by the same code.
 
+### Theorem 3.5 (the envelope). *Reach grows monotonically only if the
+predecessor is kept.*
+
+If `M_{t+1}` replaces `M_t`, `Reach_B(t+1) ⊇ Reach_B(t)` need not hold: a
+better order on average can be worse on some family. What does grow is the
+reach of the envelope `K_t = {M_0 … M_t}`, because a mechanism still available
+still reaches what it reached. This is why every installer here has a lesion
+and why the rollback stack keeps what it replaced — not caution, arithmetic.
+
 ### Theorem 4 (no optimal developmental policy). *There is no policy that
 maximises long-run value over developmental actions.*
 
@@ -111,6 +120,14 @@ unknown source. ∎
 
 This is why nothing below claims optimality. The claim is that the decision is
 hers and that it is made on evidence, not that it is the best decision.
+
+Two sharper forms of the same limit are worth naming. Blum's speedup theorem
+says some functions have no best program — every implementation can be beaten —
+so a developmental process need not terminate in an optimum even in principle.
+And Löb's theorem says a consistent system cannot prove that installing a
+change preserves what the change was meant to preserve; the evidence is always
+a probe and never a proof, which is what the promotion ladder in
+`how_a_change_is_promoted` is arithmetic about rather than cautious about.
 
 ### Theorem 5 (no complete opportunity detector). *No total computable function
 decides whether a change to her language would reduce her future search.*
@@ -657,6 +674,46 @@ running longer rather than of building more. **Proof** M3.
 
 ---
 
+## Part IX — What the runs show
+
+Every arm reports who started each stage. A stage labelled `asked` is a harness
+call however the arm is described in words, and the harness itself is checked:
+`no_developmental_call_in_the_harness` parses
+[run_autonomous_development.py](../tools/run_autonomous_development.py) and
+fails if it calls anything that searches for or installs a change. Asking
+whether anything is worth doing is allowed and is the point — a fixed decision
+opportunity is not a fixed decision. Lesions are allowed and listed.
+
+That check caught a violation in my own campaign on its first run: an arm
+measuring whether the order she writes is novel was calling the search itself.
+Producing the thing you are asking whether she produces is not evidence of
+anything.
+
+| arm | what it asks | what happened |
+|---|---|---|
+| the harness | does the harness ever develop anything | clean; the only developmental calls are lesions |
+| initiation | does what she chooses move when what it is worth moves | with a reason: exploring. Without one: refused |
+| idle | with no question at all, does the record alone move her | chose, and nobody asked |
+| refusal | is a family met once refused however dear it was | refused, with the grounds |
+| information | can she decide to ask rather than to search | asked for the case that settles it |
+| the opportunity lesion | destroy the evidence, keep the work | development stops |
+| the metrics | who started the stages | 46 of 46 hers, none asked for; the receipt chain holds |
+
+The opportunity lesion is the one that matters most. The same episodes, the
+same total cost, the same number of calls — only the families shuffled so that
+no shape recurs. With the evidence she explores; with it destroyed she refuses.
+A mechanism firing on a clock would not notice the difference, and the whole
+force of the claim is that this one does.
+
+**What did not happen.** In the fast run nothing was promoted, because the
+order search had no rankings to be judged on: the occasions it scores are
+written only when a way of computing or a maker is accepted, and none was
+inside those budgets. That is reported rather than smoothed over — an
+experiment where the mechanism was never exercised is not evidence that the
+mechanism works.
+
+---
+
 ## Part X — Objections
 
 1. **"The eight rungs are still eight functions somebody wrote."** True, and
@@ -727,6 +784,64 @@ running longer rather than of building more. **Proof** M3.
     campaign's, the families are drawn from terms she did not choose, and every
     arm has a matched control. Experiment J — a family commissioned by someone
     else — is still the one thing here that cannot be run from inside.
+
+---
+
+## Part X.5 — What the council added, and what it got wrong
+
+Seven responses, ninety-six pages, adjudicated item by item in
+[AUTONOMOUS_DEVELOPMENTAL_AGENCY_COUNCIL_ITEMS.md](AUTONOMOUS_DEVELOPMENTAL_AGENCY_COUNCIL_ITEMS.md).
+All five architectures converge on the move in Part II — developmental actions
+in the same choice set, scored by a value estimated from a record — which is
+worth saying because it was arrived at separately here and there.
+
+**What they added that was right and missing.**
+
+*Off the trigger sample.* The sharpest correction, and it was a defect in what
+I had built. A change judged on the family that provoked it will always look
+good there, because that is why it was chosen. The record keeps cases now and a
+proactive change is judged on families it was not chosen for.
+
+*Diagnosis by intervention rather than by label.* Do not classify the problem;
+try changes and see which pays. The eight-way taxonomy everybody reaches for is
+undecidable and a classifier over it is the hand-written ladder in a hat. The
+word comes afterwards and only for the reader.
+
+*The three lesions.* Self-initiation, opportunity, meta-causality. The second
+is the one nobody would think to run and the one that separates a decision from
+a timer.
+
+*A prediction fixed before the outcome.* An estimate never held against what
+happened is a rule for producing numbers.
+
+*The winner's curse, sequential evidence, and a promotion ladder scaled to
+blast radius.* All arithmetic, all replacing numbers somebody would otherwise
+choose.
+
+*Stepping stones.* A change kept because a held-out family that could not be
+said now can be, which removes an honest limit this work had.
+
+*Named sites.* `_pathway_cognitive_loop` returning nothing, the autonomy loop's
+fixed sequence, `operator_invention` with no caller, rebuilding wanting a
+derivation from its caller. Every one was real and every one is closed.
+
+**What they got wrong.**
+
+Six of the seven assess a system with no homoiconic substrate, where meta-levels
+are separated by language boundaries and the library only ever grows. That
+stopped being true before this mandate began, and most of the "missing
+mechanism" column follows from it. Four call for new floor primitives —
+`reflect`, `eval_in_sandbox`, `install` — which would enlarge the trusted base
+for no gain in expressiveness: the floor is already universal and carries
+quotation, a self-interpreter and its certificate. What was missing was a
+caller, and a caller is not a primitive.
+
+One proposal is rejected on its merits rather than as already-done.
+Simulated-annealing acceptance — take a change that measurably loses, in hope
+of a later gain — needs a temperature, and there is nothing in the record that
+sets one. Non-monotonicity is real and is handled by keeping the predecessor
+and rolling back; accepting a known loss is a different thing wearing its
+clothes.
 
 ---
 

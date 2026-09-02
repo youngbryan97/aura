@@ -1,0 +1,150 @@
+[
+  {
+    "arm": "the harness",
+    "forbidden calls": [],
+    "clean": true,
+    "lesions it does call": [
+      "forget_the_order",
+      "forget_the_record",
+      "forget_the_trace",
+      "forget_the_worth",
+      "forget_what_worked"
+    ],
+    "seconds": 0.0
+  },
+  {
+    "arm": "initiation",
+    "with a reason": "exploring",
+    "without one": "refused",
+    "the choice follows the value": true,
+    "seconds": 0.0
+  },
+  {
+    "arm": "idle",
+    "episodes in the record": 6,
+    "chose": "an order that finds them sooner",
+    "because": "exploring",
+    "grounds": "unpriced; at best it saves 240 and 0.50 of changes have paid, against 48 to find out",
+    "nobody asked": true,
+    "seconds": 0.0
+  },
+  {
+    "arm": "refusal",
+    "chose": null,
+    "because": "refused",
+    "grounds": "nothing is worth doing: best priced unpriced (what it saves: nothing of this kind has been admitted before), ceiling 4,500, and at best a change saves 9,000 with 0.50 of them paying",
+    "refused": true,
+    "seconds": 0.0
+  },
+  {
+    "arm": "information against computation",
+    "readings she has not settled": 0,
+    "she asked": "asked what [1, 2, 3, 4] gives, which settles moved over [3]",
+    "chose to ask rather than search": true,
+    "the answer she gave": "I cannot answer this one yet, and it is worth saying why.\n\nP",
+    "seconds": 0.0
+  },
+  {
+    "arm": "the opportunity lesion",
+    "with the evidence": "exploring",
+    "with it shuffled": "refused",
+    "stops without evidence": true,
+    "seconds": 0.0
+  },
+  {
+    "arm": "a search she wrote",
+    "wrote one": false,
+    "she chose": "one name for what two parts share",
+    "because": "exploring",
+    "rankings": 0,
+    "seconds": 387.9
+  },
+  {
+    "arm": "the metrics",
+    "developmental stages": 46,
+    "how many she started": 46,
+    "how many were asked for": 0,
+    "initiation rate": 1.0,
+    "changes promoted": 0,
+    "promoted with no external command": 0,
+    "the receipt chain holds": true,
+    "what each action has done": {
+      "a kind of thing she had no name for": {
+        "pays": 0.5,
+        "gains": 0.0,
+        "taken": 0
+      },
+      "a rule whose shape is its own": {
+        "pays": 0.5,
+        "gains": 0.0,
+        "taken": 0
+      },
+      "a way of building words she wrote": {
+        "pays": 0.5,
+        "gains": 0.0,
+        "taken": 0
+      },
+      "a way of combining two values": {
+        "pays": 0.5,
+        "gains": 0.0,
+        "taken": 0
+      },
+      "a way of computing": {
+        "pays": 0.5,
+        "gains": 0.0,
+        "taken": 0
+      },
+      "a way of deciding what to change": {
+        "pays": 0.5,
+        "gains": 0.0,
+        "taken": 0
+      },
+      "a way of making words she built": {
+        "pays": 0.5,
+        "gains": 0.0,
+        "taken": 0
+      },
+      "a way of saying where a value comes from": {
+        "pays": 0.5,
+        "gains": 0.0,
+        "taken": 0
+      },
+      "an order that finds them sooner": {
+        "pays": 0.333,
+        "gains": 0.0,
+        "taken": 1
+      },
+      "ask for the example that settles it": {
+        "pays": 0.5,
+        "gains": 0.0,
+        "taken": 0
+      },
+      "invent an operator for what keeps failing": {
+        "pays": 0.5,
+        "gains": 0.0,
+        "taken": 0
+      },
+      "let go of a part that pays nothing": {
+        "pays": 0.5,
+        "gains": 0.0,
+        "taken": 0
+      },
+      "look one level deeper": {
+        "pays": 0.5,
+        "gains": 0.0,
+        "taken": 0
+      },
+      "one name for what two parts share": {
+        "pays": 0.333,
+        "gains": 0.0,
+        "taken": 1
+      },
+      "the ways of making words that were written down": {
+        "pays": 0.5,
+        "gains": 0.0,
+        "taken": 0
+      }
+    },
+    "seconds": 0.0
+  }
+]
