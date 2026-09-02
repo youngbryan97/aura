@@ -51,6 +51,7 @@ from core.cognition.the_record_of_her_own_work import (
     the_record,
     what_it_has_cost,
 )
+from core.cognition.how_a_change_is_promoted import promote
 from core.cognition.how_sure_she_is import (
     after_the_winners_curse,
     how_much_to_spend_on_developing,
@@ -401,6 +402,13 @@ def she_decides_to_develop(
             came_of_it = None
     if came_of_it:
         _note("installation", decided.started_by, decided.action.kind)
+        promote(
+            f"{decided.action.over}/{decided.action.name}",
+            became="shadow",
+            started_by=decided.started_by,
+            evidence=decided.grounds,
+            asked_from_outside=asked_for,
+        )
     note_what_it_did(
         decided.action.name,
         kept=bool(came_of_it),
@@ -504,6 +512,12 @@ def she_develops_herself() -> tuple[Decision, Any]:
     )
     if came_of_it:
         _note("installation", "she", decided.action.kind)
+        promote(
+            f"{decided.action.over}/{decided.action.name}",
+            became="shadow",
+            started_by="she",
+            evidence=decided.grounds,
+        )
     note_what_it_did(
         decided.action.name,
         kept=bool(came_of_it),

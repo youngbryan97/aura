@@ -50,6 +50,7 @@ __all__ = [
     "more_likely_than_not_better",
     "sure_enough",
     "the_bar_right_now",
+    "what_the_drives_say",
     "which_to_try",
 ]
 
@@ -208,6 +209,39 @@ def how_much_to_spend_on_developing() -> float:
     return 0.5 if whole <= 0 else max(0.0, min(1.0, per_change / whole))
 
 
+def what_the_drives_say() -> dict[str, float]:
+    """Her drives, as numbers, or nothing where there is no live runtime.
+
+    Curiosity, growth, integrity and energy already exist and already move.
+    What they did before was pick the work: a curiosity threshold launched a
+    web search, a growth theme chose from an authored list. That is a script
+    with a drive attached to the front of it.
+
+    Here they are causes instead. Curiosity lowers the bar for an action nobody
+    can price, because that is what wanting to find out means in a system that
+    prices things. Low energy raises it, because the cost of spending is higher
+    when there is less. Neither picks anything.
+    """
+    try:
+        from core.service_locator import optional_service
+    except ImportError:
+        return {}
+    engine = optional_service("motivation_engine", default=None)
+    if engine is None:
+        return {}
+    found: dict[str, float] = {}
+    for name in ("curiosity", "growth", "integrity", "energy"):
+        value = getattr(engine, name, None)
+        if value is None:
+            state = getattr(engine, "state", None)
+            value = getattr(state, name, None) if state is not None else None
+        try:
+            found[name] = max(0.0, min(1.0, float(value)))
+        except (TypeError, ValueError):
+            continue
+    return found
+
+
 def the_bar_right_now(*, a_question_is_waiting: bool = False) -> float:
     """How much better than nothing a change has to be, here and now.
 
@@ -216,10 +250,23 @@ def the_bar_right_now(*, a_question_is_waiting: bool = False) -> float:
     because the cost of developing now includes the answer that did not get
     written — and that is the one term the record cannot see, since an answer
     she never gave leaves no episode.
+
+    Her drives move it. Curiosity lowers the bar and thin energy raises it, in
+    proportion and with nothing chosen: a drive at nought does nothing, a drive
+    at one does all it can, and neither ever selects what to do.
     """
-    if not a_question_is_waiting:
-        return 0.0
     from core.cognition.the_record_of_her_own_work import the_record
 
-    answering = [one.walked for one in the_record().kept if one.route == "an answer"]
-    return float(sum(answering) / len(answering)) if answering else 0.0
+    if not a_question_is_waiting:
+        base = 0.0
+    else:
+        answering = [
+            one.walked for one in the_record().kept if one.route == "an answer"
+        ]
+        base = float(sum(answering) / len(answering)) if answering else 0.0
+    drives = what_the_drives_say()
+    if not drives:
+        return base
+    curious = drives.get("curiosity", 0.5)
+    energy = drives.get("energy", 0.5)
+    return max(0.0, base * (1.0 - curious) * (2.0 - energy))

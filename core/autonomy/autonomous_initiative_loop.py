@@ -794,7 +794,15 @@ class AutonomousInitiativeLoop:
                     await asyncio.sleep(30)
                     continue
 
-                await self._run_self_development_cycle()
+                # The timer offers the opportunity; it does not make the
+                # decision. What ran here before was a fixed sequence — a
+                # curriculum step, a code scan, a test-generation pass — every
+                # time the gate opened, which is a cron job however it is
+                # described. Now the ranking is asked first, and the code scan
+                # is one of the things it may choose rather than the thing that
+                # always happens.
+                if not await self._considered_developing_herself():
+                    await self._run_self_development_cycle()
                 self._last_self_dev = time.time()
             except asyncio.CancelledError:
                 break
@@ -807,6 +815,70 @@ class AutonomousInitiativeLoop:
                 logger.debug("Self-development loop transient error: %s", exc)
 
             await asyncio.sleep(45)
+
+    async def _considered_developing_herself(self) -> bool:
+        """Ask what is worth doing about herself, and do it if anything is.
+
+        True when she chose and acted, so the caller leaves the code scan
+        alone. False when the ranking refused, or when nothing cognitive was
+        worth the budget, and then the scan runs as it always did.
+
+        Off the event loop, because a developmental search is CPU work and an
+        on-loop search is an unresponsive runtime. Bounded by the action's own
+        budget, which is read off the family rather than set here.
+        """
+        try:
+            from core.cognition.she_decides_to_develop import (
+                she_develops_herself,
+                what_is_worth_doing_now,
+            )
+            from core.cognition.the_record_of_her_own_work import the_record
+        except ImportError:
+            return False
+        if not the_record().kept:
+            return False
+        loop = asyncio.get_running_loop()
+        try:
+            decided = await asyncio.wait_for(
+                loop.run_in_executor(None, what_is_worth_doing_now), timeout=20.0
+            )
+        except (TimeoutError, RuntimeError, ValueError) as exc:
+            _record_initiative_degradation(
+                exc,
+                action="asked what was worth developing and got no answer in time",
+                severity="info",
+            )
+            return False
+        if decided.action is None:
+            self._emit_feed(
+                "Self-Development",
+                f"Nothing about my own thinking is worth changing right now: "
+                f"{decided.grounds}",
+                category="SelfDev",
+            )
+            return False
+        self._emit_feed(
+            "Self-Development",
+            f"I decided to {decided.action.name} — {decided.grounds}",
+            category="SelfDev",
+        )
+        try:
+            _again, came_of_it = await asyncio.wait_for(
+                loop.run_in_executor(None, she_develops_herself), timeout=120.0
+            )
+        except (TimeoutError, RuntimeError, ValueError) as exc:
+            _record_initiative_degradation(
+                exc,
+                action="carried out a developmental action she chose",
+                severity="info",
+            )
+            return True
+        if came_of_it:
+            self._queue_visible_update(
+                f"I changed how I think: {came_of_it}. Nobody asked me to; the "
+                "record of what my own work has been costing did."
+            )
+        return True
 
     async def _run_self_development_cycle(self):
         await self._curriculum_practice_step()

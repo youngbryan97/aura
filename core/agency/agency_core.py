@@ -2257,10 +2257,60 @@ class AgencyCore:
     def _pathway_cognitive_loop(
         self,
         _now: float,
-        _idle_seconds: float,
-    ) -> None:
-        """Dedicated hook slot; the registered provider owns its proposal."""
-        return None
+        idle_seconds: float,
+    ) -> dict[str, Any] | None:
+        """Is changing herself the best thing to do right now?
+
+        The pulse offers the opportunity; it does not make the decision. That
+        distinction is the whole of the difference between a cron job and
+        initiative: a timer that fires `improve_yourself()` has decided, and a
+        timer that asks "is anything worth doing" has not.
+
+        So this reads her own record — what has recurred, what has cost, what
+        has gone unused, what her own machinery is spending — and asks the
+        ranking in `she_decides_to_develop`. The ranking answers with an
+        action, an exploration, or a refusal, and a refusal is returned as
+        nothing rather than as a fallback, because doing nothing when nothing
+        is worth doing is the correct behaviour and not a gap.
+
+        It proposes and never executes. A developmental action can take
+        seconds, and seconds on this loop is the event loop; more to the point,
+        installation goes through the same gate as speech and tool use, and a
+        pathway that installed things itself would be a side door.
+        """
+        try:
+            from core.cognition.she_decides_to_develop import (
+                what_is_worth_doing_now,
+            )
+            from core.cognition.the_record_of_her_own_work import the_record
+        except ImportError:
+            return None
+        if not the_record().kept:
+            return None
+        try:
+            decided = what_is_worth_doing_now()
+        except Exception:  # noqa: BLE001 - a reading that fails proposes nothing
+            logger.debug("the developmental reading gave nothing", exc_info=True)
+            return None
+        if decided.action is None:
+            return None
+        worth = decided.worth.worth if decided.worth else None
+        return {
+            "type": "develop_herself",
+            "action": decided.action.name,
+            "over": decided.action.over,
+            "source": "cognitive_loop",
+            # What she thinks it is worth, scaled against the idle time that
+            # made the opportunity cheap. Nothing here is a threshold; the
+            # ranking already refused everything not worth doing.
+            "priority": min(1.0, max(0.05, (worth or 1) / max(1.0, abs(worth or 1)))),
+            "reasoning": (
+                f"{decided.because}: {decided.grounds}. Nobody asked; the "
+                f"record did."
+            ),
+            "worth": worth,
+            "idle_seconds": idle_seconds,
+        }
 
     def _pathway_social_hunger(self, now: float, idle_seconds: float) -> dict[str, Any] | None:
         """Pathway 1: Social hunger drives proactive conversation initiation.

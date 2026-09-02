@@ -216,11 +216,14 @@ def _she_may_improve_a_working_answer(
     )
     if not said or now >= was:
         _put_back(held)
+        from core.cognition.what_she_could_do_next import note_what_it_did
+
         note_an_episode(
             family,
             route=None,
             walked=decided.worth.cost if decided.worth else walked,
         )
+        note_what_it_did(decided.action.name, kept=False)
         logger.info(
             "she tried %s on a working answer and it did not pay on %d held-out "
             "families: %d then %d",
@@ -230,11 +233,23 @@ def _she_may_improve_a_working_answer(
             now,
         )
         return None
+    from core.cognition.how_a_change_is_promoted import promote
+    from core.cognition.what_she_could_do_next import note_what_it_did
+
     note_an_episode(
         family,
         route=decided.action.name,
         walked=decided.worth.cost if decided.worth else walked,
         admitted=decided.action.kind,
+    )
+    note_what_it_did(decided.action.name, kept=True, gained=was - now)
+    # Canary rather than shadow: it has already been measured on families it
+    # was not chosen for, which is the whole of what shadow is for.
+    promote(
+        f"{decided.action.over}/{decided.action.name}",
+        became="canary",
+        started_by="she",
+        evidence=f"{was - now:,} fewer over {len(held_out)} held-out families",
     )
     logger.info(
         "she improved a working answer with %s: %d then %d over %d held-out "
@@ -720,6 +735,7 @@ def _register_what_she_could_do() -> None:
     ranked together and none of them is tried first for being written first;
     what decides is what the record says each is worth.
     """
+    from core.cognition.an_operator_she_invents import offer_inventing_an_operator
     from core.cognition.she_improves_her_own_deciding import (
         offer_what_she_can_do_about_herself,
     )
@@ -740,6 +756,7 @@ def _register_what_she_could_do() -> None:
     # family rather than set here.
     offer_what_she_can_do_about_herself(within=4.0)
     offer_what_she_can_do_about_what_she_is_made_of()
+    offer_inventing_an_operator()
 
 
 def _what_family_this_is(
@@ -813,6 +830,9 @@ def _a_word_the_language_was_missing(
         if decided.action is None:
             logger.info("she is not developing: %s", decided.grounds)
             note_an_episode(family, route=None, walked=costs_now)
+            from core.cognition.an_operator_she_invents import note_how_it_went
+
+            note_how_it_went(family, solved=False, probes=tuple(pairs[0][0]))
             return None
         try:
             said = decided.action.do_it(situation)
@@ -1128,6 +1148,13 @@ def answer_sequence_question(text: Any) -> str:
     pairs = [(one.before, one.after) for one in question.shown]
     family = _what_family_this_is(pairs)
     note_an_episode(family, route="an answer", walked=walked, about=pairs)
+    # The operator kernel's residual, from the path that actually answers.
+    # Without this every family is transient, the kernel refuses everything for
+    # the right reason and the wrong cause, and its gate has never been opened
+    # by anything but a test.
+    from core.cognition.an_operator_she_invents import note_how_it_went
+
+    note_how_it_went(family, solved=True, probes=tuple(question.asked))
     _she_may_improve_a_working_answer(pairs, family, walked)
     return said
 

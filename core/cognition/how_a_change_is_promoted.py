@@ -1,0 +1,257 @@
+"""What a change has to survive before it is hers, and the record that says it did.
+
+A change that installs itself the moment it looks good is how a system talks
+itself into anything. The parts of her differ in how much depends on them, so
+what they cost to be wrong about differs, and the evidence should differ with
+it. Nothing here is a policy about safety in the abstract; it is arithmetic
+about blast radius.
+
+Five tiers, and the tier is read off the part rather than assigned:
+
+    a word, a way of building     nothing else is written over it yet
+    a way of computing, a rule    other terms may be written over it
+    the order, the proposer       every later search runs through it
+    what a change is worth        every later decision runs through it
+    the gate                      not a destination at all
+
+A change to a word can be tried on a handful of families. A change to what a
+change is worth decides every later change, so being wrong about it is wrong
+about everything after, and the evidence wanted is proportionally larger. The
+number of families each tier wants comes from Hoeffding at that tier's claim
+size, so the ladder is derived rather than declared.
+
+Three states and a stack
+------------------------
+A change arrives in shadow: installed, measured, not yet believed. It becomes
+canary when the probe says it pays, and active when it has paid over a stretch
+of ordinary work. Anything can go back, because every promotion pushes what it
+replaced onto a stack, and going back is the ordinary outcome rather than the
+failure — a change rolled back after the probe regressed is the governance
+working, not development failing.
+
+Retiring archives rather than destroys. An artifact removed under a size budget
+may be wanted again, and re-deriving it can cost more than it ever saved.
+
+Receipts
+--------
+Every promotion writes a line carrying who started it, what it replaced, what
+the evidence was, and a field for the external command that caused it — which
+is empty for everything she started. The lines chain: each carries a digest of
+the one before, so the record cannot be quietly rewritten to say a decision was
+hers. That is the difference between a claim of autonomy and a checkable one.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import time
+from dataclasses import dataclass, field
+from typing import Any
+
+__all__ = [
+    "AReceipt",
+    "WHAT_A_TIER_WANTS",
+    "archived",
+    "forget_the_receipts",
+    "how_far_it_reaches",
+    "nothing_installs_to_the_gate",
+    "promote",
+    "put_it_back",
+    "the_receipts",
+    "the_stack",
+    "what_it_replaced",
+]
+
+logger = logging.getLogger("Aura.HowAChangeIsPromoted")
+
+#: How far being wrong about each kind of part reaches, and so how large a
+#: claim its evidence has to support. Read off the part, not assigned to it:
+#: a word affects the terms containing it, an order affects every search, and
+#: what a change is worth affects every change after.
+HOW_FAR: dict[str, float] = {
+    "word": 0.5,
+    "what is done": 0.5,
+    "way of building": 0.4,
+    "way of computing": 0.3,
+    "rule": 0.3,
+    "the search": 0.2,
+    "the deciding": 0.1,
+}
+
+
+def how_far_it_reaches(at: str) -> float:
+    """The claim size a change to this part has to support.
+
+    Smaller means further-reaching, because a smaller claim needs more
+    evidence — which is the relation wanted: the parts everything runs through
+    are the ones a mistake is expensive in.
+    """
+    return HOW_FAR.get(str(at).split("/", 1)[0], 0.5)
+
+
+def _families_wanted(at: str) -> int:
+    from core.cognition.how_sure_she_is import enough_families_to_say
+
+    return enough_families_to_say(at_least=how_far_it_reaches(at))
+
+
+#: What each tier wants, derived from the claim its part has to support rather
+#: than chosen. Held here so the ladder can be read without running it.
+WHAT_A_TIER_WANTS: dict[str, int] = {
+    kind: _families_wanted(kind) for kind in HOW_FAR
+}
+
+
+@dataclass(frozen=True, slots=True)
+class AReceipt:
+    """One line saying a change happened and who caused it."""
+
+    at: str
+    #: shadow, canary, active, retired
+    became: str
+    started_by: str
+    evidence: str
+    #: What caused it from outside, and empty for everything she started. The
+    #: field exists so that its being empty is a fact rather than a silence.
+    asked_from_outside: str | None = None
+    replaced: str = ""
+    when: float = field(default_factory=time.time)
+    #: A digest of the line before, so a record cannot be quietly rewritten to
+    #: say a decision was hers.
+    after: str = ""
+
+    def digest(self) -> str:
+        body = json.dumps(
+            {
+                "at": self.at,
+                "became": self.became,
+                "started_by": self.started_by,
+                "evidence": self.evidence,
+                "asked_from_outside": self.asked_from_outside,
+                "replaced": self.replaced,
+                "when": round(self.when, 6),
+                "after": self.after,
+            },
+            sort_keys=True,
+        )
+        return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+    def describes(self) -> str:
+        who = self.asked_from_outside or self.started_by
+        return f"{self.at} became {self.became} ← {who}: {self.evidence}"
+
+
+_RECEIPTS: list[AReceipt] = []
+_STACK: list[tuple[str, Any]] = []
+_ARCHIVE: dict[str, Any] = {}
+
+
+def the_receipts() -> tuple[AReceipt, ...]:
+    return tuple(_RECEIPTS)
+
+
+def forget_the_receipts() -> None:
+    _RECEIPTS.clear()
+    _STACK.clear()
+    _ARCHIVE.clear()
+
+
+def the_stack() -> tuple[tuple[str, Any], ...]:
+    """What each promotion replaced, newest last. Going back reads this."""
+    return tuple(_STACK)
+
+
+def archived() -> dict[str, Any]:
+    """What was retired but not destroyed.
+
+    Re-deriving an artifact can cost more than it ever saved, so a size budget
+    is a reason to stop carrying something in the active search and never a
+    reason to lose it.
+    """
+    return dict(_ARCHIVE)
+
+
+def nothing_installs_to_the_gate() -> list[str]:
+    """Destinations that would let a change decide what is kept. Empty, or a bug.
+
+    The gate stays outside the space for the reason
+    `a_gate_inside_the_space_cannot_hold` already executes: a rule that can
+    rewrite the thing judging it can pass by changing what passing means. What
+    a change is WORTH is inside — she may value her own work differently — and
+    what is KEPT is not, because that is the judgement.
+    """
+    from core.cognition.what_she_could_do_next import WHERE_A_TERM_CAN_GO
+
+    forbidden = {"the gate", "what is kept", "the ruler"}
+    return [one for one in WHERE_A_TERM_CAN_GO if one in forbidden]
+
+
+def promote(
+    at: str,
+    *,
+    became: str,
+    started_by: str,
+    evidence: str,
+    replaced: Any = None,
+    asked_from_outside: str | None = None,
+) -> AReceipt:
+    """Move a change up a state and write the line that says so."""
+    if replaced is not None:
+        _STACK.append((at, replaced))
+        if len(_STACK) > 64:
+            del _STACK[:-64]
+    if became == "retired" and replaced is not None:
+        _ARCHIVE[at] = replaced
+    made = AReceipt(
+        at=at,
+        became=became,
+        started_by=started_by,
+        evidence=evidence,
+        asked_from_outside=asked_from_outside,
+        replaced="" if replaced is None else str(at),
+        after=_RECEIPTS[-1].digest() if _RECEIPTS else "",
+    )
+    _RECEIPTS.append(made)
+    if len(_RECEIPTS) > 512:
+        del _RECEIPTS[:-512]
+    logger.info("%s", made.describes())
+    return made
+
+
+def what_it_replaced(at: str) -> Any | None:
+    """The most recent thing this address held before, or nothing."""
+    for where, was in reversed(_STACK):
+        if where == at:
+            return was
+    return None
+
+
+def put_it_back(at: str) -> Any | None:
+    """Undo the last promotion at this address. The ordinary outcome, not a failure."""
+    for index in range(len(_STACK) - 1, -1, -1):
+        where, was = _STACK[index]
+        if where == at:
+            del _STACK[index]
+            promote(
+                at,
+                became="rolled back",
+                started_by="she",
+                evidence="the probe did not hold",
+            )
+            return was
+    return None
+
+
+def the_chain_holds() -> bool:
+    """Does every line still follow the one before?
+
+    A record that can be edited to say a decision was hers is not evidence of
+    anything. This is what makes the trace checkable rather than trusted.
+    """
+    for at, one in enumerate(_RECEIPTS):
+        expected = _RECEIPTS[at - 1].digest() if at else ""
+        if one.after != expected:
+            return False
+    return True

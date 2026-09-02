@@ -189,10 +189,17 @@ def rebuild(
 
     ``derive`` is the caller's, because what it means to derive a word is a
     question about the family it came from and this module does not hold
-    those. Without one, nothing is rebuilt and everything is reported inactive
-    — which is the honest answer rather than a silent success.
+    those. Without one it asks the developmental policy, which does hold them:
+    losing a word is an ordinary developmental objective — say these families
+    again without the part that went — and the ranking already knows how to
+    answer that. Where even that gives nothing, nothing is rebuilt and
+    everything is reported inactive, which is the honest answer rather than a
+    silent success.
     """
     from core.cognition.an_invented_kind import WHERE_FROM
+
+    if derive is None:
+        derive = _ask_the_policy
 
     made: list[str] = []
     lost: list[str] = []
@@ -238,3 +245,28 @@ def retract(
     )
     logger.info("retracted — %s", found.describes())
     return found
+
+
+def _ask_the_policy(name: str) -> Any | None:
+    """Derive a lost word by asking what is worth doing about losing it.
+
+    A retraction leaves families that used to be sayable and are not. That is
+    an occasion the ranking is already built for, and routing it there is what
+    keeps rebuilding from being a second mechanism with its own idea of what a
+    word is.
+    """
+    try:
+        from core.cognition.she_decides_to_develop import she_develops_herself
+        from core.cognition.the_record_of_her_own_work import the_record
+    except ImportError:
+        return None
+    if not the_record().kept:
+        return None
+    try:
+        _decided, came_of_it = she_develops_herself()
+    except Exception:  # noqa: BLE001 - a rebuild that fails is a lost word
+        logger.info("could not rebuild %s", name, exc_info=True)
+        return None
+    from core.cognition.an_invented_kind import WHERE_FROM
+
+    return WHERE_FROM.get(name) if came_of_it else None
