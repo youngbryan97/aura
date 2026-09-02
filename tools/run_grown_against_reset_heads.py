@@ -67,6 +67,10 @@ from core.cognition.the_floor_she_stands_on import (  # noqa: E402
     run,
 )
 
+#: What a second of the old wall-clock budget bought, measured once so the
+#: campaigns keep the scale they were run at while losing the clock.
+_CANDIDATES_A_SECOND_USED_TO_BUY = 20_000
+
 #: Lengths a family is shown at. Two are fitted on and two are held back, which
 #: is what a_way_of_computing_she_wrote splits them into.
 AT_LENGTHS = (4, 5, 6, 7)
@@ -177,13 +181,26 @@ def _contains(body: Code, piece: Code) -> bool:
 
 
 def _attempt(agent: Agent, family: Family, within: float) -> tuple[bool, int]:
-    """One agent, one family, one budget."""
+    """One agent, one family, one budget.
+
+    The budget is a count of candidates, not a number of seconds. Two agents
+    given the same seconds are not given the same search, and a result that
+    moves with what else the machine is doing is not a result — measured, and
+    it is why this changed: the same assertion failed twice in three runs on a
+    wall clock and does not on a count.
+    """
     found = a_way_of_computing_she_wrote(
         family.transitions,
         now_sayable=lambda: False,
         words=dict(WHERE_FROM),
         already=tuple(agent.library),
-        within=within,
+        most_candidates=int(within * _CANDIDATES_A_SECOND_USED_TO_BUY),
+        # The recurrence route is off, and that is what makes this a
+        # measurement of the library rather than of the schema. With it on,
+        # every family here is solved in one candidate whatever the library
+        # holds — measured, four of four in every block of every condition at
+        # every budget — so the comparison has nothing to compare.
+        by_recurrence=False,
     )
     if found is None:
         return False, 0

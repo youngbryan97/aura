@@ -541,12 +541,19 @@ def a_way_of_computing_she_wrote(
     within: float = _AS_LONG_AS_A_MAKER_GETS,
     most_words: int = 6,
     by_recurrence: bool = True,
+    most_candidates: int | None = None,
 ) -> AWayOfComputing | None:
     """Write a way of computing for the family in front of her, or nothing.
 
     ``already`` is what she has admitted before, offered as leaves. Nothing
     here is a list of operation kinds; the leaves are numbers, the seven things
     a head is given, and her own past work.
+
+    ``most_candidates`` bounds the search in candidates rather than in seconds.
+    A wall clock is the right budget for a caller with a deadline and the wrong
+    one for a measurement: two conditions given the same number of seconds are
+    not given the same search, and a result that moves with what else the
+    machine is doing is not a result. Every experiment here passes a count.
 
     ``by_recurrence`` is the lesion. Turned off, the only route left is
     enumeration, and enumeration reaches short bodies — which are the ones the
