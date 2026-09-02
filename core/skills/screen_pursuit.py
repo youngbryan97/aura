@@ -3042,10 +3042,39 @@ async def pursue_on_screen(
                 and not looking_at_the_thing
             ):
                 dropped["not the thing itself"] += 1
+            # And nothing is learned from acts the world was not taking.
+            #
+            # A move that changed nothing is evidence about that move only
+            # while other moves are changing things — then it means "not
+            # here", which is worth knowing. When NOTHING she does changes
+            # anything, it means the thing has ended, and none of it is
+            # evidence about how the thing works.
+            #
+            # Measured live 2026-09-02, three games back to back on the real
+            # app. The first went well: she began already knowing the rule at
+            # 71%, looked ahead on 178 of 220 moves, three moves changed
+            # nothing, and she reached 512. Then it finished, and she went on
+            # pressing keys at a finished board: seventy-eight of eighty-three
+            # moves changed nothing, and what she wrote down at the end was
+            # "this does not move", right 98% of 62 — over a rule that had
+            # been confirmed 236 times. The third game began holding that,
+            # looked ahead on nothing at all, and was over in fifteen moves.
+            #
+            # So one ended game undid everything she knew and cost her the
+            # two after it. What she keeps is only as good as her refusing to
+            # learn from a world that has stopped answering.
             if (
                 pending["arranged"] is not None
                 and previous.chosen is not None
                 and looking_at_the_thing
+                and responds["state"].nothing_answers()
+            ):
+                dropped["the thing had stopped answering"] += 1
+            if (
+                pending["arranged"] is not None
+                and previous.chosen is not None
+                and looking_at_the_thing
+                and not responds["state"].nothing_answers()
             ):
                 # What a rule said would happen, before it is folded in. The
                 # difference between that and what she actually saw is the
