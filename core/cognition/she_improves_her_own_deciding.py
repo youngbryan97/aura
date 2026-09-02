@@ -45,6 +45,7 @@ from core.cognition.the_floor_she_stands_on import (
     Stuck,
     every_code,
 )
+from core.cognition.what_counts_as_better import how_bad_that_is
 
 __all__ = [
     "an_order_that_finds_them_sooner",
@@ -100,7 +101,14 @@ def how_soon_they_are_found(order: Code) -> float:
             scored.append((-said, symbols, name))
         scored.sort()
         where = [at for at, (_s, _y, name) in enumerate(scored) if name == one["winner"]]
-        ranks.append(where[0] if where else len(scored))
+        sat = where[0] if where else len(scored)
+        # What counts as bad about that is a term, not this function. The
+        # default computes the rank, which is what this computed before; what
+        # changed is that an experiment she designs is now the same kind of
+        # thing as a word she invents.
+        ranks.append(
+            how_bad_that_is(sat=sat, of=len(scored), symbols=len(one["features"]))
+        )
     return sum(ranks) / len(ranks)
 
 
@@ -222,7 +230,10 @@ def offer_what_she_can_do_about_herself(*, within: float = 20.0) -> None:
     else.
     """
     from core.cognition.the_order_she_tries_them_in import the_order_she_wrote
-    from core.cognition.what_it_is_worth_doing import the_worth_she_wrote
+    from core.cognition.what_it_is_worth_doing import (
+        the_worth_she_uses,
+        the_worth_she_wrote,
+    )
     from core.cognition.what_she_could_do_next import (
         WHAT_SHE_COULD_DO,
         what_she_could_do,
@@ -277,6 +288,53 @@ def offer_what_she_can_do_about_herself(*, within: float = 20.0) -> None:
             over="the proposer",
             kind="a deeper proposer",
             do_it=look_deeper,
+            needs_a_case=False,
+        )
+    def judge_searches_differently(situation: Any = None) -> str | None:
+        """Aim the search for a better order at something else.
+
+        Every search here is a search against an objective, and while the
+        objective was a Python function the space of orders she could look for
+        was whatever that function could see. Mean rank of the winner is a good
+        objective and not the only one: a rule putting the winner second every
+        time beats one putting it first half the time and last half the time on
+        the mean, and which is actually better depends on what happens next.
+
+        Judged the way everything else is: does the record cost less afterwards.
+        """
+        from core.cognition.what_counts_as_better import (
+            THE_OBJECTIVE,
+            forget_the_objective,
+            the_objective_she_wrote,
+        )
+
+        best = what_the_record_would_have_cost(the_worth_she_uses())
+        if best == float("inf"):
+            return None
+        began = time.monotonic()
+        for candidate in every_code(
+            deepest=2, variables=3, constants=(0, 1, 2), also=()
+        ):
+            if time.monotonic() - began >= within:
+                break
+            closed = _closed(candidate, 3)
+            try:
+                the_objective_she_wrote(closed)
+                got = what_the_record_would_have_cost(the_worth_she_uses())
+            except (OutOfFuel, Stuck, ArithmeticError, TypeError, ValueError):
+                forget_the_objective()
+                continue
+            if got < best:
+                return "judged searches by something else"
+            forget_the_objective()
+        return None
+
+    if "judge searches differently" not in WHAT_SHE_COULD_DO:
+        what_she_could_do(
+            "judge searches differently",
+            over="what a change is worth",
+            kind="an objective",
+            do_it=judge_searches_differently,
             needs_a_case=False,
         )
     if "a way of deciding what to change" not in WHAT_SHE_COULD_DO:

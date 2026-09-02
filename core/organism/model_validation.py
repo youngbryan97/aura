@@ -2991,11 +2991,19 @@ def _the_gap_that_should_not_be_there() -> int:
     """
     from tools.run_grown_against_reset_heads import run_stream
 
+    # Families deep enough and a budget tight enough that the measurement can
+    # move. At four families of depth three with two seconds each, every
+    # condition solved four of four in every block on both streams, so the two
+    # strict inequalities below were being asserted between two numbers that
+    # were both the maximum and could not hold however well the mechanism
+    # worked. That state had gone unnoticed since the claim was registered.
+    #
+    # Measured at these: grown [6, 6, 5] against reset [6, 4, 2].
     shared = run_stream(
-        stream="shared", blocks=3, per_block=4, seed=1000, within=2.0, deepest=3
+        stream="shared", blocks=3, per_block=6, seed=1000, within=0.05, deepest=4
     )
     apart = run_stream(
-        stream="apart", blocks=3, per_block=4, seed=1000, within=2.0, deepest=3
+        stream="apart", blocks=3, per_block=6, seed=1000, within=0.05, deepest=4
     )
     wrong = 0 if sum(shared["grown"]) > sum(shared["reset"]) else 1
     wrong += 0 if shared["grown"][-1] > shared["reset"][-1] else 1

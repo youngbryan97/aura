@@ -51,3 +51,49 @@ Parameters with headroom, so the claim measures the thing it names. Until then
 the claim stands unsupported and is reported as such rather than retired,
 because retiring a claim to make a suite green is how a suite stops meaning
 anything.
+
+---
+
+## Closed, 2026-09-02
+
+Parameters with headroom, found by search: three blocks of six families at
+depth four with a fiftieth of a second each.
+
+```
+shared  grown [6, 6, 5]  reset [6, 4, 2]
+```
+
+The claim holds at these and the predicate reports no violations. What was
+wrong was never the mechanism; it was a claim registered against an easier
+stream than the result it stands for.
+
+## Three more of the same kind, found the same way
+
+Running the suite the claim belongs to turned up three tests failing for
+reasons that had nothing to do with this mandate's work.
+
+**The proposer test asked about a configuration the experiment never used.**
+`families=8` leaves four families to fit a proposer on, and four was measured
+in this same session as below what generalises — the working configuration is
+twenty, and it is recorded in
+[a_better_proposer_20_episodes.txt](a_better_proposer_20_episodes.txt). At the
+measured configuration it writes a 68-symbol proposer, 618.1 to 350.0 on ten
+sealed families, with the lesion exact. Confirmed pre-existing by running it at
+`d083eca20`, the commit the test was written in.
+
+**A protocol assertion named a function that no longer exists.**
+`test_a_proposer_is_selected_on_the_training_half_only` searched the source for
+`_how_many_it_proposes_for`, which stopped existing when the cost measure
+changed to count the index at which the proposer offers the answer. A source
+assertion naming something gone passes or fails on the rename rather than on
+the protocol.
+
+**Two order tests passed alone and failed in the suite.** The order in force
+was being restored between tests and the history it is scored against was not:
+how often each word has appeared in a surviving term is global, every test
+there writes to it, and the search for a better order is judged against it.
+That is an order-dependence defect and not a flake.
+
+All four are the same shape. A test can be green for years while measuring
+something other than what it names, and the way that surfaces is running it
+against a system that has changed underneath.
