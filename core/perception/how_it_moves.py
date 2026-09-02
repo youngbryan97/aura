@@ -868,13 +868,7 @@ class HowItMoves:
         what came back is not overwhelming.
         """
         if not isinstance(held, dict):
-            shape = held.get("read_through") or ()
-        try:
-            through = (int(shape[0]), int(shape[1])) if len(shape) == 2 else (0, 0)
-        except (TypeError, ValueError):
-            # not a failure: a shape that is not two numbers is not a shape.
-            through = (0, 0)
-        got = cls()
+            return cls()
         share = max(0.0, min(1.0, float(trust)))
 
         def carried(counts: Any) -> dict[str, int]:

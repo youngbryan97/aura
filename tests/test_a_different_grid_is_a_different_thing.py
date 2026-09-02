@@ -95,3 +95,28 @@ def test_the_pursuit_drops_it_in_both_places_it_has_to() -> None:
     assert any("built_from(" in one and "was != now" in one for one in around), (
         "and one when the grid changes shape during a run"
     )
+
+
+def test_the_grid_it_was_read_through_survives_the_process() -> None:
+    """And loading it at all is worth a test.
+
+    This went out live and fell over on the first line of a run — the counts
+    came back, the shape did not, and nothing here exercised the loading, so
+    compiling and linting both passed a function that could not be called.
+    """
+    rules = HowItMoves()
+    before = _board([[2, 2, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
+    after = _board([[4, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
+    rules.watched(before, "left", after)
+    assert rules.read_through == (4, 4)
+
+    again = HowItMoves.from_memory(rules.as_memory())
+    assert again.read_through == (4, 4)
+    assert again.seen == rules.seen
+
+    # And the shapes of memory it has to survive.
+    assert HowItMoves.from_memory({}).read_through == (0, 0)
+    assert HowItMoves.from_memory("not a memory at all").read_through == (0, 0)
+    assert HowItMoves.from_memory({"read_through": "nonsense"}).read_through == (0, 0)
+    assert HowItMoves.from_memory({"read_through": [4]}).read_through == (0, 0)
+    assert HowItMoves.from_memory({"read_through": ["a", "b"]}).read_through == (0, 0)
