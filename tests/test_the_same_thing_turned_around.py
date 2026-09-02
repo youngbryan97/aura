@@ -120,3 +120,16 @@ def test_a_world_with_no_turning_in_it_yields_none() -> None:
     for one in held:
         # Anything it did keep has to be the identity, which is no claim.
         assert all(where == goes for where, goes in one.sends.items()), one.describe()
+
+
+def test_it_says_nothing_rather_than_something_when_the_space_is_big() -> None:
+    """A space of more than eight places is not searched, and the answer it
+    gives then — no turnings — looks exactly like a world that has none. Worth
+    a test so the difference is not lost."""
+    big = [(row, col) for row in range(4) for col in range(4)]
+    watched = []
+    for at in range(6):
+        before = {(0, 0): 10 + at, (1, 1): 20 + at}
+        after = {(0, 1): 10 + at, (1, 2): 20 + at}
+        watched.append((before, "nudge", after))
+    assert turnings_that_hold(watched, every_place=big, acts=["nudge"]) == []
