@@ -49,6 +49,11 @@ class MovesWithinItself:
     _last: dict[tuple[int, int], float] = field(default_factory=dict)
     _rose: dict[tuple[int, int], int] = field(default_factory=dict)
     _fell: dict[tuple[int, int], int] = field(default_factory=dict)
+    #: Places she was told about rather than has seen — brought back from the
+    #: last sitting. They have to be seen again before they count.
+    _carried: frozenset[tuple[int, int]] = frozenset()
+    #: Places that have rearranged since this sitting began.
+    _seen_again: set[tuple[int, int]] = field(default_factory=set)
     #: The lowest each place has ever shown, so that going back to the
     #: beginning can be told from going backwards.
     _least: dict[tuple[int, int], float] = field(default_factory=dict)
@@ -88,6 +93,7 @@ class MovesWithinItself:
             )
             if came_from_somewhere:
                 self.rearranged[where] = self.rearranged.get(where, 0) + 1
+                self._seen_again.add(where)
             else:
                 self.arrived[where] = self.arrived.get(where, 0) + 1
             self._watch_the_number(where, text)
@@ -165,11 +171,23 @@ class MovesWithinItself:
         tile sliding. LIVE 2026-08-31, playing the real game: the board she
         had settled on as four by four grew two more columns, and they were
         made of the places the score used to be.
+
+        And a place she was told about rather than has seen has to be seen
+        again before it counts. Where a thing is is only worth remembering
+        while the thing is still there: the window is moved, the page reflows,
+        the game restarts a little to the left, and what comes back from the
+        last sitting is a second set of places laid over this one. Everything
+        above is about telling places apart WITHIN a sitting and none of it
+        helps, because a carried place arrives with its counts already made.
+        LIVE 2026-09-02, two games back to back: four by EIGHT again, and the
+        rule it had known at 83% fell to nothing.
         """
         return frozenset(
             where
             for where, moved in self.rearranged.items()
-            if moved > self.arrived.get(where, 0) and self._stood_in.get(where, 0) > 1
+            if moved > self.arrived.get(where, 0)
+            and self._stood_in.get(where, 0) > 1
+            and (where not in self._carried or where in self._seen_again)
         )
 
     def the_things_that_report(self) -> frozenset[tuple[int, int]]:
@@ -221,13 +239,15 @@ class MovesWithinItself:
                     out[(x, y)] = kept
             return out
 
+        rearranged = places(held.get("rearranged"))
         return cls(
-            rearranged=places(held.get("rearranged")),
+            rearranged=rearranged,
             arrived=places(held.get("arrived")),
             acts=int(float(held.get("acts") or 0) * share),
             _stood_in=places(held.get("stood_in")),
             _rose=places(held.get("rose")),
             _fell=places(held.get("fell")),
+            _carried=frozenset(rearranged),
         )
 
 

@@ -122,13 +122,28 @@ def test_it_is_not_about_boards() -> None:
     assert (5, 5) in watching.the_things_that_report()
 
 
-def test_what_it_found_survives_the_process() -> None:
+def test_what_it_found_survives_the_process_as_evidence_not_as_fact() -> None:
+    """What comes back is a head start, not an answer.
+
+    It used to come back as an answer, and that is what put a second sitting's
+    places on top of the first: the counts arrive already made, so nothing
+    that tells places apart within a sitting can touch them. What survives now
+    is the evidence, and a place has to be seen again to be counted.
+    """
     watching = MovesWithinItself()
     frames = _a_game()
     for before, after in zip(frames, frames[1:], strict=False):
         watching.saw(before, after)
+    knew = watching.the_thing_itself()
+    assert knew
+
     again = MovesWithinItself.from_memory(watching.as_memory())
-    assert again.the_thing_itself() == watching.the_thing_itself()
+    assert again.rearranged, "the evidence is still there"
+    assert again.the_thing_itself() == frozenset(), "and none of it is claimed yet"
+    for before, after in zip(frames, frames[1:], strict=False):
+        again.saw(before, after)
+    assert again.the_thing_itself(), "seeing them again earns them back"
+
     thinner = MovesWithinItself.from_memory(watching.as_memory(), trust=0.0)
     assert not thinner.the_thing_itself()
 
@@ -199,3 +214,43 @@ def test_a_tally_going_back_to_the_start_is_a_new_game_not_a_fall() -> None:
     # A genuine fall, to somewhere above where it began, is still a fall.
     watching.saw({(0, 0): "2", (9, 0): "40"}, {(0, 1): "2", (9, 0): "20"})
     assert watching.what_measures_doing_well() == frozenset()
+
+
+def test_a_place_she_was_told_about_has_to_be_seen_again() -> None:
+    """Where a thing is is only worth remembering while the thing is there.
+
+    The window gets moved, the page reflows, the game restarts a little to the
+    left — and what comes back from the last sitting is then a second set of
+    places laid over this one. Measured live 2026-09-02: a four by four board
+    came back as four by EIGHT, both sittings counted at once, and every
+    reading placed into it was wrong.
+    """
+    watching = MovesWithinItself()
+    frames = _a_game()
+    for before, after in zip(frames, frames[1:], strict=False):
+        watching.saw(before, after)
+    knew = watching.the_thing_itself()
+    assert knew
+
+    # A new sitting, with the thing in the same place: it earns its places
+    # back as it sees them, and ends up where it was.
+    same = MovesWithinItself.from_memory(watching.as_memory())
+    assert same.the_thing_itself() == frozenset(), "nothing seen yet this sitting"
+    for before, after in zip(frames, frames[1:], strict=False):
+        same.saw(before, after)
+    found = same.the_thing_itself()
+    assert found, "seeing them again should earn them back"
+    assert found <= set(BOARD), sorted(found - set(BOARD))
+
+    # And a new sitting with the thing somewhere else: what it knew does not
+    # get laid over what it can see.
+    def shifted(seen: dict) -> dict:
+        return {(col + 40, row): text for (col, row), text in seen.items()}
+
+    moved = MovesWithinItself.from_memory(watching.as_memory())
+    for before, after in zip(frames, frames[1:], strict=False):
+        moved.saw(shifted(before), shifted(after))
+    found = moved.the_thing_itself()
+    assert found
+    assert not (found & knew), "the old places must not come back too"
+    assert found == {(col + 40, row) for col, row in knew}
