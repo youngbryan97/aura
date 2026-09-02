@@ -118,7 +118,27 @@ def _words_she_derived() -> dict[str, Any]:
         name: the_rule_written_down(rule)
         for name, rule in RULES_WITH_NO_SHAPE.items()
     }
+    # And the machinery she can replace: the rule for what to try first, and
+    # the proposer that says what to try at all. Both are terms, and a term
+    # that dies at process exit was never a change she made.
+    from core.cognition.the_order_she_tries_them_in import (
+        THE_ORDER,
+        the_order_she_uses,
+        written_order,
+    )
+    from core.cognition.the_proposer_she_can_replace import (
+        THE_PROPOSER,
+        the_proposer_in_use,
+        the_proposer_written_down,
+    )
+
+    machinery: dict[str, Any] = {}
+    if the_order_she_uses() != THE_ORDER:
+        machinery["order"] = written_order()
+    if the_proposer_in_use() != THE_PROPOSER:
+        machinery["proposer"] = the_proposer_written_down()
     return {
+        "machinery": machinery,
         "shapeless": shapeless,
         "addressings": addressings,
         "operations": operations,
@@ -224,6 +244,29 @@ def _put_the_language_back(language: dict[str, Any]) -> int:
         read_a_rule_back,
     )
 
+    machinery = language.get("machinery") or {}
+    if isinstance(machinery, dict):
+        from core.cognition.the_order_she_tries_them_in import (
+            order_read_back,
+            the_order_she_wrote,
+        )
+        from core.cognition.the_proposer_she_can_replace import (
+            the_proposer_read_back,
+            the_proposer_she_wrote,
+        )
+
+        for what, read, put in (
+            ("order", order_read_back, the_order_she_wrote),
+            ("proposer", the_proposer_read_back, the_proposer_she_wrote),
+        ):
+            if what not in machinery:
+                continue
+            term = read(machinery[what])
+            if term is None:
+                logger.info("the %s she wrote does not read back", what)
+                continue
+            put(term)
+            back += 1
     for name, row in (language.get("shapeless") or {}).items():
         rule = read_a_rule_back(row)
         if rule is None:

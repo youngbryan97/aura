@@ -73,6 +73,11 @@ __all__ = [
 
 logger = logging.getLogger("Aura.AWayOfComputingSheWrote")
 
+#: How many candidates the proposer is asked for before the enumerator takes
+#: over. Read off what it covers rather than chosen: one arithmetic head over
+#: ten leaves is seven hundred candidates, and past that it repeats.
+_HOW_MANY_A_PROPOSER_IS_ASKED_FOR = 700
+
 #: What one candidate may spend on one position. A search checks millions.
 _A_CANDIDATE_MAY_SPEND = 4_000
 
@@ -601,6 +606,20 @@ def a_way_of_computing_she_wrote(
     )
 
     def so_far() -> Iterator[Code]:
+        # What the PROPOSER offers first, and it is a term rather than a loop.
+        #
+        # core/cognition/the_proposer_she_can_replace.py holds one arithmetic
+        # head over two leaves — the depth-two space, where nearly every short
+        # answer sits — and it is a floor term asked for its k-th candidate.
+        # Longer candidates still come from the enumerator, and which half is
+        # which is the honest scope of the claim.
+        from core.cognition.the_proposer_she_can_replace import the_candidate_at
+
+        leaves = len(WHAT_A_HEAD_IS_GIVEN) + 3
+        for which in range(_HOW_MANY_A_PROPOSER_IS_ASKED_FOR):
+            offered = the_candidate_at(which, leaves=leaves)
+            if offered is not None:
+                yield offered
         yield from bodies
         for body in stream:
             bodies.append(body)
