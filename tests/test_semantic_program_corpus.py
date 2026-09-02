@@ -8,6 +8,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_fork_join_factorial_corpus,
     build_semantic_program_sequence_binary_corpus,
     build_semantic_program_sequence_corpus,
+    build_semantic_program_sequence_reserved_alias_corpus,
     project_example_to_ir,
 )
 
@@ -411,6 +412,72 @@ def test_sequence_binary_corpus_is_deterministic_and_seeded() -> None:
     first = build_semantic_program_sequence_binary_corpus(seed=11)
     replay = build_semantic_program_sequence_binary_corpus(seed=11)
     changed = build_semantic_program_sequence_binary_corpus(seed=12)
+
+    assert first == replay
+    assert tuple(item.inputs for item in first) != tuple(item.inputs for item in changed)
+
+
+def test_sequence_reserved_alias_corpus_teaches_input_aliases_without_arithmetic_topology() -> None:
+    examples = build_semantic_program_sequence_reserved_alias_corpus(
+        examples_per_operation_pair=2
+    )
+    constructions = {
+        split: {item.construction_id for item in examples if item.split == split}
+        for split in ("train", "validation", "test")
+    }
+    expected_operations = {
+        (first, second)
+        for first in ("at", "count_of")
+        for second in ("add", "sub", "mul", "idiv")
+    }
+
+    assert len(examples) == 144
+    assert {split: len(values) for split, values in constructions.items()} == {
+        "train": 3,
+        "validation": 3,
+        "test": 3,
+    }
+    assert all(
+        not constructions[left] & constructions[right]
+        for left, right in (
+            ("train", "validation"),
+            ("train", "test"),
+            ("validation", "test"),
+        )
+    )
+    for split in constructions:
+        assert {
+            tuple(item.instruction.op for item in example.instructions)
+            for example in examples
+            if example.split == split
+        } == expected_operations
+    for example in examples:
+        first, second = example.instructions
+        assert first.instruction.args == (0, 1)
+        assert second.instruction.args in {(3, 2), (2, 3)}
+        reserved_position = second.instruction.args.index(2)
+        reserved_reference = second.argument_spans[reserved_position]
+        assert reserved_reference != example.input_spans[2]
+        assert not (
+            reserved_reference.start < example.input_spans[2].end
+            and example.input_spans[2].start < reserved_reference.end
+        )
+        assert second.depends_on == (0,)
+        assert type(example.program.run(example.inputs)) is int
+        ir = project_example_to_ir(
+            example,
+            source_token_ids=tuple(range(len(example.source_text))),
+            offset_mapping=_character_offsets(example.source_text),
+            model_basis_receipt_sha256="a" * 64,
+            transducer_receipt_sha256="b" * 64,
+        )
+        assert ir.to_program() == example.program
+
+
+def test_sequence_reserved_alias_corpus_is_deterministic_and_seeded() -> None:
+    first = build_semantic_program_sequence_reserved_alias_corpus(seed=17)
+    replay = build_semantic_program_sequence_reserved_alias_corpus(seed=17)
+    changed = build_semantic_program_sequence_reserved_alias_corpus(seed=18)
 
     assert first == replay
     assert tuple(item.inputs for item in first) != tuple(item.inputs for item in changed)

@@ -1735,6 +1735,321 @@ def build_semantic_program_sequence_binary_corpus(
     return tuple(examples)
 
 
+def _sequence_reserved_alias_example_id(
+    construction_id: str,
+    first_op: str,
+    second_op: str,
+    inputs: tuple[tuple[int, ...], int, int],
+    sample_index: int,
+) -> str:
+    body = f"reserved-alias|{construction_id}|{first_op}|{second_op}|{inputs}|{sample_index}"
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:24]
+
+
+def _render_sequence_reserved_alias_chain(
+    *,
+    construction_index: int,
+    first_op: str,
+    second_op: str,
+    values: tuple[int, ...],
+    selector: int,
+    adjustment: int,
+) -> tuple[
+    str,
+    tuple[CharacterSpan, CharacterSpan, CharacterSpan],
+    tuple[SemanticInstructionAnnotation, SemanticInstructionAnnotation],
+]:
+    """Render an input alias independently of arithmetic-family language."""
+
+    builder = _AnnotatedText()
+    first_phrase = _SEQUENCE_BINARY_OPERATION_LANGUAGE[first_op][construction_index]
+    second_phrase = _SCALAR_CONTINUATION_LANGUAGE[second_op][construction_index]
+    reserved_definitions = (
+        "the label offset",
+        "the name side value",
+        "the title fixed amount",
+        "the label held quantity",
+        "the name saved scalar",
+        "the title adjustment",
+        "the label constant term",
+        "the name carried value",
+        "the title extra quantity",
+    )
+    reserved_references = (
+        "the labeled offset",
+        "that side value",
+        "the fixed amount",
+        "the held quantity",
+        "that saved scalar",
+        "the named adjustment",
+        "the constant term",
+        "the carried value",
+        "that extra quantity",
+    )
+    result_names = (
+        "chosen entry",
+        "lookup output",
+        "derived tally",
+        "selected number",
+        "retrieved scalar",
+        "computed entry",
+        "selection output",
+        "working scalar",
+        "obtained number",
+    )
+    input_text = "[" + ", ".join(str(value) for value in values) + "]"
+
+    def append_sequence() -> None:
+        builder.append(input_text, label="input:0")
+
+    def append_selector() -> None:
+        builder.append(str(selector), label="input:1")
+
+    def append_reserved_input() -> None:
+        builder.append(str(adjustment), label="input:2")
+
+    def append_first_operation() -> None:
+        builder.append(first_phrase, label="operation:0")
+
+    def append_second_operation() -> None:
+        builder.append(second_phrase, label="operation:1")
+
+    def define_result() -> None:
+        builder.append(result_names[construction_index], label="result:0")
+
+    def reference_result() -> None:
+        builder.append(result_names[construction_index], label="argument:result")
+
+    def reference_reserved() -> None:
+        builder.append(
+            reserved_references[construction_index],
+            label="argument:reserved",
+        )
+
+    def append_reserved_definition() -> None:
+        append_reserved_input()
+        builder.append(" under ")
+        builder.append(reserved_definitions[construction_index])
+
+    if construction_index == 0:
+        builder.append("Put ")
+        append_reserved_definition()
+        builder.append(" aside. For ")
+        append_sequence()
+        builder.append(", perform ")
+        append_first_operation()
+        builder.append(" using selector ")
+        append_selector()
+        builder.append(", calling the output ")
+        define_result()
+        builder.append(". Compute ")
+    elif construction_index == 1:
+        builder.append("Keep ")
+        append_reserved_definition()
+        builder.append(". Starting with ")
+        append_sequence()
+        builder.append(", use ")
+        append_first_operation()
+        builder.append(" for selector ")
+        append_selector()
+        builder.append(" and name its output ")
+        define_result()
+        builder.append(". Evaluate ")
+    elif construction_index == 2:
+        builder.append("Store ")
+        append_reserved_definition()
+        builder.append(". Take ")
+        append_sequence()
+        builder.append(" through ")
+        append_first_operation()
+        builder.append(" with selector ")
+        append_selector()
+        builder.append("; call the scalar ")
+        define_result()
+        builder.append(". Return ")
+    elif construction_index == 3:
+        builder.append("Designate ")
+        append_reserved_definition()
+        builder.append(". Given ")
+        append_sequence()
+        builder.append(", apply ")
+        append_first_operation()
+        builder.append(" at selector ")
+        append_selector()
+        builder.append(" and bind the answer as ")
+        define_result()
+        builder.append(". Finish with ")
+    elif construction_index == 4:
+        builder.append("Let ")
+        append_reserved_definition()
+        builder.append(" be kept. On ")
+        append_sequence()
+        builder.append(", carry out ")
+        append_first_operation()
+        builder.append(" for selector ")
+        append_selector()
+        builder.append("; refer to the output as ")
+        define_result()
+        builder.append(". The final number is ")
+    elif construction_index == 5:
+        builder.append("Retain ")
+        append_reserved_definition()
+        builder.append(". Begin from ")
+        append_sequence()
+        builder.append(" and execute ")
+        append_first_operation()
+        builder.append(" with selector ")
+        append_selector()
+        builder.append(". Label the outcome ")
+        define_result()
+        builder.append(", then calculate ")
+    elif construction_index == 6:
+        builder.append("Set ")
+        append_reserved_definition()
+        builder.append(" apart. Use ")
+        append_first_operation()
+        builder.append(" on ")
+        append_sequence()
+        builder.append(" with selector ")
+        append_selector()
+        builder.append(" to obtain ")
+        define_result()
+        builder.append(". Report ")
+    elif construction_index == 7:
+        builder.append("Mark ")
+        append_reserved_definition()
+        builder.append(". From ")
+        append_sequence()
+        builder.append(", run ")
+        append_first_operation()
+        builder.append(" for selector ")
+        append_selector()
+        builder.append(" and retain the result as ")
+        define_result()
+        builder.append(". Next compute ")
+    elif construction_index == 8:
+        builder.append("Hold ")
+        append_reserved_definition()
+        builder.append(". Process ")
+        append_sequence()
+        builder.append(" by ")
+        append_first_operation()
+        builder.append(" using selector ")
+        append_selector()
+        builder.append(". Call what it returns ")
+        define_result()
+        builder.append("; the requested result is ")
+    else:  # pragma: no cover - private caller pins the construction range
+        raise ValueError("sequence reserved-alias construction index is invalid")
+
+    reserved_first = bool(construction_index % 2)
+    if reserved_first:
+        reference_reserved()
+        builder.append(" ")
+        append_second_operation()
+        builder.append(" ")
+        reference_result()
+        second_args = (2, 3)
+        second_spans = (
+            builder.span("argument:reserved"),
+            builder.span("argument:result"),
+        )
+    else:
+        reference_result()
+        builder.append(" ")
+        append_second_operation()
+        builder.append(" ")
+        reference_reserved()
+        second_args = (3, 2)
+        second_spans = (
+            builder.span("argument:result"),
+            builder.span("argument:reserved"),
+        )
+    builder.append(".")
+
+    input_spans = tuple(builder.span(f"input:{index}") for index in range(3))
+    instructions = (
+        SemanticInstructionAnnotation(
+            instruction=Instruction(first_op, (0, 1)),
+            operation_span=builder.span("operation:0"),
+            argument_spans=(input_spans[0], input_spans[1]),
+            depends_on=(),
+        ),
+        SemanticInstructionAnnotation(
+            instruction=Instruction(second_op, second_args),
+            operation_span=builder.span("operation:1"),
+            argument_spans=second_spans,
+            depends_on=(0,),
+        ),
+    )
+    return builder.text, input_spans, instructions
+
+
+def build_semantic_program_sequence_reserved_alias_corpus(
+    *,
+    seed: int = 2449489,
+    examples_per_operation_pair: int = 2,
+) -> tuple[SemanticProgramExample, ...]:
+    """Build sequence programs whose fronted scalar is referenced by alias."""
+
+    if examples_per_operation_pair < 1:
+        raise ValueError("sequence reserved-alias corpus needs at least one sample")
+    rng = random.Random(seed)
+    examples: list[SemanticProgramExample] = []
+    for construction_index in range(9):
+        construction_id = f"sequence-reserved-alias-{construction_index}"
+        split: CorpusSplit = (
+            "train"
+            if construction_index < 3
+            else "validation"
+            if construction_index < 6
+            else "test"
+        )
+        for sample_index in range(examples_per_operation_pair):
+            selector = rng.randint(1, 4)
+            values = [rng.randint(1, 20) for _ in range(rng.randint(6, 8))]
+            values[rng.randrange(len(values))] = selector
+            public_sequence = tuple(values)
+            adjustment = rng.randint(2, 7)
+            inputs = (public_sequence, selector, adjustment)
+            contrast_id = hashlib.sha256(
+                f"sequence-reserved-alias|{construction_id}|{inputs}|{sample_index}".encode()
+            ).hexdigest()[:24]
+            for first_op in _SEQUENCE_BINARY_SELECTORS:
+                for second_op in _SCALAR_CONTINUATIONS:
+                    source_text, input_spans, instructions = (
+                        _render_sequence_reserved_alias_chain(
+                            construction_index=construction_index,
+                            first_op=first_op,
+                            second_op=second_op,
+                            values=public_sequence,
+                            selector=selector,
+                            adjustment=adjustment,
+                        )
+                    )
+                    examples.append(
+                        SemanticProgramExample(
+                            example_id=_sequence_reserved_alias_example_id(
+                                construction_id,
+                                first_op,
+                                second_op,
+                                inputs,
+                                sample_index,
+                            ),
+                            construction_id=construction_id,
+                            topology_id="aliased-input-sequence-to-scalar-chain",
+                            split=split,
+                            source_text=source_text,
+                            inputs=inputs,
+                            input_spans=input_spans,
+                            instructions=instructions,
+                            report_value=4,
+                            contrast_id=contrast_id,
+                        )
+                    )
+    return tuple(examples)
+
+
 def _character_to_token_span(
     span: CharacterSpan,
     offsets: Sequence[tuple[int, int]],
@@ -1805,5 +2120,6 @@ __all__ = [
     "build_semantic_program_fork_join_corpus",
     "build_semantic_program_sequence_binary_corpus",
     "build_semantic_program_sequence_corpus",
+    "build_semantic_program_sequence_reserved_alias_corpus",
     "project_example_to_ir",
 ]
