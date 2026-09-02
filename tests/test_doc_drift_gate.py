@@ -422,3 +422,34 @@ def test_every_current_document_still_resolves():
     assert findings == [], "\n".join(
         f"{f['doc']}:{f['line']} {f['kind']}: {f['detail']}" for f in findings
     )
+
+
+def test_maths_in_a_code_span_is_not_a_link():
+    """`words[k](i,n)` has markdown link syntax inside it and is not a link.
+
+    The gate reported a dead link to "docs/i,n" on a line of induction proof.
+    Fenced blocks were already skipped for exactly this reason; an inline span
+    is a fence one backtick wide.
+    """
+    import re
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    from lint_doc_drift import CODE_SPAN, LINK
+
+    def _targets(line: str) -> list[str]:
+        blanked = CODE_SPAN.sub(lambda c: "`" + " " * len(c.group(1)) + "`", line)
+        return [m.group(1) for m in LINK.finditer(blanked)]
+
+    assert _targets("`hole` returns `words[k](i,n) mod max(1,n)` below n") == []
+    # And a real link on the same line is still found.
+    assert _targets("see [the spec](docs/ARCHITECTURE.md) and `a[b](c)`") == [
+        "docs/ARCHITECTURE.md"
+    ]
+    # Blanking preserves length, so a reported column still points at the text.
+    line = "x `a[b](c)` y"
+    assert len(CODE_SPAN.sub(lambda c: "`" + " " * len(c.group(1)) + "`", line)) == len(
+        line
+    )
+    assert re.search(r"`\s+`", CODE_SPAN.sub(lambda c: "`" + " " * len(c.group(1)) + "`", line))

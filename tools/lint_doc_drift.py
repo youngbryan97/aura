@@ -610,7 +610,16 @@ def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
             continue
 
         # Links, and the headings they point at.
-        for m in LINK.finditer(line):
+        #
+        # Scanned with inline code blanked out. Markdown link syntax is
+        # `[text](target)`, and a code span like `words[k](i,n) mod max(1,n)`
+        # contains that shape without being a link: the linter reported a dead
+        # link to "docs/i,n" in a line of mathematics. Fenced blocks were
+        # already skipped for the same reason; a span is a fence one backtick
+        # wide. Blanked rather than removed, so a reported column still points
+        # where the reader will look.
+        scanned = CODE_SPAN.sub(lambda c: "`" + " " * len(c.group(1)) + "`", line)
+        for m in LINK.finditer(scanned):
             target = m.group(1)
             if target.startswith(EXTERNAL):
                 continue
