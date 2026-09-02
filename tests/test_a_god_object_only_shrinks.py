@@ -261,3 +261,69 @@ def test_the_gate_is_wired_into_the_makefile():
     assert "module-size:" in makefile
     assert "module-size-baseline:" in makefile
     assert "tools/lint_module_size.py" in makefile
+
+
+# ── the two kinds of regression are told apart ────────────────────────────
+#
+# The gate has carried an inherited pile for weeks. A flat list of thirty
+# complaints is one a reader stops reading, and a module that went over the
+# ceiling TODAY sat somewhere in the middle of it looking like everything
+# else. Nothing is forgiven — the same failures fail — but the two kinds are
+# tagged so the report can tell them apart.
+
+
+def _measure(path: str, lines: int, methods: int) -> Measurement:
+    return Measurement(
+        path=path, lines=lines, max_class_methods=methods, largest_class="C"
+    )
+
+
+def test_a_module_never_baselined_is_tagged_new():
+    failures, _stale = check(
+        {"a.py": _measure("a.py", MAX_NEW_MODULE_LINES + 1, 1)}, {}
+    )
+    assert failures and all(f.startswith("NEW ") for f in failures)
+
+
+def test_a_class_never_baselined_is_tagged_new():
+    failures, _stale = check(
+        {"a.py": _measure("a.py", 10, MAX_NEW_CLASS_METHODS + 1)}, {}
+    )
+    assert failures and all(f.startswith("NEW ") for f in failures)
+
+
+def test_a_class_past_its_baseline_is_tagged_grew_with_the_amount():
+    failures, _stale = check(
+        {"a.py": _measure("a.py", 10, 40)},
+        {"a.py": {"lines": 10, "max_class_methods": 31}},
+    )
+    assert len(failures) == 1
+    assert failures[0].startswith("GREW +9 "), failures[0]
+
+
+def test_the_aggregate_is_tagged_so_it_does_not_read_as_one_more_file():
+    failures, _stale = check(
+        {"a.py": _measure("a.py", MAX_NEW_MODULE_LINES + 100, 1)},
+        {"a.py": {"lines": MAX_NEW_MODULE_LINES + 100, "max_class_methods": 1}},
+        budget=0,
+    )
+    assert len(failures) == 1
+    assert failures[0].startswith("BUDGET ")
+
+
+def test_tagging_forgives_nothing():
+    """The same inputs that failed before still fail, and still all of them."""
+    measurements = {
+        "a.py": _measure("a.py", MAX_NEW_MODULE_LINES + 1, 1),
+        "b.py": _measure("b.py", 10, 40),
+        "c.py": _measure("c.py", 10, 1),
+    }
+    baseline = {"b.py": {"lines": 10, "max_class_methods": 31}}
+    failures, _stale = check(measurements, baseline, budget=0)
+    # One never baselined, one grown, one aggregate; c.py is inside every
+    # limit and must not be reported at all.
+    assert len(failures) == 3
+    assert sum(f.startswith("NEW ") for f in failures) == 1
+    assert sum(f.startswith("GREW") for f in failures) == 1
+    assert sum(f.startswith("BUDGET") for f in failures) == 1
+    assert not any("c.py" in f for f in failures)

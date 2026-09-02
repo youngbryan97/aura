@@ -229,9 +229,9 @@ def check(
         total = oversize_total(measurements)
         if total > budget:
             failures.append(
-                f"total oversize is {total} lines against a budget of {budget} "
-                f"(+{total - budget}). A file may grow only if another shrinks by "
-                "more; this is the one number the ratchet holds"
+                f"BUDGET  total oversize is {total} lines against a budget of "
+                f"{budget} (+{total - budget}). A file may grow only if another "
+                "shrinks by more; this is the one number the ratchet holds"
             )
 
     for path, measurement in sorted(measurements.items()):
@@ -239,13 +239,13 @@ def check(
         if recorded is None:
             if measurement.lines > MAX_NEW_MODULE_LINES:
                 failures.append(
-                    f"{path}: {measurement.lines} lines exceeds the "
+                    f"NEW     {path}: {measurement.lines} lines exceeds the "
                     f"{MAX_NEW_MODULE_LINES}-line ceiling for a module not already "
                     "in the baseline — a new God object is never grandfathered"
                 )
             if measurement.max_class_methods > MAX_NEW_CLASS_METHODS:
                 failures.append(
-                    f"{path}: class {measurement.largest_class} has "
+                    f"NEW     {path}: class {measurement.largest_class} has "
                     f"{measurement.max_class_methods} methods, over the "
                     f"{MAX_NEW_CLASS_METHODS}-method ceiling for a new class"
                 )
@@ -256,6 +256,7 @@ def check(
             # Method count is pinned per class rather than budgeted. Splitting a
             # God class is the point; growing one is never the trade.
             failures.append(
+                f"GREW +{measurement.max_class_methods - allowed_methods} "
                 f"{path}: class {measurement.largest_class} grew to "
                 f"{measurement.max_class_methods} methods from a baseline of "
                 f"{allowed_methods}"
@@ -328,9 +329,37 @@ def main(argv: list[str] | None = None) -> int:
             print(f"   … and {len(stale) - 20} more")
 
     if failures:
+        # Grouped and worst-first. The gate has carried an inherited pile for
+        # weeks, and a flat list of thirty complaints is one a reader stops
+        # reading — a module that went over the ceiling TODAY was indexed
+        # somewhere in the middle of it and looked like everything else.
+        # Nothing is forgiven here; the same failures fail. What changes is
+        # that the two kinds are told apart and the pile is named as a pile.
+        new = [f for f in failures if f.startswith("NEW ")]
+        grew = [f for f in failures if f.startswith("GREW")]
+        budgets = [f for f in failures if f.startswith("BUDGET")]
+        other = [f for f in failures if f not in set(new) | set(grew) | set(budgets)]
+
+        def _amount(entry: str) -> int:
+            head = entry.split()[1]
+            return int(head) if head.lstrip("+").isdigit() else 0
+
         print(f"\n❌ {len(failures)} size regression(s):")
-        for failure in failures:
-            print(f"   {failure}")
+        if new:
+            print(
+                f"\n   NEW — over the ceiling and never baselined ({len(new)}). "
+                "A new God object is never grandfathered:"
+            )
+            for failure in sorted(new):
+                print(f"     {failure[8:]}")
+        if grew:
+            print(
+                f"\n   GREW — past a recorded baseline ({len(grew)}), worst first:"
+            )
+            for failure in sorted(grew, key=lambda f: (-_amount(f), f)):
+                print(f"     {failure.split(None, 2)[2]}")
+        for failure in budgets + other:
+            print(f"\n   {failure.split(None, 1)[-1]}")
         return 1
 
     if stale:
