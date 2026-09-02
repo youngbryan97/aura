@@ -70,6 +70,7 @@ __all__ = [
     "Stage",
     "forget_the_trace",
     "she_decides_to_develop",
+    "she_develops_herself",
     "the_trace",
     "what_it_may_spend",
     "what_is_worth_doing_now",
@@ -192,8 +193,21 @@ def what_to_do_next(
     costs_now: int,
     among: Sequence[ADevelopmentalAction] | None = None,
     asked_for: str | None = None,
+    this_one_is_lost: bool = False,
 ) -> Decision:
-    """Rank everything she could do, and choose. Or choose nothing."""
+    """Rank everything she could do, and choose. Or choose nothing.
+
+    `this_one_is_lost` says the occasion in hand produces nothing unless
+    something changes. It matters because the value below is a value of future
+    savings, and an occasion that yields no answer at all is not a saving
+    question. Trying is then better than not trying by dominance: the budget is
+    bounded, and not answering is worth nothing.
+
+    Without that distinction a family met for the first time is always refused,
+    which is right when the answer already exists and dead wrong when it does
+    not — and it was the second case that showed up, as a search that solved
+    nothing in no time and looked like restraint.
+    """
     actions = list(among if among is not None else the_actions_she_has())
     if asked_for is not None:
         named = [one for one in actions if one.name == asked_for]
@@ -258,7 +272,8 @@ def what_to_do_next(
         if worth.worth is not None:
             continue
         price = the_price_of_finding_out(worth.cost)
-        if paid * most_it_could_save > price and price <= ceiling:
+        worth_a_try = this_one_is_lost or paid * most_it_could_save > price
+        if worth_a_try and price <= ceiling:
             _note("diagnosis", "she", f"{one.name} has no history")
             _note("proposal", "she", f"{one.name}, to find out what it saves")
             return Decision(
@@ -266,9 +281,13 @@ def what_to_do_next(
                 worth=worth,
                 because="exploring",
                 grounds=(
-                    f"unpriced; at best it saves {most_it_could_save:,.0f} and "
-                    f"{paid:.2f} of changes have paid, against {price:,} to "
-                    "find out"
+                    "unpriced, and this one is lost without it"
+                    if this_one_is_lost
+                    else (
+                        f"unpriced; at best it saves {most_it_could_save:,.0f} "
+                        f"and {paid:.2f} of changes have paid, against "
+                        f"{price:,} to find out"
+                    )
                 ),
                 considered=considered,
             )
@@ -357,4 +376,44 @@ def what_is_worth_doing_now() -> Decision:
     family = max(spent, key=lambda one: sum(spent[one]))
     each = int(round(sum(spent[family]) / len(spent[family])))
     _note("diagnosis", "she", f"{family} costs {sum(spent[family]):,} in all")
-    return what_to_do_next(family, costs_now=each)
+    return what_to_do_next(
+        family,
+        costs_now=each,
+        among=the_actions_she_has(with_a_case=False),
+    )
+
+
+def she_develops_herself() -> tuple[Decision, Any]:
+    """Nobody asked. Choose, do it, and write down what came of it.
+
+    The idle loop's whole episode, and the recording is the part that matters:
+    an action that gives nothing has to cost something in the record, or the
+    ranking picks it again next time and the loop is a loop rather than a
+    development. A failure here is evidence, and the next choice is made with
+    it.
+    """
+    decided = what_is_worth_doing_now()
+    if decided.action is None:
+        return decided, None
+    family = next(
+        (one.about.split(" costs")[0] for one in reversed(_TRACE)
+         if one.what == "diagnosis" and " costs" in one.about),
+        "herself",
+    )
+    try:
+        came_of_it = decided.action.do_it(None)
+    except Exception as exc:  # noqa: BLE001 - a failed action is a result
+        logger.info("%s raised: %s", decided.action.name, exc)
+        came_of_it = None
+    _note(
+        "evaluation", "she", f"{decided.action.name} gave {came_of_it!r}"
+    )
+    if came_of_it:
+        _note("installation", "she", decided.action.kind)
+    note_an_episode(
+        family,
+        route=decided.action.name if came_of_it else None,
+        walked=decided.worth.cost if decided.worth else 0,
+        admitted=decided.action.kind if came_of_it else None,
+    )
+    return decided, came_of_it

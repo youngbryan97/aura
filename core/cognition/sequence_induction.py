@@ -794,7 +794,11 @@ def _a_word_the_language_was_missing(
 
     left = list(the_actions_she_has())
     while left:
-        decided = what_to_do_next(family, costs_now=costs_now, among=left)
+        # The occasion is lost without a change: nothing she can say accounts
+        # for these, which is why this function was called at all.
+        decided = what_to_do_next(
+            family, costs_now=costs_now, among=left, this_one_is_lost=True
+        )
         if decided.action is None:
             logger.info("she is not developing: %s", decided.grounds)
             note_an_episode(family, route=None, walked=costs_now)

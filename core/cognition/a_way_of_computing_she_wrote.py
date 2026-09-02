@@ -586,7 +586,10 @@ def a_way_of_computing_she_wrote(
     if not fitted_at or not judged_at:
         return None
 
-    from core.cognition.how_she_learns_to_look import in_the_order_worth_trying
+    from core.cognition.how_she_learns_to_look import (
+        in_the_order_worth_trying,
+        remember_what_worked,
+    )
     from core.cognition.one_algebra import _tells_her_the_answer  # noqa: PLC2701
     from core.cognition.what_it_costs_to_say import _symbols  # noqa: PLC2701
 
@@ -676,6 +679,7 @@ def a_way_of_computing_she_wrote(
                 by_recurrence=True,
                 written=found_by_recurrence,
             )
+            remember_what_worked((first_name, second_name))
             logger.info("she wrote a way of computing: %s", found.describes())
             return found
 
@@ -701,6 +705,11 @@ def a_way_of_computing_she_wrote(
                 found_at=walked,
                 written=body,
             )
+            # Which words the head was written over, recorded the way a maker
+            # records them. Without this the head path ranks its words and
+            # never says which one won, so a search for a better order has
+            # nothing to be judged on and the rule in force wins by default.
+            remember_what_worked((first_name, second_name))
             logger.info("she wrote a way of computing: %s", found.describes())
             return found
     return None

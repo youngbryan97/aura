@@ -54,6 +54,7 @@ from core.cognition.how_she_learns_to_look import (  # noqa: E402
 )
 from core.cognition.she_decides_to_develop import (  # noqa: E402
     forget_the_trace,
+    she_develops_herself,
     the_trace,
     what_is_worth_doing_now,
     what_to_do_next,
@@ -93,7 +94,11 @@ from core.cognition.what_she_could_do_next import (  # noqa: E402
     WHAT_SHE_COULD_DO,
     the_actions_she_has,
 )
-from tools.run_grown_against_reset_heads import Family, _a_family  # noqa: E402
+from tools.run_grown_against_reset_heads import (  # noqa: E402
+    Family,
+    _a_family,
+    _a_family_from,
+)
 
 
 def _fresh() -> None:
@@ -123,83 +128,171 @@ def _register() -> None:
 # ── the arms ──────────────────────────────────────────────────────────────
 
 
-def proactive(rng: random.Random, *, episodes_wanted: int) -> dict[str, Any]:
-    """A stream she can already answer. Does she improve it anyway?
+def _a_family_she_cannot_say(
+    rng: random.Random, *, over: tuple[str, str], library: list[Code], deepest: int,
+    must_contain: Code | None = None, must_not_contain: Code | None = None,
+    tries: int = 40,
+) -> tuple[Family, Code] | None:
+    """A family the positional language has no rule for, so the search is dear.
+
+    The cheap families are the wrong instrument for every arm here. Reaching
+    one costs four or five candidates, so there is nothing to improve and no
+    difference a better order could make. What costs is writing a way of
+    computing, which is thousands, and that is where a saving is worth having.
+    """
+    for _ in range(tries):
+        made = _a_family_from(
+            rng, over, library, deepest,
+            must_contain=must_contain, must_not_contain=must_not_contain,
+        )
+        if made is None:
+            continue
+        family, body = made
+        if induce_from(family.transitions) is None:
+            return family, body
+    return None
+
+
+def _the_last_head() -> Code | None:
+    """The body of the way of computing she wrote most recently."""
+    from core.cognition.one_algebra import DERIVED_HEADS
+
+    if not DERIVED_HEADS:
+        return None
+    return list(DERIVED_HEADS.values())[-1].body
+
+
+def proactive(rng: random.Random, *, episodes_wanted: int, within: float) -> dict[str, Any]:
+    """Solutions that WORK and are dear. Does she improve them anyway?
 
     The experiment a failure-driven ladder cannot run, because nothing fails.
+    Every family in this arm gets answered; the only thing wrong with any of
+    them is what answering cost. If she changes nothing, the answer to the
+    question is no.
+    """
+    from core.cognition.sequence_induction import _a_word_the_language_was_missing
+
+    _fresh()
+    _register()
+    names = sorted(WHERE_FROM)
+    solved = 0
+    spent: list[int] = []
+    for _ in range(episodes_wanted):
+        made = _a_family_she_cannot_say(
+            rng, over=(names[0], names[1]), library=[], deepest=3
+        )
+        if made is None:
+            continue
+        family, _body = made
+        start_counting_again()
+        began = time.monotonic()
+        said = _a_word_the_language_was_missing(family.transitions)
+        spent.append(int((time.monotonic() - began) * 1000))
+        if said:
+            solved += 1
+    if not spent:
+        return {"arm": "proactive", "families": 0, "why": "no dear family"}
+
+    # Nothing has failed. The record holds successes that were expensive, and
+    # the question is whether that alone moves her.
+    sat_before = how_soon_they_are_found(THE_ORDER)
+    forget_the_trace()
+    decided, came = she_develops_herself()
+    sat_after = how_soon_they_are_found(the_order_she_uses())
+    return {
+        "arm": "proactive",
+        "families": len(spent),
+        "solved": solved,
+        "milliseconds each": round(statistics.mean(spent), 1),
+        "rankings kept": len(how_the_last_ones_looked()),
+        "chose": decided.action.name if decided.action else None,
+        "because": decided.because,
+        "grounds": decided.grounds,
+        "gave": came,
+        "winner sat at": None if sat_before == float("inf") else round(sat_before, 2),
+        "now sits at": None if sat_after == float("inf") else round(sat_after, 2),
+        "improved something that worked": bool(came) and sat_after < sat_before,
+        "nothing failed": solved == len(spent),
+        "nobody asked": all(one.started_by == "she" for one in the_trace()),
+    }
+
+
+def transfer(rng: random.Random, *, apart: bool, within: float) -> dict[str, Any]:
+    """Is what the first family bought used on the second, unbidden?
+
+    Two families over different pairs of words, so the states look unrelated.
+    What differs between the arms is whether the second family's term contains
+    the piece the first one taught her; `apart` is the control, where it does
+    not, and a mechanism reusing out of habit rather than out of fit shows the
+    same numbers there and is caught.
+
+    Nothing in the run says the word reuse. There is no instruction to look at
+    what she learned before, and the trace is reported so that can be checked
+    rather than believed.
     """
     from core.cognition.sequence_induction import (
-        _Situation,
-        _she_may_improve_a_working_answer,
-        _what_family_this_is,
+        _a_word_the_language_was_missing,
+        _everything_she_can_say,
+        _put_back,
     )
 
     _fresh()
     _register()
-    made: list[Family] = []
-    while len(made) < episodes_wanted:
-        one = _a_family(rng, [], 3)
-        if one is None:
+    names = sorted(WHERE_FROM)
+    here, there = (names[0], names[1]), (names[2], names[3])
+    # Keep meeting families until one of them makes her write a way of
+    # computing. A family answered with a new word leaves nothing shaped like a
+    # term to carry across, so it is not a case this arm can measure.
+    said = None
+    piece = None
+    for _ in range(12):
+        first = _a_family_she_cannot_say(rng, over=here, library=[], deepest=3)
+        if first is None:
             continue
-        if induce_from(one.transitions) is None:
-            continue  # she can already say it, or this arm is not about it
-        made.append(one)
-    if not made:
-        return {"arm": "proactive", "families": 0, "why": "no sayable family"}
+        family, _body = first
+        said = _a_word_the_language_was_missing(family.transitions)
+        piece = _the_last_head()
+        if piece is not None:
+            break
+    if piece is None:
+        return {
+            "arm": "transfer",
+            "apart": apart,
+            "why": "she wrote no head in twelve families",
+            "admitted": said,
+        }
 
-    was = [_what_it_costs_to_say(one) for one in made]
-    changed: list[str] = []
-    for one in made:
-        family = _what_family_this_is(one.transitions)
-        cost = _what_it_costs_to_say(one)
-        note_an_episode(family, route="a meaning she induced", walked=cost)
-        said = _she_may_improve_a_working_answer(one.transitions, family, cost)
-        if said:
-            changed.append(said)
-    now = [_what_it_costs_to_say(one) for one in made]
-    return {
-        "arm": "proactive",
-        "families": len(made),
-        "walked before": round(statistics.mean(was), 1),
-        "walked after": round(statistics.mean(now), 1),
-        "changed": changed,
-        "she started": who_started_it("trigger"),
-        "nothing failed": True,
-    }
-
-
-def transfer(rng: random.Random, *, apart: bool) -> dict[str, Any]:
-    """Is what the first family bought used on the second, unbidden?
-
-    `apart` is the control: a second family with no structure in common, where
-    a mechanism that reuses out of habit rather than out of fit would show the
-    same numbers and be caught.
-    """
-    _fresh()
-    _register()
-    first = None
-    while first is None:
-        first = _a_family(rng, [], 3)
-    library = [one for one in WHERE_FROM.values()]
-    second = None
-    tries = 0
-    while second is None and tries < 60:
-        tries += 1
-        second = _a_family(rng, [] if apart else list(library)[:3], 3)
+    second = _a_family_she_cannot_say(
+        rng, over=there, library=[piece], deepest=3,
+        must_contain=None if apart else piece,
+        must_not_contain=piece if apart else None,
+    )
     if second is None:
         return {"arm": "transfer", "apart": apart, "why": "no second family"}
+    other, _other_body = second
 
-    before = _what_it_costs_to_say(second)
-    note_an_episode("first", route="a meaning she induced", walked=_what_it_costs_to_say(first))
-    after = _what_it_costs_to_say(second)
-    told_to_reuse = any(one.started_by == "asked" for one in the_trace())
+    held = _everything_she_can_say()
+    began = time.monotonic()
+    with_it = bool(_a_word_the_language_was_missing(other.transitions))
+    with_cost = round(time.monotonic() - began, 2)
+    told = any(one.started_by == "asked" for one in the_trace())
+
+    _fresh()
+    _register()
+    began = time.monotonic()
+    without_it = bool(_a_word_the_language_was_missing(other.transitions))
+    without_cost = round(time.monotonic() - began, 2)
+    _put_back(held)
     return {
         "arm": "transfer",
         "apart": apart,
-        "second before": before,
-        "second after": after,
-        "used what the first bought": after < before,
-        "was told to reuse": told_to_reuse,
+        "she admitted": said,
+        "second with what the first bought": with_it,
+        "seconds with": with_cost,
+        "second without it": without_it,
+        "seconds without": without_cost,
+        "it helped": with_it and not without_it,
+        "was told to reuse": told,
     }
 
 
@@ -240,17 +333,11 @@ def recursion(rng: random.Random, *, episodes_wanted: int, within: float) -> dic
     record_before = what_the_record_would_have_cost(THE_WORTH)
 
     # M1: does the ranking reach for an order, unprompted?
-    first = what_is_worth_doing_now()
-    m1 = None
-    if first.action is not None:
-        m1 = first.action.do_it(None)
+    first, m1 = she_develops_herself()
     ranked_after = how_soon_they_are_found(the_order_she_uses())
 
     # M2: with M1 in force, does it reach for a way of deciding?
-    second = what_is_worth_doing_now()
-    m2 = None
-    if second.action is not None:
-        m2 = second.action.do_it(None)
+    second, m2 = she_develops_herself()
     record_after = what_the_record_would_have_cost(the_worth_she_uses())
 
     return {
@@ -305,7 +392,7 @@ def idle(rng: random.Random, *, episodes_wanted: int) -> dict[str, Any]:
             walked=_what_it_costs_to_say(one),
         )
     forget_the_trace()
-    decided = what_is_worth_doing_now()
+    decided, _came = she_develops_herself()
     return {
         "arm": "idle",
         "episodes in the record": len(episodes()),
@@ -375,12 +462,12 @@ def main() -> int:
     for arm in wanted:
         began = time.monotonic()
         if arm == "proactive":
-            got = proactive(rng, episodes_wanted=said.episodes)
+            got = proactive(rng, episodes_wanted=said.episodes, within=said.within)
         elif arm == "transfer":
-            got = transfer(rng, apart=False)
+            got = transfer(random.Random(said.seed), apart=False, within=said.within)
             found.append(got)
             print(json.dumps(got))
-            got = transfer(rng, apart=True)
+            got = transfer(random.Random(said.seed), apart=True, within=said.within)
         elif arm == "recursion":
             got = recursion(rng, episodes_wanted=said.episodes, within=said.within)
         elif arm == "idle":

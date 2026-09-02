@@ -74,6 +74,15 @@ class ADevelopmentalAction:
     written: Any = None
     #: Where it came from, for the trace.
     hers: bool = False
+    #: Whether it is about a case in hand or about her.
+    #:
+    #: Widening a language needs something the language could not say; there is
+    #: nothing to widen it towards otherwise. Improving the order she tries
+    #: things in needs no case at all — it is scored on the ones she has
+    #: already lived. So the two kinds are eligible on different occasions, and
+    #: an action asked to work with nothing to work on is ineligible rather
+    #: than broken.
+    needs_a_case: bool = True
 
 
 #: The places a term can be installed. Not a taxonomy of development — a list
@@ -103,6 +112,7 @@ def what_she_could_do(
     price: int = 0,
     written: Any = None,
     hers: bool = False,
+    needs_a_case: bool = True,
 ) -> ADevelopmentalAction:
     """Put an action in the registry. The one call, for hers and for ours."""
     if over not in WHERE_A_TERM_CAN_GO:
@@ -115,14 +125,24 @@ def what_she_could_do(
         price=max(0, int(price)),
         written=written,
         hers=bool(hers),
+        needs_a_case=bool(needs_a_case),
     )
     WHAT_SHE_COULD_DO[made.name] = made
     return made
 
 
-def the_actions_she_has() -> tuple[ADevelopmentalAction, ...]:
-    """Everything she could do, in the order they were admitted."""
-    return tuple(WHAT_SHE_COULD_DO.values())
+def the_actions_she_has(
+    *, with_a_case: bool = True
+) -> tuple[ADevelopmentalAction, ...]:
+    """Everything she could do here, in the order they were admitted.
+
+    With no case in hand, only the ones that are about her.
+    """
+    return tuple(
+        one
+        for one in WHAT_SHE_COULD_DO.values()
+        if with_a_case or not one.needs_a_case
+    )
 
 
 def the_action_she_wrote(

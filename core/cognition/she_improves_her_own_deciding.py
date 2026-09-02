@@ -248,6 +248,7 @@ def offer_what_she_can_do_about_herself(*, within: float = 20.0) -> None:
             over="the order she tries them in",
             kind="an order",
             do_it=a_sooner_order,
+            needs_a_case=False,
         )
     if "a way of deciding what to change" not in WHAT_SHE_COULD_DO:
         what_she_could_do(
@@ -255,4 +256,5 @@ def offer_what_she_can_do_about_herself(*, within: float = 20.0) -> None:
             over="what a change is worth",
             kind="a way of deciding",
             do_it=a_better_way_of_deciding,
+            needs_a_case=False,
         )
