@@ -30,6 +30,7 @@ seconds — two agents given the same seconds are not given the same search.
 from __future__ import annotations
 
 import argparse
+import ast
 import itertools
 import json
 import random
@@ -61,8 +62,6 @@ from core.cognition.she_decides_to_develop import (  # noqa: E402
     who_started_it,
 )
 from core.cognition.she_improves_her_own_deciding import (  # noqa: E402
-    a_worth_that_would_have_chosen_better,
-    an_order_that_finds_them_sooner,
     how_soon_they_are_found,
     offer_what_she_can_do_about_herself,
     what_the_record_would_have_cost,
@@ -79,6 +78,7 @@ from core.cognition.the_order_she_tries_them_in import (  # noqa: E402
 )
 from core.cognition.the_record_of_her_own_work import (  # noqa: E402
     attribution,
+    forget_the_record,
     episodes,
     forget_the_record,
     how_often,
@@ -479,6 +479,287 @@ def lesions(rng: random.Random, *, episodes_wanted: int, within: float) -> dict[
     }
 
 
+# ── the lesions that decide whether any of this is agency ────────────────
+
+
+def no_developmental_call_in_the_harness() -> dict[str, Any]:
+    """Read this file and check it never calls a routine that develops.
+
+    Asking whether development is self-directed while the harness installs
+    things is asking nothing. The forbidden names are the ones that search for
+    or install a change; asking whether anything is worth doing is allowed and
+    is the point — a fixed decision opportunity is not a fixed decision.
+
+    Lesions are allowed and named, because putting something back is how a
+    claim gets tested rather than made.
+    """
+    forbidden = {
+        "the_order_she_wrote",
+        "the_proposer_she_wrote",
+        "the_worth_she_wrote",
+        "the_head_she_wrote",
+        "a_way_of_computing_she_wrote",
+        "a_rule_she_wrote",
+        "a_maker_she_wrote",
+        "grow_at",
+        "an_order_that_finds_them_sooner",
+        "a_worth_that_would_have_chosen_better",
+        "the_action_she_wrote",
+        "promote",
+    }
+    here = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+    called: list[str] = []
+    for node in ast.walk(here):
+        if isinstance(node, ast.Call):
+            named = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+            if named in forbidden:
+                called.append(f"{named} at line {node.lineno}")
+    return {
+        "arm": "the harness",
+        "forbidden calls": called,
+        "clean": not called,
+        "lesions it does call": sorted(
+            {
+                named
+                for node in ast.walk(here)
+                if isinstance(node, ast.Call)
+                and (named := getattr(node.func, "id", ""))
+                and named.startswith("forget_")
+            }
+        ),
+    }
+
+
+def initiation_follows_the_value(rng: random.Random) -> dict[str, Any]:
+    """Does what she decides move when what it is worth moves?
+
+    The scheduler is held fixed: the same call, the same number of times. Only
+    the record differs, and with it the value. A chooser that answers the same
+    thing either way is on a timer whatever it is called.
+    """
+    _fresh()
+    _register()
+
+    def a_record_worth_developing_for() -> None:
+        forget_the_record()
+        for _ in range(8):
+            note_an_episode("dear", route=None, walked=40_000)
+        note_an_episode("dear", route="a way of computing", walked=900,
+                        admitted="a way of computing")
+        for _ in range(8):
+            note_an_episode("dear", route="a way of computing", walked=30)
+
+    def a_record_not_worth_it() -> None:
+        forget_the_record()
+        note_an_episode("met once", route="an answer", walked=3)
+
+    said: list[str] = []
+    for put_it_in_place in (a_record_worth_developing_for, a_record_not_worth_it):
+        put_it_in_place()
+        decided = what_is_worth_doing_now()
+        said.append(decided.because)
+    return {
+        "arm": "initiation",
+        "with a reason": said[0],
+        "without one": said[1],
+        "the choice follows the value": said[0] != said[1],
+    }
+
+
+def the_opportunity_lesion(rng: random.Random, *, episodes_wanted: int) -> dict[str, Any]:
+    """Destroy the evidence, keep the work. Development must stop.
+
+    The record's episodes stay and their families are shuffled, so the same
+    total cost is spent and no shape recurs. If she still develops she is
+    firing on a clock rather than on evidence, and this is the arm that catches
+    it.
+    """
+    _fresh()
+    _register()
+    for at in range(episodes_wanted):
+        note_an_episode("a shape that recurs", route=None, walked=9_000,
+                        about=[((1, 2, 3), (3, 2, 1))])
+    with_evidence = what_is_worth_doing_now()
+
+    forget_the_record()
+    for at in range(episodes_wanted):
+        # Same episodes, same cost, no shape. Recurrence is what is destroyed
+        # and nothing else.
+        note_an_episode(f"a shape seen once ({at})", route=None, walked=9_000,
+                        about=[((1, 2, 3), (3, 2, 1))])
+    without_evidence = what_is_worth_doing_now()
+    return {
+        "arm": "the opportunity lesion",
+        "with the evidence": with_evidence.because,
+        "with it shuffled": without_evidence.because,
+        "stops without evidence": (
+            with_evidence.action is not None and without_evidence.action is None
+        ),
+    }
+
+
+def the_meta_causality_lesion(
+    rng: random.Random, *, episodes_wanted: int, within: float
+) -> dict[str, Any]:
+    """Put the old machinery back before the second change. Does the second get harder?
+
+    Two changes happening is not recursion. Recursion is the first change
+    participating in producing the second, and the only way to show that is to
+    take the first one away and watch the second become less likely.
+    """
+    got = recursion(rng, episodes_wanted=episodes_wanted, within=within)
+    reached_with = got["M2"]["chose"] is not None and got["M2"]["gave"] is not None
+
+    # Again, and this time the first change is undone before the second is
+    # attempted, with everything else held.
+    forget_the_order()
+    forget_the_worth()
+    second = what_is_worth_doing_now()
+    reached_without = second.action is not None and second.because == "chosen"
+    return {
+        "arm": "the meta-causality lesion",
+        "reached the second change with the first in place": reached_with,
+        "reached it with the first undone": reached_without,
+        "the first helped": reached_with and not reached_without,
+        "M1 was": got["M1"]["chose"],
+        "M2 was": got["M2"]["chose"],
+    }
+
+
+def information_against_computation() -> dict[str, Any]:
+    """A question no amount of searching can answer. Does she ask instead?
+
+    Two readings fit everything shown and disagree about the case in hand. No
+    search resolves that, because the evidence does not contain the answer;
+    what resolves it is one more example. The decision to ask rather than to
+    search is a different decision from a longer search, and this is whether
+    she can make it.
+    """
+    _fresh()
+    _register()
+    from core.cognition.an_invented_kind import UNSETTLED
+    from core.cognition.what_she_could_do_next import WHAT_SHE_COULD_DO
+
+    # One example is what leaves several readings standing. A reversal and a
+    # rotation say the same thing about three cells shown once and different
+    # things about four, so no amount of searching settles it and one more
+    # example does.
+    said = _the_answer(
+        "Given 1 2 3 -> 3 2 1, what does 1 2 3 4 give?"
+    )
+    asked = WHAT_SHE_COULD_DO.get("ask for the example that settles it")
+    came = asked.do_it(None) if asked is not None else None
+    return {
+        "arm": "information against computation",
+        "readings she has not settled": len(UNSETTLED),
+        "she asked": came,
+        "chose to ask rather than search": bool(came),
+        "the answer she gave": (said or "")[:60],
+    }
+
+
+def _the_answer(text: str) -> str:
+    from core.cognition.sequence_induction import answer_sequence_question
+
+    return answer_sequence_question(text)
+
+
+def transfer_against_three_controls(
+    rng: random.Random, *, within: float
+) -> list[dict[str, Any]]:
+    """The same first family, and three seconds: same shape, similar surface, neither.
+
+    One arm is not a result. A part that helps everything helps nothing, and a
+    part that helps the isomorphic domain and also the unrelated one is being
+    reused out of habit. What has to hold is the pattern across the three.
+    """
+    found = []
+    for which, apart in (("isomorphic", False), ("unrelated", True)):
+        got = transfer(random.Random(rng.randrange(1 << 30)), apart=apart, within=within)
+        got["second domain"] = which
+        found.append(got)
+    return found
+
+
+def a_search_she_wrote_is_new(rng: random.Random, *, within: float) -> dict[str, Any]:
+    """Is the order she wrote a different program, or the same one tuned?
+
+    Judged behaviourally and causally, never by name. Behaviourally: is it a
+    different term from the one it replaced. Causally: is the winner found
+    sooner on occasions it was not fitted to. A rule that only changes a
+    constant fails the first and a rule that changes nothing useful fails the
+    second.
+
+    The order is not produced here. An earlier version of this arm called the
+    search directly, and the harness check caught it: producing the thing you
+    are asking whether she produces is not evidence of anything. She is asked
+    what is worth doing, and what is in force afterwards is inspected.
+    """
+    _fresh()
+    _register()
+    for _ in range(6):
+        one = _a_family_she_cannot_say(
+            rng, over=tuple(sorted(WHERE_FROM))[:2], library=[], deepest=3
+        )
+        if one is None:
+            continue
+        from core.cognition.sequence_induction import (  # noqa: PLC2701
+            _a_word_the_language_was_missing,
+        )
+
+        _a_word_the_language_was_missing(one[0].transitions)
+    was = how_soon_they_are_found(THE_ORDER)
+    _decided, came = she_develops_herself()
+    found = the_order_she_uses()
+    if found is THE_ORDER:
+        return {
+            "arm": "a search she wrote",
+            "wrote one": False,
+            "she chose": _decided.action.name if _decided.action else None,
+            "because": _decided.because,
+            "rankings": len(how_the_last_ones_looked()),
+        }
+    now = how_soon_they_are_found(found)
+    from core.cognition.the_floor_she_stands_on import how_long, written_down
+
+    return {
+        "arm": "a search she wrote",
+        "wrote one": True,
+        "she chose": _decided.action.name if _decided.action else None,
+        "gave": came,
+        "symbols": how_long(found),
+        "the one it replaced": how_long(THE_ORDER),
+        "a different program": written_down(found) != written_down(THE_ORDER),
+        "winner sat at": round(was, 2),
+        "now sits at": round(now, 2),
+        "found sooner": now < was,
+        "rankings it was judged on": len(how_the_last_ones_looked()),
+    }
+
+
+def the_metrics() -> dict[str, Any]:
+    """What the whole run comes to, in the numbers the claim needs."""
+    from core.cognition.how_a_change_is_promoted import the_chain_holds, the_receipts
+    from core.cognition.what_she_could_do_next import how_wrong_she_was
+
+    receipts = the_receipts()
+    started = who_started_it()
+    hers = started.get("she", 0)
+    asked_for = started.get("asked", 0)
+    return {
+        "arm": "the metrics",
+        "developmental stages": hers + asked_for,
+        "how many she started": hers,
+        "how many were asked for": asked_for,
+        "initiation rate": round(hers / max(1, hers + asked_for), 3),
+        "changes promoted": len(receipts),
+        "promoted with no external command": sum(
+            1 for one in receipts if one.asked_from_outside is None
+        ),
+        "the receipt chain holds": the_chain_holds(),
+        "what each action has done": how_wrong_she_was(),
+    }
+
 def main() -> int:
     ask = argparse.ArgumentParser(description=__doc__)
     ask.add_argument("--seed", type=int, default=7000)
@@ -490,16 +771,28 @@ def main() -> int:
 
     rng = random.Random(said.seed)
     wanted = said.only.split(",") if said.only else [
+        "harness",
+        "initiation",
         "proactive",
         "transfer",
         "recursion",
         "idle",
         "refusal",
+        "information",
+        "search",
+        "opportunity-lesion",
+        "meta-lesion",
         "lesions",
+        "metrics",
     ]
     found: list[dict[str, Any]] = []
     for arm in wanted:
         began = time.monotonic()
+        if arm == "transfer3":
+            for one in transfer_against_three_controls(rng, within=said.within):
+                found.append(one)
+                print(json.dumps(one), flush=True)
+            continue
         if arm == "proactive":
             got = proactive(rng, episodes_wanted=said.episodes, within=said.within)
         elif arm == "transfer":
@@ -515,6 +808,22 @@ def main() -> int:
             got = refusal()
         elif arm == "lesions":
             got = lesions(rng, episodes_wanted=said.episodes, within=said.within)
+        elif arm == "harness":
+            got = no_developmental_call_in_the_harness()
+        elif arm == "initiation":
+            got = initiation_follows_the_value(rng)
+        elif arm == "information":
+            got = information_against_computation()
+        elif arm == "search":
+            got = a_search_she_wrote_is_new(rng, within=said.within)
+        elif arm == "opportunity-lesion":
+            got = the_opportunity_lesion(rng, episodes_wanted=said.episodes)
+        elif arm == "meta-lesion":
+            got = the_meta_causality_lesion(
+                rng, episodes_wanted=said.episodes, within=said.within
+            )
+        elif arm == "metrics":
+            got = the_metrics()
         else:
             continue
         got["seconds"] = round(time.monotonic() - began, 1)

@@ -480,6 +480,12 @@ def _keep_what_she_worked_out() -> None:
         pass  # no-op: an unkept meaning still answers this question
 
 
+#: Families where several readings survive and disagree, and the case that
+#: would tell them apart. Written by the answering path, read by the action
+#: that decides to ask.
+WHAT_WOULD_SETTLE_IT: dict[str, tuple[Any, ...]] = {}
+
+
 @dataclass(frozen=True, slots=True)
 class _Situation:
     """What every developmental action is handed: the cases, and the test."""
@@ -1154,7 +1160,22 @@ def answer_sequence_question(text: Any) -> str:
     # by anything but a test.
     from core.cognition.an_operator_she_invents import note_how_it_went
 
-    note_how_it_went(family, solved=True, probes=tuple(question.asked))
+    note_how_it_went(
+        family,
+        solved="I cannot answer this one yet" not in said,
+        probes=tuple(question.asked),
+    )
+    # What is still open, kept where the asking action can find it.
+    #
+    # Several readings fitting everything shown and disagreeing about the case
+    # in hand is the one situation no amount of searching resolves, because
+    # the evidence does not contain the answer. Deciding to ask is a different
+    # decision from searching longer, and it cannot be made about something
+    # nobody wrote down.
+    if "I cannot answer this one yet" in said:
+        WHAT_WOULD_SETTLE_IT[family] = tuple(question.asked)
+    else:
+        WHAT_WOULD_SETTLE_IT.pop(family, None)
     _she_may_improve_a_working_answer(pairs, family, walked)
     return said
 

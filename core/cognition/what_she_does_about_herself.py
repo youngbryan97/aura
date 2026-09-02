@@ -220,7 +220,19 @@ def offer_what_she_can_do_about_what_she_is_made_of() -> None:
             UNSETTLED,
             what_would_tell_them_apart,
         )
+        from core.cognition.sequence_induction import WHAT_WOULD_SETTLE_IT
 
+        # The positional path first, because that is where most questions are
+        # answered and so where most of what stays open lives. Reading only the
+        # induced-meaning registry meant the action could see nothing on the
+        # very cases it exists for.
+        for family, asked in list(WHAT_WOULD_SETTLE_IT.items()):
+            logger.info(
+                "she decided to ask rather than to search about %s", family
+            )
+            return (
+                f"asked what {list(asked)} gives, which settles {family}"
+            )
         for unsure, meanings in list(UNSETTLED.items()):
             if len(meanings) < 2:
                 continue
@@ -236,6 +248,7 @@ def offer_what_she_can_do_about_what_she_is_made_of() -> None:
                         f"asked what {list(asked)} gives, which settles {unsure}"
                     )
         return None
+
 
     for name, over, kind, do_it in (
         ("let go of a part that pays nothing", "the words", "letting go", let_go),

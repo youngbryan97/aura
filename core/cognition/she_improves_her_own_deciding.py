@@ -250,6 +250,35 @@ def offer_what_she_can_do_about_herself(*, within: float = 20.0) -> None:
             do_it=a_sooner_order,
             needs_a_case=False,
         )
+    def look_deeper(situation: Any = None) -> str | None:
+        """Offer candidates one level down, where the shallow ones ran out.
+
+        Depth two is one head over two leaves and it is where most short
+        answers are. Past it the authored enumerator took over, and a proposer
+        that hands off at a fixed boundary has a fixed boundary. This is the
+        next shape — a head over a head and a leaf — and installing it is a
+        decision rather than a default, because every candidate it offers costs
+        more to build and check than a shallow one.
+        """
+        from core.cognition.the_proposer_she_can_replace import (
+            THE_DEEPER_PROPOSER,
+            the_proposer_in_use,
+            the_proposer_she_wrote,
+        )
+
+        if the_proposer_in_use() is THE_DEEPER_PROPOSER:
+            return None
+        the_proposer_she_wrote(THE_DEEPER_PROPOSER)
+        return "offered candidates one level deeper"
+
+    if "look one level deeper" not in WHAT_SHE_COULD_DO:
+        what_she_could_do(
+            "look one level deeper",
+            over="the proposer",
+            kind="a deeper proposer",
+            do_it=look_deeper,
+            needs_a_case=False,
+        )
     if "a way of deciding what to change" not in WHAT_SHE_COULD_DO:
         what_she_could_do(
             "a way of deciding what to change",

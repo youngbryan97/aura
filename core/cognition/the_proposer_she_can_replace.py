@@ -63,6 +63,7 @@ from core.cognition.the_floor_she_stands_on import (
 
 __all__ = [
     "HOW_MANY_ARITHMETIC_HEADS",
+    "THE_DEEPER_PROPOSER",
     "THE_PROPOSER",
     "WHAT_A_PROPOSER_IS_GIVEN",
     "forget_the_proposer",
@@ -161,8 +162,100 @@ def _the_proposer_as_written() -> Any:
     )
 
 
+def _the_deeper_proposer_as_written() -> Any:
+    """One arithmetic head whose left side is itself an arithmetic head.
+
+    The depth-two proposer covers one head over two leaves, and past that the
+    authored enumerator took over. This covers one head over a head and a leaf,
+    which is the shape almost every longer answer has: something worked out,
+    then combined with something simple.
+
+    Flat rather than recursive on purpose. A term that recurses needs the fixed
+    point, and the fixed point costs fuel on every candidate — which is paid on
+    the ones that do not need it. Two shapes, chosen between by whether she
+    thinks the deeper one is worth it, is cheaper than one shape that is always
+    deep.
+
+    Indexed the same way: the number is divided down through the outer head,
+    the inner head, and three leaves.
+    """
+    def a_head_over(left: Any, right: Any, which: Any) -> Any:
+        return PAIR(
+            PLUS(
+                N(_WHERE_THE_ARITHMETIC_STARTS),
+                LEFTOVER(which, N(HOW_MANY_ARITHMETIC_HEADS)),
+            ),
+            PAIR(N(0), PAIR(left, PAIR(right, NIL))),
+        )
+
+    return L(
+        "which",
+        L(
+            "leaves",
+            A(
+                L(
+                    "inner",
+                    A(
+                        L(
+                            "rest",
+                            A(
+                                L(
+                                    "a",
+                                    A(
+                                        L(
+                                            "b",
+                                            A(
+                                                L(
+                                                    "c",
+                                                    a_head_over(
+                                                        a_head_over(
+                                                            _a_leaf(V("a")),
+                                                            _a_leaf(V("b")),
+                                                            V("inner"),
+                                                        ),
+                                                        _a_leaf(V("c")),
+                                                        V("which"),
+                                                    ),
+                                                ),
+                                                LEFTOVER(
+                                                    OVER(
+                                                        OVER(V("rest"), V("leaves")),
+                                                        V("leaves"),
+                                                    ),
+                                                    V("leaves"),
+                                                ),
+                                            ),
+                                        ),
+                                        LEFTOVER(
+                                            OVER(V("rest"), V("leaves")), V("leaves")
+                                        ),
+                                    ),
+                                ),
+                                LEFTOVER(V("rest"), V("leaves")),
+                            ),
+                        ),
+                        OVER(
+                            OVER(V("which"), N(HOW_MANY_ARITHMETIC_HEADS)),
+                            N(HOW_MANY_ARITHMETIC_HEADS),
+                        ),
+                    ),
+                ),
+                LEFTOVER(
+                    OVER(V("which"), N(HOW_MANY_ARITHMETIC_HEADS)),
+                    N(HOW_MANY_ARITHMETIC_HEADS),
+                ),
+            ),
+        ),
+    )
+
+
 #: The proposer she was given. A term of the floor, and nothing else.
 THE_PROPOSER: Code = build(_the_proposer_as_written())
+
+#: The same idea one level down: a head over a head and a leaf. Not in force;
+#: going deeper costs more per candidate, so it is something to decide rather
+#: than something to default to.
+THE_DEEPER_PROPOSER: Code = build(_the_deeper_proposer_as_written())
 
 #: The one in force. Replaced by the same call that replaces a head, and there
 #: is no second mechanism for it.

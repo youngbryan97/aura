@@ -68,6 +68,10 @@ from core.cognition.what_it_is_worth_doing import (
     what_it_risks,
     what_the_record_says_is_slow,
 )
+from core.cognition.what_she_expects_of_herself import (
+    what_actually_happened,
+    what_she_expects,
+)
 from core.cognition.what_she_could_do_next import (
     ADevelopmentalAction,
     note_what_it_did,
@@ -385,6 +389,10 @@ def she_decides_to_develop(
     if decided.action is None:
         note_an_episode(family, route=None, walked=0, admitted=None)
         return decided, None
+    # Said before it happens, so the comparison afterwards is against something
+    # fixed rather than against a memory of what she would have said.
+    expected = what_she_expects(decided.action.name, costs_now=costs_now)
+    _note("prediction", decided.started_by, expected.describes())
     try:
         came_of_it = decided.action.do_it(situation)
     except Exception as exc:  # noqa: BLE001 - a failed action is a result
@@ -411,6 +419,12 @@ def she_decides_to_develop(
         )
     note_what_it_did(
         decided.action.name,
+        kept=bool(came_of_it),
+        gained=int(decided.worth.saving or 0) if decided.worth else 0,
+    )
+    what_actually_happened(
+        decided.action.name,
+        cost=decided.worth.cost if decided.worth else costs_now,
         kept=bool(came_of_it),
         gained=int(decided.worth.saving or 0) if decided.worth else 0,
     )
@@ -502,6 +516,9 @@ def she_develops_herself() -> tuple[Decision, Any]:
          if one.what == "diagnosis" and " costs" in one.about),
         "herself",
     )
+    each_costs = decided.worth.cost if decided.worth else 0
+    expected = what_she_expects(decided.action.name, costs_now=each_costs)
+    _note("prediction", "she", expected.describes())
     try:
         came_of_it = decided.action.do_it(None)
     except Exception as exc:  # noqa: BLE001 - a failed action is a result
@@ -520,6 +537,12 @@ def she_develops_herself() -> tuple[Decision, Any]:
         )
     note_what_it_did(
         decided.action.name,
+        kept=bool(came_of_it),
+        gained=int(decided.worth.saving or 0) if decided.worth else 0,
+    )
+    what_actually_happened(
+        decided.action.name,
+        cost=decided.worth.cost if decided.worth else each_costs,
         kept=bool(came_of_it),
         gained=int(decided.worth.saving or 0) if decided.worth else 0,
     )

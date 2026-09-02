@@ -384,10 +384,14 @@ def test_a_choice_she_made_is_recorded_as_hers():
     decided, came = she_decides_to_develop("f", costs_now=1000)
     assert decided.started_by == "she"
     assert who_started_it("trigger") == {"she": 1}
+    # The prediction sits between choosing and doing on purpose: it has to be
+    # fixed before the outcome exists or it is a memory of what she would have
+    # said.
     assert [one.what for one in the_trace()] == [
         "trigger",
         "diagnosis",
         "proposal",
+        "prediction",
         "evaluation",
         "installation",
     ]
