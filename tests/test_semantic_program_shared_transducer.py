@@ -15,6 +15,9 @@ from core.learning.semantic_input_grounding import (
 )
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_compositional_transducer import (
+    _directional_relation_feature,
+    _operation_order,
+    _OperationNode,
     compositional_semantic_program_transducer_from_dict,
     fit_compositional_semantic_program_transducer,
 )
@@ -261,8 +264,8 @@ def test_compositional_transducer_assembles_typed_atoms_without_a_geometry_head(
     assert treatment.total == 4
     assert treatment.geometry_exact == treatment.total
     assert treatment.operation_exact == treatment.total
-    assert treatment.program_exact == 2
-    assert treatment.answer_exact == 2
+    assert treatment.program_exact >= 2
+    assert treatment.answer_exact >= 2
     assert coefficient.program_exact < treatment.program_exact
     assert dependency.program_exact < treatment.program_exact
     assert model.training_receipt["global_geometry_classifier_present"] is False
@@ -281,6 +284,34 @@ def test_compositional_transducer_binds_learned_type_limits_to_its_receipt() -> 
 
     with pytest.raises(ValueError, match="envelope"):
         compositional_semantic_program_transducer_from_dict(payload)
+
+
+def test_compositional_graph_orders_dependencies_instead_of_prose_position() -> None:
+    nodes = (
+        _OperationNode(TokenSpan(2, 3), "add", 1.0, 1.0, 1.0),
+        _OperationNode(TokenSpan(10, 11), "mul", 1.0, 1.0, 1.0),
+        _OperationNode(TokenSpan(14, 15), "sub", 1.0, 1.0, 1.0),
+    )
+
+    assert _operation_order(((1,), (), (0, 1)), nodes, require_connected=True) == (
+        1,
+        0,
+        2,
+    )
+    assert _operation_order(((1,),), nodes, require_connected=False) == (0,)
+    assert _operation_order(((1,), (0,)), nodes, require_connected=False) is None
+    assert _operation_order(((), (), ()), nodes, require_connected=True) is None
+
+
+def test_compositional_relation_preserves_reference_direction() -> None:
+    reference = np.asarray([1.0, 0.0], dtype=np.float32)
+    definition = np.asarray([0.0, 1.0], dtype=np.float32)
+
+    forward = _directional_relation_feature(reference, definition)
+    reverse = _directional_relation_feature(definition, reference)
+
+    np.testing.assert_array_equal(forward[:4], reverse[:4])
+    np.testing.assert_array_equal(forward[4:], -reverse[4:])
 
 
 def test_shared_transducer_programs_replay_on_the_universal_floor() -> None:

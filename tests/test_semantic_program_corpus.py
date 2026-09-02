@@ -7,8 +7,10 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_fork_join_corpus,
     build_semantic_program_fork_join_factorial_corpus,
     build_semantic_program_sequence_binary_corpus,
+    build_semantic_program_sequence_cataphoric_corpus,
     build_semantic_program_sequence_corpus,
     build_semantic_program_sequence_reserved_alias_corpus,
+    build_semantic_program_sequence_role_binding_corpus,
     project_example_to_ir,
 )
 
@@ -417,6 +419,47 @@ def test_sequence_binary_corpus_is_deterministic_and_seeded() -> None:
     assert tuple(item.inputs for item in first) != tuple(item.inputs for item in changed)
 
 
+def test_sequence_cataphoric_corpus_separates_text_order_from_execution_order() -> None:
+    examples = build_semantic_program_sequence_cataphoric_corpus(
+        examples_per_operation_pair=2
+    )
+
+    assert len(examples) == 144
+    assert {
+        split: sum(item.split == split for item in examples)
+        for split in ("train", "validation", "test")
+    } == {"train": 48, "validation": 48, "test": 48}
+    assert {
+        len({item.construction_id for item in examples if item.split == split})
+        for split in ("train", "validation", "test")
+    } == {3}
+    for example in examples:
+        first, second = example.instructions
+        assert second.operation_span.end <= first.operation_span.start
+        assert first.instruction.args == (0, 1)
+        assert second.instruction.args in {(3, 2), (2, 3)}
+        assert second.depends_on == (0,)
+        assert example.topology_id == "cataphoric-sequence-to-scalar-chain"
+        assert type(example.program.run(example.inputs)) is int
+        ir = project_example_to_ir(
+            example,
+            source_token_ids=tuple(range(len(example.source_text))),
+            offset_mapping=_character_offsets(example.source_text),
+            model_basis_receipt_sha256="a" * 64,
+            transducer_receipt_sha256="b" * 64,
+        )
+        assert ir.to_program() == example.program
+
+
+def test_sequence_cataphoric_corpus_is_deterministic_and_seeded() -> None:
+    first = build_semantic_program_sequence_cataphoric_corpus(seed=19)
+    replay = build_semantic_program_sequence_cataphoric_corpus(seed=19)
+    changed = build_semantic_program_sequence_cataphoric_corpus(seed=20)
+
+    assert first == replay
+    assert tuple(item.inputs for item in first) != tuple(item.inputs for item in changed)
+
+
 def test_sequence_reserved_alias_corpus_teaches_input_aliases_without_arithmetic_topology() -> None:
     examples = build_semantic_program_sequence_reserved_alias_corpus(
         examples_per_operation_pair=2
@@ -478,6 +521,45 @@ def test_sequence_reserved_alias_corpus_is_deterministic_and_seeded() -> None:
     first = build_semantic_program_sequence_reserved_alias_corpus(seed=17)
     replay = build_semantic_program_sequence_reserved_alias_corpus(seed=17)
     changed = build_semantic_program_sequence_reserved_alias_corpus(seed=18)
+
+    assert first == replay
+    assert tuple(item.inputs for item in first) != tuple(item.inputs for item in changed)
+
+
+def test_sequence_role_binding_corpus_teaches_implicit_input_roles() -> None:
+    examples = build_semantic_program_sequence_role_binding_corpus(
+        examples_per_operation_pair=2
+    )
+
+    assert len(examples) == 144
+    assert {
+        split: len({item.construction_id for item in examples if item.split == split})
+        for split in ("train", "validation", "test")
+    } == {"train": 3, "validation": 3, "test": 3}
+    for example in examples:
+        first, second = example.instructions
+        assert example.topology_id == "role-bound-input-sequence-to-scalar-chain"
+        assert first.instruction.args == (0, 1)
+        assert second.instruction.args in {(3, 2), (2, 3)}
+        reserved_position = second.instruction.args.index(2)
+        assert second.argument_spans[reserved_position] != example.input_spans[2]
+        assert "reserved operand" not in example.source_text.casefold()
+        assert "earlier operand" not in example.source_text.casefold()
+        assert type(example.program.run(example.inputs)) is int
+        ir = project_example_to_ir(
+            example,
+            source_token_ids=tuple(range(len(example.source_text))),
+            offset_mapping=_character_offsets(example.source_text),
+            model_basis_receipt_sha256="a" * 64,
+            transducer_receipt_sha256="b" * 64,
+        )
+        assert ir.to_program() == example.program
+
+
+def test_sequence_role_binding_corpus_is_deterministic_and_seeded() -> None:
+    first = build_semantic_program_sequence_role_binding_corpus(seed=23)
+    replay = build_semantic_program_sequence_role_binding_corpus(seed=23)
+    changed = build_semantic_program_sequence_role_binding_corpus(seed=24)
 
     assert first == replay
     assert tuple(item.inputs for item in first) != tuple(item.inputs for item in changed)

@@ -21,8 +21,10 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
     build_semantic_program_sequence_binary_corpus,
+    build_semantic_program_sequence_cataphoric_corpus,
     build_semantic_program_sequence_corpus,
     build_semantic_program_sequence_reserved_alias_corpus,
+    build_semantic_program_sequence_role_binding_corpus,
 )
 from core.learning.semantic_program_feature_materialization import (
     FAMILY_FEATURE_CONFIG_SCHEMA,
@@ -30,8 +32,10 @@ from core.learning.semantic_program_feature_materialization import (
     FORK_JOIN_FACTORIAL_CORPUS_KIND,
     FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
     SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
+    SEQUENCE_CATAPHORIC_CORPUS_KIND,
     SEQUENCE_CHAIN_CORPUS_KIND,
     SEQUENCE_RESERVED_ALIAS_CORPUS_KIND,
+    SEQUENCE_ROLE_BINDING_CORPUS_KIND,
     SemanticFeatureConfig,
     SemanticFeatureMaterializationError,
     build_semantic_program_corpus_for_config,
@@ -414,6 +418,48 @@ def test_sequence_reserved_alias_family_reconstructs_from_declared_config() -> N
 
     assert corpus == build_semantic_program_sequence_reserved_alias_corpus(
         seed=2449489,
+        examples_per_operation_pair=2,
+    )
+    assert {
+        split: sum(item.split == split for item in corpus)
+        for split in ("train", "validation", "test")
+    } == {"train": 48, "validation": 48, "test": 48}
+
+
+def test_sequence_cataphoric_family_reconstructs_from_declared_config() -> None:
+    config = SemanticFeatureConfig(
+        seed=2653589,
+        examples_per_operation_pair=2,
+        max_examples=144,
+        corpus_kind=SEQUENCE_CATAPHORIC_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+    )
+
+    corpus = build_semantic_program_corpus_for_config(config)
+
+    assert corpus == build_semantic_program_sequence_cataphoric_corpus(
+        seed=2653589,
+        examples_per_operation_pair=2,
+    )
+    assert {
+        split: sum(item.split == split for item in corpus)
+        for split in ("train", "validation", "test")
+    } == {"train": 48, "validation": 48, "test": 48}
+
+
+def test_sequence_role_binding_family_reconstructs_from_declared_config() -> None:
+    config = SemanticFeatureConfig(
+        seed=2828427,
+        examples_per_operation_pair=2,
+        max_examples=144,
+        corpus_kind=SEQUENCE_ROLE_BINDING_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+    )
+
+    corpus = build_semantic_program_corpus_for_config(config)
+
+    assert corpus == build_semantic_program_sequence_role_binding_corpus(
+        seed=2828427,
         examples_per_operation_pair=2,
     )
     assert {

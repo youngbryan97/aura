@@ -1735,6 +1735,283 @@ def build_semantic_program_sequence_binary_corpus(
     return tuple(examples)
 
 
+def _sequence_cataphoric_example_id(
+    construction_id: str,
+    first_op: str,
+    second_op: str,
+    inputs: tuple[tuple[int, ...], int, int],
+    sample_index: int,
+) -> str:
+    body = f"sequence-cataphoric|{construction_id}|{first_op}|{second_op}|{inputs}|{sample_index}"
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:24]
+
+
+def _render_sequence_cataphoric_chain(
+    *,
+    construction_index: int,
+    first_op: str,
+    second_op: str,
+    values: tuple[int, ...],
+    selector: int,
+    adjustment: int,
+) -> tuple[
+    str,
+    tuple[CharacterSpan, CharacterSpan, CharacterSpan],
+    tuple[SemanticInstructionAnnotation, SemanticInstructionAnnotation],
+]:
+    """Render a dependency before its producing operation is mentioned."""
+
+    builder = _AnnotatedText()
+    first_phrase = _SEQUENCE_BINARY_OPERATION_LANGUAGE[first_op][construction_index]
+    second_phrase = _SCALAR_CONTINUATION_LANGUAGE[second_op][construction_index]
+    result_names = (
+        "the pending entry",
+        "the result to be found",
+        "the forthcoming tally",
+        "the value obtained later",
+        "the yet-unknown scalar",
+        "the subsequently computed number",
+        "the later selection result",
+        "the value established next",
+        "the eventual lookup output",
+    )
+    result_name = result_names[construction_index]
+    input_text = "[" + ", ".join(str(value) for value in values) + "]"
+
+    def append_sequence() -> None:
+        builder.append(input_text, label="input:0")
+
+    def append_selector() -> None:
+        builder.append(str(selector), label="input:1")
+
+    def append_adjustment() -> None:
+        builder.append(str(adjustment), label="input:2")
+
+    def append_first_operation() -> None:
+        builder.append(first_phrase, label="operation:0")
+
+    def append_second_operation() -> None:
+        builder.append(second_phrase, label="operation:1")
+
+    def reference_result() -> None:
+        builder.append(result_name, label="argument:result")
+
+    result_first = construction_index % 2 == 0
+
+    def append_dependent_expression() -> None:
+        if result_first:
+            reference_result()
+            builder.append(" ")
+            append_second_operation()
+            builder.append(" ")
+            append_adjustment()
+        else:
+            append_adjustment()
+            builder.append(" ")
+            append_second_operation()
+            builder.append(" ")
+            reference_result()
+
+    if construction_index == 0:
+        builder.append("Before reporting ")
+        append_dependent_expression()
+        builder.append(", first produce ")
+        builder.append(result_name)
+        builder.append(" by performing ")
+        append_first_operation()
+        builder.append(" on ")
+        append_sequence()
+        builder.append(" with selector ")
+        append_selector()
+        builder.append(".")
+    elif construction_index == 1:
+        builder.append("To eventually evaluate ")
+        append_dependent_expression()
+        builder.append(", obtain ")
+        builder.append(result_name)
+        builder.append(" afterward: use ")
+        append_first_operation()
+        builder.append(" for ")
+        append_sequence()
+        builder.append(" at selector ")
+        append_selector()
+        builder.append(".")
+    elif construction_index == 2:
+        builder.append("The requested scalar is ")
+        append_dependent_expression()
+        builder.append("; derive ")
+        builder.append(result_name)
+        builder.append(" first through ")
+        append_first_operation()
+        builder.append(" over ")
+        append_sequence()
+        builder.append(" using selector ")
+        append_selector()
+        builder.append(".")
+    elif construction_index == 3:
+        builder.append("Prior to calculating ")
+        append_dependent_expression()
+        builder.append(", establish ")
+        builder.append(result_name)
+        builder.append(": apply ")
+        append_first_operation()
+        builder.append(" to ")
+        append_sequence()
+        builder.append(" with selector ")
+        append_selector()
+        builder.append(".")
+    elif construction_index == 4:
+        builder.append("Although the final form is ")
+        append_dependent_expression()
+        builder.append(", begin by making ")
+        builder.append(result_name)
+        builder.append(" via ")
+        append_first_operation()
+        builder.append(" on ")
+        append_sequence()
+        builder.append(" for selector ")
+        append_selector()
+        builder.append(".")
+    elif construction_index == 5:
+        builder.append("Resolve ")
+        append_dependent_expression()
+        builder.append(" only after computing ")
+        builder.append(result_name)
+        builder.append(" with ")
+        append_first_operation()
+        builder.append(" from ")
+        append_sequence()
+        builder.append(" at selector ")
+        append_selector()
+        builder.append(".")
+    elif construction_index == 6:
+        builder.append("Before you return ")
+        append_dependent_expression()
+        builder.append(", determine ")
+        builder.append(result_name)
+        builder.append(" by running ")
+        append_first_operation()
+        builder.append(" on ")
+        append_sequence()
+        builder.append(" with selector ")
+        append_selector()
+        builder.append(".")
+    elif construction_index == 7:
+        builder.append("The eventual answer takes ")
+        append_dependent_expression()
+        builder.append("; before that, set ")
+        builder.append(result_name)
+        builder.append(" using ")
+        append_first_operation()
+        builder.append(" over ")
+        append_sequence()
+        builder.append(" for selector ")
+        append_selector()
+        builder.append(".")
+    elif construction_index == 8:
+        builder.append("Plan to finish with ")
+        append_dependent_expression()
+        builder.append(", but first form ")
+        builder.append(result_name)
+        builder.append(" through ")
+        append_first_operation()
+        builder.append(" applied to ")
+        append_sequence()
+        builder.append(" at selector ")
+        append_selector()
+        builder.append(".")
+    else:  # pragma: no cover - private caller pins the construction range
+        raise ValueError("sequence cataphoric construction index is invalid")
+
+    input_spans = tuple(builder.span(f"input:{index}") for index in range(3))
+    second_args = (3, 2) if result_first else (2, 3)
+    second_spans = (
+        (builder.span("argument:result"), input_spans[2])
+        if result_first
+        else (input_spans[2], builder.span("argument:result"))
+    )
+    instructions = (
+        SemanticInstructionAnnotation(
+            instruction=Instruction(first_op, (0, 1)),
+            operation_span=builder.span("operation:0"),
+            argument_spans=(input_spans[0], input_spans[1]),
+            depends_on=(),
+        ),
+        SemanticInstructionAnnotation(
+            instruction=Instruction(second_op, second_args),
+            operation_span=builder.span("operation:1"),
+            argument_spans=second_spans,
+            depends_on=(0,),
+        ),
+    )
+    return builder.text, input_spans, instructions
+
+
+def build_semantic_program_sequence_cataphoric_corpus(
+    *,
+    seed: int = 2653589,
+    examples_per_operation_pair: int = 2,
+) -> tuple[SemanticProgramExample, ...]:
+    """Build mixed-type programs whose textual and causal orders differ."""
+
+    if examples_per_operation_pair < 1:
+        raise ValueError("sequence cataphoric corpus needs at least one sample")
+    rng = random.Random(seed)
+    examples: list[SemanticProgramExample] = []
+    for construction_index in range(9):
+        construction_id = f"sequence-cataphoric-{construction_index}"
+        split: CorpusSplit = (
+            "train"
+            if construction_index < 3
+            else "validation"
+            if construction_index < 6
+            else "test"
+        )
+        for sample_index in range(examples_per_operation_pair):
+            selector = rng.randint(1, 4)
+            values = [rng.randint(1, 20) for _ in range(rng.randint(6, 8))]
+            values[rng.randrange(len(values))] = selector
+            public_sequence = tuple(values)
+            adjustment = rng.randint(2, 7)
+            inputs = (public_sequence, selector, adjustment)
+            contrast_id = hashlib.sha256(
+                f"sequence-cataphoric|{construction_id}|{inputs}|{sample_index}".encode()
+            ).hexdigest()[:24]
+            for first_op in _SEQUENCE_BINARY_SELECTORS:
+                for second_op in _SCALAR_CONTINUATIONS:
+                    source_text, input_spans, instructions = (
+                        _render_sequence_cataphoric_chain(
+                            construction_index=construction_index,
+                            first_op=first_op,
+                            second_op=second_op,
+                            values=public_sequence,
+                            selector=selector,
+                            adjustment=adjustment,
+                        )
+                    )
+                    examples.append(
+                        SemanticProgramExample(
+                            example_id=_sequence_cataphoric_example_id(
+                                construction_id,
+                                first_op,
+                                second_op,
+                                inputs,
+                                sample_index,
+                            ),
+                            construction_id=construction_id,
+                            topology_id="cataphoric-sequence-to-scalar-chain",
+                            split=split,
+                            source_text=source_text,
+                            inputs=inputs,
+                            input_spans=input_spans,
+                            instructions=instructions,
+                            report_value=4,
+                            contrast_id=contrast_id,
+                        )
+                    )
+    return tuple(examples)
+
+
 def _sequence_reserved_alias_example_id(
     construction_id: str,
     first_op: str,
@@ -1754,6 +2031,7 @@ def _render_sequence_reserved_alias_chain(
     values: tuple[int, ...],
     selector: int,
     adjustment: int,
+    role_bound: bool = False,
 ) -> tuple[
     str,
     tuple[CharacterSpan, CharacterSpan, CharacterSpan],
@@ -1764,28 +2042,52 @@ def _render_sequence_reserved_alias_chain(
     builder = _AnnotatedText()
     first_phrase = _SEQUENCE_BINARY_OPERATION_LANGUAGE[first_op][construction_index]
     second_phrase = _SCALAR_CONTINUATION_LANGUAGE[second_op][construction_index]
-    reserved_definitions = (
-        "the label offset",
-        "the name side value",
-        "the title fixed amount",
-        "the label held quantity",
-        "the name saved scalar",
-        "the title adjustment",
-        "the label constant term",
-        "the name carried value",
-        "the title extra quantity",
-    )
-    reserved_references = (
-        "the labeled offset",
-        "that side value",
-        "the fixed amount",
-        "the held quantity",
-        "that saved scalar",
-        "the named adjustment",
-        "the constant term",
-        "the carried value",
-        "that extra quantity",
-    )
+    if role_bound:
+        reserved_definitions = (
+            "the baseline quantity",
+            "the retained scalar",
+            "the auxiliary adjustment",
+            "the spare value",
+            "the initial amount",
+            "the carried quantity",
+            "the fixed scalar",
+            "the side amount",
+            "the supporting value",
+        )
+        reserved_references = (
+            "the prior baseline",
+            "that kept scalar",
+            "the same adjustment",
+            "the spare quantity",
+            "that initial amount",
+            "the carried quantity",
+            "the fixed scalar",
+            "that side amount",
+            "the supporting value",
+        )
+    else:
+        reserved_definitions = (
+            "the label offset",
+            "the name side value",
+            "the title fixed amount",
+            "the label held quantity",
+            "the name saved scalar",
+            "the title adjustment",
+            "the label constant term",
+            "the name carried value",
+            "the title extra quantity",
+        )
+        reserved_references = (
+            "the labeled offset",
+            "that side value",
+            "the fixed amount",
+            "the held quantity",
+            "that saved scalar",
+            "the named adjustment",
+            "the constant term",
+            "the carried value",
+            "that extra quantity",
+        )
     result_names = (
         "chosen entry",
         "lookup output",
@@ -1828,7 +2130,7 @@ def _render_sequence_reserved_alias_chain(
 
     def append_reserved_definition() -> None:
         append_reserved_input()
-        builder.append(" under ")
+        builder.append(" as " if role_bound else " under ")
         builder.append(reserved_definitions[construction_index])
 
     if construction_index == 0:
@@ -2050,6 +2352,72 @@ def build_semantic_program_sequence_reserved_alias_corpus(
     return tuple(examples)
 
 
+def build_semantic_program_sequence_role_binding_corpus(
+    *,
+    seed: int = 2828427,
+    examples_per_operation_pair: int = 2,
+) -> tuple[SemanticProgramExample, ...]:
+    """Build non-arithmetic programs with implicit functional-role binding."""
+
+    if examples_per_operation_pair < 1:
+        raise ValueError("sequence role-binding corpus needs at least one sample")
+    rng = random.Random(seed)
+    examples: list[SemanticProgramExample] = []
+    for construction_index in range(9):
+        construction_id = f"sequence-role-binding-{construction_index}"
+        split: CorpusSplit = (
+            "train"
+            if construction_index < 3
+            else "validation"
+            if construction_index < 6
+            else "test"
+        )
+        for sample_index in range(examples_per_operation_pair):
+            selector = rng.randint(1, 4)
+            values = [rng.randint(1, 20) for _ in range(rng.randint(6, 8))]
+            values[rng.randrange(len(values))] = selector
+            public_sequence = tuple(values)
+            adjustment = rng.randint(2, 7)
+            inputs = (public_sequence, selector, adjustment)
+            contrast_id = hashlib.sha256(
+                f"sequence-role-binding|{construction_id}|{inputs}|{sample_index}".encode()
+            ).hexdigest()[:24]
+            for first_op in _SEQUENCE_BINARY_SELECTORS:
+                for second_op in _SCALAR_CONTINUATIONS:
+                    source_text, input_spans, instructions = (
+                        _render_sequence_reserved_alias_chain(
+                            construction_index=construction_index,
+                            first_op=first_op,
+                            second_op=second_op,
+                            values=public_sequence,
+                            selector=selector,
+                            adjustment=adjustment,
+                            role_bound=True,
+                        )
+                    )
+                    examples.append(
+                        SemanticProgramExample(
+                            example_id=_sequence_reserved_alias_example_id(
+                                construction_id,
+                                first_op,
+                                second_op,
+                                inputs,
+                                sample_index,
+                            ),
+                            construction_id=construction_id,
+                            topology_id="role-bound-input-sequence-to-scalar-chain",
+                            split=split,
+                            source_text=source_text,
+                            inputs=inputs,
+                            input_spans=input_spans,
+                            instructions=instructions,
+                            report_value=4,
+                            contrast_id=contrast_id,
+                        )
+                    )
+    return tuple(examples)
+
+
 def _character_to_token_span(
     span: CharacterSpan,
     offsets: Sequence[tuple[int, int]],
@@ -2119,7 +2487,9 @@ __all__ = [
     "build_semantic_program_fork_join_factorial_corpus",
     "build_semantic_program_fork_join_corpus",
     "build_semantic_program_sequence_binary_corpus",
+    "build_semantic_program_sequence_cataphoric_corpus",
     "build_semantic_program_sequence_corpus",
     "build_semantic_program_sequence_reserved_alias_corpus",
+    "build_semantic_program_sequence_role_binding_corpus",
     "project_example_to_ir",
 ]

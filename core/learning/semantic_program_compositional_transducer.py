@@ -44,13 +44,10 @@ from core.learning.semantic_program_ir import (
     normalize_semantic_value,
 )
 from core.learning.semantic_program_shared_transducer import (
-    LinearRelationHead,
     _channel_span,
-    _fit_relation_head,
     _geometry,
     _geometry_name,
     _normalized_weights,
-    _relation_feature,
     _relation_span_vector,
 )
 from core.learning.semantic_program_transducer import (
@@ -67,10 +64,10 @@ from core.learning.semantic_program_transducer import (
 )
 
 COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = (
-    "aura.semantic_program_transducer.v7"
+    "aura.semantic_program_transducer.v8"
 )
 COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA: Final = (
-    "aura.semantic_program_transducer_receipt.v7"
+    "aura.semantic_program_transducer_receipt.v8"
 )
 _OPERATION_MODE: Final = "contextual_mean"
 _RELATION_CHANNEL: Final = "middle_causal_hidden"
@@ -82,6 +79,7 @@ _ARGUMENT_BEAM: Final = 128
 _ARGUMENT_MENTIONS_PER_DEFINITION: Final = 4
 _POINTER_HARD_NEGATIVES: Final = 16
 _OPERATION_PENALTY_POINTS: Final = 161
+_DIRECTIONAL_RELATION_PARTS: Final = 3
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -104,6 +102,12 @@ def _is_sha256(value: Any) -> bool:
         and len(value) == 64
         and all(character in "0123456789abcdef" for character in value)
     )
+
+
+def _log_sigmoid(value: float) -> float:
+    """Stable log probability for one binary-head logit."""
+
+    return -math.log1p(math.exp(-abs(value))) + min(value, 0.0)
 
 
 def _overlap(left: TokenSpan, right: TokenSpan) -> bool:
@@ -208,8 +212,8 @@ class LinearArgumentRoleHead:
     def __post_init__(self) -> None:
         weight = np.asarray(self.weight, dtype=np.float32).reshape(-1)
         if (
-            weight.size < 2
-            or weight.size % 2
+            weight.size < _DIRECTIONAL_RELATION_PARTS
+            or weight.size % _DIRECTIONAL_RELATION_PARTS
             or not np.all(np.isfinite(weight))
             or not np.isfinite(self.bias)
         ):
@@ -218,16 +222,72 @@ class LinearArgumentRoleHead:
 
     @property
     def channel_width(self) -> int:
-        return int(self.weight.size // 2)
+        return int(self.weight.size // _DIRECTIONAL_RELATION_PARTS)
 
     def score(self, reference: np.ndarray, operation: np.ndarray) -> float:
-        feature = _relation_feature(reference, operation)
+        feature = _directional_relation_feature(reference, operation)
         if feature.shape != self.weight.shape:
             raise ValueError("compositional argument-role feature width differs")
         return float(feature @ self.weight + self.bias)
 
     def to_dict(self) -> dict[str, Any]:
         return {"weight": self.weight.tolist(), "bias": float(self.bias)}
+
+
+def _directional_relation_feature(
+    reference: np.ndarray,
+    definition: np.ndarray,
+) -> np.ndarray:
+    """Preserve pair similarity while making semantic edge direction observable."""
+
+    if reference.shape != definition.shape or reference.ndim != 1:
+        raise ValueError("compositional relation vectors differ")
+    return np.concatenate(
+        (
+            reference * definition,
+            np.abs(reference - definition),
+            reference - definition,
+        )
+    ).astype(np.float32)
+
+
+@dataclass(frozen=True, slots=True)
+class DirectionalRelationHead:
+    """One directed linker from an argument mention to its definition."""
+
+    weight: np.ndarray
+    bias: float
+    pointer_scale: float
+
+    def __post_init__(self) -> None:
+        weight = np.asarray(self.weight, dtype=np.float32).reshape(-1)
+        if (
+            weight.size < _DIRECTIONAL_RELATION_PARTS
+            or weight.size % _DIRECTIONAL_RELATION_PARTS
+            or not np.all(np.isfinite(weight))
+            or not np.isfinite(self.bias)
+            or not np.isfinite(self.pointer_scale)
+            or self.pointer_scale <= 0.0
+        ):
+            raise ValueError("compositional directional relation head is invalid")
+        object.__setattr__(self, "weight", weight)
+
+    @property
+    def channel_width(self) -> int:
+        return int(self.weight.size // _DIRECTIONAL_RELATION_PARTS)
+
+    def score(self, reference: np.ndarray, definition: np.ndarray) -> float:
+        feature = _directional_relation_feature(reference, definition)
+        if feature.shape != self.weight.shape:
+            raise ValueError("compositional directional relation width differs")
+        return float(feature @ self.weight + self.bias)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "weight": self.weight.tolist(),
+            "bias": float(self.bias),
+            "pointer_scale": float(self.pointer_scale),
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -237,6 +297,16 @@ class _OperationNode:
     score: float
     pointer_score: float
     confidence: float
+
+
+@dataclass(frozen=True, slots=True)
+class _TypedArgumentAssignment:
+    """One complete typed graph together with its neural evidence score."""
+
+    operation_nodes: tuple[_OperationNode, ...]
+    arguments: tuple[tuple[int, ...], ...]
+    argument_spans: tuple[tuple[TokenSpan, ...], ...]
+    score: float
 
 
 def _operation_nodes(
@@ -388,7 +458,7 @@ def _fit_argument_role_heads(
                     hidden_channel_widths=hidden_channel_widths,
                 )
                 features.extend(
-                    _relation_feature(
+                        _directional_relation_feature(
                         _relation_span_vector(
                             item.hidden_states,
                             span,
@@ -417,6 +487,55 @@ def _fit_argument_role_heads(
     return tuple(heads)
 
 
+def _fit_directional_relation_head(
+    training: Sequence[SemanticTransducerTrainingExample],
+    *,
+    item_weights: Mapping[int, float],
+    hidden_channels: Sequence[str],
+    hidden_channel_widths: Sequence[int],
+) -> tuple[np.ndarray, float]:
+    features: list[np.ndarray] = []
+    labels: list[int] = []
+    weights: list[float] = []
+    for item in training:
+        definitions = (
+            *item.ir.input_spans,
+            *(instruction.operation_span for instruction in item.ir.instructions),
+        )
+        for step, instruction in enumerate(item.ir.instructions):
+            available = definitions[: item.ir.n_inputs + step]
+            for reference_span, register in zip(
+                instruction.argument_spans,
+                instruction.args,
+                strict=True,
+            ):
+                reference = _relation_span_vector(
+                    item.hidden_states,
+                    reference_span,
+                    hidden_channels=hidden_channels,
+                    hidden_channel_widths=hidden_channel_widths,
+                )
+                for candidate_register, definition_span in enumerate(available):
+                    definition = _relation_span_vector(
+                        item.hidden_states,
+                        definition_span,
+                        hidden_channels=hidden_channels,
+                        hidden_channel_widths=hidden_channel_widths,
+                    )
+                    features.append(
+                        _directional_relation_feature(reference, definition)
+                    )
+                    labels.append(int(candidate_register == register))
+                    weights.append(item_weights[id(item)] / len(available))
+    return _fit_binary_head(
+        np.stack(features),
+        np.asarray(labels, dtype=np.int8),
+        sample_weight=_normalized_weights(weights),
+        max_iter=400,
+        tolerance=1e-5,
+    )
+
+
 def _input_type(value: SemanticValue) -> str:
     return "integer" if isinstance(value, int) else "integer_sequence"
 
@@ -428,7 +547,7 @@ def _assign_typed_arguments(
     inputs: Sequence[SemanticValue],
     input_spans: Sequence[TokenSpan],
     operation_nodes: Sequence[_OperationNode],
-) -> tuple[tuple[tuple[int, ...], ...], tuple[tuple[TokenSpan, ...], ...]] | None:
+) -> _TypedArgumentAssignment | None:
     proposals = list(
         model.argument_pointer.decode_candidates(
             hidden,
@@ -447,20 +566,36 @@ def _assign_typed_arguments(
         for span, score in proposals
         if not any(_overlap(span, node.span) for node in operation_nodes)
     ]
-    definitions: list[TokenSpan] = list(input_spans)
-    register_types = [_input_type(value) for value in inputs]
+    operation_types: list[tuple[tuple[str, ...], str]] = []
+    for node in operation_nodes:
+        signature = semantic_primitive_type_signature(node.operation)
+        if signature is None:
+            return None
+        operation_types.append(signature)
+    definitions = (*input_spans, *(node.span for node in operation_nodes))
+    register_types = (
+        *(_input_type(value) for value in inputs),
+        *(result_type for _argument_types, result_type in operation_types),
+    )
+    definition_vectors = tuple(
+        _relation_span_vector(
+            hidden,
+            span,
+            hidden_channels=model.hidden_channels,
+            hidden_channel_widths=model.hidden_channel_widths,
+        )
+        for span in definitions
+    )
     states: list[
         tuple[
             float,
             tuple[tuple[int, ...], ...],
             tuple[tuple[TokenSpan, ...], ...],
+            tuple[tuple[int, ...], ...],
         ]
-    ] = [(0.0, (), ())]
-    for node in operation_nodes:
-        signature = semantic_primitive_type_signature(node.operation)
-        if signature is None:
-            return None
-        argument_types, result_type = signature
+    ] = [(0.0, (), (), ())]
+    for node_index, node in enumerate(operation_nodes):
+        argument_types, _result_type = operation_types[node_index]
         if len(argument_types) > len(model.argument_role_heads):
             return None
         operation_vector = _relation_span_vector(
@@ -468,15 +603,6 @@ def _assign_typed_arguments(
             node.span,
             hidden_channels=model.hidden_channels,
             hidden_channel_widths=model.hidden_channel_widths,
-        )
-        definition_vectors = tuple(
-            _relation_span_vector(
-                hidden,
-                span,
-                hidden_channels=model.hidden_channels,
-                hidden_channel_widths=model.hidden_channel_widths,
-            )
-            for span in definitions
         )
         partial: list[
             tuple[float, tuple[int, ...], tuple[TokenSpan, ...]]
@@ -497,18 +623,36 @@ def _assign_typed_arguments(
                     hidden_channel_widths=model.hidden_channel_widths,
                 )
                 role_score = role_head.score(reference, operation_vector)
-                for register, (definition, register_type) in enumerate(
-                    zip(definition_vectors, register_types, strict=True)
-                ):
+                exact_inputs = tuple(
+                    index for index, input_span in enumerate(input_spans) if span == input_span
+                )
+                candidate_registers = (
+                    exact_inputs if exact_inputs else tuple(range(len(definitions)))
+                )
+                for register in candidate_registers:
+                    definition = definition_vectors[register]
+                    register_type = register_types[register]
                     if register_type != required_type:
+                        continue
+                    if register == len(inputs) + node_index:
                         continue
                     if not model.allow_computed_dependencies and register >= len(inputs):
                         continue
+                    relation_score = model.definition_relation_head.score(
+                        reference,
+                        definition,
+                    )
+                    if (
+                        register >= len(inputs)
+                        and register - len(inputs) > node_index
+                        and relation_score <= 0.0
+                    ):
+                        continue
                     score = (
-                        model.argument_role_scale * role_score
+                        model.argument_role_scale * _log_sigmoid(role_score)
                         + model.definition_relation_scale
-                        * model.definition_relation_head.score(reference, definition)
-                        + model.argument_pointer_scale * pointer_score
+                        * _log_sigmoid(relation_score)
+                        + model.argument_pointer_scale * _log_sigmoid(pointer_score)
                     )
                     by_register.setdefault(register, []).append((score, span))
             if not by_register:
@@ -543,36 +687,142 @@ def _assign_typed_arguments(
             )[:_ARGUMENT_BEAM]
             if not partial:
                 return None
-        states = sorted(
-            (
-                (
-                    total + step_score,
-                    (*arguments, step_arguments),
-                    (*spans, step_spans),
-                )
-                for total, arguments, spans in states
-                for step_score, step_arguments, step_spans in partial
-                if not any(
+        candidates: list[
+            tuple[
+                float,
+                tuple[tuple[int, ...], ...],
+                tuple[tuple[TokenSpan, ...], ...],
+                tuple[tuple[int, ...], ...],
+            ]
+        ] = []
+        for total, arguments, spans, dependencies in states:
+            for step_score, step_arguments, step_spans in partial:
+                if any(
                     _overlap(current, previous)
                     for current in step_spans
                     for previous_step in spans
                     for previous in previous_step
+                ):
+                    continue
+                step_dependencies = tuple(
+                    sorted(
+                        register - len(inputs)
+                        for register in set(step_arguments)
+                        if register >= len(inputs)
+                    )
+                )
+                candidate_dependencies = (*dependencies, step_dependencies)
+                if _operation_order(
+                    candidate_dependencies,
+                    operation_nodes,
+                    require_connected=False,
+                ) is None:
+                    continue
+                candidates.append(
+                    (
+                        total + step_score,
+                        (*arguments, step_arguments),
+                        (*spans, step_spans),
+                        candidate_dependencies,
+                    )
+                )
+        states = sorted(candidates, key=lambda item: (-item[0], item[1]))[
+            :_ARGUMENT_BEAM
+        ]
+        if not states:
+            return None
+    for score, arguments, spans, dependencies in states:
+        order = _operation_order(
+            dependencies,
+            operation_nodes,
+            require_connected=True,
+        )
+        if order is None:
+            continue
+        output_registers = {
+            source_index: len(inputs) + target_index
+            for target_index, source_index in enumerate(order)
+        }
+        ordered_arguments = tuple(
+            tuple(
+                register
+                if register < len(inputs)
+                else output_registers[register - len(inputs)]
+                for register in arguments[source_index]
+            )
+            for source_index in order
+        )
+        return _TypedArgumentAssignment(
+            operation_nodes=tuple(operation_nodes[index] for index in order),
+            arguments=ordered_arguments,
+            argument_spans=tuple(spans[index] for index in order),
+            score=score,
+        )
+    return None
+
+
+def _operation_order(
+    dependencies: Sequence[Sequence[int]],
+    operation_nodes: Sequence[_OperationNode],
+    *,
+    require_connected: bool,
+) -> tuple[int, ...] | None:
+    """Return a stable topological schedule for a partial or complete graph."""
+
+    count = len(dependencies)
+    if count > len(operation_nodes):
+        return None
+    normalized = tuple(tuple(sorted(set(values))) for values in dependencies)
+    if any(
+        dependency < 0
+        or dependency >= len(operation_nodes)
+        or dependency == index
+        for index, values in enumerate(normalized)
+        for dependency in values
+    ):
+        return None
+    completed: set[int] = set()
+    order: list[int] = []
+    while len(order) < count:
+        ready = sorted(
+            (
+                index
+                for index in range(count)
+                if index not in completed
+                and all(
+                    dependency >= count or dependency in completed
+                    for dependency in normalized[index]
                 )
             ),
-            key=lambda item: (-item[0], item[1]),
-        )[:_ARGUMENT_BEAM]
-        definitions.append(node.span)
-        register_types.append(result_type)
-    terminal = len(inputs) + len(operation_nodes) - 1
-    expected_outputs = set(range(len(inputs), terminal + 1))
-    for _score, arguments, spans in states:
-        required = {terminal}
-        for step in range(len(arguments) - 1, -1, -1):
-            if len(inputs) + step in required:
-                required.update(arguments[step])
-        if expected_outputs.issubset(required):
-            return arguments, spans
-    return None
+            key=lambda index: (
+                operation_nodes[index].span.start,
+                operation_nodes[index].span.end,
+                index,
+            ),
+        )
+        if not ready:
+            return None
+        completed.add(ready[0])
+        order.append(ready[0])
+    if not require_connected:
+        return tuple(order)
+    if count != len(operation_nodes):
+        return None
+    referenced = {dependency for values in normalized for dependency in values}
+    sinks = tuple(index for index in range(count) if index not in referenced)
+    if len(sinks) != 1:
+        return None
+    required = {sinks[0]}
+    frontier = [sinks[0]]
+    while frontier:
+        current = frontier.pop()
+        for dependency in normalized[current]:
+            if dependency not in required:
+                required.add(dependency)
+                frontier.append(dependency)
+    if required != set(range(count)):
+        return None
+    return tuple(order)
 
 
 @dataclass(frozen=True, slots=True)
@@ -588,7 +838,7 @@ class CompositionalSemanticProgramTransducer:
     argument_pointer: LinearPointerHead
     operation_head: MultiViewClassifierHead
     argument_role_heads: tuple[LinearArgumentRoleHead, ...]
-    definition_relation_head: LinearRelationHead
+    definition_relation_head: DirectionalRelationHead
     max_steps: int
     max_inputs: int
     max_span_tokens: int
@@ -785,7 +1035,7 @@ class CompositionalSemanticProgramTransducer:
                 LinearArgumentRoleHead(np.zeros_like(head.weight), head.bias)
                 for head in self.argument_role_heads
             ),
-            definition_relation_head=LinearRelationHead(
+            definition_relation_head=DirectionalRelationHead(
                 np.zeros_like(self.definition_relation_head.weight),
                 self.definition_relation_head.bias,
                 self.definition_relation_head.pointer_scale,
@@ -798,7 +1048,7 @@ class CompositionalSemanticProgramTransducer:
                 LinearArgumentRoleHead(np.zeros_like(head.weight), head.bias)
                 for head in self.argument_role_heads
             ),
-            definition_relation_head=LinearRelationHead(
+            definition_relation_head=DirectionalRelationHead(
                 np.zeros_like(self.definition_relation_head.weight),
                 self.definition_relation_head.bias,
                 self.definition_relation_head.pointer_scale,
@@ -876,7 +1126,9 @@ class CompositionalSemanticProgramTransducer:
         )
         if assigned is None:
             return SemanticTransductionOutcome(None, "typed_argument_chart_empty", {}, {})
-        arguments, argument_spans = assigned
+        selected = assigned.operation_nodes
+        arguments = assigned.arguments
+        argument_spans = assigned.argument_spans
         instructions = tuple(
             SemanticIRInstruction(
                 op=node.operation,
@@ -1129,13 +1381,13 @@ def fit_compositional_semantic_program_transducer(
     item_weights = {
         id(item): 1.0 / geometries[_geometry(item)] for item in training
     }
-    relation_weight, relation_bias = _fit_relation_head(
+    relation_weight, relation_bias = _fit_directional_relation_head(
         training,
         item_weights=item_weights,
         hidden_channels=hidden_channels,
         hidden_channel_widths=hidden_channel_widths,
     )
-    definition_relation_head = LinearRelationHead(
+    definition_relation_head = DirectionalRelationHead(
         relation_weight,
         relation_bias,
         0.5,
@@ -1185,7 +1437,7 @@ def fit_compositional_semantic_program_transducer(
             }
         ),
         "operation_length_penalty_selection": penalty_rows,
-        "chart_decoder": "typed_local_atom_weighted_interval_ssa_v1",
+        "chart_decoder": "directional_joint_probability_interval_dag_v2",
         "argument_span_bounds": max_argument_span_tokens_by_type,
         "global_geometry_classifier_present": False,
         "step_indexed_heads_present": False,
@@ -1234,7 +1486,7 @@ def _pointer_from_dict(value: Any) -> LinearPointerHead:
 def compositional_semantic_program_transducer_from_dict(
     payload: Any,
 ) -> CompositionalSemanticProgramTransducer:
-    """Reload one immutable v7 transducer without fitting or calibration."""
+    """Reload one immutable v8 transducer without fitting or calibration."""
 
     if not isinstance(payload, Mapping):
         raise ValueError("compositional semantic transducer payload is invalid")
@@ -1277,7 +1529,7 @@ def compositional_semantic_program_transducer_from_dict(
             )
             for value in payload["argument_role_heads"]
         ),
-        definition_relation_head=LinearRelationHead(
+        definition_relation_head=DirectionalRelationHead(
             np.asarray(relation["weight"], dtype=np.float32),
             float(relation["bias"]),
             float(relation["pointer_scale"]),
@@ -1302,6 +1554,7 @@ __all__ = [
     "COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA",
     "COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA",
     "CompositionalSemanticProgramTransducer",
+    "DirectionalRelationHead",
     "LinearArgumentRoleHead",
     "compositional_semantic_program_transducer_from_dict",
     "fit_compositional_semantic_program_transducer",
