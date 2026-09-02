@@ -1,0 +1,56 @@
+[
+  {
+    "seed": 4000,
+    "over": 5,
+    "solved_as_a_head": 5,
+    "walked_as_a_head": 7723,
+    "solved_as_a_leaf": 5,
+    "walked_as_a_leaf": 8927,
+    "the_name_bought_something": true
+  },
+  {
+    "seed": 4001,
+    "over": 5,
+    "solved_as_a_head": 5,
+    "walked_as_a_head": 10129,
+    "solved_as_a_leaf": 5,
+    "walked_as_a_leaf": 11767,
+    "the_name_bought_something": true
+  },
+  {
+    "seed": 4002,
+    "over": 5,
+    "solved_as_a_head": 5,
+    "walked_as_a_head": 18160,
+    "solved_as_a_leaf": 5,
+    "walked_as_a_leaf": 21116,
+    "the_name_bought_something": true
+  },
+  {
+    "seed": 4003,
+    "over": 5,
+    "solved_as_a_head": 5,
+    "walked_as_a_head": 11042,
+    "solved_as_a_leaf": 5,
+    "walked_as_a_leaf": 11256,
+    "the_name_bought_something": true
+  },
+  {
+    "seed": 4004,
+    "over": 5,
+    "solved_as_a_head": 5,
+    "walked_as_a_head": 25423,
+    "solved_as_a_leaf": 4,
+    "walked_as_a_leaf": 6436,
+    "the_name_bought_something": true
+  },
+  {
+    "seed": 4005,
+    "over": 5,
+    "solved_as_a_head": 5,
+    "walked_as_a_head": 6584,
+    "solved_as_a_leaf": 5,
+    "walked_as_a_leaf": 7612,
+    "the_name_bought_something": true
+  }
+]

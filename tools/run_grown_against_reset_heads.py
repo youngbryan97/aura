@@ -372,6 +372,79 @@ def run_transfer(
     }
 
 
+# ── the inline-expansion control: head, or leaf? ─────────────────────────
+
+
+def _ask_a_family(family: Family, as_a_head: bool, body: Code) -> tuple[bool, int]:
+    """One family, with the term in the grammar or in the library, not both."""
+    from core.cognition.one_algebra import DERIVED_HEADS, Head, forget_the_head
+
+    name = "the one being weighed"
+    forget_the_head(name)
+    library: tuple[Code, ...] = ()
+    if as_a_head:
+        DERIVED_HEADS[name] = Head(name=name, takes=2, body=_closed(body))
+    else:
+        library = (body,)
+    try:
+        found = a_way_of_computing_she_wrote(
+            family.transitions,
+            now_sayable=lambda: False,
+            words=dict(WHERE_FROM),
+            already=library,
+            most_candidates=_CANDIDATES_A_SECOND_USED_TO_BUY,
+            by_recurrence=False,
+        )
+    finally:
+        forget_the_head(name)
+    return (found is not None, found.found_at if found is not None else 0)
+
+
+def _closed(body: Code) -> Code:
+    from core.cognition.a_way_of_computing_she_wrote import as_a_head as close_it
+
+    return close_it(body)
+
+
+def head_or_leaf(
+    *, seed: int, families: int, deepest: int
+) -> dict[str, Any]:
+    """Is a term worth more as a shape at every node, or as one more leaf?
+
+    The inline-expansion control, asked forward and in one unit. A head costs
+    a shape at every node of every term; a leaf costs one more thing to try in
+    a hole. Which is worth more is a question about the NEXT family, so the
+    next families are what it is asked on.
+    """
+    from core.cognition.what_the_name_bought import what_the_name_bought
+
+    rng = random.Random(seed)
+    first = None
+    while first is None:
+        first = _a_family(rng, [], deepest)
+    learned = Agent("learned")
+    solved, _cost = _attempt(learned, first, 1.0)
+    if not solved or not learned.library:
+        return {"why": "nothing written on the first family"}
+    body = learned.library[-1]
+
+    rest: list[Family] = []
+    while len(rest) < families:
+        one = _a_family(rng, [body], deepest)
+        if one is not None:
+            rest.append(one)
+    found = what_the_name_bought("what she wrote", body, rest, ask=_ask_a_family)
+    return {
+        "seed": seed,
+        "over": found.over,
+        "solved_as_a_head": found.solved_as_a_head,
+        "walked_as_a_head": found.walked_as_a_head,
+        "solved_as_a_leaf": found.solved_as_a_leaf,
+        "walked_as_a_leaf": found.walked_as_a_leaf,
+        "the_name_bought_something": found.the_name_bought_something,
+    }
+
+
 def main() -> int:
     ask = argparse.ArgumentParser(description=__doc__)
     ask.add_argument("--blocks", type=int, default=5)
@@ -380,9 +453,39 @@ def main() -> int:
     ask.add_argument("--within", type=float, default=4.0)
     ask.add_argument("--deepest", type=int, default=3)
     ask.add_argument("--out", default="")
+    ask.add_argument("--head-or-leaf", action="store_true",
+                     help="is a term worth more as a head or as a library leaf")
     ask.add_argument("--transfer", action="store_true",
                      help="run the cross-domain check instead")
     said = ask.parse_args()
+
+    if said.head_or_leaf:
+        rows = [
+            head_or_leaf(seed=4000 + seed, families=said.per_block,
+                         deepest=said.deepest)
+            for seed in range(said.seeds)
+        ]
+        for one in rows:
+            print(one)
+        if said.out:
+            from pathlib import Path
+
+            Path(said.out).write_text(json.dumps(rows, indent=2), encoding="utf-8")
+        return 0
+
+    if said.head_or_leaf:
+        rows = [
+            head_or_leaf(seed=4000 + seed, families=said.per_block,
+                         deepest=said.deepest)
+            for seed in range(said.seeds)
+        ]
+        for one in rows:
+            print(one)
+        if said.out:
+            from pathlib import Path
+
+            Path(said.out).write_text(json.dumps(rows, indent=2), encoding="utf-8")
+        return 0
 
     if said.transfer:
         rows = [

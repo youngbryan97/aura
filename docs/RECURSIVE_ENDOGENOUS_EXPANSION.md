@@ -1213,14 +1213,16 @@ Done, in order, each piece surviving into the final architecture:
 
 Next, in the order that keeps every step in the final architecture:
 
-13. The inline-expansion control, so a name that bought nothing cannot pass as
-   an abstraction. The search-cost probe is done.
-14. Post-freeze tasks, which need an independent party.
-13. Make the whole proposer a term, not only its ordering, and persist it. H
+14. The inline-expansion control, so a name that bought nothing cannot pass as
+    an abstraction. The search-cost probe is done; this is the other half.
+15. The dependency graph: quarantine and rebuild. Cascade is done — removing a
+    head removes the words written over it — and the other two are not.
+16. Make the whole proposer a term, not only its ordering, and persist it. H
     and I are run on the ordering; a third generation needs the rest.
-14. Freeze; commission the sealed family; run F, G, H, I and J.
+17. Freeze, and commission the sealed family from someone else. J is the only
+    experiment here that cannot be run from inside.
 
-If step 13 needs a new human-written mechanism to pass, the design has failed
+If step 16 needs a new human-written mechanism to pass, the design has failed
 and this document should say so.
 
 ---
@@ -1242,8 +1244,11 @@ it, with Kleene's certificate.
 What is bought by crossing: `E` stops being the interesting quantity, and reach
 becomes it. What is not bought: tractability. Shortest-first over a universal
 language reaches a few dozen symbols, and no budget changes that. What moves
-the horizon is the library, which is the developmental claim and is now a
-measurement rather than an argument.
+the horizon is the library and a schema that turns a whole rule into a step,
+and both are measurements rather than arguments.
 
-What is still authored is the meter, the gate, and the governor. None of them
-says anything about what a useful concept is.
+What is still authored is the meter, the gate, the governor and the recurrence
+schema, and — as data rather than as code — the five positional words, the
+fixed point a head is given, and the term that reads the state at a place. Only
+the last of the code items says anything about what a useful concept is, and it
+says one thing: that counting down is a shape worth looking for.
