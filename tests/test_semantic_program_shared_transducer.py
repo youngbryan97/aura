@@ -14,6 +14,10 @@ from core.learning.semantic_input_grounding import (
     semantic_input_grounding_contract_from_tokenizer,
 )
 from core.learning.semantic_program_campaign import _sha
+from core.learning.semantic_program_compositional_transducer import (
+    compositional_semantic_program_transducer_from_dict,
+    fit_compositional_semantic_program_transducer,
+)
 from core.learning.semantic_program_floor_verification import (
     SEMANTIC_PROGRAM_FLOOR_VERIFICATION_SOURCES,
     verify_semantic_program_floor_equivalence,
@@ -226,6 +230,57 @@ def test_shared_transducer_infers_geometry_and_program_without_a_router() -> Non
     assert model.geometry_contract["register_encoding"] == "role_relative_v1"
     assert model.geometry_contract["max_span_tokens"] >= 1
     assert replay.to_dict() == model.to_dict()
+
+
+def test_compositional_transducer_assembles_typed_atoms_without_a_geometry_head() -> None:
+    examples = _examples()
+    model = fit_compositional_semantic_program_transducer(
+        examples,
+        input_grounding=_grounding(),
+    )
+    replay = compositional_semantic_program_transducer_from_dict(model.to_dict())
+
+    treatment = evaluate_shared_semantic_program_transducer(
+        replay,
+        examples,
+        split="test",
+    )
+    coefficient = evaluate_shared_semantic_program_transducer(
+        replay.coefficient_lesion(),
+        examples,
+        split="test",
+        arm="coefficient_lesion",
+    )
+    dependency = evaluate_shared_semantic_program_transducer(
+        replay.dependency_lesion(),
+        examples,
+        split="test",
+        arm="dependency_lesion",
+    )
+
+    assert treatment.total == 4
+    assert treatment.geometry_exact == treatment.total
+    assert treatment.operation_exact == treatment.total
+    assert treatment.program_exact == 2
+    assert treatment.answer_exact == 2
+    assert coefficient.program_exact < treatment.program_exact
+    assert dependency.program_exact < treatment.program_exact
+    assert model.training_receipt["global_geometry_classifier_present"] is False
+    assert model.training_receipt["step_indexed_heads_present"] is False
+    assert model.training_receipt["family_router_present"] is False
+    assert replay.to_dict() == model.to_dict()
+
+
+def test_compositional_transducer_binds_learned_type_limits_to_its_receipt() -> None:
+    model = fit_compositional_semantic_program_transducer(
+        _examples(),
+        input_grounding=_grounding(),
+    )
+    payload = copy.deepcopy(model.to_dict())
+    payload["max_argument_span_tokens_by_type"]["integer"] += 1
+
+    with pytest.raises(ValueError, match="envelope"):
+        compositional_semantic_program_transducer_from_dict(payload)
 
 
 def test_shared_transducer_programs_replay_on_the_universal_floor() -> None:

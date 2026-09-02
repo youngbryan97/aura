@@ -14,6 +14,7 @@ from core.learning.semantic_program_floor import (
     SemanticFloorProgram,
     compile_semantic_program_to_floor,
     execute_semantic_floor_program,
+    semantic_primitive_type_signature,
 )
 from core.learning.semantic_program_ir import (
     SemanticIRInstruction,
@@ -22,6 +23,18 @@ from core.learning.semantic_program_ir import (
 )
 
 SHA = "1" * 64
+
+
+def test_floor_exposes_one_read_only_primitive_type_algebra() -> None:
+    assert semantic_primitive_type_signature("add") == (
+        ("integer", "integer"),
+        "integer",
+    )
+    assert semantic_primitive_type_signature("at") == (
+        ("integer_sequence", "integer"),
+        "integer",
+    )
+    assert semantic_primitive_type_signature("not-a-primitive") is None
 
 
 def _ir(

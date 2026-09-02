@@ -81,6 +81,23 @@ _TYPE_SIGNATURES: Final = {
 }
 
 
+def semantic_primitive_type_signature(
+    name: str,
+) -> tuple[tuple[str, ...], str] | None:
+    """Return the universal-floor type of one admitted semantic primitive.
+
+    Program induction and execution must share one type algebra.  Exposing a
+    read-only copy keeps compositional decoders from growing a second table
+    that can silently disagree with the floor that ultimately executes them.
+    """
+
+    signature = _TYPE_SIGNATURES.get(name)
+    if signature is None:
+        return None
+    arguments, result = signature
+    return tuple(arguments), result
+
+
 def _sha(value: Any) -> str:
     return hashlib.sha256(
         json.dumps(
@@ -663,4 +680,5 @@ __all__ = [
     "compile_semantic_program_to_floor",
     "execute_semantic_floor_program",
     "semantic_floor_primitive_coverage",
+    "semantic_primitive_type_signature",
 ]
