@@ -47,7 +47,21 @@ class HowFarToGo:
     #: time, so that she can say which act in it was the one.
     walking_back: int = 0
 
-    #: The furthest she will ever go without looking. Not a taste for caution:
+    #: The furthest she will ever go without looking.
+    #:
+    #: Measured on the game, planning on the board she predicts rather than
+    #: the one in front of her, with her own looking-ahead choosing the moves:
+    #: two between looks finishes where one does — a median best of 512, five
+    #: of eight games past 512 against six — for half the looking. Three and
+    #: beyond fall away, because what a search buys depends on the board being
+    #: the board.
+    #:
+    #: The cap is above where that stops paying rather than at it. How far it
+    #: pays to go is a fact about the world she is in; the whole point of this
+    #: is that she finds it rather than is told it, and a cap set at the answer
+    #: for one world would be the telling.
+    #:
+    #: Not a taste for caution:
     #: past this, the thing being predicted has usually changed under her for
     #: reasons that have nothing to do with her acts — a page reflows, a hand
     #: moves a window, a game ends — and a long run is then a long way to

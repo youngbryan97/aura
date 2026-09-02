@@ -76,6 +76,23 @@ class WhatTheWorldDoes:
 
     # ── learning ─────────────────────────────────────────────────────────
 
+    def forget_what_was_read_differently(self) -> None:
+        """Drop what turned up, because it was read out of a different thing.
+
+        What the world does on its own is worked out by comparing what a rule
+        expected against what was really there — two readings, both laid into
+        a grid. Read through the wrong one, what "turned up on its own" is
+        whatever the grid was wrongly covering. One world file on this machine
+        has her believing that History, Help, File and Edit arrive by
+        themselves, which is a browser's menu bar read as though it were the
+        game.
+        """
+        if not self.arrives and not self.acts:
+            return
+        self.arrives.clear()
+        self.acts = 0
+        self.acts_with_arrivals = 0
+
     def watched(self, expected: Arrangement | None, seen: Arrangement) -> None:
         """One act, what a rule said it would do, and what really happened.
 

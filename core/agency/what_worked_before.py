@@ -64,6 +64,21 @@ class WhatWorkedBefore:
 
     # ── building it ──────────────────────────────────────────────────────
 
+    def forget_what_was_read_differently(self) -> None:
+        """Drop it all, because it is filed under names that mean nothing now.
+
+        What worked before is looked up by the SHAPE of the situation, and a
+        shape is a description of a grid. Written down while she was reading a
+        board four by seven that is really four by four, every name here
+        describes a thing that does not exist — so none of it will ever be
+        recognised, and any of it that is will be recognised wrongly.
+        """
+        if not self.known:
+            return
+        self.known.clear()
+        self._order.clear()
+        self.recognised = 0
+
     def learned(self, kind: str, move: str, better: bool) -> None:
         """One position of a kind, one move, and whether it helped."""
         key = str(kind or "").strip()

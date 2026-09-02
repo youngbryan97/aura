@@ -62,7 +62,16 @@ def remember(world: str, what: dict[str, Any]) -> bool:
         from core.governance_context import local_internal_governed_scope
         from core.runtime.file_write_gateway import get_file_write_gateway
 
-        body = json.dumps({"world": key, **what})
+        # Its own bookkeeping, under a name a caller cannot mean.
+        #
+        # This was `{"world": key, **what}`, so a caller with something of its
+        # own called "world" — and the pursuit has one, the model of what the
+        # world does on its own — silently replaced the record's name with it,
+        # or had its own replaced, depending which way round the merge went.
+        # Both happened: one world file on this machine has the model where
+        # the name should be and another has the name where the model should
+        # be. Whichever way a collision resolves, one of the two is lost.
+        body = json.dumps({"_kept_for": key, **what})
         if len(body) > _MOST_KEPT:
             logger.info("what she learned about %r is too big to keep (%d)", key, len(body))
             return False
@@ -90,7 +99,14 @@ def recall(world: str) -> dict[str, Any]:
         held = json.loads((_KEPT_IN / f"{key}.json").read_text())
     except (OSError, ValueError, TypeError):
         return {}
-    return held if isinstance(held, dict) else {}
+    if not isinstance(held, dict):
+        return {}
+    # Older records kept the name under "world", which is also what the
+    # pursuit calls the model of what the world does on its own. A name there
+    # is not a model, and every reader of it already refuses a string, so it
+    # is left alone rather than guessed at.
+    held.pop("_kept_for", None)
+    return held
 
 
 def forget(world: str) -> bool:

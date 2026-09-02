@@ -36,6 +36,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.cognition.how_far_to_go_before_looking import HowFarToGo
 from core.cognition.something_she_keeps_true import (
     what_it_rules_out,
     what_to_hold_now,
@@ -1121,6 +1122,43 @@ def _worth_holding(found: Any, whole: Any, seen: dict[Any, int] | None = None) -
 #: disagrees can be placed in one rather than replace it.
 _AS_IT_USUALLY_IS: dict[Any, Any] = {}
 
+
+
+def _the_rest_of_the_run(
+    first: str,
+    from_here: Any,
+    expect: Callable[[Any, str], Any],
+    names: Sequence[str],
+    choose: Callable[[Any, Sequence[str]], str],
+    how_many: int,
+) -> tuple[list[str], Any]:
+    """The acts after this one, chosen on the board she expects rather than seen.
+
+    Where the model is trusted this is the whole saving. Reading the screen
+    costs about half a second and the thing answers about a second later, so
+    a move that is read, decided and confirmed costs over two — and a game of
+    five hundred moves is nineteen minutes of watching, none of which is
+    thinking. A person who knows how a board moves presses several keys and
+    then looks.
+
+    Hands back the acts and the board she expects to find at the end of them,
+    which is what makes the run checkable: if it is not there, the run broke,
+    and she says so rather than carrying on from a board she imagined.
+    """
+    rest: list[str] = []
+    where = expect(from_here, first)
+    for _again in range(max(0, how_many - 1)):
+        if where is None:
+            break
+        got = choose(where, names)
+        if not got:
+            break
+        after = expect(where, got)
+        if after is None or after == where:
+            break
+        rest.append(got)
+        where = after
+    return rest, where
 
 
 def _expects(knows: Any) -> Callable[[Any, str], Any] | None:
@@ -2782,6 +2820,16 @@ async def pursue_on_screen(
         grid = (responds["lattice"].rows, responds["lattice"].columns)
         if knows.rules.read_through != grid:
             knows.rules.learned_through_a_different_reading()
+            # And everything else that was read through the same grid. What
+            # worked before is looked up by the SHAPE of the situation, and a
+            # shape written down under a four by seven grid names nothing
+            # under a four by four one. What the world does on its own is
+            # learned by comparing two arrangements, so it is the same story:
+            # one world file on this machine has it believing that "History"
+            # and "Help" turn up on their own, which is the browser's menu bar
+            # read as though it were the game.
+            skilled.forget_what_was_read_differently()
+            world.forget_what_was_read_differently()
     #: The few acts she reaches for, out of all the ones she could. A habit is
     #: worth carrying between sittings, so it is remembered too.
     reaches = TheOnesSheReachesFor.from_memory(
@@ -2792,6 +2840,10 @@ async def pursue_on_screen(
     #: is how long it takes for the comparison to be worth making and is read
     #: off the size of the choice rather than picked.
     stretch: dict[str, int] = {"rises": 0}
+    #: How far she is willing to go on the model between looks, and the board
+    #: she expects to find when she next looks.
+    far = HowFarToGo()
+    expected: dict[str, Any] = {"after": None, "took": 0}
     #: Said once, when the thing she is working in stops answering at all.
     said_it_ended: dict[str, bool] = {"value": False}
     #: Whether she has confirmed being in the thing she was asked to act in.
@@ -3031,6 +3083,34 @@ async def pursue_on_screen(
             history.append(attempt)
             if pending["arranged"] is not None and attempt.progressed is not None:
                 went.append((pending["arranged"], bool(attempt.progressed)))
+            # Was the world where she said it would be? That is what decides
+            # how far she goes next time, and it is the only thing that does.
+            if expected["took"] > 1 and expected["after"] is not None:
+                # Came out, meaning nothing she predicted is missing. Not
+                # meaning identical: in a world that deals a tile after every
+                # move of hers, the board she predicted is never the board
+                # that is there, and asking for identical is asking for a run
+                # that can never come out. What matters is whether her acts
+                # did what she thought — an arrival she never claimed to know
+                # about is the world's business, and she has somewhere else
+                # to put those.
+                said = {
+                    (one.row, one.column): one.says
+                    for one in getattr(expected["after"], "cells", ())
+                }
+                really = {
+                    (one.row, one.column): one.says
+                    for one in getattr(laid_out, "cells", ())
+                }
+                same = bool(said) and all(
+                    really.get(where) == what for where, what in said.items()
+                )
+                (far.it_was_where_she_said if same else far.it_was_not)(
+                    expected["took"]
+                )
+                if not same:
+                    logger.info("the run did not come out: %s", far.describe())
+                expected["after"], expected["took"] = None, 0
             # What leaning on these acts has come to. The tally she found on
             # the screen herself is the measure where there is one, because
             # nobody has told her what progress is and something on the screen
@@ -3570,6 +3650,18 @@ async def pursue_on_screen(
                     success_when or _what_there_is_to_aim_at(laid_out),
                 )
                 elsewhere = recall(like_it["kind"]) if like_it["kind"] else {}
+                # And only from a world she was reading through a grid of
+                # this shape. A rule that survived somewhere else is about the
+                # thing it was watched in; read through a grid of another
+                # shape it is not weak evidence about this one, it is about
+                # something that is not here. Discounting it does not help,
+                # because early on a handful of counts is the whole difference
+                # between looking ahead and not.
+                if elsewhere and responds["lattice"].held:
+                    read_through = (elsewhere.get("moves") or {}).get("read_through")
+                    here = [responds["lattice"].rows, responds["lattice"].columns]
+                    if list(read_through or ()) != here:
+                        elsewhere = {}
                 if elsewhere:
                     carried = _no_more_than_a_fresh_one_is_worth(elsewhere.get("moves"))
                     knows.rules.__dict__.update(
@@ -3850,6 +3942,34 @@ async def pursue_on_screen(
 
         made = pending["deliberation"]
         follow_on = [option.name for option in getattr(made, "then", ()) or ()] if made else []
+        # And where she named no sequence, one taken on the model instead.
+        expected["after"], expected["took"] = None, 0
+        foresee = _expects(knows)
+        if not follow_on and foresee is not None and pending["arranged"] is not None:
+            going = far.how_many(trusted=float(knows.rules.confidence()))
+            if going > 1:
+
+                def pick(board: Any, names: Sequence[str]) -> str:
+                    ahead_now = look_ahead(
+                        knows.rules, board, list(names),
+                        toward=aiming_at, approach=held_line,
+                        budget_s=0.05, world=world,
+                    )
+                    return max(ahead_now, key=lambda one: ahead_now[one][0]) if ahead_now else ""
+
+                follow_on, expected["after"] = _the_rest_of_the_run(
+                    key,
+                    pending["arranged"],
+                    foresee,
+                    [option.name for option in available],
+                    pick,
+                    going,
+                )
+                expected["took"] = len(follow_on) + 1
+                if follow_on:
+                    logger.info(
+                        "going %d without looking (%s)", expected["took"], far.describe()
+                    )
         logger.info(
             "about to press %r then %s (brief=%s, made=%s)",
             key,
