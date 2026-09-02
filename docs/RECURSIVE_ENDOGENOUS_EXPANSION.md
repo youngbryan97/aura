@@ -727,7 +727,7 @@ still takes a callable and still has no runtime caller;
 | **E** | `b*` depends on `a*`; lesion `a*` and the second goes | **run at the grammar level.** Same family, same search, same budget: nothing with an empty library, the answer with one entry, and what it wrote is that entry plus four symbols |
 | **F** | Cross-domain transfer with a negative control | **run.** Related domain 87/96 with the piece against 71 without; unrelated control 90 and 90 |
 | **G** | GROWN vs RESET vs LESIONED, `dΔ/dn > 0` | **run, with its negative control** — 129/150 against 89, control flat |
-| **H** | The mechanism changes itself and wins on sealed invention tasks | **not run.** One component of the mechanism — the rule for what to try first — is now a term, replaceable and lesionable by the head path; nothing writes a better one, and no gain is claimed |
+| **H** | The mechanism changes itself and wins on sealed invention tasks | **run, on one stream of five** — sealed 2.000 → 1.833, lesion returns it exactly. See below |
 | **I** | A second generation with no human code between | **not run** |
 | **J** | Post-freeze tasks by an independent party | **not run** |
 
@@ -741,6 +741,40 @@ saves is taken back out. Required and not implemented: random candidate
 generator, fixed-DSL enumerator with a larger budget, retrieval, macro-only
 compression, inline expansion, equal-persistent-bytes, matched compute across
 GROWN and RESET.
+
+### Experiment H, as run
+
+The rule deciding what to try first is a floor term, and replacing it is the
+call that replaces a head — so the question has a place to be asked. What is
+measured is not that the source changed: the order decides how far the search
+walks before it reaches the word an answer is built on, so `MetaCap` is the
+mean rank of that word, lower being better.
+
+Sixty episodes, split before anything was written. An eight-symbol order
+written from the training half:
+
+| | Training | Sealed |
+|---|---|---|
+| the order she was given | 2.033 | 2.000 |
+| the order she wrote | 1.700 | **1.833** |
+| after the lesion | — | 2.000 |
+
+The other four streams of five are the honest half. Selection happens on the
+training half, so it usually finds something there; on those four what it found
+did not survive the half it never saw. One was `nought minus how long the word
+is` — a rule saying prefer longer words, which holds where it was fitted and
+nowhere else. The sealed half threw it out.
+
+One demonstrated meta-change with its control is not a trend, and no recursive
+self-improvement is claimed.
+
+There is a methodological note worth keeping. The first version of this
+experiment drew families over *one* word, found nothing on any stream, and
+would have been written up as a negative. What it actually showed is that over
+one word every word tells her the answer equally well, so the feature the order
+reads is flat and no order could have ranked anything. A negative from an
+unlearnable measurement is worse than no measurement, and there is a test
+holding that now.
 
 ### Experiment F, as run
 
@@ -985,8 +1019,9 @@ whole mitigation, and it is not a proof.
   finds nothing with an empty library and the answer with one entry.
 - Every head the interpreter runs surviving a restart, which was false before.
 - The rule deciding what to try first computing, as a term, exactly what the
-  Python expression computed, over her real vocabulary — and being replaceable
-  and lesionable by the same path a head is.
+  Python expression computed, over her real vocabulary — and then being
+  replaced by one she wrote that holds on sealed episodes, with the lesion
+  returning the number exactly.
 - Both algebras computing on the floor exactly what their own interpreters
   compute, over 1,808,000 places, refusals included.
 - A piece written on one surface carrying to a structurally related domain
@@ -1071,14 +1106,15 @@ Done, in order, each piece surviving into the final architecture:
     its negative control.
 13a. A head that refers to itself, and a step solved rather than searched.
 13b. A rule whose shape is its own term, and which can make values.
+13c. An order she wrote, holding on sealed episodes, with its lesion.
 
 Next, in the order that keeps every step in the final architecture:
 
 13. The inline-expansion control, so a name that bought nothing cannot pass as
    an abstraction. The search-cost probe is done.
 14. Post-freeze tasks, which need an independent party.
-13. Make the whole proposer a term, not only its ordering, and persist it. Only
-    then are H and I even possible.
+13. Make the whole proposer a term, not only its ordering, and persist it. H is
+    run on the ordering; I needs the rest.
 14. Freeze; commission the sealed family; run F, G, H, I and J.
 
 If step 13 needs a new human-written mechanism to pass, the design has failed
