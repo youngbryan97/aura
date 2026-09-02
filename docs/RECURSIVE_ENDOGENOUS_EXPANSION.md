@@ -397,10 +397,16 @@ Part XIII rather than quietly closed.
 
 Authored permanently: the floor's eighteen heads and their evaluator; the
 meter; the gate (`persistence, novelty, reach, compression, held-out,
-rollback`); and the governor (fuel, memory, transaction, the privileges a term
-may not reach).
+rollback`); the governor (fuel, memory, transaction, the privileges a term may
+not reach); and — added when the bootstrap was fixed, and worth naming rather
+than folding into the others — the **recurrence schema**, which asks whether a
+family's answers stand in a relation to the answer at the place before.
 
-None of the four says anything about what a useful concept is. That is the
+The first four say nothing about what a useful concept is. The fifth does say
+something: it says that counting down is a shape worth looking for. It adds no
+meanings, by Theorem 1, and removing it is a test. But it is a prior, and
+calling it anything else would be the kind of claim this document exists to
+refuse. That is the
 difference between a fixed substrate and a fixed vocabulary. Part VI proves the
 first is unavoidable, and Part X shows the last two cannot be inside the
 hypothesis space without ceasing to hold.
@@ -661,10 +667,10 @@ still takes a callable and still has no runtime caller;
 
 | | What it asks | Status |
 |---|---|---|
-| **A** | She originates the semantics with no candidate, no name, no kind list | **run.** Before-and-after states in, a floor term out, fitted at lengths 4 and 6, held to 5 and 7 |
+| **A** | She originates the semantics with no candidate, no name, no kind list | **run.** Before-and-after states in, a floor term out. Doubling, factorial and triangular numbers, each defined by what it says at the place before |
 | **B** | `F ∉ Reach_B(A_0)`, `F ∈ Reach_B(A_1)` | **stronger than asked, for one witness.** Theorem 3 proves doubling is outside `E(A_0)` rather than outside a budget; the floor says it in 38 symbols |
 | **C** | Novelty, at the strongest available tier | **proven** for Corollary 7.1 by Theorem 3; **proven** for Theorem 4 by diagonalisation; bounded for anything a search returns |
-| **D** | Generalisation, `H ∩ S = ∅`, outside the observed ranges | **run.** Correct at lengths 9, 11 and 16, none of them fitted or judged |
+| **D** | Generalisation, `H ∩ S = ∅`, outside the observed ranges | **run.** Correct at lengths 9, 11, 13 and 16, none of them fitted or judged |
 | **E** | `b*` depends on `a*`; lesion `a*` and the second goes | **run at the grammar level.** Same family, same search, same budget: nothing with an empty library, the answer with one entry, and what it wrote is that entry plus four symbols |
 | **F** | Cross-domain transfer with a negative control | **run.** Related domain 96/96 with the piece against 77 without; unrelated control 96 and 96 |
 | **G** | GROWN vs RESET vs LESIONED, `dΔ/dn > 0` | **run, at the grammar level, with its negative control** — see below |
@@ -848,10 +854,19 @@ whole mitigation, and it is not a proof.
     in `test_the_library_is_what_moves_the_horizon` is the answer: the library
     moves the horizon, and it does so as a matter of record.
 27. **"Then the first useful head is unreachable, so the mechanism is inert."**
-    The sharpest objection in the list, and partly conceded. Short heads are
-    definitional, so early growth is reach and not distinction. What defends it
-    is Theorem 6: there is no length at which a person must intervene, only
-    lengths at which she has not got there yet.
+    It was, and measured: 120 families out of 120 produced a head the growth
+    classifier called a shorter name. Fixed rather than conceded — a head is
+    given a fixed point, and the step of a recurrence is solved for rather than
+    searched. The cost is one more authored thing, named in Part V. The
+    remaining honest form of this objection is objection 33.
+33. **"Your recurrence schema is a human-authored taxonomy after all."**
+    It is authored and it is a prior, and Part V says so rather than burying it
+    among the mechanics. What it is not is a taxonomy of *concepts*: it names
+    no operation and no family, and what a step does is searched over the floor.
+    It adds no meanings, by Theorem 1. And it is falsifiable in the ordinary way
+    — if the next family needs a shape that is not a recurrence and a person has
+    to write a second schema, the design has failed and this document should
+    say so.
 28. **"The schema is still fixed."** Conceded. `Induced.read` is arity two with
     one operation, and no head changes that. It is B2 and it is open.
 29. **"There are still two algebras."** Partly conceded. The floor absorbs the

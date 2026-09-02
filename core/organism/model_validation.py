@@ -3034,6 +3034,77 @@ def _transfer_that_went_the_wrong_way() -> int:
     )
 
 
+def _recursive_heads_that_do_not_hold() -> int:
+    """Recursive heads that fail at a length they were not fitted at. Must be none.
+
+    Three families whose answers stand in a recurrence — doubling, factorial
+    and triangular numbers. Each head is written from before-and-after states
+    alone, and each is asked at lengths nine, eleven and thirteen, none of
+    which it was fitted or judged at. One violation per family that fails, and
+    one more if the lesion — taking the recurrence schema away — still finds
+    doubling, because then the schema proved nothing.
+    """
+    import math
+
+    from core.cognition.a_way_of_computing_she_wrote import (
+        a_way_of_computing_she_wrote,
+    )
+    from core.cognition.an_invented_kind import WHERE_FROM
+    from core.cognition.one_algebra import DERIVED_HEADS, Term, the_head_she_wrote
+    from core.cognition.one_algebra import run as positional_run
+
+    rules = {
+        "doubling": lambda at, size: pow(2, at, size),
+        "factorial": lambda at, size: math.factorial(at) % size,
+        "triangular": lambda at, size: (at * (at + 1) // 2) % size,
+    }
+
+    def family(rule: Any) -> list[Any]:
+        made = []
+        for size in (4, 5, 6, 7):
+            before = tuple(range(100, 100 + size))
+            made.append(
+                (before, tuple(before[rule(at, size) % size] for at in range(size)))
+            )
+        return made
+
+    was = dict(DERIVED_HEADS)
+    wrong = 0
+    try:
+        for name, rule in rules.items():
+            DERIVED_HEADS.clear()
+            found = a_way_of_computing_she_wrote(
+                family(rule),
+                now_sayable=lambda: False,
+                words=dict(WHERE_FROM),
+                within=20.0,
+            )
+            if found is None or not found.by_recurrence:
+                wrong += 1
+                continue
+            the_head_she_wrote(name, 2, found.body)
+            term = Term(name, parts=(Term("hole", value=0), Term("hole", value=1)))
+            words = tuple(WHERE_FROM[one] for one in found.over)
+            for size in (9, 11, 13):
+                said = tuple(positional_run(term, at, size, words) for at in range(size))
+                if said != tuple(rule(at, size) % size for at in range(size)):
+                    wrong += 1
+                    break
+        DERIVED_HEADS.clear()
+        lesioned = a_way_of_computing_she_wrote(
+            family(rules["doubling"]),
+            now_sayable=lambda: False,
+            words=dict(WHERE_FROM),
+            within=20.0,
+            by_recurrence=False,
+        )
+        wrong += 0 if lesioned is None else 1
+    finally:
+        DERIVED_HEADS.clear()
+        DERIVED_HEADS.update(was)
+    return wrong
+
+
 def _install_language_growth_claims(suite: Any) -> None:
     """What she can do to the language she makes rules out of.
 
@@ -3101,6 +3172,14 @@ def _install_language_growth_claims(suite: Any) -> None:
             "exhausts its meter rather than returning",
             _universality_certificates_that_fail,
             "core/cognition/what_the_floor_can_say.py",
+        ),
+        (
+            "test_a_head_that_refers_to_itself_holds_where_it_was_never_fitted",
+            "a head defined by what it says at the place before is written from "
+            "before-and-after states alone and holds at lengths it was neither "
+            "fitted nor judged at, and taking the recurrence away takes it with it",
+            _recursive_heads_that_do_not_hold,
+            "core/cognition/a_way_of_computing_she_wrote.py",
         ),
         (
             "test_what_she_wrote_carries_to_a_different_surface",
@@ -3300,6 +3379,33 @@ def _install_language_growth_claims(suite: Any) -> None:
                 "definable from the other three, so the instruction set is doing "
                 "no work"
             ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "A head defined by what it says at the place before is written "
+                "from before-and-after states alone and holds at lengths it was "
+                "neither fitted nor judged at."
+            ),
+            test="test_a_head_that_refers_to_itself_holds_where_it_was_never_fitted",
+            owner="core/cognition/a_way_of_computing_she_wrote.py",
+            asserted_in="core/cognition/a_way_of_computing_she_wrote.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "doubling, factorial and triangular numbers, fitted at lengths "
+                "four and six, held to five and seven, correct at nine, eleven "
+                "and thirteen. Two things make it possible and both are stated "
+                "rather than hidden: a head is given a fixed point, written out "
+                "of application rather than added as a primitive, so by the "
+                "substitution argument it adds no meanings; and the step is "
+                "solved for rather than searched, which is a schema — the "
+                "inversion of that fixed point, the same move "
+                "an_operation_that_generalises makes on arithmetic. Lesioning "
+                "the schema leaves only enumeration, and enumeration finds "
+                "nothing on these families"
+            ),
+            live_channels=("language.ways_of_building",),
         )
     )
     suite.add_claim(
