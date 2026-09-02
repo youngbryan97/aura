@@ -82,20 +82,40 @@ def worth_keeping(
     all can be said now. A stone that enables a later step scores nothing on
     cost and everything on reach.
     """
+    from core.cognition.how_sure_she_is import more_likely_than_not_better
+    from core.cognition.what_it_is_worth_doing import how_often_a_change_has_paid
+
     cheaper = 0
     opened: list[str] = []
+    each: list[float] = []
     for name, cases in probe:
         was, could = before.get(name, (0, False))
         now = _costs(cases)
         can = _sayable(cases)
         cheaper += was - now
+        # One bounded observation per family: did this one get cheaper. Bounded
+        # because the interval below needs it to be, and a share is the honest
+        # bounded form of a saving.
+        each.append(1 if now < was else 0)
         if can and not could:
             opened.append(name)
     if opened:
         return True, f"it says {', '.join(opened)}, which it could not before"
-    if cheaper > 0:
-        return True, f"{cheaper:,} fewer candidates over {len(probe)} families"
-    return False, f"{-cheaper:,} more candidates over {len(probe)} families"
+    # Not "the total went down". One family falling by a lot while three rise
+    # is a total that fell and a change that did not work, and a rule promoting
+    # on the total promotes noise.
+    #
+    # The bar is her own history: how often a change has paid before. Beating a
+    # coin would be the bar if she had never changed anything, and after a few
+    # changes it is whatever the record says, which is the right comparison and
+    # not a number anybody set.
+    usual = how_often_a_change_has_paid()
+    better, why = more_likely_than_not_better(
+        sum(each), len(each), than=usual
+    )
+    if better:
+        return True, f"{cheaper:,} fewer candidates over {len(probe)} families ({why})"
+    return False, f"no better than her usual over {len(probe)} families ({why})"
 
 
 def _how_it_stands(probe: Sequence[tuple[str, tuple]]) -> dict[str, tuple[int, bool]]:

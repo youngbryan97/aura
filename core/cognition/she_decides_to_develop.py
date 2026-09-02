@@ -40,6 +40,7 @@ anybody having to be honest about it.
 from __future__ import annotations
 
 import logging
+import statistics
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Sequence
@@ -49,6 +50,12 @@ from core.cognition.the_record_of_her_own_work import (
     note_an_episode,
     the_record,
     what_it_has_cost,
+)
+from core.cognition.how_sure_she_is import (
+    after_the_winners_curse,
+    how_much_to_spend_on_developing,
+    the_bar_right_now,
+    which_to_try,
 )
 from core.cognition.what_it_is_worth_doing import (
     WhatItIsWorth,
@@ -209,6 +216,7 @@ def what_to_do_next(
     among: Sequence[ADevelopmentalAction] | None = None,
     asked_for: str | None = None,
     this_one_is_lost: bool = False,
+    a_question_is_waiting: bool = False,
 ) -> Decision:
     """Rank everything she could do, and choose. Or choose nothing.
 
@@ -254,10 +262,34 @@ def what_to_do_next(
         ),
     )
     considered = tuple((one.name, worth) for one, worth in ranked)
-    ceiling = what_it_may_spend(family, costs_now=costs_now)
+    # What developing may spend at all: the family's own total, times the share
+    # development has earned against answering. Both are read; neither is set.
+    ceiling = int(
+        what_it_may_spend(family, costs_now=costs_now)
+        * max(0.05, how_much_to_spend_on_developing())
+    )
+    # The bar. Zero with nothing waiting; the price of an answer when there is,
+    # because the cost of developing then includes the answer nobody got.
+    bar = the_bar_right_now(a_question_is_waiting=a_question_is_waiting)
 
+    worths = [row[1].worth for row in ranked if row[1].worth is not None]
+    spread = (
+        statistics.pstdev(worths) if len(worths) > 1 else 0.0
+    )
     best = next(
-        (row for row in ranked if row[1].worth is not None and row[1].worth > 0),
+        (
+            row
+            for row in ranked
+            if row[1].worth is not None
+            # The largest of several noisy numbers is larger than the truth by
+            # an amount that grows with how many were compared. Believing it
+            # unshrunk is how a promotion policy convinces itself everything
+            # it picked worked.
+            and after_the_winners_curse(
+                float(row[1].worth), len(worths) - 1, spread=spread
+            )
+            > bar
+        ),
         None,
     )
     if best is not None and best[1].cost <= ceiling:
@@ -283,6 +315,22 @@ def what_to_do_next(
     # that cannot refuse is not deciding, whatever it prints.
     paid = how_often_a_change_has_paid()
     most_it_could_save = float(what_it_may_spend(family, costs_now=costs_now))
+    # Which unpriced one to try, drawn from what the counts support rather than
+    # taken in the order they were written. An action that failed once early is
+    # otherwise never tried again and its estimate never improves.
+    unpriced = [one for one, worth in ranked if worth.worth is None]
+    drawn = which_to_try(
+        unpriced,
+        pays=lambda one: (
+            what_it_has_done(one.name).kept,
+            what_it_has_done(one.name).taken,
+        ),
+        gains=lambda one: max(1.0, most_it_could_save),
+    )
+    if drawn is not None:
+        ranked = [row for row in ranked if row[0] is drawn] + [
+            row for row in ranked if row[0] is not drawn
+        ]
     for one, worth in ranked:
         if worth.worth is not None:
             continue
