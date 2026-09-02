@@ -52,6 +52,7 @@ from core.cognition.the_record_of_her_own_work import (
 )
 from core.cognition.what_it_is_worth_doing import (
     WhatItIsWorth,
+    how_often_a_change_has_paid,
     how_much_it_is_worth,
     how_often_it_will_come_up,
     the_price_of_finding_out,
@@ -71,6 +72,7 @@ __all__ = [
     "she_decides_to_develop",
     "the_trace",
     "what_it_may_spend",
+    "what_is_worth_doing_now",
     "what_to_do_next",
     "who_started_it",
     "why_each_one",
@@ -184,21 +186,6 @@ def _price(
     )
 
 
-def _the_bottleneck(costs_now: int) -> float:
-    """What the slowest route spends per answer. The bar exploration has to clear.
-
-    With nothing in the record the only reading available is the occasion in
-    hand, and that is the right one: what she is spending now IS what she is
-    spending. Reading zero there instead would make the bar unclearable, and an
-    empty record would mean she could never take a first action to fill it —
-    a mechanism that cannot start looks exactly like a mechanism that decided
-    not to.
-    """
-    slow = what_the_record_says_is_slow()
-    seen = float(slow[0]["per answer"]) if slow else 0.0
-    return max(seen, float(max(0, int(costs_now))))
-
-
 def what_to_do_next(
     family: str,
     *,
@@ -255,12 +242,23 @@ def what_to_do_next(
             considered=considered,
         )
 
-    bar = _the_bottleneck(costs_now)
+    # What an action with no history is worth is not knowable, so what is
+    # weighed is the information. A change cannot save more than the whole
+    # search costs, so the most it could be worth is every occasion of that;
+    # how likely it is to work at all is how often changes have worked, which
+    # is Laplace over the record and is one half when there is no record.
+    #
+    # An earlier version compared the price of finding out against what the
+    # slowest route spends, and both of those fall back to the occasion in
+    # hand, so the test was a number against itself and passed always. A rule
+    # that cannot refuse is not deciding, whatever it prints.
+    paid = how_often_a_change_has_paid()
+    most_it_could_save = float(what_it_may_spend(family, costs_now=costs_now))
     for one, worth in ranked:
         if worth.worth is not None:
             continue
         price = the_price_of_finding_out(worth.cost)
-        if price <= bar and price <= ceiling:
+        if paid * most_it_could_save > price and price <= ceiling:
             _note("diagnosis", "she", f"{one.name} has no history")
             _note("proposal", "she", f"{one.name}, to find out what it saves")
             return Decision(
@@ -268,8 +266,9 @@ def what_to_do_next(
                 worth=worth,
                 because="exploring",
                 grounds=(
-                    f"unpriced, and finding out costs {price:,} against a "
-                    f"bottleneck of {bar:,.0f}"
+                    f"unpriced; at best it saves {most_it_could_save:,.0f} and "
+                    f"{paid:.2f} of changes have paid, against {price:,} to "
+                    "find out"
                 ),
                 considered=considered,
             )
@@ -281,8 +280,9 @@ def what_to_do_next(
         because="refused",
         grounds=(
             f"nothing is worth doing: best priced "
-            f"{ranked[0][1].describes()}, ceiling {ceiling:,}, bottleneck "
-            f"{bar:,.0f}"
+            f"{ranked[0][1].describes()}, ceiling {ceiling:,}, and at best a "
+            f"change saves {most_it_could_save:,.0f} with {paid:.2f} of them "
+            "paying"
         ),
         considered=considered,
     )
@@ -328,3 +328,33 @@ def why_each_one(decided: Decision) -> list[str]:
     return [
         f"{name}: {worth.describes()}" for name, worth in decided.considered
     ]
+
+
+def what_is_worth_doing_now() -> Decision:
+    """Nobody asked anything. Is there something worth doing about herself?
+
+    The other entry point, and the one that makes the difference between a
+    system that improves when pushed and a system that improves. Nothing here
+    is handed a family: the family is the one the record says costs the most in
+    total, because total cost is what a change to it would be recovering.
+
+    That choice is the diagnosis question — which part of her is limiting —
+    answered by reading rather than by asking. A record with nothing in it
+    yields no family, and she says so instead of picking one.
+    """
+    kept = the_record().kept
+    if not kept:
+        _note("refusal", "she", "there is nothing to read")
+        return Decision(
+            action=None,
+            worth=None,
+            because="refused",
+            grounds="the record is empty, so there is nothing to be worth doing",
+        )
+    spent: dict[str, list[int]] = {}
+    for one in kept:
+        spent.setdefault(one.family, []).append(one.walked)
+    family = max(spent, key=lambda one: sum(spent[one]))
+    each = int(round(sum(spent[family]) / len(spent[family])))
+    _note("diagnosis", "she", f"{family} costs {sum(spent[family]):,} in all")
+    return what_to_do_next(family, costs_now=each)

@@ -64,6 +64,7 @@ __all__ = [
     "WhatWorkedBefore",
     "forget_what_worked",
     "recall",
+    "how_the_last_ones_looked",
     "what_is_remembered",
     "how_often_it_worked",
     "in_the_order_worth_trying",
@@ -78,6 +79,24 @@ def _kept_at() -> Path:
 
 _WHAT_WORKED: dict[str, int] = {}
 _HOW_MANY_TIMES = [0]
+
+#: How the last ranking looked, and how the ones before it looked.
+#:
+#: Win counts say which words are good. They do not say where the good ones
+#: SAT, and where they sat is the only thing an order changes. Without this,
+#: any search for a better order is scored on a quantity the order barely
+#: moves, and the rule in force wins by default however bad it is.
+#:
+#: One row per occasion something won: how many places there were, what each
+#: word agreed about and how long it is, and which word turned out to be the
+#: one. That is exactly what re-ranking a past occasion under a different rule
+#: needs, and nothing more.
+_LAST_RANKING: list[dict[str, Any]] = []
+_HOW_IT_LOOKED: list[dict[str, Any]] = []
+
+#: Bounded like everything else she keeps. Enough occasions to score a rule on,
+#: few enough that the scoring stays cheap.
+HOW_MANY_RANKINGS_ARE_KEPT = 128
 
 
 @dataclass(frozen=True)
@@ -112,14 +131,39 @@ def remember_what_worked(names: Iterable[str]) -> None:
     and then throw away.
     """
     _HOW_MANY_TIMES[0] += 1
-    for name in names:
+    kept = list(names)
+    for name in kept:
         _WHAT_WORKED[name] = _WHAT_WORKED.get(name, 0) + 1
+    if _LAST_RANKING and kept:
+        looked = dict(_LAST_RANKING[-1])
+        looked["winner"] = kept[0]
+        if looked["winner"] in looked.get("features", {}):
+            _HOW_IT_LOOKED.append(looked)
+            if len(_HOW_IT_LOOKED) > HOW_MANY_RANKINGS_ARE_KEPT:
+                del _HOW_IT_LOOKED[: len(_HOW_IT_LOOKED) - HOW_MANY_RANKINGS_ARE_KEPT]
     _keep()
+
+
+def how_the_last_ones_looked() -> tuple[dict[str, Any], ...]:
+    """The occasions something won, as the numbers a ranking is computed from.
+
+    What a search for a better order is scored on. Empty until she has ranked
+    something and something has won, which is the honest state of a system that
+    has not done anything yet.
+    """
+    return tuple(_HOW_IT_LOOKED)
+
+
+def forget_how_they_looked() -> None:
+    _HOW_IT_LOOKED.clear()
+    _LAST_RANKING.clear()
 
 
 def forget_what_worked() -> None:
     _WHAT_WORKED.clear()
     _HOW_MANY_TIMES[0] = 0
+    _HOW_IT_LOOKED.clear()
+    _LAST_RANKING.clear()
 
 
 def in_the_order_worth_trying(
@@ -173,7 +217,33 @@ def in_the_order_worth_trying(
             name,
         )
 
-    return sorted(every, key=worth)
+    ranked = sorted(every, key=worth)
+
+    # Keep what this ranking was computed from, so a search for a better rule
+    # has something to be judged on. The numbers, not the words: how many
+    # places there were, what each word agreed about, and how long it is.
+    _LAST_RANKING.append(
+        {
+            "places": most,
+            "features": {
+                name: (
+                    max(0, int(_agreed_or_nothing(agrees, every[name], wanted))),
+                    int(shortest(name)),
+                )
+                for name in every
+            },
+        }
+    )
+    if len(_LAST_RANKING) > 2:
+        del _LAST_RANKING[:-2]
+    return ranked
+
+
+def _agreed_or_nothing(agrees: Any, word: Any, wanted: Any) -> int:
+    try:
+        return int(agrees(word, wanted))
+    except (ArithmeticError, TypeError, ValueError):
+        return 0
 
 
 def widening_word_lists(

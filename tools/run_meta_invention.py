@@ -46,9 +46,13 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1]
 from core.cognition.an_invented_kind import WHERE_FROM  # noqa: E402
 from core.cognition.one_algebra import Made, Term, every_term, holes_in  # noqa: E402
 from core.cognition.the_floor_she_stands_on import (  # noqa: E402
+    A,
     Code,
+    L,
     OutOfFuel,
     Stuck,
+    V,
+    build,
     every_code,
     how_long,
     run,
@@ -233,13 +237,335 @@ def second_generation(
     }
 
 
+# ── the same experiment, at the proposer rather than at the order ────────
+
+
+def _where_the_answers_were(families: list[Any], *, leaves: int, upto: int) -> list[int]:
+    """Which index of the proposal order each family's answer sits at.
+
+    Read off the data rather than searched for, which is the discipline
+    everywhere else here and the thing the first two versions of this
+    experiment were missing. A reindexing needs to know WHERE to look, and
+    where the answers are is observable: ask the default proposer for its k-th
+    candidate and see which k solves the family.
+    """
+    from core.cognition.a_way_of_computing_she_wrote import (
+        _computes,
+        _here,
+        as_a_head,
+        what_each_part_says,
+    )
+    from core.cognition.one_algebra import _where_each_came_from  # noqa: PLC2701
+    from core.cognition.the_proposer_she_can_replace import the_candidate_at
+
+    names = sorted(WHERE_FROM)
+    found: list[int] = []
+    for family in families:
+        wanted = _where_each_came_from(family)
+        if not wanted:
+            continue
+        lengths = sorted(wanted)
+        for first_name in names:
+            for second_name in names:
+                tables = {
+                    size: (
+                        what_each_part_says(WHERE_FROM[first_name], size),
+                        what_each_part_says(WHERE_FROM[second_name], size),
+                    )
+                    for size in lengths
+                }
+                for which in range(upto):
+                    body = the_candidate_at(which, leaves=leaves)
+                    if body is None:
+                        continue
+                    if _computes(body, wanted, tables):
+                        found.append(which)
+                        break
+                else:
+                    continue
+                break
+            else:
+                continue
+            break
+    return found
+
+
+def _what_it_costs_to_propose_for(
+    families: list[Any], *, budget: int, leaves: int = 10
+) -> float:
+    """Where in the proposal order each family's answer turns up. Lower is better.
+
+    This counts the proposer and nothing else, and getting that wrong is what
+    made the first three versions of this experiment report a negative.
+
+    The obvious measure — candidates walked by the whole head search — is
+    dominated by something the proposer does not control. The search tries
+    word pairs in an outer loop and walks the whole proposal order inside each
+    one, so a family whose answer needs the third pair costs two full orders
+    before the proposer's own choices matter at all. Measured: answers turning
+    up around candidate nineteen hundred when the proposer only offers seven
+    hundred. Reindexing that is reindexing noise.
+
+    So what is counted is the index at which the proposer itself offers the
+    answer, with the words held fixed. That is exactly the quantity a proposal
+    order decides, and nothing else is in it.
+    """
+    where = _where_the_answers_were(families, leaves=leaves, upto=budget)
+    missing = len(families) - len(where)
+    return (sum(where) + missing * budget) / max(1, len(families))
+
+
+def _a_proposer_over(where_to_look: Code) -> Code:
+    """Her own proposer, asked in a different order. Valid by construction.
+
+    The first version of this searched floor terms freely and asked each one
+    to be a proposer. Thirty-six of four hundred were proposers at all — the
+    rest hand back a number, or a pair that is not a written term, and offer
+    nothing at every index. Nine-tenths of the search was spent on things that
+    were never candidates, and what came back was training noise.
+
+    A proposal policy decides which candidate comes NEXT. So what is searched
+    is where to look, and the proposer it is handed to is her own: every
+    candidate is then a real proposer, and the space is the space of orders
+    rather than the space of terms that might accidentally be one.
+
+    The same move as solving for the step of a recurrence instead of searching
+    for the fixed point, one level up.
+    """
+    from core.cognition.the_proposer_she_can_replace import THE_PROPOSER
+
+    return build(
+        L(
+            "which",
+            L(
+                "leaves",
+                A(THE_PROPOSER, where_to_look, V("leaves")),
+            ),
+        )
+    )
+
+
+def _the_numbers_the_answers_show(where: list[int]) -> tuple[int, ...]:
+    """Constants a reindexing could be made of, taken from where the answers are.
+
+    Nought, one and two are not enough and that was the defect. A stream whose
+    answers sit past five hundred needs a five hundred to reach them, and a
+    search over constants nobody measured will never contain one — so the
+    experiment reported that no better proposer exists when what it had was no
+    way to write one.
+    """
+    if not where:
+        return (0, 1, 2)
+    where = sorted(where)
+    middle = where[len(where) // 2]
+    smallest = where[0]
+    return tuple(
+        sorted({0, 1, 2, smallest, middle, max(0, smallest - 1), middle - smallest})
+    )
+
+
+def _a_proposer_she_writes(
+    families: list[Any], *, budget: int, deepest: int, within: float,
+    leaves: int = 10,
+) -> Code | None:
+    """Search for an order to ask her own proposer in."""
+    from core.cognition.the_proposer_she_can_replace import (
+        forget_the_proposer,
+        the_proposer_she_wrote,
+    )
+
+    began = time.monotonic()
+    forget_the_proposer()
+    best = _what_it_costs_to_propose_for(families, budget=budget)
+    constants = _the_numbers_the_answers_show(
+        _where_the_answers_were(families, leaves=leaves, upto=_HOW_FAR_TO_LOOK)
+    )
+    found: Code | None = None
+    for where_to_look in every_code(
+        deepest=deepest, variables=2, constants=constants
+    ):
+        if time.monotonic() - began >= within:
+            break
+        made = _a_proposer_over(where_to_look)
+        the_proposer_she_wrote(made)
+        try:
+            got = _what_it_costs_to_propose_for(families, budget=budget)
+        except Exception:  # noqa: BLE001 - one that breaks proposes nothing
+            continue
+        finally:
+            forget_the_proposer()
+        if got < best:
+            best, found = got, made
+    forget_the_proposer()
+    return found
+
+
+#: How far into the proposal order an answer is looked for when reading off
+#: where the answers are. Read from the default proposer: it walks one
+#: arithmetic head over ten leaves, so past seven hundred it repeats.
+_HOW_FAR_TO_LOOK = 700
+
+
+def _a_family_the_proposer_could_reach(
+    rng: random.Random, *, band: tuple[int, int], leaves: int
+) -> list[Any] | None:
+    """A family whose answer FIRST TURNS UP inside the band.
+
+    Where the generating body sits in the proposal order is not where the
+    answer turns up, and the difference is what made the stream unlearnable.
+    Several candidates compute the same thing — `plus(#3, #2)` and
+    `plus(#2, #3)` among them — so a family built from a body at index six
+    hundred is usually answered by a shorter one at index nine, and a stream
+    clustered by generating body is not clustered in anything a proposal order
+    can see.
+
+    So the band is applied to the observable quantity: a family is kept when
+    the index at which its answer first turns up falls inside it. That is what
+    a stream with structure means here, and the control is the same draw with
+    the band open.
+    """
+    from core.cognition.a_way_of_computing_she_wrote import (
+        as_a_head,
+        what_each_part_says,
+    )
+    from core.cognition.the_proposer_she_can_replace import the_candidate_at
+
+    names = sorted(WHERE_FROM)
+    for _ in range(120):
+        which = rng.randrange(0, _HOW_FAR_TO_LOOK)
+        body = the_candidate_at(which, leaves=leaves)
+        if body is None:
+            continue
+        over = (rng.choice(names), rng.choice(names))
+        first, second = WHERE_FROM[over[0]], WHERE_FROM[over[1]]
+        closed = as_a_head(body)
+        made: list[Any] = []
+        ok = True
+        for size in (4, 5, 6, 7):
+            tables = (
+                what_each_part_says(first, size),
+                what_each_part_says(second, size),
+            )
+            here = (
+                [int(first(at, size)) % size for at in range(size)],
+                [int(second(at, size)) % size for at in range(size)],
+            )
+            places = []
+            for at in range(size):
+                said = _ask_a_head(closed, at, size, here[0][at], here[1][at], *tables)
+                if said is None:
+                    ok = False
+                    break
+                places.append(said % size)
+            if not ok or len(set(places)) < 2:
+                ok = False
+                break
+            before = tuple(range(100, 100 + size))
+            made.append((before, tuple(before[one] for one in places)))
+        if not ok or len(made) != 4:
+            continue
+        where = _where_the_answers_were([made], leaves=leaves, upto=_HOW_FAR_TO_LOOK)
+        if not where:
+            continue
+        if band[0] <= where[0] < band[1]:
+            return made
+    return None
+
+
+def _ask_a_head(
+    closed: Code, at: int, size: int, here_first: int, here_second: int,
+    first: Any, second: Any,
+) -> int | None:
+    from core.cognition.a_way_of_computing_she_wrote import _ask  # noqa: PLC2701
+
+    return _ask(closed, at, size, here_first, here_second, first, second)
+
+
+#: Where a shared stream's answers sit in the proposal order, and where a
+#: control stream's are spread. Read off the default proposer rather than
+#: chosen: it walks one arithmetic head over two leaves, so past seven hundred
+#: it repeats, and a band late in that range is one the default reaches last.
+_WHERE_A_SHARED_STREAM_SITS = (500, 700)
+_WHERE_ANY_STREAM_SITS = (0, 700)
+
+
+def a_better_proposer(
+    *, seed: int, families: int, budget: int, deepest: int, within: float,
+    stream: str = "shared",
+) -> dict[str, Any]:
+    """Experiment H, at the proposer, with the control that makes it mean something.
+
+    Split before anything is written, scored on the half never seen, lesioned
+    after. Two streams: one whose answers cluster in a band of the proposal
+    order, and one whose answers are spread across it. A policy can learn the
+    first and cannot learn the second, and the second is what says the gain on
+    the first was about learning.
+    """
+    from core.cognition.the_proposer_she_can_replace import (
+        THE_PROPOSER,
+        forget_the_proposer,
+        the_proposer_in_use,
+        the_proposer_she_wrote,
+    )
+
+    rng = random.Random(seed)
+    band = (
+        _WHERE_A_SHARED_STREAM_SITS if stream == "shared" else _WHERE_ANY_STREAM_SITS
+    )
+    leaves = 10
+    made: list[Any] = []
+    while len(made) < families:
+        forget_the_proposer()
+        one = _a_family_the_proposer_could_reach(rng, band=band, leaves=leaves)
+        if one is not None:
+            made.append(one)
+    training, sealed = made[0::2], made[1::2]
+
+    forget_the_proposer()
+    before = _what_it_costs_to_propose_for(sealed, budget=budget)
+    written = _a_proposer_she_writes(
+        training, budget=budget, deepest=deepest, within=within
+    )
+    if written is None:
+        return {"seed": seed, "stream": stream, "wrote": None, "sealed": len(sealed)}
+    the_proposer_she_wrote(written)
+    after = _what_it_costs_to_propose_for(sealed, budget=budget)
+    forget_the_proposer()
+    lesioned = _what_it_costs_to_propose_for(sealed, budget=budget)
+    assert the_proposer_in_use() == THE_PROPOSER
+    return {
+        "seed": seed,
+        "stream": stream,
+        "wrote": how_long(written),
+        "sealed": len(sealed),
+        "before": round(before, 1),
+        "after": round(after, 1),
+        "lesioned": round(lesioned, 1),
+        "better_on_sealed": after < before,
+        "lesion_restores": lesioned == before,
+    }
+
+
+def _a_family_needing_a_head_from(rng: random.Random) -> list[Any] | None:
+    """A family drawn at random, as before-and-after states."""
+    from tools.run_grown_against_reset_heads import _a_family
+
+    made = _a_family(rng, [], 3)
+    return None if made is None else made.transitions
+
+
 def main() -> int:
     ask = argparse.ArgumentParser(description=__doc__)
     ask.add_argument("--episodes", type=int, default=60)
     ask.add_argument("--deepest", type=int, default=4)
     ask.add_argument("--within", type=float, default=60.0)
     ask.add_argument("--seed", type=int, default=3000)
+    ask.add_argument("--seeds", type=int, default=1)
     ask.add_argument("--out", default="")
+    ask.add_argument("--proposer", action="store_true",
+                     help="write a better proposer rather than a better order")
+    ask.add_argument("--budget", type=int, default=3000,
+                     help="candidates one invention may walk")
     ask.add_argument("--second-generation", action="store_true",
                      help="invent with the order she wrote, on families it never saw")
     ask.add_argument("--each", type=float, default=2.0,
@@ -259,6 +585,27 @@ def main() -> int:
         if made is not None:
             episodes.append(made)
     training, sealed = episodes[0::2], episodes[1::2]
+
+    if said.proposer:
+        rows = [
+            a_better_proposer(
+                seed=5000 + seed,
+                families=said.episodes,
+                budget=said.budget,
+                deepest=said.deepest,
+                within=said.within,
+                stream=stream,
+            )
+            for stream in ("shared", "apart")
+            for seed in range(said.seeds)
+        ]
+        for one in rows:
+            print(one)
+        if said.out:
+            from pathlib import Path
+
+            Path(said.out).write_text(json.dumps(rows, indent=2), encoding="utf-8")
+        return 0
 
     if said.second_generation:
         found = second_generation(

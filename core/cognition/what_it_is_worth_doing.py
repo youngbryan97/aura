@@ -79,6 +79,7 @@ __all__ = [
     "WhatItIsWorth",
     "forget_the_worth",
     "how_much_it_is_worth",
+    "how_often_a_change_has_paid",
     "how_often_it_will_come_up",
     "the_choice_follows_the_record",
     "the_price_of_finding_out",
@@ -293,6 +294,38 @@ def what_it_risks(kind: str, *, cost: int, entries: int) -> int:
             missed += 1
     rate = (missed + 1) / (worked + missed + 2)
     return int(round(rate * max(0, int(cost)))) + max(0, int(entries))
+
+
+def how_often_a_change_has_paid() -> float:
+    """How often a change of any kind has left the family cheaper.
+
+    Laplace over the whole record, so a system that has changed nothing yet
+    believes a change is as likely to pay as not — which is what having no
+    evidence means, and is not a number anybody chose.
+    """
+    worked = missed = 0
+    admitted_at: dict[str, int] = {}
+    for at, one in enumerate(the_record().kept):
+        if one.admitted and one.family not in admitted_at:
+            admitted_at[one.family] = at
+    for family, when in admitted_at.items():
+        was = [
+            one.walked
+            for at, one in enumerate(the_record().kept)
+            if one.family == family and at < when
+        ]
+        now = [
+            one.walked
+            for at, one in enumerate(the_record().kept)
+            if one.family == family and at > when
+        ]
+        if not was or not now:
+            continue
+        if sum(now) / len(now) < sum(was) / len(was):
+            worked += 1
+        else:
+            missed += 1
+    return (worked + 1) / (worked + missed + 2)
 
 
 def the_price_of_finding_out(cost: int) -> int:
