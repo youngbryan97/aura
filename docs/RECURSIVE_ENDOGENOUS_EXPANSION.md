@@ -749,8 +749,8 @@ GROWN and RESET.
 The rule deciding what to try first is a floor term, and replacing it is the
 call that replaces a head — so the question has a place to be asked. What is
 measured is not that the source changed: the order decides how far the search
-walks before it reaches the word an answer is built on, so `MetaCap` is the
-mean rank of that word, lower being better.
+walks before it reaches the word an answer is built on, so what is measured is
+the mean rank of that word, lower being better.
 
 Sixty episodes, split before anything was written. An eight-symbol order
 written from the training half:
