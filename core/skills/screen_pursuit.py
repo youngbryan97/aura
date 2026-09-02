@@ -2772,12 +2772,16 @@ async def pursue_on_screen(
     # right. LIVE 2026-09-02: three sittings running, the grid correct in the
     # last two, the rule stuck at two hundred and five right out of three
     # hundred and one, and not one move looked ahead on in any of them.
-    if (
-        knows.rules is not None
-        and responds["lattice"].held
-        and knows.rules.read_through not in ((0, 0), (responds["lattice"].rows, responds["lattice"].columns))
-    ):
-        knows.rules.learned_through_a_different_reading()
+    #
+    # Counts that cannot say what grid they were read through are dropped too.
+    # Evidence that cannot say what it was gathered under cannot be known to
+    # still apply, and this particular evidence decides whether she looks
+    # ahead at all — a wrong one costs her every move of every sitting, and
+    # relearning a right one costs about thirty moves of one.
+    if knows.rules is not None and responds["lattice"].held:
+        grid = (responds["lattice"].rows, responds["lattice"].columns)
+        if knows.rules.read_through != grid:
+            knows.rules.learned_through_a_different_reading()
     #: The few acts she reaches for, out of all the ones she could. A habit is
     #: worth carrying between sittings, so it is remembered too.
     reaches = TheOnesSheReachesFor.from_memory(
