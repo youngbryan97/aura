@@ -97,6 +97,164 @@ def _cells(inside: str) -> tuple[Any, ...] | None:
 
 
 def _a_meaning_worked_out(question: SequenceQuestion) -> str | None:
+    """An answer, and then a decision about whether answering it cost too much.
+
+    The answer comes from `_work_the_meaning_out` below and is not changed by
+    anything here. What is here is the other half of development, and it is the
+    half a failure-driven ladder cannot have: the search WORKED, and it may
+    still have been dear enough to be worth doing something about.
+
+    Nothing about that is a special case. The same ranking runs on the same
+    record; all that differs is that the occasion was a success, so the test a
+    candidate has to pass is not "does this make the family sayable" — it
+    already is — but "does this make it cheaper", measured in the same unit,
+    with the change taken back out when it does not.
+    """
+    from core.cognition.an_invented_kind import (
+        how_many_were_walked,
+        start_counting_again,
+    )
+    from core.cognition.the_record_of_her_own_work import note_an_episode
+
+    start_counting_again()
+    said = _work_the_meaning_out(question)
+    walked = max(0, how_many_were_walked())
+    if said is None:
+        return None
+    pairs = [(one.before, one.after) for one in question.shown]
+    family = _what_family_this_is(pairs)
+    note_an_episode(family, route="a meaning she induced", walked=walked)
+    _she_may_improve_a_working_answer(pairs, family, walked)
+    return said
+
+
+def _everything_she_can_say() -> dict[str, dict]:
+    """A copy of every registry a developmental action can add to.
+
+    Not a list of what development is — a list of the places terms are kept, so
+    a change that turned out not to pay can be taken back out whole.
+    """
+    from core.cognition.a_kind_of_thing_she_named import KINDS_OF_THING
+    from core.cognition.a_rule_with_no_shape import RULES_WITH_NO_SHAPE
+    from core.cognition.an_invented_kind import (
+        WAYS_TO_BUILD,
+        WHAT_OF_IT,
+        WHERE_FROM,
+    )
+    from core.cognition.one_algebra import DERIVED_HEADS
+
+    return {
+        "ways to build": dict(WAYS_TO_BUILD),
+        "where from": dict(WHERE_FROM),
+        "what of it": dict(WHAT_OF_IT),
+        "kinds of thing": dict(KINDS_OF_THING),
+        "derived heads": dict(DERIVED_HEADS),
+        "rules with no shape": dict(RULES_WITH_NO_SHAPE),
+    }
+
+
+def _put_back(held: dict[str, dict]) -> None:
+    """Undo a change that did not pay."""
+    from core.cognition.a_kind_of_thing_she_named import KINDS_OF_THING
+    from core.cognition.a_rule_with_no_shape import RULES_WITH_NO_SHAPE
+    from core.cognition.an_invented_kind import (
+        WAYS_TO_BUILD,
+        WHAT_OF_IT,
+        WHERE_FROM,
+    )
+    from core.cognition.one_algebra import DERIVED_HEADS
+
+    for registry, was in (
+        (WAYS_TO_BUILD, held["ways to build"]),
+        (WHERE_FROM, held["where from"]),
+        (WHAT_OF_IT, held["what of it"]),
+        (KINDS_OF_THING, held["kinds of thing"]),
+        (DERIVED_HEADS, held["derived heads"]),
+        (RULES_WITH_NO_SHAPE, held["rules with no shape"]),
+    ):
+        registry.clear()
+        registry.update(was)
+
+
+def _what_it_costs_to_say(pairs: Sequence[tuple[Sequence[Any], Sequence[Any]]]) -> int:
+    """How many meanings the search walks to reach this family. The measurement."""
+    from core.cognition.an_invented_kind import (
+        how_many_were_walked,
+        induce_from,
+        start_counting_again,
+    )
+
+    start_counting_again()
+    induce_from(pairs)
+    return max(1, how_many_were_walked())
+
+
+def _she_may_improve_a_working_answer(
+    pairs: Sequence[tuple[Sequence[Any], Sequence[Any]]],
+    family: str,
+    walked: int,
+) -> str | None:
+    """Develop something that already works, because it costs too much.
+
+    The whole point of the experiment this serves. A ladder driven by failure
+    can never do it: there was no failure. The ranking can, because what it
+    reads is the cost, and a cost is there whether or not the answer arrived.
+
+    A candidate is kept only when the family gets cheaper to say, and taken
+    back out when it does not, which is what stops this from filling the
+    language with things that made an answer look busier.
+    """
+    from core.cognition.she_decides_to_develop import what_to_do_next
+    from core.cognition.the_record_of_her_own_work import note_an_episode
+    from core.cognition.what_she_could_do_next import the_actions_she_has
+
+    _register_what_she_could_do()
+    decided = what_to_do_next(family, costs_now=walked, among=the_actions_she_has())
+    if decided.action is None:
+        return None
+    held = _everything_she_can_say()
+    was = _what_it_costs_to_say(pairs)
+    situation = _Situation(
+        pairs=tuple((tuple(before), tuple(after)) for before, after in pairs),
+        sayable=lambda: True,
+    )
+    try:
+        said = decided.action.do_it(situation)
+    except Exception:  # noqa: BLE001 - a failed action is a result
+        logger.info("%s raised improving a working answer", decided.action.name,
+                    exc_info=True)
+        said = None
+    now = _what_it_costs_to_say(pairs) if said else was
+    if not said or now >= was:
+        _put_back(held)
+        note_an_episode(
+            family,
+            route=None,
+            walked=decided.worth.cost if decided.worth else walked,
+        )
+        logger.info(
+            "she tried %s on a working answer and it did not pay: %d then %d",
+            decided.action.name,
+            was,
+            now,
+        )
+        return None
+    note_an_episode(
+        family,
+        route=decided.action.name,
+        walked=decided.worth.cost if decided.worth else walked,
+        admitted=decided.action.kind,
+    )
+    logger.info(
+        "she improved a working answer with %s: %d then %d",
+        decided.action.name,
+        was,
+        now,
+    )
+    return said
+
+
+def _work_the_meaning_out(question: SequenceQuestion) -> str | None:
     """An answer from a meaning she induced, when the language has none.
 
     The examples are before-and-after pairs, which is exactly what a meaning is

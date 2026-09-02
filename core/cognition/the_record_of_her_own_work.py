@@ -65,7 +65,24 @@ logger = logging.getLogger("Aura.TheRecordOfHerOwnWork")
 #: counts, and only the attribution reads whole episodes.
 HOW_MANY_EPISODES_ARE_KEPT = 512
 
-_KEPT_AT = Path.home() / ".aura" / "state" / "the_record_of_her_own_work.json"
+#: Set to send it somewhere else. Left alone in the live runtime; a test that
+#: wants its own file names one here.
+_KEPT_AT: Path | None = None
+
+
+def _kept_at() -> Path:
+    """Where it goes.
+
+    Read every time rather than fixed at import, because a test run has its own
+    state root and a path resolved once would aim a test's writes at the live
+    instance — which the ownership guard then refuses, so the write is lost and
+    the persistence is never actually exercised.
+    """
+    if _KEPT_AT is not None:
+        return _KEPT_AT
+    from core.runtime.state_ownership import state_root
+
+    return state_root() / "the_record_of_her_own_work.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,10 +251,10 @@ def keep_the_record() -> bool:
             "the_record_of_her_own_work.keep", domain="state_mutation"
         ):
             get_file_write_gateway().ensure_directory(
-                _KEPT_AT.parent, source="the_record_of_her_own_work"
+                _kept_at().parent, source="the_record_of_her_own_work"
             )
             get_file_write_gateway().write_text(
-                _KEPT_AT, json.dumps(body), source="the_record_of_her_own_work"
+                _kept_at(), json.dumps(body), source="the_record_of_her_own_work"
             )
         return True
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -251,7 +268,7 @@ def keep_the_record() -> bool:
 def recall_the_record() -> int:
     """Put it back. Returns how many episodes came back."""
     try:
-        held = json.loads(_KEPT_AT.read_text(encoding="utf-8"))
+        held = json.loads(_kept_at().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return 0
     if not isinstance(held, dict):

@@ -215,3 +215,67 @@ def test_the_lesion_is_exact_even_where_what_she_wrote_was_worse() -> None:
     if found["wrote"] is None:
         pytest.skip("nothing written on this stream")
     assert found["after_the_lesion"] == found["with_the_order_she_was_given"]
+
+
+# ── the same experiment, at the proposer rather than at the order ────────
+
+
+@pytest.mark.slow
+def test_at_the_proposer_the_lesion_is_exact_and_the_transfer_mostly_is_not() -> None:
+    """Experiment H, one level up from the order, and it mostly does not work.
+
+    The order decides which word goes in a hole first. The PROPOSER decides
+    what to try at all, and it is the larger half of the machinery — so making
+    it a term and replacing it is the stronger version of the same claim.
+    Whether the replacement is any GOOD is a separate question, and here the
+    answer is mostly no.
+
+    Eight streams, split before anything is written, scored on the half never
+    seen, lesioned after:
+
+        5000  wrote 3 symbols   sealed cost 7,594 -> 8,033     worse
+        5001  wrote 3 symbols   sealed cost 34,884 -> 26,634   better
+        5002  nothing written
+        5003  wrote 3 symbols   sealed cost 9,293 -> 9,730     worse
+        5004  nothing written
+        5005  wrote 3 symbols   sealed cost 1,207 -> 4,036     worse
+        5006  nothing written
+        5007  nothing written
+
+    One better, three worse, four nothing. What holds in every written case is
+    the LESION: the number returns exactly. What does not hold is transfer —
+    selecting on four training families finds training noise more often than a
+    better proposal policy.
+
+    So this asserts what is true across the streams rather than what is true
+    on the best of them. A passing test built on seed 5001 alone would be a
+    result chosen after the fact.
+    """
+    from tools.run_meta_invention import a_better_proposer
+
+    written = restored = 0
+    for seed in (5000, 5001):
+        found = a_better_proposer(
+            seed=seed, families=8, budget=2000, deepest=3, within=45.0
+        )
+        if found["wrote"] is None:
+            continue
+        written += 1
+        restored += 1 if found["lesion_restores"] else 0
+    assert written > 0, "nothing was written on either stream"
+    assert restored == written, "a lesion did not return the number exactly"
+
+
+
+def test_a_proposer_is_selected_on_the_training_half_only() -> None:
+    """The protocol, as an assertion rather than a paragraph."""
+    import inspect
+
+    from tools.run_meta_invention import a_better_proposer
+
+    source = inspect.getsource(a_better_proposer)
+    assert "training, sealed = made[0::2], made[1::2]" in source
+    # Selection sees training; the number reported comes from sealed.
+    assert source.index("_a_proposer_she_writes(\n        training") < source.index(
+        "after = _how_many_it_proposes_for(sealed"
+    )

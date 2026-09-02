@@ -134,11 +134,13 @@ def the_action_she_wrote(
 ) -> ADevelopmentalAction:
     """An action she invented: a shape of term, and a place to put it.
 
-    `look_for` is a term taking the situation and giving back a candidate to
-    install, so the action is a value all the way down. The installer is
-    whichever one holds `over`, and there is no second mechanism for it.
+    `look_for` is a term taking the situation and giving back the ENCODING of
+    a candidate, the way `the_proposer_she_can_replace` does, so the action is
+    a value all the way down and what comes back is a term rather than a
+    running closure. The installer is whichever one holds `over`, and there is
+    no second mechanism for it.
     """
-    from core.cognition.the_floor_she_stands_on import run
+    from core.cognition.the_floor_she_stands_on import Code, decode, run
 
     put_it = _WHERE_IT_GOES.get(over)
     if put_it is None:
@@ -149,10 +151,13 @@ def the_action_she_wrote(
             made = run(look_for, fuel=200_000)
             if hasattr(made, "body"):
                 made = run(made.body, (situation, *made.env), fuel=200_000)
+            # A quoted term arrives as itself; anything else arrives written
+            # down and has to read back as a term or it is not one.
+            candidate = made if isinstance(made, Code) else decode(made)
         except Exception as exc:  # noqa: BLE001 - a refusal changes nothing
             logger.info("%s gave nothing: %s", name, exc)
             return None
-        return put_it(made)
+        return put_it(candidate)
 
     return what_she_could_do(
         name,

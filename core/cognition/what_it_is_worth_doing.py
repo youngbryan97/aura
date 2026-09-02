@@ -235,7 +235,10 @@ def what_each_occasion_would_save(
         return None, "nothing of this kind has been admitted before"
     for at, one in enumerate(the_record().kept):
         when = admitted_at.get(one.family)
-        if when is None:
+        if when is None or at == when:
+            # The occasion the change was admitted on is what admitting it
+            # cost, and counting that as an occasion afterwards makes every
+            # change look like it saved less than it did.
             continue
         (before if at < when else after).setdefault(one.family, []).append(
             one.walked

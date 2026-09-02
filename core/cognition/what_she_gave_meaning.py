@@ -38,7 +38,24 @@ __all__ = ["forget_everything", "keep", "recall"]
 
 logger = logging.getLogger("Aura.WhatSheGaveMeaning")
 
-_KEPT_AT = Path.home() / ".aura" / "state" / "meanings_she_induced.json"
+#: Set to send it somewhere else. Left alone in the live runtime; a test that
+#: wants its own file names one here.
+_KEPT_AT: Path | None = None
+
+
+def _kept_at() -> Path:
+    """Where it goes.
+
+    Read every time rather than fixed at import, because a test run has its own
+    state root and a path resolved once would aim a test's writes at the live
+    instance — which the ownership guard then refuses, so the write is lost and
+    the persistence is never actually exercised.
+    """
+    if _KEPT_AT is not None:
+        return _KEPT_AT
+    from core.runtime.state_ownership import state_root
+
+    return state_root() / "meanings_she_induced.json"
 
 #: A bound on the file. What she has given meaning to is a handful of recipes.
 _MOST_KEPT = 200_000
@@ -186,10 +203,10 @@ def keep() -> bool:
             "what_she_gave_meaning.keep", domain="state_mutation"
         ):
             get_file_write_gateway().ensure_directory(
-                _KEPT_AT.parent, source="what_she_gave_meaning"
+                _kept_at().parent, source="what_she_gave_meaning"
             )
             get_file_write_gateway().write_text(
-                _KEPT_AT, written, source="what_she_gave_meaning"
+                _kept_at(), written, source="what_she_gave_meaning"
             )
         logger.info(
             "kept %d meaning(s) and %d derived word(s) in %d way(s) of building",
@@ -343,7 +360,7 @@ def recall() -> int:
     nothing to resolve against, and would be dropped as unreadable.
     """
     try:
-        held = json.loads(_KEPT_AT.read_text(encoding="utf-8"))
+        held = json.loads(_kept_at().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return 0
     if not isinstance(held, dict):
@@ -388,7 +405,7 @@ def forget_everything() -> bool:
     try:
         from core.runtime.file_write_gateway import get_file_write_gateway
 
-        get_file_write_gateway().delete_file(_KEPT_AT, source="what_she_gave_meaning")
+        get_file_write_gateway().delete_file(_kept_at(), source="what_she_gave_meaning")
         return True
     except (OSError, RuntimeError, AttributeError):
         return False
