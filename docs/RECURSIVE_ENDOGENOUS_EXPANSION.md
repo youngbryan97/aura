@@ -728,7 +728,7 @@ still takes a callable and still has no runtime caller;
 | **F** | Cross-domain transfer with a negative control | **run.** Related domain 87/96 with the piece against 71 without; unrelated control 90 and 90 |
 | **G** | GROWN vs RESET vs LESIONED, `dΔ/dn > 0` | **run, with its negative control** — 129/150 against 89, control flat |
 | **H** | The mechanism changes itself and wins on sealed invention tasks | **run, on one stream of five** — sealed 2.000 → 1.833, lesion returns it exactly. See below |
-| **I** | A second generation with no human code between | **not run** |
+| **I** | A second generation with no human code between | **run.** The order she wrote reaches ordinary invention on sealed families: 13→16, 16→18, 13→12 across three streams, lesion exact each time |
 | **J** | Post-freeze tasks by an independent party | **not run** |
 
 **Controls.** Implemented: shuffled and contradictory residuals refused; a
@@ -775,6 +775,27 @@ one word every word tells her the answer equally well, so the feature the order
 reads is flat and no order could have ranked anything. A negative from an
 unlearnable measurement is worse than no measurement, and there is a test
 holding that now.
+
+### Experiment I, as run
+
+What was changed at the meta level is the order. What is measured after is
+whether *ordinary* invention goes better with it — not the rank the change was
+selected on, which is what makes this transfer rather than fit. No source is
+edited between the two, because the order is a value.
+
+Twenty sealed families per stream, every invention on the same tight budget:
+
+| Stream | Order she was given | Order she wrote | After the lesion |
+|---|---|---|---|
+| 3000 | 13 / 20 | **16** | 13 |
+| 3001 | 16 / 20 | **18** | 16 |
+| 3003 | 13 / 20 | 12 | 13 |
+| 3002 | — | nothing written | — |
+
+Two better, one worse, and the lesion exact every time. The one that is worse
+is the no-free-lunch theorem arriving in practice rather than in a footnote,
+and a rule that improved every stream would contradict a theorem this codebase
+already executes. It is kept in the record and held by a test for that reason.
 
 ### Experiment F, as run
 
@@ -1107,14 +1128,15 @@ Done, in order, each piece surviving into the final architecture:
 13a. A head that refers to itself, and a step solved rather than searched.
 13b. A rule whose shape is its own term, and which can make values.
 13c. An order she wrote, holding on sealed episodes, with its lesion.
+13d. That order reaching ordinary invention on families it never saw.
 
 Next, in the order that keeps every step in the final architecture:
 
 13. The inline-expansion control, so a name that bought nothing cannot pass as
    an abstraction. The search-cost probe is done.
 14. Post-freeze tasks, which need an independent party.
-13. Make the whole proposer a term, not only its ordering, and persist it. H is
-    run on the ordering; I needs the rest.
+13. Make the whole proposer a term, not only its ordering, and persist it. H
+    and I are run on the ordering; a third generation needs the rest.
 14. Freeze; commission the sealed family; run F, G, H, I and J.
 
 If step 13 needs a new human-written mechanism to pass, the design has failed

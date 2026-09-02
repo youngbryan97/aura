@@ -166,6 +166,73 @@ def _an_order_she_writes(
     return found
 
 
+# ── experiment I: does the next invention use what the last one changed? ──
+
+
+def _a_family_needing_a_head(episode: Episode) -> list[tuple[tuple, tuple]]:
+    """The episode's correspondence, as before-and-after states."""
+    made = []
+    for size, places in sorted(episode.wanted.items()):
+        before = tuple(range(100, 100 + size))
+        made.append((before, tuple(before[one] for one in places)))
+    return made
+
+
+def _how_many_she_writes(episodes: list[Episode], *, within: float) -> int:
+    """How many of these she writes a way of computing for, under the order in force.
+
+    The order decides which words go in the holes first, so a better order is
+    a search that reaches the answer sooner — and on a tight budget, sooner is
+    the difference between an answer and nothing.
+    """
+    from core.cognition.a_way_of_computing_she_wrote import (
+        a_way_of_computing_she_wrote,
+    )
+
+    got = 0
+    for episode in episodes:
+        found = a_way_of_computing_she_wrote(
+            _a_family_needing_a_head(episode),
+            now_sayable=lambda: False,
+            words=dict(WHERE_FROM),
+            within=within,
+            by_recurrence=False,
+        )
+        got += 1 if found is not None else 0
+    return got
+
+
+def second_generation(
+    training: list[Episode], sealed: list[Episode], *, deepest: int, within: float,
+    each: float,
+) -> dict[str, Any]:
+    """Write an order, then invent with it, on families it never saw.
+
+    Experiment I in the only form this repository can currently run it: the
+    thing changed at the meta level is the order, and what is measured after
+    is whether ORDINARY invention goes better with it — not the rank proxy the
+    change was selected on.
+
+    No source is edited between the two. The order is a value.
+    """
+    forget_the_order()
+    written = _an_order_she_writes(training, deepest=deepest, within=within)
+    if written is None:
+        return {"wrote": None}
+    before = _how_many_she_writes(sealed, within=each)
+    the_order_she_wrote(written)
+    after = _how_many_she_writes(sealed, within=each)
+    forget_the_order()
+    lesioned = _how_many_she_writes(sealed, within=each)
+    return {
+        "wrote": how_long(written),
+        "sealed": len(sealed),
+        "with_the_order_she_was_given": before,
+        "with_the_order_she_wrote": after,
+        "after_the_lesion": lesioned,
+    }
+
+
 def main() -> int:
     ask = argparse.ArgumentParser(description=__doc__)
     ask.add_argument("--episodes", type=int, default=60)
@@ -173,6 +240,10 @@ def main() -> int:
     ask.add_argument("--within", type=float, default=60.0)
     ask.add_argument("--seed", type=int, default=3000)
     ask.add_argument("--out", default="")
+    ask.add_argument("--second-generation", action="store_true",
+                     help="invent with the order she wrote, on families it never saw")
+    ask.add_argument("--each", type=float, default=2.0,
+                     help="what one invention gets, in seconds")
     said = ask.parse_args()
 
     rng = random.Random(said.seed)
@@ -188,6 +259,17 @@ def main() -> int:
         if made is not None:
             episodes.append(made)
     training, sealed = episodes[0::2], episodes[1::2]
+
+    if said.second_generation:
+        found = second_generation(
+            training, sealed, deepest=said.deepest, within=said.within, each=said.each
+        )
+        print(json.dumps(found, indent=2))
+        if said.out:
+            from pathlib import Path
+
+            Path(said.out).write_text(json.dumps(found, indent=2), encoding="utf-8")
+        return 0
 
     forget_the_order()
     before_training = meta_capability(training, THE_ORDER)

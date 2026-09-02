@@ -163,3 +163,55 @@ def test_selection_is_on_the_training_half_and_the_sealed_half_decides() -> None
     # And the half it never saw is what decides whether that meant anything.
     assert meta_capability(sealed, written) >= meta_capability(sealed, THE_ORDER)
     assert the_order_she_uses() == THE_ORDER, "nothing is installed by writing it"
+
+
+# ── experiment I: does the next invention use what the last one changed? ──
+
+
+@pytest.mark.slow
+def test_the_order_she_wrote_reaches_ordinary_invention() -> None:
+    """The second generation, on families the order never saw.
+
+    What was changed at the meta level is the order. What is measured after is
+    whether ORDINARY invention goes better with it — not the rank the change
+    was selected on, which is what makes this transfer rather than fit. No
+    source is edited between the two: the order is a value.
+
+    Three streams where an order was written, twenty sealed families each,
+    every invention on the same tight budget:
+
+        given 13 → wrote 16 → lesion 13
+        given 16 → wrote 18 → lesion 16
+        given 13 → wrote 12 → lesion 13
+
+    Two of three better, one worse, and the lesion exact every time. The one
+    that is worse is the no-free-lunch theorem arriving in practice rather
+    than in a footnote, and it is why the claim names its stream.
+    """
+    from tools.run_meta_invention import second_generation
+
+    found = second_generation(
+        *_episodes(3000, 40), deepest=4, within=45.0, each=1.5
+    )
+    assert found["wrote"] is not None
+    assert found["with_the_order_she_wrote"] > found["with_the_order_she_was_given"]
+    assert found["after_the_lesion"] == found["with_the_order_she_was_given"]
+
+
+@pytest.mark.slow
+def test_the_lesion_is_exact_even_where_what_she_wrote_was_worse() -> None:
+    """A stream where her order made ordinary invention worse.
+
+    Kept as a test rather than left out. An update rule that improved on every
+    stream would contradict a theorem this codebase already executes, and a
+    result that only ever shows the good streams is the shape of a result
+    nobody should believe.
+    """
+    from tools.run_meta_invention import second_generation
+
+    found = second_generation(
+        *_episodes(3003, 40), deepest=4, within=30.0, each=1.5
+    )
+    if found["wrote"] is None:
+        pytest.skip("nothing written on this stream")
+    assert found["after_the_lesion"] == found["with_the_order_she_was_given"]

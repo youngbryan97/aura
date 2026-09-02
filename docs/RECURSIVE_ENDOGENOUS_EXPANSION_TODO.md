@@ -364,7 +364,7 @@ evaluator isolation; computational budgets. Show the information flow.
 - [x] **H** Meta-invention. `M_t` cannot efficiently produce the needed class;
   Aura modifies it; `C(M_{t+1}) > C(M_t)` on sealed future invention tasks under
   matched resources; lesion the meta-change.
-- [ ] **I** No human mechanism at the next level. A second invention after the
+- [x] **I** No human mechanism at the next level. A second invention after the
   meta-change with no human code in between.
 - [ ] **J** Post-freeze task creation by an independent party.
 

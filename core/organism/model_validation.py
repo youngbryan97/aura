@@ -3506,6 +3506,30 @@ def _install_language_growth_claims(suite: Any) -> None:
     suite.add_claim(
         Claim(
             statement=(
+                "A change she made to the machinery she invents with reaches "
+                "ordinary invention on families it never saw, with no source "
+                "edited between the two."
+            ),
+            test="test_she_writes_an_order_that_holds_on_episodes_it_never_saw",
+            owner="tools/run_meta_invention.py",
+            asserted_in="core/cognition/the_order_she_tries_them_in.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "twenty sealed families per stream, every invention on the same "
+                "tight budget, and the order selected on a rank measured over "
+                "OTHER episodes — so what is reported is transfer rather than "
+                "fit. Three streams where an order was written: 13 to 16, 16 to "
+                "18, and 13 to 12, with the lesion returning each number exactly. "
+                "Two better and one worse, which is the no-free-lunch theorem "
+                "arriving in practice; a rule improving every stream would "
+                "contradict a theorem this codebase already executes"
+            ),
+            live_channels=("language.ways_of_building",),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
                 "One component of the machinery she invents with — the rule "
                 "deciding what to try first — has been replaced by one she wrote, "
                 "and the replacement holds on invention episodes it never saw."
