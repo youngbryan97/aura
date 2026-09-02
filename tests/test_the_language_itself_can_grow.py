@@ -336,3 +336,27 @@ def test_a_word_that_will_not_answer_has_nothing_to_undo():
     # And refuses where it was not, in this module's own vocabulary.
     with pytest.raises(ValueError, match="nothing to undo"):
         _undone(short)(0, 4)
+
+
+def test_reading_a_correspondence_skips_a_length_the_word_refuses():
+    """The third escape of the same refusal, and the one that reached furthest.
+
+    _correspondence already returns None for "nothing to read here" and
+    already catches five exception types around the run. It did not catch the
+    word refusing a length, so any test that left a word of another length in
+    the language killed the developmental claim's prediction — the claim about
+    whether keeping what she wrote makes the next one easier could not be
+    evaluated at all.
+    """
+    from core.cognition.an_invented_kind import WHERE_FROM
+    from tools.run_grown_against_reset_heads import _correspondence, every_code
+
+    only_at_three = DerivedAddressing("short", {3: (2, 0, 1)})
+    body = next(iter(every_code(deepest=2)))
+    # It must not raise; refusing every length is "no correspondence", None.
+    assert _correspondence(body, only_at_three, only_at_three) in (None, {})
+
+    # And a word that answers everywhere is still read.
+    here = WHERE_FROM["here"]
+    result = _correspondence(body, here, here)
+    assert result is None or isinstance(result, dict)

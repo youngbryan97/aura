@@ -96,11 +96,22 @@ def _correspondence(body: Code, first: Any, second: Any) -> dict[int, tuple[int,
     """What this term says, as a source position per place, at each length."""
     found: dict[int, tuple[int, ...]] = {}
     for size in AT_LENGTHS:
-        tables = (what_each_part_says(first, size), what_each_part_says(second, size))
-        here = (
-            [int(first(at, size)) % size for at in range(size)],
-            [int(second(at, size)) % size for at in range(size)],
-        )
+        try:
+            tables = (
+                what_each_part_says(first, size),
+                what_each_part_says(second, size),
+            )
+            here = (
+                [int(first(at, size)) % size for at in range(size)],
+                [int(second(at, size)) % size for at in range(size)],
+            )
+        except IndexError:
+            # A word read off examples of another length refuses this one,
+            # which means there is no correspondence to read at this length —
+            # not that the run failed. Letting the refusal out killed the
+            # developmental claim's prediction whenever any test had left a
+            # word of another length in the language.
+            continue
         places = []
         for at in range(size):
             try:
