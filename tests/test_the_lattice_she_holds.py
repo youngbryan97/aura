@@ -343,3 +343,33 @@ def test_a_new_grid_does_not_inherit_the_old_one_s_complaints() -> None:
     assert lattice.built_from(wider, acts=9)
     assert not lattice.looks_covered()
     assert not lattice.has_changed()
+
+
+def test_one_place_that_got_in_does_not_become_a_column() -> None:
+    """A score's text is centred, so it moves sideways as its number gets
+    longer — and a value that was a tile a moment ago turning up where the
+    score now sits looks exactly like a tile that slid there. LIVE
+    2026-09-02: a board four by four came back four by FIVE, and the fifth
+    column had one thing in it."""
+    board = {
+        (int(round((0.20 + col * 0.15) * 100)), int(round((0.35 + row * 0.12) * 100)))
+        for row in range(4)
+        for col in range(4)
+    }
+    stray = (int(round(0.86 * 100)), int(round(0.35 * 100)))
+    lattice = TheLatticeSheHolds()
+    assert lattice.built_from(board | {stray}, acts=12)
+    assert (lattice.rows, lattice.columns) == (4, 4), (
+        f"{lattice.rows}x{lattice.columns}"
+    )
+
+
+def test_a_sparse_thing_keeps_all_of_its_lines() -> None:
+    """Where every line holds one place there is nothing to compare against,
+    and dropping them all would leave her with no grid rather than a small
+    one."""
+    scattered = {(10, 10), (30, 30), (50, 50), (70, 70)}
+    lattice = TheLatticeSheHolds()
+    assert lattice.built_from(scattered, acts=6)
+    assert lattice.rows == 4
+    assert lattice.columns == 4

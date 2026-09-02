@@ -127,6 +127,8 @@ class TheLatticeSheHolds:
         # would freeze there.
         across = _lines_through([x / 100 for x, _y in held])
         down = _lines_through([y / 100 for _x, y in held])
+        across = _lines_worth_having(across, [x / 100 for x, _y in held])
+        down = _lines_worth_having(down, [y / 100 for _x, y in held])
         if not across or not down:
             return False
         if (
@@ -269,6 +271,45 @@ class TheLatticeSheHolds:
             from_acts=int(held.get("from_acts") or 0),
             _built_from=frozenset(places),
         )
+
+
+def _lines_worth_having(
+    lines: tuple[float, ...], places: Sequence[float]
+) -> tuple[float, ...]:
+    """Drop lines with far fewer places on them than the rest.
+
+    A grid is regular: every column of it holds as many places as the thing is
+    tall, and every row as many as it is wide. So a line holding one place,
+    beside lines holding four, is not one of the thing's lines — it is one
+    place that got in.
+
+    Which is how a score gets in. Its text is centred, so it moves sideways as
+    its number lengthens, and a value that was a tile a moment ago turning up
+    where the score now sits looks exactly like a tile that slid there. LIVE
+    2026-09-02: a board four by four came back four by FIVE, and the fifth
+    column had one thing in it.
+
+    A line of a grid holds more than one place. A line holding exactly one,
+    while the others hold several, is one place that got in — so that is the
+    bar, and nothing else is. Comparing counts against each other looks more
+    careful and is worse: the places are rounded to hundredths, so a column
+    whose drift straddles a boundary is counted twice over and one that does
+    not is counted once, and the counts come out fourteen, seven, fourteen,
+    six for four columns that are all real.
+    """
+    if len(lines) < 3:
+        return lines
+    reach = _between(lines)
+    on_each = [
+        sum(1 for one in places if abs(one - line) <= reach) for line in lines
+    ]
+    if sorted(on_each)[len(on_each) // 2] < 2:
+        # A thing this sparse has nothing to compare against.
+        return lines
+    kept = tuple(
+        line for line, many in zip(lines, on_each, strict=True) if many > 1
+    )
+    return kept if len(kept) >= 2 else lines
 
 
 def _between(lines: Sequence[float]) -> float:
