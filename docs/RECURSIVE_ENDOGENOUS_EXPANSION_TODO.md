@@ -39,7 +39,7 @@ full before any of this was written.
   concept → addressing → operation → constructor → `why_nothing_fits` →
   `a_maker_she_wrote` → `grow_until_sayable`. Endogenous representation work
   has reached ordinary inference. `operator_invention.py` has not.
-- [ ] **0.5** Enumerate every producer, consumer and persistence path for
+- [x] **0.5** Enumerate every producer, consumer and persistence path for
   invented semantics, as a machine-generated map rather than a reading.
 - [ ] **0.6** Audit `core/self_modification/`, the shadow runtime and the
   cognitive event DAG for paths that could admit semantics without passing the
@@ -64,7 +64,7 @@ full before any of this was written.
   maker she wrote using the one head the module says supplies a shape no
   fixed-length composition has is silently dropped at restart. Confirmed by
   execution, not by reading. ChatGPT found the same defect independently.
-- **B5 — M is not an object.** `grow_at` takes a Python `make` callable.
+- **B5 — M is not an object (CLOSED 2026-09-01).** `grow_at` takes a Python `make` callable.
   `growing_at_any_level` collapsed the API and kept the human meta-level.
 
 ---
@@ -187,7 +187,7 @@ full before any of this was written.
 - [x] **8.4** The learned operation participates in inference, search,
   abstraction, action, world modelling, planning, proceduralisation and further
   invention. Not an isolated demo subsystem.
-- [ ] **8.5** Content-addressed artifacts, so a descendant binds to a hash and
+- [x] **8.5** Content-addressed artifacts, so a descendant binds to a hash and
   never to a mutable name.
 
 ---

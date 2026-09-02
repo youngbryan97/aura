@@ -75,6 +75,9 @@ ChatGPT found the same defect independently; the other six responses did not.
 
 **B5 — the mechanism is not an object.** `growing_at_any_level.grow_at` takes a
 Python `make` callable. It collapsed the API and kept the human meta-level.
+**Closed:** `grow_at` takes a term at any level and keeps the term it came
+from, and `operator_invention.Candidate` carries a term run through the floor.
+Callables still work, and every caller that passes one is a test.
 
 ### What the audit changes about the question
 
@@ -709,10 +712,9 @@ of this work, and the list is in
 `artifacts/endogenous/failures_that_predate_this_work.md`. The one exception,
 `governance-lint`, names a file the atomspace refactor touched.
 
-**Not yet migrated**, and named as such: `operator_invention.Candidate.fn`
-still takes a callable and still has no runtime caller;
-`growing_at_any_level.grow_at` still takes a Python `make`;
-`an_operation_that_generalises` is still a separate algebra.
+**Not yet migrated**, and named as such: `operator_invention` takes a term now
+but still has no runtime caller — the live path is `sequence_induction._widen`
+and it does not reach the kernel.
 
 ---
 
@@ -1068,10 +1070,11 @@ whole mitigation, and it is not a proof.
 
 ### Still authored, and open
 
-- **B5**, `growing_at_any_level.grow_at` still takes a Python callable, and
-  `operator_invention.Candidate.fn` still takes one and still has no caller.
+- `operator_invention` still has no runtime caller. It takes a term now, and
+  nothing in the live path reaches it.
 - A rule needing three sources, and one whose second source sits at a place
   past the forty-eight the fold walks.
+- A third generation of meta-change, and any evidence that the gain compounds.
 - The dependency graph, quarantine and rebuild for descendants of a removed
   head.
 - The search-cost probe that would stop the library eating the mind.
