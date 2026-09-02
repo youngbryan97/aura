@@ -1012,6 +1012,84 @@ whole mitigation, and it is not a proof.
 
 ---
 
+## The twenty questions, answered in one place
+
+1. **What counts as representational inadequacy?** A certificate set, not a
+   boolean: the search did not finish, the bounded walk finished and found
+   nothing, a fragment invariant is refuted, the data are thin, the residual is
+   noise, a quantity was not being read, or undecided. Each with its
+   decidability stated (Part II).
+2. **How does she detect it?** `why_nothing_fits` compares what the best
+   readings miss and asks whether something the language already says covers
+   exactly those; `language_limits.certify` refutes the value-blind fragment by
+   intersecting source positions and matching them one to one.
+3. **Where do new candidate semantics come from?** From the correspondence the
+   examples already show. For a head: which function of the seven things a head
+   is given agrees with it, shortest first, with the step of a recurrence
+   solved rather than searched. For a rule: where the answers already sit is
+   read off the data, where they do not the place is solved for, and what is
+   done with a cell is inverted. There is no language model anywhere in the
+   path.
+4. **What fixed priors remain?** As code: the floor's eighteen heads and their
+   evaluator, the meter, the gate, the governor, and the recurrence schema. As
+   data: the five positional words, the fixed point a head is given, and the
+   term that reads the state at a place.
+5. **Why are those priors sufficient?** Theorem 7 — the floor computes every
+   partial computable function, by Kleene's characterisation with each
+   constructor exhibited as a term and checked. Theorem 6 — that is exactly the
+   condition under which no further authoring is ever required.
+6. **What counts as semantic novelty?** Six tiers, and the strongest reached is
+   reported: syntactic, canonical, exact extensional on a finite carrier,
+   bounded observational, description length, resource frontier. For the one
+   distinction claimed, exclusion by Theorem 3 rather than any test.
+7. **How is novelty established?** `which_kind_of_growth` takes the head out
+   and looks for the behaviour in the language without it, and refuses a new
+   distinction unless the search that found nothing actually finished.
+8. **How is usefulness established?** The family must become sayable; the head
+   must cost less search than the search that failed, counted in terms to walk;
+   and it must not be a shorter name for something already said.
+9. **How is generalization established?** Half the lengths are held back, and a
+   length never fitted or judged at is checked after that — nine, eleven,
+   thirteen and sixteen, none of them seen.
+10. **How is the operator installed?** Through the same gate, into the same
+    registry, and reachable by the same enumeration as everything else.
+11. **How is it persisted?** As its term, never as a name and never pickled,
+    recalled before the words written over it.
+12. **How does it affect future search?** `every_term` offers it, so it is a
+    branch at every step from then on — which is why it is priced first.
+13. **How does it participate in later inventions?** It is offered as a leaf,
+    and the measurement is that the same family, search and budget finds
+    nothing with an empty library and the answer with one entry.
+14. **How does she modify the invention process itself?** The rule deciding
+    what to try first is a term, replaced by the call that replaces a head.
+    Experiment H, run.
+15. **Why does this not require another human meta-level?** Theorem 6. Above a
+    universal bedrock no task can require an edit and no edit could add
+    anything. The regress is a regress of primitives, and it ends where the
+    primitives run out.
+16. **What is mathematically impossible even after this?** Growth of the
+    computable functions, decidable general inadequacy, complete verification of
+    arbitrary self-modification, monotone improvement across environments, and
+    unbounded strict accumulation on finite memory. Theorems 2, 9, 10, 11, 12.
+17. **How does finite memory affect long-run development?** Theorem 9 bounds
+    the chain, so forgetting, merging and replacement are required rather than
+    optional. `keeping_the_language_small` carries this and prices a head.
+18. **How are bad inventions removed?** A head that does not make the family
+    sayable, does not pay for its search, or is only a shorter name comes
+    straight back out.
+19. **How are dependents handled when an ancestor goes?** Words written over a
+    head go with it, and the removal says what went. A head written over
+    another head needs no cascade, because a floor term contains its parts
+    rather than pointing at them — held by a test, since the opposite would be
+    a silent wrong answer.
+20. **How do we prove the process improves future intelligence rather than
+    adding complexity?** We do not prove it. What is measured is on named
+    distributions with named budgets: the library moving the horizon, the gap
+    opening only where there is structure to carry, a piece carrying to a
+    surface that looks unrelated and not to one that does not, and a written
+    order improving ordinary invention on two streams of three and making it
+    worse on the third. Theorem 10 says no stronger claim is available.
+
 ## Part XIII — The exact claim boundary
 
 ### Proven
