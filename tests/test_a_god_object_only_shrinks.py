@@ -327,3 +327,56 @@ def test_tagging_forgives_nothing():
     assert sum(f.startswith("GREW") for f in failures) == 1
     assert sum(f.startswith("BUDGET") for f in failures) == 1
     assert not any("c.py" in f for f in failures)
+
+
+def test_a_refresh_never_grandfathers_a_new_god_object(tmp_path):
+    """--write-baseline took seven modules out of the zero-tolerance class.
+
+    The clamp protected every entry that was already recorded and said
+    nothing about the ones that were not, so a refresh run to bank an
+    unrelated shrink granted headroom to every God object created since the
+    last one — and "a new God object is never grandfathered" was one
+    keystroke from false.
+    """
+    from tools.lint_module_size import write_baseline
+
+    path = tmp_path / "baseline.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema": "aura.module_size_baseline.v1",
+                "oversize_budget_lines": 10_000,
+                "modules": {
+                    "known.py": {
+                        "lines": MAX_NEW_MODULE_LINES + 500,
+                        "max_class_methods": 40,
+                    }
+                },
+            }
+        )
+    )
+    measurements = {
+        "known.py": _measure("known.py", MAX_NEW_MODULE_LINES + 400, 39),
+        "brand_new.py": _measure("brand_new.py", MAX_NEW_MODULE_LINES + 900, 55),
+    }
+    write_baseline(path, measurements)
+
+    recorded = json.loads(path.read_text())["modules"]
+    assert "brand_new.py" not in recorded, "a new God object was grandfathered"
+    # And the shrink on the known one was still banked.
+    assert recorded["known.py"]["lines"] == MAX_NEW_MODULE_LINES + 400
+    assert recorded["known.py"]["max_class_methods"] == 39
+
+    # The gate still fails on the one that was refused.
+    failures, _stale = check(measurements, recorded)
+    assert any("brand_new.py" in f for f in failures)
+
+
+def test_a_first_run_with_no_baseline_still_records_everything(tmp_path):
+    """The refusal is about grandfathering, not about bootstrapping."""
+    from tools.lint_module_size import write_baseline
+
+    path = tmp_path / "baseline.json"
+    measurements = {"a.py": _measure("a.py", MAX_NEW_MODULE_LINES + 100, 40)}
+    write_baseline(path, measurements)
+    assert "a.py" in json.loads(path.read_text())["modules"]

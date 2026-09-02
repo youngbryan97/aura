@@ -142,15 +142,33 @@ def write_baseline(path: Path, measurements: dict[str, Measurement]) -> int:
 
     existing = load_baseline(path)
     raised = []
-    for name, entry in modules.items():
+    admitted = []
+    for name, entry in list(modules.items()):
         previous_entry = existing.get(name)
         if previous_entry is None:
+            # A module that was not in the baseline is a NEW God object, and
+            # the rule this gate states is that a new one is never
+            # grandfathered. Recording it here would grant it exactly the
+            # headroom that rule refuses — a refresh run to bank an unrelated
+            # shrink took seven of them out of the zero-tolerance class in one
+            # command, which made "never grandfathered" one keystroke from
+            # false. It stays out, and the gate keeps failing on it.
+            if existing:
+                admitted.append(name)
+                del modules[name]
             continue
         for field in ("lines", "max_class_methods"):
             was = int(previous_entry.get(field, 0))
             if entry[field] > was:
                 raised.append(f"{name}: {field} {was} -> {entry[field]}")
             entry[field] = min(entry[field], was)
+    if admitted:
+        print(
+            f"refused to baseline {len(admitted)} module(s) that were never in "
+            "it; a new God object is never grandfathered:"
+        )
+        for name in sorted(admitted)[:20]:
+            print(f"   {name}")
     if raised:
         # Clamped, not refused: a real shrink somewhere else still deserves to
         # be banked. What must never happen is the growth being written down

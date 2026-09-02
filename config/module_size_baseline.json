@@ -70,7 +70,7 @@
       "max_class_methods": 62
     },
     "core/brain/llm/latent_cortex/branches.py": {
-      "lines": 1865,
+      "lines": 1862,
       "max_class_methods": 34
     },
     "core/brain/llm/latent_cortex/campaign_journal.py": {
