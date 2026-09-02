@@ -463,6 +463,25 @@ def _a_word_the_language_was_missing(
     if said is not None:
         return said
 
+    # And when even a new way of computing will not do: a rule whose SHAPE is
+    # its own.
+    #
+    # Everything above this rung, including a head she writes, fits inside one
+    # sentence somebody wrote — `after[i] = what(before[g(i,n)],
+    # before[h(i,n)])`. Two sources, one operation, both value-blind. A family
+    # wanting three sources, or an operation depending on where it is, or a
+    # value that was never in the state, is unsayable however wide the
+    # vocabulary gets, and language_limits.certify already refuses to rule on
+    # the last of those because no rule about where a cell came from can
+    # produce it.
+    #
+    # A rule here is a floor term handed the whole state, so how many places
+    # it reads and whether it makes values are inside the term rather than
+    # fields in a record.
+    said = _a_rule_with_no_shape(pairs)
+    if said is not None:
+        return said
+
     # And the ones that were written down, tried after, because a way she can
     # reach by writing is worth more than one she can only be handed.
     kept = grow_until_sayable(
@@ -653,6 +672,31 @@ def _a_way_of_computing(
         return f"a way of COMPUTING that I wrote rather than had ({found.describes()})"
     forget_the_head(name)
     return None
+
+
+def _a_rule_with_no_shape(
+    pairs: Sequence[tuple[Sequence[Any], Sequence[Any]]],
+) -> str | None:
+    """Write a rule with no fixed shape, and keep it where it can be used."""
+    from core.cognition.a_rule_with_no_shape import (
+        RULES_WITH_NO_SHAPE,
+        a_rule_she_wrote,
+    )
+
+    def already_said() -> bool:
+        return any(
+            rule.read(before) == tuple(after)
+            for rule in RULES_WITH_NO_SHAPE.values()
+            for before, after in pairs
+        )
+
+    found = a_rule_she_wrote(pairs, now_sayable=already_said)
+    if found is None:
+        return None
+    name = f"a rule she wrote ({len(RULES_WITH_NO_SHAPE)})"
+    RULES_WITH_NO_SHAPE[name] = found
+    made = " that makes values that were never there" if found.makes_new_values else ""
+    return f"a rule with no shape but its own{made} ({found.describes()})"
 
 
 def read_sequence_question(text: Any) -> SequenceQuestion | None:

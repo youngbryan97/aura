@@ -3106,6 +3106,60 @@ def _recursive_heads_that_do_not_hold() -> int:
     return wrong
 
 
+def _rules_with_no_shape_that_do_not_hold() -> int:
+    """Shapeless rules that fail where they were never fitted. Must be none.
+
+    Five families, three of which put a value into the state that was never in
+    it — the case `language_limits` hands over rather than deciding, because no
+    rule about where a cell came from can produce it. Each rule is written from
+    before-and-after states alone and asked at lengths eleven and thirteen,
+    neither of which it was fitted or judged at. One violation per family that
+    fails, and one more if a rule does not survive being written down.
+    """
+    import random
+
+    from core.cognition.a_rule_with_no_shape import (
+        a_rule_she_wrote,
+        read_a_rule_back,
+        the_rule_written_down,
+    )
+
+    rules = {
+        "add one": (lambda b, at, n: b[at] + 1, True),
+        "twice": (lambda b, at, n: 2 * b[at], True),
+        "mirror": (lambda b, at, n: b[n - 1 - at], False),
+        "and its place": (lambda b, at, n: b[at] + at, True),
+        "and the next": (lambda b, at, n: b[at] + b[(at + 1) % n], True),
+    }
+
+    def family(rule: Any) -> list[Any]:
+        rng = random.Random(5)
+        made = []
+        for size in (4, 5, 6, 7, 8, 9):
+            before = tuple(rng.sample(range(100), size))
+            made.append(
+                (before, tuple(rule(before, at, size) for at in range(size)))
+            )
+        return made
+
+    wrong = 0
+    for name, (rule, makes) in rules.items():
+        found = a_rule_she_wrote(family(rule), now_sayable=lambda: False, within=25.0)
+        if found is None or found.makes_new_values is not makes:
+            wrong += 1
+            continue
+        rng = random.Random(97)
+        for size in (11, 13):
+            before = tuple(rng.sample(range(200), size))
+            if found.read(before) != tuple(rule(before, at, size) for at in range(size)):
+                wrong += 1
+                break
+        back = read_a_rule_back(the_rule_written_down(found))
+        if back is None or back.body != found.body:
+            wrong += 1
+    return wrong
+
+
 def _install_language_growth_claims(suite: Any) -> None:
     """What she can do to the language she makes rules out of.
 
@@ -3173,6 +3227,14 @@ def _install_language_growth_claims(suite: Any) -> None:
             "exhausts its meter rather than returning",
             _universality_certificates_that_fail,
             "core/cognition/what_the_floor_can_say.py",
+        ),
+        (
+            "test_a_rule_with_no_shape_holds_where_it_was_never_fitted",
+            "a rule whose shape is its own term is written from before-and-after "
+            "states alone, puts values into the state that were never in it, and "
+            "holds at lengths it was neither fitted nor judged at",
+            _rules_with_no_shape_that_do_not_hold,
+            "core/cognition/a_rule_with_no_shape.py",
         ),
         (
             "test_a_head_that_refers_to_itself_holds_where_it_was_never_fitted",
@@ -3380,6 +3442,31 @@ def _install_language_growth_claims(suite: Any) -> None:
                 "definable from the other three, so the instruction set is doing "
                 "no work"
             ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "The shape of a rule is a term rather than a record, so how many "
+                "places it reads and whether it puts values into the state that "
+                "were never in it are not fields anybody wrote."
+            ),
+            test="test_a_rule_with_no_shape_holds_where_it_was_never_fitted",
+            owner="core/cognition/a_rule_with_no_shape.py",
+            asserted_in="core/cognition/an_invented_kind.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "five families with distinct-valued states at lengths four to "
+                "nine, fitted on three and judged on three, correct at eleven "
+                "and thirteen. Three of the five make values that were never in "
+                "the state, which is the case language_limits.certify hands over "
+                "rather than deciding. Neither half is walked blindly: where an "
+                "answer already sits is read off the data, where it does not the "
+                "place is solved for, and what is done with a cell is inverted. "
+                "Two families are out of reach and named — a third source, and a "
+                "second source at a place past the forty-eight the fold walks"
+            ),
+            live_channels=("language.ways_of_building",),
         )
     )
     suite.add_claim(

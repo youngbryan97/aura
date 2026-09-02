@@ -108,7 +108,18 @@ def _words_she_derived() -> dict[str, Any]:
         name: {"takes": int(head.takes), "body": floor_data(head.body)}
         for name, head in DERIVED_HEADS.items()
     }
+    # And the rules whose shape is their own.
+    from core.cognition.a_rule_with_no_shape import (
+        RULES_WITH_NO_SHAPE,
+        the_rule_written_down,
+    )
+
+    shapeless = {
+        name: the_rule_written_down(rule)
+        for name, rule in RULES_WITH_NO_SHAPE.items()
+    }
     return {
+        "shapeless": shapeless,
         "addressings": addressings,
         "operations": operations,
         "ways": sorted(named),
@@ -207,6 +218,18 @@ def _put_the_language_back(language: dict[str, Any]) -> int:
             logger.info("a way of computing she wrote does not read back: %r", name)
             continue
         the_head_she_wrote(str(name), int(row.get("takes") or 2), body)
+        back += 1
+    from core.cognition.a_rule_with_no_shape import (
+        RULES_WITH_NO_SHAPE,
+        read_a_rule_back,
+    )
+
+    for name, row in (language.get("shapeless") or {}).items():
+        rule = read_a_rule_back(row)
+        if rule is None:
+            logger.info("a rule with no shape does not read back: %r", name)
+            continue
+        RULES_WITH_NO_SHAPE[str(name)] = rule
         back += 1
     for name, row in (language.get("kinds_of_thing") or {}).items():
         kind = read_kind(row)
