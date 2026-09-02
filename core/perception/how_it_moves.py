@@ -466,6 +466,28 @@ class HowItMoves:
             if place in self.counters:
                 continue
             self.counters.add(place)
+            if self.rule() is not None:
+                # Not once she knows.
+                #
+                # This correction is for the confusion at the start, when
+                # every reading still has a score stuck to it and the counts
+                # are about a board that does not exist. Once she has a rule
+                # she is willing to name, that is over. The bar is having one
+                # rather than a level of certainty somebody picked: naming one
+                # is already the judgement that the evidence is worth acting
+                # on, and a second bar beside it would only be a worse copy.
+                # Finding one more place that is furniture says the crop got a
+                # little tighter; it does not say that three hundred agreeing
+                # observations were about something else.
+                #
+                # LIVE 2026-09-02, the sitting after one that ended knowing the
+                # rule at eighty six per cent: she carried it in, looked ahead
+                # from the first move — and this wiped it at move twenty nine,
+                # on a board she was reading perfectly. The sitting after that
+                # inherited the wreckage and looked ahead on eighteen moves of
+                # a hundred and forty seven.
+                self._started_again = True
+                continue
             if not self._started_again:
                 # What she learned was about a different thing.
                 #

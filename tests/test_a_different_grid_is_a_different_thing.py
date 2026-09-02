@@ -120,3 +120,30 @@ def test_the_grid_it_was_read_through_survives_the_process() -> None:
     assert HowItMoves.from_memory({"read_through": "nonsense"}).read_through == (0, 0)
     assert HowItMoves.from_memory({"read_through": [4]}).read_through == (0, 0)
     assert HowItMoves.from_memory({"read_through": ["a", "b"]}).read_through == (0, 0)
+
+
+def test_a_rule_she_has_named_is_not_wiped_by_a_tighter_crop() -> None:
+    """The correction for early confusion must not fire once she knows.
+
+    LIVE 2026-09-02, the sitting after one that ended knowing the rule at
+    eighty six per cent: she carried it in, looked ahead from the first move,
+    and this wiped it at move twenty nine on a board she was reading
+    perfectly. The sitting after that inherited the wreckage and looked ahead
+    on eighteen moves of a hundred and forty seven.
+    """
+    rules = HowItMoves()
+    for _ in range(40):
+        before = _board([[2, 2, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0]])
+        after = _board([[4, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [8, 0, 0, 0]])
+        rules.watched(before, "left", after)
+    assert rules.rule() is not None, rules.says()
+    named, seen = rules.says(), rules.seen
+
+    # Now a place turns out to be furniture. The crop gets tighter; what she
+    # has already established does not become wrong.
+    for _ in range(12):
+        before = _board([[2, 2, 0, 9], [0, 0, 0, 9], [0, 0, 0, 9], [4, 4, 0, 9]])
+        after = _board([[4, 0, 0, 9], [0, 0, 0, 9], [0, 0, 0, 9], [8, 0, 0, 9]])
+        rules.watched(before, "left", after)
+    assert rules.rule() is not None, rules.says()
+    assert rules.seen >= seen, f"{rules.says()} — was {named}"
