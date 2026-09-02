@@ -34,6 +34,7 @@ what is still open already measures.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -141,7 +142,26 @@ def what_it_costs_to_leave_them(
                 ways_they_could_answer=answers,
             )
         )
-    weighed.sort(key=lambda one: (-one.worth, not one.keeps_the_move, one.name))
+    # Ties have to actually tie.
+    #
+    # Sorting on the raw difference makes a tie impossible: one gap comes out
+    # of 0.5 minus 0.4 and another out of 1.2 minus 1.1, and those are not the
+    # same number to a machine even though they are the same number. So the
+    # order fell to the last bits of a subtraction — and "where nothing is at
+    # risk, the order she already had stands" quietly never happened, which is
+    # the one behaviour here that most needed to.
+    settled = sorted({one.worth for one in weighed}, reverse=True)
+    same_as: dict[float, float] = {}
+    for worth in settled:
+        for already in same_as.values():
+            if math.isclose(worth, already, rel_tol=1e-9, abs_tol=1e-12):
+                same_as[worth] = already
+                break
+        else:
+            same_as[worth] = worth
+    weighed.sort(
+        key=lambda one: (-same_as[one.worth], not one.keeps_the_move, one.name)
+    )
     return weighed
 
 

@@ -14,13 +14,14 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from core.cognition.where_to_spend_the_next_one import where_to_spend_it
 from core.container import ServiceContainer
 from core.goals.goal_text import is_actionable_goal_text, is_intrinsic_goal_text
 from core.goals.objective_lifecycle import is_transient_foreground_projection
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
-from core.state.aura_state import _origin_is_user_anchored
 from core.runtime.state_ownership import state_root
+from core.state.aura_state import _origin_is_user_anchored
 
 logger = logging.getLogger("Aura.GoalEngine")
 
@@ -195,6 +196,81 @@ class GoalRecord:
         payload["display_horizon"] = str(self.horizon or "").replace("_", " ").title()
         payload["is_terminal"] = payload["status"] in TERMINAL_GOAL_STATUSES
         return payload
+
+
+def _the_one_to_get_on_with(active: list[dict[str, Any]]) -> dict[str, Any]:
+    """Which of the things she has going to spend the next stretch on.
+
+    It was the first of the list, which is to say the highest priority one,
+    which is to say the biggest. Watching two very strong Go players: there
+    are never fewer than three separate fights on the board and every move is
+    an answer to which of them to spend it on — and what decides it is never
+    which is biggest. It is what it costs to leave each one alone.
+
+    Those come apart exactly where it matters. A large thing nobody is
+    threatening is worth almost nothing to touch this turn, and a small thing
+    about to be lost outright can be worth more than anything else there.
+
+    Here the cost of leaving something is not invented. This engine blocks a
+    goal that goes stale while a plan still owns it, so a goal in flight
+    genuinely does lose something by being left, and one nothing owns does
+    not. Where nothing is at risk everything ties and the order she already
+    had stands, which is the honest answer rather than a manufactured urgency.
+    """
+    if len(active) < 2:
+        return active[0] if active else {}
+
+    def how_good(one: dict[str, Any]) -> float:
+        try:
+            done = float(one.get("steps_done") or 0.0)
+            total = max(1.0, float(one.get("steps_total") or 0.0))
+        except (TypeError, ValueError):
+            # not a failure: a step count that is not a number is not one.
+            return 0.0
+        return min(1.0, done / total) + float(one.get("priority") or 0.0)
+
+    def what_she_can_do(one: dict[str, Any]) -> tuple[str, ...]:
+        return ("get on with it",)
+
+    def a_step(one: dict[str, Any], _act: str) -> dict[str, Any]:
+        got = dict(one)
+        try:
+            got["steps_done"] = float(one.get("steps_done") or 0.0) + 1.0
+        except (TypeError, ValueError):
+            # not a failure: a goal whose counts cannot be read has no
+            # measurable progress, so working on it cannot be SHOWN to gain
+            # anything. Left as it was, it gains nothing here and does not
+            # outbid a goal that can say what it is worth — which it did,
+            # because an unreadable count read as nought and then as one
+            # looked like the largest step available.
+            return got
+        return got
+
+    def what_time_does(one: dict[str, Any]) -> tuple[str, ...]:
+        # Only where something owns it. A goal no plan is holding does not go
+        # stale, so there is nothing for time to take.
+        owned = str(one.get("plan_id") or one.get("task_id") or "").strip()
+        return ("go stale",) if owned else ()
+
+    def left_alone(one: dict[str, Any], _act: str) -> dict[str, Any]:
+        # What this engine already does to a goal left too long: blocks it.
+        return {**one, "steps_done": 0.0, "priority": 0.0}
+
+    where = where_to_spend_it(
+        {str(at): dict(one) for at, one in enumerate(active)},
+        her_acts=what_she_can_do,
+        step=a_step,
+        how_good=how_good,
+        their_acts=what_time_does,
+        their_step=left_alone,
+    )
+    if where is None:
+        return active[0]
+    try:
+        return active[int(where.name)]
+    except (TypeError, ValueError, IndexError):
+        # not a failure: a name that is not one of these is not one of these.
+        return active[0]
 
 
 class GoalEngine:
@@ -1612,7 +1688,11 @@ class GoalEngine:
                     and current_objective not in actionable_labels
                 )
             ):
-                cognition.current_objective = str(active[0].get("objective") or active[0].get("name") or "")
+                cognition.current_objective = str(
+                    _the_one_to_get_on_with(active).get("objective")
+                    or _the_one_to_get_on_with(active).get("name")
+                    or ""
+                )
             elif not active and is_intrinsic_goal_text(current_objective):
                 cognition.current_objective = None
         except (OSError, ConnectionError, TimeoutError) as exc:

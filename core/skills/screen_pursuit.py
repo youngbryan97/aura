@@ -43,6 +43,9 @@ from core.cognition.something_she_keeps_true import (
 )
 from core.cognition.the_ones_she_reaches_for import TheOnesSheReachesFor
 from core.cognition.what_is_still_open import what_is_still_open
+from core.cognition.what_she_cannot_afford_to_lose import (
+    what_she_cannot_afford_to_lose,
+)
 from core.cognition.what_would_have_to_be_true import a_way_to_get_there
 from core.runtime.errors import record_degradation
 from core.runtime.watched_goal import PURSUIT_SECONDS, a_cycle_took
@@ -1159,6 +1162,23 @@ def _the_rest_of_the_run(
         rest.append(got)
         where = after
     return rest, where
+
+
+def _the_same_thing_without(reading: Any, cell: Any) -> Any:
+    """The same arrangement with one thing taken out of it.
+
+    Used to ask what a thing rests on: take a part away and see whether what
+    she is holding survives without it.
+    """
+    from core.perception.what_is_there import Arrangement  # noqa: PLC0415
+
+    return Arrangement(
+        rows=reading.rows,
+        columns=reading.columns,
+        cells=tuple(one for one in reading.cells if one is not cell),
+        down_at=getattr(reading, "down_at", ()),
+        across_at=getattr(reading, "across_at", ()),
+    )
 
 
 def _expects(knows: Any) -> Callable[[Any, str], Any] | None:
@@ -3831,6 +3851,37 @@ async def pursue_on_screen(
                 return None
 
             if key == START_OVER:
+                # Not while there is something here she cannot get back.
+                #
+                # Starting over is the one act of hers that destroys what she
+                # has made. Everywhere else a bad move costs a move; here it
+                # costs the whole thing, and she reaches for it exactly when
+                # she is stuck — which is also when a position is at its most
+                # developed and worth the most.
+                #
+                # What is precious is not declared. Take a part of the thing
+                # away and ask whether what she is holding survives without
+                # it: a board's largest tile is what "the largest thing is at
+                # the far end" rests on, so losing it is losing the plan, and
+                # a board of small ones costs nothing to leave.
+                keeping = she_keeps.get("it")
+                if keeping is not None and laid_out is not None and available:
+                    precious = what_she_cannot_afford_to_lose(
+                        laid_out,
+                        holding=keeping.holds,
+                        parts_of=lambda one: list(getattr(one, "cells", ())),
+                        without=_the_same_thing_without,
+                    )
+                    others = [
+                        one.name for one in available if one.name != START_OVER
+                    ]
+                    if precious and others:
+                        logger.info(
+                            "not starting over: %d thing(s) here she cannot get back",
+                            len(precious),
+                        )
+                        no_move["because"] = "there is something here worth keeping"
+                        return None
                 params = dict(chosen.chosen.params)
                 label = str(params.get("label") or "")
                 rx, ry = float(params.get("x", 0.0)), float(params.get("y", 0.0))
