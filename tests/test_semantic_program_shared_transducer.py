@@ -5,6 +5,7 @@ import hashlib
 from dataclasses import replace
 
 import numpy as np
+import pytest
 
 from core.learning.semantic_input_grounding import (
     SemanticInputGroundingContract,
@@ -13,6 +14,10 @@ from core.learning.semantic_input_grounding import (
     semantic_input_grounding_contract_from_tokenizer,
 )
 from core.learning.semantic_program_campaign import _sha
+from core.learning.semantic_program_floor_verification import (
+    SEMANTIC_PROGRAM_FLOOR_VERIFICATION_SOURCES,
+    verify_semantic_program_floor_equivalence,
+)
 from core.learning.semantic_program_ir import (
     SemanticIRInstruction,
     SemanticProgramIR,
@@ -221,6 +226,44 @@ def test_shared_transducer_infers_geometry_and_program_without_a_router() -> Non
     assert model.geometry_contract["register_encoding"] == "role_relative_v1"
     assert model.geometry_contract["max_span_tokens"] >= 1
     assert replay.to_dict() == model.to_dict()
+
+
+def test_shared_transducer_programs_replay_on_the_universal_floor() -> None:
+    examples = _examples()
+    model = fit_shared_semantic_program_transducer(examples, input_grounding=_grounding())
+    sources = {
+        relative: "d" * 64 for relative in SEMANTIC_PROGRAM_FLOOR_VERIFICATION_SOURCES
+    }
+
+    report = verify_semantic_program_floor_equivalence(
+        model,
+        examples,
+        feature_manifest_sha256s={"synthetic": "e" * 64},
+        source_sha256s=sources,
+    )
+
+    assert report["verified"] is True
+    assert report["test_total"] == 4
+    assert report["accepted"] == 4
+    assert report["agreements"] == 4
+    assert report["value_agreements"] == 4
+    assert report["refusal_agreements"] == 0
+    assert report["primitive_coverage"]["complete"] is True
+    assert report["fit_or_refit_calls"] == 0
+    assert report["expected_answers_available"] is False
+
+
+def test_floor_verifier_rejects_an_incomplete_source_inventory() -> None:
+    examples = _examples()
+    model = fit_shared_semantic_program_transducer(examples, input_grounding=_grounding())
+
+    with pytest.raises(ValueError, match="source inventory"):
+        verify_semantic_program_floor_equivalence(
+            model,
+            examples,
+            feature_manifest_sha256s={"synthetic": "e" * 64},
+            source_sha256s={},
+        )
 
 
 def test_shared_pointer_can_use_a_contract_span_wider_than_the_legacy_limit() -> None:
