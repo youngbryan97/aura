@@ -887,3 +887,51 @@ change her language is a ranking over one choice set, its inputs are readings
 of a record she keeps, the ranking and the things it ranges over are terms of
 the same substrate, and every stage of every developmental episode says who
 started it.
+
+---
+
+## Part XIII — What each lesion must collapse
+
+An experiment with no lesion is a story with numbers in it. Each row names what
+has to stop happening when the thing named is taken away; a row that does not
+collapse is a claim that was resting on something else.
+
+| take away | what must stop | what it would mean if it did not |
+|---|---|---|
+| the readings | idle initiative | she is firing on a clock |
+| recurrence in the record | development on a recurring family | the evidence was decorative |
+| the held-out families | any proactive change | changes were judged on their own trigger |
+| the record's costs | every ranking | the order was fixed after all |
+| what an action has done | calibration | the estimate was never checked |
+| the first change | the second becoming likelier | two changes happened; neither caused the other |
+| the ranking | the choice of action | a ladder was doing the work |
+| the receipts | the autonomy claim | "she decided" was prose |
+
+Three of these are run in
+[run_autonomous_development.py](../tools/run_autonomous_development.py) — the
+opportunity lesion, the self-initiation lesion, and the meta-causality lesion —
+and the rest are held by tests beside the code they lesion.
+
+---
+
+## Part XIV — Two more results worth stating
+
+**Fair search reaches any finite chain.** Suppose every developmental action
+has some chance of being drawn, every beneficial candidate has some chance of
+passing the probe, and what passes persists. Then for any finite sequence of
+beneficial changes `M_0 → … → M_k`, the probability that repeated search
+eventually finds the whole sequence goes to one as resources grow. Induction on
+the sequence: each required term has positive eventual hit probability, and an
+accepted installation changes the state the next search starts from. The result
+is worth stating precisely because of what it does not give — no bound. Busy
+beaver forbids one. Drawing from the posterior rather than the argmax is what
+makes the first premise true here, and it is the reason exploration is not a
+decoration.
+
+**Why reach, and not expressiveness, is the operative quantity.** Levin's bound
+prices a search for a term at exponential in its length, so what changes what
+is findable is what shortens descriptions. A library entry is a leaf; a leaf
+shortens every term containing it; the shortened term is found sooner by the
+same search. That is the whole mechanism behind every measured gain in this
+document and the one before it, and it is why a change that names what two
+parts share can matter more than a change that adds a capability.

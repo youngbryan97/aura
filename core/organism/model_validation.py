@@ -3160,6 +3160,152 @@ def _rules_with_no_shape_that_do_not_hold() -> int:
     return wrong
 
 
+def _a_choice_that_does_not_follow_the_record() -> int:
+    """Ways the developmental ranking fails to be a decision. Must be none.
+
+    Four. That a mode switch disagreeing with one ranking is not found, which
+    would make the argument for one choice set vacuous. That varying the record
+    does not vary what she chooses, which is what a ladder looks like. That the
+    same varying moves a function returning the first rung, which would mean
+    the check catches nothing. And that she cannot refuse.
+    """
+    from core.cognition.she_decides_to_develop import (
+        forget_the_trace,
+        what_to_do_next,
+    )
+    from core.cognition.the_record_of_her_own_work import (
+        forget_the_record,
+        note_an_episode,
+    )
+    from core.cognition.what_it_is_worth_doing import (
+        the_choice_follows_the_record,
+        where_a_split_disagrees_with_the_whole,
+    )
+    from core.cognition.what_she_could_do_next import (
+        WHAT_SHE_COULD_DO,
+        WHAT_THEY_HAVE_DONE,
+        the_actions_she_has,
+        what_she_could_do,
+    )
+
+    held, done = dict(WHAT_SHE_COULD_DO), dict(WHAT_THEY_HAVE_DONE)
+    wrong = 0
+    try:
+        WHAT_SHE_COULD_DO.clear()
+        WHAT_THEY_HAVE_DONE.clear()
+        forget_the_record()
+        forget_the_trace()
+        worths = {"answer": 1, "write a head": 2}
+        if not where_a_split_disagrees_with_the_whole(
+            ordinary=["answer"],
+            developmental=["write a head"],
+            worth=worths.get,
+            switch=lambda ordinary, developmental: "act",
+        ):
+            wrong += 1
+        what_she_could_do(
+            "a new word",
+            over="the words",
+            kind="a word",
+            do_it=lambda one: "a word",
+            price=400,
+        )
+        what_she_could_do(
+            "a way of computing",
+            over="the ways of computing",
+            kind="a way of computing",
+            do_it=lambda one: "a head",
+            price=1400,
+        )
+
+        def cheap_is_all_that_helps() -> None:
+            forget_the_record()
+            for _ in range(3):
+                note_an_episode("f", route=None, walked=1000)
+            note_an_episode("f", route="a new word", walked=400, admitted="a word")
+            for _ in range(3):
+                note_an_episode("f", route="a new word", walked=20)
+
+        def the_head_is_all_that_helps() -> None:
+            forget_the_record()
+            for _ in range(3):
+                note_an_episode("f", route=None, walked=1000)
+            note_an_episode(
+                "f",
+                route="a way of computing",
+                walked=1400,
+                admitted="a way of computing",
+            )
+            for _ in range(3):
+                note_an_episode("f", route="a way of computing", walked=20)
+
+        def chose() -> str:
+            made = what_to_do_next("f", costs_now=1000)
+            return made.action.name if made.action else "nothing"
+
+        if not the_choice_follows_the_record(
+            chose, [cheap_is_all_that_helps, the_head_is_all_that_helps]
+        ):
+            wrong += 1
+        if the_choice_follows_the_record(
+            lambda: the_actions_she_has()[0].name,
+            [cheap_is_all_that_helps, the_head_is_all_that_helps],
+        ):
+            wrong += 1
+        # And that she can refuse. Cheap to answer and dear to change is the
+        # case where nothing is worth doing: a family met once whose answer
+        # costs three candidates cannot repay a change costing four hundred,
+        # however often it recurs.
+        #
+        # The first version of this check used a dear family met once and
+        # expected a refusal, which was my expectation rather than the design:
+        # nine thousand candidates an occasion will repay a fourteen-hundred
+        # candidate change the first time it comes back.
+        forget_the_record()
+        note_an_episode("cheap", route="an answer", walked=3)
+        if what_to_do_next("cheap", costs_now=3).action is not None:
+            wrong += 1
+    finally:
+        WHAT_SHE_COULD_DO.clear()
+        WHAT_SHE_COULD_DO.update(held)
+        WHAT_THEY_HAVE_DONE.clear()
+        WHAT_THEY_HAVE_DONE.update(done)
+        forget_the_record()
+        forget_the_trace()
+    return wrong
+
+
+def _a_developmental_record_that_cannot_be_checked() -> int:
+    """Ways the record of who started what fails to be evidence. Must be none.
+
+    Three: a receipt chain that does not follow, a destination that would let a
+    change decide what is kept, and a promotion ladder that does not want more
+    evidence for the parts everything runs through.
+    """
+    from core.cognition.how_a_change_is_promoted import (
+        WHAT_A_TIER_WANTS,
+        forget_the_receipts,
+        nothing_installs_to_the_gate,
+        promote,
+        the_chain_holds,
+    )
+
+    wrong = 0
+    forget_the_receipts()
+    try:
+        promote("word/x", became="shadow", started_by="she", evidence="4 of 4")
+        promote("word/y", became="canary", started_by="she", evidence="5 of 5")
+        if not the_chain_holds():
+            wrong += 1
+        if nothing_installs_to_the_gate():
+            wrong += 1
+        if WHAT_A_TIER_WANTS["the deciding"] <= WHAT_A_TIER_WANTS["word"]:
+            wrong += 1
+    finally:
+        forget_the_receipts()
+    return wrong
+
+
 def _a_written_order_that_does_not_hold() -> int:
     """Ways the meta-invention result fails its own protocol. Must be none.
 
@@ -3286,6 +3432,24 @@ def _install_language_growth_claims(suite: Any) -> None:
             "putting the authored rule back removes the gain exactly",
             _a_written_order_that_does_not_hold,
             "tools/run_meta_invention.py",
+        ),
+        (
+            "test_her_choice_moves_when_the_record_moves",
+            "developmental actions are ranked in one choice set rather than "
+            "walked in a fixed order, what she chooses varies when the record "
+            "varies, a function returning the first rung does not, and she can "
+            "refuse to develop at all",
+            _a_choice_that_does_not_follow_the_record,
+            "core/cognition/she_decides_to_develop.py",
+        ),
+        (
+            "test_a_receipt_chain_cannot_be_quietly_rewritten",
+            "every installation writes a line carrying who started it and a "
+            "digest of the line before, no destination lets a change decide "
+            "what is kept, and the parts everything runs through want more "
+            "evidence than the parts nothing rests on",
+            _a_developmental_record_that_cannot_be_checked,
+            "core/cognition/how_a_change_is_promoted.py",
         ),
         (
             "test_a_rule_with_no_shape_holds_where_it_was_never_fitted",

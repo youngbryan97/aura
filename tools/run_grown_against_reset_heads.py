@@ -58,6 +58,7 @@ from core.cognition.a_way_of_computing_she_wrote import (  # noqa: E402
     what_each_part_says,
 )
 from core.cognition.an_invented_kind import WHERE_FROM  # noqa: E402
+from core.cognition.how_she_learns_to_look import forget_what_worked  # noqa: E402
 from core.cognition.the_floor_she_stands_on import (  # noqa: E402
     Code,
     OutOfFuel,
@@ -239,6 +240,18 @@ def run_stream(
                     # Take out the newest thing, which is what the family was
                     # most likely drawn over.
                     agent.library.pop()
+                # What worked is global, so without this the reset condition
+                # inherits the order the grown condition learned and the
+                # comparison is between two agents that have both been taught.
+                # Every arm gets the same fresh counts, which is what "the only
+                # difference is the library" was supposed to mean.
+                #
+                # It was always leaking through the maker path; making the head
+                # path record its winners too turned a small leak into all
+                # three arms solving everything, and the claim that used to
+                # hold stopped holding for that reason rather than for a
+                # regression in what it measures.
+                forget_what_worked()
                 ok, cost = _attempt(agent, family, within)
                 if agent is lesioned:
                     agent.library = keep
