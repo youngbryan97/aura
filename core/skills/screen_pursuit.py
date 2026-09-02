@@ -2913,7 +2913,13 @@ async def pursue_on_screen(
                 answering = itself
                 # And those places, gathered over acts rather than read off
                 # one glance, are what the grid is built from.
-                responds["lattice"].built_from(itself, moving.acts)
+                was = (responds["lattice"].rows, responds["lattice"].columns)
+                if responds["lattice"].built_from(itself, moving.acts):
+                    now = (responds["lattice"].rows, responds["lattice"].columns)
+                    if was != now and knows.rules is not None:
+                        # Everything counted while the grid was the wrong
+                        # shape was counted about a thing that does not exist.
+                        knows.rules.learned_through_a_different_reading()
         # The same reading, with a place for each thing in it. What she reads
         # is the string; what her claims are checked against is this.
         # The thing she is acting on, not the page it is drawn on.

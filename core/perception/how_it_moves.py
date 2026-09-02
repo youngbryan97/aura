@@ -492,6 +492,52 @@ class HowItMoves:
                 self.recent.clear()
 
 
+    def learned_through_a_different_reading(self) -> None:
+        """Forget what was counted while she was reading the thing wrongly.
+
+        Evidence is only evidence under the conditions it was gathered in. A
+        pair of arrangements is a claim about what her act does to the thing,
+        and if the grid those arrangements were laid into was the wrong shape
+        then the pair is about something else — not weak evidence, not old
+        evidence, but a statement about a thing that does not exist.
+
+        LIVE 2026-09-02: half a game read through a grid four by seven for a
+        board four by four. The grid corrected itself mid-game, everything
+        after it was right, and the rule still finished at sixty per cent
+        because the wrong half outnumbered it — so she looked ahead on not one
+        move of a hundred and thirty eight, on a board she was by then reading
+        perfectly.
+
+        Kept apart from starting again because the thing turned out smaller,
+        which happens a place at a time and must only be done once. A change
+        of shape is a different thing: it settles, so acting on it every time
+        cannot thrash.
+        """
+        if not (self.seen or self.right):
+            return
+        logger.info(
+            "what she learned was read through a different grid — starting again"
+        )
+        self.right.clear()
+        self.tried.clear()
+        self.right_when_it_moved.clear()
+        self.tried_when_it_moved.clear()
+        self.seen = 0
+        self.moved = 0
+        self.recent.clear()
+        # And everything she settled about the SHAPE of the thing, which is
+        # the part that made this necessary. Left standing, the places the
+        # old grid taught her to expect make every reading in the new one
+        # unreadable, and she counts nothing at all rather than counting the
+        # wrong thing — which is the same amount of use.
+        self.unreadable = 0
+        self.arrivals = 0
+        self._record.clear()
+        self._how_full = 0.0
+        self._ever_held.clear()
+        self.counters.clear()
+        self._started_again = False
+
     def _stands_apart(self, place: tuple[int, int], seen: Arrangement) -> bool:
         """Whether nothing has ever been beside this, in a thing that is packed.
 
