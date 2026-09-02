@@ -71,7 +71,7 @@ full before any of this was written.
 
 ## 1. Formal problem definition (prompt §5, §19.1–19.6, Part II)
 
-- [ ] **1.1** Define `A_t`, `P(A_t)`, `E(A_t)`, `B`, `Reach_B(A_t)`, `M_t`,
+- [x] **1.1** Define `A_t`, `P(A_t)`, `E(A_t)`, `B`, `Reach_B(A_t)`, `M_t`,
   `D_t`, `C(A_t, D_t; T, B)` in code, not prose, so each has a computable
   witness.
 - [x] **1.2** Critique those definitions and replace where they fail. A single
@@ -79,7 +79,7 @@ full before any of this was written.
   and what is discoverable. Split them.
 - [x] **1.3** Make `B` a vector, not a number: generate, verify, execute,
   memory, context. An abstraction can cut synthesis cost and raise runtime cost.
-- [ ] **1.4** Define representational inadequacy as a certificate set rather
+- [x] **1.4** Define representational inadequacy as a certificate set rather
   than a boolean, with each certificate's decidability stated.
 - [x] **1.5** Name the irreducible prior exactly, and defend it as an
   instruction set rather than a taxonomy — with a proof, not an assertion.
@@ -326,7 +326,7 @@ evaluator isolation; computational budgets. Show the information flow.
 
 ## 16. Code integration (prompt §11, Part VIII)
 
-- [ ] **16.1** Files to modify, delete, consolidate; new files only where they
+- [x] **16.1** Files to modify, delete, consolidate; new files only where they
   earn a caller.
 - [x] **16.2** How `operator_invention.py` changes.
 - [x] **16.3** How the representation algebra changes.
@@ -337,7 +337,7 @@ evaluator isolation; computational budgets. Show the information flow.
 - [x] **16.8** How the cognitive event DAG records it.
 - [x] **16.9** How rollback works.
 - [x] **16.10** How a learned operator becomes material for later synthesis.
-- [ ] **16.11** Migration plan that builds nothing which is later thrown away.
+- [x] **16.11** Migration plan that builds nothing which is later thrown away.
 - [x] **16.12** `make smoke`, `make lint`, `make writing`, `make layering`,
   `make governance-lint` all green; DEPS files regenerated; layering baseline
   only shrinks.
@@ -402,9 +402,9 @@ evaluator isolation; computational budgets. Show the information flow.
 - [x] **19.2** Resource explosion.
 - [x] **19.3** Pathological search branching.
 - [x] **19.4** Semantic drift.
-- [ ] **19.5** Self-inconsistent operators.
-- [ ] **19.6** Invalid dependency graphs.
-- [ ] **19.7** Representation poisoning.
+- [x] **19.5** Self-inconsistent operators.
+- [x] **19.6** Invalid dependency graphs.
+- [x] **19.7** Representation poisoning.
 - [ ] **19.8** Catastrophic forgetting.
 - [ ] **19.9** Adversarial experience.
 - [ ] **19.10** Evaluator hacking.
@@ -497,7 +497,7 @@ an intermediate mechanism that has to be thrown away.
   and `make: Callable` deleted.
 - [x] **24.7** Ordinary cognition consumes universal artifacts.
 - [x] **24.8** The proposer becomes a term.
-- [ ] **24.9** Meta-invention; then recursion; then freeze and the sealed set.
+- [x] **24.9** Meta-invention; then recursion; then freeze and the sealed set.
 
 ---
 

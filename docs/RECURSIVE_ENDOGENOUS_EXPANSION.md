@@ -56,6 +56,8 @@ needing a ninth waits for a person.
 **B2 — the schema ceiling.** `Induced.read` fixes the rule shape to
 `after[i] = f(before[g(i,n)], before[h(i,n)])`: two sources, one binary
 operation, value-blind addressing. No word, maker or level changes it.
+**Closed:** a rule is a floor term handed the whole state, so how many places
+it reads and whether it makes values are inside the term.
 
 **B3 — two algebras.** `one_algebra.Term` computes positions;
 `an_operation_that_generalises.Expression` computes values. Separate
@@ -380,6 +382,51 @@ What remains after that is not a third algebra. It is the schema — a rule is
 still two sources and one operation — and that is a different ceiling, named in
 Part XIII rather than quietly closed.
 
+### A rule with no shape — `a_rule_with_no_shape.py`
+
+The heads removed the grammar ceiling and left the *schema* one, which is a
+different kind. Every rung of the ladder — a word she derives, a maker she
+writes, a head she writes — fits inside one sentence somebody wrote. A family
+wanting three sources, or an operation that depends on where it is, or a value
+that was never in the state, is unsayable however wide the vocabulary gets, and
+`language_limits.certify` already names the last of those: where the cells
+themselves changed it refuses to rule, because no rule about where a cell came
+from can produce it.
+
+A rule is now a floor term handed the whole state before, the length, where it
+is, and itself. Four bindings and one supplied term: reading the state at a
+place needs a fixed point, so `THE_CELL_AT` is given the way the five
+positional words are given.
+
+That distinction is worth making explicit, because the bedrock list depends on
+it. An authored **term** is something she could have written, sits in the same
+registry as the things she does write, and can be added to. Authored **code** —
+a record with three fields — is something she cannot add to at all. The first
+is data and the second is a ceiling, and this module moves one into the other.
+
+Nothing is walked blindly, and each cut was forced by a measurement. Blind
+enumeration over four bindings runs past four million terms at depth six and
+finds none of these. So: where an answer already sits in the state is read
+straight off the data; where it does not, the place is *solved* for, because
+`the far end` is five symbols and a shortest-first walk reaches 240 distinct
+sets of places before reaching it; and what is done with a cell is inverted by
+`an_operation_that_generalises` rather than searched for.
+
+| Family | Time | Makes values |
+|---|---|---|
+| add one to every cell | 0.8s | yes |
+| twice the cell | 0.8s | yes |
+| mirror | 0.7s | no |
+| cell plus its position | 0.8s | yes |
+| sum of a cell and the next | 2.4s | yes |
+| three cells added | unsolved | — |
+| larger of a cell and its mirror | unsolved | — |
+
+Each fitted at lengths four, six and eight, judged at five, seven and nine, and
+correct at eleven and thirteen. The two it does not reach are the honest limit:
+a third source, and a second source read at a place whose shortest spelling is
+past the forty-eight the fold walks.
+
 ### Information flow
 
     experience
@@ -401,6 +448,12 @@ rollback`); the governor (fuel, memory, transaction, the privileges a term may
 not reach); and — added when the bootstrap was fixed, and worth naming rather
 than folding into the others — the **recurrence schema**, which asks whether a
 family's answers stand in a relation to the answer at the place before.
+
+Authored as *data* rather than as code, and the difference is the one Part V
+turns on: the five positional words, the fixed point a head is given, and
+`THE_CELL_AT`. Each is a term, each sits where the things she writes sit, and
+each can be added to. A vocabulary is not a ceiling; a record with three fields
+is.
 
 The first four say nothing about what a useful concept is. The fifth does say
 something: it says that counting down is a shape worth looking for. It adds no
@@ -959,10 +1012,10 @@ whole mitigation, and it is not a proof.
 
 ### Still authored, and open
 
-- **B2**, the rule schema: two sources, one operation. The remaining ceiling
-  above the floor, and no head or word changes it.
 - **B5**, `growing_at_any_level.grow_at` still takes a Python callable, and
   `operator_invention.Candidate.fn` still takes one and still has no caller.
+- A rule needing three sources, and one whose second source sits at a place
+  past the forty-eight the fold walks.
 - The dependency graph, quarantine and rebuild for descendants of a removed
   head.
 - The search-cost probe that would stop the library eating the mind.
@@ -1016,18 +1069,19 @@ Done, in order, each piece surviving into the final architecture:
 11. Both algebras compiled into the floor, agreeing over 1,808,000 places.
 12. Grown against reset against lesioned, and cross-domain transfer, each with
     its negative control.
+13a. A head that refers to itself, and a step solved rather than searched.
+13b. A rule whose shape is its own term, and which can make values.
 
 Next, in the order that keeps every step in the final architecture:
 
 13. The inline-expansion control, so a name that bought nothing cannot pass as
    an abstraction. The search-cost probe is done.
 14. Post-freeze tasks, which need an independent party.
-13. Widen the rule schema so its shape is a term rather than a signature (B2).
-14. Make the whole proposer a term, not only its ordering, and persist it. Only
+13. Make the whole proposer a term, not only its ordering, and persist it. Only
     then are H and I even possible.
-15. Freeze; commission the sealed family; run F, G, H, I and J.
+14. Freeze; commission the sealed family; run F, G, H, I and J.
 
-If step 14 needs a new human-written mechanism to pass, the design has failed
+If step 13 needs a new human-written mechanism to pass, the design has failed
 and this document should say so.
 
 ---
