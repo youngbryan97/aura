@@ -104,12 +104,30 @@ from tools.run_grown_against_reset_heads import (  # noqa: E402
 
 
 def _fresh() -> None:
-    """Everything she has learned, forgotten. The start of an arm."""
+    """Everything she has learned, forgotten. The start of an arm.
+
+    Everything means everything. Leaving the proposer installed between arms
+    meant the first family in a run installed the deeper one and every family
+    after reported that action as giving nothing — which reads as a failure
+    and was a success that had already happened. A reset that misses one thing
+    is a control that quietly stops being one.
+    """
+    from core.cognition.the_proposer_she_can_replace import forget_the_proposer
+    from core.cognition.what_counts_as_better import forget_the_objective
+    from core.cognition.what_she_could_do_next import WHAT_THEY_HAVE_DONE
+    from core.cognition.what_she_expects_of_herself import forget_what_she_expected
+    from core.cognition.what_she_notices_about_herself import forget_the_agenda
+
     forget_the_record()
     forget_the_trace()
     forget_the_order()
     forget_the_worth()
     forget_what_worked()
+    forget_the_proposer()
+    forget_the_objective()
+    forget_the_agenda()
+    forget_what_she_expected()
+    WHAT_THEY_HAVE_DONE.clear()
     WHAT_SHE_COULD_DO.clear()
 
 

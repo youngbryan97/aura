@@ -712,6 +712,20 @@ inside those budgets. That is reported rather than smoothed over — an
 experiment where the mechanism was never exercised is not evidence that the
 mechanism works.
 
+**What the first family costs.** Fifty-seven seconds, measured. On a cold
+record every one of the fifteen actions is unpriced, so each is worth trying
+for the information and each takes its budget. That is the price of exploration
+and it is real; it falls as the record fills, because an action that has run
+has a cost rather than an estimate of one. A design where the first occasion is
+cheap is a design that is not exploring.
+
+**One control leak, in the harness rather than the code.** The reset between
+arms restored the record, the order, the value rule and the learning history,
+and left the proposer installed. So the first family in a run installed the
+deeper proposer and every family after reported that action as giving nothing,
+which reads as a failure and was a success that had already happened. A reset
+that misses one thing is a control that has quietly stopped being one.
+
 ---
 
 ## Part X — Objections
