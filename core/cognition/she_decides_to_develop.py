@@ -62,7 +62,9 @@ from core.cognition.what_it_is_worth_doing import (
 )
 from core.cognition.what_she_could_do_next import (
     ADevelopmentalAction,
+    note_what_it_did,
     the_actions_she_has,
+    what_it_has_done,
 )
 
 __all__ = [
@@ -160,7 +162,20 @@ def _price(
     action: ADevelopmentalAction, family: str, *, costs_now: int
 ) -> WhatItIsWorth:
     occasions = how_often_it_will_come_up(family)
-    saving, why = what_each_occasion_would_save(action.kind, costs_now=costs_now)
+    # What this action itself has gained comes first, and what changes of its
+    # kind have gained second. An action with a history of its own is the
+    # closest thing to evidence there is; falling back to the kind is a
+    # generalisation and falling back to nothing is honest.
+    #
+    # This is also the calibration: the estimate is the outcome, so a value
+    # that drifts away from what happens cannot, because it is what happens.
+    mine = what_it_has_done(action.name)
+    if mine.gained:
+        saving, why = int(mine.what_it_gains), ""
+    else:
+        saving, why = what_each_occasion_would_save(
+            action.kind, costs_now=costs_now
+        )
     # Measured first, stated second, and the occasion in hand last. An action
     # that has run has a cost rather than an estimate of one.
     cost = what_it_has_cost(action.name) or action.price or costs_now
@@ -331,8 +346,18 @@ def she_decides_to_develop(
         decided.started_by,
         f"{decided.action.name} gave {came_of_it!r}",
     )
+    if decided.action.succeeded is not None:
+        try:
+            came_of_it = came_of_it if decided.action.succeeded(came_of_it) else None
+        except Exception:  # noqa: BLE001 - a success test that raises fails it
+            came_of_it = None
     if came_of_it:
         _note("installation", decided.started_by, decided.action.kind)
+    note_what_it_did(
+        decided.action.name,
+        kept=bool(came_of_it),
+        gained=int(decided.worth.saving or 0) if decided.worth else 0,
+    )
     note_an_episode(
         family,
         route=decided.action.name if came_of_it else None,
@@ -361,6 +386,8 @@ def what_is_worth_doing_now() -> Decision:
     answered by reading rather than by asking. A record with nothing in it
     yields no family, and she says so instead of picking one.
     """
+    from core.cognition.what_she_notices_about_herself import what_she_notices
+
     kept = the_record().kept
     if not kept:
         _note("refusal", "she", "there is nothing to read")
@@ -373,9 +400,28 @@ def what_is_worth_doing_now() -> Decision:
     spent: dict[str, list[int]] = {}
     for one in kept:
         spent.setdefault(one.family, []).append(one.walked)
-    family = max(spent, key=lambda one: sum(spent[one]))
+
+    # What the readings turned up, strongest first. The target is whichever
+    # opportunity has the most evidence behind it and is about something she
+    # has actually met; a reading about a part of her rather than a family
+    # still names the family that part is costing.
+    #
+    # Falling back to the costliest family is what happens when no reading has
+    # anything to say, and that is a different situation from having nothing
+    # to read at all.
+    noticed = [one for one in what_she_notices() if one.about in spent]
+    if noticed:
+        family = noticed[0].about
+        _note(
+            "diagnosis",
+            "she",
+            f"{family} costs {sum(spent[family]):,} in all"
+            f" ({noticed[0].describes()})",
+        )
+    else:
+        family = max(spent, key=lambda one: sum(spent[one]))
+        _note("diagnosis", "she", f"{family} costs {sum(spent[family]):,} in all")
     each = int(round(sum(spent[family]) / len(spent[family])))
-    _note("diagnosis", "she", f"{family} costs {sum(spent[family]):,} in all")
     return what_to_do_next(
         family,
         costs_now=each,
@@ -410,6 +456,11 @@ def she_develops_herself() -> tuple[Decision, Any]:
     )
     if came_of_it:
         _note("installation", "she", decided.action.kind)
+    note_what_it_did(
+        decided.action.name,
+        kept=bool(came_of_it),
+        gained=int(decided.worth.saving or 0) if decided.worth else 0,
+    )
     note_an_episode(
         family,
         route=decided.action.name if came_of_it else None,

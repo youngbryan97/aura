@@ -22,6 +22,7 @@ from core.cognition.the_record_of_her_own_work import (
     the_record,
     what_it_has_cost,
 )
+from core.cognition.what_she_notices_about_herself import forget_the_agenda
 from core.cognition.she_decides_to_develop import (
     forget_the_trace,
     she_decides_to_develop,
@@ -46,6 +47,7 @@ from core.cognition.what_it_is_worth_doing import (
 )
 from core.cognition.what_she_could_do_next import (
     WHAT_SHE_COULD_DO,
+    WHAT_THEY_HAVE_DONE,
     WHERE_A_TERM_CAN_GO,
     forget_the_action,
     the_action_she_wrote,
@@ -56,17 +58,30 @@ from core.cognition.what_she_could_do_next import (
 
 @pytest.fixture(autouse=True)
 def a_clean_slate():
+    """Everything an earlier test could have written, put back.
+
+    What an action has done outlives the action, which is the point of keeping
+    it — and which is exactly why a test that leaves one behind changes the
+    verdict of the next. Passing alone and failing in the suite is an
+    order-dependence defect, not a flake.
+    """
     held = dict(WHAT_SHE_COULD_DO)
+    done = dict(WHAT_THEY_HAVE_DONE)
     forget_the_record()
     forget_the_trace()
     forget_the_worth()
+    forget_the_agenda()
     WHAT_SHE_COULD_DO.clear()
+    WHAT_THEY_HAVE_DONE.clear()
     yield
     WHAT_SHE_COULD_DO.clear()
     WHAT_SHE_COULD_DO.update(held)
+    WHAT_THEY_HAVE_DONE.clear()
+    WHAT_THEY_HAVE_DONE.update(done)
     forget_the_record()
     forget_the_trace()
     forget_the_worth()
+    forget_the_agenda()
 
 
 def a_cheap_one(name: str = "a new word", price: int = 400):

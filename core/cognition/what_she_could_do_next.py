@@ -41,7 +41,12 @@ __all__ = [
     "WHERE_A_TERM_CAN_GO",
     "forget_the_action",
     "the_action_she_wrote",
+    "WHAT_THEY_HAVE_DONE",
+    "WhatItHasDone",
+    "how_wrong_she_was",
+    "note_what_it_did",
     "the_actions_she_has",
+    "what_it_has_done",
     "what_she_could_do",
 ]
 
@@ -74,6 +79,20 @@ class ADevelopmentalAction:
     written: Any = None
     #: Where it came from, for the trace.
     hers: bool = False
+    #: What to judge it on, where the action knows better than the caller.
+    #: Nothing means the caller's held-out families, which is the default and
+    #: the right one for anything that changes the language.
+    probe: Callable[[], Any] | None = None
+    #: The most it may spend, in candidates. Zero means the ceiling decides,
+    #: which is read off the family rather than set here.
+    budget: int = 0
+    #: Whether what came back counts. Nothing means anything truthy does.
+    succeeded: Callable[[Any], bool] | None = None
+    #: How to put it back. Nothing means the caller's snapshot does it.
+    undo: Callable[[], None] | None = None
+    #: shadow, canary, active or retired. A change starts in shadow and is
+    #: promoted by evidence rather than by being installed.
+    status: str = "active"
     #: Whether it is about a case in hand or about her.
     #:
     #: Widening a language needs something the language could not say; there is
@@ -113,6 +132,11 @@ def what_she_could_do(
     written: Any = None,
     hers: bool = False,
     needs_a_case: bool = True,
+    probe: Callable[[], Any] | None = None,
+    budget: int = 0,
+    succeeded: Callable[[Any], bool] | None = None,
+    undo: Callable[[], None] | None = None,
+    status: str = "active",
 ) -> ADevelopmentalAction:
     """Put an action in the registry. The one call, for hers and for ours."""
     if over not in WHERE_A_TERM_CAN_GO:
@@ -126,6 +150,11 @@ def what_she_could_do(
         written=written,
         hers=bool(hers),
         needs_a_case=bool(needs_a_case),
+        probe=probe,
+        budget=max(0, int(budget)),
+        succeeded=succeeded,
+        undo=undo,
+        status=str(status),
     )
     WHAT_SHE_COULD_DO[made.name] = made
     return made
@@ -230,3 +259,77 @@ _WHERE_IT_GOES: dict[str, Callable[[Any], Any]] = {
     "the proposer": _install_a_proposer,
     "what a change is worth": _install_a_worth,
 }
+
+
+@dataclass
+class WhatItHasDone:
+    """What an action has actually produced, kept beside it rather than in it.
+
+    The posterior, and it is a count rather than a belief: how often this
+    action was taken, how often the change was kept, and what the held-out
+    families gained each time. Everything that calibrates an estimate against
+    what happened reads this.
+
+    Kept apart from the action because the action is a definition and this is a
+    history, and a definition that changes every time it runs is neither.
+    """
+
+    taken: int = 0
+    kept: int = 0
+    gained: list[int] = field(default_factory=list)
+
+    @property
+    def how_often_it_pays(self) -> float:
+        """Laplace, so no history means no certainty rather than none."""
+        return (self.kept + 1) / (self.taken + 2)
+
+    @property
+    def what_it_gains(self) -> float:
+        return sum(self.gained) / len(self.gained) if self.gained else 0.0
+
+    def describes(self) -> str:
+        return (
+            f"kept {self.kept} of {self.taken}, "
+            f"{self.what_it_gains:,.0f} each time"
+        )
+
+
+WHAT_THEY_HAVE_DONE: dict[str, WhatItHasDone] = {}
+
+
+def what_it_has_done(name: str) -> WhatItHasDone:
+    return WHAT_THEY_HAVE_DONE.setdefault(str(name), WhatItHasDone())
+
+
+def note_what_it_did(name: str, *, kept: bool, gained: int = 0) -> WhatItHasDone:
+    """Write down what happened, which is what makes the next estimate honest.
+
+    An estimate never checked against an outcome is a rule for producing
+    numbers, and a policy scored by one is optimising the number.
+    """
+    held = what_it_has_done(name)
+    held.taken += 1
+    if kept:
+        held.kept += 1
+        held.gained.append(int(gained))
+        if len(held.gained) > 64:
+            del held.gained[:-64]
+    return held
+
+
+def how_wrong_she_was() -> dict[str, dict[str, float]]:
+    """What each action was estimated to gain, against what it gained.
+
+    Calibration. A value that is never held against an outcome will drift, and
+    a policy that maximises a drifting value is optimising the drift. What
+    comes back is per action: how often it was expected to pay, how often it
+    did, and the gap.
+    """
+    return {
+        name: {
+            "pays": round(held.how_often_it_pays, 3),
+            "gains": round(held.what_it_gains, 1),
+            "taken": held.taken,
+        }
+        for name, held in sorted(WHAT_THEY_HAVE_DONE.items())
+    }
