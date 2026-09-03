@@ -203,53 +203,6 @@ async def test_foundation_cognition_validation_samples_new_diagnostics_first():
 
 
 @pytest.mark.asyncio
-async def test_desktop_cognition_validation_runs_off_loop():
-    import threading
-
-    import core.runtime.foundations as foundations
-
-    foundations.reset_foundations_for_test()
-    entered = threading.Event()
-    release = threading.Event()
-
-    def _validation():
-        entered.set()
-        release.wait()
-        return {
-            "passed": 7,
-            "failed": 0,
-            "errored": 0,
-            "not_measured": 1,
-            "applicable": 8,
-            "measured": 7,
-        }
-
-    try:
-        assert foundations._schedule_cognition_validation(_validation) is True
-        assert foundations._schedule_cognition_validation(_validation) is False
-        assert await asyncio.to_thread(entered.wait, 1.0) is True
-        assert foundations.cognition_validation_status()["state"] == "running"
-        release.set()
-
-        for _ in range(100):
-            status = foundations.cognition_validation_status()
-            if status["state"] == "completed":
-                break
-            await asyncio.sleep(0.01)
-        assert status["outcome"] == {
-            "passed": 7,
-            "failed": 0,
-            "errored": 0,
-            "not_measured": 1,
-            "applicable": 8,
-            "measured": 7,
-        }
-    finally:
-        release.set()
-        foundations.reset_foundations_for_test()
-
-
-@pytest.mark.asyncio
 async def test_desktop_cognition_activation_registers_without_running_suite(monkeypatch):
     import core.knowledge.metta as metta
     import core.organism.model_validation as model_validation
@@ -276,35 +229,13 @@ async def test_desktop_cognition_activation_registers_without_running_suite(monk
     result = await foundations._activate_cognition(foreground_only=False)
 
     assert result.ok is True
-    assert result.data["suite_outcome"] == {"state": "pending_start"}
+    assert result.data["suite_outcome"] == {
+        "state": "deferred_to_validation_process"
+    }
     assert calls == []
-    assert foundations.cognition_validation_status()["state"] == "pending_start"
-
-
-@pytest.mark.asyncio
-async def test_desktop_empirical_validation_starts_after_last_foundation(monkeypatch):
-    import core.runtime.foundations as foundations
-
-    order = []
-
-    async def _activation(*, foreground_only):
-        assert foreground_only is False
-        order.append("activation")
-        return foundations.ActivationResult(name="only", ok=True)
-
-    def _schedule(_run_validation):
-        order.append("validation")
-        return True
-
-    foundations.reset_foundations_for_test()
-    monkeypatch.setattr(foundations, "_ACTIVATORS", [("only", _activation)])
-    monkeypatch.setattr(foundations, "_schedule_cognition_validation", _schedule)
-
-    report = await foundations.activate_foundations(foreground_only=False)
-
-    assert report["ok"] is True
-    assert foundations.foundations_report()["activated"] is True
-    assert order == ["activation", "validation"]
+    assert foundations.cognition_validation_status()["state"] == (
+        "deferred_to_validation_process"
+    )
 
 
 @pytest.mark.asyncio
