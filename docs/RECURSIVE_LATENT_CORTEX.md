@@ -1,6 +1,6 @@
 # Recursive Latent Cortex (RLC)
 
-Status: Guide · Programme landing page · Reviewed against the tree 2026-09-01.
+Status: Guide · Programme landing page · Reviewed against the tree 2026-09-02.
 Checkpoints land faster than this page tracks; the claims ladder
 below changes slowly, and the append-only
 [ledger](RLC_SPARK_EXECUTION_LEDGER.md) is the live record.
@@ -87,6 +87,7 @@ preregistered campaigns with committed seeds.
 | **Mixed sequence-pointer transfer** | **SUPPORTED, REPLICATED, BOUNDED (2026-09-01).** The semantic path now composes binary sequence lookup or occurrence counting with a learned pointer into a scalar continuation. A 48-example diagnostic fit recovered **84/96** held-out answers and complete programs against hidden-token shuffle 35, coefficient lesion 0 and label permutation 11 answers / 8 programs. Without fitting or refitting, that frozen transducer then reached **171/192** exact answers and programs on a fresh 288-example seed and worker session, versus shuffle 71 answers / 68 programs and coefficient lesion 0. The test split beat shuffle at exact paired *p*=1.82 × 10⁻¹² for answers and 4.55 × 10⁻¹³ for programs. A fresh 96-example refit was slightly worse at 166 answers / 164 programs. Independent processes replayed all three records. This extends the bounded mechanism to mixed sequence/scalar values, binary arity and intermediate-register pointers; it does not establish broad-domain transfer or serving authority. |
 | **One shared multi-family semantic cortex** | **SUPPORTED, BOUNDED (2026-09-01).** One coefficient set, with no family router, was jointly fit to arithmetic and mixed sequence-pointer programs. On held-out test constructions it recovered **59/128** arithmetic and **35/48** sequence programs exactly, against hidden-state shuffle 15 and 17, coefficient lesion 0 and 0, and label permutation 1 and 0. An independent process reloaded all 720 records, reproduced the frozen fit exactly and recounted 1,776 task-arm rows. This proves coexistence in shared tissue at one common two-instruction geometry; it also measures interference relative to the separately fit sequence transducer and does not establish variable-geometry generality. |
 | **Shared variable-geometry semantic programs** | **SUPPORTED, BOUNDED (2026-09-01).** One coefficient set, with no family router, recovered input grounding, learned step count, primitive operations and definition references across two-step arithmetic, two-step sequence and three-step fork/join programs. On held-out constructions it recovered **258/368** complete programs and exact execution emitted **292/368** answers. The controls reached hidden-token shuffle 0/368 and coefficient lesion 0/368; both paired exact tests gave *p*=2.16 × 10⁻⁷⁸. Independent replay reproduced the full campaign. This establishes shared variable geometry over a declared typed primitive vocabulary, not unseen-schema induction, broad natural-language transfer or serving authority. |
+| **Whole-program-family withheld transfer** | **SUPPORTED, REPLICATED, BOUNDED (2026-09-02).** The complete `sequence_binary` family was absent from all **1,584** examples used to fit one router-free transducer over five other families. Only after fitting froze was the family rebound through an exact neural-representation compatibility receipt. It recovered **156/192** held-out programs and answers, then the unchanged transducer recovered **79/96** on a disjoint seed and worker session. The coefficient lesion recovered 0 programs / 3 answers; treatment had 79 program-only and 76 answer-only paired wins with no control-only wins (*p*=1.65 × 10⁻²⁴ and 1.32 × 10⁻²³). Independent verification recounted every row and proved zero example and source-text overlap. Reusable primitives and value rules were present in fitting families, so this establishes composition across a withheld program-family boundary, not unseen-primitive induction, open-domain reasoning or serving authority. |
 | **Learned programs on the universal floor** | **SUPPORTED, BOUNDED (2026-09-01).** All **368/368** accepted frozen test programs had identical outcomes under the closed exact executor and Aura's universal metered floor: 366 matching values and two matching typed refusals, split 128 arithmetic, 48 sequence and 192 fork/join. All **20/20** declared primitives have floor semantics and type signatures; an uncovered primitive refuses. A separate no-refit process produced the source-bound certificate without expected answers. This unifies execution semantics, not schema induction, serving authority or broad reasoning. |
 | **Cross-language operation semantics** | **SUPPORTED AS A REPRESENTATION DIAGNOSTIC, BOUNDED (2026-09-01).** A family- and geometry-blind linear head was transferred in all six directions among ordinary arithmetic, three-step fork/join arithmetic and mixed sequence-pointer language. Absolute operation-span states transferred strongly in five directions but failed sequence→fork/join at whole-program exactness (**27/192** versus geometry-only 24), localizing the remaining nuisance. Answer-blind centering within factorial counterfactual sets exposed the shared operation signal: the four zero-token-overlap test directions reached **47/48, 48/48, 128/128 and 179/192**, while coefficient lesions reached 12, 12, 8 and 3 and label permutation reached zero throughout. Independent replay reloaded 1,296 records and exactly reproduced 14,720 program-arm rows. Because centering requires a target contrast batch and gold operation spans, this proves latent semantic content beneath construction context, not a deployable single-request compiler. |
 | **Recurrence-native training** | **OPEN, and now partly answered.** The dividend did come from training the checkpoint to use recurrence, on the bounded families above. Broad transfer is still open, and every CP-numbered checkpoint since is about that. |
@@ -180,10 +181,20 @@ The programme used a 1.5B vehicle while the historical resident 32B stayed live,
   Static register typing caught the one initial mismatch, where an invalid
   learned program treated an integer as a sequence. New primitives cannot enter
   this path until both their floor semantics and type signature exist.
+- **A complete program family can now be withheld.** `sequence_binary` supplied
+  no fitting examples and did not participate in selection of the shared neural
+  session basis. The source cohort reached 156/192 exact programs and answers;
+  an unchanged transducer reached 79/96 on a disjoint seed and worker session,
+  while its coefficient lesion reached 0 programs and 3 answers. The reusable
+  primitives and value rules were learned elsewhere, so the result is transfer
+  of their composition and language realization, not induction of a new
+  primitive from nothing.
 
-Next bounded step: compose this learned variable-geometry front end with the
-universal metered floor and test a held-out schema whose reusable operations and
-value rules were seen only in other families.
+Next bounded step: register the learned semantic program in Aura's common
+procedure currency, compose it through the existing universal algebra/floor,
+and test heterogeneous natural requests while withholding complete procedure
+schemas and domains. The treatment must beat equal-compute ordinary decode and
+remain dependent on learned semantic tissue before any general-reasoning claim.
 Regenerating the 27B-specific recurrent adapters and CAA vectors remains a
 separate migration task; portable typed tissue does not authorize either
 model-basis component by association.

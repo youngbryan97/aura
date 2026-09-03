@@ -6014,3 +6014,30 @@ promotion for the bounded exact families. It does not establish broad or
 open-domain reasoning, static weight fusion, frontier capability or `WOW!`.
 SPARK-069 through SPARK-072 remain open pending fresh broader-domain,
 equal-compute, lesion-backed powered replication.
+
+### 2026-09-02 - CP1093 a complete program family transfers without entering the fit
+
+One router-free transducer was fit on 1,584 examples from arithmetic,
+cataphoric reference, fork/join, reserved-alias and role-binding families while
+the complete `sequence_binary` family was absent. Only after fitting froze was
+that family bound through an exact neural-representation compatibility receipt.
+The frozen transducer recovered `156/192` source-cohort programs and answers,
+then recovered `79/96` programs and answers on a disjoint seed and worker
+session without fitting or refitting.
+
+On the fresh cohort, the coefficient lesion recovered `0/96` programs and
+`3/96` answers. Treatment had 79 program-only and 76 answer-only paired wins
+with no lesion-only wins; the one-sided exact probabilities are `1.65e-24` and
+`1.32e-23`. Independent verification reopened the exact coefficient set,
+neural-basis anchor and source manifests, recounted every row, and established
+zero example and source-text overlap. Evidence is frozen under
+`artifacts/rlc/semantic_program_27b_compositional_v14/`.
+
+This establishes causal transfer across a withheld program-family boundary.
+It does not establish unseen-primitive induction: reusable primitives and value
+rules occurred in other fitting families. It also does not establish
+open-domain general reasoning, ordinary serving authority or frontier parity.
+The next gate is to carry accepted learned programs into Aura's common
+procedure currency and universal metered floor, then test heterogeneous natural
+requests with complete procedure schemas and domains withheld against an
+equal-compute ordinary-decode control and causal lesions.
