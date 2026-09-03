@@ -182,6 +182,9 @@ async def test_shadow_reports_neural_basis_drift_without_raising(monkeypatch):
     assert result["attempted"] is True
     assert result["ok"] is False
     assert result["reason"] == "compositional semantic representation basis differs"
+    assert result["observed_representation_basis"] == {
+        "worker_model_path": "/models/aura-27b"
+    }
     assert len(result["observed_representation_basis_sha256"]) == 64
     assert result["expected_representation_basis_sha256"] == "a" * 64
     assert result["activation_receipt"]["serving_authority"] is False

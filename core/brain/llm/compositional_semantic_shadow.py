@@ -465,12 +465,14 @@ async def execute_compositional_semantic_shadow(
             worker_representation_basis,
         )
 
-        observed_basis_sha256 = _sha(worker_representation_basis(receipt["model_basis"]))
+        observed_basis = worker_representation_basis(receipt["model_basis"])
+        observed_basis_sha256 = _sha(observed_basis)
         return {
             "eligible": True,
             "attempted": True,
             "ok": False,
             "reason": str(exc),
+            "observed_representation_basis": observed_basis,
             "observed_representation_basis_sha256": observed_basis_sha256,
             "expected_representation_basis_sha256": status[
                 "representation_basis_sha256"

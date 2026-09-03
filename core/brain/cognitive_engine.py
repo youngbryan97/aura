@@ -3435,13 +3435,17 @@ class CognitiveEngine:
             return
         logger.info(
             "Compositional semantic shadow eligible=%s attempted=%s ok=%s "
-            "reason=%s receipt=%s result=%r",
+            "reason=%s receipt=%s result=%r observed_basis=%s expected_basis=%s "
+            "basis_fields=%r",
             result.get("eligible"),
             result.get("attempted"),
             result.get("ok"),
             str(result.get("reason") or "")[:120],
             str(result.get("receipt_sha256") or "")[:16],
             result.get("result"),
+            str(result.get("observed_representation_basis_sha256") or "")[:16],
+            str(result.get("expected_representation_basis_sha256") or "")[:16],
+            result.get("observed_representation_basis"),
         )
 
     async def _qualified_recurrent_direct_reply(
