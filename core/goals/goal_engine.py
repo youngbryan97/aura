@@ -14,6 +14,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from core.cognition.what_it_is_worth_by_the_time_it_comes import HowFarSheUsuallyGets
 from core.cognition.where_to_spend_the_next_one import where_to_spend_it
 from core.container import ServiceContainer
 from core.goals.goal_text import is_actionable_goal_text, is_intrinsic_goal_text
@@ -220,6 +221,32 @@ def _the_one_to_get_on_with(active: list[dict[str, Any]]) -> dict[str, Any]:
     if len(active) < 2:
         return active[0] if active else {}
 
+    # How far off its payoff is, against how far her runs here have got.
+    #
+    # A Stellaris player choosing an agenda that pays after ten years is
+    # choosing it in a game they might not be in. The usual answer is a
+    # discount rate somebody picked; the real number is the chance she is
+    # still there when it lands, which is a fact about how her runs have gone
+    # rather than a preference.
+    lasted = HowFarSheUsuallyGets()
+    for one in active:
+        try:
+            done = float(one.get("steps_done") or 0.0)
+        except (TypeError, ValueError):
+            # not a failure: a goal that cannot say how far it got says
+            # nothing about how far things get.
+            continue
+        if done > 0:
+            lasted.a_run_lasted(done)
+
+    def still_here_for(one: dict[str, Any]) -> float:
+        try:
+            total = float(one.get("steps_total") or 0.0)
+            done = float(one.get("steps_done") or 0.0)
+        except (TypeError, ValueError):
+            return 1.0
+        return lasted.still_here_in(max(0.0, total - done))
+
     def how_good(one: dict[str, Any]) -> float:
         try:
             done = float(one.get("steps_done") or 0.0)
@@ -227,7 +254,7 @@ def _the_one_to_get_on_with(active: list[dict[str, Any]]) -> dict[str, Any]:
         except (TypeError, ValueError):
             # not a failure: a step count that is not a number is not one.
             return 0.0
-        return min(1.0, done / total) + float(one.get("priority") or 0.0)
+        return (min(1.0, done / total) + float(one.get("priority") or 0.0)) * still_here_for(one)
 
     def what_she_can_do(one: dict[str, Any]) -> tuple[str, ...]:
         return ("get on with it",)
