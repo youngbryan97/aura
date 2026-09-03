@@ -8,12 +8,16 @@ import logging
 import math
 import re
 import time
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from core.cognition.telling_one_kind_from_another import TellingThemApart
+from core.cognition.what_a_question_gives_away import WhatTheirAskingSays
 from core.cognition.what_kind_of_thing_was_said import WhatSheHasHeard
+from core.cognition.what_they_will_do_next import WhatTheyTendToDo
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import optional_service
 from core.runtime.state_ownership import state_root
@@ -141,6 +145,66 @@ def _recall_what_she_has_heard() -> dict[str, Any]:
     except (ImportError, OSError, ValueError):
         # not a failure: nothing remembered is where everybody starts.
         return {}
+
+
+#: What people's asking has told her, what they tend to do, and what marks one
+#: kind of speaker out from another. All about the person rather than about
+#: her, so all kept in one place and none of it per engine.
+_ASKING = WhatTheirAskingSays()
+_TENDS = WhatTheyTendToDo()
+_KINDS = TellingThemApart()
+
+
+def they_asked(who: str, about: Sequence[str]) -> None:
+    """One question, and who put it.
+
+    A question is not free. Somebody asking about a thing is telling her they
+    do not have it, and somebody asking the same thing three times is telling
+    her the first two answers did not land — which is worth more than the
+    question and is information nobody can decline to give.
+    """
+    _ASKING.they_asked(who, about)
+
+
+def they_did(who: str, *, facing: str, act: str) -> None:
+    """What somebody did, in what kind of situation.
+
+    So that she can answer what will be in front of her rather than what is.
+    Prediction is not clairvoyance and does not need to be: it needs only that
+    people repeat themselves.
+    """
+    _TENDS.they_did(who, facing=facing, act=act)
+
+
+def an_example_of(kind: str, features: Sequence[str]) -> None:
+    """One example of a kind of speaker, for telling them apart later —
+    including her own kind, which is how she can say what gives her away."""
+    _KINDS.an_example(kind, features)
+
+
+def what_she_knows_about(who: str, *, facing: str = "") -> dict[str, Any]:
+    """Everything she has worked out about somebody, from watching.
+
+    None of it was told to her and none of it needed their cooperation.
+    """
+    will, likely = _TENDS.likely_next(who, facing=facing) if facing else ("", 0.0)
+    return {
+        "does_not_have": _ASKING.they_have_not_got(who),
+        "stuck_on": _ASKING.what_they_are_stuck_on(who),
+        "has_worked_out": _ASKING.what_they_have_stopped_asking(who),
+        "will_probably": will,
+        "how_likely": likely,
+        "furthest_along": _ASKING.who_is_furthest_along(),
+    }
+
+
+def what_gives_her_away(features: Sequence[str], *, as_kind: str = "hers") -> tuple[str, ...]:
+    """Which of these habits mark her out — the reverse test.
+
+    Not which are wrong. Which are distinctive, which is a different question
+    and the only one answerable by looking at examples of both kinds.
+    """
+    return _KINDS.what_would_hide_it(as_kind, features)
 
 
 def it_was_answered_by(said: str, doing: str, *, went_well: bool) -> None:
@@ -546,6 +610,11 @@ class TheoryOfMindEngine:
         # can learn from her own record. Where she has heard these words
         # before, that is what decides; where she has not, the list still
         # stands rather than leaving her with nothing.
+        # A question tells her about the asker whatever its answer turns out
+        # to be, so it is written down before anything else happens.
+        words = [one for one in str(message or "").casefold().split() if one]
+        if words and str(message or "").strip().endswith("?"):
+            they_asked("the person", words)
         learned = _what_she_has_heard().what_kind(message)
         if learned.worked_out:
             return {
