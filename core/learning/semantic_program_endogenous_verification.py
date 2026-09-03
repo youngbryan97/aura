@@ -32,6 +32,7 @@ ENDOGENOUS_SEMANTIC_VERIFICATION_SCHEMA: Final = (
 )
 _SPLITS: Final = frozenset({"validation", "test"})
 ENDOGENOUS_SEMANTIC_VERIFICATION_SOURCES: Final = (
+    "core/brain/llm/compositional_semantic_shadow.py",
     "core/learning/semantic_input_grounding.py",
     "core/learning/semantic_program_compositional_transducer.py",
     "core/learning/semantic_program_endogenous_verification.py",

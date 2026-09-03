@@ -6041,3 +6041,28 @@ The next gate is to carry accepted learned programs into Aura's common
 procedure currency and universal metered floor, then test heterogeneous natural
 requests with complete procedure schemas and domains withheld against an
 equal-compute ordinary-decode control and causal lesions.
+
+### 2026-09-03 - CP1095 withheld-family programs enter common procedure currency
+
+The current semantic runtime lowers each accepted neural IR to one typed,
+source-independent `Program`, executes it through the universal metered floor
+and interns its executable contract in Aura's common procedure registry.
+Different source utterances that reveal the same computation no longer create
+duplicate procedures; their independent provenance accumulates on one entry.
+Retirement and merge release the interning identity so later evidence can
+establish a fresh live procedure without reviving a retired record.
+
+The live resident shadow now reopens the stronger v14 whole-family package.
+An independent replay regenerated the exact 144-example public corpus on a new
+27B worker session, recovered all 96 held-out public inputs from source text and
+produced `79/96` exact treatment programs and answers against `0/96` after the
+coefficient lesion. The exact paired probability is `1.65e-24`; a second replay
+produced the same certificate byte for byte. The verifier binds the frozen
+lesion report, every public source-text identity, model, tokenizer,
+representation basis, current execution sources and the live shadow itself.
+
+This closes the procedure-currency and current-shadow gate named by CP1093. It
+does not grant serving authority or establish heterogeneous natural-request,
+unseen-primitive, open-domain or frontier reasoning transfer. The next gate is
+the preregistered heterogeneous battery with complete procedure schemas and
+domains withheld against equal-compute ordinary decode and causal lesions.

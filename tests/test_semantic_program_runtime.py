@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from core.brain.llm.latent_cortex.runtime_identity import worker_representation_basis
+from core.cognition.procedure import Backend, reset_procedure_registry_for_test
 from core.learning.semantic_program_ir import (
     SemanticIRInstruction,
     SemanticProgramIR,
@@ -95,6 +96,7 @@ def test_runtime_representation_projection_ignores_session_only_identity():
 
 def test_runtime_executes_learned_ir_on_the_universal_floor():
     basis = {"worker_model_path": "/model"}
+    registry = reset_procedure_registry_for_test()
 
     outcome = execute_compositional_semantic_observation(
         model=_Model(),  # type: ignore[arg-type]
@@ -106,12 +108,19 @@ def test_runtime_executes_learned_ir_on_the_universal_floor():
         expected_representation_basis_sha256=_sha(
             worker_representation_basis(basis)
         ),
+        procedure_registry=registry,
     )
 
     assert outcome.execution.result == 5
     assert outcome.public_inputs.values == (2, 3)
     assert outcome.receipt["family_router_present"] is False
     assert outcome.receipt["expected_answer_available"] is False
+    assert outcome.procedure is not None
+    assert outcome.procedure.backend is Backend.RLC
+    assert registry.report()["by_backend"] == {"rlc": 1}
+    assert outcome.receipt["procedure_currency_receipt_sha256"] == (
+        outcome.procedure.program.receipt()["receipt_sha256"]
+    )
 
 
 def test_runtime_preserves_a_neural_decode_refusal_as_model_evidence():

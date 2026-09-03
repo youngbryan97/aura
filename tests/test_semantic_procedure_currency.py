@@ -115,18 +115,22 @@ def test_rlc_procedure_executes_on_the_universal_floor_without_old_source() -> N
 
 
 def test_two_wordings_lower_to_the_same_computation_identity() -> None:
+    registry = reset_procedure_registry_for_test()
     first = from_semantic_program(
         _ir(2, (("mul", (0, 1)),), source="multiply these values"),
-        registry=reset_procedure_registry_for_test(),
+        registry=registry,
     )
     second = from_semantic_program(
         _ir(2, (("mul", (0, 1)),), source="find their product"),
-        registry=reset_procedure_registry_for_test(),
+        registry=registry,
     )
 
+    assert first.procedure_id == second.procedure_id
     assert first.name == second.name
     assert first.program.program_sha256 == second.program.program_sha256
-    assert first.program.semantic_ir_receipt_sha256 != second.program.semantic_ir_receipt_sha256
+    assert second.evidence is not None
+    assert second.evidence.independent_sources == 2
+    assert registry.report()["procedures"] == 1
 
 
 def test_structural_kinds_reject_present_but_wrongly_typed_state() -> None:

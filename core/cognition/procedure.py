@@ -494,6 +494,8 @@ class ProcedureRegistry:
     def __init__(self, *, max_procedures: int = 20_000, clock=time.time) -> None:
         self._lock = threading.RLock()
         self._procedures: dict[str, Procedure] = {}
+        self._interned: dict[tuple[Backend, str], tuple[str, str]] = {}
+        self._intern_key_by_procedure: dict[str, tuple[Backend, str]] = {}
         self._index = ProcedureIndex()
         self._counter = 0
         self._max = int(max_procedures)
@@ -541,9 +543,79 @@ class ProcedureRegistry:
             self._evict_locked()
             return procedure
 
+    def intern(
+        self,
+        identity: str,
+        contract_sha256: str,
+        name: str,
+        backend: Backend,
+        signature: Signature,
+        *,
+        program: Any = None,
+        value: ProceduralValue | None = None,
+        origin: Origin | None = None,
+        evidence: EvidencePacket | None = None,
+        reversibility: Reversibility = Reversibility.UNKNOWN,
+        parts: Sequence[str] = (),
+    ) -> Procedure:
+        """Register one executable contract once and accumulate its provenance.
+
+        ``identity`` names equivalence in the backend's own vocabulary;
+        ``contract_sha256`` prevents two different executions from claiming
+        that name. Re-observing the same contract fuses independent evidence
+        sources but does not count another use or create another match entry.
+        """
+
+        if not identity or not (
+            isinstance(contract_sha256, str)
+            and len(contract_sha256) == 64
+            and all(character in "0123456789abcdef" for character in contract_sha256)
+        ):
+            raise ValueError("interned procedure identity or contract is invalid")
+        key = (backend, identity)
+        with self._lock:
+            prior = self._interned.get(key)
+            if prior is not None:
+                procedure_id, prior_contract = prior
+                if prior_contract != contract_sha256:
+                    raise ValueError("interned procedure identity names a different contract")
+                existing = self._procedures.get(procedure_id)
+                if existing is None:
+                    raise RuntimeError("interned procedure index is inconsistent")
+                if evidence is not None:
+                    from core.evidence.packet import fuse
+
+                    combined = (
+                        fuse((existing.evidence, evidence))
+                        if existing.evidence is not None
+                        else evidence
+                    )
+                    existing = replace(existing, evidence=combined)
+                    self._procedures[procedure_id] = existing
+                return existing
+            procedure = self.register(
+                name,
+                backend,
+                signature,
+                program=program,
+                value=value,
+                origin=origin,
+                evidence=evidence,
+                reversibility=reversibility,
+                parts=parts,
+            )
+            self._interned[key] = (procedure.procedure_id, contract_sha256)
+            self._intern_key_by_procedure[procedure.procedure_id] = key
+            return procedure
+
     def get(self, procedure_id: str) -> Procedure | None:
         with self._lock:
             return self._procedures.get(procedure_id)
+
+    def _drop_interned_locked(self, procedure_id: str) -> None:
+        key = self._intern_key_by_procedure.pop(procedure_id, None)
+        if key is not None:
+            self._interned.pop(key, None)
 
     # ── matching ──────────────────────────────────────────────────────
 
@@ -605,6 +677,7 @@ class ProcedureRegistry:
                 )
                 self._procedures[pid] = gone
                 self._index.remove(gone)
+                self._drop_interned_locked(pid)
                 self._retired += 1
                 retired.append(gone)
             return retired
@@ -734,6 +807,7 @@ class ProcedureRegistry:
                 absorb, retired=True, retired_because=f"merged into {keep_id}"
             )
             self._index.remove(absorb)
+            self._drop_interned_locked(absorb_id)
             return merged
 
     def _evict_locked(self) -> None:
@@ -745,6 +819,7 @@ class ProcedureRegistry:
         )
         for procedure in worst[: len(self._procedures) - self._max]:
             del self._procedures[procedure.procedure_id]
+            self._drop_interned_locked(procedure.procedure_id)
 
     # ── reporting ─────────────────────────────────────────────────────
 
@@ -762,6 +837,7 @@ class ProcedureRegistry:
             ]
             return {
                 "procedures": len(live),
+                "interned": len(self._interned),
                 "retired": self._retired,
                 "by_backend": dict(sorted(by_backend.items())),
                 "backends_competing": len(by_backend),

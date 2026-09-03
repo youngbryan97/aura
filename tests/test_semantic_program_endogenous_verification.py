@@ -1,3 +1,7 @@
+import hashlib
+import json
+from collections import Counter
+
 from core.learning.procedure_induction import Instruction
 from core.learning.semantic_program_corpus import (
     CharacterSpan,
@@ -11,6 +15,10 @@ from core.learning.semantic_program_endogenous_verification import (
     _canonical_expected_program,
     _sha,
     verify_endogenous_semantic_bridge,
+)
+from tools.verify_endogenous_compositional_semantic_runtime import (
+    _expected_cohorts,
+    _whole_family_source_texts,
 )
 
 
@@ -92,3 +100,84 @@ def test_verification_requires_a_significant_paired_causal_gain():
     assert paired["treatment_only"] == 6
     assert paired["control_only"] == 0
     assert paired["one_sided_exact_p"] == 0.015625
+
+
+def test_endogenous_verifier_accepts_only_complete_whole_family_evidence():
+    fresh = {
+        "family": "sequence_binary",
+        "fit_or_refit_calls": 0,
+        "transfer_kind": "whole_family_withheld_fresh_seed",
+    }
+    evidence = {
+        "schema": "aura.semantic_program_family_withheld_verification.v1",
+        "held_out_family": "sequence_binary",
+        "held_out_family_was_available_to_fit": False,
+        "source_fresh_example_overlap": 0,
+        "source_fresh_text_overlap": 0,
+        "fresh_replication": fresh,
+    }
+
+    assert _expected_cohorts(evidence) == {"sequence_binary": fresh}
+
+    evidence["held_out_family_was_available_to_fit"] = True
+    try:
+        _expected_cohorts(evidence)
+    except ValueError as exc:
+        assert str(exc) == "whole-family source evidence is incomplete"
+    else:
+        raise AssertionError("whole-family fit leakage was accepted")
+
+
+def test_endogenous_verifier_preserves_multicohort_requirement():
+    evidence = {
+        "schema": "aura.semantic_program_compositional_replication_verification.v1",
+        "cohorts": [{"family": "arithmetic"}],
+    }
+
+    try:
+        _expected_cohorts(evidence)
+    except ValueError as exc:
+        assert str(exc) == "compositional replication cohorts are incomplete"
+    else:
+        raise AssertionError("single historical cohort was accepted")
+
+
+def test_whole_family_report_binds_every_public_source_text():
+    body = {
+        "schema": "aura.semantic_program_compositional_lesions.v1",
+        "transducer_receipt_sha256": "1" * 64,
+        "representation_compatibility": {
+            "receipt_sha256": "2" * 64,
+            "replication_feature_manifest_sha256": "3" * 64,
+        },
+        "arms": {
+            "treatment": {
+                "validation": {"rows": [{"source_text_sha256": "4" * 64}]},
+                "test": {
+                    "rows": [
+                        {"source_text_sha256": "5" * 64},
+                        {"source_text_sha256": "5" * 64},
+                    ]
+                },
+            }
+        },
+    }
+    report = {**body, "report_sha256": _sha(body)}
+    raw = (
+        json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("ascii")
+    verification = {
+        "transducer_receipt_sha256": "1" * 64,
+        "fresh_representation_compatibility_sha256": "2" * 64,
+        "fresh_replication": {
+            "fresh_feature_manifest_sha256": "3" * 64,
+            "held_out_total": 3,
+        },
+        "stored_file_sha256s": {"fresh_report": hashlib.sha256(raw).hexdigest()},
+    }
+
+    assert _whole_family_source_texts(
+        report=report,
+        report_raw=raw,
+        source_verification=verification,
+    ) == Counter({"4" * 64: 1, "5" * 64: 2})

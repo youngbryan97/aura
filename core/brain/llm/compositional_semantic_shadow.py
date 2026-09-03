@@ -13,6 +13,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Final
 
+from core.cognition.procedure import get_procedure_registry
 from core.learning.semantic_program_compositional_transducer import (
     CompositionalSemanticProgramTransducer,
     compositional_semantic_program_transducer_from_dict,
@@ -37,7 +38,7 @@ COMPOSITIONAL_SEMANTIC_SHADOW_SCHEMA: Final = (
 )
 REPO_ROOT: Final = Path(__file__).resolve().parents[3]
 ARTIFACT_DIRECTORY: Final = (
-    REPO_ROOT / "artifacts/rlc/semantic_program_27b_compositional_v13"
+    REPO_ROOT / "artifacts/rlc/semantic_program_27b_compositional_v14"
 )
 TRANSDUCER_PATH: Final = ARTIFACT_DIRECTORY / "transducer.json"
 SOURCE_REPORT_PATH: Final = ARTIFACT_DIRECTORY / "source_campaign.json"
@@ -181,6 +182,12 @@ def _cached_shadow_status(
         ENDOGENOUS_VERIFICATION_PATH,
         max_bytes=4 * 1024 * 1024,
     )
+    stored_transducer_key = (
+        "transducer"
+        if source_verification.get("schema")
+        == "aura.semantic_program_family_withheld_verification.v1"
+        else "model"
+    )
     source_body = {key: value for key, value in source_report.items() if key != "report_sha256"}
     if (
         source_report.get("report_sha256") != _sha(source_body)
@@ -194,7 +201,9 @@ def _cached_shadow_status(
         != source_verification.get("verification_sha256")
         or source_verification.get("transducer_receipt_sha256")
         != transducer.get("training_receipt", {}).get("receipt_sha256")
-        or source_verification.get("stored_file_sha256s", {}).get("model")
+        or source_verification.get("stored_file_sha256s", {}).get(
+            stored_transducer_key
+        )
         != hashlib.sha256(transducer_raw).hexdigest()
         or source_verification.get("stored_file_sha256s", {}).get("source_report")
         != hashlib.sha256(source_report_raw).hexdigest()
@@ -451,6 +460,7 @@ async def execute_compositional_semantic_shadow(
             expected_representation_basis_sha256=str(
                 status["representation_basis_sha256"]
             ),
+            procedure_registry=get_procedure_registry(),
         )
     except SemanticProgramDecodeRejectedError as exc:
         return {
@@ -489,6 +499,7 @@ async def execute_compositional_semantic_shadow(
         "serving_authority": False,
         "activation_receipt_sha256": status["receipt_sha256"],
         "runtime_receipt_sha256": outcome.receipt["receipt_sha256"],
+        "procedure_id": getattr(getattr(outcome, "procedure", None), "procedure_id", None),
         "worker_hidden_state_sha256": receipt["hidden_state_sha256"],
         "result_sha256": hashlib.sha256(text.encode("ascii")).hexdigest(),
         "result": semantic_value_to_json(outcome.execution.result),

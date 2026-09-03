@@ -197,10 +197,25 @@ class SemanticProcedureProgram:
     def program_sha256(self) -> str:
         return _program_identity(self.program)
 
+    @property
+    def execution_contract_sha256(self) -> str:
+        """Identity of execution, excluding which utterance revealed it."""
+
+        return _sha(
+            {
+                "program_sha256": self.program_sha256,
+                "input_keys": list(self.input_keys),
+                "input_types": list(self.input_types),
+                "output_key": self.output_key,
+                "output_type": self.output_type,
+            }
+        )
+
     def receipt(self) -> dict[str, Any]:
         body = {
             "schema": self.schema,
             "program_sha256": self.program_sha256,
+            "execution_contract_sha256": self.execution_contract_sha256,
             "source_input_positions": list(self.source_input_positions),
             "input_keys": list(self.input_keys),
             "input_types": list(self.input_types),
@@ -287,17 +302,17 @@ def from_semantic_program(
         transducer_receipt_sha256=ir.transducer_receipt_sha256,
     )
     success_rate = observed_successes / observed_trials if observed_trials else 0.5
-    evidence: EvidencePacket | None = None
-    if observed_trials:
-        evidence = observe(
-            success_rate,
-            origin="core.learning.semantic_procedure_currency",
-            ref=ir_receipt_sha256,
-            mass=float(observed_trials),
-            subject=stored.program_sha256,
-        )
+    evidence: EvidencePacket = observe(
+        success_rate,
+        origin="core.learning.semantic_procedure_currency",
+        ref=ir_receipt_sha256,
+        mass=float(observed_trials),
+        subject=stored.execution_contract_sha256,
+    )
     registry = registry or get_procedure_registry()
-    return registry.register(
+    return registry.intern(
+        f"semantic:{stored.execution_contract_sha256}",
+        stored.execution_contract_sha256,
         f"rlc:{stored.program_sha256}",
         Backend.RLC,
         Signature(
