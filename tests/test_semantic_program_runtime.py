@@ -10,6 +10,8 @@ from core.learning.semantic_program_ir import (
     TokenSpan,
 )
 from core.learning.semantic_program_runtime import (
+    SemanticProgramDecodeRejectedError,
+    SemanticProgramObservationError,
     execute_compositional_semantic_observation,
 )
 from core.learning.semantic_program_transducer import SemanticTransductionOutcome
@@ -57,8 +59,14 @@ class _Model:
         return SemanticTransductionOutcome(ir, "", {}, {})
 
 
+class _RefusingModel(_Model):
+    @staticmethod
+    def decode(**_kwargs):
+        return SemanticTransductionOutcome(None, "typed_argument_chart_empty", {}, {})
+
+
 def test_runtime_rejects_a_different_neural_representation_basis():
-    with pytest.raises(ValueError, match="representation basis differs"):
+    with pytest.raises(SemanticProgramObservationError, match="representation basis differs"):
         execute_compositional_semantic_observation(
             model=object(),  # type: ignore[arg-type]
             source_text="Add 2 and 3.",
@@ -104,3 +112,23 @@ def test_runtime_executes_learned_ir_on_the_universal_floor():
     assert outcome.public_inputs.values == (2, 3)
     assert outcome.receipt["family_router_present"] is False
     assert outcome.receipt["expected_answer_available"] is False
+
+
+def test_runtime_preserves_a_neural_decode_refusal_as_model_evidence():
+    basis = {"worker_model_path": "/model"}
+
+    with pytest.raises(
+        SemanticProgramDecodeRejectedError,
+        match="typed_argument_chart_empty",
+    ):
+        execute_compositional_semantic_observation(
+            model=_RefusingModel(),  # type: ignore[arg-type]
+            source_text="Add 2 and 3.",
+            source_token_ids=(10, 15, 11, 16, 13),
+            offset_mapping=((0, 3), (4, 5), (6, 9), (10, 11), (11, 12)),
+            hidden_states=np.ones((5, 1), dtype=np.float32),
+            worker_model_basis=basis,
+            expected_representation_basis_sha256=_sha(
+                worker_representation_basis(basis)
+            ),
+        )
