@@ -211,6 +211,8 @@ def diagnose_compositional_transfer_lesions(
         "treatment": model,
         "chart_beam_lesion": model.chart_beam_lesion(),
         "register_use_lesion": model.register_use_lesion(),
+        "relation_tissue_lesion": model.relation_tissue_lesion(),
+        "argument_proposal_lesion": model.argument_proposal_lesion(),
         "relation_lesion": model.relation_lesion(),
         "dependency_lesion": model.dependency_lesion(),
         "coefficient_lesion": model.coefficient_lesion(),
