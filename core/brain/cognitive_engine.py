@@ -3159,6 +3159,14 @@ class CognitiveEngine:
         state.response_modifiers["model_tier"] = "tertiary" if is_background else "primary"
         state.response_modifiers["deep_handoff"] = False
 
+        await self._observe_compositional_semantic_shadow(
+            objective,
+            origin,
+            context,
+            is_background=is_background,
+            timeout_s=kwargs.get("timeout_s", kwargs.get("timeout")),
+        )
+
         # A promoted, grammar-qualified recurrent program is already a complete
         # cognitive result.  It must own the turn before model-backed advisors,
         # augmentors, or the ordinary response phases spend the resident lane
@@ -3366,6 +3374,73 @@ class CognitiveEngine:
         )
 
         return thought
+
+    async def _observe_compositional_semantic_shadow(
+        self,
+        objective: str,
+        origin: str,
+        context: dict[str, Any],
+        *,
+        is_background: bool,
+        timeout_s: Any,
+    ) -> None:
+        """Measure frozen semantic tissue without changing the answer path."""
+
+        from core.brain.llm.compositional_semantic_shadow import (
+            compositional_semantic_live_shadow_enabled,
+            observe_resident_compositional_semantics,
+        )
+
+        if (
+            not compositional_semantic_live_shadow_enabled()
+            or is_background
+            or not self._is_user_facing_origin(origin)
+            or str(origin or "").strip().lower()
+            in {"proof", "eval", "evaluation", "benchmark"}
+            or bool(
+                context.get("proof_or_benchmark")
+                or context.get("proof_run")
+                or context.get("benchmark_run")
+            )
+        ):
+            return
+        from core.conversation.user_surface_contract import resolve_user_surface_prompt
+
+        surface = resolve_user_surface_prompt(context, fallback=objective)
+        if surface.bound and not surface.valid:
+            return
+        visible_objective = str(surface.prompt or objective).strip()
+        if not visible_objective:
+            return
+        try:
+            requested_timeout = float(timeout_s) if timeout_s is not None else 90.0
+        except (TypeError, ValueError, OverflowError):
+            requested_timeout = 90.0
+        shadow_timeout = max(30.0, min(300.0, requested_timeout))
+        try:
+            result = await observe_resident_compositional_semantics(
+                visible_objective,
+                timeout_s=shadow_timeout,
+            )
+        except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
+            record_degradation(
+                "cognitive_engine.compositional_semantic_shadow",
+                exc,
+                severity="warning",
+                action="continued ordinary cognition after a shadow-only observation failed",
+                enforce_failure_policy=False,
+            )
+            return
+        logger.info(
+            "Compositional semantic shadow eligible=%s attempted=%s ok=%s "
+            "reason=%s receipt=%s result=%r",
+            result.get("eligible"),
+            result.get("attempted"),
+            result.get("ok"),
+            str(result.get("reason") or "")[:120],
+            str(result.get("receipt_sha256") or "")[:16],
+            result.get("result"),
+        )
 
     async def _qualified_recurrent_direct_reply(
         self,

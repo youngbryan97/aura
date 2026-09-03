@@ -19,9 +19,14 @@ from core.learning.semantic_program_compositional_campaign import (
     diagnose_compositional_transfer_lesions,
 )
 from core.learning.semantic_program_compositional_transducer import (
+    _POINTER_HARD_NEGATIVES as _COMPOSITIONAL_POINTER_HARD_NEGATIVES,
+)
+from core.learning.semantic_program_compositional_transducer import (
+    DirectionalRelationHead,
     _best_penalized_operation_chart,
     _definition_span_candidates,
     _directional_relation_feature,
+    _mention_invariant_relation_evidence,
     _operation_chart,
     _operation_chart_candidates,
     _operation_order,
@@ -287,6 +292,26 @@ def test_compositional_transducer_assembles_typed_atoms_without_a_geometry_head(
     assert model.training_receipt["global_geometry_classifier_present"] is False
     assert model.training_receipt["step_indexed_heads_present"] is False
     assert model.training_receipt["family_router_present"] is False
+    assert (
+        model.training_receipt["relation_score_contract"]
+        == "mention_invariant_conditional_tissue_v1"
+    )
+    proposal_fit = model.training_receipt["argument_proposal_fit"]
+    assert (
+        model.training_receipt["argument_role_contract"]
+        == "semantic_and_pointer_proposal_product_v1"
+    )
+    assert proposal_fit["positive_rows"] > 0
+    assert proposal_fit["pointer_hard_negative_rows"] > 0
+    assert (
+        proposal_fit["hard_negative_limit"]
+        == _COMPOSITIONAL_POINTER_HARD_NEGATIVES
+    )
+    selected_proposal_scales = [
+        row for row in proposal_fit["scale_selection"] if row["selected"]
+    ]
+    assert len(selected_proposal_scales) == 1
+    assert selected_proposal_scales[0]["proposal_scale"] == model.argument_proposal_scale
     assert model.register_use_contract.to_dict() == {
         "input_min_uses": 1,
         "input_max_uses": 1,
@@ -296,6 +321,15 @@ def test_compositional_transducer_assembles_typed_atoms_without_a_geometry_head(
     }
     assert model.training_receipt["definition_pointer_scale_selection"]
     assert replay.chart_beam_lesion().operation_chart_beam == 1
+    assert np.count_nonzero(
+        replay.relation_tissue_lesion().definition_relation_head.query_projection
+    ) == 0
+    proposal_lesion = replay.argument_proposal_lesion()
+    assert proposal_lesion.argument_proposal_scale == replay.argument_proposal_scale
+    assert all(
+        np.count_nonzero(head.weight) == 0 and head.bias == 0.0
+        for head in proposal_lesion.argument_proposal_heads
+    )
     assert replay.to_dict() == model.to_dict()
 
 
@@ -349,6 +383,62 @@ def test_compositional_relation_preserves_reference_direction() -> None:
 
     np.testing.assert_array_equal(forward[:4], reverse[:4])
     np.testing.assert_array_equal(forward[4:], -reverse[4:])
+
+
+def test_compositional_relation_tissue_scores_cross_feature_identity() -> None:
+    head = DirectionalRelationHead(
+        np.zeros(6, dtype=np.float32),
+        0.0,
+        0.0,
+        np.eye(2, dtype=np.float32),
+        np.eye(2, dtype=np.float32),
+    )
+    reference = np.asarray([1.0, 0.0], dtype=np.float32)
+
+    assert head.score(reference, reference) == 1.0
+    assert head.score(reference, np.asarray([0.0, 1.0], dtype=np.float32)) == 0.0
+
+
+def test_compositional_relation_tissue_cannot_inflate_mention_evidence() -> None:
+    base = (1.0, 0.5, -2.0)
+    unchanged = _mention_invariant_relation_evidence(base, base)
+    redirected = _mention_invariant_relation_evidence(base, (-2.0, 4.0, 1.0))
+
+    np.testing.assert_allclose(unchanged, tuple(-np.logaddexp(0.0, -x) for x in base))
+    assert max(redirected) == pytest.approx(max(unchanged))
+    assert int(np.argmax(redirected)) == 1
+
+
+def test_compositional_relation_tissue_is_bound_to_the_receipt() -> None:
+    model = fit_compositional_semantic_program_transducer(
+        _examples(),
+        input_grounding=_grounding(),
+    )
+    relation_fit = model.training_receipt["relation_tissue_fit"]
+
+    assert relation_fit["algorithm"] == "minibatch_adamw_cross_entropy_v1"
+    assert relation_fit["selection_objective"] == "minimum_validation_cross_entropy"
+    selected = [row for row in relation_fit["validation_selection"] if row["selected"]]
+    assert len(selected) == 1
+    assert selected[0]["validation_cross_entropy"] == min(
+        row["validation_cross_entropy"]
+        for row in relation_fit["validation_selection"]
+    )
+
+    payload = copy.deepcopy(model.to_dict())
+    payload["definition_relation_head"]["query_projection"][0][0] += 1.0
+    with pytest.raises(ValueError, match="envelope"):
+        compositional_semantic_program_transducer_from_dict(payload)
+
+    payload = copy.deepcopy(model.to_dict())
+    payload["argument_proposal_heads"][0]["weight"][0] += 1.0
+    with pytest.raises(ValueError, match="envelope"):
+        compositional_semantic_program_transducer_from_dict(payload)
+
+    payload = copy.deepcopy(model.to_dict())
+    payload["argument_proposal_scale"] += 0.125
+    with pytest.raises(ValueError, match="envelope"):
+        compositional_semantic_program_transducer_from_dict(payload)
 
 
 def test_compositional_definition_envelope_always_contains_its_anchor() -> None:
@@ -439,10 +529,29 @@ def test_compositional_lesion_diagnostic_replays_without_refitting() -> None:
 
     assert report["fit_or_refit_calls"] == 0
     assert report["expected_answers_available_to_decode"] is False
+    assert set(report["evaluated_arms"]) == set(report["arms"])
     assert report["arms"]["treatment"]["test"]["total"] == 4
     assert report["arms"]["coefficient_lesion"]["test"]["program_exact"] < report[
         "arms"
     ]["treatment"]["test"]["program_exact"]
+
+    focused = diagnose_compositional_transfer_lesions(
+        model,
+        examples,
+        arm_names=("treatment", "argument_proposal_lesion"),
+    )
+    assert focused["evaluated_arms"] == [
+        "treatment",
+        "argument_proposal_lesion",
+    ]
+    assert set(focused["arms"]) == set(focused["evaluated_arms"])
+
+    with pytest.raises(ValueError, match="requires treatment"):
+        diagnose_compositional_transfer_lesions(
+            model,
+            examples,
+            arm_names=("argument_proposal_lesion",),
+        )
 
 
 def test_shared_transducer_programs_replay_on_the_universal_floor() -> None:

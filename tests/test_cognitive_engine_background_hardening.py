@@ -216,6 +216,61 @@ async def test_unsupported_language_does_not_touch_qualified_recurrent_service(m
     assert thought is None
 
 
+@pytest.mark.asyncio
+async def test_compositional_shadow_observes_without_mutating_answer_context(monkeypatch):
+    from core.brain.llm import compositional_semantic_shadow as shadow
+
+    engine = CognitiveEngine()
+    context = {"visible_user_message": "Add 3 and 4.", "session_id": "shadow-test"}
+    original = copy.deepcopy(context)
+    observed = []
+    monkeypatch.setenv("AURA_COMPOSITIONAL_SEMANTIC_LIVE_SHADOW", "1")
+
+    async def _observe(prompt, *, timeout_s):
+        observed.append((prompt, timeout_s))
+        return {
+            "eligible": True,
+            "attempted": True,
+            "ok": True,
+            "result": 7,
+            "receipt_sha256": "a" * 64,
+        }
+
+    monkeypatch.setattr(shadow, "observe_resident_compositional_semantics", _observe)
+
+    await engine._observe_compositional_semantic_shadow(
+        "internal objective that must not replace the user surface",
+        "desktop_ui",
+        context,
+        is_background=False,
+        timeout_s=45.0,
+    )
+
+    assert observed == [("Add 3 and 4.", 45.0)]
+    assert context == original
+
+
+@pytest.mark.asyncio
+async def test_compositional_shadow_never_runs_inside_a_proof(monkeypatch):
+    from core.brain.llm import compositional_semantic_shadow as shadow
+
+    engine = CognitiveEngine()
+    monkeypatch.setenv("AURA_COMPOSITIONAL_SEMANTIC_LIVE_SHADOW", "1")
+
+    async def _unexpected(*_args, **_kwargs):
+        raise AssertionError("a live shadow must not contaminate proof execution")
+
+    monkeypatch.setattr(shadow, "observe_resident_compositional_semantics", _unexpected)
+
+    await engine._observe_compositional_semantic_shadow(
+        "Add 3 and 4.",
+        "desktop_ui",
+        {"proof_or_benchmark": True},
+        is_background=False,
+        timeout_s=45.0,
+    )
+
+
 def test_cognitive_engine_treats_prefixed_user_origin_as_foreground():
     assert CognitiveEngine._is_background_request("routing_user", False) is False
     assert CognitiveEngine._is_background_request("routing_voice_command", False) is False

@@ -33,6 +33,16 @@ from core.learning.semantic_program_transducer import SemanticTransducerTraining
 COMPOSITIONAL_LEAVE_FAMILY_OUT_SCHEMA: Final = (
     "aura.semantic_program_compositional_leave_family_out.v1"
 )
+COMPOSITIONAL_LESION_ARMS: Final = (
+    "treatment",
+    "chart_beam_lesion",
+    "register_use_lesion",
+    "relation_tissue_lesion",
+    "argument_proposal_lesion",
+    "relation_lesion",
+    "dependency_lesion",
+    "coefficient_lesion",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,17 +214,34 @@ def _family_report(
 def diagnose_compositional_transfer_lesions(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample],
+    *,
+    arm_names: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Replay frozen causal arms without fitting or changing the task set."""
 
-    arms = {
+    available_arms = {
         "treatment": model,
         "chart_beam_lesion": model.chart_beam_lesion(),
         "register_use_lesion": model.register_use_lesion(),
+        "relation_tissue_lesion": model.relation_tissue_lesion(),
+        "argument_proposal_lesion": model.argument_proposal_lesion(),
         "relation_lesion": model.relation_lesion(),
         "dependency_lesion": model.dependency_lesion(),
         "coefficient_lesion": model.coefficient_lesion(),
     }
+    selected_arm_names = (
+        COMPOSITIONAL_LESION_ARMS if arm_names is None else tuple(arm_names)
+    )
+    if not selected_arm_names:
+        raise ValueError("compositional lesion arm selection is empty")
+    if len(set(selected_arm_names)) != len(selected_arm_names):
+        raise ValueError("compositional lesion arm selection contains duplicates")
+    unsupported = sorted(set(selected_arm_names) - set(COMPOSITIONAL_LESION_ARMS))
+    if unsupported:
+        raise ValueError(f"unsupported compositional lesion arms: {unsupported}")
+    if "treatment" not in selected_arm_names:
+        raise ValueError("compositional lesion evaluation requires treatment")
+    arms = {name: available_arms[name] for name in selected_arm_names}
     results = {
         name: {
             split: evaluate_shared_semantic_program_transducer(
@@ -233,6 +260,7 @@ def diagnose_compositional_transfer_lesions(
         "example_ids_sha256": _sha(
             sorted(item.ir.source_text_sha256 for item in examples)
         ),
+        "evaluated_arms": list(selected_arm_names),
         "arms": results,
         "fit_or_refit_calls": 0,
         "expected_answers_available_to_decode": False,
@@ -319,6 +347,7 @@ def run_compositional_leave_family_out_campaign(
 
 
 __all__ = [
+    "COMPOSITIONAL_LESION_ARMS",
     "COMPOSITIONAL_LEAVE_FAMILY_OUT_SCHEMA",
     "CompositionalLeaveFamilyOutResult",
     "diagnose_compositional_definition_relations",

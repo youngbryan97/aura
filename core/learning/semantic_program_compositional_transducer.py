@@ -64,8 +64,8 @@ from core.learning.semantic_program_transducer import (
     _operation_feature,
 )
 
-COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v11"
-COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v11"
+COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v13"
+COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v13"
 _OPERATION_MODE: Final = "contextual_mean"
 _RELATION_CHANNEL: Final = "middle_causal_hidden"
 _MAX_STEPS: Final = 16
@@ -78,6 +78,17 @@ _POINTER_HARD_NEGATIVES: Final = 16
 _OPERATION_PENALTY_POINTS: Final = 161
 _OPERATION_CHART_BEAM: Final = 16
 _DIRECTIONAL_RELATION_PARTS: Final = 3
+_RELATION_TISSUE_RANK: Final = 16
+_RELATION_TISSUE_SEED: Final = 1729
+_RELATION_TISSUE_EPOCHS: Final = 120
+_RELATION_TISSUE_BATCH_SIZE: Final = 128
+_RELATION_TISSUE_SELECTION_INTERVAL: Final = 5
+_RELATION_TISSUE_LEARNING_RATE: Final = 0.01
+_RELATION_TISSUE_WEIGHT_DECAY: Final = 0.001
+_RELATION_TISSUE_GRADIENT_CLIP: Final = 1.0
+_ARGUMENT_PROPOSAL_SCALES: Final = tuple(
+    float(value) for value in np.linspace(0.0, 1.5, 13)
+)
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -106,6 +117,27 @@ def _log_sigmoid(value: float) -> float:
     """Stable log probability for one binary-head logit."""
 
     return -math.log1p(math.exp(-abs(value))) + min(value, 0.0)
+
+
+def _mention_invariant_relation_evidence(
+    base_logits: Sequence[float],
+    combined_logits: Sequence[float],
+) -> tuple[float, ...]:
+    """Let tissue choose a register without changing mention evidence."""
+
+    if (
+        not base_logits
+        or len(base_logits) != len(combined_logits)
+        or not all(math.isfinite(value) for value in (*base_logits, *combined_logits))
+    ):
+        raise ValueError("compositional relation logits are invalid")
+    base_evidence = tuple(_log_sigmoid(value) for value in base_logits)
+    combined_evidence = tuple(_log_sigmoid(value) for value in combined_logits)
+    mention_evidence = max(base_evidence)
+    combined_peak = max(combined_evidence)
+    return tuple(
+        mention_evidence + value - combined_peak for value in combined_evidence
+    )
 
 
 def _overlap(left: TokenSpan, right: TokenSpan) -> bool:
@@ -289,9 +321,17 @@ class DirectionalRelationHead:
     weight: np.ndarray
     bias: float
     pointer_scale: float
+    query_projection: np.ndarray
+    definition_projection: np.ndarray
 
     def __post_init__(self) -> None:
         weight = np.asarray(self.weight, dtype=np.float32).reshape(-1)
+        query_projection = np.asarray(self.query_projection, dtype=np.float32)
+        definition_projection = np.asarray(
+            self.definition_projection,
+            dtype=np.float32,
+        )
+        channel_width = weight.size // _DIRECTIONAL_RELATION_PARTS
         if (
             weight.size < _DIRECTIONAL_RELATION_PARTS
             or weight.size % _DIRECTIONAL_RELATION_PARTS
@@ -299,25 +339,49 @@ class DirectionalRelationHead:
             or not np.isfinite(self.bias)
             or not np.isfinite(self.pointer_scale)
             or self.pointer_scale < 0.0
+            or query_projection.ndim != 2
+            or definition_projection.shape != query_projection.shape
+            or query_projection.shape[0] != channel_width
+            or not 1 <= query_projection.shape[1] <= 64
+            or not np.all(np.isfinite(query_projection))
+            or not np.all(np.isfinite(definition_projection))
         ):
             raise ValueError("compositional directional relation head is invalid")
         object.__setattr__(self, "weight", weight)
+        object.__setattr__(self, "query_projection", query_projection)
+        object.__setattr__(self, "definition_projection", definition_projection)
 
     @property
     def channel_width(self) -> int:
         return int(self.weight.size // _DIRECTIONAL_RELATION_PARTS)
 
-    def score(self, reference: np.ndarray, definition: np.ndarray) -> float:
+    def base_score(self, reference: np.ndarray, definition: np.ndarray) -> float:
         feature = _directional_relation_feature(reference, definition)
         if feature.shape != self.weight.shape:
             raise ValueError("compositional directional relation width differs")
         return float(feature @ self.weight + self.bias)
+
+    def tissue_score(self, reference: np.ndarray, definition: np.ndarray) -> float:
+        if reference.shape != definition.shape or reference.ndim != 1:
+            raise ValueError("compositional relation vectors differ")
+        return float(
+            (reference @ self.query_projection)
+            @ (definition @ self.definition_projection)
+        )
+
+    def score(self, reference: np.ndarray, definition: np.ndarray) -> float:
+        return self.base_score(reference, definition) + self.tissue_score(
+            reference,
+            definition,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "weight": self.weight.tolist(),
             "bias": float(self.bias),
             "pointer_scale": float(self.pointer_scale),
+            "query_projection": self.query_projection.tolist(),
+            "definition_projection": self.definition_projection.tolist(),
         }
 
 
@@ -601,7 +665,9 @@ def _fit_argument_role_heads(
         weights: list[float] = []
         for item in training:
             all_arguments = tuple(
-                span for instruction in item.ir.instructions for span in instruction.argument_spans
+                span
+                for instruction in item.ir.instructions
+                for span in instruction.argument_spans
             )
             for instruction in item.ir.instructions:
                 if position >= len(instruction.argument_spans):
@@ -653,6 +719,198 @@ def _fit_argument_role_heads(
     return tuple(heads)
 
 
+def _argument_proposal_rows(
+    examples: Sequence[SemanticTransducerTrainingExample],
+    *,
+    argument_pointer: LinearPointerHead,
+    position: int,
+    max_span_tokens: int,
+    max_argument_span_tokens_by_type: Mapping[str, int],
+    hidden_channels: Sequence[str],
+    hidden_channel_widths: Sequence[int],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
+    features: list[np.ndarray] = []
+    labels: list[int] = []
+    weights: list[float] = []
+    geometry_counts = Counter(_geometry(item) for item in examples)
+    positive_rows = 0
+    negative_rows = 0
+    for item in examples:
+        pointer_scores = argument_pointer.score_sequence(item.hidden_states)
+        proposed = list(
+            pointer_scores.decode_candidates(
+                limit=_ARGUMENT_CANDIDATES,
+                max_span_tokens=max_span_tokens,
+            )
+        )
+        observed = {span for span, _score in proposed}
+        proposed.extend(
+            (span, pointer_scores.score_span(span))
+            for span in item.ir.input_spans
+            if span not in observed
+        )
+        operation_spans = tuple(
+            instruction.operation_span for instruction in item.ir.instructions
+        )
+        candidate_spans = tuple(
+            span
+            for span, _score in proposed
+            if not any(_overlap(span, operation_span) for operation_span in operation_spans)
+        )
+        for instruction in item.ir.instructions:
+            if position >= len(instruction.argument_spans):
+                continue
+            signature = semantic_primitive_type_signature(instruction.op)
+            if signature is None:
+                raise ValueError(f"compositional primitive has no floor type: {instruction.op}")
+            argument_types, _result_type = signature
+            required_type = argument_types[position]
+            positive = instruction.argument_spans[position]
+            negatives = tuple(
+                span
+                for span in candidate_spans
+                if span != positive
+                and span.end - span.start
+                <= max_argument_span_tokens_by_type[required_type]
+            )[:_POINTER_HARD_NEGATIVES]
+            spans = (positive, *negatives)
+            operation = _relation_span_vector(
+                item.hidden_states,
+                instruction.operation_span,
+                hidden_channels=hidden_channels,
+                hidden_channel_widths=hidden_channel_widths,
+            )
+            features.extend(
+                _directional_relation_feature(
+                    _relation_span_vector(
+                        item.hidden_states,
+                        span,
+                        hidden_channels=hidden_channels,
+                        hidden_channel_widths=hidden_channel_widths,
+                    ),
+                    operation,
+                )
+                for span in spans
+            )
+            labels.extend((1, *(0 for _ in negatives)))
+            decision_weight = 1.0 / geometry_counts[_geometry(item)] / len(spans)
+            weights.extend([decision_weight] * len(spans))
+            positive_rows += 1
+            negative_rows += len(negatives)
+    if not features:
+        raise ValueError(f"compositional argument proposal slot has no support: {position}")
+    return (
+        np.stack(features),
+        np.asarray(labels, dtype=np.int8),
+        _normalized_weights(weights),
+        positive_rows,
+        negative_rows,
+    )
+
+
+def _fit_argument_proposal_heads(
+    training: Sequence[SemanticTransducerTrainingExample],
+    *,
+    argument_pointer: LinearPointerHead,
+    max_arity: int,
+    max_span_tokens: int,
+    max_argument_span_tokens_by_type: Mapping[str, int],
+    hidden_channels: Sequence[str],
+    hidden_channel_widths: Sequence[int],
+) -> tuple[tuple[LinearArgumentRoleHead, ...], dict[str, int]]:
+    """Fit slot evidence on the spans the pointer can actually propose at runtime."""
+
+    heads: list[LinearArgumentRoleHead] = []
+    positive_rows = 0
+    negative_rows = 0
+    for position in range(max_arity):
+        features, labels, weights, positives, negatives = _argument_proposal_rows(
+            training,
+            argument_pointer=argument_pointer,
+            position=position,
+            max_span_tokens=max_span_tokens,
+            max_argument_span_tokens_by_type=max_argument_span_tokens_by_type,
+            hidden_channels=hidden_channels,
+            hidden_channel_widths=hidden_channel_widths,
+        )
+        weight, bias = _fit_binary_head(
+            features,
+            labels,
+            sample_weight=weights,
+            max_iter=400,
+            tolerance=1e-5,
+        )
+        heads.append(LinearArgumentRoleHead(weight, bias))
+        positive_rows += positives
+        negative_rows += negatives
+    return tuple(heads), {
+        "positive_rows": positive_rows,
+        "pointer_hard_negative_rows": negative_rows,
+    }
+
+
+def _select_argument_proposal_scale(
+    validation: Sequence[SemanticTransducerTrainingExample],
+    *,
+    argument_pointer: LinearPointerHead,
+    semantic_heads: Sequence[LinearArgumentRoleHead],
+    proposal_heads: Sequence[LinearArgumentRoleHead],
+    max_span_tokens: int,
+    max_argument_span_tokens_by_type: Mapping[str, int],
+    hidden_channels: Sequence[str],
+    hidden_channel_widths: Sequence[int],
+) -> tuple[float, list[dict[str, Any]]]:
+    """Calibrate proposal evidence against source-only held-out pointer decisions."""
+
+    totals = {scale: 0.0 for scale in _ARGUMENT_PROPOSAL_SCALES}
+    row_correct = {scale: 0 for scale in _ARGUMENT_PROPOSAL_SCALES}
+    row_count = 0
+    for position, (semantic_head, proposal_head) in enumerate(
+        zip(semantic_heads, proposal_heads, strict=True)
+    ):
+        features, labels, weights, _positives, _negatives = _argument_proposal_rows(
+            validation,
+            argument_pointer=argument_pointer,
+            position=position,
+            max_span_tokens=max_span_tokens,
+            max_argument_span_tokens_by_type=max_argument_span_tokens_by_type,
+            hidden_channels=hidden_channels,
+            hidden_channel_widths=hidden_channel_widths,
+        )
+        semantic_logits = features @ semantic_head.weight + semantic_head.bias
+        proposal_logits = features @ proposal_head.weight + proposal_head.bias
+        for scale in _ARGUMENT_PROPOSAL_SCALES:
+            logits = semantic_logits + scale * proposal_logits
+            losses = np.logaddexp(0.0, logits) - labels * logits
+            totals[scale] += float(np.sum(losses * weights))
+            row_correct[scale] += int(
+                np.count_nonzero((logits >= 0.0) == labels)
+            )
+        row_count += int(labels.size)
+    if row_count < 1:
+        raise ValueError("compositional argument proposal calibration has no support")
+    rows = [
+        {
+            "proposal_scale": scale,
+            "validation_cross_entropy": totals[scale],
+            "row_correct": row_correct[scale],
+            "row_count": row_count,
+        }
+        for scale in _ARGUMENT_PROPOSAL_SCALES
+    ]
+    winner = min(
+        rows,
+        key=lambda row: (
+            row["validation_cross_entropy"],
+            -row["row_correct"],
+            row["proposal_scale"],
+        ),
+    )
+    for row in rows:
+        row["selected"] = row is winner
+    return float(winner["proposal_scale"]), rows
+
+
 def _fit_directional_relation_head(
     training: Sequence[SemanticTransducerTrainingExample],
     *,
@@ -695,6 +953,275 @@ def _fit_directional_relation_head(
         max_iter=400,
         tolerance=1e-5,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _RelationDecisionBatch:
+    references: np.ndarray
+    definitions: np.ndarray
+    mask: np.ndarray
+    targets: np.ndarray
+    base_logits: np.ndarray
+
+
+def _relation_decision_batch(
+    examples: Sequence[SemanticTransducerTrainingExample],
+    *,
+    relation_weight: np.ndarray,
+    relation_bias: float,
+    hidden_channels: Sequence[str],
+    hidden_channel_widths: Sequence[int],
+) -> _RelationDecisionBatch:
+    decisions: list[tuple[np.ndarray, tuple[np.ndarray, ...], int]] = []
+    max_candidates = 0
+    for item in examples:
+        definitions = _register_definition_spans(item)
+        for step, instruction in enumerate(item.ir.instructions):
+            available = definitions[: item.ir.n_inputs + step]
+            definition_vectors = tuple(
+                _relation_span_vector(
+                    item.hidden_states,
+                    span,
+                    hidden_channels=hidden_channels,
+                    hidden_channel_widths=hidden_channel_widths,
+                ).astype(np.float32)
+                for span in available
+            )
+            max_candidates = max(max_candidates, len(definition_vectors))
+            for reference_span, register in zip(
+                instruction.argument_spans,
+                instruction.args,
+                strict=True,
+            ):
+                decisions.append(
+                    (
+                        _relation_span_vector(
+                            item.hidden_states,
+                            reference_span,
+                            hidden_channels=hidden_channels,
+                            hidden_channel_widths=hidden_channel_widths,
+                        ).astype(np.float32),
+                        definition_vectors,
+                        register,
+                    )
+                )
+    if not decisions or max_candidates < 1:
+        raise ValueError("compositional relation tissue has no decisions")
+    width = decisions[0][0].size
+    references = np.zeros((len(decisions), width), dtype=np.float32)
+    definitions = np.zeros(
+        (len(decisions), max_candidates, width),
+        dtype=np.float32,
+    )
+    mask = np.zeros((len(decisions), max_candidates), dtype=bool)
+    targets = np.zeros(len(decisions), dtype=np.int64)
+    base_logits = np.full(
+        (len(decisions), max_candidates),
+        -1e9,
+        dtype=np.float32,
+    )
+    for row, (reference, candidates, target) in enumerate(decisions):
+        if not 0 <= target < len(candidates):
+            raise ValueError("compositional relation target is unavailable")
+        references[row] = reference
+        targets[row] = target
+        for column, definition in enumerate(candidates):
+            definitions[row, column] = definition
+            mask[row, column] = True
+            base_logits[row, column] = float(
+                _directional_relation_feature(reference, definition) @ relation_weight
+                + relation_bias
+            )
+    return _RelationDecisionBatch(
+        references=references,
+        definitions=definitions,
+        mask=mask,
+        targets=targets,
+        base_logits=base_logits,
+    )
+
+
+def _relation_tissue_logits(
+    batch: _RelationDecisionBatch,
+    query_projection: np.ndarray,
+    definition_projection: np.ndarray,
+) -> np.ndarray:
+    queries = batch.references @ query_projection
+    definitions = np.einsum(
+        "ncd,dr->ncr",
+        batch.definitions,
+        definition_projection,
+        optimize=True,
+    )
+    interactions = np.einsum("nr,ncr->nc", queries, definitions, optimize=True)
+    return np.where(batch.mask, batch.base_logits + interactions, -1e9)
+
+
+def _relation_tissue_metrics(
+    batch: _RelationDecisionBatch,
+    query_projection: np.ndarray,
+    definition_projection: np.ndarray,
+) -> tuple[int, float]:
+    logits = _relation_tissue_logits(batch, query_projection, definition_projection)
+    centered = logits - logits.max(axis=1, keepdims=True)
+    log_probabilities = centered - np.log(
+        np.exp(centered).sum(axis=1, keepdims=True)
+    )
+    rows = np.arange(batch.targets.size)
+    return (
+        int(np.count_nonzero(logits.argmax(axis=1) == batch.targets)),
+        float(-log_probabilities[rows, batch.targets].mean()),
+    )
+
+
+def _fit_low_rank_relation_tissue(
+    training: Sequence[SemanticTransducerTrainingExample],
+    validation: Sequence[SemanticTransducerTrainingExample],
+    *,
+    relation_weight: np.ndarray,
+    relation_bias: float,
+    hidden_channels: Sequence[str],
+    hidden_channel_widths: Sequence[int],
+) -> tuple[np.ndarray, np.ndarray, list[dict[str, Any]]]:
+    """Fit one cross-feature linker and select its epoch on source validation."""
+
+    train = _relation_decision_batch(
+        training,
+        relation_weight=relation_weight,
+        relation_bias=relation_bias,
+        hidden_channels=hidden_channels,
+        hidden_channel_widths=hidden_channel_widths,
+    )
+    validate = _relation_decision_batch(
+        validation,
+        relation_weight=relation_weight,
+        relation_bias=relation_bias,
+        hidden_channels=hidden_channels,
+        hidden_channel_widths=hidden_channel_widths,
+    )
+    width = train.references.shape[1]
+    rank = min(_RELATION_TISSUE_RANK, width)
+    rng = np.random.default_rng(_RELATION_TISSUE_SEED)
+    query = (rng.standard_normal((width, rank)) * 0.002).astype(np.float32)
+    definition = (rng.standard_normal((width, rank)) * 0.002).astype(np.float32)
+    query_moment = np.zeros_like(query)
+    query_variance = np.zeros_like(query)
+    definition_moment = np.zeros_like(definition)
+    definition_variance = np.zeros_like(definition)
+    zero = np.zeros((width, rank), dtype=np.float32)
+    baseline_correct, baseline_loss = _relation_tissue_metrics(validate, zero, zero)
+    rows = [
+        {
+            "epoch": 0,
+            "validation_top1": baseline_correct,
+            "validation_total": validate.targets.size,
+            "validation_cross_entropy": baseline_loss,
+        }
+    ]
+    best_key = (-baseline_loss, baseline_correct, 0)
+    best_query = zero.copy()
+    best_definition = zero.copy()
+    best_epoch = 0
+    update = 0
+    beta1 = 0.9
+    beta2 = 0.999
+    epsilon = 1e-8
+    for epoch in range(1, _RELATION_TISSUE_EPOCHS + 1):
+        permutation = rng.permutation(train.targets.size)
+        for start in range(0, permutation.size, _RELATION_TISSUE_BATCH_SIZE):
+            indices = permutation[start : start + _RELATION_TISSUE_BATCH_SIZE]
+            batch = _RelationDecisionBatch(
+                references=train.references[indices],
+                definitions=train.definitions[indices],
+                mask=train.mask[indices],
+                targets=train.targets[indices],
+                base_logits=train.base_logits[indices],
+            )
+            queries = batch.references @ query
+            definition_keys = np.einsum(
+                "ncd,dr->ncr",
+                batch.definitions,
+                definition,
+                optimize=True,
+            )
+            logits = np.where(
+                batch.mask,
+                batch.base_logits
+                + np.einsum("nr,ncr->nc", queries, definition_keys, optimize=True),
+                -1e9,
+            )
+            logits -= logits.max(axis=1, keepdims=True)
+            probabilities = np.exp(logits)
+            probabilities /= probabilities.sum(axis=1, keepdims=True)
+            probabilities[np.arange(batch.targets.size), batch.targets] -= 1.0
+            probabilities /= batch.targets.size
+            query_gradient = batch.references.T @ np.einsum(
+                "nc,ncr->nr",
+                probabilities,
+                definition_keys,
+                optimize=True,
+            )
+            definition_gradient = np.einsum(
+                "ncd,ncr->dr",
+                batch.definitions,
+                probabilities[:, :, None] * queries[:, None, :],
+                optimize=True,
+            )
+            gradient_norm = float(
+                np.sqrt(
+                    np.sum(query_gradient * query_gradient)
+                    + np.sum(definition_gradient * definition_gradient)
+                )
+            )
+            if not math.isfinite(gradient_norm):
+                raise FloatingPointError("compositional relation tissue gradient is non-finite")
+            if gradient_norm > _RELATION_TISSUE_GRADIENT_CLIP:
+                scale = _RELATION_TISSUE_GRADIENT_CLIP / gradient_norm
+                query_gradient *= scale
+                definition_gradient *= scale
+            update += 1
+            for parameter, gradient, moment, variance in (
+                (query, query_gradient, query_moment, query_variance),
+                (
+                    definition,
+                    definition_gradient,
+                    definition_moment,
+                    definition_variance,
+                ),
+            ):
+                moment *= beta1
+                moment += (1.0 - beta1) * gradient
+                variance *= beta2
+                variance += (1.0 - beta2) * gradient * gradient
+                parameter *= 1.0 - (
+                    _RELATION_TISSUE_LEARNING_RATE * _RELATION_TISSUE_WEIGHT_DECAY
+                )
+                parameter -= _RELATION_TISSUE_LEARNING_RATE * (
+                    moment / (1.0 - beta1**update)
+                ) / (np.sqrt(variance / (1.0 - beta2**update)) + epsilon)
+        if epoch % _RELATION_TISSUE_SELECTION_INTERVAL:
+            continue
+        correct, loss = _relation_tissue_metrics(validate, query, definition)
+        rows.append(
+            {
+                "epoch": epoch,
+                "validation_top1": correct,
+                "validation_total": validate.targets.size,
+                "validation_cross_entropy": loss,
+            }
+        )
+        # Cross-entropy is the calibrated validation objective. Prioritising a
+        # two-decision top-1 increase selected a later, less calibrated epoch
+        # and measurably regressed source constructions.
+        key = (-loss, correct, -epoch)
+        if key > best_key:
+            best_key = key
+            best_query = query.copy()
+            best_definition = definition.copy()
+            best_epoch = epoch
+    for row in rows:
+        row["selected"] = row["epoch"] == best_epoch
+    return best_query, best_definition, rows
 
 
 def _fit_register_use_contract(
@@ -894,6 +1421,18 @@ def _assign_typed_arguments(
         )
         for span, reference in reference_vectors.items()
     }
+    base_relation_scores = {
+        span: tuple(
+            max(
+                model.definition_relation_head.base_score(reference, definition)
+                + model.definition_relation_head.pointer_scale
+                * definition_pointer_scores.score_span(candidate)
+                for candidate, definition in candidates
+            )
+            for candidates in definition_vectors
+        )
+        for span, reference in reference_vectors.items()
+    }
     states: list[
         tuple[
             float,
@@ -915,27 +1454,50 @@ def _assign_typed_arguments(
         partial: list[tuple[float, tuple[int, ...], tuple[TokenSpan, ...]]] = [(0.0, (), ())]
         for position, required_type in enumerate(argument_types):
             role_head = model.argument_role_heads[position]
+            proposal_head = model.argument_proposal_heads[position]
             by_register: dict[int, list[tuple[float, TokenSpan]]] = {}
             for span, pointer_score in proposals:
                 if span.end - span.start > model.max_argument_span_tokens_by_type[required_type]:
                     continue
                 reference = reference_vectors[span]
                 role_score = role_head.score(reference, operation_vector)
+                proposal_score = proposal_head.score(reference, operation_vector)
                 exact_inputs = tuple(
                     index for index, input_span in enumerate(input_spans) if span == input_span
                 )
                 candidate_registers = (
                     exact_inputs if exact_inputs else tuple(range(len(definitions)))
                 )
-                for register in candidate_registers:
-                    register_type = register_types[register]
-                    if register_type != required_type:
-                        continue
-                    if register == len(inputs) + node_index:
-                        continue
-                    if not model.allow_computed_dependencies and register >= len(inputs):
-                        continue
-                    relation_score = relation_scores[span][register]
+                eligible_registers = tuple(
+                    register
+                    for register in candidate_registers
+                    if register_types[register] == required_type
+                    and register != len(inputs) + node_index
+                    and (model.allow_computed_dependencies or register < len(inputs))
+                )
+                if not eligible_registers:
+                    continue
+                raw_relation_scores = tuple(
+                    relation_scores[span][register] for register in eligible_registers
+                )
+                base_raw_relation_scores = tuple(
+                    base_relation_scores[span][register]
+                    for register in eligible_registers
+                )
+                relation_evidence = _mention_invariant_relation_evidence(
+                    base_raw_relation_scores,
+                    raw_relation_scores,
+                )
+                for (
+                    register,
+                    relation_score,
+                    candidate_relation_evidence,
+                ) in zip(
+                    eligible_registers,
+                    raw_relation_scores,
+                    relation_evidence,
+                    strict=True,
+                ):
                     if (
                         register >= len(inputs)
                         and register - len(inputs) > node_index
@@ -944,7 +1506,9 @@ def _assign_typed_arguments(
                         continue
                     score = (
                         model.argument_role_scale * _log_sigmoid(role_score)
-                        + model.definition_relation_scale * _log_sigmoid(relation_score)
+                        + model.argument_proposal_scale * _log_sigmoid(proposal_score)
+                        + model.definition_relation_scale
+                        * candidate_relation_evidence
                         + model.argument_pointer_scale * _log_sigmoid(pointer_score)
                     )
                     by_register.setdefault(register, []).append((score, span))
@@ -1153,6 +1717,7 @@ class CompositionalSemanticProgramTransducer:
     definition_pointer: LinearPointerHead
     operation_head: MultiViewClassifierHead
     argument_role_heads: tuple[LinearArgumentRoleHead, ...]
+    argument_proposal_heads: tuple[LinearArgumentRoleHead, ...]
     definition_relation_head: DirectionalRelationHead
     max_steps: int
     max_inputs: int
@@ -1163,6 +1728,7 @@ class CompositionalSemanticProgramTransducer:
     operation_chart_beam: int
     operation_length_penalty: float
     argument_role_scale: float
+    argument_proposal_scale: float
     definition_relation_scale: float
     argument_pointer_scale: float
     allow_computed_dependencies: bool
@@ -1171,6 +1737,12 @@ class CompositionalSemanticProgramTransducer:
 
     def __post_init__(self) -> None:
         receipt = json.loads(_canonical_bytes(self.training_receipt))
+        relation_fit = receipt.get("relation_tissue_fit")
+        relation_selection = (
+            relation_fit.get("validation_selection")
+            if isinstance(relation_fit, Mapping)
+            else None
+        )
         relation_start, relation_end = _channel_span(
             _RELATION_CHANNEL,
             hidden_channels=self.hidden_channels,
@@ -1192,9 +1764,10 @@ class CompositionalSemanticProgramTransducer:
             or self.definition_pointer.width != self.hidden_size
             or self.operation_head.modes != (_OPERATION_MODE,)
             or not self.argument_role_heads
+            or len(self.argument_proposal_heads) != len(self.argument_role_heads)
             or any(
                 head.channel_width != relation_end - relation_start
-                for head in self.argument_role_heads
+                for head in (*self.argument_role_heads, *self.argument_proposal_heads)
             )
             or self.definition_relation_head.channel_width != relation_end - relation_start
             or type(self.max_steps) is not int
@@ -1215,6 +1788,8 @@ class CompositionalSemanticProgramTransducer:
                     self.argument_pointer_scale,
                 )
             )
+            or not math.isfinite(self.argument_proposal_scale)
+            or self.argument_proposal_scale < 0
             or not math.isfinite(self.operation_length_penalty)
             or type(self.allow_computed_dependencies) is not bool
             or receipt.get("schema") != COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA
@@ -1230,6 +1805,47 @@ class CompositionalSemanticProgramTransducer:
             or not 1 <= self.operation_chart_beam <= _OPERATION_CHART_BEAM
             or receipt.get("operation_chart_beam") != self.operation_chart_beam
             or receipt.get("register_use_contract") != self.register_use_contract.to_dict()
+            or not isinstance(relation_fit, Mapping)
+            or relation_fit.get("algorithm") != "minibatch_adamw_cross_entropy_v1"
+            or relation_fit.get("selection_objective")
+            != "minimum_validation_cross_entropy"
+            or relation_fit.get("rank")
+            != self.definition_relation_head.query_projection.shape[1]
+            or relation_fit.get("seed") != _RELATION_TISSUE_SEED
+            or receipt.get("relation_score_contract")
+            != "mention_invariant_conditional_tissue_v1"
+            or receipt.get("argument_role_contract")
+            != "semantic_and_pointer_proposal_product_v1"
+            or not isinstance(receipt.get("argument_proposal_fit"), Mapping)
+            or receipt["argument_proposal_fit"].get("hard_negative_limit")
+            != _POINTER_HARD_NEGATIVES
+            or receipt["argument_proposal_fit"].get("scale_selection_objective")
+            != "minimum_validation_cross_entropy"
+            or not isinstance(
+                receipt["argument_proposal_fit"].get("scale_selection"), list
+            )
+            or sum(
+                isinstance(row, Mapping) and row.get("selected") is True
+                for row in receipt["argument_proposal_fit"]["scale_selection"]
+            )
+            != 1
+            or not any(
+                isinstance(row, Mapping)
+                and row.get("selected") is True
+                and row.get("proposal_scale") == self.argument_proposal_scale
+                for row in receipt["argument_proposal_fit"]["scale_selection"]
+            )
+            or type(receipt["argument_proposal_fit"].get("positive_rows")) is not int
+            or receipt["argument_proposal_fit"]["positive_rows"] < 1
+            or type(receipt["argument_proposal_fit"].get("pointer_hard_negative_rows"))
+            is not int
+            or receipt["argument_proposal_fit"]["pointer_hard_negative_rows"] < 1
+            or not isinstance(relation_selection, list)
+            or sum(
+                isinstance(row, Mapping) and row.get("selected") is True
+                for row in relation_selection
+            )
+            != 1
             or any(
                 receipt.get(field) is not False
                 for field in (
@@ -1251,9 +1867,13 @@ class CompositionalSemanticProgramTransducer:
             "definition_pointer": self.definition_pointer.to_dict(),
             "operation_head": self.operation_head.to_dict(),
             "argument_role_heads": [head.to_dict() for head in self.argument_role_heads],
+            "argument_proposal_heads": [
+                head.to_dict() for head in self.argument_proposal_heads
+            ],
             "definition_relation_head": self.definition_relation_head.to_dict(),
             "operation_length_penalty": self.operation_length_penalty,
             "argument_role_scale": self.argument_role_scale,
+            "argument_proposal_scale": self.argument_proposal_scale,
             "definition_relation_scale": self.definition_relation_scale,
             "argument_pointer_scale": self.argument_pointer_scale,
             "allow_computed_dependencies": self.allow_computed_dependencies,
@@ -1289,6 +1909,9 @@ class CompositionalSemanticProgramTransducer:
             "definition_pointer": changes.get("definition_pointer", self.definition_pointer),
             "operation_head": changes.get("operation_head", self.operation_head),
             "argument_role_heads": changes.get("argument_role_heads", self.argument_role_heads),
+            "argument_proposal_heads": changes.get(
+                "argument_proposal_heads", self.argument_proposal_heads
+            ),
             "definition_relation_head": changes.get(
                 "definition_relation_head", self.definition_relation_head
             ),
@@ -1296,6 +1919,9 @@ class CompositionalSemanticProgramTransducer:
                 "operation_length_penalty", self.operation_length_penalty
             ),
             "argument_role_scale": changes.get("argument_role_scale", self.argument_role_scale),
+            "argument_proposal_scale": changes.get(
+                "argument_proposal_scale", self.argument_proposal_scale
+            ),
             "definition_relation_scale": changes.get(
                 "definition_relation_scale", self.definition_relation_scale
             ),
@@ -1315,9 +1941,13 @@ class CompositionalSemanticProgramTransducer:
             "definition_pointer": values["definition_pointer"].to_dict(),
             "operation_head": values["operation_head"].to_dict(),
             "argument_role_heads": [head.to_dict() for head in values["argument_role_heads"]],
+            "argument_proposal_heads": [
+                head.to_dict() for head in values["argument_proposal_heads"]
+            ],
             "definition_relation_head": values["definition_relation_head"].to_dict(),
             "operation_length_penalty": values["operation_length_penalty"],
             "argument_role_scale": values["argument_role_scale"],
+            "argument_proposal_scale": values["argument_proposal_scale"],
             "definition_relation_scale": values["definition_relation_scale"],
             "argument_pointer_scale": values["argument_pointer_scale"],
             "allow_computed_dependencies": values["allow_computed_dependencies"],
@@ -1360,10 +1990,16 @@ class CompositionalSemanticProgramTransducer:
                 LinearArgumentRoleHead(np.zeros_like(head.weight), head.bias)
                 for head in self.argument_role_heads
             ),
+            argument_proposal_heads=tuple(
+                LinearArgumentRoleHead(np.zeros_like(head.weight), head.bias)
+                for head in self.argument_proposal_heads
+            ),
             definition_relation_head=DirectionalRelationHead(
                 np.zeros_like(self.definition_relation_head.weight),
                 self.definition_relation_head.bias,
                 self.definition_relation_head.pointer_scale,
+                np.zeros_like(self.definition_relation_head.query_projection),
+                np.zeros_like(self.definition_relation_head.definition_projection),
             ),
             register_use_contract=RegisterUseContract(
                 0,
@@ -1387,11 +2023,41 @@ class CompositionalSemanticProgramTransducer:
                 LinearArgumentRoleHead(np.zeros_like(head.weight), head.bias)
                 for head in self.argument_role_heads
             ),
+            argument_proposal_heads=tuple(
+                LinearArgumentRoleHead(np.zeros_like(head.weight), head.bias)
+                for head in self.argument_proposal_heads
+            ),
             definition_relation_head=DirectionalRelationHead(
                 np.zeros_like(self.definition_relation_head.weight),
                 self.definition_relation_head.bias,
                 self.definition_relation_head.pointer_scale,
+                np.zeros_like(self.definition_relation_head.query_projection),
+                np.zeros_like(self.definition_relation_head.definition_projection),
             ),
+        )
+
+    def relation_tissue_lesion(self) -> CompositionalSemanticProgramTransducer:
+        """Remove only the cross-feature relation tissue learned by v13."""
+
+        head = self.definition_relation_head
+        return self._with_coefficients(
+            definition_relation_head=DirectionalRelationHead(
+                head.weight,
+                head.bias,
+                head.pointer_scale,
+                np.zeros_like(head.query_projection),
+                np.zeros_like(head.definition_projection),
+            )
+        )
+
+    def argument_proposal_lesion(self) -> CompositionalSemanticProgramTransducer:
+        """Remove only evidence learned from runtime pointer proposals."""
+
+        return self._with_coefficients(
+            argument_proposal_heads=tuple(
+                LinearArgumentRoleHead(np.zeros_like(head.weight), 0.0)
+                for head in self.argument_proposal_heads
+            )
         )
 
     def dependency_lesion(self) -> CompositionalSemanticProgramTransducer:
@@ -1728,6 +2394,27 @@ def fit_compositional_semantic_program_transducer(
         hidden_channels=hidden_channels,
         hidden_channel_widths=hidden_channel_widths,
     )
+    argument_proposal_heads, argument_proposal_fit = _fit_argument_proposal_heads(
+        training,
+        argument_pointer=argument_pointer,
+        max_arity=max_arity,
+        max_span_tokens=max_span_tokens,
+        max_argument_span_tokens_by_type=max_argument_span_tokens_by_type,
+        hidden_channels=hidden_channels,
+        hidden_channel_widths=hidden_channel_widths,
+    )
+    argument_proposal_scale, argument_proposal_scale_rows = (
+        _select_argument_proposal_scale(
+            validation,
+            argument_pointer=argument_pointer,
+            semantic_heads=argument_role_heads,
+            proposal_heads=argument_proposal_heads,
+            max_span_tokens=max_span_tokens,
+            max_argument_span_tokens_by_type=max_argument_span_tokens_by_type,
+            hidden_channels=hidden_channels,
+            hidden_channel_widths=hidden_channel_widths,
+        )
+    )
     item_weights = {id(item): 1.0 / geometries[_geometry(item)] for item in training}
     relation_weight, relation_bias = _fit_directional_relation_head(
         training,
@@ -1735,8 +2422,24 @@ def fit_compositional_semantic_program_transducer(
         hidden_channels=hidden_channels,
         hidden_channel_widths=hidden_channel_widths,
     )
+    (
+        relation_query_projection,
+        relation_definition_projection,
+        relation_tissue_rows,
+    ) = _fit_low_rank_relation_tissue(
+        training,
+        validation,
+        relation_weight=relation_weight,
+        relation_bias=relation_bias,
+        hidden_channels=hidden_channels,
+        hidden_channel_widths=hidden_channel_widths,
+    )
     uncalibrated_relation_head = DirectionalRelationHead(
-        relation_weight, relation_bias, 0.0
+        relation_weight,
+        relation_bias,
+        0.0,
+        relation_query_projection,
+        relation_definition_projection,
     )
     definition_pointer_scale, definition_pointer_rows = _select_definition_pointer_scale(
         validation,
@@ -1750,6 +2453,8 @@ def fit_compositional_semantic_program_transducer(
         relation_weight,
         relation_bias,
         definition_pointer_scale,
+        relation_query_projection,
+        relation_definition_projection,
     )
     operation_length_penalty, penalty_rows = _select_operation_length_penalty(
         validation,
@@ -1766,9 +2471,11 @@ def fit_compositional_semantic_program_transducer(
         "definition_pointer": definition_pointer.to_dict(),
         "operation_head": operation_head.to_dict(),
         "argument_role_heads": [head.to_dict() for head in argument_role_heads],
+        "argument_proposal_heads": [head.to_dict() for head in argument_proposal_heads],
         "definition_relation_head": definition_relation_head.to_dict(),
         "operation_length_penalty": operation_length_penalty,
         "argument_role_scale": 1.0,
+        "argument_proposal_scale": argument_proposal_scale,
         "definition_relation_scale": 1.0,
         "argument_pointer_scale": 0.5,
         "allow_computed_dependencies": True,
@@ -1799,6 +2506,27 @@ def fit_compositional_semantic_program_transducer(
         "argument_span_bounds": max_argument_span_tokens_by_type,
         "definition_span_bound": max_definition_span_tokens,
         "definition_pointer_scale_selection": definition_pointer_rows,
+        "relation_tissue_fit": {
+            "algorithm": "minibatch_adamw_cross_entropy_v1",
+            "selection_objective": "minimum_validation_cross_entropy",
+            "rank": int(relation_query_projection.shape[1]),
+            "seed": _RELATION_TISSUE_SEED,
+            "epochs": _RELATION_TISSUE_EPOCHS,
+            "batch_size": _RELATION_TISSUE_BATCH_SIZE,
+            "selection_interval": _RELATION_TISSUE_SELECTION_INTERVAL,
+            "learning_rate": _RELATION_TISSUE_LEARNING_RATE,
+            "weight_decay": _RELATION_TISSUE_WEIGHT_DECAY,
+            "gradient_clip": _RELATION_TISSUE_GRADIENT_CLIP,
+            "validation_selection": relation_tissue_rows,
+        },
+        "relation_score_contract": "mention_invariant_conditional_tissue_v1",
+        "argument_role_contract": "semantic_and_pointer_proposal_product_v1",
+        "argument_proposal_fit": {
+            "hard_negative_limit": _POINTER_HARD_NEGATIVES,
+            "scale_selection_objective": "minimum_validation_cross_entropy",
+            "scale_selection": argument_proposal_scale_rows,
+            **argument_proposal_fit,
+        },
         "register_use_contract": register_use_contract.to_dict(),
         "global_geometry_classifier_present": False,
         "step_indexed_heads_present": False,
@@ -1820,6 +2548,7 @@ def fit_compositional_semantic_program_transducer(
         definition_pointer=definition_pointer,
         operation_head=operation_head,
         argument_role_heads=argument_role_heads,
+        argument_proposal_heads=argument_proposal_heads,
         definition_relation_head=definition_relation_head,
         max_steps=max_steps,
         max_inputs=max_inputs,
@@ -1830,6 +2559,7 @@ def fit_compositional_semantic_program_transducer(
         operation_chart_beam=_OPERATION_CHART_BEAM,
         operation_length_penalty=operation_length_penalty,
         argument_role_scale=1.0,
+        argument_proposal_scale=argument_proposal_scale,
         definition_relation_scale=1.0,
         argument_pointer_scale=0.5,
         allow_computed_dependencies=True,
@@ -1851,7 +2581,7 @@ def _pointer_from_dict(value: Any) -> LinearPointerHead:
 def compositional_semantic_program_transducer_from_dict(
     payload: Any,
 ) -> CompositionalSemanticProgramTransducer:
-    """Reload one immutable v11 transducer without fitting or calibration."""
+    """Reload one immutable v12 transducer without fitting or calibration."""
 
     if not isinstance(payload, Mapping):
         raise ValueError("compositional semantic transducer payload is invalid")
@@ -1893,10 +2623,19 @@ def compositional_semantic_program_transducer_from_dict(
             )
             for value in payload["argument_role_heads"]
         ),
+        argument_proposal_heads=tuple(
+            LinearArgumentRoleHead(
+                np.asarray(value["weight"], dtype=np.float32),
+                float(value["bias"]),
+            )
+            for value in payload["argument_proposal_heads"]
+        ),
         definition_relation_head=DirectionalRelationHead(
             np.asarray(relation["weight"], dtype=np.float32),
             float(relation["bias"]),
             float(relation["pointer_scale"]),
+            np.asarray(relation["query_projection"], dtype=np.float32),
+            np.asarray(relation["definition_projection"], dtype=np.float32),
         ),
         max_steps=int(payload["max_steps"]),
         max_inputs=int(payload["max_inputs"]),
@@ -1920,6 +2659,7 @@ def compositional_semantic_program_transducer_from_dict(
         ),
         operation_length_penalty=float(payload["operation_length_penalty"]),
         argument_role_scale=float(payload["argument_role_scale"]),
+        argument_proposal_scale=float(payload["argument_proposal_scale"]),
         definition_relation_scale=float(payload["definition_relation_scale"]),
         argument_pointer_scale=float(payload["argument_pointer_scale"]),
         allow_computed_dependencies=bool(payload["allow_computed_dependencies"]),
