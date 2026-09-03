@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Final
 
 from core.learning.semantic_input_grounding import SemanticInputGroundingContract
 from core.learning.semantic_program_basis import (
+    bind_examples_to_compatible_training_session,
     bind_training_examples_to_shared_representation,
+    establish_semantic_representation_compatibility,
     establish_semantic_training_representation_compatibility,
 )
 from core.learning.semantic_program_campaign import (
@@ -286,34 +288,66 @@ def run_compositional_leave_family_out_campaign(
         for family, bundle in bundles.items()
     }
     manifests = {family: bundle.manifest for family, bundle in bundles.items()}
-    compatibility = establish_semantic_training_representation_compatibility(manifests)
-    bound = bind_training_examples_to_shared_representation(
-        examples_by_family,
-        compatibility=compatibility,
+    fit_families = sorted(set(bundles) - {held_out_family})
+    fit_manifests = {family: manifests[family] for family in fit_families}
+    fit_compatibility = establish_semantic_training_representation_compatibility(
+        fit_manifests
     )
-    bound_by_family = {
+    fit_bound = bind_training_examples_to_shared_representation(
+        {family: examples_by_family[family] for family in fit_families},
+        compatibility=fit_compatibility,
+    )
+    fit_bound_by_family = {
         family: tuple(
             item
-            for item in bound
+            for item in fit_bound
             if item.construction_id.startswith(f"{family}:")
         )
-        for family in bundles
+        for family in fit_families
     }
     if any(
-        len(bound_by_family[family]) != len(examples_by_family[family])
-        for family in bundles
+        len(fit_bound_by_family[family]) != len(examples_by_family[family])
+        for family in fit_families
     ):
-        raise ValueError("compositional held-family inventory changed during binding")
+        raise ValueError("compositional fit-family inventory changed during binding")
     fit_examples = tuple(
         item
-        for family, examples in bound_by_family.items()
-        if family != held_out_family
-        for item in examples
+        for family in fit_families
+        for item in fit_bound_by_family[family]
     )
     model = fit_compositional_semantic_program_transducer(
         fit_examples,
         input_grounding=input_grounding,
     )
+    target_basis = fit_compatibility["target_training_session_basis_sha256"]
+    anchor_families = [
+        family
+        for family in fit_families
+        if target_basis
+        in fit_compatibility["source_session_basis_sha256s"][family]
+    ]
+    if len(anchor_families) != 1 or model.model_basis_sha256 != target_basis:
+        raise ValueError("compositional fit basis has no unique source cohort")
+    held_out_compatibility = establish_semantic_representation_compatibility(
+        model=model,
+        training_manifest=manifests[anchor_families[0]],
+        replication_manifest=manifests[held_out_family],
+    )
+    held_out_examples = bind_examples_to_compatible_training_session(
+        examples_by_family[held_out_family],
+        compatibility=held_out_compatibility,
+    )
+    bound_by_family = {
+        **fit_bound_by_family,
+        held_out_family: tuple(
+            replace(
+                item,
+                construction_id=f"{held_out_family}:{item.construction_id}",
+                topology_id=f"{held_out_family}:{item.topology_id}",
+            )
+            for item in held_out_examples
+        ),
+    }
     families = {
         family: _family_report(model, examples)
         for family, examples in sorted(bound_by_family.items())
@@ -321,11 +355,12 @@ def run_compositional_leave_family_out_campaign(
     body = {
         "schema": COMPOSITIONAL_LEAVE_FAMILY_OUT_SCHEMA,
         "held_out_family": held_out_family,
-        "fit_families": sorted(set(bundles) - {held_out_family}),
+        "fit_families": fit_families,
         "feature_manifest_sha256s": {
             family: manifests[family]["manifest_sha256"] for family in sorted(manifests)
         },
-        "representation_compatibility": compatibility,
+        "representation_compatibility": fit_compatibility,
+        "held_out_representation_compatibility": held_out_compatibility,
         "model_basis_sha256": model.model_basis_sha256,
         "transducer_receipt_sha256": model.receipt_sha256,
         "fit_example_count": len(fit_examples),
