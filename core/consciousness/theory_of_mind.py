@@ -13,6 +13,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from core.cognition.what_kind_of_thing_was_said import WhatSheHasHeard
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import optional_service
 from core.runtime.state_ownership import state_root
@@ -117,6 +118,47 @@ class AgentModel:
         data = asdict(self)
         data['self_type'] = self.self_type.value
         return data
+
+#: What she has heard, and what turned out to answer it. Kept for the process
+#: rather than per engine, because what somebody means is about them and not
+#: about which part of her is listening.
+_HEARD: WhatSheHasHeard | None = None
+
+
+def _what_she_has_heard() -> WhatSheHasHeard:
+    global _HEARD
+    if _HEARD is None:
+        _HEARD = WhatSheHasHeard.from_memory(_recall_what_she_has_heard())
+    return _HEARD
+
+
+def _recall_what_she_has_heard() -> dict[str, Any]:
+    """What she had heard last time, if anything."""
+    try:
+        from core.runtime.what_she_learned import recall  # noqa: PLC0415
+
+        return recall("what people mean") or {}
+    except (ImportError, OSError, ValueError):
+        # not a failure: nothing remembered is where everybody starts.
+        return {}
+
+
+def it_was_answered_by(said: str, doing: str, *, went_well: bool) -> None:
+    """Tell her what turned out to answer a turn, so the next one is easier.
+
+    Only what went well is counted. A response that did not work says nothing
+    about what the person meant — it says something about her.
+    """
+    heard = _what_she_has_heard()
+    heard.it_was_answered_by(said, doing, went_well=went_well)
+    try:
+        from core.runtime.what_she_learned import remember  # noqa: PLC0415
+
+        remember("what people mean", heard.as_memory())
+    except (ImportError, OSError, ValueError):
+        # not a failure: she goes on knowing it for this process.
+        return
+
 
 class TheoryOfMindEngine:
     """Projects exact-agent evidence without owning trust, rapport, or sentiment."""
@@ -492,6 +534,27 @@ class TheoryOfMindEngine:
 
     @staticmethod
     def _classify_turn_intent(message: str) -> dict[str, Any]:
+        # What she has learned first, and the word list only until she has.
+        #
+        # The list below is words somebody chose. Seven ways of asking for the
+        # same thing come back as a request, a question, and five remarks —
+        # and that label goes into what she is told about the person before
+        # she answers, so she reasons about somebody who made an observation
+        # when they asked her to do something. Adding words does not fix it.
+        #
+        # What a turn IS shows up in what turned out to answer it, which she
+        # can learn from her own record. Where she has heard these words
+        # before, that is what decides; where she has not, the list still
+        # stands rather than leaving her with nothing.
+        learned = _what_she_has_heard().what_kind(message)
+        if learned.worked_out:
+            return {
+                "intent": learned.kind,
+                "pragmatic": learned.kind,
+                "confidence": round(learned.how_sure, 3),
+                "sentiment": "not_inferred",
+                "from": "what answered turns like it",
+            }
         text = " ".join(str(message or "").strip().split())
         lowered = text.casefold()
         if lowered in {"continue", "go on", "keep going", "proceed"}:

@@ -85,3 +85,39 @@ def test_what_she_has_heard_survives_the_process() -> None:
     assert again.kinds_she_knows() == heard.kinds_she_knows()
     assert again.what_kind("put 2048 in front of me").kind == "did it"
     assert WhatSheHasHeard.from_memory("not a memory").turns == 0
+
+
+def test_it_is_what_chat_actually_asks_now() -> None:
+    """The wiring, and the order: what she has learned first, the word list
+    only until she has."""
+    from core.consciousness import theory_of_mind as tom
+
+    # Given nothing heard, rather than whatever this machine has heard by
+    # now — she keeps this between sittings, so a test that assumed she was
+    # ignorant would pass once and then never again.
+    was, tom._HEARD = tom._HEARD, WhatSheHasHeard()
+    cold = tom.TheoryOfMindEngine._classify_turn_intent("put 2048 in front of me")
+    assert cold["intent"] == "statement", "the old list, until she has heard anything"
+
+    for said, doing in (
+        ("open the 2048 app", "did it"),
+        ("start the browser for me", "did it"),
+        ("get the tile game up on screen", "did it"),
+        ("put the file in front of me", "did it"),
+        ("bring the window forward", "did it"),
+        ("why did the board stop", "said something"),
+        ("what does that score mean", "said something"),
+        ("how many moves was that", "said something"),
+    ):
+        tom._what_she_has_heard().it_was_answered_by(said, doing, went_well=True)
+
+    warm = tom.TheoryOfMindEngine._classify_turn_intent("put 2048 in front of me")
+    assert warm["intent"] == "did it", warm
+    assert warm["from"] == "what answered turns like it"
+    assert (
+        tom.TheoryOfMindEngine._classify_turn_intent("what does the last score mean")[
+            "intent"
+        ]
+        == "said something"
+    )
+    tom._HEARD = was

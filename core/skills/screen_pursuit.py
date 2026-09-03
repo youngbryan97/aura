@@ -564,9 +564,32 @@ async def click_normalized(
         width, height = await _screen_size()
     if not width or not height:
         return False
-    receipt = await host.click_at(
-        int(round(left + x * width)), int(round(top + y * height))
-    )
+    at_x, at_y = int(round(left + x * width)), int(round(top + y * height))
+
+    # A place she can see is not always a place she can reach.
+    #
+    # A window can hang off the edge of the display, and the capture she reads
+    # is of the WINDOW — so the part hanging off is in the reading, at
+    # perfectly ordinary coordinates, and nothing about it looks unreachable.
+    # LIVE 2026-09-02: the game's window ran to 1844 on a display 1728 wide,
+    # so the New Game button sat at x=0.89 of the window and the click went to
+    # 1763, off the end of the screen. It reported success — the click was
+    # made — and three runs in a row ended after one move at a board that had
+    # already finished, each of them having pressed a button that was not
+    # there.
+    #
+    # Refused rather than clamped. Sliding it to the nearest visible pixel
+    # clicks something she did not choose, which is worse than not clicking.
+    across, down = await _screen_size()
+    if across and down and not (0 <= at_x < across and 0 <= at_y < down):
+        logger.info(
+            "not clicking (%d, %d): outside the display, which is %dx%d — "
+            "the window hangs off the edge and that part cannot be reached",
+            at_x, at_y, across, down,
+        )
+        return False
+
+    receipt = await host.click_at(at_x, at_y)
     return bool(getattr(receipt, "success", False))
 
 
