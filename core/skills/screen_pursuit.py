@@ -36,6 +36,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.cognition.does_this_world_repeat import DoesItRepeat
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
 from core.cognition.something_she_keeps_true import (
     what_it_rules_out,
@@ -46,6 +47,7 @@ from core.cognition.what_is_still_open import what_is_still_open
 from core.cognition.what_she_cannot_afford_to_lose import (
     what_she_cannot_afford_to_lose,
 )
+from core.cognition.what_works_against_what import WhatBeatsWhat
 from core.cognition.what_would_have_to_be_true import a_way_to_get_there
 from core.cognition.when_to_say_it_outright import whether_to_say_it
 from core.runtime.errors import record_degradation
@@ -2879,6 +2881,14 @@ async def pursue_on_screen(
     reaches = TheOnesSheReachesFor.from_memory(
         knew.get("reaches") or {}, TRUST_CARRIED_OVER
     )
+    #: Which of her acts has gone well against which kind of situation. What
+    #: works HERE dies with the place; what works generally averages over
+    #: places with nothing in common. Neither can say the thing that is true.
+    beats = WhatBeatsWhat.from_memory(knew.get("beats") or {})
+    #: Whether this world is the same every time. Memorising a shuffled world
+    #: fills her with facts that will not recur; playing a fixed one by policy
+    #: throws away the thing that would have made it easy.
+    repeats = DoesItRepeat.from_memory(knew.get("repeats") or {})
     #: How the stretch in progress is going. A stretch is over once the score
     #: has moved as many times as there are ways of leaning to compare, which
     #: is how long it takes for the comparison to be worth making and is read
@@ -3127,6 +3137,18 @@ async def pursue_on_screen(
             history.append(attempt)
             if pending["arranged"] is not None and attempt.progressed is not None:
                 went.append((pending["arranged"], bool(attempt.progressed)))
+                # And against WHAT KIND of situation it went that way, which
+                # is the fact that carries to a place she has not been.
+                if previous.chosen is not None:
+                    was = pending["arranged"]
+                    kind = was.as_shape() if hasattr(was, "as_shape") else ""
+                    if kind:
+                        beats.it_went(
+                            previous.chosen.name,
+                            against=kind,
+                            well=bool(attempt.progressed),
+                        )
+                        repeats.she_saw(kind, previous.chosen.name, laid_out)
             # Was the world where she said it would be? That is what decides
             # how far she goes next time, and it is the only thing that does.
             if expected["took"] > 1 and expected["after"] is not None:
@@ -3799,6 +3821,23 @@ async def pursue_on_screen(
             # position is not the routine one it looked like, and it buys a
             # thought rather than saving one.
             kind = laid_out.as_shape() if laid_out is not None else ""
+            # What she has learned about this KIND of situation, where the
+            # world is the sort that repeats. Where it is dealt fresh, a fact
+            # about one place is noise she would be storing at her own
+            # expense, and the ordering falls back to what it was.
+            if kind and beats.against and repeats.worth_remembering_places():
+                liked = [
+                    one
+                    for one, _how, tried in beats.in_order(
+                        [option.name for option in available], against=kind
+                    )
+                    if tried
+                ]
+                if liked:
+                    order = {name: at for at, name in enumerate(liked)}
+                    available = sorted(
+                        available, key=lambda one: order.get(one.name, len(order))
+                    )
             recognised = (
                 skilled.suggests(kind, tuple(option.name for option in available))
                 if kind
@@ -4458,6 +4497,8 @@ async def pursue_on_screen(
             "moves_within": responds["moving"].as_memory(),
             "lattice": responds["lattice"].as_memory(),
             "reaches": reaches.as_memory(),
+            "beats": beats.as_memory(),
+            "repeats": repeats.as_memory(),
             "moves": knows.rules.as_memory() if knows.rules is not None else {},
             "acts": can_do.as_memory(),
             "skill": skilled.as_memory(),
