@@ -17,9 +17,8 @@ act crossed off, and she went and did the next best thing in the same place.
 The idea that the way to get a move is to spend a turn making the world need
 something else first was not expressible.
 
-It is not about games and it is not about ko. It is every situation where the
-thing she wants is unavailable NOW and would be available after something
-moves: a lock held by somebody who will let go when their own work is
+This is every situation where the thing she wants is unavailable NOW and would
+be available after something moves: a lock held by somebody who will let go when their own work is
 unblocked, a rate limit that clears, a person who will say yes after they have
 been given something else to think about. The general shape is: find what is
 in the way, find something that obliges it to change, spend a turn there, come
