@@ -25,7 +25,10 @@ def _read(text: str):
 
 def _held() -> TheLatticeSheHolds:
     lattice = TheLatticeSheHolds()
-    lattice.built_from([(x, y) for y in (20, 40, 60, 80) for x in (20, 40, 60, 80)], acts=8)
+    places = [(x, y) for y in (20, 40, 60, 80) for x in (20, 40, 60, 80)]
+    # Offered twice: a grid is built from places that have stopped changing.
+    lattice.built_from(places, acts=8)
+    lattice.built_from(places, acts=8)
     return lattice
 
 
