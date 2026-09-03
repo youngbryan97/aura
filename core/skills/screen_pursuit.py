@@ -38,10 +38,12 @@ from pydantic import BaseModel, Field
 
 from core.cognition.does_this_world_repeat import DoesItRepeat
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
+from core.cognition.marks_she_leaves_behind import MarksOnTheGround
 from core.cognition.something_she_keeps_true import (
     what_it_rules_out,
     what_to_hold_now,
 )
+from core.cognition.the_furthest_she_has_got import TheFurthestSheHasGot
 from core.cognition.the_ones_she_reaches_for import TheOnesSheReachesFor
 from core.cognition.what_happens_while_she_acts import WhatItCostsToBeBusy
 from core.cognition.what_is_still_open import what_is_still_open
@@ -51,6 +53,7 @@ from core.cognition.what_she_cannot_afford_to_lose import (
 from core.cognition.what_works_against_what import WhatBeatsWhat
 from core.cognition.what_would_have_to_be_true import a_way_to_get_there
 from core.cognition.when_to_say_it_outright import whether_to_say_it
+from core.cognition.which_way_to_win import which_way_to_win
 from core.runtime.errors import record_degradation
 from core.runtime.watched_goal import PURSUIT_SECONDS, a_cycle_took
 from core.runtime.what_she_learned import TRUST_CARRIED_OVER, named, recall, remember
@@ -2889,6 +2892,21 @@ async def pursue_on_screen(
     #: key and starting something that runs for five minutes were the same
     #: kind of move to her, and the difference is the whole of it.
     busy = WhatItCostsToBeBusy()
+    #: How far she has got into this before, and where it stopped. A player on
+    #: their sixth go at Ninja Gaiden is not reacting — they are replaying
+    #: what they know and thinking only where they died last time.
+    got_to = TheFurthestSheHasGot.from_memory(knew.get("got_to") or {})
+    #: Places she has been, marked, so the way back is on the ground rather
+    #: than in her head.
+    marks = MarksOnTheGround.from_memory(knew.get("marks") or {})
+    #: How her runs here have ended, so she can play for the one she can
+    #: bring about rather than the one that sounds best. Kept as the shapes
+    #: she passed through and the word it finished on.
+    endings: list[tuple[list[str], str]] = [
+        (list(one.get("shapes") or []), str(one.get("ended") or ""))
+        for one in (knew.get("endings") or [])
+        if isinstance(one, dict)
+    ]
     #: Which of her acts has gone well against which kind of situation. What
     #: works HERE dies with the place; what works generally averages over
     #: places with nothing in common. Neither can say the thing that is true.
@@ -3087,6 +3105,9 @@ async def pursue_on_screen(
         # Checked before a key is pressed rather than after, because a
         # keystroke into the wrong window is not something a later cycle can
         # take back.
+        # How far the way in got last time, replayed rather than rethought.
+        if not confirmed_here["value"] and got_to.frontier:
+            logger.info("the way in, as far as it went before: %s", got_to.describe())
         if not confirmed_here["value"]:
             confirmed_here["value"] = am_i_there(
                 open_page or expect_page, seen, anchor["page"], anchor["app"]
@@ -3842,6 +3863,10 @@ async def pursue_on_screen(
             # position is not the routine one it looked like, and it buys a
             # thought rather than saving one.
             kind = laid_out.as_shape() if laid_out is not None else ""
+            # A mark where she has been, so a place is recognised rather than
+            # recalled — and so the way back is on the ground.
+            if kind:
+                marks.she_marked(kind, saying=aiming_at or goal)
             # What she has learned about this KIND of situation, where the
             # world is the sort that repeats. Where it is dealt fresh, a fact
             # about one place is noise she would be storing at her own
@@ -4522,6 +4547,23 @@ async def pursue_on_screen(
                 )
             break
 
+    # Which way of finishing she has a route to.
+    #
+    # Somebody beating a hard checkers engine chose a way of winning that
+    # gives pieces away, and said outright it was not the best strategy — it
+    # was the one they could reach against that opponent. Most things that
+    # play a game never make that decision: they score a position and take the
+    # best number, which quietly fixes the ending as whichever the score was
+    # built around.
+    if len(endings) > 1:
+        ways = {
+            one: (lambda finish, want=one: finish == want)
+            for one in {ended for _shapes, ended in endings if ended}
+        }
+        if len(ways) > 1:
+            for way in which_way_to_win(ways, endings)[:1]:
+                logger.info("the ending she has a route to: %s", way.describe())
+
     # What she worked out about this thing, for the next time she is in it.
     remember(
         this_world,
@@ -4533,6 +4575,22 @@ async def pursue_on_screen(
             "moves_within": responds["moving"].as_memory(),
             "lattice": responds["lattice"].as_memory(),
             "reaches": reaches.as_memory(),
+            "got_to": got_to.as_memory(),
+            "marks": marks.as_memory(),
+            # The last several runs, and how each finished. Enough to tell
+            # which ending she has a route to, and bounded so the record does
+            # not grow for ever.
+            "endings": [
+                {"shapes": list(shapes)[-12:], "ended": ended}
+                for shapes, ended in [
+                    *endings,
+                    (
+                        [str(one) for one, _ in marks.trail][-12:],
+                        str(doing.outcome() if hasattr(doing, "outcome") else "")
+                        or ("finished" if restarts["count"] else "stopped"),
+                    ),
+                ][-8:]
+            ],
             "beats": beats.as_memory(),
             "repeats": repeats.as_memory(),
             "moves": knows.rules.as_memory() if knows.rules is not None else {},
