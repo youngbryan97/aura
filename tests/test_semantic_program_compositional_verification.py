@@ -92,6 +92,7 @@ def _inputs(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
         receipt_sha256="b" * 64,
         model_basis_sha256="d" * 64,
         training_receipt={
+            "coefficient_sha256": "c" * 64,
             "correctness_authority": False,
             "expected_answers_available": False,
             "verifier_traces_available": False,
@@ -250,6 +251,7 @@ def _family_withheld_inputs(monkeypatch: pytest.MonkeyPatch) -> dict[str, object
         receipt_sha256="b" * 64,
         model_basis_sha256="1" * 64,
         training_receipt={
+            "coefficient_sha256": "c" * 64,
             "correctness_authority": False,
             "expected_answers_available": False,
             "verifier_traces_available": False,
@@ -281,6 +283,7 @@ def _family_withheld_inputs(monkeypatch: pytest.MonkeyPatch) -> dict[str, object
     source_compatibility = _receipt(
         "aura.semantic_representation_compatibility.v1",
         transducer_receipt_sha256=model.receipt_sha256,
+        coefficient_sha256=model.training_receipt["coefficient_sha256"],
         training_feature_manifest_sha256=source["arithmetic"].manifest_sha256,
         replication_feature_manifest_sha256=source["sequence"].manifest_sha256,
         training_session_basis_sha256=model.model_basis_sha256,
@@ -319,6 +322,7 @@ def _family_withheld_inputs(monkeypatch: pytest.MonkeyPatch) -> dict[str, object
     fresh_compatibility = _receipt(
         "aura.semantic_representation_compatibility.v1",
         transducer_receipt_sha256=model.receipt_sha256,
+        coefficient_sha256=model.training_receipt["coefficient_sha256"],
         training_feature_manifest_sha256=source["arithmetic"].manifest_sha256,
         replication_feature_manifest_sha256=fresh.manifest_sha256,
         training_session_basis_sha256=model.model_basis_sha256,

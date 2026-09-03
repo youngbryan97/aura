@@ -455,6 +455,11 @@ def verify_compositional_family_withheld_replication(
         family: list(source_inventories[family].session_basis_sha256s)
         for family in fit_families
     }
+    expected_training_basis = min(
+        session
+        for sessions in expected_fit_sessions.values()
+        for session in sessions
+    )
     representation_ids = {
         inventory.representation_basis_sha256
         for inventory in (*source_inventories.values(), fresh_inventory)
@@ -466,6 +471,7 @@ def verify_compositional_family_withheld_replication(
         != expected_fit_sessions
         or fit_compatibility.get("target_training_session_basis_sha256")
         != model.model_basis_sha256
+        or model.model_basis_sha256 != expected_training_basis
         or fit_compatibility.get("hidden_states_changed") is not False
         or fit_compatibility.get("serving_authority") is not False
         or len(representation_ids) != 1
@@ -480,8 +486,19 @@ def verify_compositional_family_withheld_replication(
         schema=_REPLICATION_COMPATIBILITY_SCHEMA,
     )
     anchor_manifest = source_compatibility.get("training_feature_manifest_sha256")
+    anchor_families = [
+        family
+        for family, manifest_sha256 in expected_fit_manifests.items()
+        if manifest_sha256 == anchor_manifest
+    ]
     if (
-        anchor_manifest not in set(expected_fit_manifests.values())
+        len(anchor_families) != 1
+        or model.model_basis_sha256
+        not in source_inventories[anchor_families[0]].session_basis_sha256s
+        or source_compatibility.get("transducer_receipt_sha256")
+        != model.receipt_sha256
+        or source_compatibility.get("coefficient_sha256")
+        != model.training_receipt.get("coefficient_sha256")
         or source_compatibility.get("replication_feature_manifest_sha256")
         != held_out_source.manifest_sha256
         or source_compatibility.get("training_session_basis_sha256")
@@ -523,6 +540,8 @@ def verify_compositional_family_withheld_replication(
     )
     if (
         fresh_compatibility.get("transducer_receipt_sha256") != model.receipt_sha256
+        or fresh_compatibility.get("coefficient_sha256")
+        != model.training_receipt.get("coefficient_sha256")
         or fresh_compatibility.get("training_feature_manifest_sha256") != anchor_manifest
         or fresh_compatibility.get("replication_feature_manifest_sha256")
         != fresh_inventory.manifest_sha256
