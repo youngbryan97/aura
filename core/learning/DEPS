@@ -6,9 +6,9 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 27 outbound edges when this was generated.
+# 28 outbound edges after the common procedure currency gained evidence provenance.
 
-description = "core.learning: may import only what it already imports; every new edge is an edit here."
+description = "core.learning may use cognition's procedure currency and the shared evidence algebra; other new core edges remain explicit."
 
 include_rules = [
     "+core.learning",
@@ -23,6 +23,7 @@ include_rules = [
     "+core.container",
     "+core.event_bus",
     "+core.executive",
+    "+core.evidence",
     "+core.governance_context",
     "+core.introspection",
     "+core.language",

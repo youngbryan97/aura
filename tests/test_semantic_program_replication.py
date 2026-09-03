@@ -81,6 +81,12 @@ def _bundle(examples, *, basis) -> LoadedSemanticFeatureBundle:
                 "construction_id": example.construction_id,
                 "topology_id": example.topology_id,
                 "inputs": list(example.public_inputs),
+                "hidden_size": int(example.hidden_states.shape[1]),
+                "tokenizer_identity_sha256": _sha_character("9"),
+                "worker_receipt": {
+                    "representation": "final_hidden_v1",
+                    "channels": ["final_causal_hidden"],
+                },
             },
             token_ids=example.hidden_states[:, 0].astype("<i4"),
             hidden_states=example.hidden_states,

@@ -50,10 +50,9 @@ possibly apply rather than with the number that exist.
 
 from __future__ import annotations
 
-import math
 import threading
 import time
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any
@@ -92,18 +91,52 @@ _RECENT_DECAY = 0.99
 _RECENT_WEIGHT_FLOOR = 30.0
 
 
+def _kind_accepts_value(kind: str, value: Any) -> bool:
+    """Interpret the structural kinds shared by procedure backends.
+
+    Unknown kinds remain nominal labels and preserve the historical presence
+    semantics.  The closed structural kinds below are different: callers use
+    them to compose executable values, so accepting the wrong Python shape
+    would make the type field decorative.
+    """
+
+    if kind == "any":
+        return True
+    if kind == "integer":
+        return type(value) is int
+    if kind == "integer_sequence":
+        return isinstance(value, (list, tuple)) and all(type(item) is int for item in value)
+    if kind == "boolean":
+        return type(value) is bool
+    if kind == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if kind == "string":
+        return isinstance(value, str)
+    if kind == "mapping":
+        return isinstance(value, Mapping)
+    if kind == "sequence":
+        return isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray))
+    return True
+
+
+def _kinds_compose(produced: str, required: str) -> bool:
+    """Whether an effect of one structural kind can satisfy a later read."""
+
+    return produced == "any" or required == "any" or produced == required
+
+
 class Backend(StrEnum):
     """Which learner made this, and therefore what executes it."""
 
-    CHUNK = "chunk"                 # core/cognition/impasse.py
-    GENERALIZED_RULE = "rule"       # core/cognition/procedural_generalization.py
-    MACRO = "macro"                 # core/agency/skill_library.py
-    DOING = "doing"                 # core/cognition/an_action_she_composed.py
+    CHUNK = "chunk"  # core/cognition/impasse.py
+    GENERALIZED_RULE = "rule"  # core/cognition/procedural_generalization.py
+    MACRO = "macro"  # core/agency/skill_library.py
+    DOING = "doing"  # core/cognition/an_action_she_composed.py
     HABIT = "habit"
     PLANNER = "planner"
-    RLC = "rlc"                     # core/learning/semantic_neural_composition.py
+    RLC = "rlc"  # core/learning/semantic_neural_composition.py
     TOOL = "tool"
-    NEURAL = "neural"               # distilled into learned tissue
+    NEURAL = "neural"  # distilled into learned tissue
 
 
 class Reversibility(StrEnum):
@@ -136,7 +169,9 @@ class Precondition:
             return not present
         if not present:
             return False
-        return self.equals is None or value == self.equals
+        return _kind_accepts_value(self.kind, value) and (
+            self.equals is None or value == self.equals
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,10 +208,17 @@ class Signature:
             out = effect.applied_to(out)
         return out
 
-    def follows(self, other: "Signature") -> bool:
+    def follows(self, other: Signature) -> bool:
         """Whether this can run after ``other`` — its effects meet these needs."""
-        produced = {e.key for e in other.effects}
-        return any(p.key in produced for p in self.preconditions) or not self.preconditions
+        produced = {effect.key: effect.kind for effect in other.effects}
+        return (
+            any(
+                precondition.key in produced
+                and _kinds_compose(produced[precondition.key], precondition.kind)
+                for precondition in self.preconditions
+            )
+            or not self.preconditions
+        )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -260,7 +302,7 @@ class ProceduralValue:
     def pays(self) -> bool:
         return self.net > 0.0
 
-    def observed(self, *, success: bool, at: float, value: float | None = None) -> "ProceduralValue":
+    def observed(self, *, success: bool, at: float, value: float | None = None) -> ProceduralValue:
         """Fold in one use. ``p_success`` becomes measured rather than assumed.
 
         A reported value is averaged over the uses that worked, not written
@@ -387,7 +429,8 @@ class Procedure:
             "name": self.name,
             "backend": self.backend.value,
             "preconditions": [
-                {"key": p.key, "kind": p.kind, "negated": p.negated} for p in self.signature.preconditions
+                {"key": p.key, "kind": p.kind, "negated": p.negated}
+                for p in self.signature.preconditions
             ],
             "effects": [{"key": e.key, "kind": e.kind} for e in self.signature.effects],
             "value": self.value.to_dict(),
@@ -598,7 +641,9 @@ class ProcedureRegistry:
                 ),
                 origin=replace(
                     origin,
-                    counterexamples=(*origin.counterexamples, counterexample) if counterexample else origin.counterexamples,
+                    counterexamples=(*origin.counterexamples, counterexample)
+                    if counterexample
+                    else origin.counterexamples,
                 ),
                 evidence=parent.evidence,
                 reversibility=parent.reversibility,
@@ -606,9 +651,7 @@ class ProcedureRegistry:
             )
             return child
 
-    def generalise(
-        self, procedure_id: str, drop: str, *, witness: str
-    ) -> Procedure | None:
+    def generalise(self, procedure_id: str, drop: str, *, witness: str) -> Procedure | None:
         """Widen a procedure after a run succeeded without one of its conditions.
 
         The counterpart of :meth:`specialise`, and the reason it has to exist:
@@ -632,9 +675,7 @@ class ProcedureRegistry:
             parent = self._procedures.get(procedure_id)
             if parent is None:
                 return None
-            kept = tuple(
-                p for p in parent.signature.preconditions if p.key != drop
-            )
+            kept = tuple(p for p in parent.signature.preconditions if p.key != drop)
             if len(kept) == len(parent.signature.preconditions):
                 return None
             origin = parent.origin or Origin(learner=parent.backend.value)
@@ -648,17 +689,14 @@ class ProcedureRegistry:
                     value_when_it_works=parent.value.value_when_it_works,
                     cost_when_it_fails=parent.value.cost_when_it_fails,
                     # One fewer condition to check is one less to pay for.
-                    match_cost=parent.value.match_cost * (
-                        len(kept) / len(parent.signature.preconditions)
-                    ),
+                    match_cost=parent.value.match_cost
+                    * (len(kept) / len(parent.signature.preconditions)),
                     risk_cost=parent.value.risk_cost,
                     transfer_tier=parent.value.transfer_tier,
                 ),
                 origin=replace(
                     origin,
-                    support_keys=tuple(
-                        k for k in origin.support_keys if k != drop
-                    ),
+                    support_keys=tuple(k for k in origin.support_keys if k != drop),
                     generalisations=(*origin.generalisations, f"{drop}<-{witness}"),
                 ),
                 evidence=parent.evidence,
@@ -762,7 +800,7 @@ def compose(
     """
     if not parts:
         raise ValueError("nothing to compose")
-    produced: set[str] = set()
+    produced: dict[str, str] = {}
     preconditions: list[Precondition] = []
     effects: list[Effect] = []
     p_success = 1.0
@@ -774,8 +812,14 @@ def compose(
         for precondition in part.signature.preconditions:
             if precondition.key not in produced:
                 preconditions.append(precondition)
+            elif not _kinds_compose(produced[precondition.key], precondition.kind):
+                raise ValueError(
+                    f"procedure composition writes {precondition.key!r} as "
+                    f"{produced[precondition.key]!r} before it is read as "
+                    f"{precondition.kind!r}"
+                )
         for effect in part.signature.effects:
-            produced.add(effect.key)
+            produced[effect.key] = effect.kind
             effects = [e for e in effects if e.key != effect.key] + [effect]
         p_success *= part.value.p_success
         total_value += part.value.value_when_it_works
@@ -783,9 +827,14 @@ def compose(
         risk_cost += part.value.risk_cost
         if part.reversibility is Reversibility.IRREVERSIBLE:
             reversibility = Reversibility.IRREVERSIBLE
-        elif part.reversibility is Reversibility.COSTLY and reversibility is Reversibility.REVERSIBLE:
+        elif (
+            part.reversibility is Reversibility.COSTLY and reversibility is Reversibility.REVERSIBLE
+        ):
             reversibility = Reversibility.COSTLY
-        elif part.reversibility is Reversibility.UNKNOWN and reversibility is not Reversibility.IRREVERSIBLE:
+        elif (
+            part.reversibility is Reversibility.UNKNOWN
+            and reversibility is not Reversibility.IRREVERSIBLE
+        ):
             reversibility = Reversibility.UNKNOWN
 
     return registry.register(
