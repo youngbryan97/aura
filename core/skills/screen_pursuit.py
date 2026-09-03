@@ -3151,7 +3151,7 @@ async def pursue_on_screen(
                         repeats.she_saw(kind, previous.chosen.name, laid_out)
             # Was the world where she said it would be? That is what decides
             # how far she goes next time, and it is the only thing that does.
-            if expected["took"] > 1 and expected["after"] is not None:
+            if expected["took"] >= 1 and expected["after"] is not None:
                 # Came out, meaning nothing she predicted is missing. Not
                 # meaning identical: in a world that deals a tile after every
                 # move of hers, the board she predicted is never the board
@@ -4078,6 +4078,13 @@ async def pursue_on_screen(
         # And where she named no sequence, one taken on the model instead.
         expected["after"], expected["took"] = None, 0
         foresee = _expects(knows)
+        if foresee is not None and pending["arranged"] is not None:
+            # What she expects from THIS act, whether or not a run follows it.
+            # A single act landing where she said is the evidence that lets
+            # the distance grow at all.
+            alone = foresee(pending["arranged"], key)
+            if alone is not None:
+                expected["after"], expected["took"] = alone, 1
         if not follow_on and foresee is not None and pending["arranged"] is not None:
             going = far.how_many(trusted=float(knows.rules.confidence()))
             if going > 1:

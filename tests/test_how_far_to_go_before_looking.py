@@ -70,3 +70,26 @@ def test_how_often_it_held_is_laplace_and_not_a_bare_fraction() -> None:
     assert far.how_often_it_held == 0.5, "nothing seen is not certainty either way"
     far.it_was_where_she_said(1)
     assert far.how_often_it_held < 1.0, "one run right is not proof"
+
+
+def test_a_run_of_one_counts_or_it_can_never_grow() -> None:
+    """It starts at one, it only grows when a prediction holds, and if only
+    multi-act runs counted then growing would need the very thing it makes
+    possible. Measured live over three games and six hundred moves: the
+    distance stayed at one for every move and no run was ever tried.
+    """
+    far = HowFarToGo()
+    assert far.how_many(trusted=1.0) == 1
+    far.it_was_where_she_said(1)
+    assert far.how_many(trusted=1.0) == 2, "one act landing where she said is evidence"
+
+
+def test_the_loop_checks_a_single_act_too() -> None:
+    from core.skills import screen_pursuit
+
+    with open(screen_pursuit.__file__, encoding="utf-8") as handle:
+        text = handle.read()
+    assert 'expected["took"] >= 1' in text, "a run of one has to be checked"
+    at = text.index('expected["after"], expected["took"] = alone, 1')
+    near = text[at - 400 : at]
+    assert "foresee(pending[" in near

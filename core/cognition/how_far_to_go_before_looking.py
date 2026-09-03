@@ -86,7 +86,19 @@ class HowFarToGo:
         return max(1, min(self.far, earned))
 
     def it_was_where_she_said(self, how_many: int) -> None:
-        """A run came out as predicted. Go a little further next time."""
+        """A prediction came out. Go a little further next time.
+
+        Counted for a run of one as much as for a run of four, and that is not
+        a detail: it starts at one, it only grows when a prediction holds, and
+        if only multi-act runs counted then it could never grow at all —
+        because growing is what makes a multi-act run possible. Measured live
+        over three games and six hundred moves, the distance stayed at one for
+        every single move and no run was ever tried.
+
+        A single act landing where she said it would is exactly the evidence
+        that the model is worth acting on. Refusing to count it was asking the
+        thing to prove itself with the very thing it could not yet do.
+        """
         self.held += 1
         if self.walking_back:
             self.walking_back = max(0, self.walking_back - max(1, how_many))
