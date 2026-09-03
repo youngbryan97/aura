@@ -43,6 +43,7 @@ from core.cognition.something_she_keeps_true import (
     what_to_hold_now,
 )
 from core.cognition.the_ones_she_reaches_for import TheOnesSheReachesFor
+from core.cognition.what_happens_while_she_acts import WhatItCostsToBeBusy
 from core.cognition.what_is_still_open import what_is_still_open
 from core.cognition.what_she_cannot_afford_to_lose import (
     what_she_cannot_afford_to_lose,
@@ -2881,6 +2882,13 @@ async def pursue_on_screen(
     reaches = TheOnesSheReachesFor.from_memory(
         knew.get("reaches") or {}, TRUST_CARRIED_OVER
     )
+    #: How long her acts take, and what the world does while they run. A jump
+    #: in Ghosts 'n Goblins cannot be called off, and for that second the
+    #: knight cannot answer anything — so the decision to jump is a decision
+    #: to be unable to respond, taken while knowing what is coming. Pressing a
+    #: key and starting something that runs for five minutes were the same
+    #: kind of move to her, and the difference is the whole of it.
+    busy = WhatItCostsToBeBusy()
     #: Which of her acts has gone well against which kind of situation. What
     #: works HERE dies with the place; what works generally averages over
     #: places with nothing in common. Neither can say the thing that is true.
@@ -4142,6 +4150,7 @@ async def pursue_on_screen(
             # cycles that had committed to two to four moves each produced
             # fifty-three moves between them, one screen reading apiece.
             sequence = [key, *follow_on] if follow_on else [key]
+            started_acting = time.monotonic()
             # Before the body moves: is this where she should be.
             #
             # Everything that asked this before asked the machine — is the
@@ -4219,6 +4228,13 @@ async def pursue_on_screen(
                 # answers her — was being taught from that.
                 await _settled_after(
                     pending["watched"] or {}, target_app or anchor["app"]
+                )
+                # How long she could not do anything else for, measured by
+                # doing it rather than guessed at.
+                busy.an_act_took(key, time.monotonic() - started_acting)
+                busy.the_world_moved(
+                    time.monotonic() - started_acting,
+                    times=1 if world.acts_with_arrivals else 0,
                 )
             if arrived and pacing["choice"] == SLOW_DOWN:
                 await let_the_voice_catch_up(narration_backlog())
