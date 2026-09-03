@@ -3261,7 +3261,20 @@ async def pursue_on_screen(
                 # world's doing, and it is free at exactly this moment.
                 foretold = knows.rules.expect(pending["arranged"], previous.chosen.name)
                 world.watched(foretold, knows.rules.the_thing(laid_out))
-                if _in_the_same_grid(responds["lattice"], pending["arranged"], laid_out):
+                if expected["took"] > 1:
+                    # Several acts, one reading. Which of them did what cannot
+                    # be told from a board seen only at the end, and crediting
+                    # the first is not weak evidence — it is a claim about an
+                    # act that did not produce this.
+                    #
+                    # LIVE 2026-09-02, the sitting that first went more than
+                    # one act between looks: a rule carried in at 82% fell to
+                    # one right out of sixty four, because every pair she
+                    # learned from named the wrong act.
+                    dropped["more than one act, one reading"] += 1
+                elif _in_the_same_grid(
+                    responds["lattice"], pending["arranged"], laid_out
+                ):
                     knows.watched(pending["arranged"], previous.chosen.name, laid_out)
                 else:
                     # Counted, because it used to be silent.
