@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import os
+import threading
+import time
+from collections import deque
 from copy import deepcopy
 from functools import lru_cache
 from pathlib import Path
@@ -27,6 +29,7 @@ from core.learning.semantic_program_runtime import (
 )
 from core.learning.semantic_public_inputs import semantic_public_character_inputs
 from core.runtime.file_read_gateway import read_stable_bytes
+from core.runtime.flags import FlagKind, declare
 
 COMPOSITIONAL_SEMANTIC_SHADOW_SCHEMA: Final = (
     "aura.compositional_semantic_shadow.v1"
@@ -41,7 +44,6 @@ SOURCE_VERIFICATION_PATH: Final = ARTIFACT_DIRECTORY / "verification.json"
 ENDOGENOUS_VERIFICATION_PATH: Final = (
     ARTIFACT_DIRECTORY / "endogenous_runtime_verification.json"
 )
-_FALSE_VALUES: Final = frozenset({"0", "false", "no", "off", "disabled"})
 _TOKENIZER_IDENTITY_FILES: Final = (
     "tokenizer.json",
     "tokenizer_config.json",
@@ -51,6 +53,22 @@ _TOKENIZER_IDENTITY_FILES: Final = (
     "merges.txt",
     "config.json",
 )
+_FLAG_SHADOW_AVAILABLE = declare(
+    "AURA_COMPOSITIONAL_SEMANTIC_SHADOW",
+    kind=FlagKind.BOOL,
+    default=True,
+    description="Permit source-bound compositional semantic shadow observations.",
+    owner="core.brain.llm.compositional_semantic_shadow",
+)
+_FLAG_LIVE_SHADOW = declare(
+    "AURA_COMPOSITIONAL_SEMANTIC_LIVE_SHADOW",
+    kind=FlagKind.BOOL,
+    default=False,
+    description="Observe eligible foreground turns with the resident semantic tissue.",
+    owner="core.brain.llm.compositional_semantic_shadow",
+)
+_OBSERVATIONS: deque[dict[str, Any]] = deque(maxlen=64)
+_OBSERVATIONS_LOCK = threading.Lock()
 
 
 def _sha(value: Any) -> str:
@@ -233,9 +251,7 @@ def _cached_shadow_status(
 def compositional_semantic_shadow_status(model_path: str | Path) -> dict[str, Any]:
     """Return availability only while evidence, code, tokenizer, and model agree."""
 
-    if str(os.getenv("AURA_COMPOSITIONAL_SEMANTIC_SHADOW", "1")).strip().lower() in (
-        _FALSE_VALUES
-    ):
+    if not bool(_FLAG_SHADOW_AVAILABLE.value()):
         return {"available": False, "reason": "compositional_semantic_shadow_disabled"}
     try:
         selected_model = Path(model_path).expanduser().resolve(strict=True)
@@ -278,6 +294,93 @@ def _render_result(value: Any) -> str:
     return json.dumps(normalized, separators=(",", ":"), ensure_ascii=True)
 
 
+def _resolve_real_path(value: str | Path) -> Path:
+    return Path(value).expanduser().resolve(strict=True)
+
+
+def compositional_semantic_live_shadow_enabled() -> bool:
+    """Whether foreground cognition should spend the resident observation pass."""
+
+    return bool(_FLAG_LIVE_SHADOW.value())
+
+
+def _record_observation(result: dict[str, Any]) -> None:
+    record = {
+        "observed_at_ns": time.time_ns(),
+        **deepcopy(result),
+    }
+    with _OBSERVATIONS_LOCK:
+        _OBSERVATIONS.append(record)
+
+
+def compositional_semantic_shadow_observations() -> list[dict[str, Any]]:
+    """Return the bounded diagnostic ledger; it is never an answer input."""
+
+    with _OBSERVATIONS_LOCK:
+        return deepcopy(list(_OBSERVATIONS))
+
+
+async def observe_resident_compositional_semantics(
+    prompt: str,
+    *,
+    timeout_s: float = 30.0,
+) -> dict[str, Any]:
+    """Observe through the already-resident cortex without creating a client."""
+
+    if not semantic_public_character_inputs(prompt).literals:
+        result = {
+            "eligible": False,
+            "attempted": False,
+            "ok": False,
+            "reason": "compositional_semantic_no_public_inputs",
+        }
+        _record_observation(result)
+        return result
+
+    from core.brain.llm.mlx_client import clients_snapshot
+    from core.brain.llm.model_registry import get_runtime_model_path
+
+    selected_model = _resolve_real_path(get_runtime_model_path())
+    status = compositional_semantic_shadow_status(selected_model)
+    if status.get("available") is not True:
+        result = {
+            "eligible": True,
+            "attempted": False,
+            "ok": False,
+            "reason": str(status.get("reason") or "compositional_semantic_shadow_unavailable"),
+        }
+        _record_observation(result)
+        return result
+    matching = []
+    for _registry_key, client in clients_snapshot():
+        try:
+            candidate = _resolve_real_path(str(getattr(client, "model_path", "")))
+        except (OSError, RuntimeError, TypeError, ValueError):
+            continue
+        if candidate == selected_model and not bool(getattr(client, "_closed", False)):
+            matching.append(client)
+    if len(matching) != 1:
+        result = {
+            "eligible": True,
+            "attempted": False,
+            "ok": False,
+            "reason": (
+                "compositional_semantic_resident_client_missing"
+                if not matching
+                else "compositional_semantic_resident_client_ambiguous"
+            ),
+        }
+        _record_observation(result)
+        return result
+    result = await execute_compositional_semantic_shadow(
+        client=matching[0],
+        prompt=prompt,
+        timeout_s=timeout_s,
+    )
+    _record_observation(result)
+    return result
+
+
 async def execute_compositional_semantic_shadow(
     *,
     client: Any,
@@ -305,6 +408,17 @@ async def execute_compositional_semantic_shadow(
             "ok": False,
             "reason": str(status.get("reason") or "compositional_semantic_shadow_unavailable"),
         }
+    model = _load_transducer(
+        str(TRANSDUCER_PATH.resolve(strict=True)),
+        str(status["transducer_receipt_sha256"]),
+    )
+    if len(character_inputs.literals) > model.max_inputs:
+        return {
+            "eligible": False,
+            "attempted": False,
+            "ok": False,
+            "reason": "compositional_semantic_public_input_count_unsupported",
+        }
     tokenizer = _load_offset_tokenizer(model_path)
     token_ids, offsets = await asyncio.to_thread(tokenize_with_offsets, tokenizer, prompt)
     observation = await client.encode_hidden_sequence(
@@ -324,10 +438,6 @@ async def execute_compositional_semantic_shadow(
     receipt = observation.get("receipt")
     if not isinstance(receipt, dict) or not isinstance(receipt.get("model_basis"), dict):
         raise RuntimeError("compositional semantic worker basis is unavailable")
-    model = _load_transducer(
-        str(TRANSDUCER_PATH.resolve(strict=True)),
-        str(status["transducer_receipt_sha256"]),
-    )
     try:
         outcome = await asyncio.to_thread(
             execute_compositional_semantic_observation,
@@ -370,6 +480,9 @@ async def execute_compositional_semantic_shadow(
 __all__ = [
     "COMPOSITIONAL_SEMANTIC_SHADOW_SCHEMA",
     "ENDOGENOUS_VERIFICATION_PATH",
+    "compositional_semantic_live_shadow_enabled",
+    "compositional_semantic_shadow_observations",
     "execute_compositional_semantic_shadow",
     "compositional_semantic_shadow_status",
+    "observe_resident_compositional_semantics",
 ]

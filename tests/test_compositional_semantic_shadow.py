@@ -51,7 +51,11 @@ def _install_runtime_stubs(monkeypatch, *, token_ids=None):
         "tokenize_with_offsets",
         lambda _tokenizer, _text: (tokens, [(0, 3), (4, 5), (6, 7)]),
     )
-    monkeypatch.setattr(shadow, "_load_transducer", lambda *_args: object())
+    monkeypatch.setattr(
+        shadow,
+        "_load_transducer",
+        lambda *_args: SimpleNamespace(max_inputs=4),
+    )
 
 
 @pytest.mark.asyncio
@@ -152,6 +156,27 @@ async def test_shadow_preserves_a_neural_decode_rejection(monkeypatch):
     assert result["ok"] is False
     assert result["reason"] == "typed_argument_chart_empty"
     assert result["activation_receipt"]["serving_authority"] is False
+
+
+@pytest.mark.asyncio
+async def test_resident_shadow_never_constructs_a_missing_model_client(monkeypatch, tmp_path):
+    from core.brain.llm import mlx_client, model_registry
+
+    monkeypatch.setattr(model_registry, "get_runtime_model_path", lambda: str(tmp_path))
+    monkeypatch.setattr(mlx_client, "clients_snapshot", lambda: [])
+    monkeypatch.setattr(
+        shadow,
+        "compositional_semantic_shadow_status",
+        lambda _path: _status(),
+    )
+
+    result = await shadow.observe_resident_compositional_semantics("Add 3 and 4.")
+
+    assert result["attempted"] is False
+    assert result["reason"] == "compositional_semantic_resident_client_missing"
+    assert shadow.compositional_semantic_shadow_observations()[-1]["reason"] == result[
+        "reason"
+    ]
 
 
 def test_shadow_can_be_disabled_without_reading_artifacts(monkeypatch):
