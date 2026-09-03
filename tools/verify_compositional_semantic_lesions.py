@@ -42,6 +42,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle", action="append", required=True, metavar="NAME=PATH")
     parser.add_argument("--family", required=True)
+    parser.add_argument(
+        "--arm",
+        action="append",
+        default=[],
+        help="Evaluate treatment plus this lesion; repeat for more lesions",
+    )
     parser.add_argument("--transducer", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -93,7 +99,14 @@ def main() -> int:
         model = compositional_semantic_program_transducer_from_dict(
             json.loads(args.transducer.expanduser().resolve(strict=True).read_text("ascii"))
         )
-        report = diagnose_compositional_transfer_lesions(model, selected)
+        selected_arms = (
+            tuple(dict.fromkeys(("treatment", *args.arm))) if args.arm else None
+        )
+        report = diagnose_compositional_transfer_lesions(
+            model,
+            selected,
+            arm_names=selected_arms,
+        )
         if not atomic_write_bytes_if_absent(output, _bytes(report), mode=0o400):
             raise FileExistsError("compositional lesion output raced")
     except Exception as exc:  # noqa: BLE001 - terminal CLI reports exact failure
@@ -117,6 +130,7 @@ def main() -> int:
                 "schema": "aura.semantic_program_compositional_lesion_cli.v1",
                 "completed": True,
                 "family": args.family,
+                "evaluated_arms": report["evaluated_arms"],
                 "transducer_receipt_sha256": model.receipt_sha256,
                 "report_sha256": report["report_sha256"],
                 "output": str(output),

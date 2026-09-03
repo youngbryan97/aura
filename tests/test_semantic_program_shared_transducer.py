@@ -529,10 +529,29 @@ def test_compositional_lesion_diagnostic_replays_without_refitting() -> None:
 
     assert report["fit_or_refit_calls"] == 0
     assert report["expected_answers_available_to_decode"] is False
+    assert set(report["evaluated_arms"]) == set(report["arms"])
     assert report["arms"]["treatment"]["test"]["total"] == 4
     assert report["arms"]["coefficient_lesion"]["test"]["program_exact"] < report[
         "arms"
     ]["treatment"]["test"]["program_exact"]
+
+    focused = diagnose_compositional_transfer_lesions(
+        model,
+        examples,
+        arm_names=("treatment", "argument_proposal_lesion"),
+    )
+    assert focused["evaluated_arms"] == [
+        "treatment",
+        "argument_proposal_lesion",
+    ]
+    assert set(focused["arms"]) == set(focused["evaluated_arms"])
+
+    with pytest.raises(ValueError, match="requires treatment"):
+        diagnose_compositional_transfer_lesions(
+            model,
+            examples,
+            arm_names=("argument_proposal_lesion",),
+        )
 
 
 def test_shared_transducer_programs_replay_on_the_universal_floor() -> None:
