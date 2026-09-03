@@ -36,7 +36,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.cognition.a_shape_that_makes_it_safe import what_makes_it_safe
+from core.cognition.a_window_not_a_maximum import AWindow, which_act_lands_in_it
 from core.cognition.does_this_world_repeat import DoesItRepeat
+from core.cognition.enough_rather_than_most import the_one_most_likely_to_do
 from core.cognition.getting_ready_for_what_is_coming import WhatUsuallyComes
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
 from core.cognition.marks_she_leaves_behind import MarksOnTheGround
@@ -46,14 +49,18 @@ from core.cognition.something_she_keeps_true import (
 )
 from core.cognition.the_furthest_she_has_got import TheFurthestSheHasGot
 from core.cognition.the_ones_she_reaches_for import TheOnesSheReachesFor
+from core.cognition.two_ways_out import how_long_it_holds
+from core.cognition.what_an_act_costs_beyond_now import WhatEachActHasLeft
 from core.cognition.what_happens_while_she_acts import WhatItCostsToBeBusy
 from core.cognition.what_having_it_lets_her_do import WhatOpensWhat
 from core.cognition.what_is_still_open import what_is_still_open
 from core.cognition.what_she_cannot_afford_to_lose import (
     what_she_cannot_afford_to_lose,
 )
+from core.cognition.what_she_has_set_in_motion import WhatIsComing
 from core.cognition.what_works_against_what import WhatBeatsWhat
 from core.cognition.what_would_have_to_be_true import a_way_to_get_there
+from core.cognition.when_the_move_is_forbidden import a_way_round
 from core.cognition.when_to_say_it_outright import whether_to_say_it
 from core.cognition.which_way_to_win import which_way_to_win
 from core.runtime.errors import record_degradation
@@ -2910,6 +2917,14 @@ async def pursue_on_screen(
     #: What has turned up before, how often, and what it wanted — so the work
     #: is done in the light rather than when the sun is already down.
     coming = WhatUsuallyComes.from_memory(knew.get("coming") or {})
+    #: How many uses each act has of its own. The strong move runs out while
+    #: the weak one is still there, and a fight is lost by somebody who never
+    #: lost a turn.
+    supply = WhatEachActHasLeft()
+    #: What she has started and not seen the end of. Sending a fourth fleet to
+    #: a place three are already arriving at is not caution, it is doing the
+    #: thing twice.
+    in_flight = WhatIsComing()
     #: How her runs here have ended, so she can play for the one she can
     #: bring about rather than the one that sounds best. Kept as the shapes
     #: she passed through and the word it finished on.
@@ -3197,6 +3212,7 @@ async def pursue_on_screen(
                         repeats.she_saw(kind, previous.chosen.name, laid_out)
             # Was the world where she said it would be? That is what decides
             # how far she goes next time, and it is the only thing that does.
+            in_flight.it_landed(previous.chosen.name if previous.chosen else "")
             if expected["took"] >= 1 and expected["after"] is not None:
                 # Came out, meaning nothing she predicted is missing. Not
                 # meaning identical: in a world that deals a tile after every
@@ -3238,6 +3254,29 @@ async def pursue_on_screen(
                 # A key that never changes anything is not one of her actions
                 # in this world, whoever wrote it down.
                 can_do.tried(previous.chosen.name, attempt.verdict.observed_change)
+                # And what stood around it when it did no harm — the two
+                # pieces either side of a gap, found by taking things away
+                # rather than by being described.
+                if (
+                    attempt.verdict.observed_change
+                    and pending["arranged"] is not None
+                    and previous.chosen is not None
+                    and len(getattr(pending["arranged"], "cells", ())) <= 24
+                ):
+                    shape = what_makes_it_safe(
+                        pending["arranged"],
+                        previous.chosen.name,
+                        safe=lambda one, act: bool(
+                            knows.rules.expect(one, act) is not None
+                        ),
+                        parts_of=lambda one: list(getattr(one, "cells", ())),
+                        without=_the_same_thing_without,
+                        where_of=lambda one: (one.row, one.column),
+                        kind_of=lambda one: one.says,
+                        about=lambda act: (0, 0),
+                    )
+                    if shape.around and shape.established:
+                        logger.debug("what made %r safe: %s", previous.chosen.name, shape.describe())
                 # And what was true at the time, so an act that does nothing
                 # can become an act that needs something.
                 opens.she_tried(
@@ -3253,6 +3292,20 @@ async def pursue_on_screen(
                     ],
                     it_worked=bool(attempt.verdict.observed_change),
                 )
+                # Whether she is alive here or merely still going. Two acts
+                # that work are two ways out; one is a thing standing until
+                # something takes it.
+                stands = how_long_it_holds(
+                    can_do,
+                    ways_out=lambda one: [
+                        name for name in one.told if one.does_something(name)
+                    ]
+                    if hasattr(one, "told") and hasattr(one, "does_something")
+                    else [],
+                    room=lambda one: len(getattr(one, "told", ()) or ()),
+                )
+                if not stands.alive and stands.ways_out == 1:
+                    logger.info("one way out here: %s", stands.describe())
                 if can_do.dead() and not foreseen.get("acts"):
                     foreseen["acts"] = True
                     logger.info("what works here: %s", can_do.says())
@@ -3882,6 +3935,54 @@ async def pursue_on_screen(
                         )[:4]
                     ),
                 )
+            # What she is aiming at, where it names a number or a band.
+            #
+            # "More is better" is true of some goals and quietly false of many:
+            # a load high enough to be worth running and low enough to survive,
+            # a bid over one number and under another. Overshooting looks like
+            # success right up to the moment it is a disaster, because the
+            # measure that says more says more all the way past the edge.
+            if ahead and aiming_at:
+                numbers = [
+                    float(one)
+                    for one in re.findall(r"-?\d+(?:\.\d+)?", str(aiming_at))
+                ][:2]
+                if len(numbers) == 2 and numbers[0] < numbers[1]:
+                    band = AWindow(at_least=numbers[0], at_most=numbers[1])
+                    landing = which_act_lands_in_it(
+                        list(ahead),
+                        now=0.0,
+                        what_it_moves=lambda one: ahead[one][0],
+                        window=band,
+                    )
+                    if landing and not landing[0][2]:
+                        ahead = {landing[0][0]: ahead[landing[0][0]]}
+                elif len(numbers) == 1:
+                    # A bar rather than a band: which most often clears it,
+                    # which is not the same as which averages best.
+                    took = the_one_most_likely_to_do(
+                        {one: [worth] for one, (worth, _why) in ahead.items()},
+                        needs=numbers[0],
+                    )
+                    if took is not None and took.clears_it > 0:
+                        ahead = {took.name: ahead[took.name]}
+
+            # And where the move she wants is not one she may make, something
+            # elsewhere that obliges the world to let her.
+            if wont and ahead:
+                blocked = [one for one in ahead if one in wont]
+                if blocked:
+                    round_it = a_way_round(
+                        blocked[0],
+                        allowed=lambda one: one not in wont,
+                        elsewhere=[option.name for option in available],
+                        they_must_answer=lambda one: float(ahead.get(one, (0.0, ""))[0]),
+                        after_they_answer=lambda one: None,
+                        worth_of_the_fight=0.0,
+                    )
+                    if round_it.found and round_it.spend_a_turn_on in ahead:
+                        logger.info("cannot take %s — %s", blocked[0], round_it.describe())
+
             # And a routine move in a fast loop does not always need words.
             #
             # What a thought is worth here, rather than how long since the
@@ -4302,6 +4403,14 @@ async def pursue_on_screen(
                 # How long she could not do anything else for, measured by
                 # doing it rather than guessed at.
                 busy.an_act_took(key, time.monotonic() - started_acting)
+                # Started and not yet seen to land.
+                if expected["after"] is not None:
+                    in_flight.she_started(
+                        key,
+                        at=started_acting,
+                        lands_at=time.monotonic() + _how_long_to_wait(),
+                        brings=str(expected["took"]),
+                    )
                 busy.the_world_moved(
                     time.monotonic() - started_acting,
                     times=1 if world.acts_with_arrivals else 0,
@@ -4609,6 +4718,7 @@ async def pursue_on_screen(
             "reaches": reaches.as_memory(),
             "got_to": got_to.as_memory(),
             "opens": opens.as_memory(),
+            "supply": supply.as_memory() if hasattr(supply, "as_memory") else {},
             "coming": coming.as_memory(),
             "marks": marks.as_memory(),
             # The last several runs, and how each finished. Enough to tell
