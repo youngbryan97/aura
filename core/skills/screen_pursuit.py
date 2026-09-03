@@ -47,6 +47,7 @@ from core.cognition.what_she_cannot_afford_to_lose import (
     what_she_cannot_afford_to_lose,
 )
 from core.cognition.what_would_have_to_be_true import a_way_to_get_there
+from core.cognition.when_to_say_it_outright import whether_to_say_it
 from core.runtime.errors import record_degradation
 from core.runtime.watched_goal import PURSUIT_SECONDS, a_cycle_took
 from core.runtime.what_she_learned import TRUST_CARRIED_OVER, named, recall, remember
@@ -3899,12 +3900,31 @@ async def pursue_on_screen(
                         one.name for one in available if one.name != START_OVER
                     ]
                     if precious and others:
-                        logger.info(
-                            "not starting over: %d thing(s) here she cannot get back",
-                            len(precious),
+                        # And how sure she would have to be, given what it
+                        # costs to be wrong. Starting over destroys what is
+                        # here; another move costs a move. Those are different
+                        # sizes, so the certainty needed is not a level — it
+                        # is the comparison.
+                        say_it = whether_to_say_it(
+                            how_sure=float(chosen.confidence),
+                            being_wrong_costs=float(len(precious)),
+                            another_look_costs=1.0,
+                            waiting_might_lose_it=(
+                                1.0 if responds["state"].nothing_answers() else 0.0
+                            ),
+                            what_it_is_worth=float(len(precious)),
                         )
-                        no_move["because"] = "there is something here worth keeping"
-                        return None
+                        if not say_it.now:
+                            logger.info(
+                                "not starting over: %d thing(s) she cannot get back "
+                                "(%s)",
+                                len(precious),
+                                say_it.describe(),
+                            )
+                            no_move["because"] = (
+                                "there is something here worth keeping"
+                            )
+                            return None
                 params = dict(chosen.chosen.params)
                 label = str(params.get("label") or "")
                 rx, ry = float(params.get("x", 0.0)), float(params.get("y", 0.0))
