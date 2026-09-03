@@ -37,6 +37,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from core.cognition.does_this_world_repeat import DoesItRepeat
+from core.cognition.getting_ready_for_what_is_coming import WhatUsuallyComes
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
 from core.cognition.marks_she_leaves_behind import MarksOnTheGround
 from core.cognition.something_she_keeps_true import (
@@ -46,6 +47,7 @@ from core.cognition.something_she_keeps_true import (
 from core.cognition.the_furthest_she_has_got import TheFurthestSheHasGot
 from core.cognition.the_ones_she_reaches_for import TheOnesSheReachesFor
 from core.cognition.what_happens_while_she_acts import WhatItCostsToBeBusy
+from core.cognition.what_having_it_lets_her_do import WhatOpensWhat
 from core.cognition.what_is_still_open import what_is_still_open
 from core.cognition.what_she_cannot_afford_to_lose import (
     what_she_cannot_afford_to_lose,
@@ -2899,6 +2901,15 @@ async def pursue_on_screen(
     #: Places she has been, marked, so the way back is on the ground rather
     #: than in her head.
     marks = MarksOnTheGround.from_memory(knew.get("marks") or {})
+    #: Which of her acts started working once something else was true. An act
+    #: that does nothing is written down as an act that does nothing HERE,
+    #: which is true and useless — the interesting thing is that it would work
+    #: given one thing, and that the thing is gettable. Without it a wall is a
+    #: wall for ever and the way round it is never something to go and fetch.
+    opens = WhatOpensWhat.from_memory(knew.get("opens") or {})
+    #: What has turned up before, how often, and what it wanted — so the work
+    #: is done in the light rather than when the sun is already down.
+    coming = WhatUsuallyComes.from_memory(knew.get("coming") or {})
     #: How her runs here have ended, so she can play for the one she can
     #: bring about rather than the one that sounds best. Kept as the shapes
     #: she passed through and the word it finished on.
@@ -3034,6 +3045,12 @@ async def pursue_on_screen(
             # Something is over the thing, and reading through it gives an
             # answer that looks well formed and is wrong.
             logger.info("something is sitting over what she is reading")
+            # Something that has come before, and what it wanted when it did.
+            coming.it_came(
+                "something over the thing",
+                at=time.monotonic(),
+                needing=["her own window away", "the thing brought forward"],
+            )
             await _put_her_own_window_away()
             if target_app:
                 await _bring_the_thing_back_to_the_front(target_app)
@@ -3221,6 +3238,21 @@ async def pursue_on_screen(
                 # A key that never changes anything is not one of her actions
                 # in this world, whoever wrote it down.
                 can_do.tried(previous.chosen.name, attempt.verdict.observed_change)
+                # And what was true at the time, so an act that does nothing
+                # can become an act that needs something.
+                opens.she_tried(
+                    previous.chosen.name,
+                    holding=[
+                        one
+                        for one in (
+                            "the thing in front" if confirmed_here["value"] else "",
+                            "nothing over it" if not in_the_way["last"] else "",
+                            "a grid she trusts" if responds["lattice"].held else "",
+                        )
+                        if one
+                    ],
+                    it_worked=bool(attempt.verdict.observed_change),
+                )
                 if can_do.dead() and not foreseen.get("acts"):
                     foreseen["acts"] = True
                     logger.info("what works here: %s", can_do.says())
@@ -4576,6 +4608,8 @@ async def pursue_on_screen(
             "lattice": responds["lattice"].as_memory(),
             "reaches": reaches.as_memory(),
             "got_to": got_to.as_memory(),
+            "opens": opens.as_memory(),
+            "coming": coming.as_memory(),
             "marks": marks.as_memory(),
             # The last several runs, and how each finished. Enough to tell
             # which ending she has a route to, and bounded so the record does
