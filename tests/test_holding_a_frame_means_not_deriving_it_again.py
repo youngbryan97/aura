@@ -24,7 +24,13 @@ def _four_by_four() -> TheLatticeSheHolds:
     """A lattice over the sixteen places of a board."""
     lattice = TheLatticeSheHolds()
     places = [(int(x * 100), int(y * 100)) for y in (0.2, 0.4, 0.6, 0.8) for x in (0.2, 0.4, 0.6, 0.8)]
-    assert lattice.built_from(places, acts=8)
+    lattice.built_from(places, acts=8)
+    # Offered until it settles. A set still growing is not evidence yet, and
+    # once it is built the same set changes nothing, so both answers are False
+    # and only the shape says whether it took.
+    lattice.built_from(places, acts=8)
+    lattice.built_from(places, acts=8)
+    assert lattice.held
     assert (lattice.rows, lattice.columns) == (4, 4)
     return lattice
 

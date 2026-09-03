@@ -19,9 +19,12 @@ from core.perception.the_lattice_she_holds import TheLatticeSheHolds
 
 def _four_by_four() -> TheLatticeSheHolds:
     lattice = TheLatticeSheHolds()
-    assert lattice.built_from(
-        [(x, y) for y in (20, 40, 60, 80) for x in (20, 40, 60, 80)], acts=8
-    )
+    # Offered until it settles. A set still growing is not evidence yet, so
+    # the first offer only records it and the second builds from it.
+    places = [(x, y) for y in (20, 40, 60, 80) for x in (20, 40, 60, 80)]
+    lattice.built_from(places, acts=8)
+    lattice.built_from(places, acts=8)
+    assert lattice.held
     return lattice
 
 
@@ -50,9 +53,9 @@ def test_places_that_do_not_fit_are_still_evidence_of_a_new_shape():
     was = (lattice.down_at, lattice.across_at)
     # A window resized, or a different thing on the screen: the places are
     # nowhere near the lines she is holding.
-    changed = lattice.built_from(
-        [(x, y) for y in (5, 15, 25) for x in (5, 15, 25)], acts=20
-    )
+    moved = [(x, y) for y in (5, 15, 25) for x in (5, 15, 25)]
+    lattice.built_from(moved, acts=20)
+    changed = lattice.built_from(moved, acts=20)
     assert changed
     assert (lattice.down_at, lattice.across_at) != was
     assert (lattice.rows, lattice.columns) == (3, 3)
@@ -66,11 +69,13 @@ def test_more_lines_than_she_holds_is_a_bigger_view_of_the_same_thing():
     that declined to move on that would be two by two for the rest of the run.
     """
     lattice = TheLatticeSheHolds()
-    lattice.built_from([(20, 20), (80, 20), (20, 80), (80, 80)], acts=2)
+    corners = [(20, 20), (80, 20), (20, 80), (80, 80)]
+    lattice.built_from(corners, acts=2)
+    lattice.built_from(corners, acts=2)
     assert (lattice.rows, lattice.columns) == (2, 2)
-    grew = lattice.built_from(
-        [(x, y) for y in (20, 40, 60, 80) for x in (20, 40, 60, 80)], acts=6
-    )
+    wider = [(x, y) for y in (20, 40, 60, 80) for x in (20, 40, 60, 80)]
+    lattice.built_from(wider, acts=6)
+    grew = lattice.built_from(wider, acts=6)
     assert grew
     assert (lattice.rows, lattice.columns) == (4, 4)
 
@@ -86,5 +91,7 @@ def test_the_places_are_still_written_down_when_the_frame_does_not_move():
 
 def test_a_lattice_with_nothing_held_still_builds():
     lattice = TheLatticeSheHolds()
-    assert lattice.built_from([(20, 20), (40, 20), (20, 40), (40, 40)], acts=2)
+    lattice.built_from([(20, 20), (40, 20), (20, 40), (40, 40)], acts=2)
+    lattice.built_from([(20, 20), (40, 20), (20, 40), (40, 40)], acts=2)
+    assert lattice.held
     assert lattice.held
