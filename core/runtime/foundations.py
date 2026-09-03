@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -55,6 +56,17 @@ SENTINEL_INTERVAL_S = 5.0
 #: A monotonic-vs-wall-clock divergence beyond this in one sentinel period
 #: means the wall clock jumped (NTP step, sleep/wake, VM migration).
 CLOCK_JUMP_TOLERANCE_S = 5.0
+
+_COGNITION_VALIDATION_LOCK = threading.Lock()
+_COGNITION_VALIDATION_THREAD: threading.Thread | None = None
+_COGNITION_VALIDATION_STATUS: dict[str, Any] = {
+    "state": "not_started",
+    "started_at": None,
+    "finished_at": None,
+    "duration_s": None,
+    "outcome": None,
+    "error": "",
+}
 
 
 @dataclass
@@ -1228,6 +1240,102 @@ def _safe_diagnostics_update() -> None:
     get_aggregator().update_all()
 
 
+def cognition_validation_status() -> dict[str, Any]:
+    """Report the boot-owned empirical validation run without implying a pass."""
+
+    with _COGNITION_VALIDATION_LOCK:
+        status = dict(_COGNITION_VALIDATION_STATUS)
+        outcome = status.get("outcome")
+        status["outcome"] = dict(outcome) if isinstance(outcome, dict) else None
+        return status
+
+
+def _set_cognition_validation_status(**values: Any) -> None:
+    with _COGNITION_VALIDATION_LOCK:
+        _COGNITION_VALIDATION_STATUS.update(values)
+
+
+def _schedule_cognition_validation(run_validation: Callable[[], dict[str, Any]]) -> bool:
+    """Run the empirical suite outside the event-loop thread."""
+
+    global _COGNITION_VALIDATION_THREAD
+    with _COGNITION_VALIDATION_LOCK:
+        if (
+            _COGNITION_VALIDATION_THREAD is not None
+            and _COGNITION_VALIDATION_THREAD.is_alive()
+        ):
+            return False
+        _COGNITION_VALIDATION_STATUS.update(
+            {
+                "state": "scheduled",
+                "started_at": None,
+                "finished_at": None,
+                "duration_s": None,
+                "outcome": None,
+                "error": "",
+            }
+        )
+
+        def worker() -> None:
+            started = time.time()
+            _set_cognition_validation_status(state="running", started_at=started)
+            try:
+                raw = run_validation()
+                outcome = {
+                    key: raw[key]
+                    for key in (
+                        "passed",
+                        "failed",
+                        "errored",
+                        "not_measured",
+                        "applicable",
+                        "measured",
+                    )
+                }
+            except Exception as exc:  # noqa: BLE001 - a validator cannot stop boot
+                from core.runtime.errors import record_degradation
+
+                finished = time.time()
+                _set_cognition_validation_status(
+                    state="failed",
+                    finished_at=finished,
+                    duration_s=round(finished - started, 3),
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+                record_degradation(
+                    "foundations.cognition_validation",
+                    exc,
+                    severity="warning",
+                    action="kept runtime available while empirical self-validation failed",
+                    enforce_failure_policy=False,
+                )
+                return
+            finished = time.time()
+            _set_cognition_validation_status(
+                state="completed",
+                finished_at=finished,
+                duration_s=round(finished - started, 3),
+                outcome=outcome,
+            )
+            logger.info(
+                "Cognition validation completed outside boot: %s passed, %s failed, "
+                "%s errored, %s not measured in %.3fs",
+                outcome["passed"],
+                outcome["failed"],
+                outcome["errored"],
+                outcome["not_measured"],
+                finished - started,
+            )
+
+        _COGNITION_VALIDATION_THREAD = threading.Thread(
+            target=worker,
+            name="aura-cognition-validation",
+            daemon=True,
+        )
+        _COGNITION_VALIDATION_THREAD.start()
+        return True
+
+
 async def _activate_cognition(*, foreground_only: bool) -> ActivationResult:
     """Wave 7 — MeTTa rewriting and the self-validation suite."""
     from core.container import ServiceContainer
@@ -1243,9 +1351,61 @@ async def _activate_cognition(*, foreground_only: bool) -> ActivationResult:
 
     validation = install_runtime_validation()
     ServiceContainer.register_instance("validation_suite", get_suite(), required=False)
-    # Run the suite once at boot. A claim that is only checked when
-    # somebody remembers to check it is a claim nobody is checking.
+    # Foreground-only proof boots need the verdict before they proceed. The
+    # full desktop installs every claim at boot but runs the empirical suite
+    # after foundation activation: several tests perform bounded synthesis,
+    # and running them on the event-loop thread made chat and health unavailable
+    # for minutes as the suite grew.
+    if not foreground_only:
+        _set_cognition_validation_status(
+            state="pending_start",
+            started_at=None,
+            finished_at=None,
+            duration_s=None,
+            outcome=None,
+            error="",
+        )
+        return ActivationResult(
+            name="cognition",
+            ok=True,
+            detail=(
+                f"{len(rules)} MeTTa rules over {metta_report()['grounded_ops'].__len__()} "
+                f"grounded ops; {validation['claims']} claims bound to "
+                f"{len(validation['tests'])} validation tests; empirical run queued "
+                "until every foundation is active"
+            ),
+            data={
+                "metta_rules": rules,
+                "validation": validation,
+                "suite_outcome": {"state": "pending_start"},
+                "problem_tests": [],
+                "unsupported_claims": [
+                    c["statement"] for c in get_suite().unsupported_claims()
+                ],
+            },
+        )
+
+    validation_started = time.time()
     outcome = run_validation()
+    validation_finished = time.time()
+    _set_cognition_validation_status(
+        state="completed",
+        started_at=validation_started,
+        finished_at=validation_finished,
+        duration_s=round(validation_finished - validation_started, 3),
+        outcome={
+            key: outcome[key]
+            for key in (
+                "passed",
+                "failed",
+                "errored",
+                "not_measured",
+                "applicable",
+                "measured",
+            )
+        },
+        error="",
+    )
     problem_tests = [
         result.get("test", "unknown")
         for group in (outcome["failures"], outcome["errors"])
@@ -1404,6 +1564,10 @@ async def activate_foundations(*, foreground_only: bool = False) -> dict[str, An
         ServiceContainer.register_instance("foundations_report", report, required=False)
     except Exception:  # noqa: BLE001 — report registration is additive
         logger.debug("foundations report registration skipped", exc_info=True)
+    if not foreground_only:
+        from core.organism.model_validation import run_validation
+
+        _schedule_cognition_validation(run_validation)
     return report
 
 
@@ -1416,6 +1580,14 @@ def reset_foundations_for_test() -> None:
     _SENTINEL = None
     _LAST_REPORT.clear()
     _LAST_REPORT["activated"] = False
+    _set_cognition_validation_status(
+        state="not_started",
+        started_at=None,
+        finished_at=None,
+        duration_s=None,
+        outcome=None,
+        error="",
+    )
 
 
 __all__ = [
@@ -1425,6 +1597,7 @@ __all__ = [
     "MemorySentinel",
     "SOFT_PRESSURE_AVAILABLE_FRACTION",
     "activate_foundations",
+    "cognition_validation_status",
     "foundations_report",
     "get_memory_sentinel",
     "register_activator",

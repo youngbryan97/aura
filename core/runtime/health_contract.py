@@ -1530,12 +1530,14 @@ def _runtime_integrity_block() -> dict[str, Any]:
     try:
         from core.knowledge.metta import metta_report
         from core.organism.model_validation import get_suite, validation_report
+        from core.runtime.foundations import cognition_validation_status
 
         validation = validation_report()
         block["self_model"] = {
             "claims": len(validation["claims"]),
             "tests": len(validation["tests"]),
             "unsupported_claims": [c["statement"] for c in get_suite().unsupported_claims()],
+            "empirical_run": cognition_validation_status(),
             "metta": {k: metta_report()[k] for k in ("rules", "reductions", "truncations")},
         }
     except Exception as exc:  # noqa: BLE001 - each health add-on is isolated
