@@ -14,6 +14,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from core.cognition.the_same_problem_one_size_down import solve_by_the_size_below
 from core.cognition.what_it_is_worth_by_the_time_it_comes import HowFarSheUsuallyGets
 from core.cognition.where_to_spend_the_next_one import where_to_spend_it
 from core.container import ServiceContainer
@@ -197,6 +198,39 @@ class GoalRecord:
         payload["display_horizon"] = str(self.horizon or "").replace("_", " ").title()
         payload["is_terminal"] = payload["status"] in TERMINAL_GOAL_STATUSES
         return payload
+
+
+def the_steps_it_breaks_into(goal: dict[str, Any], *, most: int = 64) -> tuple[Any, ...]:
+    """A goal made of smaller ones of itself, worked out without walking it.
+
+    To move n disks you move the top n-1 elsewhere, move the big one, and move
+    them back — and nobody traces it, because tracing it is the mistake. Show
+    the smallest works, assume one size down works, and the plan for any size
+    exists without any size being expanded.
+
+    Empty where the goal does not get smaller, which is a real answer: a goal
+    that does not shrink is not one this can plan, and running until something
+    stops it is how that gets mistaken for a hard one.
+    """
+    try:
+        total = int(float(goal.get("steps_total") or 0))
+    except (TypeError, ValueError):
+        # not a failure: a goal that cannot say how big it is cannot be halved.
+        return ()
+    if total <= 1:
+        return ()
+    plan = solve_by_the_size_below(
+        total,
+        smallest=lambda one: one <= 1,
+        answer_outright=lambda one: [(goal.get("objective") or goal.get("name"), 1)],
+        one_size_down=lambda one: [one - 1],
+        put_together=lambda one, below: [
+            *below[0],
+            (goal.get("objective") or goal.get("name"), one),
+        ],
+        deepest=most,
+    )
+    return plan.steps if plan.settled else ()
 
 
 def _the_one_to_get_on_with(active: list[dict[str, Any]]) -> dict[str, Any]:

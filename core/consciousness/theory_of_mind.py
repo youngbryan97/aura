@@ -17,6 +17,9 @@ from typing import Any
 from core.cognition.telling_one_kind_from_another import TellingThemApart
 from core.cognition.what_a_question_gives_away import WhatTheirAskingSays
 from core.cognition.what_kind_of_thing_was_said import WhatSheHasHeard
+from core.cognition.what_the_other_one_is_holding import (
+    what_the_other_one_is_holding,
+)
 from core.cognition.what_they_will_do_next import WhatTheyTendToDo
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import optional_service
@@ -182,6 +185,30 @@ def an_example_of(kind: str, features: Sequence[str]) -> None:
     _KINDS.an_example(kind, features)
 
 
+#: Turns the other person was in, and whether things went well for THEM.
+_THEIRS: list[tuple[Any, bool]] = []
+
+
+def it_went_well_for_them(situation: Any, *, well: bool) -> None:
+    """One situation, and whether the other person got what they wanted.
+
+    Read off her own turns without anybody being asked. There are two ways to
+    be ahead of somebody — advance what you are doing, or stop what they are
+    doing — and the second needs knowing what they are holding.
+    """
+    _THEIRS.append((situation, bool(well)))
+    del _THEIRS[:-200]
+
+
+def what_they_are_holding() -> Any:
+    """The property that predicts things going well for them, or nothing.
+
+    Nothing is worth having: it says they are not holding anything she can
+    play against, and she should get on with her own plan instead.
+    """
+    return what_the_other_one_is_holding(_THEIRS) if len(_THEIRS) > 3 else None
+
+
 def what_she_knows_about(who: str, *, facing: str = "") -> dict[str, Any]:
     """Everything she has worked out about somebody, from watching.
 
@@ -195,6 +222,7 @@ def what_she_knows_about(who: str, *, facing: str = "") -> dict[str, Any]:
         "will_probably": will,
         "how_likely": likely,
         "furthest_along": _ASKING.who_is_furthest_along(),
+        "they_are_holding": getattr(what_they_are_holding(), "name", ""),
     }
 
 

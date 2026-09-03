@@ -34,7 +34,7 @@ from typing import Any
 
 from core.perception.what_is_there import Arrangement, Cell
 
-__all__ = ["TheLatticeSheHolds"]
+__all__ = ["TheLatticeSheHolds", "the_turnings_of_it"]
 
 #: Two places count as the same line when they are nearer than this share of
 #: the usual gap between lines. Half, because a place more than half way to the
@@ -275,7 +275,7 @@ class TheLatticeSheHolds:
         }
 
     @classmethod
-    def from_memory(cls, held: Any) -> "TheLatticeSheHolds":
+    def from_memory(cls, held: Any) -> TheLatticeSheHolds:
         """The lattice she had last time. Where a thing is tends to keep."""
         if not isinstance(held, dict):
             return cls()
@@ -352,3 +352,39 @@ def _between(lines: Sequence[float]) -> float:
 
 def _nearest_to(value: float, lines: Sequence[float]) -> int:
     return min(range(len(lines)), key=lambda one: abs(lines[one] - value))
+
+
+def the_turnings_of_it(
+    lattice: TheLatticeSheHolds,
+    watched: Any,
+    acts: Any,
+    expect: Any = None,
+) -> tuple[Any, ...]:
+    """Ways of relabelling this grid under which everything she knows still holds.
+
+    A board with two stones has four corners and the four corners are the same
+    corner, so everything learned about one is about all of them. Found rather
+    than declared: the candidates are the relabellings that leave which places
+    things move between alone, and the real ones are those under which every
+    transition she has watched still does what it did.
+
+    Only where the grid is small enough for every relabelling to be looked at.
+    A sample of the turnings of a space is not the turnings of a space, so
+    above that size it says nothing rather than some of it.
+    """
+    from core.cognition.the_same_thing_turned_around import (  # noqa: PLC0415
+        turnings_that_hold,
+    )
+
+    places = [
+        (row, column)
+        for row in range(lattice.rows)
+        for column in range(lattice.columns)
+    ]
+    if not places or len(places) > 8:
+        return ()
+    return tuple(
+        turnings_that_hold(
+            watched, every_place=places, acts=list(acts), expect=expect
+        )
+    )

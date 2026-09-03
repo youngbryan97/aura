@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 17 outbound edges when this was generated.
+# 18 outbound edges when this was generated.
 
 description = "core.perception: may import only what it already imports; every new edge is an edit here."
 
@@ -16,6 +16,7 @@ include_rules = [
     # What this package reaches for today.
     "+core.brain",
     "+core.capabilities",
+    "+core.cognition",
     "+core.config",
     "+core.container",
     "+core.event_bus",

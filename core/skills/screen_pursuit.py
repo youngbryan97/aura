@@ -54,6 +54,7 @@ from core.cognition.what_an_act_costs_beyond_now import WhatEachActHasLeft
 from core.cognition.what_happens_while_she_acts import WhatItCostsToBeBusy
 from core.cognition.what_having_it_lets_her_do import WhatOpensWhat
 from core.cognition.what_is_still_open import what_is_still_open
+from core.cognition.what_nobody_could_show import WhatIsHidden
 from core.cognition.what_she_cannot_afford_to_lose import (
     what_she_cannot_afford_to_lose,
 )
@@ -3056,10 +3057,26 @@ async def pursue_on_screen(
         # board does not have, and a rule about sliding along a row cannot
         # match rows that are not the board's.
         lattice = responds["lattice"]
+        # Which of the things that could be wrong is left, from what has been
+        # ruled out. Evidence from a failure to produce settles several
+        # candidates at once where a sighting settles one.
+        why_not = WhatIsHidden(
+            candidates=("nothing there", "something over it", "it has ended", "she is early"),
+            parties=("the reading", "the band", "the rule"),
+        )
+        if observation.get("layout"):
+            why_not.could_not_produce("the reading", ["nothing there"])
+        if not responds["state"].nothing_answers():
+            why_not.could_not_produce("the band", ["it has ended"])
+        if not responds["lattice"].looks_covered():
+            why_not.could_not_produce("the rule", ["something over it"])
         if lattice.looks_covered() and not in_the_way["last"]:
             # Something is over the thing, and reading through it gives an
             # answer that looks well formed and is wrong.
-            logger.info("something is sitting over what she is reading")
+            logger.info(
+                "something is sitting over what she is reading (%s)",
+                why_not.describe(),
+            )
             # Something that has come before, and what it wanted when it did.
             coming.it_came(
                 "something over the thing",
