@@ -609,7 +609,8 @@ def verify_compositional_family_withheld_replication(
         "serving_authority": False,
         "claim_boundary": (
             "bounded resident-27B typed synthetic semantic-program transfer into a "
-            "completely withheld operation family and disjoint fresh seed; no broad "
+            "completely withheld program family and disjoint fresh seed; reusable "
+            "primitives and value rules were present in other fitting families; no broad "
             "natural-language, open-domain, frontier-reasoning, or serving claim"
         ),
     }
