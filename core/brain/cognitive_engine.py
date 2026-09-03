@@ -3422,7 +3422,9 @@ class CognitiveEngine:
                 visible_objective,
                 timeout_s=shadow_timeout,
             )
-        except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - a shadow observer cannot own the answer path
             record_degradation(
                 "cognitive_engine.compositional_semantic_shadow",
                 exc,

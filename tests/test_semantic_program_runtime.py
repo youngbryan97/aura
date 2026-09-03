@@ -66,7 +66,10 @@ class _RefusingModel(_Model):
 
 
 def test_runtime_rejects_a_different_neural_representation_basis():
-    with pytest.raises(SemanticProgramObservationError, match="representation basis differs"):
+    with pytest.raises(
+        SemanticProgramObservationError,
+        match=r"representation basis differs:observed=[0-9a-f]{64}:expected=0{64}",
+    ):
         execute_compositional_semantic_observation(
             model=object(),  # type: ignore[arg-type]
             source_text="Add 2 and 3.",

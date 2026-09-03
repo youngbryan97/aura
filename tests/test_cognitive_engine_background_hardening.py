@@ -271,6 +271,58 @@ async def test_compositional_shadow_never_runs_inside_a_proof(monkeypatch):
     )
 
 
+@pytest.mark.asyncio
+async def test_compositional_shadow_failure_cannot_own_the_answer_path(monkeypatch):
+    from core.brain.llm import compositional_semantic_shadow as shadow
+    from core.learning.semantic_program_runtime import SemanticProgramObservationError
+
+    engine = CognitiveEngine()
+    monkeypatch.setenv("AURA_COMPOSITIONAL_SEMANTIC_LIVE_SHADOW", "1")
+
+    async def _failed_observation(*_args, **_kwargs):
+        raise SemanticProgramObservationError("incompatible observation")
+
+    monkeypatch.setattr(
+        shadow,
+        "observe_resident_compositional_semantics",
+        _failed_observation,
+    )
+
+    await engine._observe_compositional_semantic_shadow(
+        "Add 3 and 4.",
+        "desktop_ui",
+        {},
+        is_background=False,
+        timeout_s=45.0,
+    )
+
+
+@pytest.mark.asyncio
+async def test_compositional_shadow_preserves_turn_cancellation(monkeypatch):
+    from core.brain.llm import compositional_semantic_shadow as shadow
+
+    engine = CognitiveEngine()
+    monkeypatch.setenv("AURA_COMPOSITIONAL_SEMANTIC_LIVE_SHADOW", "1")
+
+    async def _cancelled_observation(*_args, **_kwargs):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(
+        shadow,
+        "observe_resident_compositional_semantics",
+        _cancelled_observation,
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        await engine._observe_compositional_semantic_shadow(
+            "Add 3 and 4.",
+            "desktop_ui",
+            {},
+            is_background=False,
+            timeout_s=45.0,
+        )
+
+
 def test_cognitive_engine_treats_prefixed_user_origin_as_foreground():
     assert CognitiveEngine._is_background_request("routing_user", False) is False
     assert CognitiveEngine._is_background_request("routing_voice_command", False) is False
