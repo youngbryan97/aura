@@ -4,7 +4,10 @@ import numpy as np
 import pytest
 
 from core.brain.llm import compositional_semantic_shadow as shadow
-from core.learning.semantic_program_runtime import SemanticProgramDecodeRejectedError
+from core.learning.semantic_program_runtime import (
+    SemanticProgramDecodeRejectedError,
+    SemanticProgramObservationError,
+)
 
 
 class _Client:
@@ -155,6 +158,32 @@ async def test_shadow_preserves_a_neural_decode_rejection(monkeypatch):
     assert result["attempted"] is True
     assert result["ok"] is False
     assert result["reason"] == "typed_argument_chart_empty"
+    assert result["activation_receipt"]["serving_authority"] is False
+
+
+@pytest.mark.asyncio
+async def test_shadow_reports_neural_basis_drift_without_raising(monkeypatch):
+    client = _Client(_observation())
+    _install_runtime_stubs(monkeypatch)
+
+    def _reject(**_kwargs):
+        raise SemanticProgramObservationError(
+            "compositional semantic representation basis differs"
+        )
+
+    monkeypatch.setattr(shadow, "execute_compositional_semantic_observation", _reject)
+
+    result = await shadow.execute_compositional_semantic_shadow(
+        client=client,
+        prompt="Add 3 and 4.",
+    )
+
+    assert result["eligible"] is True
+    assert result["attempted"] is True
+    assert result["ok"] is False
+    assert result["reason"] == "compositional semantic representation basis differs"
+    assert len(result["observed_representation_basis_sha256"]) == 64
+    assert result["expected_representation_basis_sha256"] == "a" * 64
     assert result["activation_receipt"]["serving_authority"] is False
 
 

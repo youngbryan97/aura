@@ -25,6 +25,7 @@ from core.learning.semantic_program_feature_materialization import (
 from core.learning.semantic_program_ir import semantic_value_to_json
 from core.learning.semantic_program_runtime import (
     SemanticProgramDecodeRejectedError,
+    SemanticProgramObservationError,
     execute_compositional_semantic_observation,
 )
 from core.learning.semantic_public_inputs import semantic_public_character_inputs
@@ -457,6 +458,23 @@ async def execute_compositional_semantic_shadow(
             "attempted": True,
             "ok": False,
             "reason": str(exc),
+            "activation_receipt": status,
+        }
+    except SemanticProgramObservationError as exc:
+        from core.brain.llm.latent_cortex.runtime_identity import (
+            worker_representation_basis,
+        )
+
+        observed_basis_sha256 = _sha(worker_representation_basis(receipt["model_basis"]))
+        return {
+            "eligible": True,
+            "attempted": True,
+            "ok": False,
+            "reason": str(exc),
+            "observed_representation_basis_sha256": observed_basis_sha256,
+            "expected_representation_basis_sha256": status[
+                "representation_basis_sha256"
+            ],
             "activation_receipt": status,
         }
     text = _render_result(outcome.execution.result)

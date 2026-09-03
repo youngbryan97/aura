@@ -84,9 +84,7 @@ def execute_compositional_semantic_observation(
     representation_sha256 = _sha(representation)
     if representation_sha256 != expected_representation_basis_sha256:
         raise SemanticProgramObservationError(
-            "compositional semantic representation basis differs:"
-            f"observed={representation_sha256}:"
-            f"expected={expected_representation_basis_sha256}"
+            "compositional semantic representation basis differs"
         )
     tokens = tuple(source_token_ids)
     if not tokens or any(type(token) is not int or token < 0 for token in tokens):
