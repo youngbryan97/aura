@@ -41,6 +41,10 @@ def _bytes(value: object) -> bytes:
     ).encode("ascii")
 
 
+def _sha(value: object) -> str:
+    return hashlib.sha256(_bytes(value).rstrip(b"\n")).hexdigest()
+
+
 def _manifest_only(bundle_path: Path) -> dict[str, Any]:
     """Validate the immutable manifest without loading unused feature arrays."""
 
@@ -73,6 +77,18 @@ def _manifest_only(bundle_path: Path) -> dict[str, Any]:
     ):
         raise ValueError("training feature manifest identity differs")
     return manifest
+
+
+def _bind_compatibility_to_report(
+    report: Mapping[str, Any],
+    *,
+    compatibility: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Make cross-session neural-basis admission part of the evidence object."""
+
+    body = {key: value for key, value in report.items() if key != "report_sha256"}
+    body["representation_compatibility"] = dict(compatibility)
+    return {**body, "report_sha256": _sha(body)}
 
 
 def _bind_family_examples(
@@ -197,6 +213,11 @@ def main() -> int:
             selected,
             arm_names=selected_arms,
         )
+        if training_manifest is not None:
+            report = _bind_compatibility_to_report(
+                report,
+                compatibility=compatibility,
+            )
         if not atomic_write_bytes_if_absent(output, _bytes(report), mode=0o400):
             raise FileExistsError("compositional lesion output raced")
     except Exception as exc:  # noqa: BLE001 - terminal CLI reports exact failure
