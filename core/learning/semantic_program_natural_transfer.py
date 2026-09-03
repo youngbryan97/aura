@@ -11,6 +11,7 @@ from core.learning.semantic_program_corpus import (
     SemanticProgramExample,
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
+    build_semantic_program_natural_source_corpus,
     build_semantic_program_sequence_cataphoric_corpus,
     build_semantic_program_sequence_reserved_alias_corpus,
     build_semantic_program_sequence_role_binding_corpus,
@@ -24,6 +25,7 @@ _FIT_FAMILY_BUILDERS: Final = {
     "fork_join": build_semantic_program_fork_join_corpus,
     "reserved_alias": build_semantic_program_sequence_reserved_alias_corpus,
     "role_binding": build_semantic_program_sequence_role_binding_corpus,
+    "natural_source": build_semantic_program_natural_source_corpus,
 }
 
 

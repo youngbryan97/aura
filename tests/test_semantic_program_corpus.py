@@ -7,6 +7,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_fork_join_corpus,
     build_semantic_program_fork_join_factorial_corpus,
     build_semantic_program_natural_request_corpus,
+    build_semantic_program_natural_source_corpus,
     build_semantic_program_sequence_binary_corpus,
     build_semantic_program_sequence_cataphoric_corpus,
     build_semantic_program_sequence_corpus,
@@ -600,3 +601,47 @@ def test_natural_request_corpus_varies_domain_independently_of_schema() -> None:
     assert len({item.source_text for item in examples}) == len(examples)
     assert build_semantic_program_natural_request_corpus() == examples
     assert build_semantic_program_natural_request_corpus(seed=3141593) != examples
+
+
+def test_natural_source_teaches_shallow_relations_outside_target_domains() -> None:
+    source = build_semantic_program_natural_source_corpus()
+    target = build_semantic_program_natural_request_corpus()
+
+    assert len(source) == 24
+    assert {item.topology_id for item in source} == {
+        "scalar_linear_two",
+        "lookup_linear_two",
+        "count_linear_two",
+    }
+    assert {
+        split: sum(item.split == split for item in source)
+        for split in ("train", "validation", "test")
+    } == {"train": 12, "validation": 6, "test": 6}
+    assert all(len(item.inputs) == 3 and len(item.instructions) == 2 for item in source)
+    assert all(len(item.register_definition_spans) == 5 for item in source)
+    assert all(
+        tuple(step.instruction.args for step in item.instructions) == ((0, 1), (3, 2))
+        for item in source
+    )
+    assert not {item.source_text.split(",", 1)[0] for item in source} & {
+        item.source_text.split(",", 1)[0] for item in target
+    }
+    assert build_semantic_program_natural_source_corpus() == source
+    assert build_semantic_program_natural_source_corpus(seed=2718282) != source
+
+
+def test_natural_definition_envelopes_are_runtime_representable() -> None:
+    examples = (
+        *build_semantic_program_natural_source_corpus(),
+        *build_semantic_program_natural_request_corpus(),
+    )
+
+    for example in examples:
+        for index, input_span in enumerate(example.input_spans):
+            definition = example.register_definition_spans[index]
+            assert definition.start <= input_span.start
+            assert definition.end == input_span.end
+        for step, instruction in enumerate(example.instructions):
+            definition = example.register_definition_spans[len(example.inputs) + step]
+            assert definition.start == instruction.operation_span.start
+            assert definition.end >= instruction.operation_span.end

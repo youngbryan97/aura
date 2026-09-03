@@ -75,9 +75,7 @@ def diagnose_compositional_definition_relations(
                 *item.ir.input_spans,
                 *(instruction.operation_span for instruction in item.ir.instructions),
             )
-            definition_pointer_scores = model.definition_pointer.score_sequence(
-                item.hidden_states
-            )
+            definition_pointer_scores = model.definition_pointer.score_sequence(item.hidden_states)
             runtime_definitions = tuple(
                 tuple(
                     (
@@ -93,9 +91,10 @@ def diagnose_compositional_definition_relations(
                         anchor,
                         token_count=item.hidden_states.shape[0],
                         max_span_tokens=model.max_definition_span_tokens,
+                        direction=("left" if index < item.ir.n_inputs else "right"),
                     )
                 )
-                for anchor in runtime_anchors
+                for index, anchor in enumerate(runtime_anchors)
             )
             oracle_vectors = tuple(
                 (
@@ -117,9 +116,9 @@ def diagnose_compositional_definition_relations(
                 available = item.ir.n_inputs + step
                 for position, (reference_span, expected_register) in enumerate(
                     zip(
-                    instruction.argument_spans,
-                    instruction.args,
-                    strict=True,
+                        instruction.argument_spans,
+                        instruction.args,
+                        strict=True,
                     )
                 ):
                     reference = _relation_span_vector(
@@ -231,9 +230,7 @@ def diagnose_compositional_transfer_lesions(
         "dependency_lesion": model.dependency_lesion(),
         "coefficient_lesion": model.coefficient_lesion(),
     }
-    selected_arm_names = (
-        COMPOSITIONAL_LESION_ARMS if arm_names is None else tuple(arm_names)
-    )
+    selected_arm_names = COMPOSITIONAL_LESION_ARMS if arm_names is None else tuple(arm_names)
     if not selected_arm_names:
         raise ValueError("compositional lesion arm selection is empty")
     if len(set(selected_arm_names)) != len(selected_arm_names):
@@ -259,9 +256,7 @@ def diagnose_compositional_transfer_lesions(
     body = {
         "schema": "aura.semantic_program_compositional_lesions.v1",
         "transducer_receipt_sha256": model.receipt_sha256,
-        "example_ids_sha256": _sha(
-            sorted(item.ir.source_text_sha256 for item in examples)
-        ),
+        "example_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in examples)),
         "evaluated_arms": list(selected_arm_names),
         "arms": results,
         "fit_or_refit_calls": 0,
@@ -285,25 +280,18 @@ def run_compositional_leave_family_out_campaign(
     if len(bundles) < 3:
         raise ValueError("compositional held-family diagnosis needs at least three families")
     examples_by_family = {
-        family: training_examples_from_feature_bundle(bundle)
-        for family, bundle in bundles.items()
+        family: training_examples_from_feature_bundle(bundle) for family, bundle in bundles.items()
     }
     manifests = {family: bundle.manifest for family, bundle in bundles.items()}
     fit_families = sorted(set(bundles) - {held_out_family})
     fit_manifests = {family: manifests[family] for family in fit_families}
-    fit_compatibility = establish_semantic_training_representation_compatibility(
-        fit_manifests
-    )
+    fit_compatibility = establish_semantic_training_representation_compatibility(fit_manifests)
     fit_bound = bind_training_examples_to_shared_representation(
         {family: examples_by_family[family] for family in fit_families},
         compatibility=fit_compatibility,
     )
     fit_bound_by_family = {
-        family: tuple(
-            item
-            for item in fit_bound
-            if item.construction_id.startswith(f"{family}:")
-        )
+        family: tuple(item for item in fit_bound if item.construction_id.startswith(f"{family}:"))
         for family in fit_families
     }
     if any(
@@ -311,11 +299,7 @@ def run_compositional_leave_family_out_campaign(
         for family in fit_families
     ):
         raise ValueError("compositional fit-family inventory changed during binding")
-    fit_examples = tuple(
-        item
-        for family in fit_families
-        for item in fit_bound_by_family[family]
-    )
+    fit_examples = tuple(item for family in fit_families for item in fit_bound_by_family[family])
     model = fit_compositional_semantic_program_transducer(
         fit_examples,
         input_grounding=input_grounding,
@@ -324,8 +308,7 @@ def run_compositional_leave_family_out_campaign(
     anchor_families = [
         family
         for family in fit_families
-        if target_basis
-        in fit_compatibility["source_session_basis_sha256s"][family]
+        if target_basis in fit_compatibility["source_session_basis_sha256s"][family]
     ]
     if len(anchor_families) != 1 or model.model_basis_sha256 != target_basis:
         raise ValueError("compositional fit basis has no unique source cohort")
@@ -363,8 +346,7 @@ def run_compositional_leave_family_out_campaign(
             "compositional evaluation families must be known and include the held-out family"
         )
     families = {
-        family: _family_report(model, bound_by_family[family])
-        for family in evaluated_families
+        family: _family_report(model, bound_by_family[family]) for family in evaluated_families
     }
     body = {
         "schema": COMPOSITIONAL_LEAVE_FAMILY_OUT_SCHEMA,

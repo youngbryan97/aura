@@ -303,13 +303,8 @@ def test_compositional_transducer_assembles_typed_atoms_without_a_geometry_head(
     )
     assert proposal_fit["positive_rows"] > 0
     assert proposal_fit["pointer_hard_negative_rows"] > 0
-    assert (
-        proposal_fit["hard_negative_limit"]
-        == _COMPOSITIONAL_POINTER_HARD_NEGATIVES
-    )
-    selected_proposal_scales = [
-        row for row in proposal_fit["scale_selection"] if row["selected"]
-    ]
+    assert proposal_fit["hard_negative_limit"] == _COMPOSITIONAL_POINTER_HARD_NEGATIVES
+    selected_proposal_scales = [row for row in proposal_fit["scale_selection"] if row["selected"]]
     assert len(selected_proposal_scales) == 1
     assert selected_proposal_scales[0]["proposal_scale"] == model.argument_proposal_scale
     assert model.register_use_contract.to_dict() == {
@@ -321,9 +316,10 @@ def test_compositional_transducer_assembles_typed_atoms_without_a_geometry_head(
     }
     assert model.training_receipt["definition_pointer_scale_selection"]
     assert replay.chart_beam_lesion().operation_chart_beam == 1
-    assert np.count_nonzero(
-        replay.relation_tissue_lesion().definition_relation_head.query_projection
-    ) == 0
+    assert (
+        np.count_nonzero(replay.relation_tissue_lesion().definition_relation_head.query_projection)
+        == 0
+    )
     proposal_lesion = replay.argument_proposal_lesion()
     assert proposal_lesion.argument_proposal_scale == replay.argument_proposal_scale
     assert all(
@@ -421,8 +417,7 @@ def test_compositional_relation_tissue_is_bound_to_the_receipt() -> None:
     selected = [row for row in relation_fit["validation_selection"] if row["selected"]]
     assert len(selected) == 1
     assert selected[0]["validation_cross_entropy"] == min(
-        row["validation_cross_entropy"]
-        for row in relation_fit["validation_selection"]
+        row["validation_cross_entropy"] for row in relation_fit["validation_selection"]
     )
 
     payload = copy.deepcopy(model.to_dict())
@@ -449,13 +444,28 @@ def test_compositional_definition_envelope_always_contains_its_anchor() -> None:
         token_count=10,
         max_span_tokens=1,
     ) == (anchor,)
+    assert _definition_span_candidates(
+        anchor,
+        token_count=12,
+        max_span_tokens=4,
+        direction="left",
+    ) == (TokenSpan(6, 10), TokenSpan(7, 10), anchor)
+    assert _definition_span_candidates(
+        anchor,
+        token_count=12,
+        max_span_tokens=4,
+        direction="right",
+    ) == (anchor, TokenSpan(8, 11), TokenSpan(8, 12))
 
 
 def test_compositional_calibration_treats_a_missing_chart_as_a_refusal() -> None:
-    assert _best_penalized_operation_chart(
-        ((float("-inf"), ()),),
-        penalty=0.0,
-    ) == ()
+    assert (
+        _best_penalized_operation_chart(
+            ((float("-inf"), ()),),
+            penalty=0.0,
+        )
+        == ()
+    )
 
 
 def test_compositional_kbest_chart_preserves_the_greedy_chart_then_falls_back() -> None:
@@ -513,9 +523,7 @@ def test_compositional_relation_diagnostic_separates_runtime_and_oracle_spans() 
     assert report["splits"]["test"]["total"] == 20
     assert report["splits"]["test"]["runtime_top1"] <= 20
     assert report["splits"]["test"]["oracle_top1"] <= 20
-    assert sum(
-        row["total"] for row in report["splits"]["test"]["by_slot"].values()
-    ) == 20
+    assert sum(row["total"] for row in report["splits"]["test"]["by_slot"].values()) == 20
 
 
 def test_compositional_lesion_diagnostic_replays_without_refitting() -> None:
@@ -531,9 +539,10 @@ def test_compositional_lesion_diagnostic_replays_without_refitting() -> None:
     assert report["expected_answers_available_to_decode"] is False
     assert set(report["evaluated_arms"]) == set(report["arms"])
     assert report["arms"]["treatment"]["test"]["total"] == 4
-    assert report["arms"]["coefficient_lesion"]["test"]["program_exact"] < report[
-        "arms"
-    ]["treatment"]["test"]["program_exact"]
+    assert (
+        report["arms"]["coefficient_lesion"]["test"]["program_exact"]
+        < report["arms"]["treatment"]["test"]["program_exact"]
+    )
 
     focused = diagnose_compositional_transfer_lesions(
         model,
@@ -557,9 +566,7 @@ def test_compositional_lesion_diagnostic_replays_without_refitting() -> None:
 def test_shared_transducer_programs_replay_on_the_universal_floor() -> None:
     examples = _examples()
     model = fit_shared_semantic_program_transducer(examples, input_grounding=_grounding())
-    sources = {
-        relative: "d" * 64 for relative in SEMANTIC_PROGRAM_FLOOR_VERIFICATION_SOURCES
-    }
+    sources = {relative: "d" * 64 for relative in SEMANTIC_PROGRAM_FLOOR_VERIFICATION_SOURCES}
 
     report = verify_semantic_program_floor_equivalence(
         model,
@@ -654,8 +661,7 @@ def test_tokenizer_grounding_round_trips_signed_scalars_and_sequences() -> None:
         if isinstance(value, tuple):
             expected.add(str(list(value)))
         assert any(
-            tokenizer.decode(list(tokens[span.start : span.end])).strip(" ,.")
-            in expected
+            tokenizer.decode(list(tokens[span.start : span.end])).strip(" ,.") in expected
             for span in spans
         )
     assert replay.to_dict() == contract.to_dict()
@@ -698,6 +704,7 @@ def test_shared_campaign_records_family_controls_without_a_router(monkeypatch) -
         "establish_semantic_training_representation_compatibility",
         lambda _manifests: compatibility,
     )
+
     def bind(grouped, *, compatibility):
         assert compatibility["target_training_session_basis_sha256"] == _BASIS
         return tuple(
@@ -726,9 +733,7 @@ def test_shared_campaign_records_family_controls_without_a_router(monkeypatch) -
     assert set(result.report["families"]) == {"short", "long"}
     assert result.report["arms"]["treatment:test"]["program_exact"] == 4
     assert result.report["arms"]["coefficient_lesion:test"]["program_exact"] < 4
-    assert result.report["paired_program_controls"][
-        "coefficient_lesion:test"
-    ]["treatment_only"] > 0
+    assert result.report["paired_program_controls"]["coefficient_lesion:test"]["treatment_only"] > 0
 
 
 def test_shared_verifier_replays_frozen_arms_and_rejects_tampering(monkeypatch) -> None:
@@ -778,14 +783,10 @@ def test_shared_verifier_replays_frozen_arms_and_rejects_tampering(monkeypatch) 
             self.examples = examples
 
     monkeypatch.setattr(
-        "core.learning.semantic_program_shared_verification."
-        "training_examples_from_feature_bundle",
+        "core.learning.semantic_program_shared_verification.training_examples_from_feature_bundle",
         lambda bundle: bundle.examples,
     )
-    bundles = {
-        family: _Bundle(manifests[family], by_family[family])
-        for family in by_family
-    }
+    bundles = {family: _Bundle(manifests[family], by_family[family]) for family in by_family}
     sources = {
         relative: hashlib.sha256(relative.encode()).hexdigest()
         for relative in SEMANTIC_PROGRAM_SHARED_VERIFICATION_SOURCES

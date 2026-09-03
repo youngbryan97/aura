@@ -27,7 +27,7 @@ import math
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Any, Final
+from typing import Any, Final, Literal
 
 import numpy as np
 
@@ -86,9 +86,7 @@ _RELATION_TISSUE_SELECTION_INTERVAL: Final = 5
 _RELATION_TISSUE_LEARNING_RATE: Final = 0.01
 _RELATION_TISSUE_WEIGHT_DECAY: Final = 0.001
 _RELATION_TISSUE_GRADIENT_CLIP: Final = 1.0
-_ARGUMENT_PROPOSAL_SCALES: Final = tuple(
-    float(value) for value in np.linspace(0.0, 1.5, 13)
-)
+_ARGUMENT_PROPOSAL_SCALES: Final = tuple(float(value) for value in np.linspace(0.0, 1.5, 13))
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -135,9 +133,7 @@ def _mention_invariant_relation_evidence(
     combined_evidence = tuple(_log_sigmoid(value) for value in combined_logits)
     mention_evidence = max(base_evidence)
     combined_peak = max(combined_evidence)
-    return tuple(
-        mention_evidence + value - combined_peak for value in combined_evidence
-    )
+    return tuple(mention_evidence + value - combined_peak for value in combined_evidence)
 
 
 def _overlap(left: TokenSpan, right: TokenSpan) -> bool:
@@ -171,11 +167,23 @@ def _definition_span_candidates(
     *,
     token_count: int,
     max_span_tokens: int,
+    direction: Literal["left", "right"] = "right",
 ) -> tuple[TokenSpan, ...]:
-    """Enumerate causal definition envelopes anchored to one exact register."""
+    """Enumerate register envelopes toward where its name can be introduced.
 
-    stop = max(anchor.end, min(token_count, anchor.start + max_span_tokens))
-    return tuple(TokenSpan(anchor.start, end) for end in range(anchor.end, stop + 1))
+    Public literals conventionally follow their names (``reserve 7``), while a
+    computed value's name follows the operation that defines it.  Keeping the
+    direction explicit makes runtime capable of representing the same spans
+    used by relation training without opening a quadratic all-span search.
+    """
+
+    if direction == "left":
+        start = min(anchor.start, max(0, anchor.end - max_span_tokens))
+        return tuple(TokenSpan(index, anchor.end) for index in range(start, anchor.start + 1))
+    if direction == "right":
+        stop = max(anchor.end, min(token_count, anchor.start + max_span_tokens))
+        return tuple(TokenSpan(anchor.start, end) for end in range(anchor.end, stop + 1))
+    raise ValueError("definition span direction is invalid")
 
 
 def _best_penalized_operation_chart(
@@ -365,8 +373,7 @@ class DirectionalRelationHead:
         if reference.shape != definition.shape or reference.ndim != 1:
             raise ValueError("compositional relation vectors differ")
         return float(
-            (reference @ self.query_projection)
-            @ (definition @ self.definition_projection)
+            (reference @ self.query_projection) @ (definition @ self.definition_projection)
         )
 
     def score(self, reference: np.ndarray, definition: np.ndarray) -> float:
@@ -418,8 +425,7 @@ class RegisterUseContract:
 
     def allows_partial(self, counts: Counter[int], *, n_inputs: int) -> bool:
         return all(
-            count
-            <= (self.input_max_uses if register < n_inputs else self.intermediate_max_uses)
+            count <= (self.input_max_uses if register < n_inputs else self.intermediate_max_uses)
             for register, count in counts.items()
         )
 
@@ -432,12 +438,9 @@ class RegisterUseContract:
         sink: int,
     ) -> bool:
         return all(
-            self.input_min_uses <= counts[index] <= self.input_max_uses
-            for index in range(n_inputs)
+            self.input_min_uses <= counts[index] <= self.input_max_uses for index in range(n_inputs)
         ) and all(
-            self.intermediate_min_uses
-            <= counts[n_inputs + index]
-            <= self.intermediate_max_uses
+            self.intermediate_min_uses <= counts[n_inputs + index] <= self.intermediate_max_uses
             for index in range(operation_count)
             if index != sink
         )
@@ -555,9 +558,7 @@ def _best_nonoverlapping_node_charts(
 
     if limit < 1:
         raise ValueError("compositional operation-chart limit must be positive")
-    ordered = tuple(
-        sorted(nodes, key=lambda item: (item.span.end, item.span.start, -item.score))
-    )
+    ordered = tuple(sorted(nodes, key=lambda item: (item.span.end, item.span.start, -item.score)))
     previous: list[int] = []
     for index, node in enumerate(ordered):
         prior = index - 1
@@ -576,11 +577,12 @@ def _best_nonoverlapping_node_charts(
                     (score + node.score, (*selected, node))
                     for score, selected in table[previous[index - 1] + 1][size - 1]
                 )
-            unique: dict[tuple[tuple[int, int, str], ...], tuple[float, tuple[_OperationNode, ...]]] = {}
+            unique: dict[
+                tuple[tuple[int, int, str], ...], tuple[float, tuple[_OperationNode, ...]]
+            ] = {}
             for candidate in candidates:
                 key = tuple(
-                    (item.span.start, item.span.end, item.operation)
-                    for item in candidate[1]
+                    (item.span.start, item.span.end, item.operation) for item in candidate[1]
                 )
                 incumbent = unique.get(key)
                 if incumbent is None or candidate[0] > incumbent[0]:
@@ -665,9 +667,7 @@ def _fit_argument_role_heads(
         weights: list[float] = []
         for item in training:
             all_arguments = tuple(
-                span
-                for instruction in item.ir.instructions
-                for span in instruction.argument_spans
+                span for instruction in item.ir.instructions for span in instruction.argument_spans
             )
             for instruction in item.ir.instructions:
                 if position >= len(instruction.argument_spans):
@@ -749,9 +749,7 @@ def _argument_proposal_rows(
             for span in item.ir.input_spans
             if span not in observed
         )
-        operation_spans = tuple(
-            instruction.operation_span for instruction in item.ir.instructions
-        )
+        operation_spans = tuple(instruction.operation_span for instruction in item.ir.instructions)
         candidate_spans = tuple(
             span
             for span, _score in proposed
@@ -770,8 +768,7 @@ def _argument_proposal_rows(
                 span
                 for span in candidate_spans
                 if span != positive
-                and span.end - span.start
-                <= max_argument_span_tokens_by_type[required_type]
+                and span.end - span.start <= max_argument_span_tokens_by_type[required_type]
             )[:_POINTER_HARD_NEGATIVES]
             spans = (positive, *negatives)
             operation = _relation_span_vector(
@@ -883,9 +880,7 @@ def _select_argument_proposal_scale(
             logits = semantic_logits + scale * proposal_logits
             losses = np.logaddexp(0.0, logits) - labels * logits
             totals[scale] += float(np.sum(losses * weights))
-            row_correct[scale] += int(
-                np.count_nonzero((logits >= 0.0) == labels)
-            )
+            row_correct[scale] += int(np.count_nonzero((logits >= 0.0) == labels))
         row_count += int(labels.size)
     if row_count < 1:
         raise ValueError("compositional argument proposal calibration has no support")
@@ -1064,9 +1059,7 @@ def _relation_tissue_metrics(
 ) -> tuple[int, float]:
     logits = _relation_tissue_logits(batch, query_projection, definition_projection)
     centered = logits - logits.max(axis=1, keepdims=True)
-    log_probabilities = centered - np.log(
-        np.exp(centered).sum(axis=1, keepdims=True)
-    )
+    log_probabilities = centered - np.log(np.exp(centered).sum(axis=1, keepdims=True))
     rows = np.arange(batch.targets.size)
     return (
         int(np.count_nonzero(logits.argmax(axis=1) == batch.targets)),
@@ -1193,12 +1186,12 @@ def _fit_low_rank_relation_tissue(
                 moment += (1.0 - beta1) * gradient
                 variance *= beta2
                 variance += (1.0 - beta2) * gradient * gradient
-                parameter *= 1.0 - (
-                    _RELATION_TISSUE_LEARNING_RATE * _RELATION_TISSUE_WEIGHT_DECAY
+                parameter *= 1.0 - (_RELATION_TISSUE_LEARNING_RATE * _RELATION_TISSUE_WEIGHT_DECAY)
+                parameter -= (
+                    _RELATION_TISSUE_LEARNING_RATE
+                    * (moment / (1.0 - beta1**update))
+                    / (np.sqrt(variance / (1.0 - beta2**update)) + epsilon)
                 )
-                parameter -= _RELATION_TISSUE_LEARNING_RATE * (
-                    moment / (1.0 - beta1**update)
-                ) / (np.sqrt(variance / (1.0 - beta2**update)) + epsilon)
         if epoch % _RELATION_TISSUE_SELECTION_INTERVAL:
             continue
         correct, loss = _relation_tissue_metrics(validate, query, definition)
@@ -1232,9 +1225,7 @@ def _fit_register_use_contract(
     distinct_arguments = True
     for item in training:
         counts: Counter[int] = Counter(
-            register
-            for instruction in item.ir.instructions
-            for register in instruction.args
+            register for instruction in item.ir.instructions for register in instruction.args
         )
         input_uses.extend(counts[index] for index in range(item.ir.n_inputs))
         intermediate_uses.extend(
@@ -1292,9 +1283,10 @@ def _select_definition_pointer_scale(
                     anchor,
                     token_count=item.hidden_states.shape[0],
                     max_span_tokens=max_definition_span_tokens,
+                    direction=("left" if index < item.ir.n_inputs else "right"),
                 )
             )
-            for anchor in anchors
+            for index, anchor in enumerate(anchors)
         )
         for step, instruction in enumerate(item.ir.instructions):
             available = item.ir.n_inputs + step
@@ -1319,8 +1311,7 @@ def _select_definition_pointer_scale(
                         for register_candidates in candidates[:available]
                     )
                     correct[scale] += int(
-                        max(range(available), key=lambda index: scores[index])
-                        == expected_register
+                        max(range(available), key=lambda index: scores[index]) == expected_register
                     )
                 total += 1
     if total < 1:
@@ -1396,9 +1387,10 @@ def _assign_typed_arguments(
                 span,
                 token_count=hidden.shape[0],
                 max_span_tokens=model.max_definition_span_tokens,
+                direction=("left" if index < len(inputs) else "right"),
             )
         )
-        for span in definitions
+        for index, span in enumerate(definitions)
     )
     reference_vectors = {
         span: _relation_span_vector(
@@ -1481,8 +1473,7 @@ def _assign_typed_arguments(
                     relation_scores[span][register] for register in eligible_registers
                 )
                 base_raw_relation_scores = tuple(
-                    base_relation_scores[span][register]
-                    for register in eligible_registers
+                    base_relation_scores[span][register] for register in eligible_registers
                 )
                 relation_evidence = _mention_invariant_relation_evidence(
                     base_raw_relation_scores,
@@ -1507,8 +1498,7 @@ def _assign_typed_arguments(
                     score = (
                         model.argument_role_scale * _log_sigmoid(role_score)
                         + model.argument_proposal_scale * _log_sigmoid(proposal_score)
-                        + model.definition_relation_scale
-                        * candidate_relation_evidence
+                        + model.definition_relation_scale * candidate_relation_evidence
                         + model.argument_pointer_scale * _log_sigmoid(pointer_score)
                     )
                     by_register.setdefault(register, []).append((score, span))
@@ -1583,9 +1573,7 @@ def _assign_typed_arguments(
                 ):
                     continue
                 use_counts: Counter[int] = Counter(
-                    register
-                    for values in (*arguments, step_arguments)
-                    for register in values
+                    register for values in (*arguments, step_arguments) for register in values
                 )
                 if not model.register_use_contract.allows_partial(
                     use_counts,
@@ -1739,9 +1727,7 @@ class CompositionalSemanticProgramTransducer:
         receipt = json.loads(_canonical_bytes(self.training_receipt))
         relation_fit = receipt.get("relation_tissue_fit")
         relation_selection = (
-            relation_fit.get("validation_selection")
-            if isinstance(relation_fit, Mapping)
-            else None
+            relation_fit.get("validation_selection") if isinstance(relation_fit, Mapping) else None
         )
         relation_start, relation_end = _channel_span(
             _RELATION_CHANNEL,
@@ -1807,23 +1793,17 @@ class CompositionalSemanticProgramTransducer:
             or receipt.get("register_use_contract") != self.register_use_contract.to_dict()
             or not isinstance(relation_fit, Mapping)
             or relation_fit.get("algorithm") != "minibatch_adamw_cross_entropy_v1"
-            or relation_fit.get("selection_objective")
-            != "minimum_validation_cross_entropy"
-            or relation_fit.get("rank")
-            != self.definition_relation_head.query_projection.shape[1]
+            or relation_fit.get("selection_objective") != "minimum_validation_cross_entropy"
+            or relation_fit.get("rank") != self.definition_relation_head.query_projection.shape[1]
             or relation_fit.get("seed") != _RELATION_TISSUE_SEED
-            or receipt.get("relation_score_contract")
-            != "mention_invariant_conditional_tissue_v1"
-            or receipt.get("argument_role_contract")
-            != "semantic_and_pointer_proposal_product_v1"
+            or receipt.get("relation_score_contract") != "mention_invariant_conditional_tissue_v1"
+            or receipt.get("argument_role_contract") != "semantic_and_pointer_proposal_product_v1"
             or not isinstance(receipt.get("argument_proposal_fit"), Mapping)
             or receipt["argument_proposal_fit"].get("hard_negative_limit")
             != _POINTER_HARD_NEGATIVES
             or receipt["argument_proposal_fit"].get("scale_selection_objective")
             != "minimum_validation_cross_entropy"
-            or not isinstance(
-                receipt["argument_proposal_fit"].get("scale_selection"), list
-            )
+            or not isinstance(receipt["argument_proposal_fit"].get("scale_selection"), list)
             or sum(
                 isinstance(row, Mapping) and row.get("selected") is True
                 for row in receipt["argument_proposal_fit"]["scale_selection"]
@@ -1837,8 +1817,7 @@ class CompositionalSemanticProgramTransducer:
             )
             or type(receipt["argument_proposal_fit"].get("positive_rows")) is not int
             or receipt["argument_proposal_fit"]["positive_rows"] < 1
-            or type(receipt["argument_proposal_fit"].get("pointer_hard_negative_rows"))
-            is not int
+            or type(receipt["argument_proposal_fit"].get("pointer_hard_negative_rows")) is not int
             or receipt["argument_proposal_fit"]["pointer_hard_negative_rows"] < 1
             or not isinstance(relation_selection, list)
             or sum(
@@ -1867,9 +1846,7 @@ class CompositionalSemanticProgramTransducer:
             "definition_pointer": self.definition_pointer.to_dict(),
             "operation_head": self.operation_head.to_dict(),
             "argument_role_heads": [head.to_dict() for head in self.argument_role_heads],
-            "argument_proposal_heads": [
-                head.to_dict() for head in self.argument_proposal_heads
-            ],
+            "argument_proposal_heads": [head.to_dict() for head in self.argument_proposal_heads],
             "definition_relation_head": self.definition_relation_head.to_dict(),
             "operation_length_penalty": self.operation_length_penalty,
             "argument_role_scale": self.argument_role_scale,
@@ -2403,17 +2380,15 @@ def fit_compositional_semantic_program_transducer(
         hidden_channels=hidden_channels,
         hidden_channel_widths=hidden_channel_widths,
     )
-    argument_proposal_scale, argument_proposal_scale_rows = (
-        _select_argument_proposal_scale(
-            validation,
-            argument_pointer=argument_pointer,
-            semantic_heads=argument_role_heads,
-            proposal_heads=argument_proposal_heads,
-            max_span_tokens=max_span_tokens,
-            max_argument_span_tokens_by_type=max_argument_span_tokens_by_type,
-            hidden_channels=hidden_channels,
-            hidden_channel_widths=hidden_channel_widths,
-        )
+    argument_proposal_scale, argument_proposal_scale_rows = _select_argument_proposal_scale(
+        validation,
+        argument_pointer=argument_pointer,
+        semantic_heads=argument_role_heads,
+        proposal_heads=argument_proposal_heads,
+        max_span_tokens=max_span_tokens,
+        max_argument_span_tokens_by_type=max_argument_span_tokens_by_type,
+        hidden_channels=hidden_channels,
+        hidden_channel_widths=hidden_channel_widths,
     )
     item_weights = {id(item): 1.0 / geometries[_geometry(item)] for item in training}
     relation_weight, relation_bias = _fit_directional_relation_head(
@@ -2646,10 +2621,7 @@ def compositional_semantic_program_transducer_from_dict(
             for key, value in payload["max_argument_span_tokens_by_type"].items()
         },
         register_use_contract=RegisterUseContract(
-            **{
-                str(key): value
-                for key, value in payload["register_use_contract"].items()
-            }
+            **{str(key): value for key, value in payload["register_use_contract"].items()}
         ),
         operation_chart_beam=int(
             payload.get(

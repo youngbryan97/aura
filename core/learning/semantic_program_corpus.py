@@ -2508,6 +2508,76 @@ _NATURAL_SEQUENCE_DOMAINS: Final = (
     ),
 )
 
+_NATURAL_SOURCE_SCALAR_DOMAINS: Final = (
+    ("shipping desk", "received parcels", "dispatched parcels", "batch factor"),
+    ("support queue", "opened tickets", "resolved tickets", "priority factor"),
+    ("clinic board", "morning visits", "afternoon visits", "staffing factor"),
+    ("factory line", "first shift units", "second shift units", "yield factor"),
+    ("library desk", "checked-out books", "returned books", "shelving factor"),
+    ("farm ledger", "north field crates", "south field crates", "packing factor"),
+    ("network console", "accepted packets", "dropped packets", "routing factor"),
+    ("theater office", "matinee seats", "evening seats", "pricing factor"),
+)
+
+_NATURAL_SOURCE_SEQUENCE_DOMAINS: Final = (
+    (
+        "shipping desk",
+        "parcel counts by bay",
+        "zero-based bay index",
+        "target parcel count",
+        "batch factor",
+    ),
+    (
+        "support queue",
+        "ticket counts by hour",
+        "zero-based hour index",
+        "target ticket count",
+        "priority factor",
+    ),
+    (
+        "clinic board",
+        "visits by room",
+        "zero-based room index",
+        "target visit count",
+        "staffing factor",
+    ),
+    (
+        "factory line",
+        "units by station",
+        "zero-based station index",
+        "target unit count",
+        "yield factor",
+    ),
+    (
+        "library desk",
+        "books by cart",
+        "zero-based cart index",
+        "target book count",
+        "shelving factor",
+    ),
+    (
+        "farm ledger",
+        "crates by row",
+        "zero-based row index",
+        "target crate count",
+        "packing factor",
+    ),
+    (
+        "network console",
+        "packets by route",
+        "zero-based route index",
+        "target packet count",
+        "routing factor",
+    ),
+    (
+        "theater office",
+        "seats by section",
+        "zero-based section index",
+        "target seat count",
+        "pricing factor",
+    ),
+)
+
 _NATURAL_SCALAR_CHAINS: Final = (
     ("add", "mul", "sub"),
     ("sub", "add", "mul"),
@@ -2586,6 +2656,7 @@ def _natural_three_step_example(
     for index, (name, value) in enumerate(zip(input_names, inputs, strict=True)):
         if index:
             builder.append(", " if index < 3 else ", and ")
+        builder.begin(f"natural:definition:{index}")
         builder.append(name)
         builder.append(" ")
         rendered = (
@@ -2594,9 +2665,11 @@ def _natural_three_step_example(
             else str(value)
         )
         builder.append(rendered, label=f"natural:input:{index}")
+        builder.finish(f"natural:definition:{index}")
     builder.append(". First, ")
 
     instructions: list[SemanticInstructionAnnotation] = []
+    builder.begin("natural:definition:4")
     if schema_kind == "scalar_linear_three":
         _append_natural_binary_operation(
             builder,
@@ -2632,7 +2705,10 @@ def _natural_three_step_example(
         )
     )
 
-    builder.append(", and call that the running figure. Next, ")
+    builder.append(", and call that the running figure")
+    builder.finish("natural:definition:4")
+    builder.append(". Next, ")
+    builder.begin("natural:definition:5")
     _append_natural_binary_operation(
         builder,
         op=operations[1],
@@ -2653,7 +2729,10 @@ def _natural_three_step_example(
         )
     )
 
-    builder.append(", calling the result the revised figure. Finally, ")
+    builder.append(", calling the result the revised figure")
+    builder.finish("natural:definition:5")
+    builder.append(". Finally, ")
+    builder.begin("natural:definition:6")
     _append_natural_binary_operation(
         builder,
         op=operations[2],
@@ -2663,6 +2742,7 @@ def _natural_three_step_example(
         right_text=fourth_name,
         right_label="natural:argument:2:1",
     )
+    builder.finish("natural:definition:6")
     builder.append(". What is the final value?")
     instructions.append(
         SemanticInstructionAnnotation(
@@ -2690,7 +2770,177 @@ def _natural_three_step_example(
         contrast_id=hashlib.sha256(
             f"natural|{schema_kind}|{domain_index}|{sample_index}".encode("ascii")
         ).hexdigest()[:24],
+        register_definition_spans=tuple(
+            builder.span(f"natural:definition:{index}") for index in range(7)
+        ),
     )
+
+
+def _natural_two_step_source_example(
+    *,
+    schema_kind: str,
+    domain_index: int,
+    sample_index: int,
+    inputs: tuple[SemanticValue, ...],
+    operations: tuple[str, str],
+) -> SemanticProgramExample:
+    """Render reusable natural relations without exposing the target graph."""
+
+    if schema_kind == "scalar_linear_two":
+        domain, first_name, second_name, third_name = _NATURAL_SOURCE_SCALAR_DOMAINS[domain_index]
+    else:
+        domain, first_name, index_name, target_name, third_name = _NATURAL_SOURCE_SEQUENCE_DOMAINS[
+            domain_index
+        ]
+        second_name = index_name if schema_kind == "lookup_linear_two" else target_name
+    builder = _AnnotatedText()
+    builder.append(f"For the {domain}, the recorded inputs are ")
+    input_names = (first_name, second_name, third_name)
+    for index, (name, value) in enumerate(zip(input_names, inputs, strict=True)):
+        if index:
+            builder.append(", " if index < 2 else ", and ")
+        builder.begin(f"natural:definition:{index}")
+        builder.append(name)
+        builder.append(" ")
+        rendered = (
+            "[" + ", ".join(str(item) for item in value) + "]"
+            if isinstance(value, tuple)
+            else str(value)
+        )
+        builder.append(rendered, label=f"natural:input:{index}")
+        builder.finish(f"natural:definition:{index}")
+    builder.append(". First, ")
+
+    builder.begin("natural:definition:3")
+    if schema_kind == "scalar_linear_two":
+        _append_natural_binary_operation(
+            builder,
+            op=operations[0],
+            ordinal=0,
+            left_text=first_name,
+            left_label="natural:argument:0:0",
+            right_text=second_name,
+            right_label="natural:argument:0:1",
+        )
+    elif schema_kind == "lookup_linear_two":
+        builder.append("select the item at", label="natural:operation:0")
+        builder.append(" ")
+        builder.append(second_name, label="natural:argument:0:1")
+        builder.append(" in ")
+        builder.append(first_name, label="natural:argument:0:0")
+    elif schema_kind == "count_linear_two":
+        builder.append("count", label="natural:operation:0")
+        builder.append(" how often ")
+        builder.append(second_name, label="natural:argument:0:1")
+        builder.append(" occurs in ")
+        builder.append(first_name, label="natural:argument:0:0")
+    else:  # pragma: no cover - builder owns the schema inventory
+        raise ValueError("natural source procedure schema is unsupported")
+    first_instruction = SemanticInstructionAnnotation(
+        instruction=Instruction(operations[0], (0, 1)),
+        operation_span=builder.span("natural:operation:0"),
+        argument_spans=tuple(
+            builder.span(f"natural:argument:0:{position}") for position in range(2)
+        ),
+        depends_on=(),
+    )
+    builder.append(", and call that the running figure")
+    builder.finish("natural:definition:3")
+    builder.append(". Then, ")
+
+    builder.begin("natural:definition:4")
+    _append_natural_binary_operation(
+        builder,
+        op=operations[1],
+        ordinal=1,
+        left_text="the running figure",
+        left_label="natural:argument:1:0",
+        right_text=third_name,
+        right_label="natural:argument:1:1",
+    )
+    builder.finish("natural:definition:4")
+    builder.append(". What is the final value?")
+    second_instruction = SemanticInstructionAnnotation(
+        instruction=Instruction(operations[1], (3, 2)),
+        operation_span=builder.span("natural:operation:1"),
+        argument_spans=tuple(
+            builder.span(f"natural:argument:1:{position}") for position in range(2)
+        ),
+        depends_on=(0,),
+    )
+    construction_id = f"natural-source-{schema_kind}-{domain_index}"
+    identity = f"{construction_id}|{sample_index}|{inputs}|{operations}|{builder.text}"
+    split: CorpusSplit = (
+        "train" if domain_index < 4 else "validation" if domain_index < 6 else "test"
+    )
+    return SemanticProgramExample(
+        example_id=hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24],
+        construction_id=construction_id,
+        topology_id=schema_kind,
+        split=split,
+        source_text=builder.text,
+        inputs=inputs,
+        input_spans=tuple(builder.span(f"natural:input:{index}") for index in range(3)),
+        instructions=(first_instruction, second_instruction),
+        report_value=4,
+        contrast_id=hashlib.sha256(
+            f"natural-source|{schema_kind}|{domain_index}|{sample_index}".encode("ascii")
+        ).hexdigest()[:24],
+        register_definition_spans=tuple(
+            builder.span(f"natural:definition:{index}") for index in range(5)
+        ),
+    )
+
+
+def build_semantic_program_natural_source_corpus(
+    *,
+    seed: int = 2718281,
+    examples_per_schema_domain: int = 1,
+) -> tuple[SemanticProgramExample, ...]:
+    """Teach natural local relations on schemas and domains outside the target."""
+
+    if examples_per_schema_domain < 1:
+        raise ValueError("natural source corpus needs a sample in every schema-domain cell")
+    rng = random.Random(seed)
+    examples: list[SemanticProgramExample] = []
+    schemas = ("scalar_linear_two", "lookup_linear_two", "count_linear_two")
+    for schema_index, schema_kind in enumerate(schemas):
+        for domain_index in range(len(_NATURAL_SOURCE_SCALAR_DOMAINS)):
+            for sample_index in range(examples_per_schema_domain):
+                chain = _NATURAL_SCALAR_CHAINS[
+                    (schema_index * 3 + domain_index + sample_index) % len(_NATURAL_SCALAR_CHAINS)
+                ]
+                operations = (chain[0], chain[1])
+                if schema_kind == "scalar_linear_two":
+                    inputs: tuple[SemanticValue, ...] = (
+                        rng.randint(120, 940),
+                        rng.randint(11, 89),
+                        rng.randint(2, 9),
+                    )
+                else:
+                    selector = rng.randint(1, 5)
+                    values = [rng.randint(10, 80) for _ in range(7)]
+                    if schema_kind == "count_linear_two":
+                        wanted = rng.randint(3, 9)
+                        values[1] = wanted
+                        values[4] = wanted
+                        first_op = "count_of"
+                        second_input = wanted
+                    else:
+                        first_op = "at"
+                        second_input = selector
+                    inputs = (tuple(values), second_input, rng.randint(2, 9))
+                    operations = (first_op, operations[1])
+                examples.append(
+                    _natural_two_step_source_example(
+                        schema_kind=schema_kind,
+                        domain_index=domain_index,
+                        sample_index=sample_index,
+                        inputs=inputs,
+                        operations=operations,
+                    )
+                )
+    return tuple(examples)
 
 
 def build_semantic_program_natural_request_corpus(
@@ -2838,6 +3088,7 @@ __all__ = [
     "build_semantic_program_fork_join_factorial_corpus",
     "build_semantic_program_fork_join_corpus",
     "build_semantic_program_natural_request_corpus",
+    "build_semantic_program_natural_source_corpus",
     "build_semantic_program_sequence_binary_corpus",
     "build_semantic_program_sequence_cataphoric_corpus",
     "build_semantic_program_sequence_corpus",
