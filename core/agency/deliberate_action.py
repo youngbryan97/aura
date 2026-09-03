@@ -28,6 +28,8 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 
+from core.cognition.when_the_situation_decides import nothing_to_decide
+
 logger = logging.getLogger(__name__)
 
 #: How many past consequences of one action are worth reading before a move.
@@ -861,6 +863,30 @@ async def deliberate(
     options = list(options)
     if not options:
         return Deliberation(goal=goal, situation=situation, chosen=None, reason="nothing is available to do")
+
+    # A choice of one is not a choice.
+    #
+    # A capture in draughts is compulsory: where one is available you must
+    # take it, so there is nothing to weigh, and a player who stops to think
+    # there has spent thought on a decision already made. The same shape is
+    # everywhere — one option left, a required field, a step with a single
+    # successor — and deliberating over a settled thing is the commonest way
+    # effort is wasted, because it looks exactly like diligence.
+    #
+    # Here it was costing a whole pass of her reasoning, every time, for a
+    # move that could not have come out otherwise.
+    only = nothing_to_decide(options)
+    if only is not None:
+        return Deliberation(
+            goal=goal,
+            situation=situation,
+            chosen=only,
+            rationale=f"{only.name} is the only thing available",
+            confidence=1.0,
+            considered=(only.name,),
+            reason="",
+            spoke=False,
+        )
 
     # The kind of situation, where the reading kept its arrangement.
     #
