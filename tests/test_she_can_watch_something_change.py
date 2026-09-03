@@ -60,8 +60,23 @@ def screen(monkeypatch):
         state["pressed"].append((key, expect_app))
         return True
 
+    async def frontmost():
+        return "TheThing"
+
+    async def ensure_frontmost(_app=""):
+        return True
+
+    async def to_the_front(_app=""):
+        return True
+
     monkeypatch.setattr(sp, "read_screen", read)
     monkeypatch.setattr(sp, "press", press)
+    # The host stays out of this. Left real, these call the machine's window
+    # server: three seconds a cycle, and applications brought to the front on
+    # whatever desktop the suite happens to be running on.
+    monkeypatch.setattr(sp, "_frontmost", frontmost)
+    monkeypatch.setattr(sp, "_ensure_frontmost", ensure_frontmost)
+    monkeypatch.setattr(sp, "_bring_the_thing_back_to_the_front", to_the_front)
     return state
 
 
@@ -310,6 +325,7 @@ def test_a_run_with_no_named_app_still_knows_what_it_is_typing_into(screen):
     aimed = {app for _key, app in screen["pressed"]}
     assert screen["pressed"], "no keys were pressed"
     assert len(aimed) == 1, f"her keystrokes went to more than one place: {aimed}"
+    assert aimed != {""}, "she pressed keys with nothing bound to receive them"
 
 
 # ── Clearing what blocks the content ──────────────────────────────────────

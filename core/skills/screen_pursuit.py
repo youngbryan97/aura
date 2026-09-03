@@ -1776,6 +1776,13 @@ async def _take_the_run_its_bearings(
         )
 
 
+#: How many places a reading has to show before it is worth holding as the
+#: frame, on top of showing them in both directions. A frame worked out from
+#: things that all lie on one line is a frame in one direction only: measured
+#: here, four cells in a row were held as the thing she was acting in, and
+#: every later glance of the real board then failed to be it.
+ENOUGH_TO_BE_A_FRAME = 4
+
 #: The one key she may send without knowing where it will land.
 #:
 #: Every other keystroke needs to be bound to a window, and the reason is on
@@ -3148,6 +3155,49 @@ async def pursue_on_screen(
                 pending["arranged"], pending["whole"], pending.setdefault("shapes", {})
             ),
         )
+        # And once she has found a thing laid out, that is the frame, from now.
+        #
+        # The frame used to wait until she had worked out which places answer
+        # to her, and working that out takes several acts — which she has to
+        # gather while the frame is being re-derived from every glance, so the
+        # readings she is gathering them from are not comparable with each
+        # other. She needed the frame to get the evidence and the evidence to
+        # get the frame. LIVE 2026-08-31: fifty-four moves, one watched, and
+        # a lattice that never once formed.
+        #
+        # A block she can see now is enough to start: two glances placed into
+        # the same imperfect frame can be compared, and two placed into their
+        # own perfect ones cannot. It grows as she sees more of the thing, and
+        # stops moving once what she sees fits it.
+        #
+        # Only where there is a thing laid out to hold. Any reading crops to
+        # something with rows and columns in it, a page of prose included, and
+        # a frame held from one of those is a frame around nothing: every
+        # later glance fails to be it, she declines to act, and the run spends
+        # itself getting a window to the front it was already looking at.
+        if lattice is not None and not getattr(lattice, "held", False):
+            # Its own lines, not the places that happen to be filled.
+            #
+            # A crop knows where its rows and columns are — that is what
+            # cropping worked out. Handing over only the filled cells hands
+            # over whichever of them this glance contained, and four things
+            # that happen to lie in one row make a frame one row deep that
+            # every later glance then fails to be.
+            down, across = getattr(laid_out, "down_at", ()), getattr(laid_out, "across_at", ())
+            here = [
+                (int(round(x * 100)), int(round(y * 100))) for y in down for x in across
+            ]
+            enough = (
+                _is_a_thing_laid_out(laid_out)
+                and len(here) >= ENOUGH_TO_BE_A_FRAME
+                and len(down) >= 2
+                and len(across) >= 2
+            )
+            if enough and lattice.built_from(here):
+                logger.info(
+                    "holding the frame she can see: %dx%d",
+                    lattice.rows, lattice.columns,
+                )
 
         # Is this the thing she was asked to act in.
         #
@@ -4357,6 +4407,19 @@ async def pursue_on_screen(
                 if narrate:
                     _tell(here.said())
                 logger.info("not pressing anything: %s", here.said())
+                # And not being able to see it is evidence about the frame.
+                #
+                # Otherwise a frame worked out from a poor first glance locks
+                # her out of the thing for the rest of the run: every reading
+                # fails to be it, she declines to press, and nothing ever
+                # revises the frame that is doing the declining. Several in a
+                # row is the thing having changed rather than one bad look,
+                # which is the judgement the lattice already makes.
+                lattice.would_not_fit += 1
+                if lattice.has_changed():
+                    logger.info("the frame I was holding was not the thing after all")
+                    responds["lattice"] = TheLatticeSheHolds()
+                    responds["moving"] = MovesWithinItself()
                 if target_app:
                     await _bring_the_thing_back_to_the_front(target_app)
                 pending["arranged"] = None
