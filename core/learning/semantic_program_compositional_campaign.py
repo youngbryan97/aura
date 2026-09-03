@@ -276,6 +276,7 @@ def run_compositional_leave_family_out_campaign(
     *,
     held_out_family: str,
     input_grounding: SemanticInputGroundingContract,
+    evaluation_families: Sequence[str] | None = None,
 ) -> CompositionalLeaveFamilyOutResult:
     """Fit without one named family and measure transfer to every family."""
 
@@ -348,14 +349,28 @@ def run_compositional_leave_family_out_campaign(
             for item in held_out_examples
         ),
     }
+    evaluated_families = (
+        tuple(sorted(bound_by_family))
+        if evaluation_families is None
+        else tuple(dict.fromkeys(evaluation_families))
+    )
+    if (
+        not evaluated_families
+        or held_out_family not in evaluated_families
+        or not set(evaluated_families) <= set(bound_by_family)
+    ):
+        raise ValueError(
+            "compositional evaluation families must be known and include the held-out family"
+        )
     families = {
-        family: _family_report(model, examples)
-        for family, examples in sorted(bound_by_family.items())
+        family: _family_report(model, bound_by_family[family])
+        for family in evaluated_families
     }
     body = {
         "schema": COMPOSITIONAL_LEAVE_FAMILY_OUT_SCHEMA,
         "held_out_family": held_out_family,
         "fit_families": fit_families,
+        "evaluated_families": list(evaluated_families),
         "feature_manifest_sha256s": {
             family: manifests[family]["manifest_sha256"] for family in sorted(manifests)
         },

@@ -110,6 +110,7 @@ def test_withheld_family_cannot_choose_the_training_session_basis(monkeypatch) -
         bundles,
         held_out_family="held",
         input_grounding=_grounding(),
+        evaluation_families=("held",),
     )
 
     assert observed["fit_manifest_names"] == {"fit_a", "fit_b"}
@@ -123,3 +124,5 @@ def test_withheld_family_cannot_choose_the_training_session_basis(monkeypatch) -
         held_compatibility
     )
     assert result.report["families"]["held"]["example_count"] == len(examples)
+    assert result.report["evaluated_families"] == ["held"]
+    assert set(result.report["families"]) == {"held"}

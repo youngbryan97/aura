@@ -47,6 +47,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle", action="append", required=True, metavar="FAMILY=PATH")
     parser.add_argument("--held-out-family", required=True)
+    parser.add_argument(
+        "--held-out-only",
+        action="store_true",
+        help="Evaluate only the held-out family after fitting every source family",
+    )
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--model-output", type=Path, required=True)
     parser.add_argument("--report-output", type=Path, required=True)
@@ -100,6 +105,7 @@ def main() -> int:
             bundles,
             held_out_family=args.held_out_family,
             input_grounding=input_grounding,
+            evaluation_families=(args.held_out_family,) if args.held_out_only else None,
         )
         for path, payload in zip(
             outputs,
@@ -134,6 +140,7 @@ def main() -> int:
                 "held_out_argument_exact": held_out["held_out_argument_exact"],
                 "held_out_answer_exact": held_out["held_out_answer_exact"],
                 "held_out_total": held_out["held_out_total"],
+                "evaluated_families": result.report["evaluated_families"],
                 "report_sha256": result.report["report_sha256"],
                 "transducer_receipt_sha256": result.model.receipt_sha256,
                 "model_output": str(outputs[0]),
