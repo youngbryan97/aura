@@ -81,6 +81,9 @@ class TheLatticeSheHolds:
     #: over it.
     crowded_for: int = 0
     _built_from: frozenset[tuple[int, int]] = field(default_factory=frozenset)
+    #: The places offered last time, so a set that has stopped changing can be
+    #: told from one that is still growing.
+    _offered: frozenset[tuple[int, int]] = field(default_factory=frozenset)
 
     #: How many readings in a row have to refuse to fit before she accepts the
     #: thing itself has changed. One is a bad glance. Two disagreeing with each
@@ -108,6 +111,30 @@ class TheLatticeSheHolds:
         """
         held = frozenset(places)
         if len(held) < 2 or held == self._built_from:
+            return False
+        # Built from places that have stopped changing, not from places seen
+        # twice.
+        #
+        # The set grows as she watches, so building from it the moment it has
+        # two entries builds from whatever the first two happened to be. That
+        # was survivable while remembered places counted immediately, because
+        # a sitting inherited a full set. Once they have to be seen again, a
+        # short sitting genuinely has almost nothing of its own — and it built
+        # a grid out of it and wrote that down. LIVE 2026-09-02, four sittings
+        # running: five by nine, one by two, five by four, twelve by sixteen,
+        # each one starting from the last one's wreckage.
+        #
+        # The same set twice running means the evidence has settled. Nothing
+        # is chosen: it is offered whatever it is offered, and waits.
+        if held != self._offered:
+            self._offered = held
+            return False
+        # And enough of them to be a grid at all. Fewer places than lines
+        # means every line rests on one place, which is not a grid — it is a
+        # few things she has seen, drawn through.
+        if len(held) <= len(_lines_through([x / 100 for x, _y in held])) + len(
+            _lines_through([y / 100 for _x, y in held])
+        ):
             return False
         # A place that already fits is not news about the shape.
         #

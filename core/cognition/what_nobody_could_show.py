@@ -24,8 +24,8 @@ Two kinds of evidence and one closure. Somebody asked about several things and
 produced none of them holds none of them. Somebody who produced one of them,
 without saying which, holds at least one — worth less, and worth keeping,
 because it becomes worth a great deal once the others are crossed off. And a
-candidate nobody can hold is the hidden one, which is the whole point of the
-grid: the answer is arrived at by elimination and never by being seen.
+candidate nobody can hold is the hidden one. The answer is arrived at by
+elimination and never by being seen, which is what the grid is for.
 """
 
 from __future__ import annotations
