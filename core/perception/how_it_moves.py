@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Iterable, Sequence
 
 from core.perception.what_is_there import Arrangement, Cell
 
@@ -830,6 +830,30 @@ class HowItMoves:
         asks the question of it.
         """
         return tuple(self._record)
+
+    def told_these_report(self, places: Iterable[tuple[int, int]]) -> int:
+        """Places she has established elsewhere are readouts rather than things.
+
+        This works out for itself which places sit still and keep saying
+        something different, and it needs many observations to do it — while
+        every observation it is learning from is scored against a rule that is
+        wrong about a score every single time. So it cannot get the evidence
+        until it has the answer.
+
+        The split between what rearranges and what reports is worked out
+        elsewhere, from the same acts, and settles far sooner. Told, this
+        starts from what she already knows rather than from nothing. Measured
+        on a board with a score above it: the right rule scored nought out of
+        five, because the score changed under it on every one of them.
+        """
+        told = {
+            (int(row), int(column))
+            for row, column in places or ()
+            if (int(row), int(column)) not in self._a_place
+        }
+        fresh = told - self.counters
+        self.counters |= told
+        return len(fresh)
 
     def the_thing(self, arrangement: Arrangement) -> Arrangement:
         """The part of a reading that behaves like one thing.

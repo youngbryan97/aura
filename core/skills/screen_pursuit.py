@@ -1776,13 +1776,6 @@ async def _take_the_run_its_bearings(
         )
 
 
-#: How many places a reading has to show before it is worth holding as the
-#: frame, on top of showing them in both directions. A frame worked out from
-#: things that all lie on one line is a frame in one direction only: measured
-#: here, four cells in a row were held as the thing she was acting in, and
-#: every later glance of the real board then failed to be it.
-ENOUGH_TO_BE_A_FRAME = 4
-
 #: The one key she may send without knowing where it will land.
 #:
 #: Every other keystroke needs to be bound to a window, and the reason is on
@@ -1903,6 +1896,29 @@ def _what_she_could_not_learn_from(dropped: dict[str, int]) -> str:
         return ""
     said = ", ".join(f"{count} to {why}" for why, count in sorted(lost.items()))
     return f" | could not learn from {said}"
+
+
+def _placed_in(lattice: Any, places: Any) -> list[tuple[int, int]]:
+    """Places named in shares of the window, said as rows and columns.
+
+    The part of her that works out what moves counts places where they sit on
+    the screen; the part that works out how they move counts them by row and
+    column in the thing. The lattice is what turns one into the other, and
+    without it the two cannot tell each other anything.
+    """
+    down, across = getattr(lattice, "down_at", ()), getattr(lattice, "across_at", ())
+    if not down or not across:
+        return []
+    said: list[tuple[int, int]] = []
+    for place in places or ():
+        try:
+            x, y = float(place[0]) / 100.0, float(place[1]) / 100.0
+        except (IndexError, TypeError, ValueError):
+            continue
+        row = min(range(len(down)), key=lambda one: abs(down[one] - y))
+        column = min(range(len(across)), key=lambda one: abs(across[one] - x))
+        said.append((row, column))
+    return said
 
 
 def _the_thing_she_is_acting_in(whole: Any, lattice: Any, like: Any = None) -> Any:
@@ -3128,6 +3144,24 @@ async def pursue_on_screen(
                         # Everything counted while the grid was the wrong
                         # shape was counted about a thing that does not exist.
                         knows.rules.learned_through_a_different_reading()
+            # And which of its places only report, told rather than re-derived.
+            #
+            # The rule learner works this out for itself, and needs many
+            # observations to do it — while every observation it is learning
+            # from is scored against a rule that is wrong about a score every
+            # single time. So it could not get the evidence until it had the
+            # answer. This split is worked out from the same acts and settles
+            # far sooner. Measured on a board with a score above it: the right
+            # rule scored nought out of five.
+            reporting = moving.the_things_that_report()
+            if reporting and knows.rules is not None:
+                told = knows.rules.told_these_report(
+                    _placed_in(responds["lattice"], reporting)
+                )
+                if told:
+                    logger.info(
+                        "%d place(s) only report; they are not hers to move", told
+                    )
         # The same reading, with a place for each thing in it. What she reads
         # is the string; what her claims are checked against is this.
         # The thing she is acting on, not the page it is drawn on.
@@ -3155,49 +3189,6 @@ async def pursue_on_screen(
                 pending["arranged"], pending["whole"], pending.setdefault("shapes", {})
             ),
         )
-        # And once she has found a thing laid out, that is the frame, from now.
-        #
-        # The frame used to wait until she had worked out which places answer
-        # to her, and working that out takes several acts — which she has to
-        # gather while the frame is being re-derived from every glance, so the
-        # readings she is gathering them from are not comparable with each
-        # other. She needed the frame to get the evidence and the evidence to
-        # get the frame. LIVE 2026-08-31: fifty-four moves, one watched, and
-        # a lattice that never once formed.
-        #
-        # A block she can see now is enough to start: two glances placed into
-        # the same imperfect frame can be compared, and two placed into their
-        # own perfect ones cannot. It grows as she sees more of the thing, and
-        # stops moving once what she sees fits it.
-        #
-        # Only where there is a thing laid out to hold. Any reading crops to
-        # something with rows and columns in it, a page of prose included, and
-        # a frame held from one of those is a frame around nothing: every
-        # later glance fails to be it, she declines to act, and the run spends
-        # itself getting a window to the front it was already looking at.
-        if lattice is not None and not getattr(lattice, "held", False):
-            # Its own lines, not the places that happen to be filled.
-            #
-            # A crop knows where its rows and columns are — that is what
-            # cropping worked out. Handing over only the filled cells hands
-            # over whichever of them this glance contained, and four things
-            # that happen to lie in one row make a frame one row deep that
-            # every later glance then fails to be.
-            down, across = getattr(laid_out, "down_at", ()), getattr(laid_out, "across_at", ())
-            here = [
-                (int(round(x * 100)), int(round(y * 100))) for y in down for x in across
-            ]
-            enough = (
-                _is_a_thing_laid_out(laid_out)
-                and len(here) >= ENOUGH_TO_BE_A_FRAME
-                and len(down) >= 2
-                and len(across) >= 2
-            )
-            if enough and lattice.built_from(here):
-                logger.info(
-                    "holding the frame she can see: %dx%d",
-                    lattice.rows, lattice.columns,
-                )
 
         # Is this the thing she was asked to act in.
         #
