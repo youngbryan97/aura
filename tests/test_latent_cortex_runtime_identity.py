@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from types import SimpleNamespace
 
 from core.brain.llm.latent_cortex import runtime_identity
@@ -146,6 +147,54 @@ def test_worker_identity_accepts_production_steering_coefficient():
     identity["worker_affective_steering_alpha"] = 5.525
 
     assert runtime_identity.worker_identity_errors(identity) == []
+
+
+def test_worker_identity_zeroes_an_unattached_steering_coefficient(
+    monkeypatch, tmp_path
+):
+    source = tmp_path / "worker.py"
+    source.write_text("# worker\n", encoding="utf-8")
+    capture = build_worker_capture_identity(
+        worker_boot_id="d" * 32,
+        worker_pid=os.getpid(),
+    )
+    monkeypatch.setattr(runtime_identity, "model_parameter_count", lambda _model: 10)
+    monkeypatch.setattr(
+        runtime_identity,
+        "logical_model_parameter_count",
+        lambda _path, *, stored_element_count: (
+            stored_element_count,
+            "stored_tensor_elements",
+        ),
+    )
+    monkeypatch.setattr(
+        runtime_identity,
+        "serving_stack_identity",
+        lambda *_args, **_kwargs: complete_serving_stack(),
+    )
+
+    identity = runtime_identity.build_worker_identity(
+        object(),
+        model_path=tmp_path,
+        worker_boot_id="d" * 32,
+        worker_source_path=source,
+        worker_action_capture_identity=capture.public_identity,
+        affective_steering_active=False,
+        affective_steering_alpha=0.2,
+    )
+
+    assert identity["worker_affective_steering_active"] is False
+    assert identity["worker_affective_steering_alpha"] == 0.0
+    assert runtime_identity.worker_identity_errors(identity) == []
+
+
+def test_worker_identity_rejects_alpha_without_active_steering():
+    identity = _worker_identity()
+    identity["worker_affective_steering_active"] = False
+
+    assert "inactive_worker_affective_steering_has_alpha" in (
+        runtime_identity.worker_identity_errors(identity)
+    )
 
 
 def test_representation_basis_survives_restart_but_not_neural_stack_drift():

@@ -291,6 +291,10 @@ def build_worker_identity(
             "invalid worker recurrent-adapter activation: "
             + ",".join(activation_errors)
         )
+    steering_active = bool(affective_steering_active)
+    effective_steering_alpha = (
+        float(affective_steering_alpha) if steering_active else 0.0
+    )
     return {
         "schema": WORKER_IDENTITY_SCHEMA,
         "worker_boot_id": boot_id,
@@ -300,8 +304,8 @@ def build_worker_identity(
         "worker_model_stored_parameter_element_count": stored_element_count,
         "worker_model_parameter_count_basis": count_basis,
         "worker_source_sha256": _stable_sha256(worker_source_path, max_bytes=8 * 1024 * 1024),
-        "worker_affective_steering_active": bool(affective_steering_active),
-        "worker_affective_steering_alpha": float(affective_steering_alpha),
+        "worker_affective_steering_active": steering_active,
+        "worker_affective_steering_alpha": effective_steering_alpha,
         "worker_action_capture_identity": capture_identity,
         "worker_recurrent_adapter_activation": activation,
         # CP126 866530f6. Model path plus a parameter count cannot tell two
@@ -811,6 +815,10 @@ def worker_identity_errors(
         or not 0.0 <= float(steering_alpha) <= MAX_AFFECTIVE_STEERING_ALPHA
     ):
         errors.append("invalid_worker_affective_steering_alpha")
+    elif receipt.get("worker_affective_steering_active") is False and float(
+        steering_alpha
+    ) != 0.0:
+        errors.append("inactive_worker_affective_steering_has_alpha")
     if schema in {
         "aura.latent_cortex.worker_identity.v2",
         WORKER_IDENTITY_SCHEMA,
