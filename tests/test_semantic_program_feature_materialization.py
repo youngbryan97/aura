@@ -31,6 +31,7 @@ from core.learning.semantic_program_feature_materialization import (
     FORK_JOIN_CORPUS_KIND,
     FORK_JOIN_FACTORIAL_CORPUS_KIND,
     FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
+    NATURAL_REQUEST_CORPUS_KIND,
     SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
     SEQUENCE_CATAPHORIC_CORPUS_KIND,
     SEQUENCE_CHAIN_CORPUS_KIND,
@@ -471,6 +472,28 @@ def test_sequence_role_binding_family_reconstructs_from_declared_config() -> Non
         split: sum(item.split == split for item in corpus)
         for split in ("train", "validation", "test")
     } == {"train": 48, "validation": 48, "test": 48}
+
+
+def test_natural_request_family_reconstructs_from_declared_config() -> None:
+    config = SemanticFeatureConfig(
+        seed=3141592,
+        examples_per_operation_pair=1,
+        max_examples=24,
+        corpus_kind=NATURAL_REQUEST_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+    )
+
+    corpus = build_semantic_program_corpus_for_config(config)
+
+    assert len(corpus) == 24
+    assert {item.topology_id for item in corpus} == {
+        "scalar_linear_three",
+        "lookup_linear_three",
+        "count_linear_three",
+    }
+    assert {
+        split: sum(item.split == split for item in corpus) for split in ("validation", "test")
+    } == {"validation": 12, "test": 12}
 
 
 def test_sequence_feature_bundle_round_trips_nested_exact_values(tmp_path: Path) -> None:

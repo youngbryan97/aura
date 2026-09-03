@@ -6,6 +6,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
     build_semantic_program_fork_join_factorial_corpus,
+    build_semantic_program_natural_request_corpus,
     build_semantic_program_sequence_binary_corpus,
     build_semantic_program_sequence_cataphoric_corpus,
     build_semantic_program_sequence_corpus,
@@ -567,3 +568,35 @@ def test_sequence_role_binding_corpus_is_deterministic_and_seeded() -> None:
 
     assert first == replay
     assert tuple(item.inputs for item in first) != tuple(item.inputs for item in changed)
+
+
+def test_natural_request_corpus_withholds_three_complete_linear_schemas() -> None:
+    examples = build_semantic_program_natural_request_corpus()
+
+    assert len(examples) == 24
+    assert {item.topology_id for item in examples} == {
+        "scalar_linear_three",
+        "lookup_linear_three",
+        "count_linear_three",
+    }
+    assert {item.split for item in examples} == {"validation", "test"}
+    assert all(len(item.inputs) == 4 and len(item.instructions) == 3 for item in examples)
+    assert all(
+        tuple(step.instruction.args for step in item.instructions) == ((0, 1), (4, 2), (5, 3))
+        for item in examples
+    )
+    assert all(item.program.run(item.inputs) is not None for item in examples)
+
+
+def test_natural_request_corpus_varies_domain_independently_of_schema() -> None:
+    examples = build_semantic_program_natural_request_corpus()
+    by_schema = {
+        schema: [item for item in examples if item.topology_id == schema]
+        for schema in {item.topology_id for item in examples}
+    }
+
+    assert all(len(items) == 8 for items in by_schema.values())
+    assert all(len({item.construction_id for item in items}) == 8 for items in by_schema.values())
+    assert len({item.source_text for item in examples}) == len(examples)
+    assert build_semantic_program_natural_request_corpus() == examples
+    assert build_semantic_program_natural_request_corpus(seed=3141593) != examples

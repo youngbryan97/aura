@@ -2437,6 +2437,324 @@ def build_semantic_program_sequence_role_binding_corpus(
     return tuple(examples)
 
 
+_NATURAL_SCALAR_DOMAINS: Final = (
+    ("warehouse", "arrivals", "returns", "scale", "reserve"),
+    ("project dashboard", "opened issues", "closed issues", "weight", "holdback"),
+    ("event desk", "advance tickets", "door tickets", "room factor", "staff reserve"),
+    ("energy monitor", "solar units", "grid units", "conversion factor", "safety reserve"),
+    ("kitchen", "first batch", "second batch", "portion factor", "sample reserve"),
+    ("research ledger", "confirmed cases", "new cases", "study weight", "audit reserve"),
+    ("transit board", "northbound riders", "southbound riders", "route factor", "service reserve"),
+    ("studio schedule", "morning minutes", "afternoon minutes", "billing factor", "setup reserve"),
+)
+
+_NATURAL_SEQUENCE_DOMAINS: Final = (
+    ("warehouse", "shelf counts", "zero-based shelf index", "target count", "scale", "reserve"),
+    (
+        "project dashboard",
+        "issue counts by sprint",
+        "zero-based sprint index",
+        "target issue count",
+        "weight",
+        "holdback",
+    ),
+    (
+        "event desk",
+        "attendance by session",
+        "zero-based session index",
+        "target attendance",
+        "room factor",
+        "staff reserve",
+    ),
+    (
+        "energy monitor",
+        "hourly readings",
+        "zero-based reading index",
+        "target reading",
+        "conversion factor",
+        "safety reserve",
+    ),
+    (
+        "kitchen",
+        "batch sizes",
+        "zero-based batch index",
+        "target batch size",
+        "portion factor",
+        "sample reserve",
+    ),
+    (
+        "research ledger",
+        "case counts by cohort",
+        "zero-based cohort index",
+        "target case count",
+        "study weight",
+        "audit reserve",
+    ),
+    (
+        "transit board",
+        "riders by route",
+        "zero-based route index",
+        "target rider count",
+        "route factor",
+        "service reserve",
+    ),
+    (
+        "studio schedule",
+        "minutes by booking",
+        "zero-based booking index",
+        "target duration",
+        "billing factor",
+        "setup reserve",
+    ),
+)
+
+_NATURAL_SCALAR_CHAINS: Final = (
+    ("add", "mul", "sub"),
+    ("sub", "add", "mul"),
+    ("mul", "idiv", "add"),
+    ("add", "sub", "idiv"),
+    ("sub", "mul", "add"),
+    ("mul", "add", "sub"),
+    ("add", "idiv", "mul"),
+    ("idiv", "sub", "mul"),
+)
+
+
+def _append_natural_binary_operation(
+    builder: _AnnotatedText,
+    *,
+    op: str,
+    ordinal: int,
+    left_text: str,
+    left_label: str,
+    right_text: str,
+    right_label: str,
+) -> None:
+    """Render one ordinary-language binary clause with exact semantic roles."""
+
+    operation_label = f"natural:operation:{ordinal}"
+    if op == "add":
+        builder.append("add", label=operation_label)
+        builder.append(" ")
+        builder.append(left_text, label=left_label)
+        builder.append(" and ")
+        builder.append(right_text, label=right_label)
+    elif op == "sub":
+        builder.append("subtract", label=operation_label)
+        builder.append(" ")
+        builder.append(right_text, label=right_label)
+        builder.append(" from ")
+        builder.append(left_text, label=left_label)
+    elif op == "mul":
+        builder.append("multiply", label=operation_label)
+        builder.append(" ")
+        builder.append(left_text, label=left_label)
+        builder.append(" by ")
+        builder.append(right_text, label=right_label)
+    elif op == "idiv":
+        builder.append("whole-number divide", label=operation_label)
+        builder.append(" ")
+        builder.append(left_text, label=left_label)
+        builder.append(" by ")
+        builder.append(right_text, label=right_label)
+    else:  # pragma: no cover - callers use the declared scalar vocabulary
+        raise ValueError("natural procedure scalar operation is unsupported")
+
+
+def _natural_three_step_example(
+    *,
+    schema_kind: str,
+    domain_index: int,
+    sample_index: int,
+    inputs: tuple[SemanticValue, ...],
+    operations: tuple[str, str, str],
+) -> SemanticProgramExample:
+    """Render a domain request whose three-step chain was absent from fitting."""
+
+    if schema_kind == "scalar_linear_three":
+        domain, first_name, second_name, third_name, fourth_name = _NATURAL_SCALAR_DOMAINS[
+            domain_index
+        ]
+    else:
+        domain, first_name, index_name, target_name, third_name, fourth_name = (
+            _NATURAL_SEQUENCE_DOMAINS[domain_index]
+        )
+        second_name = index_name if schema_kind == "lookup_linear_three" else target_name
+    builder = _AnnotatedText()
+    builder.append(f"For the {domain}, the recorded inputs are ")
+    input_names = (first_name, second_name, third_name, fourth_name)
+    for index, (name, value) in enumerate(zip(input_names, inputs, strict=True)):
+        if index:
+            builder.append(", " if index < 3 else ", and ")
+        builder.append(name)
+        builder.append(" ")
+        rendered = (
+            "[" + ", ".join(str(item) for item in value) + "]"
+            if isinstance(value, tuple)
+            else str(value)
+        )
+        builder.append(rendered, label=f"natural:input:{index}")
+    builder.append(". First, ")
+
+    instructions: list[SemanticInstructionAnnotation] = []
+    if schema_kind == "scalar_linear_three":
+        _append_natural_binary_operation(
+            builder,
+            op=operations[0],
+            ordinal=0,
+            left_text=first_name,
+            left_label="natural:argument:0:0",
+            right_text=second_name,
+            right_label="natural:argument:0:1",
+        )
+    elif schema_kind == "lookup_linear_three":
+        builder.append("select the item at", label="natural:operation:0")
+        builder.append(" ")
+        builder.append(second_name, label="natural:argument:0:1")
+        builder.append(" in ")
+        builder.append(first_name, label="natural:argument:0:0")
+    elif schema_kind == "count_linear_three":
+        builder.append("count", label="natural:operation:0")
+        builder.append(" how often ")
+        builder.append(second_name, label="natural:argument:0:1")
+        builder.append(" occurs in ")
+        builder.append(first_name, label="natural:argument:0:0")
+    else:  # pragma: no cover - builder owns the schema inventory
+        raise ValueError("natural procedure schema is unsupported")
+    instructions.append(
+        SemanticInstructionAnnotation(
+            instruction=Instruction(operations[0], (0, 1)),
+            operation_span=builder.span("natural:operation:0"),
+            argument_spans=tuple(
+                builder.span(f"natural:argument:0:{position}") for position in range(2)
+            ),
+            depends_on=(),
+        )
+    )
+
+    builder.append(", and call that the running figure. Next, ")
+    _append_natural_binary_operation(
+        builder,
+        op=operations[1],
+        ordinal=1,
+        left_text="the running figure",
+        left_label="natural:argument:1:0",
+        right_text=third_name,
+        right_label="natural:argument:1:1",
+    )
+    instructions.append(
+        SemanticInstructionAnnotation(
+            instruction=Instruction(operations[1], (4, 2)),
+            operation_span=builder.span("natural:operation:1"),
+            argument_spans=tuple(
+                builder.span(f"natural:argument:1:{position}") for position in range(2)
+            ),
+            depends_on=(0,),
+        )
+    )
+
+    builder.append(", calling the result the revised figure. Finally, ")
+    _append_natural_binary_operation(
+        builder,
+        op=operations[2],
+        ordinal=2,
+        left_text="the revised figure",
+        left_label="natural:argument:2:0",
+        right_text=fourth_name,
+        right_label="natural:argument:2:1",
+    )
+    builder.append(". What is the final value?")
+    instructions.append(
+        SemanticInstructionAnnotation(
+            instruction=Instruction(operations[2], (5, 3)),
+            operation_span=builder.span("natural:operation:2"),
+            argument_spans=tuple(
+                builder.span(f"natural:argument:2:{position}") for position in range(2)
+            ),
+            depends_on=(1,),
+        )
+    )
+
+    construction_id = f"natural-{schema_kind}-{domain_index}"
+    identity = f"{construction_id}|{sample_index}|{inputs}|{operations}|{builder.text}"
+    return SemanticProgramExample(
+        example_id=hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24],
+        construction_id=construction_id,
+        topology_id=schema_kind,
+        split="validation" if (domain_index + sample_index) % 2 == 0 else "test",
+        source_text=builder.text,
+        inputs=inputs,
+        input_spans=tuple(builder.span(f"natural:input:{index}") for index in range(4)),
+        instructions=tuple(instructions),
+        report_value=6,
+        contrast_id=hashlib.sha256(
+            f"natural|{schema_kind}|{domain_index}|{sample_index}".encode("ascii")
+        ).hexdigest()[:24],
+    )
+
+
+def build_semantic_program_natural_request_corpus(
+    *,
+    seed: int = 3141592,
+    examples_per_schema_domain: int = 1,
+) -> tuple[SemanticProgramExample, ...]:
+    """Build heterogeneous requests over wholly withheld three-step schemas.
+
+    The frozen v14 tissue saw scalar three-input/two-step chains and four-input
+    fork/join graphs. It did not see a four-input three-step linear graph, nor
+    typed lookup/count variants of that graph. Domain nouns and values vary
+    independently of those schemas.
+    """
+
+    if examples_per_schema_domain < 1:
+        raise ValueError("natural request corpus needs a sample in every schema-domain cell")
+    rng = random.Random(seed)
+    examples: list[SemanticProgramExample] = []
+    schemas = ("scalar_linear_three", "lookup_linear_three", "count_linear_three")
+    for schema_index, schema_kind in enumerate(schemas):
+        for domain_index in range(len(_NATURAL_SCALAR_DOMAINS)):
+            for sample_index in range(examples_per_schema_domain):
+                operations = _NATURAL_SCALAR_CHAINS[
+                    (schema_index * 3 + domain_index + sample_index) % len(_NATURAL_SCALAR_CHAINS)
+                ]
+                if schema_kind == "scalar_linear_three":
+                    inputs: tuple[SemanticValue, ...] = (
+                        rng.randint(120, 940),
+                        rng.randint(11, 89),
+                        rng.randint(2, 9),
+                        rng.randint(2, 17),
+                    )
+                else:
+                    selector = rng.randint(1, 5)
+                    values = [rng.randint(10, 80) for _ in range(7)]
+                    if schema_kind == "count_linear_three":
+                        wanted = rng.randint(3, 9)
+                        values[1] = wanted
+                        values[4] = wanted
+                        first_op = "count_of"
+                        second_input = wanted
+                    else:
+                        first_op = "at"
+                        second_input = selector
+                    inputs = (
+                        tuple(values),
+                        second_input,
+                        rng.randint(2, 9),
+                        rng.randint(2, 17),
+                    )
+                    operations = (first_op, operations[1], operations[2])
+                examples.append(
+                    _natural_three_step_example(
+                        schema_kind=schema_kind,
+                        domain_index=domain_index,
+                        sample_index=sample_index,
+                        inputs=inputs,
+                        operations=operations,
+                    )
+                )
+    return tuple(examples)
+
+
 def _character_to_token_span(
     span: CharacterSpan,
     offsets: Sequence[tuple[int, int]],
@@ -2519,6 +2837,7 @@ __all__ = [
     "build_semantic_program_corpus",
     "build_semantic_program_fork_join_factorial_corpus",
     "build_semantic_program_fork_join_corpus",
+    "build_semantic_program_natural_request_corpus",
     "build_semantic_program_sequence_binary_corpus",
     "build_semantic_program_sequence_cataphoric_corpus",
     "build_semantic_program_sequence_corpus",
