@@ -5446,7 +5446,22 @@ async def _settled_after(
     goes on to claim a reset that never occurred. Measured live: "Began again
     1 time(s)" while the score sat unchanged at 996 the whole time.
     """
-    was = str(before.get("text") or "")
+    # Compared by WHERE things are, not by what words are on the screen.
+    #
+    # A thing sliding across a surface changes no text at all: the same
+    # numbers are there throughout, in different places. So a board mid-slide
+    # reads identical to the board before the move, the settle finished on
+    # the first look, and whatever was still travelling was read at wherever
+    # it had got to.
+    #
+    # LIVE 2026-09-04 on a correctly read four by four board: the row nearest
+    # the direction pressed came back unmoved, move after move, while every
+    # other row landed exactly where the rule said. The true rule sat at 59%
+    # of 29 — under the bar to be trusted, so nothing ever looked ahead, all
+    # game, on a board she was reading perfectly.
+    from core.perception.where_it_responds import places_and_text  # noqa: PLC0415
+
+    was = places_and_text(before)
     started = time.monotonic()
     seen = before
     moved = False
@@ -5456,13 +5471,13 @@ async def _settled_after(
             now = await asyncio.wait_for(read_screen(app), timeout=OBSERVE_TIMEOUT_S)
         except TimeoutError:
             continue
-        said = str(now.get("text") or "")
+        said = places_and_text(now)
         if not moved and said != was:
             moved = True
             _ANSWERING_TOOK["longest"] = max(
                 _ANSWERING_TOOK["longest"], time.monotonic() - started
             )
-        elif moved and said == str(seen.get("text") or ""):
+        elif moved and said == places_and_text(seen):
             # Changed, and now the same twice running: it has finished.
             return now, True
         seen = now

@@ -192,8 +192,41 @@ class Arrangement:
         kept = [cell for cell in self.cells if (cell.row, cell.column) not in places]
         if not kept:
             return Arrangement(rows=0, columns=0, cells=())
-        rows = sorted({cell.row for cell in kept})
-        columns = sorted({cell.column for cell in kept})
+        if self.down_at and self.across_at:
+            # A reading laid into a grid keeps the grid.
+            #
+            # Its empty places are places, not gaps. Re-deriving the rows
+            # from whatever happens to be occupied this frame moves every
+            # address the moment a row empties, so two readings a move apart
+            # are in different frames of reference however alike they look —
+            # which is the exact thing holding a lattice exists to prevent,
+            # undone one call later.
+            #
+            # LIVE 2026-09-04 on a correctly read four by four board: the top
+            # row emptied, the reading became three rows, and what had been
+            # rows one to three were compared against rows nought to two of
+            # the frame before. Row nought then disagreed with every rule
+            # every time while the rest matched, and the true rule sat at
+            # 59% of 29 all game — never trusted, so nothing ever looked
+            # ahead.
+            #
+            # Only a line that was ENTIRELY dropped goes, which is what the
+            # cropping was for: a row nothing ever moves into.
+            gone_down = {
+                row
+                for row in range(self.rows)
+                if all((row, column) in places for column in range(self.columns))
+            }
+            gone_across = {
+                column
+                for column in range(self.columns)
+                if all((row, column) in places for row in range(self.rows))
+            }
+            rows = [row for row in range(self.rows) if row not in gone_down]
+            columns = [column for column in range(self.columns) if column not in gone_across]
+        else:
+            rows = sorted({cell.row for cell in kept})
+            columns = sorted({cell.column for cell in kept})
         row_of = {row: index for index, row in enumerate(rows)}
         column_of = {column: index for index, column in enumerate(columns)}
         return Arrangement(
