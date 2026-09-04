@@ -107,6 +107,91 @@ _ARGUMENT_PROPOSAL_SCALES: Final = tuple(float(value) for value in np.linspace(0
 _LOCAL_ARGUMENT_CANDIDATE_STRATEGY: Final = "per_operation_clause_quota_v1"
 
 
+@dataclass(frozen=True, slots=True)
+class SemanticGeometryEnvelope:
+    """Separate measured training support from bounded structural inference."""
+
+    observed: tuple[tuple[int, int], ...]
+    observed_max_inputs: int
+    observed_max_steps: int
+    hard_max_inputs: int = _MAX_INPUTS
+    hard_max_steps: int = _MAX_STEPS
+
+    def __post_init__(self) -> None:
+        if (
+            not self.observed
+            or any(
+                type(inputs) is not int
+                or type(steps) is not int
+                or not 1 <= inputs <= self.hard_max_inputs
+                or not 1 <= steps <= self.hard_max_steps
+                for inputs, steps in self.observed
+            )
+            or self.observed_max_inputs != max(inputs for inputs, _steps in self.observed)
+            or self.observed_max_steps != max(steps for _inputs, steps in self.observed)
+        ):
+            raise ValueError("semantic geometry support is invalid")
+
+    def inference_step_limit(self, input_count: int) -> int | None:
+        """Extend shared local heads at the rate measured across training geometries."""
+
+        if type(input_count) is not int or not 1 <= input_count <= self.hard_max_inputs:
+            return None
+        if input_count <= self.observed_max_inputs:
+            return self.observed_max_steps
+        by_inputs: dict[int, int] = {}
+        for inputs, steps in self.observed:
+            by_inputs[inputs] = max(steps, by_inputs.get(inputs, 0))
+        ordered = sorted(by_inputs.items())
+        growth = max(
+            (
+                max(0, math.ceil((right_steps - left_steps) / (right_inputs - left_inputs)))
+                for (left_inputs, left_steps), (right_inputs, right_steps) in zip(
+                    ordered,
+                    ordered[1:],
+                    strict=False,
+                )
+                if right_inputs > left_inputs
+            ),
+            default=0,
+        )
+        return min(
+            self.hard_max_steps,
+            self.observed_max_steps
+            + growth * (input_count - self.observed_max_inputs),
+        )
+
+
+def _semantic_geometry_envelope(
+    receipt: Mapping[str, Any],
+) -> SemanticGeometryEnvelope | None:
+    rows = receipt.get("observed_geometry_support")
+    if not isinstance(rows, list) or not rows:
+        return None
+    observed: list[tuple[int, int]] = []
+    try:
+        for row in rows:
+            if not isinstance(row, Mapping):
+                return None
+            fields = {
+                name: int(value)
+                for name, value in (
+                    part.split(":", 1)
+                    for part in str(row.get("geometry", "")).split("|")
+                )
+            }
+            if set(fields) != {"inputs", "steps"}:
+                return None
+            observed.append((fields["inputs"], fields["steps"]))
+        return SemanticGeometryEnvelope(
+            observed=tuple(sorted(set(observed))),
+            observed_max_inputs=max(inputs for inputs, _steps in observed),
+            observed_max_steps=max(steps for _inputs, steps in observed),
+        )
+    except (TypeError, ValueError):
+        return None
+
+
 def _canonical_bytes(value: Any) -> bytes:
     return json.dumps(
         value,
@@ -1908,6 +1993,7 @@ class CompositionalSemanticProgramTransducer:
 
     def __post_init__(self) -> None:
         receipt = json.loads(_canonical_bytes(self.training_receipt))
+        geometry_envelope = _semantic_geometry_envelope(receipt)
         relation_fit = receipt.get("relation_tissue_fit")
         relation_selection = (
             relation_fit.get("validation_selection") if isinstance(relation_fit, Mapping) else None
@@ -1965,6 +2051,9 @@ class CompositionalSemanticProgramTransducer:
             or not 1 <= self.max_steps <= _MAX_STEPS
             or type(self.max_inputs) is not int
             or not 1 <= self.max_inputs <= _MAX_INPUTS
+            or geometry_envelope is None
+            or geometry_envelope.observed_max_inputs != self.max_inputs
+            or geometry_envelope.observed_max_steps != self.max_steps
             or type(self.max_span_tokens) is not int
             or self.max_span_tokens < 1
             or type(self.max_definition_span_tokens) is not int
@@ -2082,6 +2171,16 @@ class CompositionalSemanticProgramTransducer:
             raise ValueError("compositional semantic transducer envelope is invalid")
         object.__setattr__(self, "training_receipt", receipt)
         object.__setattr__(self, "max_argument_span_tokens_by_type", argument_bounds)
+
+    @property
+    def geometry_envelope(self) -> SemanticGeometryEnvelope:
+        envelope = _semantic_geometry_envelope(self.training_receipt)
+        if envelope is None:  # __post_init__ proves this unreachable after construction.
+            raise RuntimeError("semantic geometry support disappeared")
+        return envelope
+
+    def inference_step_limit(self, input_count: int) -> int | None:
+        return self.geometry_envelope.inference_step_limit(input_count)
 
     def _coefficient_body(self) -> dict[str, Any]:
         return {
@@ -2334,7 +2433,8 @@ class CompositionalSemanticProgramTransducer:
         tokens = tuple(source_token_ids)
         if hidden.shape[0] != len(tokens):
             return SemanticTransductionOutcome(None, "token_hidden_length_mismatch", {}, {})
-        if not 1 <= len(inputs) <= self.max_inputs:
+        inference_max_steps = self.inference_step_limit(len(inputs))
+        if inference_max_steps is None:
             return SemanticTransductionOutcome(None, "public_input_count_unsupported", {}, {})
         input_banks: list[tuple[tuple[TokenSpan, float], ...]] = []
         argument_pointer_scores = self.argument_pointer.score_sequence(hidden)
@@ -2365,7 +2465,7 @@ class CompositionalSemanticProgramTransducer:
         )
         charts = _operation_chart_candidates(
             nodes,
-            max_steps=self.max_steps,
+            max_steps=inference_max_steps,
             length_penalty=self.operation_length_penalty,
             limit=self.operation_chart_beam,
         )

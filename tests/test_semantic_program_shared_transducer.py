@@ -21,8 +21,8 @@ from core.learning.semantic_program_compositional_campaign import (
 from core.learning.semantic_program_compositional_transducer import (
     _LOCAL_DEFINITION_CANDIDATE_STRATEGY,
     _STABLE_REGISTER_TABLE_STRATEGY,
-    _argument_proposals_by_operation,
     DirectionalRelationHead,
+    _argument_proposals_by_operation,
     _best_penalized_operation_chart,
     _definition_span_candidates,
     _directional_relation_feature,
@@ -345,6 +345,26 @@ def test_compositional_transducer_binds_learned_type_limits_to_its_receipt() -> 
 
     with pytest.raises(ValueError, match="envelope"):
         compositional_semantic_program_transducer_from_dict(payload)
+
+    payload = copy.deepcopy(model.to_dict())
+    payload["max_inputs"] += 1
+
+    with pytest.raises(ValueError, match="envelope"):
+        compositional_semantic_program_transducer_from_dict(payload)
+
+
+def test_compositional_transducer_separates_observed_and_inference_geometry() -> None:
+    model = fit_compositional_semantic_program_transducer(
+        _examples(),
+        input_grounding=_grounding(),
+    )
+
+    assert model.geometry_envelope.observed == ((3, 2), (4, 3))
+    assert model.inference_step_limit(3) == 3
+    assert model.inference_step_limit(4) == 3
+    assert model.inference_step_limit(5) == 4
+    assert model.inference_step_limit(8) == 7
+    assert model.inference_step_limit(9) is None
 
     payload = copy.deepcopy(model.to_dict())
     payload["register_use_contract"]["input_max_uses"] += 1

@@ -34,9 +34,14 @@ class _Grounding:
 
 class _Model:
     max_inputs = 2
+    max_steps = 1
     model_basis_sha256 = "a" * 64
     receipt_sha256 = "b" * 64
     input_grounding = _Grounding()
+
+    @staticmethod
+    def inference_step_limit(input_count):
+        return 1 if input_count == 2 else None
 
     @staticmethod
     def decode(**kwargs):
@@ -115,6 +120,8 @@ def test_runtime_executes_learned_ir_on_the_universal_floor():
     assert outcome.public_inputs.values == (2, 3)
     assert outcome.receipt["family_router_present"] is False
     assert outcome.receipt["expected_answer_available"] is False
+    assert outcome.receipt["geometry_extrapolated"] is False
+    assert outcome.receipt["inference_step_limit"] == 1
     assert outcome.procedure is not None
     assert outcome.procedure.backend is Backend.RLC
     assert registry.report()["by_backend"] == {"rlc": 1}
