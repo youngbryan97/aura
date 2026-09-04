@@ -175,6 +175,7 @@ def offer_what_she_can_do_about_what_she_is_made_of() -> None:
 
     def let_go(situation: Any = None) -> str | None:
         from core.cognition.what_rests_on_what import retract
+        from core.cognition.what_she_can_take_back import only_if_it_pays
         from core.cognition.what_she_is_made_of import _take_it_out  # noqa: PLC2701
 
         probe = _probe()
@@ -182,20 +183,27 @@ def offer_what_she_can_do_about_what_she_is_made_of() -> None:
         if part is None:
             return None
         before = _how_it_stands(probe)
-        if part.kind == "way of computing":
-            retract(part.name)
-        elif not _take_it_out(part):
-            return None
-        kept, why = worth_keeping(before, probe)
-        if not kept:
-            logger.info("she kept %s after all: %s", part.at, why)
-            return None
+        # A removal that does not pay used to log "she kept it after all" over
+        # a part that was already gone — the only way to know was to look at
+        # the registry. The trial puts it back on every way out of this block.
+        with only_if_it_pays(f"letting go of {part.at}") as trial:
+            if part.kind == "way of computing":
+                retract(part.name)
+            elif not _take_it_out(part):
+                return None
+            kept, why = worth_keeping(before, probe)
+            if not kept:
+                logger.info("she kept %s after all: %s", part.at, why)
+                return None
+            trial.keep(why)
         logger.info("she let go of %s: %s", part.at, why)
         return f"let go of {part.at}"
 
     def one_name_for_both(situation: Any = None) -> str | None:
         from core.cognition.a_way_of_computing_she_wrote import as_a_head
         from core.cognition.one_algebra import DERIVED_HEADS, the_head_she_wrote
+
+        from core.cognition.what_she_can_take_back import only_if_it_pays
 
         found = what_two_parts_share()
         if found is None:
@@ -206,12 +214,16 @@ def offer_what_she_can_do_about_what_she_is_made_of() -> None:
             return None
         before = _how_it_stands(probe)
         name = f"what {first.name} and {second.name} share ({len(DERIVED_HEADS)})"
-        the_head_she_wrote(name, 3, as_a_head(shared))
-        kept, why = worth_keeping(before, probe)
-        if not kept:
-            DERIVED_HEADS.pop(name, None)
-            logger.info("the shared part bought nothing: %s", why)
-            return None
+        # This one remembered to pop the head it added. The trial takes over
+        # so that being right here stops depending on remembering, and so
+        # that anything the head's installation touched comes back too.
+        with only_if_it_pays(f"naming {name}") as trial:
+            the_head_she_wrote(name, 3, as_a_head(shared))
+            kept, why = worth_keeping(before, probe)
+            if not kept:
+                logger.info("the shared part bought nothing: %s", why)
+                return None
+            trial.keep(why)
         logger.info("she named what two parts share: %s — %s", name, why)
         return f"one name for what {first.name} and {second.name} share"
 

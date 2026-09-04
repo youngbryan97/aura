@@ -122,6 +122,34 @@ WHERE_A_TERM_CAN_GO: tuple[str, ...] = (
 WHAT_SHE_COULD_DO: dict[str, ADevelopmentalAction] = {}
 
 
+def _and_takes_itself_back(name: str, do_it: Callable[..., Any]) -> Callable[..., Any]:
+    """Wrap an action so that declining to act leaves nothing behind.
+
+    Every action here answers the same way: a sentence when it did something,
+    None when it decided not to. That convention is the invariant worth
+    enforcing — a change that reports it did nothing must have left nothing.
+
+    It used to be each author's job. Naming what two parts share popped the
+    head it added; letting go of a part did not put the part back, logged
+    "she kept it after all", and returned None over a registry that no longer
+    held it. Doing this at the one place actions are admitted means the next
+    action gets it without its author knowing this paragraph exists.
+    """
+    from functools import wraps
+
+    @wraps(do_it)
+    def acted(*args: Any, **kwargs: Any) -> Any:
+        from core.cognition.what_she_can_take_back import only_if_it_pays
+
+        with only_if_it_pays(name) as trial:
+            said = do_it(*args, **kwargs)
+            if said is not None:
+                trial.keep(str(said))
+        return said
+
+    return acted
+
+
 def what_she_could_do(
     name: str,
     *,
@@ -145,7 +173,7 @@ def what_she_could_do(
         name=str(name),
         over=over,
         kind=str(kind),
-        do_it=do_it,
+        do_it=_and_takes_itself_back(str(name), do_it),
         price=max(0, int(price)),
         written=written,
         hers=bool(hers),
