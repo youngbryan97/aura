@@ -29,6 +29,19 @@ replaced onto a stack, and going back is the ordinary outcome rather than the
 failure — a change rolled back after the probe regressed is the governance
 working, not development failing.
 
+**Shadow here does not mean isolated.** The word usually means a copy running
+beside the real thing with its output thrown away, and that is not what
+happens: a shadow change is installed and in use from the moment it is made,
+and the state is a record of how much is believed about it rather than a limit
+on what it can do. What shadow buys is not containment. It is that the change
+is reversible and that the record says what it replaced.
+
+That second half was a promise for a long time and not a fact. No caller
+anywhere passed ``replaced``, so the stack was always empty, ``put_it_back``
+returned None every time, and this paragraph described a mechanism nothing
+could reach. It is armed now, and ``test_a_change_that_can_go_back.py``
+fails if a promotion stops carrying what it replaced.
+
 Retiring archives rather than destroys. An artifact removed under a size budget
 may be wanted again, and re-deriving it can cost more than it ever saved.
 
@@ -229,18 +242,40 @@ def what_it_replaced(at: str) -> Any | None:
 
 
 def put_it_back(at: str) -> Any | None:
-    """Undo the last promotion at this address. The ordinary outcome, not a failure."""
+    """Undo the last promotion at this address. The ordinary outcome, not a failure.
+
+    This used to hand the replaced thing to the caller and leave the undoing
+    to them, and no caller ever did it — nor passed ``replaced`` in the first
+    place, so the stack was empty and this returned None every time. The
+    docstring at the top of this module said anything can go back; nothing
+    could. Where the replaced thing knows how to restore itself, this now
+    restores it, and the receipt says whether that worked.
+    """
     for index in range(len(_STACK) - 1, -1, -1):
         where, was = _STACK[index]
-        if where == at:
-            del _STACK[index]
-            promote(
-                at,
-                became="rolled back",
-                started_by="she",
-                evidence="the probe did not hold",
-            )
-            return was
+        if where != at:
+            continue
+        del _STACK[index]
+        went_back = True
+        stubborn: Any = ()
+        restore = getattr(was, "restore", None)
+        if callable(restore):
+            try:
+                stubborn = restore()
+            except Exception as exc:  # noqa: BLE001 - a failed undo is a result
+                went_back = False
+                stubborn = (f"{type(exc).__name__}: {exc}",)
+        promote(
+            at,
+            became="rolled back" if went_back and not stubborn else "would not go back",
+            started_by="she",
+            evidence=(
+                "the probe did not hold"
+                if went_back and not stubborn
+                else f"the probe did not hold, and these did not come back: {stubborn}"
+            ),
+        )
+        return was
     return None
 
 

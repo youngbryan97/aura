@@ -407,8 +407,14 @@ def _carry_it_out(
     declared itself failed was recorded as kept whenever the idle loop was the
     caller. One episode, one place.
     """
+    from core.cognition.what_she_can_take_back import as_it_stands
+
     expected = what_she_expects(decided.action.name, costs_now=costs_now)
     _note("prediction", started_by, expected.describes())
+    # What the promotion replaces. Nobody passed this, so the rollback stack
+    # was empty, put_it_back returned None every time, and the promotion
+    # module's claim that anything can go back was false of everything.
+    stood = as_it_stands()
     _ALREADY_DECIDING[0] = True
     try:
         came_of_it = decided.action.do_it(situation)
@@ -434,6 +440,7 @@ def _carry_it_out(
             became="shadow",
             started_by=started_by,
             evidence=decided.grounds,
+            replaced=stood,
             asked_from_outside=asked_for,
         )
     note_what_it_did(

@@ -71,6 +71,15 @@ class HowItStood:
 
     held: dict[str, dict[Any, Any]]
 
+    def restore(self) -> tuple[str, ...]:
+        """Put every registry back. Named so a holder needs no import of us.
+
+        ``how_a_change_is_promoted`` keeps whatever a promotion replaced and
+        has to be able to undo it without knowing what kind of thing it is.
+        Duck-typing the restore keeps that module free of this one.
+        """
+        return put_it_back(self)
+
     def what_changed(self) -> dict[str, tuple[int, int]]:
         """Which registries differ from the snapshot, and by how many keys."""
         moved: dict[str, tuple[int, int]] = {}
