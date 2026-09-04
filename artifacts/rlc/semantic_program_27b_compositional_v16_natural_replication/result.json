@@ -1,0 +1,59 @@
+{
+  "claim_boundary": "failed fresh bounded natural-language procedure replication; causal improvement over v14 remains diagnostic only",
+  "coefficient_lesion_answer_exact": 0,
+  "corpus_sha256": "cef7e185f57167702d2f6cb4327be3c81c3b7c5c6c033dc75bffb0fc68940b80",
+  "diagnostic": {
+    "accepted": 91,
+    "answer_exact": 26,
+    "argument_exact": 23,
+    "operation_exact": 71,
+    "program_exact": 22,
+    "total": 96
+  },
+  "expected_answers_available_to_decode": false,
+  "feature_manifest_sha256": "ddf3b83cd1ae84feaa552d9bc6f4dcfeb6bc79a32266b8cd4002fd2639c12edb",
+  "files": {
+    "diagnostic.json": "c06e844a49063396ebae60dd8a5d39918e4ca87113ecff721d9a0d6c96ca3d31",
+    "feature_manifest.json": "24c3e4184c4c9ef4396a2fbb52070bd6054d9e97a1301ead229162f31b45b81c",
+    "preordinary_result.json": "d5cfd54af80f2958a8bf259cae880b73bb24584b119793214a6b18ecd95879fc"
+  },
+  "fit_or_refit_calls_after_target_acquisition": 0,
+  "frozen_v14_answer_exact": 6,
+  "generator_source_commit": "2f0ed5767",
+  "ordinary_decode": {
+    "model_load_or_decode_calls": 0,
+    "reason": "treatment_answer_exact_below_48_of_96",
+    "status": "ABORTED_BY_PREREGISTERED_FUTILITY"
+  },
+  "preregistered_minimum_answer_exact": 48,
+  "preregistration_source_commit": "4a8e98318",
+  "result_sha256": "3280a069eba0d182ed639326a550d4088c6b3ab297adfa6b9f46da27fa602ca1",
+  "schema": "aura.semantic_program_natural_replication_result.v1",
+  "serving_authority": false,
+  "treatment": {
+    "accepted": 88,
+    "answer_exact": 26,
+    "program_exact": 22,
+    "public_input_exact": 96,
+    "total": 96
+  },
+  "v15_vs_lesion_answer_exact": {
+    "control_only": 0,
+    "discordant": 26,
+    "metric": "answer_exact",
+    "one_sided_exact_p": 1.4901161193847656e-08,
+    "one_sided_exact_p_denominator": 67108864,
+    "one_sided_exact_p_numerator": 1,
+    "treatment_only": 26
+  },
+  "v15_vs_v14_answer_exact": {
+    "control_only": 3,
+    "discordant": 26,
+    "metric": "answer_exact",
+    "one_sided_exact_p": 4.398822784423828e-05,
+    "one_sided_exact_p_denominator": 8388608,
+    "one_sided_exact_p_numerator": 369,
+    "treatment_only": 23
+  },
+  "verdict": "FAIL_ABSOLUTE_CAPABILITY_FLOOR"
+}
