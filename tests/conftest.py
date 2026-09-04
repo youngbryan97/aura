@@ -582,28 +582,43 @@ def _measured_host_rates_do_not_leak():
     longer between two tests, the answer budget is computed from how long the
     prompt takes to read, and the budget came out at 368 tokens where the test
     asked for 384.
+
+    The build is SUPPRESSED rather than the index discarded. Dropping a built
+    index after each test looks like the same thing and is not: the next test
+    that reads it rebuilds, and a rebuild AST-parses every file under core/
+    and interface/. That took tests/test_instruments_measure_in_a_real_boot.py
+    from 14 seconds to over 155, past the runtime lease deadline, and turned
+    eleven passing tests into eleven errors. With the build a no-op the
+    overview is constant for every test and costs nothing.
+
+    A test that genuinely wants a built index builds it itself, the way
+    AURA_SCREEN_BLUEPRINT is set back by the tests that are about it.
     """
-    saved_index = None
-    module = None
     try:
         from core.brain.llm import mlx_client
     except ImportError:
         mlx_client = None
     try:
         from core.self import architecture_index as module
-
-        saved_index = module._index
     except ImportError:
         module = None
+
     saved_rates = dict(mlx_client._HOST_RATES) if mlx_client is not None else None
+    saved_build = saved_schedule = None
+    if module is not None:
+        saved_build = module.ArchitectureIndex.build
+        saved_schedule = module.ArchitectureIndex.schedule_background_build
+        module.ArchitectureIndex.build = lambda self, force=False: len(self._index)
+        module.ArchitectureIndex.schedule_background_build = lambda self: None
     try:
         yield
     finally:
         if mlx_client is not None and saved_rates is not None:
             mlx_client._HOST_RATES.clear()
             mlx_client._HOST_RATES.update(saved_rates)
-        if module is not None:
-            module._index = saved_index
+        if module is not None and saved_build is not None:
+            module.ArchitectureIndex.build = saved_build
+            module.ArchitectureIndex.schedule_background_build = saved_schedule
 
 
 @pytest.fixture(autouse=True)

@@ -219,9 +219,36 @@ class ValidationTest:
     #: Compare prediction to observation and interpret the result.
     score: Callable[[Any, Observation], Score]
     owner: str = "unknown"
+    #: Whether this predicate RUNS AN EXPERIMENT rather than reading an
+    #: instrument. Three of these do a full grown-against-reset search and take
+    #: 29 to 56 seconds each; they used to abort on a refusal escaping from the
+    #: language, so booting never actually evaluated them and nobody had ever
+    #: paid for them. When the refusal was handled correctly they completed for
+    #: the first time and put 141 seconds into activate_foundations.
+    #:
+    #: A boot's job is to check that the instruments work, not to re-run the
+    #: experiments. An expensive test is reported NOT_MEASURED at boot, naming
+    #: where it does run, and the suite runs it in full.
+    expensive: bool = False
 
-    def run(self, model: Model) -> TestResult:
+    def run(self, model: Model, *, include_expensive: bool = True) -> TestResult:
         started = time.perf_counter()
+        if self.expensive and not include_expensive:
+            return TestResult(
+                test=self.name,
+                model=model.name,
+                score=Score(
+                    kind="not_measured",
+                    value=0.0,
+                    outcome=Outcome.NOT_MEASURED,
+                    interpretation=(
+                        f"{self.name} runs an experiment rather than reading an "
+                        "instrument; it is measured by its own test rather than "
+                        "on every boot"
+                    ),
+                ),
+                duration_s=time.perf_counter() - started,
+            )
         if self.required_capability and self.required_capability not in model.capabilities():
             return TestResult(
                 test=self.name,
@@ -497,7 +524,9 @@ class ValidationSuite:
             return sorted(self._claims.values(), key=lambda c: c.statement)
 
     # ── running ───────────────────────────────────────────────────────
-    def run(self, model: Model | None = None) -> dict[str, Any]:
+    def run(
+        self, model: Model | None = None, *, include_expensive: bool = True
+    ) -> dict[str, Any]:
         with self._lock:
             models = [model] if model is not None else list(self._models.values())
             tests = list(self._tests.values())
@@ -505,7 +534,7 @@ class ValidationSuite:
         results: list[TestResult] = []
         for target in models:
             for test in tests:
-                result = test.run(target)
+                result = test.run(target, include_expensive=include_expensive)
                 results.append(result)
                 with self._lock:
                     self._last[(test.name, target.name)] = result
@@ -2980,6 +3009,19 @@ def _where_the_two_languages_disagree() -> int:
     return apart
 
 
+#: Claim predicates that run an EXPERIMENT rather than read an instrument.
+#: Measured on 2026-09-01 during a real activate_foundations: 56.4s, 52.3s and
+#: 29.3s. Until that day a refusal escaping from the language aborted each of
+#: them, so booting reported them as errors and never paid the cost — handling
+#: the refusal correctly made them complete for the first time and put 141
+#: seconds into the boot. They are skipped at boot and run by their own tests.
+_AN_EXPERIMENT_NOT_AN_INSTRUMENT = frozenset({
+    "test_what_she_wrote_carries_to_a_different_surface",
+    "test_keeping_what_she_wrote_makes_the_next_one_easier",
+    "test_a_head_that_refers_to_itself_holds_where_it_was_never_fitted",
+})
+
+
 def _the_gap_that_should_not_be_there() -> int:
     """Ways the developmental result fails its own controls. Must be none.
 
@@ -3522,6 +3564,7 @@ def _install_language_growth_claims(suite: Any) -> None:
                     float(p), float(o.value), units=" violations"
                 ),
                 owner=owner,
+                expensive=name in _AN_EXPERIMENT_NOT_AN_INSTRUMENT,
             )
         )
     suite.add_claim(
@@ -5854,8 +5897,14 @@ def validation_report() -> dict[str, Any]:
     return _SUITE.report()
 
 
-def run_validation() -> dict[str, Any]:
-    return _SUITE.run()
+def run_validation(*, include_expensive: bool = True) -> dict[str, Any]:
+    """Run the suite. ``include_expensive=False`` is the boot's posture.
+
+    Booting checks that every claim has a working instrument. Re-running the
+    experiments belongs to the tests that own them, and doing it on the way up
+    cost 141 seconds of activate_foundations.
+    """
+    return _SUITE.run(include_expensive=include_expensive)
 
 
 def reset_validation_for_test() -> None:
