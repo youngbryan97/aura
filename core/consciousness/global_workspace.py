@@ -174,8 +174,38 @@ class CognitiveCandidate:
 
     @property
     def effective_priority(self) -> float:
-        """Priority decays slightly with age (recent events are more salient)."""
-        age = time.time() - self.submitted_at
+        """Priority as of now. Prefer :meth:`priority_at` inside a competition."""
+        return self.priority_at(time.time())
+
+    @property
+    def cognitive_priority(self) -> float:
+        """Everything about this bid EXCEPT when it arrived.
+
+        What a competition is supposed to be settled by: base salience, how
+        urgent affect makes it, where attention already is, and whether it
+        aligns with the dominant action. Recency is a real cognitive factor
+        and it is applied on top of this; sub-microsecond arrival order is
+        not, and separating them is what lets a tie be recognised as a tie.
+        """
+        return self.priority_at(self.submitted_at)
+
+    def priority_at(self, now: float) -> float:
+        """Priority evaluated against ONE instant.
+
+        The property used to call `time.time()` itself, which had two
+        consequences and the smaller one was the known flake.
+        
+        It was used as a sort key, so the comparator re-read the clock during
+        the sort and the ordering was not guaranteed to be consistent — a
+        comparison function that changes between comparisons can produce an
+        arbitrary permutation, not merely a jittered one.
+        
+        And a competition is one cognitive moment. Ageing each candidate from
+        the instant its own comparison happened to run meant identical bids
+        came out microseconds apart, and the workspace settled the choice by
+        arrival order while presenting it as a priority difference.
+        """
+        age = max(0.0, now - self.submitted_at)
         recency = max(0.0, 1.0 - (age / 10.0))  # Full weight within 10s, then decays
         
         # Free Energy dynamic gating
@@ -226,6 +256,15 @@ class CognitiveCandidate:
 
         return min(1.0, (self.priority + self.affect_weight * 0.3 + self.focus_bias + fe_bias) * (0.7 + 0.3 * recency))
 
+
+
+#: How close two bids have to be before nothing distinguishes them.
+#:
+#: Float arithmetic over a handful of added terms, not a tunable. A tie is
+#: two bids the workspace genuinely cannot separate, and anything wider than
+#: the arithmetic's own resolution would be a policy about how similar is
+#: too similar — which is a different claim and would need its own evidence.
+_TIE_RESOLUTION = 1e-9
 
 
 @dataclass
@@ -389,6 +428,8 @@ class GlobalWorkspace:
         self._inhibited: dict[str, int] = {}   # source -> ticks_remaining
         #: source -> current adaptation penalty on effective priority.
         self._fatigue: dict[str, float] = {}
+        #: The cognitive priorities compared the last time a tie was declared.
+        self._last_tie_values: dict[str, float] = {}
         #: Decisions settled by list order because nothing discriminated. A
         #: rising count means the priority scheme has stopped separating its
         #: producers, which is invisible from the winners alone.
@@ -1093,12 +1134,20 @@ class GlobalWorkspace:
             # Sort by effective priority MINUS adaptation, so the coalition
             # that just held the workspace has to out-bid the field by more
             # than its fatigue to hold it again.
+            # One instant for the whole competition. Read once, before any
+            # comparison, so every candidate is aged against the same moment
+            # and the sort key cannot change while the sort is running.
+            decided_at = time.time()
+
             def _adjusted(candidate: CognitiveCandidate) -> float:
-                return candidate.effective_priority - self._fatigue.get(
+                return candidate.priority_at(decided_at) - self._fatigue.get(
                     candidate.source, 0.0
                 )
 
-            self._candidates.sort(key=_adjusted, reverse=True)
+            # Frozen before sorting, and the sort reads the frozen value. A
+            # key function that calls the clock is not a key function.
+            scores = {id(c): _adjusted(c) for c in self._candidates}
+            self._candidates.sort(key=lambda c: scores[id(c)], reverse=True)
             winner = self._candidates[0]
             losers = self._candidates[1:]
 
@@ -1123,24 +1172,54 @@ class GlobalWorkspace:
             # the whole timing artefact. Anything closer than that is a tie in
             # substance whatever the float says.
             if losers:
-                stamps = [c.submitted_at for c in self._candidates]
-                noise_floor = 0.03 * (max(stamps) - min(stamps))
-                top = _adjusted(winner)
+                # A tie is a fact about the BIDS, not about the scheduler.
+                #
+                # The floor used to be 0.03 x the wall-clock span between the
+                # first and last submission, so how far apart two priorities
+                # had to be before they counted as different was set by
+                # whatever else the OS had been doing. A garbage collection
+                # between two submits widened it; a quiet moment narrowed it.
+                # Measured: the "three genuinely different bids" regression
+                # passed about half the time, and which half depended on
+                # thread timing rather than on anything cognitive.
+                #
+                # So the comparison is on cognitive priority — salience,
+                # affect, focus, alignment, fatigue — with recency left out.
+                # Recency is a real factor and it still decides the winner
+                # above; what it must not do is decide whether a difference
+                # EXISTS. The floor is the float resolution of that
+                # comparison and nothing else.
+                def _cognitive(candidate: CognitiveCandidate) -> float:
+                    return candidate.cognitive_priority - self._fatigue.get(
+                        candidate.source, 0.0
+                    )
+
+                cognitive = {id(c): _cognitive(c) for c in self._candidates}
+                top_cognitive = max(cognitive.values())
                 tied = tuple(
                     sorted(
                         c.source
                         for c in self._candidates
-                        if top - _adjusted(c) <= noise_floor
+                        if top_cognitive - cognitive[id(c)] <= _TIE_RESOLUTION
                     )
                 )
                 if len(tied) > 1:
                     self._tie_impasses += 1
                     self._last_tie = tied
+                    # What the tie was decided on, kept so a reader does not
+                    # have to reconstruct it. Reconstruction was wrong: the
+                    # fatigue map recovers earlier in this same call, so a
+                    # snapshot taken before run_competition names different
+                    # numbers than the ones actually compared.
+                    self._last_tie_values = {
+                        c.source: round(cognitive[id(c)], 12)
+                        for c in self._candidates
+                    }
                     logger.debug(
-                        "GW tie impasse: %d sources within the %.3g timing noise "
-                        "floor %s",
+                        "GW tie impasse: %d sources within %.3g of each other on "
+                        "cognitive priority %s",
                         len(tied),
-                        noise_floor,
+                        _TIE_RESOLUTION,
                         tied,
                     )
                     winner = self._resolve_tie(tied)
@@ -1360,6 +1439,7 @@ class GlobalWorkspace:
             # preference. Reported because the rate is the diagnostic: winners
             # alone cannot show that the choice was arbitrary.
             "tie_impasses": self._tie_impasses,
+            "last_tie_values": dict(self._last_tie_values),
             "last_tie": list(self._last_tie),
             "fatigue_recovery_rate": round(self._fatigue_recovery(), 5),
             "broadcast_history_len": len(self._history),

@@ -1029,8 +1029,17 @@ class TestAffectBroadcastBackpressure(unittest.IsolatedAsyncioTestCase):
         result = await engine.apply_stimulus("error and frustration", 6.0)
         self.assertEqual(result["status"], "heuristic_fallback")
         appraisal = result["appraisal"]
-        self.assertLess(appraisal["v"], 0.0)
+        # The contract is that a real appraisal is produced from the failure,
+        # not that the words "error and frustration" score negative. That
+        # second assertion was the word scan core.interiority replaced: with
+        # nothing at stake, a sentence containing the word error is not a bad
+        # event, and requiring it to be one is requiring the classifier back.
+        self.assertIn("v", appraisal)
+        self.assertIn("a", appraisal)
         self.assertGreater(appraisal["a"], 0.0)
+        for axis in ("v", "a", "e"):
+            if axis in appraisal:
+                self.assertIsInstance(appraisal[axis], float)
 
     async def test_apply_stimulus_suppresses_empty_response_failures(self):
         with swap("core.affect.damasio_v2.PhysicalActuator", return_value=_CallRecorder()):

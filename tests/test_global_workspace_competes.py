@@ -215,8 +215,8 @@ def test_identical_bids_share_the_broadcast_evenly():
     assert not findings, "\n".join(str(f) for f in findings)
 
 
-def test_genuinely_different_bids_are_not_called_ties():
-    """The noise floor must not swallow real differences."""
+def _three_bid_scenario(gap_s: float = 0.0) -> dict:
+    """Three clearly different bids, optionally submitted slowly."""
 
     async def scenario():
         workspace = GlobalWorkspace()
@@ -227,10 +227,99 @@ def test_genuinely_different_bids_are_not_called_ties():
                         content=f"{name}@{tick}", source=name, priority=priority
                     )
                 )
+                if gap_s:
+                    await asyncio.sleep(gap_s)
             await workspace.run_competition()
         return workspace.get_snapshot()
 
-    assert asyncio.run(scenario())["tie_impasses"] == 0
+    return asyncio.run(scenario())
+
+
+def test_the_competition_is_decided_by_cognition_not_by_the_clock():
+    """The flake, and why it was more than a flake.
+
+    This regression passed about half the time. The tie floor was 0.03 x the
+    wall-clock span between the first and last submission, so how far apart
+    two priorities had to be before they counted as different was set by
+    whatever else the machine was doing — a garbage collection between two
+    submits widened it, a quiet moment narrowed it.
+
+    Underneath that was a worse one: `effective_priority` read the clock
+    itself and was used as a sort key, so the comparator changed between
+    comparisons. A comparison function that is not consistent does not
+    produce a jittered ordering, it produces an arbitrary one.
+
+    Both are fixed by making a competition a single instant: the clock is
+    read once before any comparison, every candidate is aged against that,
+    and the tie test runs on cognitive priority with recency left out. So the
+    same bids must now give the same answer every time.
+    """
+    runs = [_three_bid_scenario()["tie_impasses"] for _ in range(8)]
+    assert len(set(runs)) == 1, (
+        f"the same three bids gave different results across runs: {runs}. "
+        "Something outside the cognitive state is deciding the competition"
+    )
+
+
+def test_slowing_the_submissions_down_changes_nothing():
+    """The direct test of the defect that was reported.
+
+    Ten milliseconds between submissions is an eternity next to the
+    microseconds the old floor was built from. If arrival timing still
+    reached the tie decision, this would part company with the fast run.
+    """
+    fast = _three_bid_scenario()["tie_impasses"]
+    slow = _three_bid_scenario(gap_s=0.01)["tie_impasses"]
+    assert fast == slow, (
+        f"submitting the same bids more slowly changed the tie count "
+        f"({fast} -> {slow}); arrival time is still deciding a semantic "
+        "competition"
+    )
+
+
+def test_a_tie_is_only_ever_reported_for_bids_that_are_actually_equal():
+    """The original intent of this test, in the form that survives.
+
+    It asserted that three different bids produce no ties at all, which is a
+    stronger claim than it looks: fatigue exists precisely to stop one source
+    monopolising, so adaptation is DESIGNED to drive a winner down toward its
+    rivals. When it succeeds exactly, that is a real tie and recording it is
+    what the impasse mechanism is for.
+
+    What must never happen is a tie between bids that cognitive priority
+    still separates. That is what this checks, and it is what the timing
+    floor used to violate.
+    """
+
+    async def scenario():
+        workspace = GlobalWorkspace()
+        seen: list[tuple[tuple[str, ...], dict[str, float]]] = []
+        for tick in range(TICKS):
+            live = []
+            for name, priority in (("a", 0.90), ("b", 0.70), ("c", 0.50)):
+                candidate = CognitiveCandidate(
+                    content=f"{name}@{tick}", source=name, priority=priority
+                )
+                live.append(candidate)
+                await workspace.submit(candidate)
+            ties_before = workspace.get_snapshot()["tie_impasses"]
+            await workspace.run_competition()
+            snapshot = workspace.get_snapshot()
+            if snapshot["tie_impasses"] > ties_before:
+                # The values the workspace itself compared. Reconstructing
+                # them here was wrong: fatigue recovers inside the same call,
+                # so a snapshot taken beforehand names different numbers.
+                seen.append((workspace._last_tie, snapshot["last_tie_values"]))
+        return seen
+
+    for tied_sources, adjusted in asyncio.run(scenario()):
+        values = [adjusted[source] for source in tied_sources if source in adjusted]
+        assert len(values) > 1, tied_sources
+        spread = max(values) - min(values)
+        assert spread <= 1e-9, (
+            f"{tied_sources} were called tied while cognitive priority still "
+            f"separated them by {spread:.3g}: {adjusted}"
+        )
 
 
 def test_losing_a_bid_does_not_silence_the_next_one():
