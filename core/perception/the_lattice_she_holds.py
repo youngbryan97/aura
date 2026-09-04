@@ -288,7 +288,28 @@ class TheLatticeSheHolds:
             if len(runs) > 1 and all(
                 one[3].replace(",", "").isdigit() for one in runs
             ):
-                words = "".join(one[3] for one in sorted(runs, key=lambda one: one[1]))
+                # Pieces of one value, not one value read twice.
+                #
+                # A reader that splits "16" gives back "1" and "6"; one that
+                # reads it whole AND catches a fragment gives back "16" and
+                # "1", and joining those makes 116. A piece is not the whole,
+                # so a run whose text is inside another run's is the same
+                # thing read again and only the longest of them stands. LIVE
+                # 2026-09-04: "A 116 — the biggest I have made here", on a
+                # board whose best tile was 64.
+                pieces = [
+                    one
+                    for one in runs
+                    if not any(
+                        other is not one and one[3] in other[3] for other in runs
+                    )
+                ]
+                if len(pieces) > 1:
+                    words = "".join(
+                        one[3] for one in sorted(pieces, key=lambda one: one[1])
+                    )
+                else:
+                    words = max(runs, key=lambda one: len(one[3]))[3]
             else:
                 words = nearest[3]
             found[(row, column)] = Cell(

@@ -65,3 +65,24 @@ def test_crowding_is_still_noticed():
 def test_numbers_with_separators_count_as_numbers():
     said = [(DOWN[0], ACROSS[1] - 0.01, "1"), (DOWN[0], ACROSS[1] + 0.01, "024")]
     assert _says(_held(), said) == {(0, 1): "1024"}
+
+
+def test_a_value_read_whole_and_in_pieces_is_not_joined_to_itself():
+    """A reader can give back both "16" and a stray "1" from the same tile.
+
+    Joining those makes 116. A piece is not the whole, so a run whose text is
+    inside another's is the same thing read again. LIVE 2026-09-04: "A 116 —
+    the biggest I have made here", on a board whose best tile was 64.
+    """
+    said = [(DOWN[1], ACROSS[2] - 0.012, "1"), (DOWN[1], ACROSS[2] + 0.004, "16")]
+    assert _says(_held(), said) == {(1, 2): "16"}
+
+
+def test_the_same_thing_read_twice_stays_itself():
+    said = [(DOWN[0], ACROSS[0] - 0.008, "128"), (DOWN[0], ACROSS[0] + 0.008, "128")]
+    assert _says(_held(), said) == {(0, 0): "128"}
+
+
+def test_two_real_pieces_are_still_joined():
+    said = [(DOWN[2], ACROSS[3] - 0.012, "2"), (DOWN[2], ACROSS[3] + 0.012, "56")]
+    assert _says(_held(), said) == {(2, 3): "256"}
