@@ -55,9 +55,13 @@ RESTART = SOURCE[SOURCE.index("async def begin_again") : SOURCE.index("async def
 
 def test_the_verdict_is_not_cleared_when_she_merely_decides_to_restart():
     """A click that landed on nothing left her believing the world was fresh."""
+    # From the decision onwards. Searching the whole file found the FIRST
+    # began_again in it, which belongs to the branch that gets her window
+    # back after something covered it — a different repair, hundreds of lines
+    # earlier — so the ordering this protects was never being read at all.
     decides = SOURCE.index('intending["value"] = START_OVER')
-    clears = SOURCE.index('responds["state"].began_again()')
-    clicks = SOURCE.index("clicked = await click_normalized(")
+    clicks = SOURCE.index("clicked = await click_normalized(", decides)
+    clears = SOURCE.index('responds["state"].began_again()', decides)
     assert decides < clicks < clears
 
 

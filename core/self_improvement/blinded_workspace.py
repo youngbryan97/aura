@@ -18,6 +18,7 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from core.governance_context import local_internal_governed_scope
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.self_improvement.interface_contract import (
     ClassSignature,
@@ -107,6 +108,22 @@ class BlindedWorkspaceFactory:
         - The original implementation
         - Any file that could leak the implementation
         """
+        # One scope around the whole workspace, because building it is one
+        # act of internal maintenance and every step of it writes.
+        #
+        # Without it the Will refused the first write and the Reimplementation
+        # Lab failed before it had a stub to hand anybody — 103 refusals in
+        # the live log, each one a self-improvement attempt that could never
+        # start. The workspace is a temporary directory of her own, holding
+        # her own stubs; nothing here is a person's file.
+        with local_internal_governed_scope(
+            "core.self_improvement.blinded_workspace",
+            domain="file_write",
+            constraints={"op": "create_blinded_workspace"},
+        ):
+            return self._create(spec, original_module_path)
+
+    def _create(self, spec: ModuleSpec, original_module_path: str) -> BlindedWorkspace:
         workspace_dir = Path(tempfile.mkdtemp(prefix="aura_blind_"))
         abs_original = str((self.project_root / original_module_path).resolve())
 

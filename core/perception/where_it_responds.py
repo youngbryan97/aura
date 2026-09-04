@@ -282,10 +282,25 @@ def noticed(
     for where in set(was) | set(now):
         if was.get(where) == now.get(where):
             continue
-        # Counted against the comparisons BEFORE this one, because this
-        # act's own change has already been recorded by the time it is read.
-        seen_before = state.answered.get(where, 0) + state.regardless.get(where, 0)
-        if seen_before < state.acts - 1:
+        # Against the acts that had NO effect, which is the only control
+        # there is. A place that also changes when she does nothing is
+        # changing on its own; one that has never been seen to do that is
+        # answering her.
+        #
+        # This used to ask whether the place had changed on every comparison
+        # so far, effect or none, and that is the wrong question on anything
+        # she is actually driving: a board answers in the same sixteen
+        # places every single move, so by the fourth move every place that
+        # mattered had been disqualified and the run declared the world
+        # dead. The clock in a corner that ticks over regardless is what the
+        # test is for, and the idle acts are where it shows itself.
+        #
+        # ``max(1, ...)`` is what makes a first act possible. With no idle
+        # comparison to hold anything against, nothing has been shown to
+        # change on its own, so a change is evidence — where the old
+        # arithmetic made act one unanswerable by construction.
+        idle_seen = state.regardless.get(where, 0)
+        if idle_seen < max(1, state.idle):
             answered_now = True
             break
     state.unanswered = 0 if answered_now else state.unanswered + 1

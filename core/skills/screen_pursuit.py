@@ -30,6 +30,7 @@ import asyncio
 import logging
 import re
 import time
+from collections import Counter
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import replace
 from typing import Any
@@ -221,6 +222,48 @@ async def window_bounds(app_name: str) -> tuple[int, int, int, int] | None:
     return (x, y, width, height)
 
 
+def _who_the_screen_belongs_to(app: str) -> tuple[str, bool]:
+    """Who owns the front window now, and whether ``app`` is drawing one at all.
+
+    The window server answers both from one list: it reports only the windows
+    being drawn at this moment, front to back. Two different ways a picture of
+    her window's rectangle is a picture of something else — another
+    application over her, and her window sitting on a Space that is not the
+    one on screen — and the second leaves her bounds exactly as they were.
+
+    An unanswerable question says nothing: no window server, no verdict.
+    """
+    try:
+        import Quartz  # noqa: PLC0415
+
+        windows = Quartz.CGWindowListCopyWindowInfo(
+            Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID
+        )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "screen_pursuit", exc, severity="info", action="looked without knowing whose screen it was"
+        )
+        return "", True
+    wanted = str(app or "").strip().lower()
+    front, drawing = "", False
+    for window in windows or []:
+        try:
+            layer = int(window.get("kCGWindowLayer", 0) or 0)
+            owner = str(window.get("kCGWindowOwnerName", "") or "")
+        except (TypeError, ValueError, AttributeError):
+            continue
+        # Ordinary windows only. The menu bar and the dock are always drawn
+        # and answer neither question.
+        if layer != 0 or not owner:
+            continue
+        if not front:
+            front = owner
+        lowered = owner.lower()
+        if wanted and (wanted in lowered or lowered in wanted):
+            drawing = True
+    return front, drawing
+
+
 async def read_screen(
     app_name: str = "", over: tuple[float, float, float, float] | None = None
 ) -> dict[str, Any]:
@@ -261,6 +304,22 @@ async def read_screen(
     receipt = await get_host_automation().get_screen_text(
         region=bounds, retain_screenshot=False
     )
+    # Who the picture is actually of.
+    #
+    # A rectangle is not a window. The capture takes whatever is drawn in
+    # that part of the display, so a window sitting over hers comes back
+    # scoped to her app, the right shape, the right size, and full of
+    # somebody else's words — and scoped_to, which exists to catch a reading
+    # of the desktop, says it is hers because the bounds were found.
+    #
+    # LIVE 2026-09-04, driving the 2048 app: arrangements laid into her four
+    # by four board reading ". The White House 12h Walker Kessler | .
+    # ARCADE.GOV . Show more", learned from as though they were the game, and
+    # every move across one of them recorded as having changed nothing.
+    #
+    # She already refuses to TYPE into a window that is not in front. This is
+    # the same rule for looking, and it is the same reason.
+    in_front, showing = _who_the_screen_belongs_to(app_name) if app_name else ("", True)
     return {
         "ok": bool(getattr(receipt, "success", False)),
         "text": str(getattr(receipt, "result", "") or ""),
@@ -272,6 +331,14 @@ async def read_screen(
         # for part of a window gets positions within that part, and saying so
         # is what stops a band being applied twice.
         "read_within": "the part" if (window and over) else "the window",
+        #: What was in front when the picture was taken. Empty when nobody
+        #: asked for an application, which is the unaimed case.
+        "in_front_then": in_front,
+        #: Whether that application was drawing anything on the screen at
+        #: all. A window on another Space keeps its position — the bounds
+        #: come back exactly as before — while none of its pixels are on the
+        #: display being photographed.
+        "her_window_showing": showing,
         "at": time.time(),
     }
 
@@ -777,6 +844,68 @@ RESTART_LABELS = ("new game", "restart", "play again", "try again", "start over"
 #: The two ways out of an impasse that are not "keep pressing".
 START_OVER = "start over"
 SEE_IT_THROUGH = "see it through"
+
+
+def restart_controls(observation: dict[str, Any]) -> frozenset[str]:
+    """Every control on screen that would begin the task again, by its words.
+
+    The set rather than the first one, because what says a task has finished
+    is a way back that was NOT there a moment ago. A game that keeps "New
+    Game" above the board all game long puts "Try again" over it when it
+    ends, and only the second of those is news.
+    """
+    found: set[str] = set()
+    for region in observation.get("layout") or []:
+        text = str(region.get("text") or "").strip()
+        if not text or len(text) > 40:
+            continue
+        lowered = text.lower()
+        if any(label in lowered for label in RESTART_LABELS):
+            found.add(lowered)
+    return frozenset(found)
+
+
+def a_run_she_can_carry(follow_on: Sequence[str], can_foresee: bool, moved: int) -> list[str]:
+    """The moves after this one that are still moves about THIS situation.
+
+    A ranking is a judgement about alternatives at one moment. Carrying it
+    forward as a sequence is honest exactly while the first act leaves the
+    situation the ranking was made in: on a page where a key may simply do
+    nothing, the second-best thing to try is the next thing to try. On a
+    board, the second-best move is a move for a board that no longer exists.
+
+    So a run outlives its own first act in one of two ways — she can say what
+    the situation becomes, or acting here has never been seen to change
+    anything. ``moved`` is how many of her acts have changed the thing.
+
+    LIVE 2026-09-04: a ranking of four arrow keys went out as a four-move
+    plan every cycle, down then up then left then right, on a board where
+    each of them changed everything. Sixty moves a game, no rule ever formed,
+    and every game ended in about ninety seconds.
+    """
+    if not follow_on:
+        return []
+    if can_foresee or moved <= 0:
+        return list(follow_on)
+    return []
+
+
+def a_way_back_that_was_not_there(
+    now: frozenset[str], at_the_start: frozenset[str] | None
+) -> bool:
+    """Whether a way to begin the task again has APPEARED since it began.
+
+    The appearing is the whole signal. A control that has been on screen
+    since before she made a move is furniture — every form with a Reset,
+    every wizard with Start Over, every game with a permanent New Game — and
+    reading its mere presence as an ending finishes the task on cycle one.
+
+    ``at_the_start`` of None means nothing has been compared against yet, so
+    nothing can have appeared.
+    """
+    if at_the_start is None:
+        return False
+    return bool(now - at_the_start)
 
 
 def restart_control(observation: dict[str, Any]) -> tuple[str, float, float] | None:
@@ -1378,10 +1507,31 @@ def _both_of_the_thing(app: str, before: Any, after: Any) -> bool:
     if not app:
         return True
     return all(
-        str((one or {}).get("scoped_to") or "") == app
+        str((one or {}).get("scoped_to") or "") == app and _was_of_that_window(one, app)
         for one in (before, after)
         if isinstance(one, dict)
     )
+
+
+def _was_of_that_window(reading: Any, app: str) -> bool:
+    """Whether the picture was taken while that application was in front.
+
+    The rectangle was hers; the pixels in it belong to whatever was drawn
+    there. A reading taken while something else was in front is a reading of
+    that something else, wearing her window's coordinates.
+
+    A reading from before this was recorded says nothing either way, and
+    ``True`` is what "says nothing" has always meant here.
+    """
+    if not (reading or {}).get("her_window_showing", True):
+        # Her window is exactly where it was and none of it is on the screen
+        # that was photographed.
+        return False
+    who = str((reading or {}).get("in_front_then") or "")
+    if not who:
+        return True
+    mine, theirs = app.strip().lower(), who.strip().lower()
+    return mine in theirs or theirs in mine
 
 
 def _moves_that_leave_her_nothing(
@@ -2496,9 +2646,20 @@ async def pursue_on_screen(
     #: "nothing on screen offered a move" for every one of them — which cost
     #: three wrong diagnoses in a row before this line existed.
     no_move: dict[str, str] = {"because": ""}
-    #: Whether a restart control has appeared, which is a thing saying it has
-    #: finished. Held so it is said once rather than every cycle.
-    offered_a_restart: dict[str, bool] = {"value": False}
+    #: Whether a restart control has APPEARED — turned up where there was
+    #: none — which is a thing saying it has finished.
+    #:
+    #: ``was_there`` is what the first reading of this task showed, and it is
+    #: the whole point: a control that has been on screen since before she
+    #: made a move is furniture, not an ending. LIVE 2026-09-04: the 2048
+    #: desktop app keeps a "New Game" button above the board at all times, so
+    #: the presence test fired on cycle one, every cycle, and a run of twelve
+    #: cycles pressed no key at all and clicked New Game eleven times. Every
+    #: form with a Reset, every wizard with Start Over, every game with a
+    #: permanent restart is the same page.
+    #:
+    #: ``said`` keeps it said once rather than every cycle.
+    offered_a_restart: dict[str, Any] = {"was_there": None, "said": False}
     pending: dict[str, Any] = {
         "deliberation": None,
         "before": "",
@@ -2527,7 +2688,15 @@ async def pursue_on_screen(
     # And whether she has been anywhere LIKE it, asked once she has seen it.
     like_it: dict[str, Any] = {"kind": "", "looked": False}
     # Moves she made and could not learn from, by what stopped her.
-    dropped: dict[str, int] = {"not the thing itself": 0, "a different frame": 0}
+    # A tally, not a fixed set of keys.
+    #
+    # It was a plain dict holding the two reasons that had ever fired, and
+    # two later reasons were written as `dropped[name] += 1` against keys
+    # that were not in it. Both raise KeyError out of the middle of the
+    # deciding step — so a branch written to protect the learner took the
+    # whole run down the first time it was reached. LIVE 2026-09-04: it had
+    # never been reached, because the count it was gated on was never set.
+    dropped: Counter[str] = Counter()
     if knew:
         logger.info("she has been in %r before: %s", this_world, sorted(knew))
     # Which of her acts do anything here, found out rather than declared.
@@ -3073,7 +3242,11 @@ async def pursue_on_screen(
         # place, and every guard that tested for one read it as the opposite.
         # She played on without learning anything from a board she was finally
         # reading properly.
-        looking_at_the_thing = already or band is not None
+        # And a picture taken through somebody else's window is not a
+        # reading of the thing however well it is scoped or cropped.
+        looking_at_the_thing = (already or band is not None) and _was_of_that_window(
+            observation, target_app or anchor["app"]
+        )
         seen = within(observation, band, responds["state"])
         # Which places answer to her, not merely their outline. See
         # what_is_there: furniture inside the outline defines columns the
@@ -3741,9 +3914,18 @@ async def pursue_on_screen(
             # appears only at the end is better evidence than the absence of
             # one, and it is general: a finished form, an expired session and
             # a lost game all put one up.
-            if not ended and restart_control(observation) is not None:
-                if not offered_a_restart["value"]:
-                    offered_a_restart["value"] = True
+            ways_back = restart_controls(observation)
+            appeared = a_way_back_that_was_not_there(
+                ways_back, offered_a_restart["was_there"]
+            )
+            if offered_a_restart["was_there"] is None:
+                # The first reading of this task settles what counts as
+                # furniture here. Nothing before this line has been compared
+                # against, so nothing before it can have appeared.
+                offered_a_restart["was_there"] = ways_back
+            if not ended and appeared:
+                if not offered_a_restart["said"]:
+                    offered_a_restart["said"] = True
                     logger.info(
                         "a way to start again has appeared, so this has ended"
                     )
@@ -4315,13 +4497,11 @@ async def pursue_on_screen(
         # And where she named no sequence, one taken on the model instead.
         expected["after"], expected["took"] = None, 0
         foresee = _expects(knows)
-        if foresee is not None and pending["arranged"] is not None:
-            # What she expects from THIS act, whether or not a run follows it.
-            # A single act landing where she said is the evidence that lets
-            # the distance grow at all.
-            alone = foresee(pending["arranged"], key)
-            if alone is not None:
-                expected["after"], expected["took"] = alone, 1
+        # A sequence she cannot carry from one step to the next is a list of
+        # alternatives, not a plan.
+        follow_on = a_run_she_can_carry(
+            follow_on, foresee is not None, int(getattr(knows.rules, "moved", 0) or 0)
+        )
         if not follow_on and foresee is not None and pending["arranged"] is not None:
             going = far.how_many(trusted=float(knows.rules.confidence()))
             if going > 1:
@@ -4334,7 +4514,7 @@ async def pursue_on_screen(
                     )
                     return max(ahead_now, key=lambda one: ahead_now[one][0]) if ahead_now else ""
 
-                follow_on, expected["after"] = _the_rest_of_the_run(
+                follow_on, _ = _the_rest_of_the_run(
                     key,
                     pending["arranged"],
                     foresee,
@@ -4342,11 +4522,35 @@ async def pursue_on_screen(
                     pick,
                     going,
                 )
-                expected["took"] = len(follow_on) + 1
                 if follow_on:
                     logger.info(
-                        "going %d without looking (%s)", expected["took"], far.describe()
+                        "going %d without looking (%s)",
+                        len(follow_on) + 1,
+                        far.describe(),
                     )
+        # How many acts the next reading will be the result of, and what she
+        # expects it to be. Said once, for both ways a run gets made.
+        #
+        # This used to be counted only for the run she built herself from the
+        # model. A deliberation that named its own sequence left it at one
+        # while four keys went out — so the guard that refuses to learn from
+        # several acts and one reading never fired, and every pair the learner
+        # was handed named an act that did not produce it.
+        #
+        # LIVE 2026-09-04 on the real board: four keys a cycle, nine
+        # comparisons kept, and the best hypothesis right once. The board was
+        # being read perfectly the whole time; the learner was being told the
+        # wrong question.
+        expected["took"] = len(follow_on) + 1
+        if foresee is not None and pending["arranged"] is not None:
+            # Folded over the whole run, because a claim about one act is not
+            # a claim about the board she will actually be looking at.
+            where: Any = pending["arranged"]
+            for step in (key, *follow_on):
+                where = foresee(where, step)
+                if where is None:
+                    break
+            expected["after"] = where
         logger.info(
             "about to press %r then %s (brief=%s, made=%s)",
             key,

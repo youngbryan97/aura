@@ -14,7 +14,13 @@ from __future__ import annotations
 
 import pytest
 
-from core.skills.screen_pursuit import RESTART_LABELS, restart_control, ways_out
+from core.skills.screen_pursuit import (
+    RESTART_LABELS,
+    a_way_back_that_was_not_there,
+    restart_control,
+    restart_controls,
+    ways_out,
+)
 
 
 def _screen(*texts: str) -> dict:
@@ -42,15 +48,49 @@ def test_a_finished_thing_offers_the_way_out_and_not_the_moves():
     assert any("start over" in option.name for option in out)
 
 
-def test_the_pursuit_treats_an_appearing_restart_as_the_end():
+def test_a_control_that_was_always_there_is_not_an_ending():
+    """The 2048 desktop app keeps "New Game" above the board the whole game.
+
+    LIVE 2026-09-04: presence alone was the test, so the first cycle of every
+    run on that app declared the task finished. Twelve cycles, eleven clicks
+    on New Game, and not one arrow key pressed.
+    """
+    playing = restart_controls(_screen("New Game", "2", "4"))
+    assert not a_way_back_that_was_not_there(playing, playing)
+
+
+def test_a_control_that_turns_up_is_an_ending():
+    began = restart_controls(_screen("New Game", "2", "4"))
+    over = restart_controls(_screen("New Game", "Try again", "Game over!"))
+    assert a_way_back_that_was_not_there(over, began)
+
+
+def test_nothing_has_appeared_before_there_is_anything_to_compare_with():
+    over = restart_controls(_screen("New Game", "Try again"))
+    assert not a_way_back_that_was_not_there(over, None)
+
+
+def test_a_way_back_where_there_was_none_at_all_is_an_ending():
+    assert a_way_back_that_was_not_there(
+        restart_controls(_screen("Play Again", "2")), restart_controls(_screen("2", "4"))
+    )
+
+
+def test_a_way_back_that_goes_away_is_not_an_ending():
+    began = restart_controls(_screen("Try again", "2"))
+    playing = restart_controls(_screen("2", "4"))
+    assert not a_way_back_that_was_not_there(playing, began)
+
+
+def test_the_pursuit_asks_whether_it_appeared_rather_than_whether_it_is_there():
     import inspect
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit)
-    at = source.index("ended = responds[\"state\"].nothing_answers()")
-    nearby = source[at : at + 1200]
-    assert "restart_control(observation) is not None" in nearby
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    at = source.index('ended = responds["state"].nothing_answers()')
+    nearby = source[at : at + 1800]
+    assert "a_way_back_that_was_not_there(" in nearby
     assert "ended = True" in nearby
 
 
@@ -59,5 +99,5 @@ def test_it_is_said_once_rather_than_every_cycle():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit)
-    assert 'offered_a_restart["value"]' in source
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    assert 'offered_a_restart["said"]' in source
