@@ -68,6 +68,9 @@ class LikingAndWanting(Faculty):
             "Liking has a sign and this is the wrong side of it.",
         ),
     )
+    # Delivered above the category expectation. The default world
+    # delivers below it, which this faculty correctly declines on.
+    activation = {"congruence": 0.8, "expectation_deviation": 0.8}
     null = NullSpec(values={"congruence": 0.0, "expectation_deviation": 0.0})
 
     def falsifier(self) -> str:

@@ -60,6 +60,15 @@ class Upheaval(Faculty):
             "is being inferred from the stimulus rather than measured.",
         ),
     )
+    # Six readings with the variance rising, which is the transition
+    # this measures. One reading cannot show a change in variability.
+    activation_interior = {
+        # Variance rising AND the lag-1 autocorrelation high, which is
+        # critical slowing. An alternating trace has rising variance and
+        # NEGATIVE autocorrelation, and reads as noise rather than a
+        # system approaching a transition.
+        "affect_trace": (0.50, 0.50, 0.50, 0.50, 0.55, 0.65, 0.80, 0.95),
+    }
     null = NullSpec(values={}, tolerance=0.0)
 
     def falsifier(self) -> str:

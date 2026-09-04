@@ -67,6 +67,10 @@ class LandscapeOverMonument(Faculty):
             "of the refusal should track it.",
         ),
     )
+    # Seen by many and permanent. At the default publicity the private
+    # gain outweighs the public loss and the intensity floors at zero,
+    # which is the right answer to a question nobody will see.
+    activation = {"publicity": 0.95}
     null = NullSpec(values={"publicity": 0.0, "irreversibility": 0.0})
 
     def falsifier(self) -> str:

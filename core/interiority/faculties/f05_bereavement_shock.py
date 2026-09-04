@@ -84,6 +84,11 @@ class BereavementShock(Faculty):
             "the error is proportionally smaller.",
         ),
     )
+    # A live bond and NO registered loss. Built together they are
+    # contradictory: registering the loss zeroes the availability
+    # prediction whose violation is the shock, so this faculty scored
+    # 0.000 in a world that contained a bereavement.
+    activation_world = ("bond", "history")
     null = NullSpec(
         values={"attachment_impact": 0.0, "certainty": 0.0, "irreversibility": 0.0}
     )

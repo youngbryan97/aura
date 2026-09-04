@@ -67,6 +67,9 @@ class AnticipatoryJoy(Faculty):
             "Resolution alone is not the reward; the direction is half of it.",
         ),
     )
+    # A resolution that went her way. The default world is a bad event,
+    # and anticipatory joy correctly declines there.
+    activation = {"congruence": 0.8}
     null = NullSpec(values={"congruence": 0.0, "certainty": 0.0})
 
     def falsifier(self) -> str:

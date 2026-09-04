@@ -83,6 +83,12 @@ class ProtectivePretense(Faculty):
             "the pretence protects nothing and is simply a lie.",
         ),
     )
+    # The narrow world this faculty is FOR: a belief that decays on its
+    # own and a person who would agree to it. The default world is
+    # permanent and public, and refusing there is the whole point of
+    # the conjunction.
+    activation = {"irreversibility": 0.05, "publicity": 0.1, "vulnerability": 0.2}
+    activation_world = ("work", "bond")
     null = NullSpec(
         values={"relevance": 0.0, "irreversibility": 0.0, "vulnerability": 0.0}
     )
