@@ -127,6 +127,26 @@ class TheOnesSheReachesFor:
         best = max(ways, key=lambda one: (self.worth(one), one))
         return () if len(best) >= len(acts) else tuple(sorted(best))
 
+    def the_ones_to_consider(self, available: Sequence[str]) -> tuple[str, ...]:
+        """The ones she is leaning on, out of what is on offer.
+
+        Leaning on two acts means those two are the moves she looks at — not
+        that she plays the first of them and never the other. Which of them
+        the position calls for is what looking ahead is for, and a habit that
+        picks the member as well as the set leaves nothing for it to do.
+
+        LIVE 2026-09-04 on the real board: leaning on a pair, the first of the
+        pair pressed every single move, the choice narrowed to it before
+        anything looked ahead, and every move announced as "the only thing
+        available". The pair was measured to beat any single act because the
+        two keep the same corner — a fact neither of them can show alone, and
+        one that never showed at all while only one of them was ever played.
+
+        Empty when none of them is available, which is the caller's signal
+        that the habit has no purchase here.
+        """
+        return tuple(one for one in available if one in self.leaning_on)
+
     def which_to_take(self, available: Sequence[str], acts: Sequence[str]) -> str:
         """What she reaches for, or whatever is going when none of it is.
 

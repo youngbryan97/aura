@@ -4068,14 +4068,23 @@ async def pursue_on_screen(
                     reaches.end_the_stretch()
                     stretch["rises"] = 0
                     reaches.start_a_stretch(foreseeable)
-                wants = reaches.which_to_take(foreseeable, foreseeable)
-                if wants:
+                # The ones she is leaning on, not one of them.
+                #
+                # A habit that picks the member as well as the set leaves
+                # nothing for looking ahead to do: the choice arrived at the
+                # deliberation with one option in it, every move came back
+                # "the only thing available", and the search she has never
+                # ran. Leaning on two acts means those two are the moves she
+                # considers, and which the position calls for is the question
+                # the model answers.
+                wants = reaches.the_ones_to_consider(foreseeable)
+                if wants and len(wants) < len(foreseeable):
                     # Everything she cannot foresee stays on the table: the way
                     # out and the ways of asking are never narrowed by a habit.
                     available = [
                         one
                         for one in available
-                        if one.name == wants or one.name not in foreseeable
+                        if one.name in wants or one.name not in foreseeable
                     ]
 
             # Has she been anywhere LIKE this before.
