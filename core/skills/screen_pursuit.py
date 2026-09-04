@@ -243,6 +243,25 @@ def _a_pass_in_moves(costs: dict[str, float]) -> float:
     return max(1.0, a_pass / a_quiet_move)
 
 
+def _looks_like(foretold: Any, band: Any, lattice: Any) -> Any:
+    """A test for "this is the arrangement she said the move would make".
+
+    None where she foretold nothing, which is the ordinary case early on and
+    the honest answer for a world she cannot predict — then waiting for
+    stillness is all she has.
+    """
+    if foretold is None or lattice is None or not getattr(lattice, "held", False):
+        return None
+    from core.perception.how_it_moves import prediction_held  # noqa: PLC0415
+    from core.perception.where_it_responds import what_is_there  # noqa: PLC0415
+
+    def it_did(now: dict[str, Any]) -> bool:
+        placed = what_is_there(now, band.band(), None, None, lattice)
+        return bool(prediction_held(foretold, placed))
+
+    return it_did
+
+
 def _who_the_screen_belongs_to(app: str) -> tuple[str, bool]:
     """Who owns the front window now, and whether ``app`` is drawing one at all.
 
@@ -4999,7 +5018,11 @@ async def pursue_on_screen(
                 # which acts do anything, how the thing moves, where it
                 # answers her — was being taught from that.
                 came_to_rest, _ = await _settled_after(
-                    pending["watched"] or {}, target_app or anchor["app"]
+                    pending["watched"] or {},
+                    target_app or anchor["app"],
+                    arrived=_looks_like(
+                        expected["after"], responds["state"], responds["lattice"]
+                    ),
                 )
                 # Only a reading it actually took. Where every capture timed
                 # out it hands back the one it was given, and that is the
@@ -5584,7 +5607,11 @@ def _how_long_to_wait() -> float:
 
 
 async def _settled_after(
-    before: dict[str, Any], app: str, *, patience: float = 0.0
+    before: dict[str, Any],
+    app: str,
+    *,
+    patience: float = 0.0,
+    arrived: Callable[[dict[str, Any]], bool] | None = None,
 ) -> tuple[dict[str, Any], bool]:
     """The screen once it has changed AND stopped changing, and whether it did.
 
@@ -5633,6 +5660,24 @@ async def _settled_after(
             _ANSWERING_TOOK["longest"] = max(
                 _ANSWERING_TOOK["longest"], time.monotonic() - started
             )
+            # Where she foretold the result, recognising it is knowing it has
+            # landed.
+            #
+            # Watching until it stops changing is what she has to do when she
+            # cannot say what the change will be. When she can, the arrival of
+            # exactly that is the same fact and costs one reading instead of
+            # two — and a reading is most of what a move costs. Measured on
+            # the real board: about four seconds a move, of which nearly two
+            # were the second look.
+            if arrived is not None:
+                try:
+                    if arrived(now):
+                        return now, True
+                except (AttributeError, TypeError, ValueError) as exc:
+                    record_degradation(
+                        "screen_pursuit", exc, severity="info",
+                        action="waited for stillness rather than for what she foretold",
+                    )
         elif moved and said == places_and_text(seen):
             # Changed, and now the same twice running: it has finished.
             return now, True
