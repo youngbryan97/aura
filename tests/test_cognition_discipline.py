@@ -387,7 +387,11 @@ def test_cognition_invariants_registered_and_clean():
     install_runtime_providers()
     install_runtime_pings()
     val_mod.install_runtime_validation()
-    val_mod.run_validation()
+    # The boot posture, and for the same reason a boot uses it: the invariant
+    # below skips NOT_MEASURED, so re-running five experiments buys it nothing
+    # and cost this test 700 seconds. The experiments are run by the tests
+    # that own them.
+    val_mod.run_validation(include_expensive=False)
 
     report = verify("cognition", record=False)
     assert report.ok, report.summary()

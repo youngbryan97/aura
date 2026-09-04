@@ -3033,6 +3033,11 @@ _AN_EXPERIMENT_NOT_AN_INSTRUMENT = frozenset({
     # an experiment by the same reading as the three above.
     "test_she_writes_an_order_that_holds_on_episodes_it_never_saw",
     "test_a_rule_with_no_shape_holds_where_it_was_never_fitted",
+    # Named by the budget once the two above were declined, and an experiment
+    # by the same reading: it runs the construction search over six states to
+    # arrive at a constructor, rather than reading what a previous run
+    # arrived at. 1.9 seconds, which is why nobody had looked at it.
+    "test_what_she_built_is_not_in_the_source_registry",
 })
 
 
