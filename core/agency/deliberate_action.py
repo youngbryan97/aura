@@ -1048,9 +1048,19 @@ async def deliberate(
     # graded on what it actually said.
     from core.agency.standing_strategy import claim_in  # noqa: PLC0415
 
-    claimed = claim_in(reason_text := _reason_or_nothing(
+    reason_text = _reason_or_nothing(
         _rationale(reply, chosen, options), [*evidence, _objective(goal, options)], options
-    ))
+    )
+    if not reason_text:
+        # What ranked it is why it was taken.
+        #
+        # The foresight's own account of a move — "this is the one that would
+        # settle how this moves", "it is the best of the ways this could go" —
+        # was read only where nothing else had chosen anything. A choice that
+        # arrived some other way and was then ranked by foresight came out
+        # with no reason at all, which is not the same as having none.
+        reason_text = str((foresight or {}).get(chosen.name, (0.0, ""))[1] or "").strip()
+    claimed = claim_in(reason_text)
     deliberation = Deliberation(
         goal=goal,
         situation=situation,

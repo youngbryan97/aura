@@ -3243,6 +3243,13 @@ async def pursue_on_screen(
     in_the_way: dict[str, str] = {"last": ""}
 
     async def decide(observation: dict[str, Any]) -> Step | None:
+        # The moves really on offer, named before anything can ask for them.
+        #
+        # A caller with its own policy skips the whole deliberation, and the
+        # part that decides how far to commit reads this — so hoisting one
+        # line out of the branch that used to guard it turned a policy-driven
+        # run into UnboundLocalError on its first move.
+        available: list[Any] = []
         # Something in front of her work is cleared before anything else.
         #
         # Not once it has cost her four moves discovering that nothing
