@@ -314,10 +314,6 @@ def _register_all_services_body(container, is_proxy: bool):
         from core.self_modification.structural_mutator import get_structural_mutator
         return get_structural_mutator()
 
-    def create_lineage_manager():
-        from core.self_modification.lineage import get_lineage_manager
-        return get_lineage_manager()
-
     def create_self_awareness_suite():
         from core.consciousness.self_awareness_suite import get_self_awareness_suite
         return get_self_awareness_suite()
@@ -550,7 +546,11 @@ def _register_all_services_body(container, is_proxy: bool):
     container.register('what_she_worked_out', create_what_she_worked_out, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('emergent_goal_engine', create_emergent_goal_engine, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('structural_mutator', create_structural_mutator, lifetime=ServiceLifetime.SINGLETON, required=False)
-    container.register('lineage_manager', create_lineage_manager, lifetime=ServiceLifetime.SINGLETON, required=False)
+    # No `lineage_manager` registration. Nothing ever resolved the key, and a
+    # registered service with no reader reads as integration — which for
+    # whole-agent reproduction is the one place that misreading matters. The
+    # mechanism is reachable through core/self_modification/lineage_enclosure.py,
+    # which is where its resource, authority and identity boundaries are.
     container.register('self_awareness_suite', create_self_awareness_suite, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('identity_chronicle', create_identity_chronicle, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('reimplementation_lab', create_reimplementation_lab, lifetime=ServiceLifetime.SINGLETON, required=False)

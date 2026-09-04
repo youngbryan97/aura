@@ -10,7 +10,7 @@ buildable thing. Status is measured, not asserted.
 | 1 | Global Workspace race is flaky | **DONE** — competition is one instant; 12/12 and 10/10 deterministic |
 | 2 | `InteriorityService.apply()` — the general effect bus (affect, somatic, goals, curiosity, action filtering, cognitive budget) has no production caller | **DONE** — all four channels were broken independently and the ledger they appraise had no writers; `core/interiority/stakes.py` fills it, `_observe_social_turn` calls apply, 19 tests |
 | 3 | Stream of Being: LLM narrative can become evidence for the state it was generated from. Self-confirming phenomenology | **DONE** — four loops cut; `core/consciousness/narrative_provenance.py` binds text to the state digest it came from and grades what it may be evidence for; 13 tests |
-| 4 | Whole-agent lineage manager is NOT WIRED and must not simply be turned on. Either remove/rename or isolate with explicit resource and authority boundaries | OPEN |
+| 4 | Whole-agent lineage manager is NOT WIRED and must not simply be turned on. Either remove/rename or isolate with explicit resource and authority boundaries | **DONE** — isolated, not turned on: `core/self_modification/lineage_enclosure.py` enforces resource, authority and identity boundaries; the false `lineage_manager` registration removed; 30 tests |
 
 ## Architectural: ontological duplication
 

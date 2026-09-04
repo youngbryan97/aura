@@ -128,12 +128,20 @@ _TRACKED_UNWIRED: dict[str, str] = {
         "it. The technique is real and the implementation is sound; what is "
         "missing is a model lane, not code."
     ),
+    "core/self_modification/lineage_enclosure.py": (
+        "the boundary whole-agent lineage runs inside: caps on generations, "
+        "population, disk and wall clock; writes kept out of the live state "
+        "root; identity-bearing configuration refused rather than stripped. "
+        "Started by a person, never by a running Aura, which is why it has "
+        "no caller."
+    ),
     "core/self_modification/lineage.py": (
-        "heritable variation + selection at the ORGANISM level. It is "
-        "registered as a `lineage_manager` service and nothing resolves the "
-        "key, which the module itself calls out as the worse signal: "
-        "registration reads as integration. Parked deliberately — organism "
-        "reproduction is a decision about what Aura is, not a wiring task."
+        "heritable variation + selection at the ORGANISM level. Reachable "
+        "only through `Enclosure.manager`, which caps what a run may spend, "
+        "keeps its writes out of the live state root, and refuses to let a "
+        "child inherit an identity. Nothing in the runtime starts one — "
+        "organism reproduction is a decision about what Aura is, not a "
+        "wiring task."
     ),
 }
 
@@ -398,11 +406,38 @@ def test_every_module_declaring_itself_unwired_names_an_entry_point():
 
 
 def test_no_module_declaring_itself_unwired_actually_has_a_caller():
-    """The direction that catches someone wiring it and not saying so."""
+    """The direction that catches someone wiring it and not saying so.
+
+    Reach is transitive, so a call site inside a module that is itself
+    unreached does not make the callee reached. Without that, enclosing an
+    unwired mechanism behind a boundary — which is more careful, not less —
+    would read here as having wired it.
+    """
+    declaring = _modules_declaring_unwired()
+    unreached = set(declaring)
+    # Fixpoint: a declaring module stays unreached while every call site of
+    # its entry points lies in another module that is itself unreached.
+    changed = True
+    while changed:
+        changed = False
+        for path in sorted(unreached):
+            _doc, entries = declaring[path]
+            reached_by = {
+                caller
+                for entry in entries
+                for caller in _production_call_sites(entry, path)
+                if caller not in unreached
+            }
+            if reached_by:
+                unreached.discard(path)
+                changed = True
+
     wired_but_denying: dict[str, dict[str, list[str]]] = {}
-    for path, (_doc, entries) in _modules_declaring_unwired().items():
+    for path, (_doc, entries) in declaring.items():
+        if path in unreached:
+            continue
         callers = {
-            entry: _production_call_sites(entry, path)
+            entry: [c for c in _production_call_sites(entry, path) if c not in unreached]
             for entry in sorted(entries)
         }
         real = {entry: hits for entry, hits in callers.items() if hits}
@@ -430,34 +465,54 @@ def test_the_declarations_cover_the_subsystems_that_were_found_unwired():
         )
 
 
-def test_lineage_manager_declares_that_whole_agent_reproduction_is_not_live():
-    """Registered as a service, resolved by nobody.
+ENCLOSURE = "core/self_modification/lineage_enclosure.py"
+
+
+def test_the_enclosure_is_the_only_way_to_a_lineage_manager():
+    """Whole-agent reproduction runs inside a boundary or it does not run.
 
     The interesting half is what it lets someone claim. Aura's ALife
     substrate IS causal — the pattern replicator mutates real neural-mesh
-    weight matrices in place. Whole-agent reproduction is this module, and
-    this module does not run. "ALife cognitive agent" is supportable;
+    weight matrices in place. Whole-agent reproduction is that other module,
+    and it is reachable only through an enclosure that caps what a run may
+    spend, keeps its writes out of the live state root, and refuses to let a
+    child inherit an identity. "ALife cognitive agent" is supportable;
     "self-reproducing digital organism" is not, and the difference is a
-    call site.
+    boundary somebody has to cross on purpose.
     """
     module_path = "core/self_modification/lineage.py"
     constructors = _production_call_sites("LineageManager", module_path)
-    readers = _key_readers("lineage_manager")
-    module = (ROOT / module_path).read_text(encoding="utf-8")
+    assert constructors == [ENCLOSURE], (
+        f"LineageManager is constructed by {constructors}. The enclosure must "
+        "be the only way in: every other construction site is a lineage with "
+        "no resource, authority or identity boundary on it."
+    )
+    assert not _key_readers("lineage_manager"), (
+        "something resolves the lineage_manager service key again. The "
+        "registration was removed because a registered service with no reader "
+        "reads as integration, which for whole-agent reproduction is the one "
+        "place that misreading matters."
+    )
 
-    if constructors or readers:
-        assert "NOT WIRED INTO THE LIVE RUNTIME" not in module, (
-            f"LineageManager is now constructed by {constructors} and/or its "
-            f"service key read by {readers}; the module still declares itself "
-            "unwired. Whole-agent lineage being live changes what may be "
-            "claimed about Aura — say so deliberately."
-        )
-    else:
-        assert "NOT WIRED INTO THE LIVE RUNTIME" in module, (
-            "LineageManager has no production constructor and nothing resolves "
-            "the lineage_manager service key. The module must say so: a "
-            "registered service with no reader reads as integration."
-        )
+
+def test_nothing_in_the_live_runtime_starts_a_lineage():
+    """An enclosure is started by a person, not by a running Aura."""
+    callers = _production_call_sites("Enclosure", ENCLOSURE)
+    assert not callers, (
+        f"{callers} construct a lineage Enclosure. Nothing in the runtime may "
+        "start whole-agent reproduction on its own; that is a decision about "
+        "what Aura is, taken by someone, in a call they can see."
+    )
+
+
+def test_the_lineage_default_path_stays_out_of_live_state():
+    """The default was the live data directory, in a module documented unwired."""
+    enclosure = (ROOT / ENCLOSURE).read_text(encoding="utf-8")
+    assert "db_path=self._root" in enclosure, (
+        "the enclosure no longer passes an explicit database path, so a run "
+        "falls back to LineageManager's own default, which is the live data "
+        "directory"
+    )
 
 
 def test_a_registered_service_nobody_reads_is_not_evidence_of_wiring():

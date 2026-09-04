@@ -11,14 +11,28 @@ This does not claim to be evolution. It is the minimum viable version of
 "heritable variation + selection" — enough that the gap stops being
 "completely absent" and becomes "bounded but auditable".
 
-NOT WIRED INTO THE LIVE RUNTIME.
---------------------------------
-``LineageManager`` is constructed only by its own factory and by
-``tests/``. ``core/service_registration.py`` registers a ``lineage_manager``
-service, and nothing resolves that key — so the one thing that looks most
-like wiring is the thing doing the least. A registered service with no
-reader is a worse signal than an uncalled function, because registration
-reads as integration.
+REACHABLE ONLY INSIDE AN ENCLOSURE, WHICH HAS NO PRODUCTION CALLER.
+-------------------------------------------------------------------
+``LineageManager`` is constructed by exactly one thing: ``Enclosure.manager``
+in ``core/self_modification/lineage_enclosure.py``. Nothing in the live
+runtime constructs an enclosure, so whole-agent reproduction still does not
+happen here — but the reason has moved from "nobody got round to it" to a
+boundary that refuses. The enclosure itself has no production caller, which
+is what keeps this unreached rather than merely inconvenient: reach is
+transitive, and a constructor nobody calls does not make its callee live.
+
+Until recently the one thing that looked most like wiring was the thing doing
+the least: ``core/service_registration.py`` registered a ``lineage_manager``
+service and nothing resolved the key. A registered service with no reader is
+a worse signal than an uncalled function, because registration reads as
+integration. That registration is gone.
+
+The default database path was the second half of the same problem. It was
+``config.paths.data_dir / "lineage.sqlite3"`` — the live data directory — so
+a module documented as unwired would nonetheless have written into the live
+instance's state the first time anyone constructed it. An enclosure always
+passes an explicit path inside its own root and refuses a root that lies
+under the live one.
 
 This matters for what may be claimed. Aura's ALife substrate is genuinely
 causal: the pattern replicator mutates real neural-mesh weight matrices in
@@ -26,13 +40,17 @@ place, and Lenia-style inter-column coupling is blended back into the live
 coupling matrix. That is evolutionary dynamics INSIDE the substrate, and it
 runs. Whole-agent reproduction — parent snapshots producing child Aura
 instances that inherit state, undergo bounded resource competition, and
-persist or die by a selection signal — is this module, and this module has
-no normal-runtime caller. So "adaptive ALife cognitive agent" is supportable
-and "self-reproducing digital organism" is not, and the difference is
-exactly the line drawn here.
+persist or die by a selection signal — is this module, and this module runs
+only inside a bounded experiment somebody starts by hand. So "adaptive ALife
+cognitive agent" is supportable and "self-reproducing digital organism" is
+not, and the difference is exactly the line the enclosure draws.
 
-``tests/test_capability_claims_have_call_sites.py`` fails if that changes
-without this paragraph changing with it.
+Reproduction is required for a strict evolutionary claim and not for a
+cognitive one. A mule is still an organism.
+
+``tests/test_lineage_enclosure.py`` holds the three boundaries, and
+``tests/test_capability_claims_have_call_sites.py`` fails if the enclosure
+stops being the only way in.
 """
 from __future__ import annotations
 
