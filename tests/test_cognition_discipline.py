@@ -468,15 +468,21 @@ def _seconds_per_predicate(tests: dict) -> dict[str, float]:
 
     model = RuntimeModel()
     timed: dict[str, float] = {}
+    raised: dict[str, str] = {}
     for name, test in list(tests.items()):
         if test.expensive:
             continue
         began = time.perf_counter()
         try:
             test.score(test.predict(model), test.observation)
-        except Exception:  # a raise is an ERROR outcome, and still costs time
-            pass
+        except Exception as exc:  # noqa: BLE001 - a raise is an ERROR outcome
+            # Kept rather than dropped. A predicate that raises still spends
+            # the time this measures, and a helper that swallows the reason
+            # makes a slow raising predicate look like a slow working one.
+            raised[name] = f"{type(exc).__name__}: {exc}"
         timed[name] = time.perf_counter() - began
+    if raised:
+        print(f"predicates that raised while being timed: {raised}")
     return timed
 
 

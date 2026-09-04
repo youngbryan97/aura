@@ -381,6 +381,9 @@ def _a_proposer_she_writes(
         _where_the_answers_were(families, leaves=leaves, upto=_HOW_FAR_TO_LOOK)
     )
     found: Code | None = None
+    #: Proposers that would not run, by why. A search reporting "nothing
+    #: better" reads very differently when most of what it tried broke.
+    broke: dict[str, int] = {}
     for where_to_look in every_code(
         deepest=deepest, variables=2, constants=constants
     ):
@@ -390,13 +393,19 @@ def _a_proposer_she_writes(
         the_proposer_she_wrote(made)
         try:
             got = _what_it_costs_to_propose_for(families, budget=budget)
-        except Exception:  # noqa: BLE001 - one that breaks proposes nothing
+        except Exception as exc:  # noqa: BLE001 - one that breaks proposes nothing
+            # A proposer that breaks is a result and not a non-event. Counting
+            # them separately is the difference between "the search found
+            # nothing better" and "most of what it tried would not run".
+            broke[type(exc).__name__] = broke.get(type(exc).__name__, 0) + 1
             continue
         finally:
             forget_the_proposer()
         if got < best:
             best, found = got, made
     forget_the_proposer()
+    if broke:
+        print(f"proposers that would not run: {broke}")
     return found
 
 
