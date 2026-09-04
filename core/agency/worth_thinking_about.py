@@ -43,6 +43,7 @@ def worth_a_pass(
     horizon: int = 5,
     unusual: bool = False,
     recognised: str = "",
+    costs_moves: float = 1.0,
 ) -> tuple[bool, str]:
     """Whether to spend a language pass on this decision, and why.
 
@@ -54,7 +55,23 @@ def worth_a_pass(
     anything has. Recognition is what frees her from deciding — and where it
     disagrees with the arithmetic, that disagreement is the surest sign this
     position is not the routine one it looked like.
+
+    ``costs_moves`` is what a pass costs, in moves not made. A pass on a small
+    model costs a fraction of a move; on a resident model under memory
+    pressure it costs the time of ten, and the same "the best two are close"
+    that is worth buying at one is not worth buying at ten. Measured by the
+    caller from its own clock, so nothing here is tuned for a machine.
+
+    LIVE 2026-09-04, playing on a real board: a language pass every move at
+    about twenty-seven seconds each, on a game that takes hundreds of moves.
+    What the answer was worth never met what asking for it cost.
+
+    The bars it moves are the ones about VALUE. Nothing here excuses her from
+    thinking when there is something she cannot see, when what worked before
+    disagrees with what she can see now, or when enough rides on it — those
+    are necessities and a price does not change them.
     """
+    dear = max(1.0, float(costs_moves or 1.0))
     if unusual:
         return True, "this is not a routine moment"
     best = _the_best(ahead)
@@ -65,7 +82,7 @@ def worth_a_pass(
         return True, f"{recognised} has worked from positions like this, but {best} looks better now"
     if float(stakes) >= WORTH_A_PASS:
         return True, "there is enough riding on this to be sure"
-    if since_words >= max(1, int(horizon)):
+    if since_words >= max(1, int(horizon * dear)):
         return True, f"{since_words} move(s) without saying anything"
     if recognised and recognised == best:
         return False, f"a position of a kind she has met, where {recognised} has been working"
@@ -75,9 +92,15 @@ def worth_a_pass(
     if len(scores) < 2:
         return False, "there is only one way to go"
     gap = scores[0] - scores[1]
-    if gap < TOO_CLOSE_TO_CALL:
+    if gap < TOO_CLOSE_TO_CALL / dear:
         return True, f"the best two are {gap:.2f} apart, too close to call"
-    return False, f"the best is {gap:.2f} clear, and words would not change it"
+    return (
+        False,
+        f"the best is {gap:.2f} clear, and words costing {dear:.0f} move(s) "
+        "would not change it"
+        if dear > 1.0
+        else f"the best is {gap:.2f} clear, and words would not change it",
+    )
 
 
 def _the_best(ahead: Mapping[str, tuple[float, str]] | None) -> str:

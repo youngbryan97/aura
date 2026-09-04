@@ -222,6 +222,27 @@ async def window_bounds(app_name: str) -> tuple[int, int, int, int] | None:
     return (x, y, width, height)
 
 
+def _a_pass_in_moves(costs: dict[str, float]) -> float:
+    """What a language pass costs, counted in moves not made.
+
+    A pass on a small model costs a fraction of a move and one on a resident
+    model under memory pressure costs the time of ten. Whether an answer is
+    worth asking for depends on both halves, and only one of them was ever
+    looked at.
+
+    One until both have been measured, which is what the caller assumed all
+    along.
+    """
+    passes, quiet = costs.get("passes", 0.0), costs.get("quiet", 0.0)
+    if passes < 1.0 or quiet < 1.0:
+        return 1.0
+    a_pass = costs.get("pass_s", 0.0) / passes
+    a_quiet_move = costs.get("quiet_s", 0.0) / quiet
+    if a_quiet_move <= 0.0:
+        return 1.0
+    return max(1.0, a_pass / a_quiet_move)
+
+
 def _who_the_screen_belongs_to(app: str) -> tuple[str, bool]:
     """Who owns the front window now, and whether ``app`` is drawing one at all.
 
@@ -3194,6 +3215,9 @@ async def pursue_on_screen(
     #: key and starting something that runs for five minutes were the same
     #: kind of move to her, and the difference is the whole of it.
     busy = WhatItCostsToBeBusy()
+    #: What a language pass costs and what a whole cycle costs, both measured
+    #: here, so "is this worth thinking about" can weigh the price.
+    costs: dict[str, float] = {"pass_s": 0.0, "passes": 0.0, "quiet_s": 0.0, "quiet": 0.0, "at": 0.0}
     #: How far she has got into this before, and where it stopped. A player on
     #: their sixth go at Ninja Gaiden is not reacting — they are replaying
     #: what they know and thinking only where they died last time.
@@ -3265,6 +3289,16 @@ async def pursue_on_screen(
     in_the_way: dict[str, str] = {"last": ""}
 
     async def decide(observation: dict[str, Any]) -> Step | None:
+        # How long a whole move takes when she does not stop to put it into
+        # words. Measured between the starts of two cycles, so it is the
+        # reading, the deciding and the act — which is what a pass is being
+        # weighed against.
+        _began_deciding = time.monotonic()
+        if costs["at"] > 0.0 and costs.get("was_quiet"):
+            costs["quiet_s"] += _began_deciding - costs["at"]
+            costs["quiet"] += 1.0
+        costs["at"] = _began_deciding
+        costs["was_quiet"] = 0.0
         # The moves really on offer, named before anything can ask for them.
         #
         # A caller with its own policy skips the whole deliberation, and the
@@ -4499,6 +4533,9 @@ async def pursue_on_screen(
                 horizon=LANGUAGE_EVERY,
                 unusual=unusual or not moves or restarts["count"] > asked["after_restarts"],
                 recognised=recognised,
+                # What a pass costs, in moves not made, from this run's own
+                # clock. Live on a resident model it was about ten.
+                costs_moves=_a_pass_in_moves(costs),
             )
             if recognised and not asking:
                 skilled.took(kind)
@@ -4508,6 +4545,7 @@ async def pursue_on_screen(
             if asking:
                 asked["at"] = len(moves)
                 asked["after_restarts"] = restarts["count"]
+            thinking_from = time.monotonic()
             chosen = await deliberate(
                 goal,
                 seen,
@@ -4528,6 +4566,11 @@ async def pursue_on_screen(
                 # Reported once, when the body acts, with the reasoning on it.
                 announce=False,
             )
+            if asking:
+                costs["pass_s"] += time.monotonic() - thinking_from
+                costs["passes"] += 1.0
+            else:
+                costs["was_quiet"] = 1.0
             if not chosen.reached:
                 # Stop rather than press something for no reason. A loop that
                 # keeps acting once its judgement is out of reach is the exact
