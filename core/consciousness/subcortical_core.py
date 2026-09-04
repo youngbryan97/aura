@@ -27,12 +27,20 @@ from __future__ import annotations
 
 import logging
 import math
+
+from core.runtime.errors import record_degradation
 import time
 from collections import deque
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger("Consciousness.SubcorticalCore")
+
+
+#: What the physiological reading is worth as an estimate of arousal. High:
+#: it is a direct measurement of activation rather than an inference about
+#: what activation means.
+_CANONICAL_AROUSAL_CONFIDENCE = 0.65
 
 
 @dataclass
@@ -110,6 +118,12 @@ class SubcorticalCore:
         # Smooth transition (EMA)
         alpha = min(1.0, 0.1 * dt)
         self._arousal = self._arousal * (1.0 - alpha) + target_arousal * alpha
+        # Bottom-up arousal is one estimator of canonical arousal, not the
+        # owner of it. This is the physiological reading — brainstem drive and
+        # reticular baseline — and it knows nothing about what the situation
+        # means, which is why an appraisal that disagrees with it is a fact
+        # worth having rather than an error in one of them.
+        self._estimate_canonical_arousal()
 
         # Thalamic gate: sigmoid response to arousal
         # Low arousal → nearly closed (but never fully, per _min_gate)
@@ -153,6 +167,23 @@ class SubcorticalCore:
         (it must maintain continuity even during deep idle).
         """
         return max(0.3, self._arousal)
+
+    def _estimate_canonical_arousal(self) -> None:
+        """Contribute the physiological reading to canonical arousal."""
+        try:
+            from core.canonical.state import estimate
+
+            estimate(
+                "affect.arousal",
+                self._arousal,
+                confidence=_CANONICAL_AROUSAL_CONFIDENCE,
+                producer="subcortical",
+                note="brainstem drive and reticular baseline",
+            )
+        except (ImportError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "consciousness.subcortical", exc, action="canonical estimate skipped"
+            )
 
     def get_heartbeat_rate_multiplier(self) -> float:
         """Return a multiplier for the heartbeat tick rate.

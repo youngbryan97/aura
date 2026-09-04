@@ -122,6 +122,12 @@ def _clamp_float(value: float, *, lower: float, upper: float) -> tuple[float, bo
     return clamped, clamped == value
 
 
+#: What field coherence is worth as an estimate of self-coherence. Moderate:
+#: it measures the shape of the representation, which is real evidence and is
+#: not the same question as whether her account of herself hangs together.
+_CANONICAL_FIELD_CONFIDENCE = 0.45
+
+
 @dataclass(frozen=True)
 class FieldConfig:
     dim: int = 256                     # field dimensionality
@@ -787,6 +793,28 @@ class UnifiedField:
         # Coherence = blend of concentration and stability
         self._coherence = 0.5 * concentration + 0.5 * stability
         self._coherence = max(0.0, min(1.0, self._coherence))
+        # Field coherence is one estimator of whether she hangs together, and
+        # the only one computed from the shape of the representation rather
+        # than from anything she says about herself. It does not own the
+        # answer; SelfObject, the identity engine and the continuity engine
+        # each used to have their own, which is what made "how coherent is
+        # Aura" a question with six answers and no arbiter.
+        try:
+            from core.canonical.state import estimate
+
+            estimate(
+                "self.coherence",
+                self._coherence,
+                confidence=_CANONICAL_FIELD_CONFIDENCE,
+                producer="unified_field",
+                note="concentration and temporal stability of the field",
+            )
+        except (ImportError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+            _record_unified_field_degradation(
+                exc,
+                action="continued without contributing a canonical coherence estimate",
+                severity="warning",
+            )
 
         # ── Deadlock recovery ────────────────────────────────────────
         # If coherence stays below crisis for too long, force a recovery pulse.

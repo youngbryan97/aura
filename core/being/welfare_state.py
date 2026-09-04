@@ -42,6 +42,15 @@ def _clip(v: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, float(v)))
 
 
+#: What welfare's readings are worth as estimates of the canonical channels.
+#: DIRECT is a number it was handed and passes through; DERIVED is one it
+#: computed from several; WEAK is a channel another subsystem knows better and
+#: welfare can only speak about sideways.
+_WELFARE_DIRECT_CONFIDENCE = 0.75
+_WELFARE_DERIVED_CONFIDENCE = 0.55
+_WELFARE_WEAK_CONFIDENCE = 0.2
+
+
 @dataclass
 class WelfareInputs:
     """Raw welfare-relevant signals from all subsystems."""
@@ -481,7 +490,53 @@ class WelfareState:
 
         self._last_outputs = outputs
         self._history.append(outputs)
+        self._estimate_canonical(
+            inputs, integrity_distress, capability_distress, social_distress
+        )
         return outputs
+
+    @staticmethod
+    def _estimate_canonical(
+        inputs: "WelfareInputs",
+        integrity_distress: float,
+        capability_distress: float,
+        social_distress: float,
+    ) -> None:
+        """Derive organism-level consequences, and contribute what it sees.
+
+        Welfare does not own a second competing negative-state variable. It
+        derives consequences from what the body and the situation are doing,
+        and the readings it takes on the way are evidence other subsystems
+        should be able to see rather than a private copy.
+
+        Capability distress is the estimator with the most direct view of the
+        machine — it is computed from resource integrity, tool reliability,
+        model stability, body pressure, fatigue and recovery debt — so it
+        speaks with confidence on the body channels and stays quiet elsewhere.
+        """
+        try:
+            from core.canonical.state import estimate
+
+            for channel, value, confidence in (
+                ("body.fatigue", inputs.fatigue, _WELFARE_DIRECT_CONFIDENCE),
+                ("body.load", inputs.body_pressure, _WELFARE_DIRECT_CONFIDENCE),
+                ("body.integrity", 1.0 - capability_distress, _WELFARE_DERIVED_CONFIDENCE),
+                ("self.continuity", 1.0 - inputs.continuity_risk, _WELFARE_DIRECT_CONFIDENCE),
+                ("self.coherence", inputs.memory_coherence, _WELFARE_DERIVED_CONFIDENCE),
+                ("memory.coherence", inputs.memory_coherence, _WELFARE_DIRECT_CONFIDENCE),
+                ("goals.frustration", inputs.goal_frustration, _WELFARE_DIRECT_CONFIDENCE),
+                ("world.prediction_error", inputs.prediction_error, _WELFARE_DIRECT_CONFIDENCE),
+                # An organism whose integrity is in question is one whose
+                # situation is worse. This is the only affect estimate welfare
+                # makes, and it is deliberately weak: welfare knows the body,
+                # not the meaning.
+                ("affect.valence", -integrity_distress, _WELFARE_WEAK_CONFIDENCE),
+                ("affect.arousal", max(capability_distress, social_distress),
+                 _WELFARE_WEAK_CONFIDENCE),
+            ):
+                estimate(channel, value, confidence=confidence, producer="welfare")
+        except (ImportError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("being.welfare", exc, action="canonical estimate skipped")
 
     def get_aversion_for_domain(self, domain: str) -> float:
         """Return learned aversion for a specific action domain."""

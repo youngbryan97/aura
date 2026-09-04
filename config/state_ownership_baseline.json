@@ -1,0 +1,18 @@
+{
+  "description": "Subsystems holding a private copy of a canonical variable. May only SHRINK. Each one is a second answer to how Aura is, with nothing deciding between it and the canonical value.",
+  "count": 12,
+  "owners": [
+    "core/adaptation/value_autopoiesis.py::engagement_level",
+    "core/brain/personality_engine.py::current_mood",
+    "core/cognition/mcts_world_model.py::uncertainty",
+    "core/conation/dynamics.py::_arousal",
+    "core/consciousness/attention_schema.py::coherence",
+    "core/consciousness/crsm.py::_prediction_error",
+    "core/consciousness/phenomenological_experiencer.py::continuity",
+    "core/consciousness/system.py::temporal_continuity",
+    "core/creativity/aesthetic_engine.py::_arousal",
+    "core/creativity/aesthetic_engine.py::_valence",
+    "core/environment/environment_kernel.py::prediction_error",
+    "core/world/belief_revision.py::uncertainty"
+  ]
+}

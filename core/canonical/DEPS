@@ -1,0 +1,30 @@
+# core/canonical — layering rules. Hand-written.
+#
+# The canonical state is what every other subsystem estimates INTO, so it must
+# not be able to reach any of them. A state layer that can import its own
+# estimators grows opinions: it starts asking a subsystem for a value instead
+# of being told one, and then there are two answers again — the one it was
+# given and the one it went and fetched — which is the duplication this
+# package exists to end.
+#
+# Same rule as core/phenomenology, for the same shape of reason: the thing
+# being estimated may not reach the estimators.
+
+description = "core.canonical: the estimated, which may not import the estimators."
+
+include_rules = [
+    "+core.canonical",
+
+    # The degradation recorder, so a rejected estimate is a record rather than
+    # a raise into whichever subsystem happened to be writing.
+    "+core.runtime",
+
+    # Everything else. Producers push in; this package pulls from nothing.
+    "-core",
+    "-interface",
+    "-skills",
+    "-security",
+    "-llm",
+    "-executors",
+    "-aura_main",
+]

@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 4 outbound edges when this was generated.
+# 5 outbound edges when this was generated.
 
 description = "core.interiority: may import only what it already imports; every new edge is an edit here."
 
@@ -14,6 +14,7 @@ include_rules = [
     "+core.interiority",
 
     # What this package reaches for today.
+    "+core.canonical",
     "+core.container",
     "+core.governance_context",
     "+core.interiority",

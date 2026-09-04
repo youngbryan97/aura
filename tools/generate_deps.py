@@ -63,6 +63,12 @@ HANDWRITTEN = {
     # generated DEPS would widen it silently the first time a protocol reached
     # for the organ it is meant to perturb.
     "phenomenology",
+    # The estimated must not be able to reach the estimators. Every subsystem
+    # that used to own its own copy of "how Aura is" writes into
+    # core/canonical, so a generated DEPS would widen it the first time the
+    # state layer went and fetched a value instead of being told one — and
+    # then there would be two answers again, which is what it exists to end.
+    "canonical",
 }
 
 SKIP_DIRS = {"__pycache__", ".venv", "node_modules", "archive"}

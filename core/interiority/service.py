@@ -321,10 +321,58 @@ class InteriorityService:
             if inspect.isawaitable(result):
                 await result
             self.interoception.note_affect(state.affect.valence)
+            self._estimate_canonical(state, evidence is not None)
             return {"moved": True, "delta": state.affect.to_dict()}
         except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
             record_degradation("interiority.service", exc, action="affect delta not applied")
             return {"moved": False, "error": type(exc).__name__}
+
+    def _estimate_canonical(self, state: Arbitrated, evidenced: bool) -> None:
+        """Contribute appraisal-derived evidence to the canonical variables.
+
+        Interiority does not own affect. It has one kind of evidence about it
+        — what the situation means against what she is holding — and the
+        substrate's dynamics and the other person's words are two more. All
+        three used to be separate answers with nothing deciding between them.
+
+        Confidence is lower for an appraisal that could not attach evidence,
+        because that is exactly what an unevidenced appraisal is worth, and an
+        estimator that always claims certainty takes over every channel it
+        touches.
+        """
+        try:
+            from core.canonical.state import estimate
+
+            confidence = (
+                _CANONICAL_EVIDENCED_CONFIDENCE
+                if evidenced
+                else _CANONICAL_ASSUMED_CONFIDENCE
+            )
+            estimate(
+                "affect.valence", state.affect.valence,
+                confidence=confidence, producer="interiority",
+                note=f"{state.dominant[0]} dominant",
+            )
+            estimate(
+                "affect.arousal", abs(state.affect.arousal),
+                confidence=confidence, producer="interiority",
+            )
+            estimate(
+                "affect.engagement", abs(state.affect.engagement),
+                confidence=confidence, producer="interiority",
+            )
+            # Disagreement among her own action tendencies is evidence about
+            # coherence, and it is the only estimator of it that comes from
+            # inside a decision rather than from inspecting one afterwards.
+            estimate(
+                "self.coherence", 1.0 - state.tendency_conflict,
+                confidence=confidence, producer="interiority",
+                note="one minus tendency conflict",
+            )
+        except (ImportError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "interiority.service", exc, action="canonical estimate not contributed"
+            )
 
     def _affect_evidence(self) -> dict[str, Any] | None:
         """What this appraisal rests on, or None when it rests on assumption.
@@ -677,6 +725,13 @@ _EVIDENCE_BEARING_PROVENANCE = frozenset({"measured", "inferred"})
 #: pass-through would let one appraisal rewrite a plan; a fifth moves the
 #: ordering over a few turns of the same state, which is what a mood does.
 _GOAL_PRIORITY_GAIN = 0.2
+
+#: What an interiority estimate is worth to the canonical state. An appraisal
+#: that attached evidence is a good estimator of affect and not a perfect one;
+#: one that could not is worth distinctly less, and saying so is what keeps it
+#: from taking over the channel.
+_CANONICAL_EVIDENCED_CONFIDENCE = 0.7
+_CANONICAL_ASSUMED_CONFIDENCE = 0.25
 
 _DRIVE_FOR_GOAL: Mapping[str, str] = {
     "welfare": "social",

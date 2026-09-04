@@ -68,6 +68,11 @@ _NEGATIVE_WEIGHTS: Mapping[str, float] = MappingProxyType(
         "vulnerability": 0.25,
     }
 )
+#: What the integrated wheel is worth as an estimator of affect right now. It
+#: has the longest memory of any producer and the slowest response, which
+#: makes it good evidence about the trend and poor evidence about this second.
+_CANONICAL_WHEEL_CONFIDENCE = 0.5
+
 _TRUSTED_STIMULUS_SOURCES = frozenset(
     {
         "apply_stimulus",
@@ -400,12 +405,38 @@ class DamasioMarkers:
     def _recompute_somatic_indices(self) -> None:
         valence, arousal, engagement, _dominant = _canonical_dimensions(self.emotions)
         distress = max(0.0, -valence)
+        self._estimate_canonical(valence, arousal, engagement)
         self.activation_index = _finite_clamp(0.2 + 0.55 * arousal + 0.15 * engagement, 0.0, 1.0)
         self.conductance_index = _finite_clamp(0.15 + 0.6 * arousal, 0.0, 1.0)
         self.stress_index = _finite_clamp(
             0.15 + 0.65 * distress + 0.2 * self.emotions.get("frustration", 0.0), 0.0, 1.0
         )
         self.mobilization_index = _finite_clamp(0.65 * arousal + 0.25 * distress, 0.0, 1.0)
+
+    @staticmethod
+    def _estimate_canonical(valence: float, arousal: float, engagement: float) -> None:
+        """Contribute the emotion wheel's reading to the canonical affect.
+
+        This engine does not own affect either. It integrates a wheel over
+        time, which makes it the estimator with the longest memory and the
+        slowest response — good evidence about the trend and poor evidence
+        about this second. The confidence says so, and fusion does the rest.
+        """
+        try:
+            from core.canonical.state import estimate
+
+            for channel, value in (
+                ("affect.valence", valence),
+                ("affect.arousal", arousal),
+                ("affect.engagement", engagement),
+            ):
+                estimate(
+                    channel, value,
+                    confidence=_CANONICAL_WHEEL_CONFIDENCE,
+                    producer="affect_wheel",
+                )
+        except (ImportError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("damasio_v2", exc, action="canonical estimate skipped")
 
     def incorporate_somatic_hardware(self, soma_state: dict[str, float]) -> None:
         """Incorporate measured host pressure without pretending it is emotion."""
