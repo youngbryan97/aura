@@ -89,6 +89,7 @@ class WorkloadMetrics:
     expired: int = 0
     unroutable: int = 0
     total_latency: float = 0.0
+    total_sojourn: float = 0.0
     total_hops: int = 0
     total_wait: int = 0
     backlog_samples: list[int] = field(default_factory=list)
@@ -101,7 +102,18 @@ class WorkloadMetrics:
 
     @property
     def mean_latency(self) -> float:
+        """Hop cost only — how far the work travelled."""
         return self.total_latency / self.completed if self.completed else 0.0
+
+    @property
+    def mean_sojourn(self) -> float:
+        """End to end: travel plus every step spent waiting in a queue.
+
+        Hop cost alone cannot see a backlog. A shape that makes work wait ten
+        times longer moves it exactly as far, so scoring on hops scores
+        congestion and free flow identically.
+        """
+        return self.total_sojourn / self.completed if self.completed else 0.0
 
     @property
     def mean_hops(self) -> float:
@@ -128,6 +140,7 @@ class WorkloadMetrics:
             "unroutable": self.unroutable,
             "completion_rate": round(self.completion_rate, 5),
             "mean_latency": round(self.mean_latency, 4),
+            "mean_sojourn": round(self.mean_sojourn, 4),
             "mean_hops": round(self.mean_hops, 4),
             "mean_backlog": round(self.mean_backlog, 4),
             "peak_backlog": self.peak_backlog,
@@ -139,6 +152,7 @@ class WorkloadMetrics:
     def merge(self, other: WorkloadMetrics) -> None:
         self.admitted += other.admitted
         self.completed += other.completed
+        self.total_sojourn += other.total_sojourn
         self.expired += other.expired
         self.unroutable += other.unroutable
         self.total_latency += other.total_latency
@@ -259,8 +273,19 @@ class RoutedWorkload:
     # ── task flow ───────────────────────────────────────────────────────
 
     def admit(self, stages: Sequence[str], *, at: str = "") -> WorkloadTask | None:
-        """Put one task into the system at an ingress cell."""
-        entry = at or (self._rng.choice(self.ingress) if self.ingress else "")
+        """Put one task into the system at a cell that can start it.
+
+        Arrivals spread across every healthy provider of the first stage, and
+        fall back to the declared ingress. Pinning every arrival to one cell
+        would make a second door useless however the population reorganises,
+        so a spawned intake worker could never show a gain.
+        """
+        entry = at
+        if not entry:
+            doors = [d for d in self.providers(stages[0]) if d in self.queues] if stages else []
+            doors = doors or [d for d in self.ingress if d in self.queues]
+            if doors:
+                entry = min(doors, key=lambda d: (len(self.queues[d]), d))
         if not entry or entry not in self.queues:
             self.metrics.admitted += 1
             self.metrics.unroutable += 1
@@ -363,6 +388,7 @@ class RoutedWorkload:
                         task.done = True
                         self.metrics.completed += 1
                         self.metrics.total_latency += task.latency_cost
+                        self.metrics.total_sojourn += task.latency_cost + task.waited
                         self.metrics.total_hops += task.hops
                         self.metrics.total_wait += task.waited
                         self.completed_tasks.append(task)

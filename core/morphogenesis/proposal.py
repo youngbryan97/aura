@@ -188,7 +188,15 @@ class MorphTransition:
     def risk(self) -> RiskClass:
         if self.kind in {TransitionKind.MERGE, TransitionKind.RETIRE}:
             return RiskClass.CRITICAL
-        if self.kind in POPULATION_TRANSITIONS or self.kind is TransitionKind.MIGRATE:
+        if (
+            self.kind in POPULATION_TRANSITIONS
+            or self.kind is TransitionKind.MIGRATE
+            or self.kind in {TransitionKind.SPECIALIZE, TransitionKind.DESPECIALIZE}
+        ):
+            # Specializing trades capability at one port for capability at the
+            # others. A cell that specializes away from something it is the
+            # only source of takes the whole population down with it, so this
+            # earns a measurement rather than a wave-through.
             return RiskClass.ELEVATED
         return RiskClass.ROUTINE
 

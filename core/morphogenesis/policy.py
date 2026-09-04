@@ -88,8 +88,9 @@ class LocalMorphPolicy:
 
     * work it cannot serve and cannot forward → bind to a neighbour that can
     * a neighbour it never routes to that serves what it needs → bind
-    * its own queue deep in one capability it holds → specialize into it
-    * still deep after specializing, and a neighbour also deep → spawn a helper
+    * its queue deep in one capability it holds, and a visible neighbour
+      covers everything it would be giving up → specialize into it
+    * still deep after that → spawn a helper
 
     Binding before spawning is deliberate. Wiring is cheap and reversible;
     population is neither, and a policy that reaches for population first grows
@@ -157,7 +158,16 @@ class LocalMorphPolicy:
         if mine and signals["queue_pressure"] > self.queue_pressure_bind and not worker.specialization:
             count, capability = mine[0]
             share = count / max(1, sum(demand.values()))
-            if share >= 0.5:
+            # Specializing costs this cell its other capabilities. Give one up
+            # only where a visible neighbour also holds it — a cell that
+            # specializes away from something nothing nearby covers takes the
+            # population's only path to that capability with it.
+            covered = all(
+                any(other in caps for caps in neighbour_caps.values())
+                for other in served_here
+                if other != capability
+            )
+            if share >= 0.5 and covered:
                 out.append(specialize(
                     cell_id,
                     capability,
@@ -196,7 +206,7 @@ class CentralPolicy:
 
     name = "central"
 
-    def __init__(self, *, seed: int = 0, pressure_threshold: float = 1.2):
+    def __init__(self, *, seed: int = 0, pressure_threshold: float = 0.8):
         self._rng = random.Random(seed)
         self.pressure_threshold = float(pressure_threshold)
 

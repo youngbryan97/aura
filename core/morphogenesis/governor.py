@@ -106,10 +106,15 @@ class MorphBounds:
         }
 
 
-#: A shadow evaluator scores a candidate topology. Higher is better. Returning
+#: A shadow evaluator scores a candidate world. Higher is better. Returning
 #: None means "could not measure", which the governor treats as a refusal
 #: rather than as approval — an unmeasured change is not a safe change.
-ShadowEvaluator = Callable[[MorphGraph], float | None]
+#:
+#: It receives the proposal as well as the graph, because not every transition
+#: shows up in the topology. SPECIALIZE changes what a cell can serve and
+#: leaves the edges alone; an evaluator handed only a graph would score the
+#: change and its absence identically and pass anything.
+ShadowEvaluator = Callable[[MorphGraph, "MorphProposal | None"], float | None]
 
 
 @dataclass
@@ -274,8 +279,8 @@ class MorphGovernor:
         shadow_score: float | None = None
         baseline_score: float | None = None
         if self.shadow_evaluator is not None and proposal.risk is not RiskClass.ROUTINE:
-            baseline_score = self.shadow_evaluator(self.graph)
-            shadow_score = self.shadow_evaluator(candidate)
+            baseline_score = self.shadow_evaluator(self.graph, None)
+            shadow_score = self.shadow_evaluator(candidate, proposal)
             if shadow_score is None or baseline_score is None:
                 return finish(
                     Decision.REJECTED,
