@@ -17,6 +17,7 @@ include_rules = [
     "+core.agency",
     "+core.brain",
     "+core.config",
+    "+core.canonical",
     "+core.container",
     "+core.governance",
     "+core.governance_context",

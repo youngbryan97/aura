@@ -127,7 +127,29 @@ class ReadingOthers(Faculty):
                 receipt={"margin": margin, "top": tendency, "mass": mass},
             )
 
-        identification = other.confidence * mass
+        # A posterior is not yet a read. What the channels carry is
+        # weighted by how much there is to read it against: a person with
+        # history has a baseline, and an event with a situation says what
+        # the readiness is about. Without either, the same signal supports
+        # a weaker claim, and reporting it at full strength is how a
+        # stranger gets read as confidently as a friend.
+        history = (
+            ctx.check("attachment_impact").value
+            if ctx.check("attachment_impact").present
+            else 0.0
+        )
+        grounding = 0.0
+        grounded_parts = 0
+        for _name in ("relevance", "congruence"):
+            _reading = ctx.check(_name)
+            if _reading.present:
+                grounding += abs(_reading.value)
+                grounded_parts += 1
+        grounding = grounding / grounded_parts if grounded_parts else 0.0
+
+        identification = (
+            other.confidence * mass * (0.35 + 0.35 * grounding + 0.30 * history)
+        )
 
         # Understanding needs a model of what the state is about, which the
         # channels do not carry. Relevance and congruence come from the

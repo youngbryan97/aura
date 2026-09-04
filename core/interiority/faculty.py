@@ -176,6 +176,28 @@ class FacultyContext:
     #: energy. Named channels only; see core/interiority/interoception.py.
     interior: Mapping[str, float] = field(default_factory=dict)
     now: float = 0.0
+    #: The gain bank and the transmission medium. The two substrate
+    #: reporters have these as their subject, so they must arrive through
+    #: the context rather than through a module global: a faculty that
+    #: reaches for a singleton cannot be measured against a world, and the
+    #: ablation harness measured both of them as changing nothing because
+    #: it was priming a bank they never read.
+    bank: Any | None = None
+    cleft: Any | None = None
+
+    def receptors(self) -> Any:
+        if self.bank is not None:
+            return self.bank
+        from core.interiority.receptors import get_receptor_bank
+
+        return get_receptor_bank()
+
+    def medium(self) -> Any:
+        if self.cleft is not None:
+            return self.cleft
+        from core.interiority.cleft import get_cleft
+
+        return get_cleft()
 
     def check(self, name: str) -> Reading:
         return self.frame[name]

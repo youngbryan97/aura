@@ -77,6 +77,31 @@ def _is_estimator(source: str) -> bool:
     return CANONICAL_MARKER in source
 
 
+def _is_object(node: ast.AST | None) -> bool:
+    """Whether an assignment binds a thing rather than a number.
+
+    `self.continuity = ExperientialContinuityEngine()` is a subsystem, not a
+    private copy of how continuous she is, and `self.temporal_continuity =
+    None` is a slot waiting for one. Counting either would put a false
+    positive in a ratchet, and a ratchet with false positives is one people
+    learn to ignore.
+    """
+    if node is None:
+        return False
+    if isinstance(node, ast.Constant) and node.value is None:
+        return True
+    if isinstance(node, ast.Call):
+        func = node.func
+        name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", "")
+        name = str(name)
+        if not name:
+            return False
+        constructor = name[:1].isupper()
+        factory = name.startswith(("get_", "make_", "create_", "build_", "new_"))
+        return constructor or factory
+    return False
+
+
 def _is_container(node: ast.AST | None) -> bool:
     """Whether an assignment is to a collection rather than to one number.
 
@@ -104,7 +129,7 @@ def _is_container(node: ast.AST | None) -> bool:
 
 def _owned_assignments(tree: ast.AST) -> set[str]:
     found: set[str] = set()
-    container_named: set[str] = set()
+    not_a_number: set[str] = set()
     for node in ast.walk(tree):
         targets: list[ast.expr] = []
         holder: ast.AST | None = None
@@ -121,9 +146,9 @@ def _owned_assignments(tree: ast.AST) -> set[str]:
                 isinstance(target, ast.Attribute)
                 and isinstance(target.value, ast.Name)
                 and target.value.id == "self"
-                and _is_container(holder)
+                and (_is_container(holder) or _is_object(holder))
             ):
-                container_named.add(target.attr)
+                not_a_number.add(target.attr)
         for target in targets:
             if (
                 isinstance(target, ast.Attribute)
@@ -133,7 +158,7 @@ def _owned_assignments(tree: ast.AST) -> set[str]:
                 and not target.attr.endswith(NOT_A_COPY_SUFFIXES)
             ):
                 found.add(target.attr)
-    return found - container_named
+    return found - not_a_number
 
 
 def scan() -> list[str]:

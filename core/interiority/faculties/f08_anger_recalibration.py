@@ -123,7 +123,14 @@ class AngerRecalibration(Faculty):
         wtr = capability * pow(0.5, ignored)
 
         pressure = agency * capability * (1.0 - wtr)
-        snapped = wtr < _WTR_FLOOR and ignored >= 1
+        # The threshold cannot be crossed by an estimate that fell because
+        # the other agent was unable rather than unwilling. Without the
+        # pressure term here, capability of zero drives the tradeoff
+        # estimate to zero, trips the threshold, and produces the hardest
+        # response available against someone who could not have complied —
+        # which is the exact injustice this faculty exists to prevent, and
+        # the proving harness caught it firing at 0.55 on both nulls.
+        snapped = pressure > 0.0 and wtr < _WTR_FLOOR and ignored >= 1
 
         # Discontinuity. Below the threshold the state is a request; at it
         # the intensity jumps, because a signal that fades in is not a

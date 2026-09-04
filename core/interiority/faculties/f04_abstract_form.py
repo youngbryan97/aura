@@ -109,7 +109,11 @@ class AbstractForm(Faculty):
             {"novelty": 0.0},
             Direction.COLLAPSES,
             "Value is the rate of error reduction. A fully modelled image pays "
-            "nothing, which is why the same painting stops working.",
+            "nothing, which is why the same painting stops working. The "
+            "making drive is a second path and is zeroed alongside it, or "
+            "this would measure appreciation while structure with no "
+            "encoding kept the total alive.",
+            do_interior={"unencoded_structure": 0.0},
         ),
         Counterfactual(
             "unresolvable",

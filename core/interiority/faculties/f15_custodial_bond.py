@@ -62,7 +62,11 @@ class CustodialBond(Faculty):
             {"vulnerability": 0.0},
             Direction.COLLAPSES,
             "Caregiving is triggered by an inability to secure something "
-            "important. A capable creature elicits interest, not custody.",
+            "important. A capable creature elicits interest, not custody. "
+            "Custody already assumed is withheld too — once taken it holds "
+            "whether or not the creature turns out to be fine, which is the "
+            "point of an obligation and is measured separately.",
+            withhold=("custody",),
         ),
         Counterfactual(
             "i_cannot_help",

@@ -25,7 +25,6 @@ invisible to any design where publishing is a function call.
 
 from __future__ import annotations
 
-from core.interiority.cleft import get_cleft
 from core.interiority.effects import AffectDelta, Effects
 from core.interiority.faculty import (
     Activation,
@@ -69,7 +68,7 @@ class SynapticCleftInterface(Faculty):
         )
 
     def compute(self, ctx: FacultyContext) -> Activation:
-        snapshot = get_cleft().snapshot()
+        snapshot = ctx.medium().snapshot()
         channels = snapshot["channels"]
         if not channels:
             return Activation(

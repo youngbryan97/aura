@@ -31,7 +31,6 @@ from core.interiority.faculty import (
     NullSpec,
     register,
 )
-from core.interiority.receptors import get_receptor_bank
 
 
 @register
@@ -108,7 +107,7 @@ class Heartache(Faculty):
         # had adapted to and no longer receives.
         subject = ctx.frame.event.subject or "unknown"
         channel = f"bond:{subject}"
-        withdrawal = get_receptor_bank().withdrawal(channel)
+        withdrawal = ctx.receptors().withdrawal(channel)
         ache = sorrow * withdrawal
 
         effects = Effects(

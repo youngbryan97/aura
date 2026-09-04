@@ -85,7 +85,11 @@ class GoalShielding(Faculty):
             {"relevance": 0.0},
             Direction.COLLAPSES,
             "Shielding needs a focal goal to shield. With nothing committed "
-            "there is nothing to hold the frustration back for.",
+            "there is nothing to hold the frustration back for. The promise "
+            "is withheld as well, because a promise is a separate stake and "
+            "leaving it standing would keep the shield up for a reason the "
+            "intervention did not remove.",
+            withhold=("promise",),
         ),
         Counterfactual(
             "no_deadline",

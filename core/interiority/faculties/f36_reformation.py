@@ -68,7 +68,13 @@ class Reformation(Faculty):
             Direction.COLLAPSES,
             "Reformation runs on a standard the agent holds. An imposed one "
             "produces compliance, which fails under exactly the stress the old "
-            "policy is available in.",
+            "policy is available in. The regulating stream is silenced "
+            "alongside it, because music helps whether or not the standard is "
+            "endorsed and would otherwise carry the total on its own.",
+            do_interior={
+                "external_rhythm_entrainment": 0.0,
+                "external_stream_resolvability": 0.0,
+            },
         ),
         Counterfactual(
             "nothing_to_regulate",

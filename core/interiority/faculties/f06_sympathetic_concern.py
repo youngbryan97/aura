@@ -75,13 +75,15 @@ class SympatheticConcern(Faculty):
     optional = ("vulnerability", "attachment_impact", "power", "relevance")
     counterfactuals = (
         Counterfactual(
-            "boundary_gone",
-            {"attachment_impact": 1.0, "vulnerability": 1.0},
-            Direction.UNCHANGED,
-            "Raising what is at stake must not raise concern past the "
-            "boundary check. If it does, the mechanism is producing personal "
-            "distress and reporting it as sympathy, which is the failure that "
-            "makes a system helpful in the way it would want help.",
+            "boundary_eroded",
+            {},
+            Direction.COLLAPSES,
+            "When own arousal erodes the self-other boundary, what is "
+            "running is personal distress, and personal distress produces "
+            "withdrawal. The faculty must decline rather than report the "
+            "state as concern — reporting it is what licenses helping in "
+            "the way the helper would want help.",
+            do_interior={"arousal": 0.95},
         ),
         Counterfactual(
             "no_vulnerability",
@@ -91,7 +93,6 @@ class SympatheticConcern(Faculty):
             "themselves; a capable person in distress recruits less.",
             do_world={"custody_vulnerability": 0.0},
             do_other={"vulnerability": 0.0},
-            do_interior={"arousal": 0.0},
         ),
     )
     null = NullSpec(values={"vulnerability": 0.0, "attachment_impact": 0.0})
@@ -140,7 +141,13 @@ class SympatheticConcern(Faculty):
             if ctx.check("attachment_impact").present
             else 0.0
         )
-        concern = distress * boundary * (0.4 + 0.6 * max(vulnerability, care_weight))
+        # Additive, not a maximum. Under max() the larger term hides the
+        # smaller one entirely, so removing vulnerability from a case where
+        # the agent is also attached changes nothing — and the mechanism
+        # claims to be graded by exactly that.
+        concern = distress * boundary * (
+            0.40 + 0.35 * vulnerability + 0.25 * care_weight
+        )
 
         # The cost. Concern that spends nothing is not concern, so the
         # effects always take something: depth from this turn's budget

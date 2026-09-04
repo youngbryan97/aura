@@ -57,6 +57,10 @@ class SelfSnapshot:
     drives: dict[str, float]
     affect: dict[str, float]
     viability_state: str
+    #: The canonical self channels, read rather than recomputed. There is one
+    #: answer to how continuous, coherent and in control she is, and this is a
+    #: view of it — not a sixth opinion sitting beside five others.
+    self_channels: dict[str, float]
     active_goals: list[dict[str, Any]]
     last_failed_action: dict[str, Any] | None
     last_blocked_action: dict[str, Any] | None
@@ -73,6 +77,7 @@ class SelfSnapshot:
             "drives": self.drives,
             "affect": self.affect,
             "viability_state": self.viability_state,
+            "self_channels": dict(self.self_channels),
             "active_goals": self.active_goals,
             "last_failed_action": self.last_failed_action,
             "last_blocked_action": self.last_blocked_action,
@@ -115,6 +120,7 @@ class SelfObject:
             drives=drives,
             affect=affect,
             viability_state=viability,
+            self_channels=self._read_canonical_self(),
             active_goals=goals,
             last_failed_action=last_failed,
             last_blocked_action=last_blocked,
@@ -336,16 +342,64 @@ class SelfObject:
         return {}
 
     @staticmethod
+    def _read_canonical_self() -> dict[str, float]:
+        """The authoritative answer to how continuous and coherent she is.
+
+        Six subsystems used to answer "who am I" independently — this object,
+        AuraNow, the identity engine, the continuity engine, workspace
+        ownership and the substrate's self-representation. They are views now,
+        and a view that computes its own number is not a view.
+        """
+        try:
+            from core.canonical.channels import Domain, in_domain
+            from core.canonical.state import read
+
+            out: dict[str, float] = {}
+            for spec in in_domain(Domain.SELF):
+                reading = read(spec.id)
+                out[spec.id] = reading.value
+                if reading.is_default:
+                    # A default is not a measurement, and a reader that
+                    # cannot tell the difference will treat the neutral value
+                    # as a finding about her.
+                    out[f"{spec.id}.defaulted"] = 1.0
+            return out
+        except _SELF_OBJECT_READER_ERRORS as exc:
+            _record_reader_degradation("canonical_self", exc)
+            return {}
+
+    @staticmethod
     def _read_affect(sc: Any) -> dict[str, float]:
+        """Emotion detail from the engine, with the canonical axes on top.
+
+        The engine's wheel has emotion names this object wants and the
+        canonical state does not carry. The three axes are a different
+        matter: the wheel is one estimator of them and reading it here would
+        put its answer into the self-model while four other estimators say
+        something else.
+        """
+        out: dict[str, float] = {}
         try:
             eng = sc.get("affect_engine", default=None)
             if eng and hasattr(eng, "snapshot"):
                 d = eng.snapshot()
                 if isinstance(d, dict):
-                    return {k: float(v) for k, v in d.items() if isinstance(v, (int, float))}
+                    out = {
+                        k: float(v) for k, v in d.items() if isinstance(v, (int, float))
+                    }
         except _SELF_OBJECT_READER_ERRORS as exc:
             _record_reader_degradation("affect", exc)
-        return {}
+        try:
+            from core.canonical.channels import Domain, in_domain
+            from core.canonical.state import read
+
+            for spec in in_domain(Domain.AFFECT):
+                reading = read(spec.id)
+                if not reading.is_default:
+                    out[spec.id] = reading.value
+        except _SELF_OBJECT_READER_ERRORS as exc:
+            _record_reader_degradation("canonical_affect", exc)
+        return out
 
     @staticmethod
     def _read_viability_state() -> str:

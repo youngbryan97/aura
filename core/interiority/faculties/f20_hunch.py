@@ -51,11 +51,12 @@ class Hunch(Faculty):
     counterfactuals = (
         Counterfactual(
             "the_slow_path_agrees",
-            {"certainty": 1.0},
-            Direction.DECREASES,
+            {},
+            Direction.COLLAPSES,
             "A hunch is what the fast path knows and the slow one has not "
-            "reached. When they agree there is no hunch, only a conclusion.",
-            do_interior={"slow_path_posterior": 0.0},
+            "reached. When the two estimators agree there is no divergence "
+            "and therefore no hunch, only a conclusion.",
+            do_interior={"slow_path_posterior": 0.85},
         ),
     )
     null = NullSpec(values={}, tolerance=0.0)

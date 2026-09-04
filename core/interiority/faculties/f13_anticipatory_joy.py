@@ -50,15 +50,16 @@ class AnticipatoryJoy(Faculty):
         "a simulated future that runs without hitting an obstacle"
     )
     requires = ("congruence", "certainty")
-    optional = ("relevance", "attachment_impact", "novelty")
+    optional = ("relevance", "attachment_impact", "novelty", "expectation_deviation")
     counterfactuals = (
         Counterfactual(
             "it_was_never_in_doubt",
-            {"certainty": 1.0, "novelty": 0.0},
+            {"expectation_deviation": 0.0, "novelty": 0.0},
             Direction.DECREASES,
-            "The reward is on the improvement in expectation. An outcome "
-            "already predicted pays nothing when it arrives, which is why a "
-            "formality does not feel like this.",
+            "The reward is on the improvement in expectation, which is what "
+            "expectation deviation measures. An outcome already predicted "
+            "pays nothing when it arrives, which is why a formality does not "
+            "feel like this however certain and however welcome.",
         ),
         Counterfactual(
             "it_went_the_other_way",
@@ -104,7 +105,22 @@ class AnticipatoryJoy(Faculty):
         opened = ctx.ledger.substitutes_for(goal_name, None) or 0
         envisioned = 1.0 - 1.0 / (1.0 + opened)
 
-        intensity = congruence * certainty * (0.4 + 0.35 * wait_term + 0.25 * envisioned)
+        # Prediction error, not outcome value. How far the world moved from
+        # what was expected is the term that pays; certainty scales it
+        # because an unconfirmed resolution moves less. Without the
+        # deviation term this rose when the outcome became more certain,
+        # which is the opposite of what the mechanism claims.
+        improvement = (
+            ctx.check("expectation_deviation").value
+            if ctx.check("expectation_deviation").present
+            else 1.0
+        )
+        intensity = (
+            congruence
+            * certainty
+            * improvement
+            * (0.4 + 0.35 * wait_term + 0.25 * envisioned)
+        )
         intensity = max(0.0, min(1.0, intensity))
 
         effects = Effects(

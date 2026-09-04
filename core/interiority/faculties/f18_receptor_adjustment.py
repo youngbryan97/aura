@@ -34,7 +34,6 @@ from core.interiority.faculty import (
     NullSpec,
     register,
 )
-from core.interiority.receptors import get_receptor_bank
 
 
 @register
@@ -69,7 +68,7 @@ class ReceptorAdjustment(Faculty):
         )
 
     def compute(self, ctx: FacultyContext) -> Activation:
-        bank = get_receptor_bank()
+        bank = ctx.receptors()
         gains = bank.gains()
         if not gains:
             return Activation(

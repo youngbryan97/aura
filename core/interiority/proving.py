@@ -535,10 +535,22 @@ def ablation_report(
         ctx = _context(target, frame, null=False)
 
         def run(skip: str | None) -> Arbitrated:
+            bank = ReceptorBank()
+            medium = SynapticCleft(bank=bank, rng=random.Random(11))
+            ctx.bank = bank
+            ctx.cleft = medium
+            # The two substrate reporters have the medium itself as their
+            # subject, so a fresh bank is their empty world in exactly the
+            # way a ledger with no loss is mourning's. Priming it is not a
+            # thumb on the scale; measuring them against a channel that has
+            # never carried anything is measuring nothing.
+            medium.declare_neighbourhood("primed", ("primed_neighbour",))
+            for _ in range(8):
+                medium.release("primed", 0.9, dt=1.0)
+            bank.idle(("primed",), dt=30.0)
             activations = [
                 f.evaluate(ctx) for f in everything if skip is None or f.id != skip
             ]
-            medium = SynapticCleft(bank=ReceptorBank(), rng=random.Random(11))
             state = arbitrate(activations, cleft=medium, dt=0.1)
             from dataclasses import replace as _replace
 

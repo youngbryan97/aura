@@ -26,6 +26,8 @@ is made the reason for the rest is gone.
 
 from __future__ import annotations
 
+from types import MappingProxyType
+
 from core.interiority.effects import AffectDelta, BudgetDelta, Effects, SomaticMarker
 from core.interiority.faculty import (
     Activation,
@@ -60,9 +62,10 @@ class GentleRefusal(Faculty):
         Counterfactual(
             "no_time_pressure",
             {"urgency": 0.0},
-            Direction.DECREASES,
-            "Without a real constraint there is no refusal to soften, and the "
-            "mechanism is describing ordinary courtesy.",
+            Direction.COLLAPSES,
+            "Without a real constraint there is no refusal to soften. What is "
+            "left is ordinary courtesy, and reporting that as this mechanism "
+            "would claim credit for a kindness that cost nothing.",
             do_world={"history_repeats": 0},
         ),
         Counterfactual(
@@ -77,11 +80,17 @@ class GentleRefusal(Faculty):
             {"novelty": 1.0},
             Direction.DECREASES,
             "Specificity is what turns a diffuse disposition into an "
-            "obligation. A stranger is not yet this child.",
+            "obligation, and it is counted from the encounter history rather "
+            "than from the frame. A stranger is not yet this child.",
             withhold=("history",),
             do_world={"history_repeats": 0},
         ),
     )
+    #: The shared activating world keeps urgency at zero because play is
+    #: only admissible in a relaxed field. This mechanism is the opposite
+    #: case: it is about what it costs to be careful when there is a real
+    #: reason not to be, so it declares the pressure it needs.
+    activation = MappingProxyType({"urgency": 0.6})
     null = NullSpec(values={"vulnerability": 0.0, "urgency": 0.0})
 
     def falsifier(self) -> str:
@@ -94,6 +103,16 @@ class GentleRefusal(Faculty):
     def compute(self, ctx: FacultyContext) -> Activation:
         vulnerability = ctx.v("vulnerability")
         pressure = ctx.v("urgency")
+        if pressure <= 0.0:
+            return Activation(
+                faculty=self.id,
+                intensity=0.0,
+                declined=(
+                    "no constraint to soften: a refusal under no pressure is "
+                    "ordinary courtesy, and this mechanism is about what it "
+                    "costs to be careful when there is a real reason not to be"
+                ),
+            )
         subject = ctx.frame.event.subject or "unknown"
 
         encounters = ctx.ledger.times_seen("encounter", subject)
@@ -111,7 +130,13 @@ class GentleRefusal(Faculty):
         # constraint, which is real and does not vanish.
         concession = max(0.0, (0.5 * persistence + 0.5 * specific) - 0.5 * pressure)
 
-        intensity = max(face_care, concession)
+        # Not a maximum. The mechanism is doing two things across the two
+        # encounters — softening a refusal, then revising it — and under
+        # max() the larger term hides the other entirely, so removing the
+        # encounter history changed nothing while the faculty claims
+        # persistence is a term. Combined as independent contributions, so
+        # either alone engages it and both together engage it more.
+        intensity = 1.0 - (1.0 - face_care) * (1.0 - concession)
         effects = Effects(
             affect=AffectDelta(valence=0.2 * concession, engagement=0.3 * face_care),
             # Being careful costs the thing the constraint was protecting.
