@@ -2003,16 +2003,31 @@ def am_i_there(wanted: str, reading: str, page: str, window: str) -> bool:
 
 
 async def _take_the_run_its_bearings(
-    anchor: dict[str, str], *, expect_page: str = "", open_page: str = ""
+    anchor: dict[str, str],
+    *,
+    expect_page: str = "",
+    open_page: str = "",
+    target_app: str = "",
 ) -> None:
     """Work out which page and which window this run belongs to.
 
     Done before anything depends on the answer, because everything does: what
     is brought forward, what a keystroke is bound to, and whether she is in
     the thing she was asked to act in at all.
+
+    A run that names an application is about that application, and one that
+    names a page is about that page. A browser having something open is not a
+    fact about the task: the test for "is this about a page" included whether
+    any page was open anywhere, which is true whenever a browser is running.
+
+    LIVE 2026-09-04, driving a desktop game: "this run belongs to '2048 Game'
+    on 'https://x.com/home'". Every cycle then checked that somebody's
+    timeline was still in front, and brought the browser forward over the
+    window it was driving to put it back.
     """
-    page = await current_page_identity()
-    if not anchor["page"]:
+    about_a_page = bool(open_page or expect_page)
+    page = await current_page_identity() if (about_a_page or not target_app) else {}
+    if not anchor["page"] and about_a_page:
         anchor["page"] = str(
             expect_page or page.get("url") or page.get("title") or ""
         ).strip()
@@ -2020,9 +2035,10 @@ async def _take_the_run_its_bearings(
         # The application that holds the page, when this run is about a page
         # at all. A task about a desktop application would otherwise anchor
         # itself to a browser that happens to be open behind it.
-        about_a_page = bool(open_page or expect_page or page.get("url"))
         holder = str(page.get("app") or "") if about_a_page else ""
-        anchor["app"] = (holder or await _frontmost() or "").strip()
+        anchor["app"] = (
+            str(target_app or "").strip() or holder or await _frontmost() or ""
+        ).strip()
     if anchor["app"]:
         logger.info(
             "this run belongs to %r on %r", anchor["app"], anchor["page"][:60]
@@ -2905,7 +2921,10 @@ async def pursue_on_screen(
         # thirty-five moves into a terminal with the game one window back.
         if not anchor["page"] or not anchor["app"]:
             await _take_the_run_its_bearings(
-                anchor, expect_page=expect_page, open_page=open_page
+                anchor,
+                expect_page=expect_page,
+                open_page=open_page,
+                target_app=target_app,
             )
         mine = target_app or anchor["app"]
         # Whether anything had to be moved to get here. A reading taken
