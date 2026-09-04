@@ -60,12 +60,14 @@ import hashlib
 import json
 import logging
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
 __all__ = [
     "AReceipt",
     "WHAT_A_TIER_WANTS",
+    "a_ledger_of_its_own",
     "archived",
     "forget_the_receipts",
     "how_far_it_reaches",
@@ -169,6 +171,30 @@ def forget_the_receipts() -> None:
     _RECEIPTS.clear()
     _STACK.clear()
     _ARCHIVE.clear()
+
+
+@contextmanager
+def a_ledger_of_its_own(): # type: ignore[no-untyped-def]
+    """Promote and roll back without writing into the record of what she did.
+
+    The invariant that checks a promotion can go back has to perform one, and
+    performing one wrote two lines into the receipt chain every time anybody
+    read the health report. The chain is the evidence that a decision was
+    hers; filling it with the checks that read it is a way of losing that.
+
+    The lines still chain and the digests still hold inside the scope, so what
+    the check verifies is the real mechanism and not a stub.
+    """
+    held = (list(_RECEIPTS), list(_STACK), dict(_ARCHIVE))
+    _RECEIPTS.clear()
+    _STACK.clear()
+    _ARCHIVE.clear()
+    try:
+        yield
+    finally:
+        _RECEIPTS[:], _STACK[:] = held[0], held[1]
+        _ARCHIVE.clear()
+        _ARCHIVE.update(held[2])
 
 
 def the_stack() -> tuple[tuple[str, Any], ...]:

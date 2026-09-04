@@ -107,6 +107,7 @@ def _a_promotion_can_go_back() -> Iterator[Violation]:
     try:
         from core.cognition.an_invented_kind import WHERE_FROM
         from core.cognition.how_a_change_is_promoted import (
+            a_ledger_of_its_own,
             promote,
             put_it_back,
             what_it_replaced,
@@ -124,15 +125,22 @@ def _a_promotion_can_go_back() -> Iterator[Violation]:
     at = f"the words/an_invariant_checking_a_rollback_{once}"
     probe = f"a_word_the_invariant_wrote_{once}"
     stood = as_it_stands()
-    WHERE_FROM[probe] = lambda a, b: a
-    promote(
-        at,
-        became="shadow",
-        started_by="she",
-        evidence="an invariant checking that a promotion can go back",
-        replaced=stood,
-    )
-    if what_it_replaced(at) is None:
+    # In a ledger of its own, because a check that reads the record must not
+    # write into it. Two lines per health report would bury what she actually
+    # did under the checks that looked.
+    with a_ledger_of_its_own():
+        WHERE_FROM[probe] = lambda a, b: a
+        promote(
+            at,
+            became="shadow",
+            started_by="she",
+            evidence="an invariant checking that a promotion can go back",
+            replaced=stood,
+        )
+        nothing_to_undo = what_it_replaced(at) is None
+        if not nothing_to_undo:
+            put_it_back(at)
+    if nothing_to_undo:
         WHERE_FROM.pop(probe, None)
         yield Violation(
             invariant="development.a_promotion_can_go_back",
@@ -141,7 +149,6 @@ def _a_promotion_can_go_back() -> Iterator[Violation]:
             severity=Severity.ERROR,
         )
         return
-    put_it_back(at)
     if probe in WHERE_FROM:
         WHERE_FROM.pop(probe, None)
         yield Violation(

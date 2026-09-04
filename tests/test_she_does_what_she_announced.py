@@ -27,7 +27,22 @@ from core.cognition.what_she_could_do_next import (
 @pytest.fixture
 def a_choice_worth_making():
     """Several unpriced actions and a costly family, so the draw has room."""
+    from core.cognition.the_record_of_her_own_work import forget_the_record
+    from core.cognition.what_she_could_do_next import WHAT_THEY_HAVE_DONE
+
+    # The record too. Each test adds thirty episodes to the same family, so by
+    # the second one the totals have moved far enough that nothing clears the
+    # ceiling, both draws come back None, and the null below reports that
+    # asking twice always agrees — which would leave the test above it
+    # passing while proving nothing.
+    forget_the_record()
     held = dict(WHAT_SHE_COULD_DO)
+    # The counts too. Without this the previous test's episodes price these
+    # actions, the draw stops being a draw, and the null below reports that
+    # asking twice always agrees — which would make the test above it vacuous
+    # while still passing.
+    counted = dict(WHAT_THEY_HAVE_DONE)
+    WHAT_THEY_HAVE_DONE.clear()
     WHAT_SHE_COULD_DO.clear()
     for at in range(5):
         what_she_could_do(
@@ -42,6 +57,9 @@ def a_choice_worth_making():
     yield
     WHAT_SHE_COULD_DO.clear()
     WHAT_SHE_COULD_DO.update(held)
+    WHAT_THEY_HAVE_DONE.clear()
+    WHAT_THEY_HAVE_DONE.update(counted)
+    forget_the_record()
 
 
 def test_a_decision_handed_in_is_the_decision_carried_out(a_choice_worth_making):
