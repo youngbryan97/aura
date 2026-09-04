@@ -7,7 +7,7 @@ import logging
 import time
 import traceback
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
@@ -137,6 +137,7 @@ class MorphogeneticRuntime:
             require_governance=self.config.require_governance_for_mutation,
             emit_receipts=True,
         )
+        self.goal_demand: dict[str, float] = {}
         self._signals: deque[MorphogenSignal] = deque(maxlen=max(16, self.config.max_signals_per_tick * 4))
         self._task: asyncio.Task | None = None
         self._stopping = asyncio.Event()
@@ -545,6 +546,15 @@ class MorphogeneticRuntime:
             _record_morphogenesis_runtime_degradation(
                 exc, action="skipped one telemetry publish", severity="warning",
             )
+
+    def set_goal_demand(self, demand: Mapping[str, float]) -> None:
+        """What the current work needs, by capability.
+
+        The one global thing a local cell may read. A cell in a body does get
+        told what the body is trying to do; it does not get told where the load
+        is or who is struggling.
+        """
+        self.goal_demand = {str(k): float(v) for k, v in dict(demand or {}).items()}
 
     def propose(self, proposals: Sequence[Any]) -> list[Any]:
         """Submit topology proposals to the governor. The only way in."""
