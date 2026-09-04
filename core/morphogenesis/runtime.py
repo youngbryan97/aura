@@ -17,6 +17,7 @@ from .field import MorphogenField
 from .governor import MorphBounds, MorphGovernor
 from .graph import MorphGraph
 from .lineage import Lineage
+from .live_policy import LiveCoverageEvaluator, LiveObserverPolicy
 from .metabolism import MetabolismManager
 from .motifs import MotifLibrary
 from .organs import OrganStabilizer
@@ -128,16 +129,28 @@ class MorphogeneticRuntime:
                 max_edges=self.config.max_edges,
             ),
             lineage=self.lineage,
-            # No shadow evaluator on the live path yet: there is no offline
-            # replica of the running system to measure a candidate shape
-            # against, and an evaluator that cannot measure is a refusal. Until
-            # one exists the live layer proposes bindings and refuses anything
-            # above ROUTINE, which is Phase 2's work.
-            shadow_evaluator=None,
+            # Measures observability coverage of the live need field, not
+            # throughput: the live cells watch services and raise repair
+            # signals, and scoring them on work they do not carry would be
+            # scoring a number nothing produces.
+            shadow_evaluator=LiveCoverageEvaluator(self),
             require_governance=self.config.require_governance_for_mutation,
             emit_receipts=True,
         )
         self.goal_demand: dict[str, float] = {}
+        # A registry that cannot hold the topology simply does not persist it.
+        # Calling this unconditionally broke every caller passing a registry of
+        # its own, including a test stub — a constructor that demands a method
+        # the parameter's contract never promised.
+        attach = getattr(self.registry, "attach_topology", None)
+        if callable(attach):
+            attach(graph=self.graph, lineage=self.lineage, motifs=self.motifs)
+        self.governor.set_hooks(
+            spawn=self._on_spawn,
+            retire=self._on_retire,
+            specialize=self._on_specialize,
+        )
+        self.live_policy = LiveObserverPolicy()
         self._signals: deque[MorphogenSignal] = deque(maxlen=max(16, self.config.max_signals_per_tick * 4))
         self._task: asyncio.Task | None = None
         self._stopping = asyncio.Event()
@@ -345,6 +358,14 @@ class MorphogeneticRuntime:
         resource = self.metabolism.pulse()
         self._emit_system_signals(resource_pressure=resource.pressure)
 
+        # Cells accrue change budget by existing, capped by the governor.
+        # Crediting only when a cell already had a proposal was circular: it
+        # could never bank the minimum a proposal costs, so every one of them
+        # deferred on budget forever.
+        if self.config.topology_enabled:
+            for cell in self.registry.active_cells():
+                self.governor.credit(cell.cell_id, self.config.energy_credit_per_tick)
+
         # Modulate MetabolicCoordinator energy refill based on field pressure.
         # This is how morphogenesis influences resource allocation: under high
         # danger/pressure, background autonomous tasks slow down; under high
@@ -431,6 +452,8 @@ class MorphogeneticRuntime:
         if self.config.topology_enabled:
             self._sync_topology()
             self._strengthen_coactivation(activated_ids)
+            if self._tick % max(1, self.config.propose_every_ticks) == 0:
+                self._run_live_policy()
 
         if self._tick % max(1, self.config.prune_every_ticks) == 0:
             self._prune_population()
@@ -453,6 +476,87 @@ class MorphogeneticRuntime:
             "registry": self.registry.status(),
         }
 
+    def _on_spawn(self, cell_id: str, manifest: Mapping[str, Any]) -> None:
+        """Make a committed SPAWN a real cell.
+
+        Without this the governor commits a node into the graph and a birth
+        into the lineage while the registry never hears about it, and the very
+        next population sync deletes the node again — a change that lands, is
+        recorded as landed, and is gone a second later.
+        """
+        from .integration import service_health_handler
+        from .types import CellManifest
+
+        try:
+            cell_manifest = CellManifest.from_dict(dict(manifest))
+            if cell_manifest.canonical_id() != cell_id:
+                # The proposer named a cell the registry would name differently.
+                # Committing anyway leaves the graph, the lineage and the
+                # substrate holding an id nothing else uses.
+                raise ValueError(
+                    f"spawn id {cell_id} does not match the manifest's canonical id "
+                    f"{cell_manifest.canonical_id()}"
+                )
+            self.registry.register_cell(cell_manifest, handler=service_health_handler)
+            self.substrate.place(cell_id)
+            logger.info(
+                "🧬 Morphogenesis grew %s (%s) in %s.",
+                cell_manifest.name, cell_id, cell_manifest.subsystem,
+            )
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+            _record_morphogenesis_runtime_degradation(
+                exc,
+                action="rolled a committed spawn back by leaving the registry unchanged",
+                severity="degraded",
+                extra={"cell_id": cell_id},
+            )
+
+    def _on_retire(self, cell_id: str) -> None:
+        try:
+            cell = self.registry.get(cell_id)
+            if cell is not None:
+                cell.apoptosis(reason="retired by the governor")
+            self.registry.cells.pop(cell_id, None)
+            self.substrate.retire(cell_id)
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_morphogenesis_runtime_degradation(
+                exc, action="left a retired cell in the registry", severity="warning",
+                extra={"cell_id": cell_id},
+            )
+
+    def _on_specialize(self, cell_id: str, specialization: str) -> None:
+        try:
+            cell = self.registry.get(cell_id)
+            if cell is not None:
+                cell.manifest.metadata["specialization"] = str(specialization)
+                cell.state.specialisation_score = 1.0 if specialization else 0.0
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_morphogenesis_runtime_degradation(
+                exc, action="left a cell unspecialized", severity="warning",
+                extra={"cell_id": cell_id},
+            )
+
+    def _run_live_policy(self) -> list[Any]:
+        """Let the population propose changes to its own anatomy.
+
+        propose() existed with no callers, which made the live layer a static
+        topology wearing a developmental vocabulary — the same writer-with-no-
+        reader defect this whole pass has been closing.
+        """
+        if not self.config.topology_enabled:
+            return []
+        try:
+            proposals = self.live_policy.propose(self)
+            if not proposals:
+                return []
+            return self.propose(proposals)
+        except _MORPHOGENESIS_RECOVERABLE_ERRORS as exc:
+            _record_morphogenesis_runtime_degradation(
+                exc, action="skipped one round of live morphogenetic proposals",
+                severity="warning", extra={"tick": self._tick},
+            )
+            return []
+
     def _sync_topology(self) -> None:
         """Keep the graph's node set equal to the live population.
 
@@ -474,11 +578,21 @@ class MorphogeneticRuntime:
             gone = known - live
             arrived = live - known
 
+            # A node synced in with no bindings is its own connected component,
+            # so every organ the stabilizer formalizes used to trip the
+            # partition alarm on a healthy runtime. Bind an arriving cell to
+            # what it is already related to: an organ to its members, anything
+            # else to its own subsystem's neighbours.
+            attachments = self._attachments_for(arrived, live)
+
             def sync(scratch: Any) -> None:
                 for cell_id in sorted(arrived):
                     scratch.add_node(cell_id)
                 for cell_id in sorted(gone):
                     scratch.remove_node(cell_id)
+                for edge in attachments:
+                    if edge.source not in gone and edge.target not in gone:
+                        scratch.add_edge(edge)
 
             self.graph.transaction(sync, cause=f"population_sync@tick{self._tick}")
             if gone:
@@ -497,6 +611,48 @@ class MorphogeneticRuntime:
                 severity="warning",
                 extra={"tick": self._tick},
             )
+
+    def _attachments_for(self, arrived: set[str], live: set[str]) -> list[Any]:
+        """Bindings an arriving cell should come with.
+
+        Only what is structurally true about the cell: an organ names its
+        members, so it binds to them; anything else binds to its own
+        subsystem's peers.
+
+        A cell that is the only one in a new subsystem gets nothing, and stays
+        its own component until something decides to cover it. Binding it to an
+        arbitrary peer would make the partition channel quiet and the coverage
+        real in neither case — and it would take the decision away from the
+        policy, which is the part that has to justify it and can be refused.
+        """
+        from .graph import EdgeType, MorphEdge
+
+        edges: list[Any] = []
+        by_subsystem: dict[str, list[str]] = {}
+        for cell in self.registry.active_cells():
+            by_subsystem.setdefault(cell.manifest.subsystem, []).append(cell.cell_id)
+
+        for cell_id in sorted(arrived):
+            cell = self.registry.get(cell_id)
+            if cell is None:
+                continue
+            members = [
+                str(m) for m in (cell.manifest.metadata.get("members") or ())
+                if str(m) in live and str(m) != cell_id
+            ]
+            if not members:
+                members = [
+                    peer for peer in by_subsystem.get(cell.manifest.subsystem, ())
+                    if peer != cell_id and peer in live
+                ]
+            for member in members[:4]:
+                edges.append(MorphEdge(
+                    source=cell_id, target=member, edge_type=EdgeType.OBSERVE, weight=0.6,
+                ))
+                edges.append(MorphEdge(
+                    source=member, target=cell_id, edge_type=EdgeType.OBSERVE, weight=0.6,
+                ))
+        return edges
 
     def _strengthen_coactivation(self, activated: list[str]) -> None:
         """Record which cells fire together, on the cells themselves.

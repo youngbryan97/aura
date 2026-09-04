@@ -246,7 +246,12 @@ def _governor(**bound_overrides):
         substrate.place(node)
     bounds = MorphBounds(cooldown_s=0.0, **bound_overrides)
     governor = MorphGovernor(
-        graph, substrate, bounds=bounds, require_governance=True, emit_receipts=False
+        graph, substrate, bounds=bounds, require_governance=True, emit_receipts=False,
+        # A permissive evaluator, so these tests exercise the rung they name.
+        # Without one every non-routine proposal is refused for having no
+        # evaluator, which is correct and would hide whether the bound under
+        # test works at all.
+        shadow_evaluator=lambda graph, proposal=None: 1.0,
     )
     for node in graph.nodes():
         governor.lineage.seed(node)
@@ -255,8 +260,16 @@ def _governor(**bound_overrides):
 
 
 def test_a_critical_change_is_refused_without_governance():
-    """The absence of a check is not a passed check."""
+    """The absence of a check is not a passed check.
+
+    The evaluator here has to *favour* the change, or the proposal is refused
+    one rung earlier for not measuring well and the governance rung is never
+    reached — a green test that proves the rung above it.
+    """
     _, _, governor = _governor()
+    governor.shadow_evaluator = lambda graph, proposal=None: (
+        1.0 if proposal is not None else 0.0
+    )
     transaction = governor.adjudicate(P.retire("c", proposer="a"))
     assert transaction.decision is Decision.REJECTED
     assert "governance" in transaction.reason
@@ -285,7 +298,6 @@ def test_an_unmeasurable_change_is_refused_rather_than_approved():
 
 def test_a_change_that_would_sever_the_population_is_refused():
     graph, _, governor = _governor()
-    governor.shadow_evaluator = lambda graph, proposal=None: 1.0
     edge = next(e for e in graph.edges() if e.source == "b")
     transaction = governor.adjudicate(P.unbind(edge, proposer="a", benefit=1.0))
     assert transaction.decision is Decision.REJECTED
@@ -312,6 +324,7 @@ def test_a_substrate_failure_rolls_back_the_graph_and_the_world():
     governor = MorphGovernor(
         graph, substrate, bounds=MorphBounds(cooldown_s=0.0),
         require_governance=False, emit_receipts=False,
+        shadow_evaluator=lambda graph, proposal=None: 1.0,
     )
     for node in graph.nodes():
         governor.lineage.seed(node)

@@ -58,7 +58,7 @@ def _safe_get_service(name: str) -> Any:
         return None
 
 
-async def _service_health_handler(cell, signals, field_state):
+async def service_health_handler(cell, signals, field_state):
     """Generic handler: query a service's health/status if available."""
     service_name = cell.manifest.metadata.get("service_name") or cell.manifest.name
     service = _safe_get_service(service_name)
@@ -177,7 +177,7 @@ def register_morphogenesis_services(runtime: MorphogeneticRuntime | None = None)
     rt = runtime or get_morphogenetic_runtime()
 
     for manifest in build_default_cells():
-        rt.registry.register_cell(manifest, handler=_service_health_handler)
+        rt.registry.register_cell(manifest, handler=service_health_handler)
 
     # Add tissue adjacency: these are conservative "nearby tissues."
     rt.field.register_edge("state", "memory", 0.9)
@@ -227,6 +227,10 @@ _TISSUE_ADJACENCY: tuple[tuple[str, str, float], ...] = (
     ("resilience", "memory", 0.7),
     ("consciousness", "cognition", 0.7),
 )
+
+
+#: Kept under the old private name for anything that imported it.
+_service_health_handler = service_health_handler
 
 
 def _seed_topology(rt: MorphogeneticRuntime) -> None:

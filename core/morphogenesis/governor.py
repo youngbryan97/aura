@@ -245,8 +245,15 @@ class MorphGovernor:
         self._specialize_hook = specialize or self._specialize_hook
         self._route_hook = route or self._route_hook
 
+    #: A cell may bank at most this much change budget. Without a ceiling,
+    #: energy accrues forever and stops being a constraint: a cell that has sat
+    #: quiet for a day could then reorganise continuously until it ran out,
+    #: which is the burst the rate window and cooldown exist to prevent.
+    max_banked_energy = 3.0
+
     def credit(self, cell_id: str, amount: float) -> float:
-        self._energy[cell_id] = max(0.0, self._energy.get(cell_id, 0.0) + float(amount))
+        banked = self._energy.get(cell_id, 0.0) + float(amount)
+        self._energy[cell_id] = max(0.0, min(self.max_banked_energy, banked))
         return self._energy[cell_id]
 
     def energy(self, cell_id: str) -> float:
@@ -322,6 +329,19 @@ class MorphGovernor:
 
         shadow_score: float | None = None
         baseline_score: float | None = None
+        if proposal.risk is not RiskClass.ROUTINE and self.shadow_evaluator is None:
+            # No evaluator is the same situation as an evaluator that returns
+            # None, and it must have the same answer. Skipping the block
+            # instead applied every spawn, migration and specialization
+            # unmeasured — the precise fail-open this ladder exists to prevent,
+            # and it read as "no shadow configured" rather than as a hole.
+            return finish(
+                Decision.REJECTED,
+                (
+                    f"shadow: {proposal.risk} changes need a shadow evaluator and this "
+                    "governor has none; an unmeasured change is not a safe change"
+                ),
+            )
         if self.shadow_evaluator is not None and proposal.risk is not RiskClass.ROUTINE:
             baseline_score = self.shadow_evaluator(self.graph, None)
             shadow_score = self.shadow_evaluator(candidate, proposal)
@@ -540,11 +560,35 @@ class MorphGovernor:
             if transition.kind is not TransitionKind.SPAWN:
                 continue
             cell_id = self._spawn_id(proposal, transition)
-            capabilities = frozenset(
-                str(c) for c in (transition.manifest_data.get("capabilities") or ())
-            )
-            every_out = frozenset().union(*(v[0] for v in self._port_contract.values())) if self._port_contract else capabilities
-            extended[cell_id] = (every_out or capabilities, capabilities)
+            data = transition.manifest_data or {}
+            capabilities = frozenset(str(c) for c in (data.get("capabilities") or ()))
+            emits = frozenset(str(c) for c in (data.get("emits") or ()))
+            consumes = frozenset(str(c) for c in (data.get("consumes") or ()))
+            # Derive the ports the same way the population does. Reading only
+            # `capabilities` here gave the governor a narrower contract than
+            # the runtime's, so a manifest that plainly declared it consumes
+            # `repair` was refused for not accepting `repair` — a disagreement
+            # between two descriptions of one cell, and the sort of thing that
+            # reads as an unexplained rejection forever.
+            # Declared beats derived. A manifest that says what it emits is
+            # taken at its word; one that says nothing falls back to what the
+            # population as a whole can send, which is what a manifest with no
+            # port declarations meant before there were any.
+            #
+            # The distinction is between a manifest that declared nothing and
+            # one whose declaration came out empty. Collapsing them narrowed
+            # every undeclared cell to its own capability, and a grown cell
+            # could no longer send work back the way it came.
+            if emits:
+                out_ports = emits | capabilities
+            elif self._port_contract:
+                out_ports = frozenset().union(
+                    *(value[0] for value in self._port_contract.values())
+                )
+            else:
+                out_ports = capabilities
+            in_ports = (consumes | capabilities) if consumes else capabilities
+            extended[cell_id] = (out_ports or capabilities, in_ports or capabilities)
         return extended
 
     def _candidate_graph(self, proposal: MorphProposal) -> tuple[MorphGraph | None, str]:

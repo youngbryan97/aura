@@ -95,6 +95,25 @@ class MorphogenesisRegistry:
         self._lock = threading.RLock()
         self.cells: Dict[str, MorphogenCell] = {}
         self.organs: Dict[str, Organ] = {}
+        #: Topology, lineage and the motif library, attached by the runtime.
+        #:
+        #: These were held only in memory, so every restart threw away the
+        #: shape the population had developed, who descended from whom, and
+        #: every motif that had earned its credit. A developmental layer whose
+        #: development does not survive a reboot is a layer that starts from
+        #: the seed forever.
+        self._graph: Any = None
+        self._lineage: Any = None
+        self._motifs: Any = None
+
+    def attach_topology(self, *, graph: Any = None, lineage: Any = None, motifs: Any = None) -> None:
+        """Hand the registry the state it should persist alongside the cells."""
+        if graph is not None:
+            self._graph = graph
+        if lineage is not None:
+            self._lineage = lineage
+        if motifs is not None:
+            self._motifs = motifs
 
     def register_cell(self, manifest: CellManifest, *, handler: Optional[CellHandler] = None, replace: bool = False) -> MorphogenCell:
         cell = MorphogenCell(manifest, handler=handler)
@@ -156,6 +175,9 @@ class MorphogenesisRegistry:
                 "config": self.config.to_dict(),
                 "cells": {cid: cell.to_dict() for cid, cell in self.cells.items()},
                 "organs": {oid: organ.to_dict() for oid, organ in self.organs.items()},
+                "graph": self._graph.to_dict() if self._graph is not None else None,
+                "lineage": self._lineage.to_dict() if self._lineage is not None else None,
+                "motifs": self._motifs.to_dict() if self._motifs is not None else None,
             }
 
     def save(self) -> None:
@@ -256,6 +278,9 @@ class MorphogenesisRegistry:
             payload = data.get("payload", data) if isinstance(data, dict) else {}
             stored_cells = dict(payload.get("cells", {}))
             stored_organs = dict(payload.get("organs", {}))
+            stored_graph = payload.get("graph")
+            stored_lineage = payload.get("lineage")
+            stored_motifs = payload.get("motifs")
         except (OSError, UnicodeDecodeError, ValueError, TypeError, AttributeError) as exc:
             record_degradation(
                 "registry", exc, severity="degraded",
@@ -302,11 +327,70 @@ class MorphogenesisRegistry:
                         "registry", exc, severity="warning",
                         action=f"skipped unreadable stored organ {organ_id}",
                     )
+        self._restore_topology(stored_graph, stored_lineage, stored_motifs)
         logger.info(
-            "Morphogenesis registry loaded: %d cell record(s) restored, %d cell(s) live.",
+            "Morphogenesis registry loaded: %d cell record(s) restored, %d cell(s) live, "
+            "graph v%s with %d binding(s).",
             restored, len(self.cells),
+            getattr(self._graph, "version", "-"),
+            getattr(self._graph, "edge_count", 0),
         )
         return True
+
+    def _restore_topology(self, graph_data: Any, lineage_data: Any, motif_data: Any) -> None:
+        """Put back the developed shape, keeping only what still has a cell.
+
+        A stored binding whose endpoint no longer exists is dropped rather than
+        restored: the graph refuses a dangling edge, so restoring one wholesale
+        would fail the whole load and cost the topology that was still good.
+        """
+        live = set(self.cells)
+        if graph_data and self._graph is not None:
+            try:
+                from .graph import MorphEdge
+
+                nodes = [n for n in graph_data.get("nodes", []) if n in live]
+                edges = [
+                    MorphEdge.from_dict(e) for e in graph_data.get("edges", [])
+                    if e.get("source") in live and e.get("target") in live
+                ]
+
+                def restore(scratch: Any) -> None:
+                    for node in nodes:
+                        scratch.add_node(node)
+                    for edge in edges:
+                        scratch.add_edge(edge)
+
+                self._graph.transaction(restore, cause="registry.load")
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+                record_degradation(
+                    "registry", exc, severity="warning",
+                    action="started with an unseeded topology after a stored graph would not restore",
+                )
+        if lineage_data and self._lineage is not None:
+            try:
+                from .lineage import Lineage
+
+                restored = Lineage.from_dict(lineage_data)
+                for cell_id, record in restored._records.items():
+                    self._lineage._records.setdefault(cell_id, record)
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+                record_degradation(
+                    "registry", exc, severity="warning",
+                    action="started with fresh lineage after a stored one would not restore",
+                )
+        if motif_data and self._motifs is not None:
+            try:
+                from .motifs import MotifLibrary
+
+                restored_library = MotifLibrary.from_dict(motif_data)
+                for motif_id, motif in restored_library._motifs.items():
+                    self._motifs._motifs.setdefault(motif_id, motif)
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+                record_degradation(
+                    "registry", exc, severity="warning",
+                    action="started with an empty motif library after a stored one would not restore",
+                )
 
     def status(self) -> Dict[str, Any]:
         with self._lock:

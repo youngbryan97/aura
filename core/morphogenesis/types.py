@@ -232,6 +232,14 @@ class MorphogenesisConfig:
     max_edges: int = 512
     prune_every_ticks: int = 120
     telemetry_every_ticks: int = 10
+    #: How often the population may propose changes to its own anatomy.
+    #: Slower than the tick on purpose: development is not a control loop, and
+    #: a layer that reconsiders its shape every second is thrashing by design.
+    propose_every_ticks: int = 30
+    #: Change budget a cell accrues per tick. At the default one-second tick a
+    #: cell can afford a binding after about twelve seconds and a grown cell
+    #: after about eighty, which is the pace development should run at.
+    energy_credit_per_tick: float = 0.01
 
     def to_dict(self) -> dict[str, Any]:
         return json_safe(asdict(self))
