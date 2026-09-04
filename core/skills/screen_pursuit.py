@@ -4147,6 +4147,26 @@ async def pursue_on_screen(
                     she_keeps["said"] = ruled_out
                     logger.info("%s", ruled_out)
 
+            # And an act that has done nothing since the last time anything
+            # happened is not the act to take again.
+            #
+            # "It has worked here before" is a lifetime record; the board in
+            # front of her is now. LIVE 2026-09-04: fifteen presses of up
+            # into a board with nothing above anything, each one chosen
+            # because up had worked earlier in the same game.
+            #
+            # The record clears the moment anything answers, so this is the
+            # freshest evidence there is about the next move — and it never
+            # empties the choice, because every act failing is the thing
+            # having ended, which is judged elsewhere.
+            doing_nothing = responds["state"].unanswered_by
+            if doing_nothing:
+                still_worth = [
+                    one for one in available if one.name not in doing_nothing
+                ]
+                if still_worth:
+                    available = still_worth
+
             # And of what is left, the one she reaches for.
             #
             # Watching somebody clear 2048: two of the four keys, almost
