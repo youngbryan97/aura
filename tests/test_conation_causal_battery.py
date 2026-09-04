@@ -57,13 +57,24 @@ def _snail(engine: ConationEngine, key: str = "snail", **kwargs):
 # ── the measurement that motivates the package ───────────────────────────
 
 
-def test_affect_path_collapses_all_five_cases_to_one_point():
-    """The defect. If this ever fails, PAD gained an axis and conation may go.
+def test_affect_path_no_longer_collapses_all_five_cases_to_one_point():
+    """It fired, and what it caught was an improvement.
 
-    Five situations, one appraisal, identical output. The heuristic is the
-    fallback path, and this pins that the fallback cannot tell them apart —
-    which is what makes a separate conative layer necessary rather than
-    ornamental.
+    This pinned a defect: five situations, one appraisal, identical output,
+    with a docstring saying that if it ever failed then PAD had gained an axis
+    and conation might go. It failed on 2026-09-02, separating the five by a
+    maximum distance of 0.86.
+
+    The cause is that appraisal moved to core.interiority, which reads what is
+    at stake rather than scanning thirty words. So the original claim — that a
+    separate conative layer is necessary because the affect path cannot tell
+    these apart — no longer rests on this test.
+
+    That is not the same as conation being ornamental, and this test does not
+    decide it. What conation adds beyond a discriminating affect path is an
+    open question, and `test_conation_separates_the_same_five_cases` below
+    still measures the topology it claims. Recorded here rather than deleted,
+    because a defect that got fixed is worth as much as one that got found.
     """
     from core.affect.damasio_v2 import AffectEngineV2
 
@@ -79,8 +90,10 @@ def test_affect_path_collapses_all_five_cases_to_one_point():
         for t in triggers
     ]
     distances = [math.dist(a, b) for a, b in itertools.combinations(points, 2)]
-    assert max(distances) == pytest.approx(0.0, abs=1e-9), (
-        "the affect path now separates these; re-derive what conation adds"
+    assert max(distances) > 0.1, (
+        "the affect path has collapsed back to one point; the relational "
+        "appraisal has stopped reading what is at stake and something is "
+        "scoring words again"
     )
 
 

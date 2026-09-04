@@ -264,6 +264,18 @@ class AppraisalEngine:
     def _agency(self, event: InteriorEvent) -> tuple[Reading, Reading, Reading]:
         """Attribute the cause across self, other and circumstance."""
         attribution = self._ledger.attribution(event.event_id)
+        if attribution is None and event.subject:
+            # A promise she made and did not keep is a self-attribution
+            # whatever else the event was. Without this, guilt declined on
+            # "required appraisal checks are absent: agency_self" while the
+            # ledger held the broken promise that answers exactly that
+            # question.
+            if self._ledger.broken_promises(event.subject):
+                return (
+                    measured(1.0, source="ledger:promise-she-broke"),
+                    measured(0.0, source="ledger:promise-she-broke"),
+                    measured(0.0, source="ledger:promise-she-broke"),
+                )
         if attribution is None:
             if event.kind is EventKind.OWN_ACTION:
                 return (
@@ -371,6 +383,14 @@ class AppraisalEngine:
         is still available, and that is exactly the case guilt is for.
         """
         repairs = self._ledger.repairs_for(event.event_id, event.subject)
+        if repairs is None and event.subject:
+            # A broken promise has an obvious repair — do the thing, or say
+            # so — unless the ledger knows otherwise. Absent here turns guilt
+            # into shame, whose action tendency is concealment, so the
+            # default matters: the honest reading of a late review is that it
+            # can still be done.
+            if self._ledger.broken_promises(event.subject):
+                return measured(0.8, source="ledger:promise-can-be-answered")
         if repairs is None:
             return absent(source="ledger:no-repair-model")
         return measured(1.0 if repairs else 0.0, source="ledger:repairs")
@@ -378,15 +398,35 @@ class AppraisalEngine:
     # ── normative group ───────────────────────────────────────────────
     def _norm_fit(self, event: InteriorEvent) -> Reading:
         fit = self._ledger.norm_fit(event.event_id)
-        if fit is None:
-            return absent(source="ledger:no-norm-judgement")
-        return measured(_clamp(fit, -1.0, 1.0), source="ledger:norm-fit")
+        if fit is not None:
+            return measured(_clamp(fit, -1.0, 1.0), source="ledger:norm-fit")
+
+        # A promise she broke to this person is a standing normative fact
+        # about dealing with them, and it was unreadable: settle_promise
+        # recorded it and no faculty read `kept`, so an event involving
+        # someone she had let down appraised exactly like one involving a
+        # stranger. Weighted by what the promise was worth, and only for the
+        # person it was made to — a breach to one person is not a general
+        # failing.
+        if event.subject:
+            broken = self._ledger.broken_promises(event.subject)
+            if broken:
+                weight = max(p.importance for p in broken)
+                return measured(
+                    _clamp(-weight, -1.0, 1.0), source="ledger:promise-broken"
+                )
+        return absent(source="ledger:no-norm-judgement")
 
     def _norm_endorsed(self, event: InteriorEvent) -> Reading:
         endorsed = self._ledger.norm_endorsement(event.event_id)
-        if endorsed is None:
-            return absent(source="ledger:no-endorsement")
-        return measured(_clamp(endorsed), source="ledger:endorsement")
+        if endorsed is not None:
+            return measured(_clamp(endorsed), source="ledger:endorsement")
+        # Making a promise IS endorsing the standard it creates. Guilt
+        # separates from shame on whether she holds the standard she broke,
+        # and this read absent for every promise she ever made.
+        if event.subject and self._ledger.broken_promises(event.subject):
+            return measured(1.0, source="ledger:promise-is-its-own-standard")
+        return absent(source="ledger:no-endorsement")
 
     def _vulnerability(
         self, event: InteriorEvent, other: "OtherEstimate | None"  # noqa: F821

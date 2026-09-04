@@ -678,6 +678,22 @@ class RelationalLedger:
         with self._lock:
             return tuple(c for c in self._custody.values() if c.active)
 
+    def broken_promises(self, beneficiary: str | None = None) -> tuple[Promise, ...]:
+        """Promises she settled as not kept, optionally to one person.
+
+        `settle_promise(kept=False)` wrote this and nothing ever read it. A
+        broken promise was recorded in full and could not be felt: no faculty
+        reads `kept`, so the appraisal of an event involving someone she had
+        let down was identical to one involving a stranger.
+        """
+        with self._lock:
+            return tuple(
+                p
+                for p in self._promises.values()
+                if p.kept is False
+                and (beneficiary is None or p.beneficiary == beneficiary)
+            )
+
     def active_promises(self) -> tuple[Promise, ...]:
         with self._lock:
             return tuple(p for p in self._promises.values() if p.active)
