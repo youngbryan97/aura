@@ -3794,6 +3794,13 @@ async def pursue_on_screen(
                 # largest number in it is somebody's best score: LIVE
                 # 2026-09-04, "I have a 5292 on the board" on a board holding
                 # a 4 and two 2s.
+                # And not from a reading taken after it stopped answering.
+                #
+                # What is on the screen then is an ending — an overlay, a
+                # score, a way to begin again — and its words land in the
+                # board's places like anything else. LIVE 2026-09-04: "A
+                # 11619 — the biggest I have made here", said over a finished
+                # game whose best tile was 128.
                 made = (
                     _the_biggest_thing_on_it(
                         laid_out,
@@ -3803,6 +3810,7 @@ async def pursue_on_screen(
                         ),
                     )
                     if responds["lattice"].held
+                    and not responds["state"].nothing_answers()
                     else 0.0
                 )
                 further = _she_got_further(made, furthest["here"])

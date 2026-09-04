@@ -81,3 +81,20 @@ def test_nothing_is_claimed_before_she_knows_what_the_thing_is():
     source = inspect.getsource(screen_pursuit.pursue_on_screen)
     at = source.index("_she_got_further(made,")
     assert 'if responds["lattice"].held' in source[at - 700 : at]
+
+
+def test_nothing_is_claimed_from_a_reading_of_an_ending():
+    """An ending screen is not the board.
+
+    LIVE 2026-09-04: "A 11619 — the biggest I have made here", said over a
+    finished game whose best tile was 128. What is on the screen then is an
+    overlay, a score and a way to begin again, and its words land in the
+    board's places like anything else.
+    """
+    import inspect
+
+    from core.skills import screen_pursuit
+
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    at = source.index("_she_got_further(made,")
+    assert 'not responds["state"].nothing_answers()' in source[at - 900 : at]
