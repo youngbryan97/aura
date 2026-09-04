@@ -607,6 +607,7 @@ def test_natural_source_teaches_shallow_relations_outside_target_domains() -> No
     source = build_semantic_program_natural_source_corpus()
     target = build_semantic_program_natural_request_corpus()
 
+    assert all(not item.register_definition_spans for item in target)
     assert len(source) == 24
     assert {item.topology_id for item in source} == {
         "scalar_linear_two",
@@ -631,10 +632,7 @@ def test_natural_source_teaches_shallow_relations_outside_target_domains() -> No
 
 
 def test_natural_definition_envelopes_are_runtime_representable() -> None:
-    examples = (
-        *build_semantic_program_natural_source_corpus(),
-        *build_semantic_program_natural_request_corpus(),
-    )
+    examples = build_semantic_program_natural_source_corpus()
 
     for example in examples:
         for index, input_span in enumerate(example.input_spans):

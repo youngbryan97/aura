@@ -2656,7 +2656,6 @@ def _natural_three_step_example(
     for index, (name, value) in enumerate(zip(input_names, inputs, strict=True)):
         if index:
             builder.append(", " if index < 3 else ", and ")
-        builder.begin(f"natural:definition:{index}")
         builder.append(name)
         builder.append(" ")
         rendered = (
@@ -2665,11 +2664,9 @@ def _natural_three_step_example(
             else str(value)
         )
         builder.append(rendered, label=f"natural:input:{index}")
-        builder.finish(f"natural:definition:{index}")
     builder.append(". First, ")
 
     instructions: list[SemanticInstructionAnnotation] = []
-    builder.begin("natural:definition:4")
     if schema_kind == "scalar_linear_three":
         _append_natural_binary_operation(
             builder,
@@ -2705,10 +2702,7 @@ def _natural_three_step_example(
         )
     )
 
-    builder.append(", and call that the running figure")
-    builder.finish("natural:definition:4")
-    builder.append(". Next, ")
-    builder.begin("natural:definition:5")
+    builder.append(", and call that the running figure. Next, ")
     _append_natural_binary_operation(
         builder,
         op=operations[1],
@@ -2729,10 +2723,7 @@ def _natural_three_step_example(
         )
     )
 
-    builder.append(", calling the result the revised figure")
-    builder.finish("natural:definition:5")
-    builder.append(". Finally, ")
-    builder.begin("natural:definition:6")
+    builder.append(", calling the result the revised figure. Finally, ")
     _append_natural_binary_operation(
         builder,
         op=operations[2],
@@ -2742,7 +2733,6 @@ def _natural_three_step_example(
         right_text=fourth_name,
         right_label="natural:argument:2:1",
     )
-    builder.finish("natural:definition:6")
     builder.append(". What is the final value?")
     instructions.append(
         SemanticInstructionAnnotation(
@@ -2770,9 +2760,6 @@ def _natural_three_step_example(
         contrast_id=hashlib.sha256(
             f"natural|{schema_kind}|{domain_index}|{sample_index}".encode("ascii")
         ).hexdigest()[:24],
-        register_definition_spans=tuple(
-            builder.span(f"natural:definition:{index}") for index in range(7)
-        ),
     )
 
 
