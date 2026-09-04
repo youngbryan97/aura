@@ -55,6 +55,13 @@ POPULATION_TRANSITIONS = frozenset({TransitionKind.SPAWN, TransitionKind.RETIRE,
 #: task shift should mostly be made of.
 WIRING_TRANSITIONS = frozenset({TransitionKind.BIND, TransitionKind.UNBIND, TransitionKind.ROUTE})
 
+#: Transitions with no single-step inverse, undone by restoring a snapshot.
+#: A retired cell can be respawned from a manifest, but its internal state is
+#: gone, and claiming a SPAWN undoes a RETIRE would be claiming otherwise.
+#: Carry ``metadata["manifest"]`` on the retire and the inverse becomes a real
+#: respawn; leave it off and the governor rolls back by snapshot instead.
+SNAPSHOT_REVERSIBLE = frozenset({TransitionKind.RETIRE, TransitionKind.MERGE})
+
 
 class RiskClass(StrEnum):
     """How much scrutiny a proposal earns.
@@ -133,8 +140,9 @@ class MorphTransition:
         """The transition that undoes this one, where one exists.
 
         SPAWN inverts to RETIRE of whatever it created, which is only knowable
-        after the commit; the governor fills the subject in. MERGE has no
-        single-step inverse and is undone by restoring a snapshot instead.
+        after the commit; the governor fills the subject in. RETIRE inverts to
+        a respawn only when it carries the manifest to respawn from. MERGE
+        never does, and is undone by restoring a snapshot.
         """
         if self.kind is TransitionKind.BIND and self.edge is not None:
             return MorphTransition(kind=TransitionKind.UNBIND, subject=self.subject, edge=self.edge)
@@ -149,6 +157,17 @@ class MorphTransition:
             )
         if self.kind is TransitionKind.SPAWN:
             return MorphTransition(kind=TransitionKind.RETIRE, subject=self.subject)
+        if self.kind is TransitionKind.RETIRE:
+            manifest = self.metadata.get("manifest")
+            if manifest:
+                return MorphTransition(
+                    kind=TransitionKind.SPAWN,
+                    subject=self.subject,
+                    manifest_data=dict(manifest),
+                    placement=str(self.metadata.get("previous_placement", "")),
+                    metadata={"parent": str(self.metadata.get("parent", ""))},
+                )
+            return None
         if self.kind is TransitionKind.MIGRATE:
             return MorphTransition(
                 kind=TransitionKind.MIGRATE,
@@ -265,7 +284,9 @@ class MorphProposal:
             problem = transition.validate()
             if problem:
                 return problem
-            if transition.kind is not TransitionKind.MERGE and transition.inverse() is None:
+            if transition.kind in SNAPSHOT_REVERSIBLE:
+                continue
+            if transition.inverse() is None:
                 return f"{transition.kind} cannot say how to reverse itself"
         return ""
 
@@ -476,16 +497,25 @@ def retire(
     subject: str,
     *,
     proposer: str,
+    manifest_data: Mapping[str, Any] | None = None,
     subsystem: str = "generic",
     benefit: float = 0.0,
     cost: float = 0.0,
     rationale: str = "",
     evidence: Mapping[str, Any] | None = None,
 ) -> MorphProposal:
+    """Take a cell out. Pass ``manifest_data`` to make the retirement
+    respawnable; without it the governor undoes a failure by snapshot."""
     return MorphProposal(
         proposer=proposer,
         subsystem=subsystem,
-        transitions=(MorphTransition(kind=TransitionKind.RETIRE, subject=subject),),
+        transitions=(
+            MorphTransition(
+                kind=TransitionKind.RETIRE,
+                subject=subject,
+                metadata={"manifest": dict(manifest_data)} if manifest_data else {},
+            ),
+        ),
         expected_benefit=benefit,
         estimated_cost=cost,
         rationale=rationale,
@@ -601,6 +631,7 @@ __all__ = [
     "MorphTransition",
     "POPULATION_TRANSITIONS",
     "RiskClass",
+    "SNAPSHOT_REVERSIBLE",
     "TransitionKind",
     "WIRING_TRANSITIONS",
     "bind",
