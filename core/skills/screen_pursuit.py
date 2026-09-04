@@ -2651,8 +2651,15 @@ async def pursue_on_screen(
     """
     from core.agency import what_she_is_doing as doing
     from core.agency.deliberate_action import Attempt, confirm, deliberate
+    from core.agency.how_good_is_this import (
+        AS_GOOD_A_GUESS_AS_ANY,
+        INVENTED,
+        promote,
+        terms,
+        worth_comparing,
+    )
     from core.agency.how_good_is_this import a_trial_is_running as _a_trial_is_running
-    from core.agency.how_good_is_this import terms, worth_comparing
+    from core.agency.inventing_a_measure import measure_named
     from core.agency.looking_ahead import look_ahead, worth_finding_out
     from core.agency.standing_strategy import Strategy, settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
@@ -3232,6 +3239,24 @@ async def pursue_on_screen(
     matters = WhatMakesItGoodHere.from_memory(
         knew.get("matters") or {}, TRUST_CARRIED_OVER
     )
+    # And the properties she invented here and proved worth steering by.
+    #
+    # A measure she composed lived in the process that composed it. Inventing
+    # one takes a run's worth of unexplained pairs and proving one takes sixty
+    # observations under trial — more than a run — so every restart threw away
+    # the only part of her judgement that was hers rather than authored, and
+    # the next run started composing it again from nothing.
+    #
+    # A measure is four words and a weight; putting it back is looking its
+    # name up in the space it came from.
+    for name, worth in (knew.get("judging") or {}).items():
+        try:
+            found = measure_named(str(name))
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if found is not None:
+            promote(found, float(worth))
+            logger.info("she judges situations here by %r, worth %.2f", name, float(worth))
     try:
         furthest["here"] = float(knew.get("furthest") or 0.0)
     except (TypeError, ValueError):
@@ -5304,6 +5329,11 @@ async def pursue_on_screen(
             ),
             # And what each thing about a situation turned out to be worth.
             "matters": matters.as_memory(),
+            # The properties she composed here and kept, by name and weight.
+            "judging": {
+                str(name): float(AS_GOOD_A_GUESS_AS_ANY.get(str(name), 0.0))
+                for name in INVENTED
+            },
             # Which of the places that answer to her are the thing itself,
             # rather than a score reporting on it. Kept, because working it
             # out costs her several moves of a fresh game every time.
