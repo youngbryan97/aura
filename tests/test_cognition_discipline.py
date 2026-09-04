@@ -417,7 +417,6 @@ def test_a_boot_checks_instruments_and_does_not_re_run_experiments():
     pass it did not earn.
     """
     from core.organism.model_validation import (
-        Outcome,
         _AN_EXPERIMENT_NOT_AN_INSTRUMENT,
         get_suite,
         install_runtime_validation,
