@@ -1,0 +1,42 @@
+{
+  "schema": "aura.semantic_program_path_ensemble_failure_record.v1",
+  "complete": true,
+  "verdict": "FAIL_PREREGISTERED_MECHANISM_BAR",
+  "preregistration_file_sha256": "93922169add3b52eb21fe352b51aaf9e3a804997bb13ecb9912a79a8636235c4",
+  "feature_manifest_file_sha256": "4332bbb2d3dcceffe8e162c398708bbd460cf20afb5610000aa27f388f668a94",
+  "feature_manifest_sha256": "447d4168fed50dc546cc170053870d5e81d86b8e2ebe6073c851dca8b8982693",
+  "corpus_sha256": "42543ffa8fcbefe72cabbe541238c4d6980a552819de1ad282f772a176d74ed3",
+  "full_result_path": "/Users/bryan/.aura/rlc-evidence/semantic-natural-branch-replication-v1-results/preordinary_path_ensemble_result_v2.json",
+  "full_result_file_sha256": "981511a7d97ba2c312194b558c9800558e6ac4fdec831b074bc2940bb1ca1558",
+  "result_sha256": "6d9432d510134159cd172b7edd1440ae5957592e3aaef9788da9e42be1538ffb",
+  "task_count": 48,
+  "arms": {
+    "frozen_incumbent": {
+      "accepted": 0,
+      "refusal": "public_input_count_unsupported"
+    },
+    "frozen_challenger": {
+      "accepted": 0,
+      "refusal": "public_input_count_unsupported"
+    },
+    "necessary_condition_ensemble": {
+      "accepted": 0,
+      "refusal": "public_input_count_unsupported"
+    },
+    "forced_incumbent_selector_lesion": {
+      "accepted": 0,
+      "refusal": "public_input_count_unsupported"
+    },
+    "challenger_evidence_absent_lesion": {
+      "accepted": 0,
+      "refusal": "public_input_count_unsupported"
+    }
+  },
+  "improvements_over_incumbent": 0,
+  "regressions_from_incumbent": 0,
+  "ordinary_resident_27b_decode": {
+    "status": "ABORTED",
+    "model_load_or_decode_calls": 0
+  },
+  "serving_authority": false
+}
