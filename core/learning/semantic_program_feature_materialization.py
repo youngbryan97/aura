@@ -37,6 +37,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_fork_join_corpus,
     build_semantic_program_fork_join_factorial_corpus,
     build_semantic_program_natural_alias_source_corpus,
+    build_semantic_program_natural_branch_replication_corpus,
     build_semantic_program_natural_identity_source_corpus,
     build_semantic_program_natural_replication_corpus,
     build_semantic_program_natural_request_corpus,
@@ -76,6 +77,7 @@ NATURAL_REQUEST_CORPUS_KIND: Final = "natural_request_linear_4x3"
 NATURAL_REPLICATION_CORPUS_KIND: Final = "natural_replication_linear_4x3"
 NATURAL_SOURCE_CORPUS_KIND: Final = "natural_source_linear_3x2"
 NATURAL_ALIAS_SOURCE_CORPUS_KIND: Final = "natural_alias_source_linear_3x2"
+NATURAL_BRANCH_REPLICATION_CORPUS_KIND: Final = "natural_branch_replication_5x4"
 NATURAL_IDENTITY_SOURCE_CORPUS_KIND: Final = "natural_identity_source_linear_3x2"
 SEMANTIC_CORPUS_KINDS: Final = frozenset(
     {
@@ -86,6 +88,7 @@ SEMANTIC_CORPUS_KINDS: Final = frozenset(
         NATURAL_REQUEST_CORPUS_KIND,
         NATURAL_REPLICATION_CORPUS_KIND,
         NATURAL_ALIAS_SOURCE_CORPUS_KIND,
+        NATURAL_BRANCH_REPLICATION_CORPUS_KIND,
         NATURAL_IDENTITY_SOURCE_CORPUS_KIND,
         NATURAL_SOURCE_CORPUS_KIND,
         SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
@@ -256,6 +259,11 @@ def build_semantic_program_corpus_for_config(
         )
     if config.corpus_kind == NATURAL_ALIAS_SOURCE_CORPUS_KIND:
         return build_semantic_program_natural_alias_source_corpus(
+            seed=config.seed,
+            examples_per_schema_domain=config.examples_per_operation_pair,
+        )
+    if config.corpus_kind == NATURAL_BRANCH_REPLICATION_CORPUS_KIND:
+        return build_semantic_program_natural_branch_replication_corpus(
             seed=config.seed,
             examples_per_schema_domain=config.examples_per_operation_pair,
         )

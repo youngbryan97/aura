@@ -7,6 +7,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_fork_join_corpus,
     build_semantic_program_fork_join_factorial_corpus,
     build_semantic_program_natural_alias_source_corpus,
+    build_semantic_program_natural_branch_replication_corpus,
     build_semantic_program_natural_identity_source_corpus,
     build_semantic_program_natural_replication_corpus,
     build_semantic_program_natural_request_corpus,
@@ -729,3 +730,43 @@ def test_natural_replication_is_fresh_large_and_preregistered_shape() -> None:
     assert len({item.construction_id for item in replication}) == 96
     assert build_semantic_program_natural_replication_corpus() == replication
     assert build_semantic_program_natural_replication_corpus(seed=1732052) != replication
+
+
+def test_natural_branch_replication_matches_the_frozen_post_preregistration_shape() -> None:
+    examples = build_semantic_program_natural_branch_replication_corpus()
+
+    assert len(examples) == 48
+    assert {item.topology_id for item in examples} == {
+        "scalar_branch_merge_four",
+        "lookup_branch_merge_four",
+        "count_branch_merge_four",
+    }
+    assert {item.split for item in examples} == {"validation", "test"}
+    assert all(len(item.inputs) == 5 and len(item.instructions) == 4 for item in examples)
+    assert all(
+        tuple(step.instruction.args for step in item.instructions)
+        == ((0, 1), (2, 3), (5, 6), (7, 4))
+        for item in examples
+    )
+    assert all(item.report_value == 8 for item in examples)
+    assert all(item.program.run(item.inputs) is not None for item in examples)
+    assert len({item.source_text for item in examples}) == 48
+    assert build_semantic_program_natural_branch_replication_corpus() == examples
+    assert build_semantic_program_natural_branch_replication_corpus(seed=2718281829) != examples
+
+
+def test_natural_branch_replication_is_disjoint_from_all_prior_natural_corpora() -> None:
+    target = build_semantic_program_natural_branch_replication_corpus()
+    prior = (
+        *build_semantic_program_natural_request_corpus(),
+        *build_semantic_program_natural_replication_corpus(),
+        *build_semantic_program_natural_source_corpus(),
+        *build_semantic_program_natural_alias_source_corpus(),
+        *build_semantic_program_natural_identity_source_corpus(),
+    )
+
+    assert not {item.source_text for item in target} & {item.source_text for item in prior}
+    assert not {item.construction_id for item in target} & {
+        item.construction_id for item in prior
+    }
+    assert not {item.topology_id for item in target} & {item.topology_id for item in prior}

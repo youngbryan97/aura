@@ -21,6 +21,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
     build_semantic_program_natural_alias_source_corpus,
+    build_semantic_program_natural_branch_replication_corpus,
     build_semantic_program_natural_identity_source_corpus,
     build_semantic_program_natural_source_corpus,
     build_semantic_program_sequence_binary_corpus,
@@ -35,6 +36,7 @@ from core.learning.semantic_program_feature_materialization import (
     FORK_JOIN_FACTORIAL_CORPUS_KIND,
     FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
     NATURAL_ALIAS_SOURCE_CORPUS_KIND,
+    NATURAL_BRANCH_REPLICATION_CORPUS_KIND,
     NATURAL_IDENTITY_SOURCE_CORPUS_KIND,
     NATURAL_REPLICATION_CORPUS_KIND,
     NATURAL_REQUEST_CORPUS_KIND,
@@ -570,6 +572,21 @@ def test_natural_replication_family_reconstructs_from_preregistered_config() -> 
 
     assert len(corpus) == 96
     assert {item.split for item in corpus} == {"validation", "test"}
+
+
+def test_natural_branch_replication_reconstructs_from_preregistered_config() -> None:
+    config = SemanticFeatureConfig(
+        seed=2718281828,
+        examples_per_operation_pair=2,
+        max_examples=48,
+        corpus_kind=NATURAL_BRANCH_REPLICATION_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+    )
+
+    corpus = build_semantic_program_corpus_for_config(config)
+
+    assert corpus == build_semantic_program_natural_branch_replication_corpus()
+    assert len(corpus) == 48
 
 
 def test_sequence_feature_bundle_round_trips_nested_exact_values(tmp_path: Path) -> None:

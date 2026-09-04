@@ -2773,6 +2773,59 @@ _NATURAL_REPLICATION_SURFACES: Final = (
     ),
 )
 
+_NATURAL_BRANCH_REPLICATION_SCALAR_DOMAINS: Final = (
+    ("satellite handover", "uplink packets", "downlink packets", "relay reserve", "handover reserve", "terminal correction"),
+    ("theater rig", "front fixtures", "rear fixtures", "stage reserve", "house reserve", "focus correction"),
+    ("court docket", "civil filings", "criminal filings", "clerk reserve", "hearing reserve", "calendar correction"),
+    ("battery exchange", "charged modules", "returned modules", "rack reserve", "vehicle reserve", "voltage correction"),
+    ("rail timetable", "eastbound slots", "westbound slots", "platform reserve", "crew reserve", "schedule correction"),
+    ("weather station", "wind samples", "rain samples", "sensor reserve", "archive reserve", "calibration correction"),
+    ("festival office", "day passes", "night passes", "gate reserve", "vendor reserve", "staff correction"),
+    ("recycling depot", "glass loads", "metal loads", "bay reserve", "truck reserve", "sorting correction"),
+)
+
+_NATURAL_BRANCH_REPLICATION_SEQUENCE_DOMAINS: Final = (
+    ("satellite handover", "packets by channel", "channel index", "target packet", "relay reserve", "handover reserve", "terminal correction"),
+    ("theater rig", "fixtures by truss", "truss index", "target fixture", "stage reserve", "house reserve", "focus correction"),
+    ("court docket", "filings by chamber", "chamber index", "target filing", "clerk reserve", "hearing reserve", "calendar correction"),
+    ("battery exchange", "modules by rack", "rack index", "target module", "rack reserve", "vehicle reserve", "voltage correction"),
+    ("rail timetable", "slots by platform", "platform index", "target slot", "platform reserve", "crew reserve", "schedule correction"),
+    ("weather station", "samples by sensor", "sensor index", "target sample", "sensor reserve", "archive reserve", "calibration correction"),
+    ("festival office", "passes by gate", "gate index", "target pass", "gate reserve", "vendor reserve", "staff correction"),
+    ("recycling depot", "loads by bay", "bay index", "target load", "bay reserve", "truck reserve", "sorting correction"),
+)
+
+_NATURAL_BRANCH_REPLICATION_SURFACES: Final = (
+    (
+        "Consult the {domain} ledger",
+        "Determine one branch by",
+        "Keep that quantity as the channel result",
+        "Independently determine another branch by",
+        "Keep this quantity as the parallel result",
+        "Reconcile the branches and",
+        "The reconciled quantity is the merge result",
+        "Apply the terminal adjustment and",
+        "Which integer should be recorded",
+        "channel result",
+        "parallel result",
+        "merge result",
+    ),
+    (
+        "Audit the figures in the {domain}",
+        "On the first path",
+        "Designate its quantity the first branch",
+        "On a separate path",
+        "Designate its quantity the second branch",
+        "Bring the two paths together and",
+        "Call the combined quantity the joined amount",
+        "Close the calculation and",
+        "Report the resulting integer",
+        "first branch",
+        "second branch",
+        "joined amount",
+    ),
+)
+
 _NATURAL_SCALAR_CHAINS: Final = (
     ("add", "mul", "sub"),
     ("sub", "add", "mul"),
@@ -2782,6 +2835,17 @@ _NATURAL_SCALAR_CHAINS: Final = (
     ("mul", "add", "sub"),
     ("add", "idiv", "mul"),
     ("idiv", "sub", "mul"),
+)
+
+_NATURAL_BRANCH_CHAINS: Final = (
+    ("add", "sub", "mul", "add"),
+    ("sub", "add", "add", "mul"),
+    ("mul", "add", "sub", "idiv"),
+    ("add", "mul", "idiv", "sub"),
+    ("sub", "mul", "add", "idiv"),
+    ("mul", "sub", "add", "add"),
+    ("add", "idiv", "mul", "sub"),
+    ("idiv", "add", "sub", "mul"),
 )
 
 
@@ -3650,6 +3714,252 @@ def build_semantic_program_natural_replication_corpus(
     return tuple(examples)
 
 
+def _natural_branch_replication_example(
+    *,
+    schema_kind: str,
+    domain_index: int,
+    sample_index: int,
+    inputs: tuple[SemanticValue, ...],
+    operations: tuple[str, str, str, str],
+) -> SemanticProgramExample:
+    """Render an evaluation-only branch, merge, and terminal procedure."""
+
+    if schema_kind == "scalar_branch_merge_four":
+        domain, first_name, second_name, third_name, fourth_name, fifth_name = (
+            _NATURAL_BRANCH_REPLICATION_SCALAR_DOMAINS[domain_index]
+        )
+    else:
+        (
+            domain,
+            first_name,
+            index_name,
+            target_name,
+            third_name,
+            fourth_name,
+            fifth_name,
+        ) = _NATURAL_BRANCH_REPLICATION_SEQUENCE_DOMAINS[domain_index]
+        second_name = index_name if schema_kind == "lookup_branch_merge_four" else target_name
+    (
+        opening,
+        first_intro,
+        first_alias_clause,
+        second_intro,
+        second_alias_clause,
+        merge_intro,
+        merge_alias_clause,
+        terminal_intro,
+        question,
+        first_alias,
+        second_alias,
+        merge_alias,
+    ) = _NATURAL_BRANCH_REPLICATION_SURFACES[
+        sample_index % len(_NATURAL_BRANCH_REPLICATION_SURFACES)
+    ]
+    builder = _AnnotatedText()
+    builder.append(opening.format(domain=domain))
+    builder.append(": input definitions are ")
+    input_names = (first_name, second_name, third_name, fourth_name, fifth_name)
+    for index, (name, value) in enumerate(zip(input_names, inputs, strict=True)):
+        if index:
+            builder.append("; ")
+        builder.append(name)
+        builder.append(" = ")
+        rendered = (
+            "[" + ", ".join(str(item) for item in value) + "]"
+            if isinstance(value, tuple)
+            else str(value)
+        )
+        builder.append(rendered, label=f"branch-replication:input:{index}")
+    builder.append(f". {first_intro} ")
+
+    if schema_kind == "scalar_branch_merge_four":
+        _append_natural_binary_operation(
+            builder,
+            op=operations[0],
+            ordinal=0,
+            left_text=first_name,
+            left_label="branch-replication:argument:0:0",
+            right_text=second_name,
+            right_label="branch-replication:argument:0:1",
+        )
+    elif schema_kind == "lookup_branch_merge_four":
+        builder.append("retrieve", label="natural:operation:0")
+        builder.append(" the entry at ")
+        builder.append(second_name, label="branch-replication:argument:0:1")
+        builder.append(" in ")
+        builder.append(first_name, label="branch-replication:argument:0:0")
+    elif schema_kind == "count_branch_merge_four":
+        builder.append("count", label="natural:operation:0")
+        builder.append(" occurrences of ")
+        builder.append(second_name, label="branch-replication:argument:0:1")
+        builder.append(" in ")
+        builder.append(first_name, label="branch-replication:argument:0:0")
+    else:  # pragma: no cover - builder owns the schema inventory
+        raise ValueError("natural branch replication schema is unsupported")
+    instructions = [
+        SemanticInstructionAnnotation(
+            instruction=Instruction(operations[0], (0, 1)),
+            operation_span=builder.span("natural:operation:0"),
+            argument_spans=tuple(
+                builder.span(f"branch-replication:argument:0:{position}")
+                for position in range(2)
+            ),
+            depends_on=(),
+        )
+    ]
+
+    builder.append(f". {first_alias_clause}. {second_intro} ")
+    _append_natural_binary_operation(
+        builder,
+        op=operations[1],
+        ordinal=1,
+        left_text=third_name,
+        left_label="branch-replication:argument:1:0",
+        right_text=fourth_name,
+        right_label="branch-replication:argument:1:1",
+    )
+    instructions.append(
+        SemanticInstructionAnnotation(
+            instruction=Instruction(operations[1], (2, 3)),
+            operation_span=builder.span("natural:operation:1"),
+            argument_spans=tuple(
+                builder.span(f"branch-replication:argument:1:{position}")
+                for position in range(2)
+            ),
+            depends_on=(),
+        )
+    )
+
+    builder.append(f". {second_alias_clause}. {merge_intro} ")
+    _append_natural_binary_operation(
+        builder,
+        op=operations[2],
+        ordinal=2,
+        left_text=first_alias,
+        left_label="branch-replication:argument:2:0",
+        right_text=second_alias,
+        right_label="branch-replication:argument:2:1",
+    )
+    instructions.append(
+        SemanticInstructionAnnotation(
+            instruction=Instruction(operations[2], (5, 6)),
+            operation_span=builder.span("natural:operation:2"),
+            argument_spans=tuple(
+                builder.span(f"branch-replication:argument:2:{position}")
+                for position in range(2)
+            ),
+            depends_on=(0, 1),
+        )
+    )
+
+    builder.append(f". {merge_alias_clause}. {terminal_intro} ")
+    _append_natural_binary_operation(
+        builder,
+        op=operations[3],
+        ordinal=3,
+        left_text=merge_alias,
+        left_label="branch-replication:argument:3:0",
+        right_text=fifth_name,
+        right_label="branch-replication:argument:3:1",
+    )
+    instructions.append(
+        SemanticInstructionAnnotation(
+            instruction=Instruction(operations[3], (7, 4)),
+            operation_span=builder.span("natural:operation:3"),
+            argument_spans=tuple(
+                builder.span(f"branch-replication:argument:3:{position}")
+                for position in range(2)
+            ),
+            depends_on=(2,),
+        )
+    )
+    builder.append(f". {question}?")
+    construction_id = (
+        f"natural-branch-replication-{schema_kind}-{domain_index}-{sample_index % 2}"
+    )
+    identity = f"{construction_id}|{sample_index}|{inputs}|{operations}|{builder.text}"
+    return SemanticProgramExample(
+        example_id=hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24],
+        construction_id=construction_id,
+        topology_id=schema_kind,
+        split="validation" if (domain_index + sample_index) % 2 == 0 else "test",
+        source_text=builder.text,
+        inputs=inputs,
+        input_spans=tuple(
+            builder.span(f"branch-replication:input:{index}") for index in range(5)
+        ),
+        instructions=tuple(instructions),
+        report_value=8,
+        contrast_id=hashlib.sha256(
+            f"natural-branch-replication|{schema_kind}|{domain_index}|{sample_index}".encode(
+                "ascii"
+            )
+        ).hexdigest()[:24],
+    )
+
+
+def build_semantic_program_natural_branch_replication_corpus(
+    *,
+    seed: int = 2718281828,
+    examples_per_schema_domain: int = 2,
+) -> tuple[SemanticProgramExample, ...]:
+    """Build the preregistered fresh branch-and-merge transfer corpus."""
+
+    if examples_per_schema_domain < 1:
+        raise ValueError("natural branch replication needs every schema-domain cell")
+    rng = random.Random(seed)
+    examples: list[SemanticProgramExample] = []
+    schemas = (
+        "scalar_branch_merge_four",
+        "lookup_branch_merge_four",
+        "count_branch_merge_four",
+    )
+    for schema_index, schema_kind in enumerate(schemas):
+        for domain_index in range(len(_NATURAL_BRANCH_REPLICATION_SCALAR_DOMAINS)):
+            for sample_index in range(examples_per_schema_domain):
+                operations = _NATURAL_BRANCH_CHAINS[
+                    (schema_index * 5 + domain_index + sample_index)
+                    % len(_NATURAL_BRANCH_CHAINS)
+                ]
+                if schema_kind == "scalar_branch_merge_four":
+                    inputs: tuple[SemanticValue, ...] = (
+                        rng.randint(100_000, 900_000),
+                        rng.randint(10_000, 90_000),
+                        rng.randint(1_000, 9_000),
+                        rng.randint(100, 900),
+                        rng.randint(2, 97),
+                    )
+                else:
+                    values = [rng.randint(100_000, 900_000) for _ in range(7)]
+                    if schema_kind == "count_branch_merge_four":
+                        wanted = rng.randint(100_000, 900_000)
+                        values[0] = wanted
+                        values[4] = wanted
+                        first_op = "count_of"
+                        second_input = wanted
+                    else:
+                        first_op = "at"
+                        second_input = rng.randint(0, len(values) - 1)
+                    inputs = (
+                        tuple(values),
+                        second_input,
+                        rng.randint(1_000, 9_000),
+                        rng.randint(100, 900),
+                        rng.randint(2, 97),
+                    )
+                    operations = (first_op, operations[1], operations[2], operations[3])
+                examples.append(
+                    _natural_branch_replication_example(
+                        schema_kind=schema_kind,
+                        domain_index=domain_index,
+                        sample_index=sample_index,
+                        inputs=inputs,
+                        operations=operations,
+                    )
+                )
+    return tuple(examples)
+
+
 def _character_to_token_span(
     span: CharacterSpan,
     offsets: Sequence[tuple[int, int]],
@@ -3733,6 +4043,7 @@ __all__ = [
     "build_semantic_program_fork_join_factorial_corpus",
     "build_semantic_program_fork_join_corpus",
     "build_semantic_program_natural_alias_source_corpus",
+    "build_semantic_program_natural_branch_replication_corpus",
     "build_semantic_program_natural_identity_source_corpus",
     "build_semantic_program_natural_request_corpus",
     "build_semantic_program_natural_replication_corpus",
