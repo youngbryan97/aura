@@ -7,6 +7,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_fork_join_corpus,
     build_semantic_program_fork_join_factorial_corpus,
     build_semantic_program_natural_alias_source_corpus,
+    build_semantic_program_natural_identity_source_corpus,
     build_semantic_program_natural_replication_corpus,
     build_semantic_program_natural_request_corpus,
     build_semantic_program_natural_source_corpus,
@@ -669,6 +670,33 @@ def test_natural_alias_source_teaches_local_definitions_on_disjoint_language() -
     assert not domains & old_domains
     assert build_semantic_program_natural_alias_source_corpus() == examples
     assert build_semantic_program_natural_alias_source_corpus(seed=1618035) != examples
+
+
+def test_natural_identity_source_separates_register_names_from_payloads() -> None:
+    examples = build_semantic_program_natural_identity_source_corpus()
+    prior = (
+        *build_semantic_program_natural_alias_source_corpus(),
+        *build_semantic_program_natural_source_corpus(),
+        *build_semantic_program_natural_replication_corpus(),
+    )
+
+    assert len(examples) == 24
+    assert {
+        split: sum(item.split == split for item in examples)
+        for split in ("train", "validation", "test")
+    } == {"train": 12, "validation": 6, "test": 6}
+    for example in examples:
+        for definition, payload in zip(
+            example.register_definition_spans[:3],
+            example.input_spans,
+            strict=True,
+        ):
+            assert definition.end <= payload.start
+            assert example.source_text[definition.start : definition.end].strip()
+    domains = {item.source_text.split(",", 1)[0] for item in examples}
+    assert not domains & {item.source_text.split(",", 1)[0] for item in prior}
+    assert build_semantic_program_natural_identity_source_corpus() == examples
+    assert build_semantic_program_natural_identity_source_corpus(seed=2236068) != examples
 
 
 def test_natural_replication_is_fresh_large_and_preregistered_shape() -> None:

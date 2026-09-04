@@ -2623,6 +2623,39 @@ _NATURAL_ALIAS_SOURCE_NAMES: Final = (
     ("retained result", "finished result"),
 )
 
+_NATURAL_IDENTITY_SOURCE_SCALAR_DOMAINS: Final = (
+    ("power dispatch", "available megawatts", "committed megawatts", "reserve factor"),
+    ("kitchen inventory", "prepared portions", "served portions", "batch factor"),
+    ("freight terminal", "arriving pallets", "departing pallets", "load factor"),
+    ("registrar table", "active records", "closed records", "filing factor"),
+    ("render farm", "finished frames", "pending frames", "node factor"),
+    ("medical supply room", "received kits", "issued kits", "carton factor"),
+    ("greenhouse table", "sprouted trays", "planted trays", "bench factor"),
+    ("broadcast console", "scheduled segments", "aired segments", "channel factor"),
+)
+
+_NATURAL_IDENTITY_SOURCE_SEQUENCE_DOMAINS: Final = (
+    ("power dispatch", "megawatts by feeder", "feeder index", "target load", "reserve factor"),
+    ("kitchen inventory", "portions by station", "station index", "target portion", "batch factor"),
+    ("freight terminal", "pallets by dock", "dock index", "target pallet count", "load factor"),
+    ("registrar table", "records by drawer", "drawer index", "target record count", "filing factor"),
+    ("render farm", "frames by node", "node index", "target frame count", "node factor"),
+    ("medical supply room", "kits by cabinet", "cabinet index", "target kit count", "carton factor"),
+    ("greenhouse table", "trays by bench", "bench index", "target tray count", "bench factor"),
+    ("broadcast console", "segments by channel", "channel index", "target segment count", "channel factor"),
+)
+
+_NATURAL_IDENTITY_SOURCE_NAMES: Final = (
+    ("running balance", "reported balance"),
+    ("intermediate tally", "published tally"),
+    ("carried measure", "delivered measure"),
+    ("provisional count", "recorded count"),
+    ("working total", "rendered total"),
+    ("derived stock", "final stock"),
+    ("current yield", "returned yield"),
+    ("combined duration", "broadcast duration"),
+)
+
 _NATURAL_REPLICATION_SCALAR_DOMAINS: Final = (
     ("observatory log", "first exposure count", "second exposure count", "gain", "offset"),
     ("museum archive", "catalogued objects", "loaned objects", "batch size", "reserve"),
@@ -3119,19 +3152,27 @@ def _natural_alias_source_example(
     sample_index: int,
     inputs: tuple[SemanticValue, ...],
     operations: tuple[str, str],
+    identity_only: bool = False,
 ) -> SemanticProgramExample:
     """Render alias-local register supervision outside every target domain."""
 
+    scalar_domains = (
+        _NATURAL_IDENTITY_SOURCE_SCALAR_DOMAINS
+        if identity_only
+        else _NATURAL_ALIAS_SOURCE_SCALAR_DOMAINS
+    )
+    sequence_domains = (
+        _NATURAL_IDENTITY_SOURCE_SEQUENCE_DOMAINS
+        if identity_only
+        else _NATURAL_ALIAS_SOURCE_SEQUENCE_DOMAINS
+    )
+    aliases = _NATURAL_IDENTITY_SOURCE_NAMES if identity_only else _NATURAL_ALIAS_SOURCE_NAMES
     if schema_kind == "scalar_alias_linear_two":
-        domain, first_name, second_name, third_name = _NATURAL_ALIAS_SOURCE_SCALAR_DOMAINS[
-            domain_index
-        ]
+        domain, first_name, second_name, third_name = scalar_domains[domain_index]
     else:
-        domain, first_name, index_name, target_name, third_name = (
-            _NATURAL_ALIAS_SOURCE_SEQUENCE_DOMAINS[domain_index]
-        )
+        domain, first_name, index_name, target_name, third_name = sequence_domains[domain_index]
         second_name = index_name if schema_kind == "lookup_alias_linear_two" else target_name
-    intermediate_alias, terminal_alias = _NATURAL_ALIAS_SOURCE_NAMES[domain_index]
+    intermediate_alias, terminal_alias = aliases[domain_index]
     builder = _AnnotatedText()
     builder.append(f"In the {domain}, use ")
     input_names = (first_name, second_name, third_name)
@@ -3139,7 +3180,7 @@ def _natural_alias_source_example(
         if index:
             builder.append(", " if index < 2 else ", and ")
         builder.begin(f"natural-alias:definition:{index}")
-        builder.append(name)
+        builder.append(name, label=f"natural-alias:identity:{index}")
         builder.append(" ")
         rendered = (
             "[" + ", ".join(str(item) for item in value) + "]"
@@ -3215,7 +3256,8 @@ def _natural_alias_source_example(
         terminal=True,
     )
     builder.append(f". Return the {terminal_alias}.")
-    construction_id = f"natural-alias-source-{schema_kind}-{domain_index}"
+    source_kind = "natural-identity-source" if identity_only else "natural-alias-source"
+    construction_id = f"{source_kind}-{schema_kind}-{domain_index}"
     identity = f"{construction_id}|{sample_index}|{inputs}|{operations}|{builder.text}"
     split: CorpusSplit = (
         "train" if domain_index < 4 else "validation" if domain_index < 6 else "test"
@@ -3231,10 +3273,15 @@ def _natural_alias_source_example(
         instructions=(first_instruction, second_instruction),
         report_value=4,
         contrast_id=hashlib.sha256(
-            f"natural-alias-source|{schema_kind}|{domain_index}|{sample_index}".encode("ascii")
+            f"{source_kind}|{schema_kind}|{domain_index}|{sample_index}".encode("ascii")
         ).hexdigest()[:24],
         register_definition_spans=tuple(
-            builder.span(f"natural-alias:definition:{index}") for index in range(5)
+            (
+                builder.span(f"natural-alias:identity:{index}")
+                if identity_only and index < 3
+                else builder.span(f"natural-alias:definition:{index}")
+            )
+            for index in range(5)
         ),
     )
 
@@ -3288,6 +3335,61 @@ def build_semantic_program_natural_alias_source_corpus(
                         sample_index=sample_index,
                         inputs=inputs,
                         operations=operations,
+                    )
+                )
+    return tuple(examples)
+
+
+def build_semantic_program_natural_identity_source_corpus(
+    *,
+    seed: int = 2236067,
+    examples_per_schema_domain: int = 1,
+) -> tuple[SemanticProgramExample, ...]:
+    """Teach register identities independently of exact values and operations."""
+
+    if examples_per_schema_domain < 1:
+        raise ValueError("natural identity source corpus needs every schema-domain cell")
+    rng = random.Random(seed)
+    examples: list[SemanticProgramExample] = []
+    schemas = (
+        "scalar_alias_linear_two",
+        "lookup_alias_linear_two",
+        "count_alias_linear_two",
+    )
+    for schema_index, schema_kind in enumerate(schemas):
+        for domain_index in range(len(_NATURAL_IDENTITY_SOURCE_SCALAR_DOMAINS)):
+            for sample_index in range(examples_per_schema_domain):
+                chain = _NATURAL_SCALAR_CHAINS[
+                    (schema_index * 7 + domain_index + sample_index) % len(_NATURAL_SCALAR_CHAINS)
+                ]
+                operations = (chain[0], chain[1])
+                if schema_kind == "scalar_alias_linear_two":
+                    inputs: tuple[SemanticValue, ...] = (
+                        rng.randint(130, 990),
+                        rng.randint(17, 99),
+                        rng.randint(2, 13),
+                    )
+                else:
+                    values = [rng.randint(14, 96) for _ in range(7)]
+                    if schema_kind == "count_alias_linear_two":
+                        wanted = rng.randint(4, 13)
+                        values[0] = wanted
+                        values[5] = wanted
+                        first_op = "count_of"
+                        second_input = wanted
+                    else:
+                        first_op = "at"
+                        second_input = rng.randint(0, len(values) - 1)
+                    inputs = (tuple(values), second_input, rng.randint(2, 13))
+                    operations = (first_op, operations[1])
+                examples.append(
+                    _natural_alias_source_example(
+                        schema_kind=schema_kind,
+                        domain_index=domain_index,
+                        sample_index=sample_index,
+                        inputs=inputs,
+                        operations=operations,
+                        identity_only=True,
                     )
                 )
     return tuple(examples)
@@ -3631,6 +3733,7 @@ __all__ = [
     "build_semantic_program_fork_join_factorial_corpus",
     "build_semantic_program_fork_join_corpus",
     "build_semantic_program_natural_alias_source_corpus",
+    "build_semantic_program_natural_identity_source_corpus",
     "build_semantic_program_natural_request_corpus",
     "build_semantic_program_natural_replication_corpus",
     "build_semantic_program_natural_source_corpus",

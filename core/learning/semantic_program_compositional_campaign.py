@@ -19,7 +19,7 @@ from core.learning.semantic_program_campaign import (
 )
 from core.learning.semantic_program_compositional_transducer import (
     CompositionalSemanticProgramTransducer,
-    _definition_span_candidates,
+    _register_definition_candidates,
     _register_definition_spans,
     fit_compositional_semantic_program_transducer,
 )
@@ -59,11 +59,16 @@ def diagnose_compositional_definition_relations(
 ) -> dict[str, Any]:
     """Measure the relation head with gold references but no gold answers."""
 
+    available_splits = tuple(
+        split
+        for split in ("train", "validation", "test")
+        if any(item.split == split for item in examples)
+    )
+    if not available_splits:
+        raise ValueError("compositional relation diagnostic has no observed split")
     by_split: dict[str, dict[str, Any]] = {}
-    for split in ("train", "validation", "test"):
+    for split in available_splits:
         selected = tuple(item for item in examples if item.split == split)
-        if not selected:
-            raise ValueError(f"compositional relation diagnostic split is empty: {split}")
         total = 0
         runtime_top1 = 0
         oracle_top1 = 0
@@ -76,6 +81,14 @@ def diagnose_compositional_definition_relations(
                 *(instruction.operation_span for instruction in item.ir.instructions),
             )
             definition_pointer_scores = model.definition_pointer.score_sequence(item.hidden_states)
+            runtime_candidate_spans = _register_definition_candidates(
+                runtime_anchors,
+                input_count=item.ir.n_inputs,
+                token_count=item.hidden_states.shape[0],
+                max_span_tokens=model.max_definition_span_tokens,
+                pointer_scores=definition_pointer_scores,
+                strategy=model.definition_candidate_strategy,
+            )
             runtime_definitions = tuple(
                 tuple(
                     (
@@ -87,14 +100,9 @@ def diagnose_compositional_definition_relations(
                             hidden_channel_widths=model.hidden_channel_widths,
                         ),
                     )
-                    for candidate in _definition_span_candidates(
-                        anchor,
-                        token_count=item.hidden_states.shape[0],
-                        max_span_tokens=model.max_definition_span_tokens,
-                        direction=("left" if index < item.ir.n_inputs else "right"),
-                    )
+                    for candidate in candidates
                 )
-                for index, anchor in enumerate(runtime_anchors)
+                for candidates in runtime_candidate_spans
             )
             oracle_vectors = tuple(
                 (
@@ -179,6 +187,7 @@ def diagnose_compositional_definition_relations(
         "gold_definition_spans_available_to_runtime_arm": False,
         "expected_answers_available": False,
         "serving_authority": False,
+        "evaluated_splits": list(available_splits),
         "splits": by_split,
     }
     return {**body, "report_sha256": _sha(body)}
