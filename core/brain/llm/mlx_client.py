@@ -6495,6 +6495,42 @@ class MLXLocalClient:
             pass
         if self._current_first_token_at <= 0.0:
             self._current_first_token_at = now
+            # How long this prompt took to read, written down where every
+            # deadline is built from.
+            #
+            # The worker process records this and the deadlines are built in
+            # this one, so the record the answer clock consults was empty on a
+            # fresh runtime: reading a prompt counted as free, the clock
+            # granted 23 seconds, this worker measured the same prompt as
+            # needing 23.2 to read, and every user-facing generation was
+            # cancelled at 23. The fallback ladder then found no small model
+            # admitted under the memory headroom, waited out its budget and
+            # ended the turn in a refusal.
+            #
+            # LIVE 2026-09-04, forty minutes after a clean boot: five
+            # cancellations in ten minutes and not one answer delivered.
+            #
+            # Only after a worker has produced a token before, because
+            # everything before the FIRST token of a worker's life is weights
+            # coming off disk as well as the prompt, and that is a different
+            # fact — measured separately, just below.
+            _started_at = float(getattr(self, "_current_request_started_at", 0.0) or 0.0)
+            if (
+                int(getattr(self, "_tokens_since_spawn", 0) or 0) > 0
+                and _started_at > 0.0
+                and self._current_prompt_chars > 0
+            ):
+                try:
+                    from core.brain.llm.thinking_reserve import (  # noqa: PLC0415
+                        record_read_rate,
+                    )
+
+                    record_read_rate(
+                        prompt_chars=self._current_prompt_chars,
+                        elapsed_s=now - _started_at,
+                    )
+                except (ImportError, TypeError, ValueError):
+                    pass
             # What loading this model actually cost, from the one request
             # that pays for it. Everything before the first token of a
             # worker's life is weights coming off disk plus reading the
