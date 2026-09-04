@@ -2631,12 +2631,13 @@ async def pursue_on_screen(
     from core.agency import what_she_is_doing as doing
     from core.agency.deliberate_action import Attempt, confirm, deliberate
     from core.agency.how_good_is_this import a_trial_is_running as _a_trial_is_running
-    from core.agency.how_good_is_this import worth_comparing
+    from core.agency.how_good_is_this import terms, worth_comparing
     from core.agency.looking_ahead import look_ahead, worth_finding_out
     from core.agency.standing_strategy import Strategy, settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
     from core.agency.what_i_can_do_here import WhatWorksHere
     from core.agency.what_i_cannot_explain import WhatICannotExplain
+    from core.agency.what_makes_it_good_here import WhatMakesItGoodHere
     from core.agency.what_worked_before import WhatWorkedBefore
     from core.agency.worth_thinking_about import worth_a_pass
     from core.perception.how_it_moves import HowItMoves
@@ -3183,6 +3184,13 @@ async def pursue_on_screen(
     #: their sixth go at Ninja Gaiden is not reacting — they are replaying
     #: what they know and thinking only where they died last time.
     got_to = TheFurthestSheHasGot.from_memory(knew.get("got_to") or {})
+    # What each thing about a situation is worth HERE, rather than the
+    # standing guess. The organ was written, tested and never called by
+    # anything: she judged every world by the same five numbers somebody
+    # picked, including the worlds she had played for hours.
+    matters = WhatMakesItGoodHere.from_memory(
+        knew.get("matters") or {}, TRUST_CARRIED_OVER
+    )
     try:
         furthest["here"] = float(knew.get("furthest") or 0.0)
     except (TypeError, ValueError):
@@ -3585,6 +3593,24 @@ async def pursue_on_screen(
                 reaches.went(rose)
                 if rose > 0:
                     stretch["rises"] += 1
+                # And what the situation this move left was like, against how
+                # much the world's own count rose for it. That is a grade no
+                # weight of hers can shift, which is what makes it able to
+                # teach her the weights.
+                if laid_out is not None and looking_at_the_thing:
+                    was_worked_out = matters.worked_out()
+                    matters.what_came_of_it(
+                        terms(
+                            laid_out,
+                            toward=success_when or _what_there_is_to_aim_at(laid_out),
+                            approach=plan["held"].approach if plan["held"] is not None else "",
+                        ),
+                        rose,
+                    )
+                    if matters.worked_out() and not was_worked_out:
+                        logger.info("%s", matters.says())
+                        if narrate:
+                            _tell(f"I know what matters here now — {matters.says()}.")
             if previous.chosen is not None:
                 # A key that never changes anything is not one of her actions
                 # in this world, whoever wrote it down.
@@ -4315,6 +4341,8 @@ async def pursue_on_screen(
                     approach=held_line,
                     budget_s=max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02)),
                     world=world,
+                    # What matters HERE, once she has watched enough to say.
+                    weights=matters.weights(),
                 )
             # And what a move would TELL her, which is a different question
             # from where it leads.
@@ -4691,7 +4719,7 @@ async def pursue_on_screen(
             ahead_now = look_ahead(
                 knows.rules, board, list(names),
                 toward=aiming_at, approach=held_line,
-                budget_s=0.05, world=world,
+                budget_s=0.05, world=world, weights=matters.weights(),
             )
             return max(ahead_now, key=lambda one: ahead_now[one][0]) if ahead_now else ""
 
@@ -5193,6 +5221,8 @@ async def pursue_on_screen(
             # The largest thing she has made here. Carried whole rather than
             # discounted: a thing she once built is a thing she once built.
             "furthest": furthest["here"],
+            # And what each thing about a situation turned out to be worth.
+            "matters": matters.as_memory(),
             # Which of the places that answer to her are the thing itself,
             # rather than a score reporting on it. Kept, because working it
             # out costs her several moves of a fresh game every time.

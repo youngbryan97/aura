@@ -10,7 +10,11 @@ from __future__ import annotations
 
 import pytest
 
-from core.agency.looking_ahead import DEEPEST, how_deep_to_look, look_ahead
+from core.agency.looking_ahead import (
+    as_far_as_the_world_lets_her,
+    how_deep_to_look,
+    look_ahead,
+)
 from core.perception.how_it_moves import HowItMoves, shifted_and_combined
 from core.perception.what_is_there import arranged
 
@@ -56,7 +60,43 @@ def test_more_time_buys_more_depth():
 
 
 def test_it_never_looks_deeper_than_a_world_that_moves_under_her_allows():
-    assert how_deep_to_look(4, 10_000.0) == DEEPEST
+    """A world that deals something in every move fills the room she has left,
+    and past that the arithmetic is describing a board that cannot exist."""
+    assert how_deep_to_look(4, 10_000.0, no_further_than=5) == 5
+
+
+def test_no_limit_means_the_clock_is_the_only_one():
+    assert how_deep_to_look(4, 10_000.0) > 5
+
+
+class _DealsEveryMove:
+    def how_often(self):
+        return 1.0
+
+
+class _DealsNothing:
+    def how_often(self):
+        return 0.0
+
+
+def test_the_room_left_is_how_far_the_arithmetic_still_describes_anything():
+    """Sixteen places, six filled: ten acts before the world has filled it."""
+    assert as_far_as_the_world_lets_her(CORNER, _DealsEveryMove()) == (
+        CORNER.places() - CORNER.occupied()
+    )
+
+
+def test_a_world_that_adds_nothing_of_its_own_sets_no_limit():
+    assert as_far_as_the_world_lets_her(CORNER, _DealsNothing()) == 0
+
+
+def test_a_world_she_has_not_watched_sets_no_limit():
+    assert as_far_as_the_world_lets_her(CORNER, None) == 0
+
+
+def test_a_full_thing_still_gets_one_level():
+    full = board([[str(2 ** (1 + n + 4 * r)) for n in range(4)] for r in range(4)])
+    assert as_far_as_the_world_lets_her(full, _DealsEveryMove()) == 1
 
 
 def test_nothing_available_is_not_a_search():

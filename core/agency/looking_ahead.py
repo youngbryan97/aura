@@ -26,14 +26,19 @@ from typing import Any, Sequence
 
 from core.agency.how_good_is_this import how_good, why
 
-__all__ = ["DEEPEST", "look_ahead", "how_deep_to_look", "worth_finding_out"]
+__all__ = [
+    "as_far_as_the_world_lets_her",
+    "how_deep_to_look",
+    "look_ahead",
+    "worth_finding_out",
+]
 
 logger = logging.getLogger("Aura.LookingAhead")
 
-#: No deeper than this however much time there is. Past it the world has
-#: added more of its own than she predicted, and the arithmetic is describing
-#: a future that will not happen.
-DEEPEST = 4
+#: How far ahead the arithmetic still describes something that could happen
+#: is not a number anybody picks — it is how much of its own the world will
+#: have added by then, against the room the thing has left. See
+#: :func:`as_far_as_the_world_lets_her`, which measures it.
 
 #: What one level of looking is assumed to cost before any has been measured.
 #: Deliberately generous: being slow to look deep costs a little, and looking
@@ -44,19 +49,100 @@ _UNMEASURED_LEVEL_S = 0.02
 _A_LEVEL: dict[str, float] = {"seconds": 0.0}
 
 
-def how_deep_to_look(available: int, budget_s: float, branching: int = 4) -> int:
+class _AlreadyWorkedOut:
+    """What this search has already worked out, so it is not worked out twice.
+
+    A search over a thing reaches the same situation by many routes — four
+    moves and the world's replies fan out and fold back on each other
+    constantly — and every arrival used to pay again for the same three
+    things: what an act makes of a situation, what the situation is worth,
+    and what the best line from it comes to.
+
+    Kept for one search and thrown away with it, because all three answers
+    are about the rule and the measure as they stand at this moment, and both
+    can change between one move and the next.
+    """
+
+    __slots__ = ("becomes", "worth", "onward", "hits")
+
+    def __init__(self) -> None:
+        self.becomes: dict[tuple[str, str], Any] = {}
+        self.worth: dict[str, float] = {}
+        self.onward: dict[tuple[str, int], float] = {}
+        self.hits = 0
+
+    def what_it_becomes(self, expect: Any, state: Any, action: str) -> Any:
+        key = (_reading(state), action)
+        if key in self.becomes:
+            self.hits += 1
+            return self.becomes[key]
+        made = expect(state, action)
+        self.becomes[key] = made
+        return made
+
+    def what_it_is_worth(self, state: Any, **how: Any) -> float:
+        key = _reading(state)
+        if key in self.worth:
+            self.hits += 1
+            return self.worth[key]
+        said = how_good(state, **how)
+        self.worth[key] = said
+        return said
+
+
+def as_far_as_the_world_lets_her(state: Any, world: Any) -> int:
+    """How many acts ahead the arithmetic still describes something that could
+    happen.
+
+    The world puts things of its own into a thing between her acts. Every
+    level of looking is one more act, so it is one more of the world's
+    additions — and once those exceed the room the thing has left, the future
+    being scored is one that cannot exist, whatever the arithmetic says.
+
+    This used to be a fixed four, with that reasoning written beside it. Four
+    is right on a nearly full board and wrong on an empty one, which is
+    exactly where looking deeper pays: a board with fourteen free places and a
+    world that deals one thing a move has fourteen acts of honest arithmetic
+    in it, and she was stopping at four.
+
+    Nought means no limit, which is the honest answer for a world that adds
+    nothing of its own and for one she has not watched.
+    """
+    often = getattr(world, "how_often", None)
+    if not callable(often):
+        return 0
+    try:
+        rate = float(often() or 0.0)
+    except (TypeError, ValueError):
+        return 0
+    if rate <= 0.0:
+        return 0
+    try:
+        room = int(state.places()) - int(state.occupied())
+    except (AttributeError, TypeError, ValueError):
+        return 0
+    return max(1, int(room / rate))
+
+
+def how_deep_to_look(
+    available: int, budget_s: float, branching: int = 4, no_further_than: int = 0
+) -> int:
     """How far ahead there is time to look, from what a level has cost.
 
     Each level multiplies the work by the branching. The answer is the deepest
     level whose cost still fits, and one is always affordable — a single level
     is the difference between choosing blind and choosing at all.
+
+    ``no_further_than`` is where the arithmetic stops describing anything that
+    could happen, which is a fact about the world rather than about the clock.
+    Nought is no limit.
     """
     if available < 1 or budget_s <= 0.0:
         return 1
     a_level = _A_LEVEL["seconds"] or _UNMEASURED_LEVEL_S
     depth = 1
     spent = a_level * branching
-    while depth < DEEPEST:
+    while no_further_than <= 0 or depth < no_further_than:
         spent = spent * branching
         if spent > budget_s:
             break
@@ -167,11 +253,21 @@ def look_ahead(
 
     started = time.monotonic()
     fixed_depth = bool(depth)
-    depth = depth or how_deep_to_look(len(actions), budget_s, branching=max(2, len(actions)))
+    # What a level really costs is her acts times the world's replies to each
+    # of them. Counting only her own acts understated it by the whole of the
+    # world's fan-out, so the depth the clock allowed was many times what the
+    # clock could afford.
+    depth = depth or how_deep_to_look(
+        len(actions),
+        budget_s,
+        branching=max(2, len(actions)) * max(1, _how_many_ways(world, state)),
+        no_further_than=as_far_as_the_world_lets_her(state, world),
+    )
+    known = _AlreadyWorkedOut()
     scored: dict[str, tuple[float, str]] = {}
     here_now = _reading(state)
     for action in actions:
-        future = expect(state, action)
+        future = known.what_it_becomes(expect, state, action)
         if future is None or _reading(future) == here_now:
             # A move that would change nothing has not gone anywhere.
             #
@@ -184,18 +280,35 @@ def look_ahead(
             # Ruling one out before making it is the whole point of being able
             # to try a move without making it.
             continue
-        here = how_good(future, toward=toward, approach=approach, weights=weights)
+        here = known.what_it_is_worth(
+            future, toward=toward, approach=approach, weights=weights
+        )
         onward = _after_the_world(
             expect, future, actions, depth - 1,
             toward=toward, approach=approach, trust=trust, world=world, weights=weights,
+            known=known,
         )
         scored[action] = (here + trust * onward, why(future, toward=toward, approach=approach))
 
     spent = time.monotonic() - started
     if scored and depth and not fixed_depth:
         _a_level_took(spent / float(depth))
-    logger.debug("looked %d ahead over %d move(s) in %.3fs", depth, len(actions), spent)
+    logger.debug(
+        "looked %d ahead over %d move(s) in %.3fs (%d already worked out)",
+        depth, len(actions), spent, known.hits,
+    )
     return scored
+
+
+def _how_many_ways(world: Any, state: Any) -> int:
+    """How many replies the world has to one act, as it stands here."""
+    might = getattr(world, "might_do", None)
+    if not callable(might):
+        return 1
+    try:
+        return max(1, len(might(state)))
+    except (AttributeError, TypeError, ValueError):
+        return 1
 
 
 def _after_the_world(
@@ -209,6 +322,7 @@ def _after_the_world(
     trust: float,
     world: Any = None,
     weights: Any = None,
+    known: Any = None,
 ) -> float:
     """What this comes to once the world has had its turn, and she has hers.
 
@@ -229,12 +343,14 @@ def _after_the_world(
         return _best_from(
             expect, state, actions, depth,
             toward=toward, approach=approach, trust=trust, world=world, weights=weights,
+            known=known,
         )
     return sum(
         share
         * _best_from(
             expect, way, actions, depth,
             toward=toward, approach=approach, trust=trust, world=world, weights=weights,
+            known=known,
         )
         for way, share in ways
     )
@@ -251,22 +367,42 @@ def _best_from(
     trust: float,
     world: Any = None,
     weights: Any = None,
+    known: Any = None,
 ) -> float:
     """The best this could still come to, that many levels on."""
     if depth <= 0:
         return 0.0
-    best = 0.0
     here_now = _reading(state)
+    if known is not None:
+        # The same situation, the same distance from the end, is the same
+        # answer. A search folds back on itself constantly and this is most
+        # of what it costs.
+        remembered = known.onward.get((here_now, depth))
+        if remembered is not None:
+            known.hits += 1
+            return remembered
+    best = 0.0
     for action in actions:
-        future = expect(state, action)
+        future = (
+            known.what_it_becomes(expect, state, action)
+            if known is not None
+            else expect(state, action)
+        )
         if future is None or _reading(future) == here_now:
             continue
-        here = how_good(future, toward=toward, approach=approach, weights=weights)
+        here = (
+            known.what_it_is_worth(future, toward=toward, approach=approach, weights=weights)
+            if known is not None
+            else how_good(future, toward=toward, approach=approach, weights=weights)
+        )
         onward = _after_the_world(
             expect, future, actions, depth - 1,
             toward=toward, approach=approach, trust=trust, world=world, weights=weights,
+            known=known,
         )
         best = max(best, here + trust * onward)
+    if known is not None:
+        known.onward[(here_now, depth)] = best
     return best
 
 
