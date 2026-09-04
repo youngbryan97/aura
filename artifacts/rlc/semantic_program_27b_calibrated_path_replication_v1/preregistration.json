@@ -3,6 +3,7 @@
   "source_commit_before_preregistration": "c3105c388388a7ebe5928c21f87d6a61733d2156",
   "preregistered_before_generator_implementation": true,
   "preregistered_before_target_generation": true,
+  "control_identity_completed_before_generator_implementation_at_commit": "1f58a774b6534ce41c4f4db2b55d0aea8069e2b3",
   "claim_boundary": "fresh bounded natural-language semantic-program transfer across an unseen six-input five-step branch-weave topology through a frozen mixed-geometry calibrated path ensemble; no open-domain, frontier-reasoning, or serving authority",
   "corpus": {
     "builder": "build_semantic_program_natural_weave_replication_corpus",
@@ -70,6 +71,14 @@
     "model_basis_sha256": "178def8469d79d6265fddad9b1de5a9b034d5772679f608fda4d46f327bbfbe9",
     "incumbent_receipt_sha256": "e105dcf8db8d56fab1cdfe533a0ccf7a793b16051247b007cf4b985a57feced7",
     "challenger_receipt_sha256": "a79674be5460d12e985efe406939e181e0b51bec6163bd3c2b4ae41db9c55c59"
+  },
+  "frozen_source_only_control": {
+    "path": "/Users/bryan/.aura/rlc-evidence/semantic-path-calibration-v2/ensemble.json",
+    "file_sha256": "a4e44e14f0f28ff3b2641e5b31986e1660c91e19757daffd7ded29b5c7d7b492",
+    "receipt_sha256": "1c704d9a058390fbd4c5effbb940fdbd8d7d8aabce594f706496608041dddee7",
+    "selector_receipt_sha256": "933abdeb394e9edd766caf33d2e5fb4ef8121d6ab65ae41683677cb2a19f5998",
+    "calibration_report_sha256": "0450933ee55ba1ef088af17f7f0033a5abb12d5c0e3d365398913250c10cecfd",
+    "calibration_report_file_sha256": "bd2cfcfe52c253cf16a2f5fe9e942ac9c429c0dee0636c6ed11a2a8ef5c5dc63"
   },
   "arms": [
     "calibrated_path_ensemble",
