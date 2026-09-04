@@ -208,6 +208,56 @@ def silence() -> list[AnOpportunity]:
     return found
 
 
+def nothing_she_has() -> list[AnOpportunity]:
+    """A family where everything she has was tried and none of it held.
+
+    The other twelve readings are about what happened: what recurs, what
+    costs, what sits idle. This one is about what is MISSING, and it is the
+    only reading whose answer is "write a new kind of action" rather than
+    "take one of the actions you have".
+
+    The distinction it turns on is the one `silence` cannot make. Silence
+    counts occasions where nothing could be said, which happens both when she
+    never tried and when she tried everything. Only the second says the set of
+    operators has a gap in it, and telling them apart needs the record to say
+    what was tried rather than only what worked.
+
+    Strength is the share of what she has that this family has already
+    defeated, scaled by how often the family comes back. A family met twice
+    that beat both actions she owns is weaker evidence than one met forty
+    times that beat all nine.
+    """
+    from core.cognition.what_she_could_do_next import the_actions_she_has
+
+    has = {one.name for one in the_actions_she_has()}
+    if not has:
+        return []
+    found: list[AnOpportunity] = []
+    for family, each in _by_family().items():
+        tried = {one.tried for one in each if one.tried} & has
+        held = {one.route for one in each if one.route}
+        if not tried or held:
+            # Something worked here, or nothing has been tried. Neither is a
+            # gap in what she can do.
+            continue
+        beaten = len(tried) / len(has)
+        found.append(
+            AnOpportunity(
+                "nothing she has",
+                family,
+                _share(beaten * len(each), max(1, len(each))),
+                {
+                    "tried": sorted(tried),
+                    "of": len(has),
+                    "over": len(each),
+                    "what it wants": "an action of a kind she does not have",
+                },
+                costs=int(statistics.mean(one.walked for one in each)),
+            )
+        )
+    return found
+
+
 def unevenness() -> list[AnOpportunity]:
     """A family whose cost is unpredictable, which is a thing to be curious about.
 
@@ -418,6 +468,7 @@ THE_READINGS: dict[str, Callable[[], list[AnOpportunity]]] = {
     "redundancy": redundancy,
     "disuse": disuse,
     "silence": silence,
+    "nothing she has": nothing_she_has,
     "unevenness": unevenness,
     "slack": slack,
     "a hint of transfer": a_hint_of_transfer,

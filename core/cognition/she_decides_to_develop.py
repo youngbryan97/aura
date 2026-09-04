@@ -459,6 +459,10 @@ def _carry_it_out(
         route=decided.action.name if came_of_it else None,
         walked=decided.worth.cost if decided.worth else 0,
         admitted=decided.action.kind if came_of_it else None,
+        # Named whether or not it worked. Without this a family where
+        # everything she has was tried and nothing held reads the same as one
+        # she never tried, and only the first calls for a new operator.
+        tried=decided.action.name,
     )
     return came_of_it
 
