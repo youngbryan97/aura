@@ -26,7 +26,16 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from .graph import EdgeType, MorphEdge, MorphGraph
-from .proposal import MorphProposal, bind, despecialize, grow, route, specialize, unbind
+from .proposal import (
+    MorphProposal,
+    bind,
+    despecialize,
+    grow,
+    retire,
+    route,
+    specialize,
+    unbind,
+)
 from .workload import CAPABILITIES, RoutedWorkload, WorkerProfile
 
 
@@ -72,6 +81,12 @@ class MorphPolicy(Protocol):
     def propose(self, context: PolicyContext) -> list[MorphProposal]: ...
 
 
+#: The founding population. A seed cell never retires itself: the scenarios
+#: need a stable door, and a population that can dissolve its own founders can
+#: dissolve itself.
+_SEED_IDS = frozenset({"g1", "g2", "g3", "g4", "g5", "g6"})
+
+
 def _worker_manifest(capability: str, index: int) -> dict[str, Any]:
     return {
         "name": f"w_{capability}_{index}",
@@ -86,6 +101,10 @@ class LocalMorphPolicy:
 
     Four local rules, in the order a cell would reach for them:
 
+    * an out-edge nothing has used for a while, and it is not the last one
+      → unbind it
+    * nothing has needed it for long enough, and it was grown rather than
+      seeded → ask to be retired
     * work waiting for something it specialized away from, that nothing in
       reach covers → give the capability back
     * work it cannot serve and cannot forward → bind to a neighbour that can
@@ -102,10 +121,26 @@ class LocalMorphPolicy:
 
     name = "local"
 
-    def __init__(self, *, seed: int = 0, queue_pressure_bind: float = 0.15, queue_pressure_spawn: float = 0.55):
+    def __init__(
+        self,
+        *,
+        seed: int = 0,
+        queue_pressure_bind: float = 0.15,
+        queue_pressure_spawn: float = 0.55,
+        idle_rounds_before_retire: int = 8,
+    ):
         self._rng = random.Random(seed)
         self.queue_pressure_bind = float(queue_pressure_bind)
         self.queue_pressure_spawn = float(queue_pressure_spawn)
+        self.idle_rounds_before_retire = int(idle_rounds_before_retire)
+        self.idle_rounds_before_unbind = max(3, int(idle_rounds_before_retire) // 2)
+        #: How long each cell has had nothing to do. Local state at the cell,
+        #: not a register something central keeps.
+        self._idle: dict[str, int] = {}
+        #: How long each of a cell's out-edges has carried nothing. Without
+        #: this the graph only ever gains edges: every rule adds and none
+        #: removes, so the shape accumulates every demand it has ever seen.
+        self._port_idle: dict[tuple[str, str], int] = {}
 
     def propose(self, context: PolicyContext) -> list[MorphProposal]:
         out: list[MorphProposal] = []
@@ -117,7 +152,35 @@ class LocalMorphPolicy:
         view = context.local_view(cell_id)
         signals = view["self"]
         demand: dict[str, int] = view["demand"]
-        if not demand:
+
+        if demand:
+            self._idle[cell_id] = 0
+        else:
+            self._idle[cell_id] = self._idle.get(cell_id, 0) + 1
+            # A cell grown for a demand that has passed is dead weight: it
+            # costs a hop to route through and holds capacity the current
+            # demand cannot use. Growth without release is a ratchet, so a
+            # grown cell that has had nothing to do for long enough asks to go.
+            grown = context.workload.workers[cell_id].cell_id not in _SEED_IDS
+            if grown and self._idle[cell_id] >= self.idle_rounds_before_retire:
+                self._idle[cell_id] = 0
+                worker = context.workload.workers[cell_id]
+                return [retire(
+                    cell_id,
+                    proposer=cell_id,
+                    manifest_data={
+                        "name": cell_id,
+                        "capabilities": list(worker.capabilities),
+                        "service_rate": worker.service_rate,
+                    },
+                    subsystem="sandbox",
+                    benefit=0.4,
+                    rationale=(
+                        f"nothing has needed this cell for "
+                        f"{self.idle_rounds_before_retire} rounds"
+                    ),
+                    evidence={"idle_rounds": self.idle_rounds_before_retire},
+                )]
             return []
         out: list[MorphProposal] = []
         worker = context.workload.workers.get(cell_id)
@@ -158,7 +221,35 @@ class LocalMorphPolicy:
                     evidence={"stranded": count, "capability": capability},
                 )]
 
-        # 1 and 2: bind toward a neighbour that serves what is stuck here.
+        # 1: an out-edge for work that has stopped coming. Wiring costs a hop
+        # to consider and an in-degree slot at the far end, and a shape that
+        # keeps every route it has ever needed is not a shape, it is a
+        # sediment.
+        for port in existing_ports:
+            key = (cell_id, port)
+            if port in demand:
+                self._port_idle[key] = 0
+                continue
+            self._port_idle[key] = self._port_idle.get(key, 0) + 1
+            if self._port_idle[key] < self.idle_rounds_before_unbind:
+                continue
+            stale = [e for e in context.graph.out_edges(cell_id) if e.port == port]
+            others = {e.port for e in context.graph.out_edges(cell_id)} - {port}
+            if not stale or not others:
+                # Never cut the last route out. A cell with no out-edge can
+                # only ever hand work back the way it came.
+                continue
+            self._port_idle[key] = 0
+            out.append(unbind(
+                stale[0],
+                proposer=cell_id,
+                subsystem="sandbox",
+                benefit=0.3,
+                rationale=f"nothing has needed {port} from here for {self.idle_rounds_before_unbind} rounds",
+                evidence={"port": port, "idle_rounds": self.idle_rounds_before_unbind},
+            ))
+
+        # 2 and 3: bind toward a neighbour that serves what is stuck here.
         blocked = sorted(
             ((count, cap) for cap, count in demand.items() if cap not in served_here),
             reverse=True,
@@ -183,7 +274,7 @@ class LocalMorphPolicy:
                 evidence={"local_demand": count, "queue_depth": signals["queue_depth"]},
             ))
 
-        # 3: nothing visible can do this at all — grow it back.
+        # 4: nothing visible can do this at all — grow it back.
         # This is what a lesion needs. Replicating only capabilities that still
         # exist cannot restore one the damage took entirely, and a population
         # that loses a stage keeps every task forever without it.
@@ -197,6 +288,7 @@ class LocalMorphPolicy:
                 cell_id=new_id,
                 attach_from=cell_id,
                 port=capability,
+                return_port=sorted(served_here)[0] if served_here else "",
                 proposer=cell_id,
                 parent=cell_id,
                 placement="local",
@@ -207,7 +299,7 @@ class LocalMorphPolicy:
                 evidence={"local_demand": count, "capability": capability, "regenerating": True},
             ))
 
-        # 4: specialize into the capability this cell is asked for most.
+        # 5: specialize into the capability this cell is asked for most.
         mine = sorted(
             ((count, cap) for cap, count in demand.items() if cap in served_here),
             reverse=True,
@@ -235,7 +327,7 @@ class LocalMorphPolicy:
                     evidence={"share": round(share, 3), "queue_depth": signals["queue_depth"]},
                 ))
 
-        # 5: still overloaded with a capability this cell holds — ask for help.
+        # 6: still overloaded with a capability this cell holds — ask for help.
         if mine and signals["queue_pressure"] >= self.queue_pressure_spawn:
             count, capability = mine[0]
             new_id = f"h_{capability}_{context.round_index}_{cell_id}"
@@ -244,6 +336,7 @@ class LocalMorphPolicy:
                 cell_id=new_id,
                 attach_from=cell_id,
                 port=capability,
+                return_port=sorted(served_here - {capability})[0] if (served_here - {capability}) else "",
                 proposer=cell_id,
                 parent=cell_id,
                 placement="local",
@@ -308,6 +401,7 @@ class CentralPolicy:
                 cell_id=f"c_{capability}_{context.round_index}",
                 attach_from=busiest,
                 port=capability,
+                return_port=sorted(context.workload.workers[busiest].capabilities)[0],
                 proposer="central",
                 parent=busiest,
                 placement="local",

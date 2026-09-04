@@ -73,6 +73,24 @@ class MorphBounds:
     #: A cell that just changed cannot change again until this passes. Without
     #: it, an oscillating demand signal makes the topology chase it.
     cooldown_s: float = 3.0
+    #: Each change at a cell doubles its own cooldown, up to this many
+    #: doublings, and the count decays once the cell has been quiet for a full
+    #: window. A flat cooldown only sets a floor on how fast a cell can chase a
+    #: signal; a cell reorganising over and over is thrashing whatever the
+    #: period, and it should get slower each time until it stops.
+    #:
+    #: Kept low, because backoff is blunt: it slows the fifth change at a cell
+    #: whether that change is thrash or the next step of a repair. The targeted
+    #: guard is `reversal_window_s` below.
+    churn_backoff_doublings: int = 2
+    #: A change may not be undone within this many seconds of being made.
+    #:
+    #: This is what thrash actually is — not changing often, but changing back.
+    #: Slowing every repeated change punishes regeneration, which is a long
+    #: run of different changes at the same cell; refusing only the reversals
+    #: leaves that untouched and still breaks the loop an alternating demand
+    #: would otherwise drive.
+    reversal_window_s: float = 12.0
     #: A proposal must beat the current shape by this much in shadow before it
     #: is worth its cost. The band is the hysteresis: a change that only just
     #: helps is not worth the disruption of making it.
@@ -108,6 +126,8 @@ class MorphBounds:
             "max_transitions_per_window": self.max_transitions_per_window,
             "window_s": self.window_s,
             "cooldown_s": self.cooldown_s,
+            "churn_backoff_doublings": self.churn_backoff_doublings,
+            "reversal_window_s": self.reversal_window_s,
             "min_shadow_gain": self.min_shadow_gain,
             "exploration_floor": self.exploration_floor,
             "min_proposer_energy": self.min_proposer_energy,
@@ -136,6 +156,11 @@ class GovernorStats:
     deferred: int = 0
     rolled_back: int = 0
     energy_spent: float = 0.0
+    #: Counted whether or not the guard is enforcing, so a run with the guard
+    #: switched off still says how many reversals it made. A guard that is only
+    #: observable by its own refusals cannot be shown to be load-bearing.
+    reversals_detected: int = 0
+    reversals_refused: int = 0
     rejections_by_reason: dict[str, int] = field(default_factory=dict)
 
     def note_rejection(self, reason: str) -> None:
@@ -150,6 +175,8 @@ class GovernorStats:
             "deferred": self.deferred,
             "rolled_back": self.rolled_back,
             "energy_spent": round(self.energy_spent, 5),
+            "reversals_detected": self.reversals_detected,
+            "reversals_refused": self.reversals_refused,
             "rejections_by_reason": dict(sorted(self.rejections_by_reason.items())),
         }
 
@@ -181,6 +208,8 @@ class MorphGovernor:
         self.transactions: list[MorphTransaction] = []
         self._recent: deque[float] = deque(maxlen=512)
         self._last_change: dict[str, float] = {}
+        self._churn: dict[str, int] = {}
+        self._applied_signatures: deque[tuple[float, str]] = deque(maxlen=256)
         self._energy: dict[str, float] = {}
         self._capability_of: dict[str, tuple[str, ...]] = {}
         self._port_contract: Mapping[str, tuple[frozenset[str], frozenset[str]]] | None = None
@@ -267,6 +296,10 @@ class MorphGovernor:
         if problem:
             return finish(Decision.REJECTED, f"malformed: {problem}")
 
+        reversal = self._reversal_of_recent(proposal, now)
+        if reversal:
+            return finish(Decision.REJECTED, reversal)
+
         bound_problem = self._check_bounds(proposal, now)
         if bound_problem:
             decision = Decision.DEFERRED if bound_problem.startswith("rate") or bound_problem.startswith("cooldown") else Decision.REJECTED
@@ -350,8 +383,15 @@ class MorphGovernor:
 
         for cell_id in proposal.affected_cells():
             last = self._last_change.get(cell_id, 0.0)
-            if last and now - last < self.bounds.cooldown_s:
-                return f"cooldown: {cell_id} changed {now - last:.2f}s ago"
+            if not last:
+                continue
+            wait = self._cooldown_for(cell_id, now)
+            if now - last < wait:
+                churn = self._churn.get(cell_id, 0)
+                return (
+                    f"cooldown: {cell_id} changed {now - last:.2f}s ago and owes "
+                    f"{wait:.2f}s after {churn} change(s)"
+                )
 
         projected = self.graph.node_count + proposal.population_delta
         if projected > self.bounds.max_cells:
@@ -382,6 +422,89 @@ class MorphGovernor:
                 if transition.edge.source in self.bounds.protected and transition.edge.target in self.bounds.protected:
                     return f"protected: the binding {transition.edge.source}->{transition.edge.target} is load-bearing"
         return ""
+
+    @staticmethod
+    def _signature(transition: MorphTransition) -> str:
+        edge = transition.edge
+        return "|".join((
+            str(transition.kind),
+            transition.subject,
+            "->".join(str(v) for v in edge.key) if edge is not None else "",
+            transition.specialization,
+            transition.placement,
+        ))
+
+    def invalidate_reversal_history(self, *, cells: Sequence[str] = (), reason: str = "") -> int:
+        """Forget that these changes were made, because the world moved.
+
+        The reversal guard is a bet that nothing has changed underneath the
+        earlier decision. When something demonstrably has — a cell lost, a link
+        cut — the bet is void: undoing a specialization whose cover just died
+        is not thrash, it is the only correct move left. Without this the guard
+        blocks the repair it was never aimed at.
+        """
+        if not cells:
+            dropped = len(self._applied_signatures)
+            self._applied_signatures.clear()
+            logger.debug("morphogenesis reversal history cleared (%s)", reason or "world change")
+            return dropped
+        touched = {str(c) for c in cells}
+        keep = [
+            (at, sig) for at, sig in self._applied_signatures
+            if not any(cell in sig for cell in touched)
+        ]
+        dropped = len(self._applied_signatures) - len(keep)
+        self._applied_signatures.clear()
+        self._applied_signatures.extend(keep)
+        return dropped
+
+    def _reversal_of_recent(self, proposal: MorphProposal, now: float) -> str:
+        """Note, and where the guard is armed refuse, a proposal that undoes
+        something just done.
+
+        Thrash is not changing often, it is changing back. A demand that
+        alternates every other round drives exactly this: bind, unbind, bind
+        again, each justified by the round it was measured in. Growing more
+        structure to serve two demands instead of one is not thrash, and a
+        rule that counts transitions cannot tell the two apart.
+
+        Detection runs whatever the window, so a run with the guard disarmed
+        still reports the reversals it made.
+        """
+        window = max(0.0, float(self.bounds.reversal_window_s))
+        horizon = window if window > 0.0 else float(self.bounds.window_s)
+        recent = {sig for at, sig in self._applied_signatures if now - at <= horizon}
+        if not recent:
+            return ""
+        for transition in proposal.transitions:
+            inverse = transition.inverse()
+            if inverse is None:
+                continue
+            if self._signature(inverse) in recent:
+                self.stats.reversals_detected += 1
+                if window <= 0.0:
+                    return ""
+                self.stats.reversals_refused += 1
+                return (
+                    f"reversal: {transition.kind} on {transition.subject or 'an edge'} would undo "
+                    f"a change made inside the last {window:.0f}s"
+                )
+        return ""
+
+    def _cooldown_for(self, cell_id: str, now: float) -> float:
+        """This cell's own cooldown, doubled once per recent change.
+
+        The count decays after a quiet window, so a cell that reorganises once
+        and settles pays the base rate again rather than carrying a penalty
+        forever.
+        """
+        last = self._last_change.get(cell_id, 0.0)
+        churn = self._churn.get(cell_id, 0)
+        if last and now - last > self.bounds.window_s:
+            churn = 0
+            self._churn[cell_id] = 0
+        doublings = min(max(0, churn), max(0, self.bounds.churn_backoff_doublings))
+        return self.bounds.cooldown_s * float(2 ** doublings)
 
     @staticmethod
     def _primary_capability(manifest_data: Mapping[str, Any]) -> str:
@@ -548,10 +671,14 @@ class MorphGovernor:
 
         applied: list[MorphTransition] = []
         for transition, subject in done:
-            applied.append(self._settle(proposal, transition, subject, now))
+            settled = self._settle(proposal, transition, subject, now)
+            applied.append(settled)
+            self._applied_signatures.append((now, self._signature(settled)))
 
         self._recent.append(now)
         for cell_id in proposal.affected_cells():
+            if self._last_change.get(cell_id, 0.0) and now - self._last_change[cell_id] <= self.bounds.window_s:
+                self._churn[cell_id] = self._churn.get(cell_id, 0) + 1
             self._last_change[cell_id] = now
         for _, subject in done:
             if subject:

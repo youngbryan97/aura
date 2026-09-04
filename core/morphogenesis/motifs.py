@@ -191,6 +191,9 @@ class MorphMotif:
                     cell_id=f"m_{capability}_{round_index}_{index}",
                     attach_from=anchor,
                     port=capability,
+                    return_port=(
+                        sorted(present_capabilities.get(anchor, ()) or (capability,))[0]
+                    ),
                     proposer=proposer,
                     parent=proposer,
                     placement="local",
@@ -302,12 +305,17 @@ class MotifLibrary:
         demand: Mapping[str, float],
         graph: MorphGraph,
         capabilities: Mapping[str, Sequence[str]],
+        baseline_capabilities: Mapping[str, Sequence[str]] | None = None,
         scenario: str = "",
     ) -> MorphMotif:
-        """Compress a shape that worked into a prior that can be reapplied.
+        """Compress what development produced into a prior that can be reapplied.
 
-        Reads what the population ended up holding and how it ended up wired,
-        and keeps the capability-level pattern rather than the cell ids.
+        ``baseline_capabilities`` is the founding population. What the motif
+        keeps is the *difference*: the capabilities development added and the
+        bindings it made. Recording the whole final population instead makes
+        every motif from a given starting kit look alike, and two motifs learned
+        from opposite demands come out identical — at which point the library
+        cannot be wrong about anything, and cannot be right either.
         """
         fingerprint = demand_fingerprint(demand)
         capability_of: dict[str, str] = {}
@@ -315,17 +323,42 @@ class MotifLibrary:
             if caps:
                 capability_of[str(cell_id)] = str(list(caps)[0])
 
+        counts: dict[str, int] = {}
+        for capability in capability_of.values():
+            counts[capability] = counts.get(capability, 0) + 1
+
+        base_counts: dict[str, int] = {}
+        founders = set()
+        for cell_id, caps in dict(baseline_capabilities or {}).items():
+            founders.add(str(cell_id))
+            for capability in caps:
+                base_counts[str(capability)] = base_counts.get(str(capability), 0) + 1
+
+        if baseline_capabilities:
+            grown = {
+                capability for capability, count in counts.items()
+                if count > base_counts.get(capability, 0)
+            }
+            # A demand that needed no new capability still developed a shape;
+            # fall back to what the demand itself names so the motif is never
+            # empty.
+            seeds = tuple(sorted(grown)) or tuple(
+                sorted(k for k, v in demand.items() if v > 0)
+            )
+        else:
+            seeds = tuple(sorted(set(capability_of.values())))
+
         bindings: set[tuple[str, str]] = set()
         for edge in graph.edges():
+            if founders and edge.source in founders and edge.target in founders:
+                # A binding both ends of which were already there is part of
+                # the starting kit, not something this demand taught.
+                continue
             source_capability = capability_of.get(edge.source)
             target_capability = capability_of.get(edge.target)
             if source_capability and target_capability and source_capability != target_capability:
                 bindings.add((source_capability, target_capability))
 
-        seeds = tuple(sorted({c for c in capability_of.values()}))
-        counts: dict[str, int] = {}
-        for capability in capability_of.values():
-            counts[capability] = counts.get(capability, 0) + 1
         motif_id = "motif_" + stable_digest(name, *fingerprint, *seeds, length=14)
         existing = self._motifs.get(motif_id)
         if existing is not None:
@@ -336,7 +369,7 @@ class MotifLibrary:
             name=name,
             fingerprint=fingerprint,
             seed_capabilities=seeds,
-            seed_counts=counts,
+            seed_counts={c: counts.get(c, 1) for c in seeds},
             preferred_bindings=tuple(sorted(bindings)),
             stop_when_cells=max(4, len(capability_of) + 2),
             origin_scenario=scenario,

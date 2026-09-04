@@ -508,6 +508,7 @@ def grow(
     attach_from: str,
     port: str,
     proposer: str,
+    return_port: str = "",
     parent: str = "",
     placement: str = "",
     edge_type: EdgeType = EdgeType.DATA,
@@ -525,31 +526,47 @@ def grow(
     docking module does: arriving and latching are one operation, and a module
     that arrives without latching has not joined anything.
 
+    ``return_port`` binds the new cell back to where it attached. Without it a
+    grown cell is a cul-de-sac: work arrives, gets its one stage done, and has
+    nowhere to go next. A part with an input and no output is not an organ.
+
     ``cell_id`` is given rather than derived, because the binding has to name
     the cell before the cell exists.
     """
+    transitions = [
+        MorphTransition(
+            kind=TransitionKind.SPAWN,
+            subject=cell_id,
+            manifest_data=dict(manifest_data),
+            placement=placement,
+            metadata={"parent": parent or proposer},
+        ),
+        MorphTransition(
+            kind=TransitionKind.BIND,
+            subject=attach_from,
+            edge=MorphEdge(
+                source=attach_from,
+                target=cell_id,
+                edge_type=edge_type,
+                port=port,
+            ),
+        ),
+    ]
+    if return_port:
+        transitions.append(MorphTransition(
+            kind=TransitionKind.BIND,
+            subject=cell_id,
+            edge=MorphEdge(
+                source=cell_id,
+                target=attach_from,
+                edge_type=edge_type,
+                port=return_port,
+            ),
+        ))
     return MorphProposal(
         proposer=proposer,
         subsystem=subsystem,
-        transitions=(
-            MorphTransition(
-                kind=TransitionKind.SPAWN,
-                subject=cell_id,
-                manifest_data=dict(manifest_data),
-                placement=placement,
-                metadata={"parent": parent or proposer},
-            ),
-            MorphTransition(
-                kind=TransitionKind.BIND,
-                subject=attach_from,
-                edge=MorphEdge(
-                    source=attach_from,
-                    target=cell_id,
-                    edge_type=edge_type,
-                    port=port,
-                ),
-            ),
-        ),
+        transitions=tuple(transitions),
         expected_benefit=benefit,
         estimated_cost=max(0.05, float(cost)),
         rationale=rationale,

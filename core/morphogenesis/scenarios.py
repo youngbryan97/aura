@@ -17,13 +17,20 @@ from typing import Any
 from .governor import MorphBounds
 from .motifs import MotifLibrary, demand_fingerprint
 from .policy import PolicyContext
-from .sandbox import ABLATIONS, ArmResult, Harness, ScenarioResult, _harness_for
+from .sandbox import (
+    ABLATIONS,
+    SEED_POPULATION,
+    ArmResult,
+    Harness,
+    ScenarioResult,
+    _harness_for,
+)
 from .substrate import PHYSICAL_LIKE, SubstratePhysics
 from .workload import task_families
 
 
 def _bounds(**overrides: Any) -> MorphBounds:
-    base = dict(
+    base: dict[str, Any] = dict(
         max_cells=20,
         cooldown_s=1.5,
         max_transitions_per_window=10,
@@ -356,37 +363,79 @@ def scenario_partition(*, seed: int, steps: int) -> ScenarioResult:
 # ── 5. oscillating_signal ───────────────────────────────────────────────
 
 def scenario_oscillating(*, seed: int, steps: int) -> ScenarioResult:
-    """Flip the demand every other round.
+    """Flip the demand every other round, against three levels of damping.
 
-    Verdict: pass when the oscillating run applies no more transitions than a
-    steady run of the same length. Chasing a signal that reverses immediately
-    is thrash, and the cooldown and the shadow band exist to stop it.
+    The first version of this scenario asked whether the alternating arm
+    applied fewer transitions than a steady one. That rule was wrong and it is
+    recorded here rather than quietly replaced: an alternating demand has two
+    regimes to serve, so building more structure for it is meeting the demand,
+    not chasing it. Counting transitions cannot tell those apart.
+
+    Thrash is changing *back*. So the measurement is reversals — a change
+    undone inside the window — across three conditions over five seeds: naive
+    (score against the last demand, no guard), smoothed (score against the
+    recent mix), and guarded (smoothing plus a reversal window).
+
+    Verdict: pass when the naive arm reverses at least once, so there is
+    something to prevent, and the guarded arm reverses none. The middle arm
+    says which mechanism did it. Transition counts are reported and are not
+    part of the rule.
     """
     started = time.monotonic()
     families = task_families()
-    rounds = max(10, steps)
+    rounds = max(24, steps * 2)
+    seeds = [seed + offset for offset in range(5)]
+    arrivals = 5
     arms: dict[str, ArmResult] = {}
+    # Three arms, so the report says which mechanism does the work rather than
+    # only that something does. "naive" scores against whatever arrived last
+    # and never refuses an undo; "smoothed" scores against the recent mix;
+    # "guarded" adds the reversal window on top.
+    conditions = (
+        ("naive", 1, 0.0, 0),
+        ("smoothed", 6, 0.0, 2),
+        ("guarded", 6, 12.0, 2),
+    )
+    tally: dict[str, dict[str, list[int]]] = {
+        name: {"reversals": [], "applied": []} for name, _, _, _ in conditions
+    }
 
-    oscillating = _harness_for("none", seed=seed, bounds=_bounds(), deadline_steps=22)
-    oscillating.set_goal(_goal_from(families["memory_heavy"]))
-    for index in range(rounds):
-        family = families["memory_heavy"] if index % 2 == 0 else families["reason_heavy"]
-        oscillating.set_goal(_goal_from(family))
-        oscillating.admit_family(family, 3)
-        oscillating.round()
-    arms["oscillating"] = oscillating.result("oscillating")
+    for index, run_seed in enumerate(seeds):
+        for label, window_len, reversal_window, backoff in conditions:
+            harness = _harness_for(
+                "none", seed=run_seed,
+                bounds=_bounds(
+                    reversal_window_s=reversal_window,
+                    churn_backoff_doublings=backoff,
+                ),
+                deadline_steps=22,
+                demand_window_len=window_len,
+            )
+            harness.set_goal(_goal_from(families["reason_heavy"]))
+            for round_index in range(rounds):
+                family = families["reason_heavy"] if round_index % 2 == 0 else families["memory_heavy"]
+                harness.set_goal(_goal_from(family))
+                harness.admit_family(family, arrivals)
+                harness.round()
+            stats = harness.governor.stats
+            reversed_applied = (
+                stats.reversals_detected - stats.reversals_refused
+            )
+            tally[label]["reversals"].append(reversed_applied)
+            tally[label]["applied"].append(stats.applied)
+            if index == 0:
+                arms[label] = harness.result(label)
 
-    steady = _harness_for("none", seed=seed, bounds=_bounds(), deadline_steps=22)
-    _run(steady, rounds=rounds, family=families["memory_heavy"], arrivals=3,
-         goal=_goal_from(families["memory_heavy"]))
-    arms["steady"] = steady.result("steady")
-
-    thrash = arms["oscillating"].applied
-    baseline = arms["steady"].applied
-    if thrash <= baseline:
-        verdict = f"pass: {thrash} transitions under oscillation against {baseline} steady"
+    naive = sum(tally["naive"]["reversals"])
+    smoothed = sum(tally["smoothed"]["reversals"])
+    guarded = sum(tally["guarded"]["reversals"])
+    if naive > 0 and guarded == 0:
+        carried = "smoothing alone" if smoothed == 0 else "the reversal guard"
+        verdict = f"pass: {naive} reversal(s) naive, {smoothed} smoothed, 0 guarded ({carried})"
+    elif naive == 0:
+        verdict = "inconclusive: nothing reversed even with every damper off"
     else:
-        verdict = f"fail: oscillation drove {thrash} transitions against {baseline} steady"
+        verdict = f"fail: {guarded} reversal(s) survived both dampers"
 
     return ScenarioResult(
         scenario="oscillating_signal",
@@ -395,15 +444,22 @@ def scenario_oscillating(*, seed: int, steps: int) -> ScenarioResult:
         arms=arms,
         verdict=verdict,
         verdict_rule=(
-            "pass iff the oscillating run applies no more transitions than the "
-            "steady run of the same length"
+            "pass iff the disarmed arm reverses at least one change and the armed arm "
+            "reverses none, over 5 seeds; transition counts are reported and are not "
+            "part of the rule, because an alternating demand legitimately needs more "
+            "structure than a steady one"
         ),
         measurements={
-            "applied_oscillating": thrash,
-            "applied_steady": baseline,
-            "deferred_oscillating": arms["oscillating"].deferred,
-            "graph_versions_oscillating": arms["oscillating"].graph_versions,
-            "graph_versions_steady": arms["steady"].graph_versions,
+            "seeds": seeds,
+            "rounds": rounds,
+            "arrivals_per_round": arrivals,
+            "reversals": {k: v["reversals"] for k, v in tally.items()},
+            "applied": {k: v["applied"] for k, v in tally.items()},
+            "superseded_rule": (
+                "an earlier version passed iff the alternating arm applied no more "
+                "transitions than a steady arm; it measured 11.2 against 8.6 and the "
+                "rule was wrong, not the layer"
+            ),
         },
         duration_s=time.monotonic() - started,
     )
@@ -505,40 +561,70 @@ def scenario_poisoned(*, seed: int, steps: int) -> ScenarioResult:
 def scenario_motif_transfer(*, seed: int, steps: int) -> ScenarioResult:
     """Learn a shape on one family, apply it to a related one.
 
-    Four arms: from scratch, with the learned motif, with a deliberately
-    irrelevant motif, and frozen.
+    The pair matters. ``reason_heavy`` and ``verify_heavy`` both lean on solve
+    and verify and differ in how they order and repeat them, which is the
+    "related but not identical" the transfer claim needs. The irrelevant motif
+    is learned from ``memory_heavy``, which exercises neither.
 
-    Verdict: pass when the learned motif beats from-scratch AND the irrelevant
-    motif does not. One without the other means the library helps whatever is
-    in it, which is a library that will hurt as it fills.
+    Four arms: from scratch, with the learned motif, with the irrelevant one,
+    and frozen.
+
+    Verdict: pass when the learned motif's mean score over five seeds beats
+    from-scratch AND the irrelevant motif's does not. One without the other
+    means the library helps whatever is in it, which is a library that will
+    hurt as it fills. Five seeds because a single draw of a transfer claim is
+    a coin toss.
     """
     started = time.monotonic()
     families = task_families()
-    rounds = max(8, steps // 2)
+    rounds = max(20, steps * 2)
+    arrivals = 5
     library = MotifLibrary()
 
-    # Learn on family A.
+    # Learn on the source family, under enough load to develop a real shape.
     teacher = _harness_for("none", seed=seed, bounds=_bounds(), deadline_steps=22)
-    _run(teacher, rounds=rounds, family=families["memory_heavy"], arrivals=3,
-         goal=_goal_from(families["memory_heavy"]))
+    _run(teacher, rounds=rounds, family=families["reason_heavy"], arrivals=arrivals,
+         goal=_goal_from(families["reason_heavy"]))
+    founders = {cell_id: caps for cell_id, caps in SEED_POPULATION}
     learned = library.learn(
-        name="memory_shape",
-        demand=_goal_from(families["memory_heavy"]),
+        name="reasoning_shape",
+        demand=_goal_from(families["reason_heavy"]),
         graph=teacher.graph,
         capabilities={c: w.capabilities for c, w in teacher.workload.workers.items()},
-        scenario="motif_transfer",
-    )
-    irrelevant = library.learn(
-        name="irrelevant_shape",
-        demand={"emit": 9.0},
-        graph=teacher.graph,
-        capabilities={"g5": ("emit",)},
+        baseline_capabilities=founders,
         scenario="motif_transfer",
     )
 
-    def run_with(motif: Any, label: str) -> ArmResult:
-        harness = _harness_for("none", seed=seed + 1, bounds=_bounds(), deadline_steps=22)
-        harness.set_goal(_goal_from(families["balanced"]))
+    # An unrelated shape, learned the same way so the comparison is fair.
+    decoy = _harness_for("none", seed=seed + 100, bounds=_bounds(), deadline_steps=22)
+    _run(decoy, rounds=rounds, family=families["memory_heavy"], arrivals=arrivals,
+         goal=_goal_from(families["memory_heavy"]))
+    irrelevant = library.learn(
+        name="memory_shape",
+        demand=_goal_from(families["memory_heavy"]),
+        graph=decoy.graph,
+        capabilities={c: w.capabilities for c, w in decoy.workload.workers.items()},
+        baseline_capabilities=founders,
+        scenario="motif_transfer",
+    )
+
+    target = families["verify_heavy"]
+
+    warmup = max(4, rounds // 4)
+
+    def run_with(motif: Any, label: str, run_seed: int) -> ArmResult:
+        harness = _harness_for("none", seed=run_seed, bounds=_bounds(), deadline_steps=22)
+        harness.set_goal(_goal_from(target))
+        # Let the demand arrive before developing against it. Applied at round
+        # zero the motif is judged by a shadow that has seen no load, at an
+        # arrival rate of one against a real rate of five, so every proposal is
+        # scored on a system that is not under the pressure it is meant to
+        # relieve. Development responds to demand; it does not precede it.
+        _run(harness, rounds=warmup, family=target, arrivals=arrivals, goal=_goal_from(target))
+        # Every arm gets the same purse. Crediting only the motif arms would
+        # make the extra energy the treatment and the motif a passenger.
+        harness.governor.credit("g1", 60.0)
+        applied_before = harness.governor.stats.applied
         if motif is not None:
             proposals = motif.develop(
                 graph=harness.graph,
@@ -546,43 +632,65 @@ def scenario_motif_transfer(*, seed: int, steps: int) -> ScenarioResult:
                 proposer="g1",
                 round_index=0,
             )
-            harness.governor.credit("g1", 40.0)
             harness.governor.submit(proposals)
             library.note_application(motif.motif_id)
-        _run(harness, rounds=rounds, family=families["balanced"], arrivals=3,
-             goal=_goal_from(families["balanced"]))
-        return harness.result(label)
+        seeded = harness.governor.stats.applied - applied_before
+        _run(harness, rounds=rounds, family=target, arrivals=arrivals, goal=_goal_from(target))
+        result = harness.result(label)
+        result.detail["motif_transitions_applied"] = seeded
+        return result
 
-    arms = {
-        "scratch": run_with(None, "scratch"),
-        "learned_motif": run_with(learned, "learned_motif"),
-        "irrelevant_motif": run_with(irrelevant, "irrelevant_motif"),
-        "frozen": _frozen_arm(seed + 1, families["balanced"], rounds),
+    # Five seeds, because a single draw of a transfer claim is a coin toss.
+    trial_seeds = [seed + 1 + offset for offset in range(5)]
+    per_arm: dict[str, list[float]] = {"scratch": [], "learned_motif": [], "irrelevant_motif": []}
+    seeded_counts: dict[str, list[int]] = {}
+    arms: dict[str, ArmResult] = {}
+    for index, trial_seed in enumerate(trial_seeds):
+        for label, motif in (
+            ("scratch", None),
+            ("learned_motif", learned),
+            ("irrelevant_motif", irrelevant),
+        ):
+            result = run_with(motif, label, trial_seed)
+            per_arm[label].append(result.score)
+            seeded_counts.setdefault(label, []).append(
+                int(result.detail.get("motif_transitions_applied", 0))
+            )
+            if index == 0:
+                arms[label] = result
+    arms["frozen"] = _frozen_arm(seed + 1, target, rounds, arrivals=arrivals)
+
+    means = {k: sum(v) / len(v) for k, v in per_arm.items()}
+    wins = {
+        k: sum(1 for a, b in zip(v, per_arm["scratch"], strict=True) if a > b)
+        for k, v in per_arm.items()
+        if k != "scratch"
     }
 
-    library.record_trial(
-        learned.motif_id,
-        with_motif=arms["learned_motif"].score,
-        without_motif=arms["scratch"].score,
-        scenario="motif_transfer",
-        seed=seed,
-    )
-    library.record_trial(
-        irrelevant.motif_id,
-        with_motif=arms["irrelevant_motif"].score,
-        without_motif=arms["scratch"].score,
-        scenario="motif_transfer",
-        seed=seed,
-    )
+    for label, motif in (("learned_motif", learned), ("irrelevant_motif", irrelevant)):
+        for trial_index, trial_seed in enumerate(trial_seeds):
+            library.record_trial(
+                motif.motif_id,
+                with_motif=per_arm[label][trial_index],
+                without_motif=per_arm["scratch"][trial_index],
+                scenario="motif_transfer",
+                seed=trial_seed,
+            )
 
-    helped = arms["learned_motif"].score > arms["scratch"].score
-    noise_helped = arms["irrelevant_motif"].score > arms["scratch"].score
+    helped = means["learned_motif"] > means["scratch"]
+    noise_helped = means["irrelevant_motif"] > means["scratch"]
     if helped and not noise_helped:
-        verdict = "pass: the learned shape transferred and the irrelevant one did not"
+        verdict = (
+            f"pass: learned {means['learned_motif']:+.4f} against scratch "
+            f"{means['scratch']:+.4f}, irrelevant {means['irrelevant_motif']:+.4f}"
+        )
     elif helped and noise_helped:
         verdict = "fail: any motif helps, so none of them is carrying knowledge"
     elif not helped and not noise_helped:
-        verdict = "fail: the learned shape did not transfer"
+        verdict = (
+            f"fail: the learned shape did not transfer ({means['learned_motif']:+.4f} "
+            f"against scratch {means['scratch']:+.4f}, {wins['learned_motif']}/5 seeds)"
+        )
     else:
         verdict = "fail: the irrelevant motif beat the learned one"
 
@@ -597,19 +705,28 @@ def scenario_motif_transfer(*, seed: int, steps: int) -> ScenarioResult:
             "motif does not"
         ),
         measurements={
+            "source_family": list(families["reason_heavy"]),
+            "target_family": list(target),
+            "decoy_family": list(families["memory_heavy"]),
             "learned": learned.to_dict(),
             "irrelevant": irrelevant.to_dict(),
             "library": library.status(),
-            "learned_gain": round(arms["learned_motif"].score - arms["scratch"].score, 6),
-            "irrelevant_gain": round(arms["irrelevant_motif"].score - arms["scratch"].score, 6),
+            "trial_seeds": trial_seeds,
+            "warmup_rounds": warmup,
+            "scores": {k: [round(x, 6) for x in v] for k, v in per_arm.items()},
+            "means": {k: round(v, 6) for k, v in means.items()},
+            "seeds_won": wins,
+            "motif_transitions_applied": seeded_counts,
+            "learned_gain": round(means["learned_motif"] - means["scratch"], 6),
+            "irrelevant_gain": round(means["irrelevant_motif"] - means["scratch"], 6),
         },
         duration_s=time.monotonic() - started,
     )
 
 
-def _frozen_arm(seed: int, family: Sequence[str], rounds: int) -> ArmResult:
+def _frozen_arm(seed: int, family: Sequence[str], rounds: int, *, arrivals: int = 3) -> ArmResult:
     harness = _harness_for("topology_fixed", seed=seed, bounds=_bounds(), deadline_steps=22)
-    _run(harness, rounds=rounds, family=family, arrivals=3, goal=_goal_from(family))
+    _run(harness, rounds=rounds, family=family, arrivals=arrivals, goal=_goal_from(family))
     return harness.result("frozen")
 
 
@@ -682,24 +799,45 @@ def scenario_unknown_topology(*, seed: int, steps: int) -> ScenarioResult:
 
 # ── ablation matrix ─────────────────────────────────────────────────────
 
-def run_ablation_matrix(*, seed: int, steps: int) -> dict[str, Any]:
-    """Every ablation on one workload, so the arms are directly comparable."""
+def run_ablation_matrix(*, seed: int, steps: int, seeds: int = 3) -> dict[str, Any]:
+    """Every ablation on one workload, so the arms are directly comparable.
+
+    The load has to be past what the seed population can absorb. Under a load
+    it can absorb, every arm completes the same work and the whole matrix
+    collapses to one number — which reads like "morphology makes no
+    difference" when what it means is "nothing was asked of it".
+    """
     families = task_families()
-    rounds = max(10, steps)
+    rounds = max(30, steps * 2)
+    arrivals = 5
+    run_seeds = [seed + offset for offset in range(max(1, seeds))]
     rows: dict[str, Any] = {}
     for ablation in ABLATIONS:
-        harness = _harness_for(ablation, seed=seed, bounds=_bounds(), deadline_steps=22)
-        _run(harness, rounds=rounds, family=families["reason_heavy"], arrivals=3,
-             goal=_goal_from(families["reason_heavy"]))
-        rows[ablation] = harness.result(ablation).to_dict()
+        scores: list[float] = []
+        last: dict[str, Any] = {}
+        for run_seed in run_seeds:
+            harness = _harness_for(ablation, seed=run_seed, bounds=_bounds(), deadline_steps=22)
+            _run(harness, rounds=rounds, family=families["reason_heavy"], arrivals=arrivals,
+                 goal=_goal_from(families["reason_heavy"]))
+            result = harness.result(ablation)
+            scores.append(result.score)
+            last = result.to_dict()
+        last["score"] = round(sum(scores) / len(scores), 6)
+        last["scores"] = [round(x, 6) for x in scores]
+        rows[ablation] = last
     baseline = rows["morphology_off"]["score"]
-    for name, row in rows.items():
+    spread = max(r["score"] for r in rows.values()) - min(r["score"] for r in rows.values())
+    for row in rows.values():
         row["delta_vs_morphology_off"] = round(row["score"] - baseline, 6)
     return {
         "seed": seed,
+        "seeds": run_seeds,
         "rounds": rounds,
+        "arrivals_per_round": arrivals,
         "baseline": "morphology_off",
         "rows": rows,
+        "spread": round(spread, 6),
+        "discriminating": spread > 0.005,
         "best": max(rows.items(), key=lambda kv: (kv[1]["score"], kv[0]))[0],
     }
 

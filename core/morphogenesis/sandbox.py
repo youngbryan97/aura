@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections import deque
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -191,6 +192,7 @@ class Harness:
         require_governance: bool = False,
         shadow: bool = True,
         deadline_steps: int = 26,
+        demand_window_len: int = 6,
     ):
         self.seed = int(seed)
         self.policy_name = policy_name
@@ -213,6 +215,18 @@ class Harness:
         #: every proposal for a gain of exactly zero.
         self.shadow_steps = 20
         self.arrivals_per_round = 0.0
+        #: The recent demand, not the latest demand. A probe that measures
+        #: against whatever arrived last will approve a change that suits this
+        #: round and reverse it next round: chasing the instantaneous signal is
+        #: what thrash *is*. Scoring against the recent mix means a change good
+        #: for only half of an alternating demand cannot clear the band.
+        #:
+        #: The length is the discrimination. Shorter than a real regime change,
+        #: so a sustained shift fills the window and the layer responds to it;
+        #: longer than an alternation's period, so a flipping demand stays a
+        #: mix and never looks like a shift. Too long and a genuine shift is
+        #: damped as if it were noise.
+        self.demand_window: deque[tuple[str, ...]] = deque(maxlen=max(1, int(demand_window_len)))
         self.applied_log: list[dict[str, Any]] = []
 
         self.governor = MorphGovernor(
@@ -364,15 +378,17 @@ class Harness:
             if carried >= self.shadow_backlog_cap:
                 break
 
-        family = getattr(self, "last_family", None)
-        if not family:
+        window = list(self.demand_window)
+        if not window:
             families = task_families()
             stages = max(self.goal_demand.items(), key=lambda kv: (kv[1], kv[0]))[0]
-            family = self._family_for(stages, families)
+            window = [self._family_for(stages, families)]
         rate = max(1, int(round(self.arrivals_per_round or 1)))
+        cursor = 0
         for _ in range(self.shadow_steps):
             for _ in range(rate):
-                probe.admit(family)
+                probe.admit(window[cursor % len(window)])
+                cursor += 1
             probe.step()
         metrics = probe.metrics
         if metrics.admitted == 0:
@@ -405,6 +421,8 @@ class Harness:
             if self.arrivals_per_round else float(count)
         )
         self.last_family = tuple(family)
+        if count:
+            self.demand_window.append(tuple(family))
 
     def round(self, *, propose: bool = True) -> dict[str, Any]:
         """One round: let the policy propose, adjudicate, then run the work."""
@@ -447,6 +465,8 @@ class Harness:
             cause="lesion",
         )
         self.governor.set_port_contract(self.workload.port_contract())
+        # The premises every earlier decision was made under just changed.
+        self.governor.invalidate_reversal_history(reason="lesion")
         return victims
 
     def result(self, label: str) -> ArmResult:
@@ -485,6 +505,7 @@ def _harness_for(
     physics: SubstratePhysics | None = None,
     motifs: MotifLibrary | None = None,
     deadline_steps: int = 26,
+    demand_window_len: int = 6,
 ) -> Harness:
     common: dict[str, Any] = {
         "seed": seed,
@@ -492,6 +513,7 @@ def _harness_for(
         "physics": physics,
         "motifs": motifs,
         "deadline_steps": deadline_steps,
+        "demand_window_len": demand_window_len,
     }
     if ablation == "morphology_off":
         return Harness(policy_name="frozen", allow_recovery=False, **common)
@@ -503,6 +525,7 @@ def _harness_for(
         return Harness(
             policy_name="local", motifs=None, seed=seed, bounds=bounds,
             physics=physics, deadline_steps=deadline_steps,
+            demand_window_len=demand_window_len,
         )
     if ablation == "recovery_off":
         return Harness(policy_name="local", allow_recovery=False, **common)
