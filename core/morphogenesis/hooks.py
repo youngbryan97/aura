@@ -379,8 +379,13 @@ def emit_task_signal(
     task_description: str = "",
     intensity: float = 0.4,
 ) -> None:
-    """Emit a task signal into the morphogenetic field when the orchestrator
-    starts processing a user request. This drives growth/curiosity gradients.
+    """Emit a task signal into the morphogenetic field when a turn starts.
+
+    Had no callers for the life of the module — a writer with no writer, which
+    is the same defect as a channel with no reader and just as invisible. The
+    live seam is now :func:`core.morphogenesis.bridge.announce_demand`, called
+    from the chat turn; this stays for callers that already know their
+    subsystem and do not need the capability router to work it out.
     """
     try:
         from core.container import ServiceContainer

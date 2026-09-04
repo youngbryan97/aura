@@ -76,11 +76,48 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--only-ablations", action="store_true", help="run only the ablation matrix")
     parser.add_argument("--json", type=Path, default=None, help="write the full result to this path")
     parser.add_argument("--list", action="store_true", help="list the scenarios and exit")
+    parser.add_argument(
+        "--audit", action="store_true",
+        help="print every seam to the rest of Aura, live or not, and exit",
+    )
     args = parser.parse_args(argv)
 
     if args.list:
         for name in SCENARIO_RUNNERS:
             print(name)
+        return 0
+
+    if args.audit:
+        from core.morphogenesis.bridge import audit as bridge_audit
+
+        report = bridge_audit()
+        print("connections")
+        for name, where in sorted(report["connections"].items()):
+            print(f"  {name:<16} {where}")
+        print("\nnot connected, and why")
+        for name, why in sorted(report["not_connected"].items()):
+            print(f"  {name:<40} {why}")
+        print("\ngenotype")
+        print(f"  {report['genotype']['composition']}")
+        print("\nsubstrate roadmap")
+        for candidate in report["substrate_roadmap"]["candidates"]:
+            existing = ", ".join(candidate["existing"]) or "nothing in this tree"
+            print(f"  phase {candidate['phase']}: {candidate['name']}")
+            print(f"      existing   : {existing}")
+            print(f"      blocked on : {candidate['blocked_on']}")
+        topology = report["topology"]
+        print("\nlive topology")
+        if topology.get("online"):
+            print(
+                f"  v{topology['version']} {topology['cells']} cell(s), "
+                f"{topology['bindings']} binding(s), {topology['components']} component(s)"
+            )
+        else:
+            print("  no morphogenetic runtime in this process")
+        if args.json:
+            args.json.parent.mkdir(parents=True, exist_ok=True)
+            args.json.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
+            print(f"\nwrote {args.json}")
         return 0
 
     if not os.environ.get("AURA_LOG_DIR"):

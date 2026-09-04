@@ -6008,6 +6008,24 @@ async def _run_cognitive_engine_chat_turn(
         record_degradation("chat.capability_condition", exc)
         logger.debug("Live capability condition unavailable: %s", exc)
 
+    # Tell the morphogenetic layer what this turn reaches for.
+    #
+    # It had no demand input at all, so its population sat at whatever boot
+    # registered and its cells had nothing to organise around. This is the one
+    # global fact a local cell may read: what the body is trying to do, not
+    # where the load is or who is struggling.
+    #
+    # Purely additive — it appends a signal to a bounded in-memory deque, does
+    # no I/O, and cannot change this reply. A failure here is a failure to
+    # inform a background layer, so it is logged and dropped.
+    try:
+        from core.morphogenesis.bridge import announce_demand
+
+        announce_demand(visible)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.morphogenesis_demand", exc, severity="debug")
+        logger.debug("Morphogenesis demand signal skipped: %s", exc)
+
     canonical_memory_state_evidence = (
         ""
         if conversation_only_surface
