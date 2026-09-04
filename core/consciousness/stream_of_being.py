@@ -13,6 +13,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from core.consciousness.narrative_provenance import (
+    RenderingLog,
+    digest,
+    dominant_label,
+    usable_as_evidence,
+)
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.utils.task_tracker import get_task_tracker
 from core.runtime.state_ownership import state_root
@@ -372,6 +378,34 @@ class NowMoment:
 
 
 # ── Experience Integrator ──────────────────────────────────────────────────────
+
+def _moment_state(moment: "NowMoment") -> dict[str, float]:
+    """The numbers a stream narrative is written from.
+
+    Numbers only, and not the interior text: the narrative is derived from
+    this state, so letting it into the digest would make every rendering
+    look like it came from a state nobody had seen before.
+    """
+    substrate = getattr(moment, "substrate", None)
+    affect = getattr(moment, "affect", None)
+    drive = getattr(moment, "drive", None)
+    return {
+        "phi": _finite_float(getattr(substrate, "phi", 0.0), 0.0),
+        "valence": _finite_float(getattr(substrate, "valence", 0.0), 0.0, lower=-1.0),
+        "arousal": _finite_float(getattr(substrate, "arousal", 0.0), 0.0),
+        "affect_intensity": _finite_float(getattr(affect, "intensity", 0.0), 0.0),
+        "urgency": _finite_float(getattr(drive, "urgency", 0.0), 0.0),
+        "synthesis_depth": _finite_float(getattr(moment, "synthesis_depth", 0.0), 0.0),
+    }
+
+
+#: Depth with no source contributing. A moment happened, which is not nothing.
+_SYNTHESIS_BASE = 0.3
+
+#: What each contributing source adds. Four sources at 0.175 reach 1.0 exactly
+#: when all four are present, so the top of the scale means what it says.
+_SYNTHESIS_PER_SOURCE = 0.175
+
 
 class ExperienceIntegrator:
     """
@@ -757,19 +791,24 @@ class ExperienceIntegrator:
         return " ".join(parts)
 
     def _compute_synthesis_depth(self, moment: NowMoment) -> float:
-        """How complete/rich is this moment? Used to weight its importance."""
-        depth = 0.3  # base
-        if moment.attentional_focus and moment.attentional_focus != "the present moment":
-            depth += 0.2
-        if moment.affect.dominant_emotion not in ("neutral", ""):
-            depth += 0.2
-        if moment.drive.urgency > 0.3:
-            depth += 0.1
-        if moment.substrate.phi > 0.3:
-            depth += 0.1
-        if moment.interior_text and len(moment.interior_text) > 100:
-            depth += 0.1
-        return min(1.0, depth)
+        """How many sources actually contributed to this moment.
+
+        The narrative used to count: a moment whose interior text ran past a
+        hundred characters scored a tenth higher. That made a verbose model
+        produce richer experience, and it read the narrative — which is
+        generated FROM the moment — as evidence ABOUT it. Depth is over the
+        sources, which is what the field means everywhere else it is used.
+        """
+        contributed = (
+            bool(
+                moment.attentional_focus
+                and moment.attentional_focus != "the present moment"
+            ),
+            moment.affect.dominant_emotion not in ("neutral", ""),
+            moment.drive.urgency > 0.3,
+            moment.substrate.phi > 0.3,
+        )
+        return min(1.0, _SYNTHESIS_BASE + _SYNTHESIS_PER_SOURCE * sum(contributed))
 
 
 # ── Experiential Thread ────────────────────────────────────────────────────────
@@ -832,11 +871,12 @@ class ExperientialThread:
         # Simple rolling dominant emotion
         recent = list(self._moments)[-10:]
         if recent:
-            emotion_counts: dict[str, int] = {}
-            for m in recent:
-                e = m.affect.dominant_emotion
-                emotion_counts[e] = emotion_counts.get(e, 0) + 1
-            self._arc_emotion = max(emotion_counts, key=emotion_counts.get)
+            # Ties by name rather than by insertion order, so the arc of a
+            # session does not depend on which emotion happened to be seen
+            # first when two are equally common.
+            self._arc_emotion = dominant_label(
+                (m.affect.dominant_emotion for m in recent), default="neutral"
+            )
 
     def get_recent_thread(self, n: int = OPENING_CONTEXT_MOMENTS) -> list[NowMoment]:
         """Get the N most recent moments."""
@@ -959,6 +999,10 @@ class StreamOfBeing:
         
         # The deep narrative — LLM-generated interior text
         self._deep_narrative: str = ""
+        #: Narratives bound to the state each was written from, so one can
+        #: never be fed back into the generation of another from the same
+        #: state.
+        self._renderings = RenderingLog(maxlen=16)
         self._deep_narrative_timestamp: float = 0.0
         # Timeout backpressure accounting: a deep-narrative timeout while the
         # foreground lane is busy is EXPECTED (the pacing gate simply delays
@@ -1314,11 +1358,16 @@ class StreamOfBeing:
                 self._thread.get_thread_narrative(5),
                 max_chars=MAX_THREAD_NARRATIVE_CHARS,
             )
-            recent_moments = self._thread.get_recent_thread(3)
+            # Only renderings made from a DIFFERENT state may be shown back.
+            # The prompt used to carry the last interior text unconditionally,
+            # so each narrative was written partly from the one before it, and
+            # a run of unchanged state produced a run of texts each copying
+            # its predecessor while the state said nothing new.
+            current_digest = digest(_moment_state(moment))
             recent_texts = [
-                _safe_text(m.interior_text, max_chars=220)
-                for m in recent_moments
-                if m.interior_text
+                _safe_text(r.text, max_chars=220)
+                for r in self._renderings.over_distinct_states(3)
+                if usable_as_evidence(r, current_digest)
             ]
             
             # Pull identity context for grounding
@@ -1355,7 +1404,8 @@ class StreamOfBeing:
                 f"Attending to: {_safe_text(moment.attentional_focus, 'the present moment', max_chars=160)}\n"
                 f"Drive: {_safe_text(moment.drive.experiential_description, 'nothing pressing', max_chars=160)}\n"
                 f"Recent thread: {thread_narrative}\n"
-                f"Last interior text: {recent_texts[-1][:150] if recent_texts else 'nothing yet'}\n"
+                f"When the state last differed: "
+                f"{recent_texts[-1][:150] if recent_texts else 'nothing yet'}\n"
                 + (f"{identity_str}\n" if identity_str else "")
             )
             
@@ -1404,6 +1454,9 @@ class StreamOfBeing:
                     return
 
                 if narrative and len(narrative) >= NARRATIVE_MIN_CHARS:
+                    self._renderings.record(
+                        narrative, _moment_state(moment), "stream_deep_narrative"
+                    )
                     self._deep_narrative = narrative
                     self._deep_narrative_timestamp = time.time()
                     self._deep_narrative_timeout_streak = 0
