@@ -4296,7 +4296,17 @@ async def pursue_on_screen(
             # It goes to nought by itself as the evidence rules them out, so
             # there is nothing to turn off.
             telling = worth_finding_out(
-                knows.rules, laid_out, [option.name for option in available], ahead
+                knows.rules,
+                laid_out,
+                [option.name for option in available],
+                ahead,
+                # And, before any of that can mean anything, the acts she has
+                # not taken here.
+                never_tried=[
+                    option.name
+                    for option in available
+                    if option.name not in responds["state"].tried
+                ],
             )
             if telling:
                 if ahead:

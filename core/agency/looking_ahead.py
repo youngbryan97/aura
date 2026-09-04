@@ -69,6 +69,7 @@ def worth_finding_out(
     state: Any,
     actions: Sequence[str],
     ahead: dict[str, tuple[float, str]] | None = None,
+    never_tried: Sequence[str] = (),
 ) -> dict[str, float]:
     """What each act is worth for what it would TELL her, not where it leads.
 
@@ -89,7 +90,24 @@ def worth_finding_out(
     Where she cannot see ahead at all, this is what she has: the acts are
     scored purely by what they would settle, which is the right thing to do
     when she has no model to prefer anything by.
+
+    ``never_tried`` is the acts she has not taken here yet, and it comes
+    first, because everything above needs a state she can read and rules that
+    disagree about it — and in a world she has just arrived in she has
+    neither. What her own acts do is the first thing there is to find out,
+    and it needs no model, no grid and no reading. It empties itself once
+    they have all been taken.
+
+    LIVE 2026-09-04: no grid, so no rule, so nothing disagreed about
+    anything, so this returned nothing, so there was no reason to vary — and
+    a grid is worked out from what moves, which under one act is wherever
+    that act puts things. Two hundred seconds of the same key.
     """
+    fresh = [str(one) for one in never_tried if str(one) in {str(a) for a in actions}]
+    if fresh:
+        # A tie between all of them on the first act, which is right: any of
+        # them settles as much as any other when none has been taken.
+        return {one: 1.0 for one in fresh}
     settle = getattr(knows, "what_this_would_settle", None)
     if not callable(settle) or state is None:
         return {}
