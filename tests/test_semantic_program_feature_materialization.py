@@ -32,6 +32,7 @@ from core.learning.semantic_program_feature_materialization import (
     FORK_JOIN_CORPUS_KIND,
     FORK_JOIN_FACTORIAL_CORPUS_KIND,
     FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
+    NATURAL_REPLICATION_CORPUS_KIND,
     NATURAL_REQUEST_CORPUS_KIND,
     NATURAL_SOURCE_CORPUS_KIND,
     SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
@@ -514,6 +515,21 @@ def test_natural_source_family_reconstructs_from_declared_config() -> None:
         examples_per_schema_domain=2,
     )
     assert len(corpus) == 48
+
+
+def test_natural_replication_family_reconstructs_from_preregistered_config() -> None:
+    config = SemanticFeatureConfig(
+        seed=1732051,
+        examples_per_operation_pair=4,
+        max_examples=96,
+        corpus_kind=NATURAL_REPLICATION_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+    )
+
+    corpus = build_semantic_program_corpus_for_config(config)
+
+    assert len(corpus) == 96
+    assert {item.split for item in corpus} == {"validation", "test"}
 
 
 def test_sequence_feature_bundle_round_trips_nested_exact_values(tmp_path: Path) -> None:

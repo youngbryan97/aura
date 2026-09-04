@@ -6,6 +6,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
     build_semantic_program_fork_join_factorial_corpus,
+    build_semantic_program_natural_replication_corpus,
     build_semantic_program_natural_request_corpus,
     build_semantic_program_natural_source_corpus,
     build_semantic_program_sequence_binary_corpus,
@@ -643,3 +644,39 @@ def test_natural_definition_envelopes_are_runtime_representable() -> None:
             definition = example.register_definition_spans[len(example.inputs) + step]
             assert definition.start == instruction.operation_span.start
             assert definition.end >= instruction.operation_span.end
+
+
+def test_natural_replication_is_fresh_large_and_preregistered_shape() -> None:
+    replication = build_semantic_program_natural_replication_corpus()
+    development = build_semantic_program_natural_request_corpus()
+    source = build_semantic_program_natural_source_corpus()
+
+    assert len(replication) == 96
+    assert {item.split for item in replication} == {"validation", "test"}
+    assert {
+        split: sum(item.split == split for item in replication)
+        for split in ("validation", "test")
+    } == {"validation": 48, "test": 48}
+    assert all(len(item.inputs) == 4 and len(item.instructions) == 3 for item in replication)
+    assert all(
+        tuple(step.instruction.args for step in item.instructions) == ((0, 1), (4, 2), (5, 3))
+        for item in replication
+    )
+    assert all(
+        max(
+            nested
+            for value in item.inputs
+            for nested in (value if isinstance(value, tuple) else (value,))
+        )
+        > 1_000_000
+        for item in replication
+    )
+    replication_domains = {item.source_text.split(":", 1)[0] for item in replication}
+    old_domains = {
+        item.source_text.split(",", 1)[0]
+        for item in (*development, *source)
+    }
+    assert not replication_domains & old_domains
+    assert len({item.construction_id for item in replication}) == 96
+    assert build_semantic_program_natural_replication_corpus() == replication
+    assert build_semantic_program_natural_replication_corpus(seed=1732052) != replication
