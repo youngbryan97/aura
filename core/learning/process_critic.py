@@ -29,8 +29,17 @@ keep it honest:
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
+
+from core.evidence.calibrated_binary import (
+    MIN_CALIBRATION_OBSERVATIONS,
+    MIN_FIT_OBSERVATIONS,
+    CalibratedBinaryScorer,
+    VerifiedBinaryObservation,
+    fit_calibrated_binary_scorer,
+)
 
 PROCESS_CRITIC_SCHEMA = "aura.process_critic.v1"
 
@@ -98,17 +107,22 @@ class ProcessCritic:
     weights: list[float] = field(default_factory=list)
     observations: int = 0
     _fitted: bool = False
+    _scorer: CalibratedBinaryScorer | None = None
+
+    @staticmethod
+    def _feature_names(width: int) -> tuple[str, ...]:
+        return tuple(f"feature_{index:04d}" for index in range(width))
+
+    @classmethod
+    def _values(cls, features: Sequence[float]) -> dict[str, float]:
+        return dict(zip(cls._feature_names(len(features)), features, strict=True))
 
     def predict(self, features: Sequence[float]) -> float:
-        import math
-
-        if not self._fitted or not self.weights:
+        if not self._fitted or self._scorer is None:
             return 0.5  # honest ignorance, not optimism
-        if len(features) != len(self.weights):
+        if len(features) + 1 != len(self.weights):
             raise ValueError("feature width does not match the fitted critic")
-        z = sum(w * f for w, f in zip(self.weights, features, strict=True))
-        z = max(-30.0, min(30.0, z))
-        return 1.0 / (1.0 + math.exp(-z))
+        return self._scorer.predict(self._values(features))
 
     def fit(
         self,
@@ -121,6 +135,7 @@ class ProcessCritic:
         """Fit on graded outcomes and REPORT whether the result is usable."""
         if len(observations) < MIN_OBSERVATIONS:
             self._fitted = False
+            self._scorer = None
             return {
                 "schema": PROCESS_CRITIC_SCHEMA,
                 "fitted": False,
@@ -134,45 +149,77 @@ class ProcessCritic:
         outcomes = {row.verified_correct for row in observations}
         if len(outcomes) < 2:
             self._fitted = False
+            self._scorer = None
             return {
                 "schema": PROCESS_CRITIC_SCHEMA,
                 "fitted": False,
                 "reason": "single_outcome_class",
                 "observations": len(observations),
             }
-
-        import math
-
-        weights = [0.0] * width
-        for _ in range(max(1, int(epochs))):
-            gradients = [0.0] * width
-            for row in observations:
-                z = sum(
-                    w * f for w, f in zip(weights, row.features, strict=True)
-                )
-                z = max(-30.0, min(30.0, z))
-                prediction = 1.0 / (1.0 + math.exp(-z))
-                error = prediction - (1.0 if row.verified_correct else 0.0)
-                for index, feature in enumerate(row.features):
-                    gradients[index] += error * feature
-            count = len(observations)
-            weights = [
-                w - learning_rate * (g / count + l2 * w)
-                for w, g in zip(weights, gradients, strict=True)
-            ]
-        self.weights = weights
-        self.observations = len(observations)
-        self._fitted = True
-        report = self.calibration(observations)
-        report.update(
-            {
+        required = MIN_FIT_OBSERVATIONS + MIN_CALIBRATION_OBSERVATIONS
+        if len(observations) < required:
+            self._fitted = False
+            self._scorer = None
+            return {
                 "schema": PROCESS_CRITIC_SCHEMA,
-                "fitted": True,
+                "fitted": False,
+                "reason": "insufficient_independent_calibration_observations",
                 "observations": len(observations),
-                "feature_width": width,
+                "required": required,
             }
+
+        calibration_count = max(
+            MIN_CALIBRATION_OBSERVATIONS,
+            len(observations) // 3,
         )
-        return report
+        fit_source = observations[:-calibration_count]
+        calibration_source = observations[-calibration_count:]
+
+        def rows(
+            source: Sequence[CriticObservation], *, split: str, offset: int
+        ) -> tuple[VerifiedBinaryObservation, ...]:
+            return tuple(
+                VerifiedBinaryObservation.from_mapping(
+                    self._values(row.features),
+                    verified_correct=row.verified_correct,
+                    source_ref=f"process_critic:{split}:{offset + index}:{row.step}",
+                )
+                for index, row in enumerate(source)
+            )
+
+        scorer, admission = fit_calibrated_binary_scorer(
+            rows(fit_source, split="fit", offset=0),
+            rows(
+                calibration_source,
+                split="calibration",
+                offset=len(fit_source),
+            ),
+            epochs=epochs,
+            learning_rate=learning_rate,
+            l2=l2,
+            max_brier=MAX_TRUSTWORTHY_BRIER,
+        )
+        calibration = admission.get("calibration", {})
+        self._scorer = scorer
+        self.weights = list(scorer.weights) if scorer is not None else []
+        self.observations = len(observations)
+        self._fitted = scorer is not None
+        return {
+            "schema": PROCESS_CRITIC_SCHEMA,
+            "fitted": scorer is not None,
+            "observations": len(observations),
+            "feature_width": width,
+            "fit_observations": len(fit_source),
+            "calibration_observations": len(calibration_source),
+            "brier": calibration.get("brier", 1.0),
+            "baseline_brier": calibration.get("baseline_brier", 1.0),
+            "beats_constant_predictor": calibration.get(
+                "beats_fit_constant_predictor", False
+            ),
+            "trustworthy": scorer is not None,
+            "reliability": calibration.get("reliability", []),
+            "reason": admission.get("reason"),
+        }
 
     def calibration(
         self, observations: Sequence[CriticObservation], *, bins: int = 5
@@ -182,14 +229,14 @@ class ProcessCritic:
         A critic is only worth consulting if it beats the constant
         predictor it would otherwise be replaced by.
         """
-        if not observations:
+        if not observations or self._scorer is None:
             return {"brier": 1.0, "trustworthy": False, "reason": "no_data"}
         predictions = [self.predict(row.features) for row in observations]
         truths = [1.0 if row.verified_correct else 0.0 for row in observations]
         brier = sum(
             (p - t) ** 2 for p, t in zip(predictions, truths, strict=True)
         ) / len(observations)
-        base_rate = sum(truths) / len(truths)
+        base_rate = float(self._scorer.fit_receipt["fit_base_rate"])
         baseline_brier = sum(
             (base_rate - t) ** 2 for t in truths
         ) / len(truths)
@@ -265,7 +312,7 @@ class ProcessCritic:
         # must NOT be strict.
         return [
             round(after - before, 6)
-            for before, after in zip(values, values[1:])
+            for before, after in zip(values, values[1:], strict=False)
         ]
 
 

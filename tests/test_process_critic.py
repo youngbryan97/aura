@@ -104,10 +104,11 @@ def test_unlearnable_data_yields_an_untrustworthy_verdict():
     """A critic with no signal must SAY so rather than emit confident noise."""
     critic = ProcessCritic()
     report = critic.fit(_noise(), epochs=400, learning_rate=0.5)
-    assert report["fitted"] is True
+    assert report["fitted"] is False
     assert report["trustworthy"] is False, (
         "a critic that cannot beat the base rate must not be trusted"
     )
+    assert critic.predict((1.0, 0.5, 0.5, 0.5, 0.5)) == 0.5
 
 
 def test_reliability_bins_expose_where_it_is_miscalibrated():

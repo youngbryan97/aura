@@ -8,6 +8,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final
 
+from core.evidence.calibrated_candidate_selector import (
+    CALIBRATED_CANDIDATE_SELECTOR_SCHEMA,
+    CalibratedCandidateSelector,
+    calibrated_candidate_selector_from_dict,
+)
 from core.evidence.necessary_condition_selector import (
     CandidateSelectionDecision,
     NecessaryConditionSelector,
@@ -128,7 +133,7 @@ class SemanticProgramPathEnsemble:
 
     incumbent: CompositionalSemanticProgramTransducer
     challenger: CompositionalSemanticProgramTransducer
-    selector: NecessaryConditionSelector
+    selector: NecessaryConditionSelector | CalibratedCandidateSelector
     composition_receipt: dict[str, Any]
     schema: str = SEMANTIC_PATH_ENSEMBLE_SCHEMA
 
@@ -155,8 +160,10 @@ class SemanticProgramPathEnsemble:
             != self.selector.receipt_sha256
             or self.composition_receipt.get("expected_answers_available_to_runtime")
             is not False
-            or self.composition_receipt.get("expected_answers_available_to_build")
-            is not False
+            or type(
+                self.composition_receipt.get("expected_answers_available_to_build")
+            )
+            is not bool
             or self.composition_receipt.get("text_available_to_selector") is not False
             or self.composition_receipt.get("domain_identity_available_to_selector")
             is not False
@@ -292,6 +299,65 @@ def build_semantic_program_path_ensemble(
     )
 
 
+def build_calibrated_semantic_program_path_ensemble(
+    incumbent: CompositionalSemanticProgramTransducer,
+    challenger: CompositionalSemanticProgramTransducer,
+    *,
+    selector: CalibratedCandidateSelector,
+    calibration_report: Mapping[str, Any],
+) -> SemanticProgramPathEnsemble:
+    """Compose paths with a source-calibrated selector and no target labels."""
+    calibration_body = {
+        key: value for key, value in calibration_report.items() if key != "report_sha256"
+    }
+    if (
+        set(selector.scorer.feature_names) != set(SEMANTIC_PATH_QUALITY_FEATURES)
+        or calibration_report.get("schema")
+        != "aura.semantic_program_path_calibration.v1"
+        or calibration_report.get("admitted") is not True
+        or calibration_report.get("model_basis_sha256") != incumbent.model_basis_sha256
+        or calibration_report.get("incumbent_receipt_sha256")
+        != incumbent.receipt_sha256
+        or calibration_report.get("challenger_receipt_sha256")
+        != challenger.receipt_sha256
+        or calibration_report.get("selector_receipt_sha256")
+        != selector.receipt_sha256
+        or calibration_report.get("report_sha256") != _sha(calibration_body)
+    ):
+        raise ValueError("calibrated semantic selector feature schema differs")
+    if incumbent.receipt_sha256 == challenger.receipt_sha256:
+        raise ValueError("semantic path ensemble requires distinct paths")
+    receipt_body = {
+        "schema": SEMANTIC_PATH_ENSEMBLE_RECEIPT_SCHEMA,
+        "incumbent_receipt_sha256": incumbent.receipt_sha256,
+        "challenger_receipt_sha256": challenger.receipt_sha256,
+        "selector_receipt_sha256": selector.receipt_sha256,
+        "calibration_report_sha256": calibration_report["report_sha256"],
+        "path_coefficients_changed": False,
+        "expected_answers_available_to_build": True,
+        "expected_answers_available_to_runtime": False,
+        "target_expected_answers_available_to_build": False,
+        "source_verified_outcomes_available_to_selector_build": True,
+        "text_available_to_selector": False,
+        "domain_identity_available_to_selector": False,
+        "selection_contract": (
+            "necessary_condition_repair_then_source_calibrated_quality"
+        ),
+        "selection_policy": "calibrated_candidate_selection",
+        "tie_policy": "retain_incumbent",
+        "serving_authority": False,
+    }
+    return SemanticProgramPathEnsemble(
+        incumbent=incumbent,
+        challenger=challenger,
+        selector=selector,
+        composition_receipt={
+            **receipt_body,
+            "receipt_sha256": _sha(receipt_body),
+        },
+    )
+
+
 def semantic_program_path_ensemble_from_dict(value: Any) -> SemanticProgramPathEnsemble:
     if not isinstance(value, Mapping) or set(value) != {
         "schema",
@@ -301,11 +367,19 @@ def semantic_program_path_ensemble_from_dict(value: Any) -> SemanticProgramPathE
         "composition_receipt",
     }:
         raise ValueError("semantic program path ensemble payload is invalid")
+    selector_payload = value["selector"]
+    if not isinstance(selector_payload, Mapping):
+        raise ValueError("semantic path ensemble selector payload is invalid")
+    selector = (
+        calibrated_candidate_selector_from_dict(selector_payload)
+        if selector_payload.get("schema") == CALIBRATED_CANDIDATE_SELECTOR_SCHEMA
+        else necessary_condition_selector_from_dict(selector_payload)
+    )
     return SemanticProgramPathEnsemble(
         schema=str(value["schema"]),
         incumbent=compositional_semantic_program_transducer_from_dict(value["incumbent"]),
         challenger=compositional_semantic_program_transducer_from_dict(value["challenger"]),
-        selector=necessary_condition_selector_from_dict(value["selector"]),
+        selector=selector,
         composition_receipt=dict(value["composition_receipt"]),
     )
 
@@ -318,6 +392,7 @@ __all__ = [
     "SEMANTIC_PATH_QUALITY_FEATURES",
     "ArbitratedSemanticTransduction",
     "SemanticProgramPathEnsemble",
+    "build_calibrated_semantic_program_path_ensemble",
     "build_semantic_program_path_ensemble",
     "semantic_path_selection_values",
     "semantic_program_path_ensemble_from_dict",
