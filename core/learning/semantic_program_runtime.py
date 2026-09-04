@@ -101,7 +101,8 @@ def execute_compositional_semantic_observation(
         raise SemanticProgramObservationError(
             "compositional semantic public input observation is invalid"
         ) from exc
-    if not 1 <= len(public_inputs.literals) <= model.max_inputs:
+    inference_step_limit = model.inference_step_limit(len(public_inputs.literals))
+    if inference_step_limit is None:
         raise SemanticProgramDecodeRejectedError(
             "compositional semantic public input count is unsupported"
         )
@@ -154,6 +155,13 @@ def execute_compositional_semantic_observation(
         "transducer_receipt_sha256": model.receipt_sha256,
         "public_inputs_receipt_sha256": public_inputs.receipt()["receipt_sha256"],
         "public_input_recovery": "exact_source_parser",
+        "observed_max_inputs": model.max_inputs,
+        "observed_max_steps": model.max_steps,
+        "inference_step_limit": inference_step_limit,
+        "geometry_extrapolated": (
+            len(public_inputs.literals) > model.max_inputs
+            or inference_step_limit > model.max_steps
+        ),
         "semantic_ir_receipt": decoded.ir.receipt(),
         "floor_program_receipt": floor_program.receipt,
         "floor_execution_receipt": execution.receipt,
