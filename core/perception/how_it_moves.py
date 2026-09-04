@@ -629,7 +629,18 @@ class HowItMoves:
             if right:
                 self.right[rule.name] = self.right.get(rule.name, 0) + 1
                 agreed.add(rule.name)
-            if told_apart:
+            # An act that changed nothing is agreed about by every rule that
+            # ALSO said nothing would change, and counting that would let a
+            # rule ride to certainty on the many acts that did nothing.
+            #
+            # A rule that said something WOULD change has been refuted by the
+            # same act, and a refutation is as informative as any move. The
+            # gate threw those away with the rest: pressing a direction into
+            # a wall, over and over, could not overturn a rule that claimed
+            # the board would slide — measured on a carried rule that
+            # survived fourteen straight contradictions of exactly that kind.
+            claimed_a_change = predicted.as_text() != here.as_text()
+            if told_apart or claimed_a_change:
                 self.tried_when_it_moved[rule.name] = (
                     self.tried_when_it_moved.get(rule.name, 0) + 1
                 )

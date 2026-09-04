@@ -90,3 +90,64 @@ def test_a_place_that_moves_on_every_idle_act_is_discounted_once_it_can_be():
         after = _screen(banner_20_10=f"advert {step + 1}", board_50_50="8")
         noticed(state, before, after, worked=False)
     assert state.nothing_answers()
+
+
+# ── and one act doing nothing is not everything doing nothing ─────────────
+
+
+def test_one_act_repeated_into_a_wall_is_not_a_dead_world():
+    """LIVE 2026-09-04: four presses of up, correctly refused because there
+    was nothing above anything, read as the game being over — and a New Game
+    clicked over a game that was very much alive."""
+    state = Responsive()
+    board = _board("2", "4", "8", "16")
+    noticed(state, board, _board("4", "8", "16", "2"), worked=True, acting="left")
+    for _ in range(Responsive.DEAD_AFTER + 2):
+        noticed(state, board, board, worked=False, acting="up")
+    assert state.unanswered > Responsive.DEAD_AFTER
+    assert not state.nothing_answers()
+
+
+def test_every_act_doing_nothing_is_a_dead_world():
+    state = Responsive()
+    board = _board("2", "4", "8", "16")
+    for act in ("up", "down", "left", "right"):
+        noticed(state, board, board, worked=False, acting=act)
+    assert state.nothing_answers()
+
+
+def test_a_caller_that_names_no_act_is_judged_on_the_count_alone():
+    state = Responsive()
+    board = _board("2", "4")
+    for _ in range(Responsive.DEAD_AFTER):
+        noticed(state, board, board, worked=False)
+    assert state.nothing_answers()
+
+
+def test_an_act_that_works_again_clears_the_run():
+    state = Responsive()
+    board = _board("2", "4", "8", "16")
+    for act in ("up", "down", "left", "right"):
+        noticed(state, board, board, worked=False, acting=act)
+    assert state.nothing_answers()
+    noticed(state, board, _board("4", "8", "16", "2"), worked=True, acting="left")
+    assert not state.nothing_answers()
+
+
+def test_starting_again_forgets_which_acts_failed():
+    state = Responsive()
+    board = _board("2", "4")
+    for act in ("up", "down"):
+        noticed(state, board, board, worked=False, acting=act)
+    state.began_again()
+    assert not state.unanswered_by
+
+
+def test_the_pursuit_says_which_act_it_was():
+    import inspect
+
+    from core.skills import screen_pursuit
+
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    at = source.index("worked=attempt.verdict.observed_change,")
+    assert "acting=previous.chosen.name" in source[at : at + 400]

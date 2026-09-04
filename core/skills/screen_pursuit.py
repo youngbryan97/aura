@@ -2667,6 +2667,14 @@ async def pursue_on_screen(
     #: "nothing on screen offered a move" for every one of them — which cost
     #: three wrong diagnoses in a row before this line existed.
     no_move: dict[str, str] = {"because": ""}
+    #: The picture of the surface once it had come to rest, kept for the
+    #: reading that would otherwise be taken of exactly the same thing.
+    #:
+    #: Waiting for a move to land means watching until the screen changes and
+    #: then stops changing, which is two readings at least. The next cycle
+    #: then took a third of the same still surface, and a reading is a
+    #: screenshot and an OCR — about a third of the whole cost of a move.
+    at_rest: dict[str, Any] = {"reading": None}
     #: Whether a restart control has APPEARED — turned up where there was
     #: none — which is a thing saying it has finished.
     #:
@@ -2803,9 +2811,13 @@ async def pursue_on_screen(
                 anchor, expect_page=expect_page, open_page=open_page
             )
         mine = target_app or anchor["app"]
+        # Whether anything had to be moved to get here. A reading taken
+        # before a window was brought forward is a reading of what was in
+        # front instead.
+        undisturbed = True
         if mine:
             try:
-                await _ensure_frontmost(mine)
+                undisturbed = await _ensure_frontmost(mine)
                 # Anchor to the page this run STARTED on when the caller did
                 # not name one.
                 #
@@ -2861,6 +2873,12 @@ async def pursue_on_screen(
                     severity="info",
                     action="continued a pursuit without refocusing the target window",
                 )
+        ready = at_rest["reading"]
+        at_rest["reading"] = None
+        if ready is not None and undisturbed and drawn["where"] is None:
+            # She has just watched this surface come to rest. Photographing
+            # it again asks the same question of the same still picture.
+            return ready
         try:
             return await asyncio.wait_for(
                 read_screen(target_app, over=drawn["where"]), timeout=OBSERVE_TIMEOUT_S
@@ -3747,6 +3765,9 @@ async def pursue_on_screen(
                     # screen answers to her — so the band stopped settling and
                     # nothing downstream of it could form.
                     worked=attempt.verdict.observed_change,
+                    # Which act it was, so a run of one thing doing nothing
+                    # is not read as the world having ended.
+                    acting=previous.chosen.name if previous.chosen is not None else "",
                 )
             if moves:
                 moves[-1]["held"] = attempt.verdict.held
@@ -4710,8 +4731,16 @@ async def pursue_on_screen(
                 # and every part of her that learns from what happened —
                 # which acts do anything, how the thing moves, where it
                 # answers her — was being taught from that.
-                await _settled_after(
+                came_to_rest, _ = await _settled_after(
                     pending["watched"] or {}, target_app or anchor["app"]
+                )
+                # Only a reading it actually took. Where every capture timed
+                # out it hands back the one it was given, and that is the
+                # picture from BEFORE the act — which as the next cycle's
+                # observation would be a move recorded against the board it
+                # was made from.
+                at_rest["reading"] = (
+                    came_to_rest if came_to_rest is not pending["watched"] else None
                 )
                 # How long she could not do anything else for, measured by
                 # doing it rather than guessed at.

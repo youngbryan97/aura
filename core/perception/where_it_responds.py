@@ -77,6 +77,11 @@ class Responsive:
 
     #: Acts since anything last answered her.
     unanswered: int = 0
+    #: Every act she has been seen to take here, and the ones in the run of
+    #: acts that changed nothing. "Nothing I do changes anything" is a claim
+    #: about the things she does, so it needs the things she does.
+    tried: set[str] = field(default_factory=set)
+    unanswered_by: set[str] = field(default_factory=set)
 
     #: The places that answer to her, as of the last time the band was worked
     #: out. Kept because a BOX is not the same as a set of places: furniture
@@ -138,6 +143,7 @@ class Responsive:
         move at all for the rest of the run.
         """
         self.unanswered = 0
+        self.unanswered_by = set()
 
     def settled(self) -> bool:
         return self.effective >= ENOUGH_ACTS and bool(self.answered)
@@ -151,7 +157,21 @@ class Responsive:
         those words that covers the next one. What every ending has in common
         is that nothing she does changes anything any more.
         """
-        return self.unanswered >= self.DEAD_AFTER
+        if self.unanswered < self.DEAD_AFTER:
+            return False
+        if not self.tried:
+            # Nobody said which act was taken, so the count is all there is.
+            return True
+        # Every act she has, and every one of them did nothing.
+        #
+        # Without this, a run of one repeated act reads as the world having
+        # ended. LIVE 2026-09-04 on a live board: four presses of up, the
+        # board correctly refusing all four because there was nothing above
+        # anything, "nothing I do is changing anything here — this attempt is
+        # over", and a New Game clicked over a game that was very much alive.
+        # Four acts that did nothing is a fact about those acts until the
+        # acts are all of them.
+        return self.unanswered_by >= self.tried
 
     def band(self) -> tuple[float, float, float, float] | None:
         """The area that answers to her, as (left, top, right, bottom).
@@ -258,6 +278,7 @@ def noticed(
     after: dict[str, Any],
     *,
     worked: bool = True,
+    acting: str = "",
 ) -> Responsive:
     """Record what changed between one reading and the next, after she acted.
 
@@ -265,6 +286,10 @@ def noticed(
     nothing is the control this needs: everything that still changed across
     it was changing on its own, and a page whose advertising animates as
     often as the task does cannot be separated any other way.
+
+    ``acting`` names the act, so a run of nothing happening can be told apart
+    from a run of ONE THING doing nothing. A caller that does not say leaves
+    the verdict on the count alone, which is what it always was.
     """
     was, now = places_and_text(before), places_and_text(after)
     if not was and not now:
@@ -303,7 +328,15 @@ def noticed(
         if idle_seen < max(1, state.idle):
             answered_now = True
             break
-    state.unanswered = 0 if answered_now else state.unanswered + 1
+    if acting:
+        state.tried.add(acting)
+    if answered_now:
+        state.unanswered = 0
+        state.unanswered_by.clear()
+    else:
+        state.unanswered += 1
+        if acting:
+            state.unanswered_by.add(acting)
     if worked:
         state.effective += 1
     else:
