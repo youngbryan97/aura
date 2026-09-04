@@ -3401,7 +3401,14 @@ async def pursue_on_screen(
                 # And those places, gathered over acts rather than read off
                 # one glance, are what the grid is built from.
                 was = (responds["lattice"].rows, responds["lattice"].columns)
-                if responds["lattice"].built_from(itself, moving.acts):
+                if responds["lattice"].built_from(
+                    itself,
+                    moving.acts,
+                    # A grid worked out from what moves cannot be believed
+                    # until she has moved every way she can.
+                    tried=responds["state"].tried,
+                    available=move_keys,
+                ):
                     now = (responds["lattice"].rows, responds["lattice"].columns)
                     if was != now and knows.rules is not None:
                         # Everything counted while the grid was the wrong
@@ -3775,11 +3782,21 @@ async def pursue_on_screen(
                 )
                 # And when she has just built the biggest thing she has ever
                 # built here, which is the thing somebody watching came for.
-                made = _the_biggest_thing_on_it(
-                    laid_out,
-                    _placed_in(
-                        responds["lattice"], responds["moving"].the_things_that_report()
-                    ),
+                # Only once she knows what the thing itself is. Before the
+                # grid settles the reading is the whole window, and the
+                # largest number in it is somebody's best score: LIVE
+                # 2026-09-04, "I have a 5292 on the board" on a board holding
+                # a 4 and two 2s.
+                made = (
+                    _the_biggest_thing_on_it(
+                        laid_out,
+                        _placed_in(
+                            responds["lattice"],
+                            responds["moving"].the_things_that_report(),
+                        ),
+                    )
+                    if responds["lattice"].held
+                    else 0.0
                 )
                 further = _she_got_further(made, furthest["here"])
                 if further:

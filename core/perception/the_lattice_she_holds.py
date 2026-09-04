@@ -84,6 +84,8 @@ class TheLatticeSheHolds:
     #: The places offered last time, so a set that has stopped changing can be
     #: told from one that is still growing.
     _offered: frozenset[tuple[int, int]] = field(default_factory=frozenset)
+    #: The act this offer first appeared on.
+    _offered_at: int = 0
 
     #: How many readings in a row have to refuse to fit before she accepts the
     #: thing itself has changed. One is a bad glance. Two disagreeing with each
@@ -102,15 +104,39 @@ class TheLatticeSheHolds:
     def columns(self) -> int:
         return len(self.across_at)
 
-    def built_from(self, places: Iterable[tuple[int, int]], acts: int = 0) -> bool:
+    def built_from(
+        self,
+        places: Iterable[tuple[int, int]],
+        acts: int = 0,
+        *,
+        tried: Iterable[str] = (),
+        available: Iterable[str] = (),
+    ) -> bool:
         """Work the lattice out from where things have been seen to happen.
 
         ``places`` are hundredths of the window, the way they are counted
         everywhere else. Given the same places again this does nothing, so it
         can be called every turn without the grid moving underfoot.
+
+        ``tried`` and ``available`` are the acts she has taken here and the
+        acts she has. A grid worked out from what moves cannot be believed
+        until she has moved every way she can: what moves under one act is
+        wherever that act puts things.
+
+        LIVE 2026-09-04: ten acts into a game, all of them up, every tile
+        packed against the top of the board — seven places, all in two rows,
+        and a four by four board became a two by three lattice. Every reading
+        after that was cropped to six cells, no rule could match one, nothing
+        looked ahead, and she pressed the same key three hundred times.
+
+        Nothing is required of a caller that names no acts, which is what
+        every caller did before there was anything to name.
         """
         held = frozenset(places)
         if len(held) < 2 or held == self._built_from:
+            return False
+        everything = frozenset(str(one) for one in available)
+        if everything and not everything <= frozenset(str(one) for one in tried):
             return False
         # And enough of them to be a grid at all. Fewer places than lines
         # means every line rests on one place, which is not a grid — it is a
@@ -167,6 +193,7 @@ class TheLatticeSheHolds:
         # whenever it arrives; only REPLACING the grid has to wait.
         if held != self._offered:
             self._offered = held
+            self._offered_at = acts
             return False
         self.across_at, self.down_at = across, down
         self._built_from, self.from_acts = held, acts

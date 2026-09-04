@@ -66,3 +66,18 @@ def test_the_pursuit_says_it_and_keeps_it():
     assert "_she_got_further(made, furthest[\"here\"])" in source
     assert 'furthest["here"] = made' in source
     assert '"furthest": furthest["here"],' in source
+
+
+def test_nothing_is_claimed_before_she_knows_what_the_thing_is():
+    """Before the grid settles the reading is the whole window.
+
+    LIVE 2026-09-04: "I have a 5292 on the board", on a board holding a 4 and
+    two 2s. The 5292 was the best score printed above it.
+    """
+    import inspect
+
+    from core.skills import screen_pursuit
+
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    at = source.index("_she_got_further(made,")
+    assert 'if responds["lattice"].held' in source[at - 700 : at]
