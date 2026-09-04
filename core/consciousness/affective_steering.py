@@ -1084,6 +1084,24 @@ class SteeringVectorLibrary:
 # ── The Steering Hook ──────────────────────────────────────────────────────────
 
 
+#: Decode steps between residual samples, chosen so the Grassmann encoder's
+#: window can FILL inside a conversation rather than a lifetime of them.
+#:
+#: It was 32, and the encoder needs 24 samples before it can return its first
+#: state, so the first Φ reading needed 768 decode steps from one hook. The
+#: cortex lane's median reply is 24 decode steps, measured over 4,927 recorded
+#: turns, which makes that 32 replies — inside a SINGLE worker lifetime, since
+#: every restart gives the hook a fresh encoder with an empty window. The
+#: channel therefore reported grassmann_states: 0 for its whole existence
+#: while every part of it worked.
+#:
+#: 8 puts the window inside eight replies at that median. The cost is one
+#: 5120-float slice per eight tokens per instrumented layer; the expensive
+#: thing this avoids is sampling during prefill, which is gated separately and
+#: is where the 58-82s first tokens came from.
+_PHI_SAMPLE_EVERY = 8
+
+
 class AffectiveSteeringHook:
     """
     Wraps a transformer block's __call__ to inject affective steering vectors.
@@ -1152,9 +1170,16 @@ class AffectiveSteeringHook:
         self._phi_last_error = ""
         self._grassmann_encoder = None
         try:
-            self._phi_sample_every = max(1, int(os.getenv("AURA_PHI_RESIDUAL_SAMPLE_EVERY", "32")))
+            self._phi_sample_every = max(
+                1,
+                int(
+                    os.getenv(
+                        "AURA_PHI_RESIDUAL_SAMPLE_EVERY", str(_PHI_SAMPLE_EVERY)
+                    )
+                ),
+            )
         except (TypeError, ValueError):
-            self._phi_sample_every = 32
+            self._phi_sample_every = _PHI_SAMPLE_EVERY
         self._last_injection_norm = 0.0
         self._last_effective_alpha = 0.0
         self._last_mask_mode = "none"
@@ -1783,6 +1808,14 @@ class AffectiveSteeringHook:
                 "encoder_errors": self._phi_encode_errors,
                 "last_error": self._phi_last_error,
                 "sample_every": self._phi_sample_every,
+                # How full the encoder's window is. Without this a warming
+                # channel and a broken one both report zero states.
+                "window_filled": len(
+                    getattr(self._grassmann_encoder, "_buf", ()) or ()
+                ),
+                "window_needed": int(
+                    getattr(self._grassmann_encoder, "window", 0) or 0
+                ),
             },
         }
 
