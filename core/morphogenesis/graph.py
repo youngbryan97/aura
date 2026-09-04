@@ -41,8 +41,8 @@ class EdgeType(StrEnum):
     ``DATA`` moves work products. ``CONTROL`` moves requests and cancellations.
     ``REPAIR`` is the path a distress signal takes to something that can act on
     it. ``MEMORY`` reaches a store. ``OBSERVE`` is read-only and is the one
-    edge type exempt from the port contract, because watching something does
-    not require it to emit anything you consume.
+    edge type exempt from the port contract, because watching something needs
+    no agreement from the thing being watched.
     """
 
     DATA = "data"
@@ -64,8 +64,9 @@ class GraphIntegrityError(RuntimeError):
 class MorphEdge:
     """One directed binding.
 
-    ``port`` names the thing that flows: the source declares it in its manifest
-    ``emits`` and the destination in its ``consumes``. ``latency_ms`` and
+    ``port`` names the thing that flows. A node declares which ports it can be
+    the source of and which it can be the target of, the way a docking face
+    declares what it can send and what it will accept. ``latency_ms`` and
     ``capacity`` exist because a physical substrate cannot make a binding free,
     and the simulation refuses to pretend otherwise.
     """
@@ -388,8 +389,9 @@ class MorphGraph:
         """Apply ``body`` to a scratch copy and commit it if it validates.
 
         ``body`` receives a :class:`_Scratch` and mutates it. ``port_contract``
-        maps a node id to its ``(emits, consumes)`` sets; supply it and edges
-        that nobody could carry are refused.
+        maps a node id to ``(out_ports, in_ports)``: what it may send and what
+        it will accept. Supply it and a binding neither end could carry is
+        refused before anything is committed.
 
         Raises :class:`GraphIntegrityError` when the result is invalid, having
         changed nothing.
@@ -458,14 +460,14 @@ class MorphGraph:
         for edge in edges.values():
             if edge.edge_type not in PORT_CHECKED_EDGES:
                 continue
-            emits = port_contract.get(edge.source, (frozenset(), frozenset()))[0]
-            consumes = port_contract.get(edge.target, (frozenset(), frozenset()))[1]
+            out_ports = port_contract.get(edge.source, (frozenset(), frozenset()))[0]
+            in_ports = port_contract.get(edge.target, (frozenset(), frozenset()))[1]
             if not edge.port:
                 raise GraphIntegrityError(f"{edge.edge_type} edge without a port: {edge.key}")
-            if edge.port not in emits:
-                raise GraphIntegrityError(f"{edge.source} does not emit {edge.port!r}")
-            if edge.port not in consumes:
-                raise GraphIntegrityError(f"{edge.target} does not consume {edge.port!r}")
+            if edge.port not in out_ports:
+                raise GraphIntegrityError(f"{edge.source} cannot send {edge.port!r}")
+            if edge.port not in in_ports:
+                raise GraphIntegrityError(f"{edge.target} does not accept {edge.port!r}")
 
     def restore(self, snapshot: GraphSnapshot, *, cause: str = "rollback") -> GraphDiff:
         """Put the graph back to a snapshot, bumping the version.
