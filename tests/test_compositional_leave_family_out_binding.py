@@ -21,11 +21,14 @@ def test_withheld_family_cannot_choose_the_training_session_basis(monkeypatch) -
     target_basis = examples[0].ir.model_basis_receipt_sha256
     observed: dict[str, object] = {}
 
-    monkeypatch.setattr(
-        campaign,
-        "training_examples_from_feature_bundle",
-        lambda bundle: bundle.examples,
-    )
+    observed_required_splits: dict[str, frozenset[str]] = {}
+
+    def convert_bundle(bundle, *, required_splits: frozenset[str]):
+        family = next(name for name, candidate in bundles.items() if candidate is bundle)
+        observed_required_splits[family] = required_splits
+        return bundle.examples
+
+    monkeypatch.setattr(campaign, "training_examples_from_feature_bundle", convert_bundle)
 
     def establish_fit(selected):
         observed["fit_manifest_names"] = set(selected)
@@ -114,6 +117,11 @@ def test_withheld_family_cannot_choose_the_training_session_basis(monkeypatch) -
     )
 
     assert observed["fit_manifest_names"] == {"fit_a", "fit_b"}
+    assert observed_required_splits == {
+        "fit_a": frozenset({"train", "validation", "test"}),
+        "fit_b": frozenset({"train", "validation", "test"}),
+        "held": frozenset({"validation", "test"}),
+    }
     assert observed["fit_constructions"] == {"fit_a", "fit_b"}
     assert observed["anchor_manifest"] is manifests["fit_a"]
     assert observed["replication_manifest"] is manifests["held"]

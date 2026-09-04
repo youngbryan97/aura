@@ -280,7 +280,15 @@ def run_compositional_leave_family_out_campaign(
     if len(bundles) < 3:
         raise ValueError("compositional held-family diagnosis needs at least three families")
     examples_by_family = {
-        family: training_examples_from_feature_bundle(bundle) for family, bundle in bundles.items()
+        family: training_examples_from_feature_bundle(
+            bundle,
+            required_splits=(
+                frozenset({"validation", "test"})
+                if family == held_out_family
+                else frozenset({"train", "validation", "test"})
+            ),
+        )
+        for family, bundle in bundles.items()
     }
     manifests = {family: bundle.manifest for family, bundle in bundles.items()}
     fit_families = sorted(set(bundles) - {held_out_family})
