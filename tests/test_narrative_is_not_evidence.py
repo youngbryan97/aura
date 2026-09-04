@@ -147,3 +147,121 @@ def test_a_stale_rendering_does_not_enter_every_llm_call():
         "the latest introspection is injected with no freshness check, so a "
         "state nobody is in keeps being asserted"
     )
+
+
+# ── introspective calibration ────────────────────────────────────────────
+#
+# Cutting the loops stops a narrative confirming its own state. It says
+# nothing about whether the narrative was any good. An instrument nobody has
+# calibrated is a reading with no error bar.
+
+
+def _pairs(kind: str, n: int = 14, seed: int = 11):
+    import random
+
+    rng = random.Random(seed)
+    words = {
+        "calm": "quiet settled still easy",
+        "tense": "tight urgent pressing sharp",
+        "bright": "lit clear vivid quick",
+        "heavy": "slow dim weighted dull",
+    }
+    out = []
+    for _ in range(n):
+        v = rng.choice([0.1, 0.4, 0.7, 0.95])
+        a = rng.choice([0.1, 0.4, 0.7, 0.95])
+        state = {"valence": v, "arousal": a}
+        key = (
+            "calm" if v < 0.5 and a < 0.5
+            else "tense" if a > 0.5 and v < 0.5
+            else "bright" if a > 0.5
+            else "heavy"
+        )
+        if kind == "faithful":
+            text = words[key]
+        elif kind == "constant":
+            text = "a still pond reflecting nothing in particular"
+        else:
+            text = " ".join(rng.sample("alpha beta gamma delta epsilon zeta".split(), 3))
+        out.append((text, state))
+    return out
+
+
+def test_a_faithful_introspector_beats_its_own_null():
+    from core.consciousness.narrative_provenance import fidelity
+
+    result = fidelity(_pairs("faithful"))
+    assert result.observed > 0.5
+    assert abs(result.null) < 0.2, "the shuffled null found structure that is not there"
+    assert result.informative
+
+
+def test_a_generator_that_writes_the_same_thing_scores_zero():
+    """The metaphor loop this module was written for."""
+    from core.consciousness.narrative_provenance import fidelity
+
+    result = fidelity(_pairs("constant"))
+    assert result.observed == pytest.approx(0.0)
+    assert result.informative is False
+
+
+def test_random_text_is_not_informative():
+    from core.consciousness.narrative_provenance import fidelity
+
+    assert fidelity(_pairs("random")).informative is False
+
+
+def test_calibration_needs_enough_samples_to_have_a_null():
+    from core.consciousness.narrative_provenance import fidelity
+
+    assert fidelity(_pairs("faithful", n=3)).informative is False, (
+        "three points cannot separate a correlation from an arrangement"
+    )
+
+
+def test_the_state_kept_for_calibration_drops_text():
+    """A hash has no distance, so the numbers are kept — and only those."""
+    from core.consciousness.narrative_provenance import RenderingLog
+
+    log = RenderingLog()
+    log.record("some report", {"valence": 0.4, "note": "a string", "flag": True}, "g")
+    assert dict(log.latest().state) == {"valence": 0.4}
+
+
+def test_a_measured_useless_introspector_is_not_presented_as_a_reading():
+    from collections import deque
+
+    from core.consciousness.narrative_provenance import RenderingLog
+    from core.consciousness.phenomenological_experiencer import PhenomenalSelfModel
+
+    def build(kind):
+        model = PhenomenalSelfModel.__new__(PhenomenalSelfModel)
+        model._renderings = RenderingLog(maxlen=32)
+        model._phenomenal_reports = deque(maxlen=20)
+        model._present_description = ""
+        model._witness_observation = ""
+        for text, state in _pairs(kind, n=12):
+            model._renderings.record(text, state, "narrative")
+        return model
+
+    assert "Recent introspection" in build("faithful").get_phenomenal_context_fragment()
+    assert build("constant").get_phenomenal_context_fragment() == "", (
+        "a generator measured not to track anything is still presented as a "
+        "reading of her state"
+    )
+
+
+def test_an_uncalibrated_instrument_is_not_silenced():
+    """Too few samples to calibrate is a different finding from a failure."""
+    from collections import deque
+
+    from core.consciousness.narrative_provenance import RenderingLog
+    from core.consciousness.phenomenological_experiencer import PhenomenalSelfModel
+
+    model = PhenomenalSelfModel.__new__(PhenomenalSelfModel)
+    model._renderings = RenderingLog(maxlen=32)
+    model._phenomenal_reports = deque(maxlen=20)
+    model._present_description = ""
+    model._witness_observation = ""
+    model._renderings.record("something is different today", {"valence": 0.9}, "n")
+    assert "Recent introspection" in model.get_phenomenal_context_fragment()

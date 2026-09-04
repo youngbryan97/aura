@@ -789,6 +789,12 @@ def _witness_state(episode: Mapping[str, Any]) -> dict[str, float]:
     }
 
 
+#: Renderings needed before a failed calibration counts as a finding rather
+#: than as not having looked. Below this the shuffled null has too few
+#: arrangements to be a null.
+_CALIBRATION_MIN_SAMPLES = 8
+
+
 class PhenomenalSelfModel:
     """
     Metzinger's Phenomenal Self-Model — the transparent first-person model
@@ -1241,7 +1247,18 @@ class PhenomenalSelfModel:
         # say about a state that has since changed by an unknown amount.
         latest = self._renderings.latest()
         if latest is not None and latest.age_s <= FRESH_FOR_S:
-            parts.append(f"[Recent introspection: {latest.text[:120]}]")
+            # An introspective report is a measurement, and a measurement from
+            # an instrument that has been checked and found not to track
+            # anything is not evidence. Only a MEASURED failure suppresses it:
+            # too few samples to calibrate is not the same finding, and an
+            # instrument nobody has tested yet is still what she has.
+            calibration = self._renderings.fidelity()
+            measured_useless = (
+                calibration.samples >= _CALIBRATION_MIN_SAMPLES
+                and not calibration.informative
+            )
+            if not measured_useless:
+                parts.append(f"[Recent introspection: {latest.text[:120]}]")
         return " ".join(parts)
 
     def to_dict(self) -> dict[str, Any]:
@@ -1251,6 +1268,8 @@ class PhenomenalSelfModel:
             "witness_observation": self._witness_observation,
             "latest_report": self.get_latest_phenomenal_report(),
             "report_count": len(self._phenomenal_reports),
+            # What her introspection is worth, against its own shuffled null.
+            "introspective_fidelity": self._renderings.fidelity().to_dict(),
             "is_stale": self.is_stale,
             "narrative_failure_streak": self._narrative_failure_streak,
             "witness_failure_streak": self._witness_failure_streak,
