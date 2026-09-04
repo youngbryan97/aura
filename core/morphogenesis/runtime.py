@@ -15,7 +15,7 @@ from core.runtime.task_ownership import create_tracked_task
 
 from .field import MorphogenField
 from .governor import MorphBounds, MorphGovernor
-from .graph import EdgeType, MorphEdge, MorphGraph
+from .graph import MorphGraph
 from .lineage import Lineage
 from .metabolism import MetabolismManager
 from .motifs import MotifLibrary
