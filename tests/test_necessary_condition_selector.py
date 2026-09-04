@@ -119,7 +119,7 @@ def test_selector_rejects_tampering_missing_evidence_and_boolean_scores() -> Non
         )
 
 
-def test_semantic_path_selection_uses_only_executable_ir_availability() -> None:
+def test_semantic_path_selection_preserves_quality_evidence_without_text() -> None:
     refused = SemanticTransductionOutcome(
         None,
         "arbitrary refusal text",
@@ -129,7 +129,25 @@ def test_semantic_path_selection_uses_only_executable_ir_availability() -> None:
 
     values = semantic_path_selection_values(refused)
 
-    assert values == {EXECUTABLE_PROGRAM_CONDITION: 0.0}
+    assert values[EXECUTABLE_PROGRAM_CONDITION] == 0.0
+    assert set(values) == {
+        EXECUTABLE_PROGRAM_CONDITION,
+        "argument_graph_mean",
+        "argument_graph_margin",
+        "argument_graph_runner_up_available",
+        "input_pointer_mean",
+        "input_pointer_min",
+        "operation_pointer_mean",
+        "operation_pointer_min",
+        "operation_confidence_mean",
+        "operation_confidence_min",
+        "input_count",
+        "instruction_count",
+    }
+    assert values["input_pointer_mean"] == 100.0
+    assert values["input_pointer_min"] == 100.0
+    assert values["input_count"] == 0.0
+    assert values["instruction_count"] == 0.0
 
 
 def test_real_semantic_paths_form_a_replayable_label_free_ensemble() -> None:

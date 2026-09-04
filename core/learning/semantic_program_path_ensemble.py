@@ -31,6 +31,20 @@ EXECUTABLE_PROGRAM_CONDITION: Final = "executable_program"
 EXECUTABLE_PROGRAM_NECESSITY_CONTRACT: Final = (
     "semantic_exact_execution_requires_executable_ir"
 )
+SEMANTIC_PATH_QUALITY_FEATURES: Final = (
+    EXECUTABLE_PROGRAM_CONDITION,
+    "argument_graph_mean",
+    "argument_graph_margin",
+    "argument_graph_runner_up_available",
+    "input_pointer_mean",
+    "input_pointer_min",
+    "operation_pointer_mean",
+    "operation_pointer_min",
+    "operation_confidence_mean",
+    "operation_confidence_min",
+    "input_count",
+    "instruction_count",
+)
 
 
 def _sha(value: Any) -> str:
@@ -48,9 +62,56 @@ def _sha(value: Any) -> str:
 def semantic_path_selection_values(
     outcome: SemanticTransductionOutcome,
 ) -> dict[str, float]:
-    """Return evidence that is logically necessary for exact execution."""
+    """Return stable, text-blind evidence for necessary and calibrated selection."""
 
-    return {EXECUTABLE_PROGRAM_CONDITION: float(outcome.ir is not None)}
+    def aggregate(values: Sequence[float]) -> tuple[float, float]:
+        return (
+            (sum(values) / len(values), min(values))
+            if values
+            else (0.0, 0.0)
+        )
+
+    input_mean, input_min = aggregate(
+        tuple(
+            value
+            for name, value in outcome.pointer_scores.items()
+            if name.startswith("input:")
+        )
+    )
+    operation_mean, operation_min = aggregate(
+        tuple(
+            value
+            for name, value in outcome.pointer_scores.items()
+            if name.startswith("operation:")
+        )
+    )
+    confidence_mean, confidence_min = aggregate(
+        tuple(
+            value
+            for name, value in outcome.classification_confidences.items()
+            if name.startswith("operation:")
+        )
+    )
+    ir = outcome.ir
+    values = {
+        EXECUTABLE_PROGRAM_CONDITION: float(ir is not None),
+        "argument_graph_mean": outcome.pointer_scores.get("argument_graph_mean", 0.0),
+        "argument_graph_margin": outcome.classification_confidences.get(
+            "argument_graph_margin", 0.0
+        ),
+        "argument_graph_runner_up_available": outcome.classification_confidences.get(
+            "argument_graph_runner_up_available", 0.0
+        ),
+        "input_pointer_mean": input_mean,
+        "input_pointer_min": input_min,
+        "operation_pointer_mean": operation_mean,
+        "operation_pointer_min": operation_min,
+        "operation_confidence_mean": confidence_mean,
+        "operation_confidence_min": confidence_min,
+        "input_count": float(len(ir.input_spans) if ir is not None else 0),
+        "instruction_count": float(len(ir.instructions) if ir is not None else 0),
+    }
+    return {name: float(values[name]) for name in SEMANTIC_PATH_QUALITY_FEATURES}
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,6 +315,7 @@ __all__ = [
     "EXECUTABLE_PROGRAM_NECESSITY_CONTRACT",
     "SEMANTIC_PATH_ENSEMBLE_RECEIPT_SCHEMA",
     "SEMANTIC_PATH_ENSEMBLE_SCHEMA",
+    "SEMANTIC_PATH_QUALITY_FEATURES",
     "ArbitratedSemanticTransduction",
     "SemanticProgramPathEnsemble",
     "build_semantic_program_path_ensemble",
