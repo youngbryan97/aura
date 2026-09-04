@@ -204,9 +204,9 @@ def _one_authority_path() -> Iterator[Violation]:
         from core.cognition.preference_semantics import (
             PreferenceSet,
             PreferenceType,
+            _make,  # noqa: PLC2701 - probe
             resolve,
         )
-        from core.cognition.preference_semantics import _make  # noqa: PLC2701 - probe
     except (ImportError, AttributeError):
         return
 
@@ -235,10 +235,10 @@ def _one_authority_path() -> Iterator[Violation]:
 
 
 def architecture_report() -> dict[str, Any]:
-    """Run the architecture invariants and summarise. Cheap enough for health."""
+    """Run only observational architecture invariants and summarise for health."""
     from core.verify.invariants import verify
 
-    report = verify("cognition", record=False)
+    report = verify("cognition", record=False, observational_only=True)
     return {
         "checked": report.checked,
         "violations": [

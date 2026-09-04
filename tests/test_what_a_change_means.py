@@ -7,12 +7,14 @@ invariant protects and asserts the invariant notices.
 
 from __future__ import annotations
 
+import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 import pytest
 
 from core.cognition import what_a_change_means as M
-from core.cognition.an_invented_kind import WHERE_FROM
 from core.cognition.what_she_can_take_back import as_it_stands
 
 
@@ -24,6 +26,8 @@ def _leave_the_registries_as_found():
 
 
 def test_all_three_hold_right_now():
+    import core.self_modification.growth_ladder  # noqa: F401 - boot registration
+
     held = M.what_a_change_means()["holds"]
     assert held == {
         "a refusal changes nothing": True,
@@ -82,11 +86,10 @@ def test_the_rollback_check_fires_when_the_undo_does_not_undo():
 
 def test_the_consent_check_fires_when_a_refusal_reads_as_truthy():
     """The original defect: every object is truthy."""
-    from core.self_modification.growth_ladder import ModificationProposal
-
     from core.self_modification.consent_invariant import (
         _a_refused_proposal_does_not_run,
     )
+    from core.self_modification.growth_ladder import ModificationProposal
 
     with patch.object(ModificationProposal, "__bool__", lambda self: True):
         broken = list(_a_refused_proposal_does_not_run())
@@ -103,7 +106,6 @@ def test_every_check_is_registered_with_the_verifier():
     boot does, not a convenience.
     """
     import core.self_modification.growth_ladder  # noqa: F401
-
     from core.verify.invariants import get_registry
 
     names = {one.name for one in get_registry().specs()}
@@ -124,7 +126,6 @@ def test_reading_the_report_does_not_write_into_the_record():
     with the checks that read it is how that gets lost.
     """
     import core.self_modification.growth_ladder  # noqa: F401 - registers the third
-
     from core.cognition.how_a_change_is_promoted import the_receipts
 
     before = len(the_receipts())
@@ -149,6 +150,53 @@ def test_the_scoped_ledger_still_chains():
         assert len(the_receipts()) == 2
         assert the_chain_holds()
     assert len(the_receipts()) == held
+
+
+def test_private_probe_ledgers_are_context_local_and_quiet(caplog):
+    """Concurrent proof probes cannot clear, restore, or narrate one another."""
+    from core.cognition.how_a_change_is_promoted import (
+        a_ledger_of_its_own,
+        promote,
+        the_receipts,
+    )
+
+    global_before = the_receipts()
+    barrier = threading.Barrier(2)
+
+    def run(label: str) -> tuple[str, ...]:
+        with a_ledger_of_its_own():
+            promote(label, became="shadow", started_by="invariant", evidence="probe")
+            barrier.wait(timeout=2.0)
+            return tuple(receipt.at for receipt in the_receipts())
+
+    caplog.set_level(logging.INFO, logger="Aura.HowAChangeIsPromoted")
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        left = pool.submit(run, "private/left")
+        right = pool.submit(run, "private/right")
+        assert left.result(timeout=3.0) == ("private/left",)
+        assert right.result(timeout=3.0) == ("private/right",)
+
+    assert the_receipts() == global_before
+    assert not [
+        record for record in caplog.records if record.name == "Aura.HowAChangeIsPromoted"
+    ]
+
+
+def test_health_reads_last_mutation_proof_without_running_a_new_one(monkeypatch):
+    """Polling health is observation, not a self-modification workload."""
+    from core.cognition import how_a_change_is_promoted as promotion
+    from core.cognition import what_she_can_take_back as rollback
+    from core.cognition.contract_health import contract_health_fragment
+
+    def active_probe_ran(*_args, **_kwargs):
+        raise AssertionError("health executed an active mutation probe")
+
+    monkeypatch.setattr(promotion, "promote", active_probe_ran)
+    monkeypatch.setattr(rollback, "only_if_it_pays", active_probe_ran)
+
+    for _ in range(5):
+        report = contract_health_fragment()
+        assert "mutation_semantics" in report
 
 
 def test_a_sentence_whose_check_is_missing_does_not_read_as_holding():

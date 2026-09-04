@@ -44,6 +44,7 @@ __all__ = ["WHAT_A_CHANGE_MEANS", "what_a_change_means"]
     scope="cognition",
     severity=Severity.ERROR,
     owner="core/cognition/what_she_can_take_back.py",
+    observational=False,
 )
 def _a_refusal_changes_nothing() -> Iterator[Violation]:
     """Reject(m) ⇒ the state afterwards is the state before.
@@ -95,6 +96,7 @@ def _a_refusal_changes_nothing() -> Iterator[Violation]:
     scope="cognition",
     severity=Severity.ERROR,
     owner="core/cognition/how_a_change_is_promoted.py",
+    observational=False,
 )
 def _a_promotion_can_go_back() -> Iterator[Violation]:
     """Promote(m, shadow) ⇒ m is reversible and the record says what it replaced.
@@ -173,14 +175,14 @@ WHAT_A_CHANGE_MEANS: dict[str, str] = {
 }
 
 
-def what_a_change_means() -> dict[str, object]:
+def what_a_change_means(*, execute_checks: bool = True) -> dict[str, object]:
     """The three sentences, and whether each holds right now.
 
     A sentence whose invariant is not registered reads "not registered"
     rather than True. An unregistered check is one nobody runs, and reporting
     that as holding is the failure this whole module exists to stop.
     """
-    from core.verify.invariants import get_registry
+    from core.verify.invariants import get_registry, latest_invariant_result
 
     known = {one.name: one for one in get_registry().specs()}
     held: dict[str, object] = {}
@@ -188,6 +190,17 @@ def what_a_change_means() -> dict[str, object]:
         spec = known.get(name)
         if spec is None:
             held[said] = ["not registered, so nobody runs it"]
+            continue
+        if not execute_checks:
+            latest = latest_invariant_result(name)
+            if latest is None:
+                held[said] = ["not yet verified in this process"]
+                continue
+            broken = [
+                str(one.get("message", "invariant failed"))
+                for one in latest.get("violations", [])
+            ]
+            held[said] = broken or True
             continue
         try:
             broken = [one.message for one in spec.check()]

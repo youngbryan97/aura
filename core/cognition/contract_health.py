@@ -44,14 +44,14 @@ def contract_health_fragment() -> dict[str, Any]:
     """Every contract's own count of what has actually passed through it."""
     from core.cognition.action_receipt import get_receipt_ledger
     from core.cognition.architecture_invariants import architecture_report
-    from core.cognition.what_a_change_means import what_a_change_means
     from core.cognition.automaticity import get_automaticity
-    from core.cognition.concept_handle import get_concept_registry
     from core.cognition.cognitive_event import get_event_graph
+    from core.cognition.concept_handle import get_concept_registry
     from core.cognition.entity_track import get_track_store
     from core.cognition.procedure import get_procedure_registry
     from core.cognition.situation import get_coordinator
     from core.cognition.substate import get_impasse_bus
+    from core.cognition.what_a_change_means import what_a_change_means
     from core.evidence.state_ref import handoff_coverage
     from core.knowledge.atomspace import get_atomspace
 
@@ -68,7 +68,10 @@ def contract_health_fragment() -> dict[str, Any]:
         "procedures": _safe("procedures", lambda: get_procedure_registry().report()),
         "automaticity": _safe("automaticity", lambda: get_automaticity().report()),
         "architecture_invariants": _safe("invariants", architecture_report),
-        "mutation_semantics": _safe("mutation_semantics", what_a_change_means),
+        "mutation_semantics": _safe(
+            "mutation_semantics",
+            lambda: what_a_change_means(execute_checks=False),
+        ),
     }
 
 

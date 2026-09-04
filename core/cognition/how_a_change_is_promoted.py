@@ -60,7 +60,9 @@ import hashlib
 import json
 import logging
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -161,20 +163,32 @@ class AReceipt:
 _RECEIPTS: list[AReceipt] = []
 _STACK: list[tuple[str, Any]] = []
 _ARCHIVE: dict[str, Any] = {}
+_PRIVATE_LEDGER: ContextVar[
+    tuple[list[AReceipt], list[tuple[str, Any]], dict[str, Any]] | None
+] = ContextVar("aura_private_promotion_ledger", default=None)
+
+
+def _ledger_stores() -> tuple[
+    list[AReceipt], list[tuple[str, Any]], dict[str, Any]
+]:
+    private = _PRIVATE_LEDGER.get()
+    return private if private is not None else (_RECEIPTS, _STACK, _ARCHIVE)
 
 
 def the_receipts() -> tuple[AReceipt, ...]:
-    return tuple(_RECEIPTS)
+    receipts, _stack, _archive = _ledger_stores()
+    return tuple(receipts)
 
 
 def forget_the_receipts() -> None:
-    _RECEIPTS.clear()
-    _STACK.clear()
-    _ARCHIVE.clear()
+    receipts, stack, archive = _ledger_stores()
+    receipts.clear()
+    stack.clear()
+    archive.clear()
 
 
 @contextmanager
-def a_ledger_of_its_own(): # type: ignore[no-untyped-def]
+def a_ledger_of_its_own() -> Iterator[None]:
     """Promote and roll back without writing into the record of what she did.
 
     The invariant that checks a promotion can go back has to perform one, and
@@ -185,21 +199,17 @@ def a_ledger_of_its_own(): # type: ignore[no-untyped-def]
     The lines still chain and the digests still hold inside the scope, so what
     the check verifies is the real mechanism and not a stub.
     """
-    held = (list(_RECEIPTS), list(_STACK), dict(_ARCHIVE))
-    _RECEIPTS.clear()
-    _STACK.clear()
-    _ARCHIVE.clear()
+    token = _PRIVATE_LEDGER.set(([], [], {}))
     try:
         yield
     finally:
-        _RECEIPTS[:], _STACK[:] = held[0], held[1]
-        _ARCHIVE.clear()
-        _ARCHIVE.update(held[2])
+        _PRIVATE_LEDGER.reset(token)
 
 
 def the_stack() -> tuple[tuple[str, Any], ...]:
     """What each promotion replaced, newest last. Going back reads this."""
-    return tuple(_STACK)
+    _receipts, stack, _archive = _ledger_stores()
+    return tuple(stack)
 
 
 def archived() -> dict[str, Any]:
@@ -209,7 +219,8 @@ def archived() -> dict[str, Any]:
     is a reason to stop carrying something in the active search and never a
     reason to lose it.
     """
-    return dict(_ARCHIVE)
+    _receipts, _stack, archive = _ledger_stores()
+    return dict(archive)
 
 
 def nothing_installs_to_the_gate() -> list[str]:
@@ -237,12 +248,13 @@ def promote(
     asked_from_outside: str | None = None,
 ) -> AReceipt:
     """Move a change up a state and write the line that says so."""
+    receipts, stack, archive = _ledger_stores()
     if replaced is not None:
-        _STACK.append((at, replaced))
-        if len(_STACK) > 64:
-            del _STACK[:-64]
+        stack.append((at, replaced))
+        if len(stack) > 64:
+            del stack[:-64]
     if became == "retired" and replaced is not None:
-        _ARCHIVE[at] = replaced
+        archive[at] = replaced
     made = AReceipt(
         at=at,
         became=became,
@@ -250,18 +262,20 @@ def promote(
         evidence=evidence,
         asked_from_outside=asked_from_outside,
         replaced="" if replaced is None else str(at),
-        after=_RECEIPTS[-1].digest() if _RECEIPTS else "",
+        after=receipts[-1].digest() if receipts else "",
     )
-    _RECEIPTS.append(made)
-    if len(_RECEIPTS) > 512:
-        del _RECEIPTS[:-512]
-    logger.info("%s", made.describes())
+    receipts.append(made)
+    if len(receipts) > 512:
+        del receipts[:-512]
+    if _PRIVATE_LEDGER.get() is None:
+        logger.info("%s", made.describes())
     return made
 
 
 def what_it_replaced(at: str) -> Any | None:
     """The most recent thing this address held before, or nothing."""
-    for where, was in reversed(_STACK):
+    _receipts, stack, _archive = _ledger_stores()
+    for where, was in reversed(stack):
         if where == at:
             return was
     return None
@@ -277,11 +291,12 @@ def put_it_back(at: str) -> Any | None:
     could. Where the replaced thing knows how to restore itself, this now
     restores it, and the receipt says whether that worked.
     """
-    for index in range(len(_STACK) - 1, -1, -1):
-        where, was = _STACK[index]
+    _receipts, stack, _archive = _ledger_stores()
+    for index in range(len(stack) - 1, -1, -1):
+        where, was = stack[index]
         if where != at:
             continue
-        del _STACK[index]
+        del stack[index]
         went_back = True
         stubborn: Any = ()
         restore = getattr(was, "restore", None)
@@ -311,8 +326,9 @@ def the_chain_holds() -> bool:
     A record that can be edited to say a decision was hers is not evidence of
     anything. This is what makes the trace checkable rather than trusted.
     """
-    for at, one in enumerate(_RECEIPTS):
-        expected = _RECEIPTS[at - 1].digest() if at else ""
+    receipts, _stack, _archive = _ledger_stores()
+    for at, one in enumerate(receipts):
+        expected = receipts[at - 1].digest() if at else ""
         if one.after != expected:
             return False
     return True
