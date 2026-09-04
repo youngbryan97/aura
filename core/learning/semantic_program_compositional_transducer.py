@@ -732,6 +732,7 @@ class _TypedArgumentAssignment:
     arguments: tuple[tuple[int, ...], ...]
     argument_spans: tuple[tuple[TokenSpan, ...], ...]
     score: float
+    runner_up_score: float | None
 
 
 def _operation_nodes(
@@ -1858,6 +1859,7 @@ def _assign_typed_arguments(
         states = sorted(candidates, key=lambda item: (-item[0], item[1]))[:_ARGUMENT_BEAM]
         if not states:
             return None
+    valid: list[_TypedArgumentAssignment] = []
     for score, arguments, spans, dependencies in states:
         order = _operation_order(
             dependencies,
@@ -1887,13 +1889,24 @@ def _assign_typed_arguments(
             )
             for source_index in order
         )
-        return _TypedArgumentAssignment(
-            operation_nodes=tuple(operation_nodes[index] for index in order),
-            arguments=ordered_arguments,
-            argument_spans=tuple(spans[index] for index in order),
-            score=score,
+        valid.append(
+            _TypedArgumentAssignment(
+                operation_nodes=tuple(operation_nodes[index] for index in order),
+                arguments=ordered_arguments,
+                argument_spans=tuple(spans[index] for index in order),
+                score=score,
+                runner_up_score=None,
+            )
         )
-    return None
+        if len(valid) == 2:
+            break
+    if not valid:
+        return None
+    winner = valid[0]
+    return replace(
+        winner,
+        runner_up_score=valid[1].score if len(valid) > 1 else None,
+    )
 
 
 def _operation_order(
@@ -2525,8 +2538,19 @@ class CompositionalSemanticProgramTransducer:
         pointer_scores = {
             **{f"input:{index}": score for index, score in enumerate(input_scores)},
             **{f"operation:{index}": node.pointer_score for index, node in enumerate(selected)},
+            "argument_graph_total": assigned.score,
+            "argument_graph_mean": assigned.score
+            / sum(len(values) for values in assigned.arguments),
         }
         confidences = {f"operation:{index}": node.confidence for index, node in enumerate(selected)}
+        confidences["argument_graph_runner_up_available"] = float(
+            assigned.runner_up_score is not None
+        )
+        confidences["argument_graph_margin"] = (
+            assigned.score - assigned.runner_up_score
+            if assigned.runner_up_score is not None
+            else 0.0
+        )
         return SemanticTransductionOutcome(ir, "", pointer_scores, confidences)
 
 

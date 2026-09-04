@@ -253,7 +253,6 @@ def test_shared_transducer_infers_geometry_and_program_without_a_router() -> Non
     assert model.geometry_contract["max_span_tokens"] >= 1
     assert replay.to_dict() == model.to_dict()
 
-
 def test_compositional_transducer_assembles_typed_atoms_without_a_geometry_head() -> None:
     examples = _examples()
     model = fit_compositional_semantic_program_transducer(
@@ -333,6 +332,20 @@ def test_compositional_transducer_assembles_typed_atoms_without_a_geometry_head(
         for head in proposal_lesion.argument_proposal_heads
     )
     assert replay.to_dict() == model.to_dict()
+
+    decoded = replay.decode(
+        source_token_ids=examples[-1].ir.source_token_ids,
+        hidden_states=examples[-1].hidden_states,
+        public_inputs=examples[-1].public_inputs,
+        source_text_sha256=examples[-1].ir.source_text_sha256,
+        model_basis_sha256=examples[-1].ir.model_basis_receipt_sha256,
+    )
+    assert np.isfinite(decoded.pointer_scores["argument_graph_total"])
+    assert np.isfinite(decoded.pointer_scores["argument_graph_mean"])
+    assert decoded.classification_confidences[
+        "argument_graph_runner_up_available"
+    ] in {0.0, 1.0}
+    assert decoded.classification_confidences["argument_graph_margin"] >= 0.0
 
 
 def test_compositional_transducer_binds_learned_type_limits_to_its_receipt() -> None:
