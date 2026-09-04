@@ -1,0 +1,138 @@
+{
+  "schema": "aura.semantic_program_calibrated_path_replication_preregistration.v1",
+  "source_commit_before_preregistration": "c3105c388388a7ebe5928c21f87d6a61733d2156",
+  "preregistered_before_generator_implementation": true,
+  "preregistered_before_target_generation": true,
+  "claim_boundary": "fresh bounded natural-language semantic-program transfer across an unseen six-input five-step branch-weave topology through a frozen mixed-geometry calibrated path ensemble; no open-domain, frontier-reasoning, or serving authority",
+  "corpus": {
+    "builder": "build_semantic_program_natural_weave_replication_corpus",
+    "seed": 3141592653,
+    "max_examples": 48,
+    "examples_per_schema_domain": 2,
+    "schemas": [
+      "scalar_branch_weave_five",
+      "lookup_branch_weave_five",
+      "count_branch_weave_five"
+    ],
+    "domain_count": 8,
+    "surface_construction_count": 2,
+    "domain_inventory": [
+      "geothermal dispatch",
+      "library conservation",
+      "drone depot",
+      "orchard survey",
+      "ceramics kiln",
+      "marine laboratory",
+      "transit workshop",
+      "concert production"
+    ],
+    "inputs": 6,
+    "steps": 5,
+    "operation_graph": {
+      "topology": "two_independent_branches_then_extend_first_then_merge_then_terminal",
+      "arguments": [
+        [0, 1],
+        [2, 3],
+        [6, 4],
+        [8, 7],
+        [9, 5]
+      ],
+      "dependencies": [
+        [],
+        [],
+        [0],
+        [2, 1],
+        [3]
+      ],
+      "report_value": 10
+    },
+    "language_contract": {
+      "surface_ids": [
+        "worksheet_primary_parallel_extend_consolidate",
+        "record_lead_auxiliary_refine_unify"
+      ],
+      "aliases_by_surface": [
+        ["lead measure", "side measure", "extended measure", "consolidated measure"],
+        ["primary result", "auxiliary result", "refined result", "unified result"]
+      ],
+      "all_domain_nouns_register_aliases_clause_order_and_surface_constructions_disjoint_from_prior_corpora": true
+    },
+    "value_contract": "fresh deterministic integer and integer-sequence values generated only after this preregistration is committed; all five operations execute exactly and every step is causally load-bearing",
+    "evaluation_only": true
+  },
+  "frozen_ensemble": {
+    "path": "/Users/bryan/.aura/rlc-evidence/semantic-path-mixed-calibration-v1/ensemble.json",
+    "file_sha256": "ec88c575268e5bb86beebaaf924ac27b41779cb31699399719b0f5e2e80fd70a",
+    "receipt_sha256": "edc0072a7b8d870e80738355a9e394fddda1f8f8b7af5244337c088cc37281b9",
+    "selector_receipt_sha256": "9d1e27743791ed032acfaf5765d48b39eaf3f1f2108741859eb9368ec7d67ee2",
+    "calibration_report_sha256": "2487fd309d4b17ec50c511cf6fda4867e489b56d1665253f77d2212b746205eb",
+    "calibration_report_file_sha256": "b6b894bbaa80f7ba62ae4daea46233fe56c052dfc809463d9484a6c6955d0384",
+    "model_basis_sha256": "178def8469d79d6265fddad9b1de5a9b034d5772679f608fda4d46f327bbfbe9",
+    "incumbent_receipt_sha256": "e105dcf8db8d56fab1cdfe533a0ccf7a793b16051247b007cf4b985a57feced7",
+    "challenger_receipt_sha256": "a79674be5460d12e985efe406939e181e0b51bec6163bd3c2b4ae41db9c55c59"
+  },
+  "arms": [
+    "calibrated_path_ensemble",
+    "frozen_incumbent",
+    "frozen_challenger",
+    "necessary_condition_selector_lesion",
+    "forced_incumbent_selector_lesion",
+    "source_only_calibration_control",
+    "ordinary_resident_27b_decode"
+  ],
+  "arm_contract": {
+    "same_tasks_and_features": true,
+    "path_decode_compute_matched_for_neural_arms": true,
+    "path_decodes_per_task": 2,
+    "calibrated_selector_inputs": "only executable IR availability, pointer/confidence aggregates, input count, instruction count, and signed path provenance",
+    "labels_available_to_paths_or_selectors": false,
+    "text_or_domain_identity_available_to_selectors": false,
+    "expected_answers_available_to_paths_or_selectors": false,
+    "necessary_condition_selector_lesion": "decode both paths and remove the calibrated scorer and switch margin while retaining the executable-IR necessity contract",
+    "forced_incumbent_selector_lesion": "decode both paths and select the incumbent without changing either path or compute",
+    "source_only_calibration_control": "decode both paths and apply the earlier selector calibrated only on the four-input three-step source geometry",
+    "ordinary_decode_contract": "same resident checkpoint and public request text, one greedy response, one final-integer parse, no verifier feedback and no retries"
+  },
+  "evaluation": {
+    "primary_metric": "exact executed answer",
+    "secondary_metrics": [
+      "exact program",
+      "executable IR availability",
+      "selector switches",
+      "improvements over incumbent",
+      "regressions from incumbent",
+      "per-topology exact answer",
+      "per-arm wall time"
+    ],
+    "statistics": "paired one-sided exact McNemar tests over identical tasks",
+    "mechanism_success_conditions": [
+      "calibrated_path_ensemble has zero regressions from every exact incumbent answer",
+      "calibrated_path_ensemble improves at least 5 incumbent failures",
+      "calibrated_path_ensemble exceeds forced_incumbent_selector_lesion with p < 0.05",
+      "calibrated_path_ensemble exceeds necessary_condition_selector_lesion with p < 0.05",
+      "every treatment improvement selects a correct challenger output without target labels"
+    ],
+    "diagnostic_not_success_conditions": [
+      "comparison with source_only_calibration_control",
+      "standalone challenger accuracy",
+      "per-topology effect size"
+    ],
+    "generalization_success_conditions": [
+      "mechanism success conditions pass",
+      "calibrated_path_ensemble exceeds ordinary resident 27B decode with p < 0.05",
+      "the frozen prior-family control has zero regressions from incumbent"
+    ],
+    "abort_before_ordinary_decode": [
+      "any frozen ensemble file hash or receipt differs",
+      "calibration report or selector binding differs",
+      "corpus overlaps prior source text, construction id, domain inventory, or procedure schema",
+      "feature model basis differs",
+      "public input recovery is not exact on all tasks",
+      "mechanism arm has any incumbent regression",
+      "mechanism arm improves fewer than 5 incumbent failures",
+      "mechanism arm does not beat the necessary-condition lesion at p < 0.05"
+    ]
+  },
+  "ordinary_decode_deferred_until_mechanism_pass": true,
+  "serving_authority": false
+}
