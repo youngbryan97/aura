@@ -154,8 +154,8 @@ class Fun(Faculty):
                 arousal=0.25 * intensity,
                 engagement=0.55 * intensity,
             ),
-            # Play spends more and risks more, which is the whole point of
-            # doing it where errors are cheap.
+            # Play spends more and risks more. Doing it where errors are
+            # cheap is what makes that affordable.
             budget=BudgetDelta(depth=1.0 + 0.5 * intensity, deadline=1.0 + 0.3 * intensity),
             goals=(
                 GoalDelta(

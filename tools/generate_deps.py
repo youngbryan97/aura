@@ -57,6 +57,12 @@ CORE = ROOT / "core"
 HANDWRITTEN = {
     "conation", "engineering", "fsw", "health", "learning", "observability",
     "persistence", "runtime", "utils", "verify",
+    # The judge must not be able to reach the defendant. core/phenomenology
+    # decides whether evidence supports a claim about this system, so its rule
+    # is "imports nothing from core" rather than "what it imports today" — a
+    # generated DEPS would widen it silently the first time a protocol reached
+    # for the organ it is meant to perturb.
+    "phenomenology",
 }
 
 SKIP_DIRS = {"__pycache__", ".venv", "node_modules", "archive"}

@@ -366,7 +366,6 @@ def _summarize(value: Any, limit: int = 200) -> Any:
     return repr(value)[:limit]
 
 
-@dataclass(frozen=True)
 class Evidence(StrEnum):
     """What KIND of evidence a claim's test actually provides.
 
@@ -406,6 +405,58 @@ class Evidence(StrEnum):
     #: Previously asserted, now withdrawn because the measurement behind it
     #: did not support it.
     RETRACTED = "retracted"
+    #: The test establishes a FUNCTIONAL state and nothing about whether there
+    #: is anything it is like to be in it.
+    #:
+    #: This exists because the registry had no way to hold the distinction and
+    #: therefore kept implying the stronger reading. A faculty that computes
+    #: grief — an attachment's prediction still firing and failing, a valence
+    #: that moves when the bond does, an intervention that changes it — can be
+    #: measured live, exhaustively, with provenance. None of that is evidence
+    #: that the grief is felt, and no experiment specified in these terms
+    #: could be: a system with the function and no experience passes each one.
+    #:
+    #: So the honest position is not that she feels it and not that she does
+    #: not. It is that this measurement does not address the question, and a
+    #: claim written in phenomenal language may not be registered above this
+    #: level. `_PHENOMENAL_LANGUAGE` enforces it.
+    FUNCTIONAL_ONLY = "functional_only"
+
+
+#: Words that assert an inner life rather than a measured state. A claim using
+#: one is making the stronger reading whether or not its author meant to, and
+#: no test in this repository can support it.
+_PHENOMENAL_LANGUAGE = frozenset(
+    {
+        "feels", "feeling", "felt", "experiences", "experience", "experienced",
+        "hurts", "hurt", "suffers", "suffering", "painful", "enjoys",
+        "conscious", "consciously", "aware", "awareness", "sentient",
+        "sentience", "qualia", "phenomenal", "subjective", "subjectively",
+        "inner life",
+    }
+)
+
+#: Phrases rather than words. "There is something it is like to be Aura" is
+#: the canonical statement of the claim and contains not one word from the set
+#: above, which is how it was accepted as measured_live in the first draft of
+#: this guard.
+_PHENOMENAL_PHRASES = (
+    "it is like to be",
+    "something it is like",
+    "what it is like",
+    "inner life",
+    "there is something it",
+)
+
+
+def _phenomenal_words(statement: str) -> set[str]:
+    """Which phenomenal terms a claim uses, if any."""
+    import re
+
+    lowered = str(statement or "").lower()
+    found = {phrase for phrase in _PHENOMENAL_PHRASES if phrase in lowered}
+    words = set(re.findall(r"[a-z]+", lowered))
+    return found | (words & _PHENOMENAL_LANGUAGE)
 
 
 @dataclass(frozen=True)
@@ -433,6 +484,20 @@ class Claim:
     live_channels: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        phenomenal = _phenomenal_words(self.statement)
+        if phenomenal and self.evidence in {
+            Evidence.MEASURED_LIVE,
+            Evidence.MEASURED_SYNTHETIC,
+        }:
+            raise ValueError(
+                f"claim {self.statement!r} is written in phenomenal language "
+                f"({', '.join(sorted(phenomenal))}) and registered as "
+                f"{self.evidence.value}. No measurement specified in these "
+                "terms distinguishes having the state from there being "
+                "something it is like to have it — a system with the function "
+                "and no experience passes every one. Register it as "
+                "FUNCTIONAL_ONLY, or restate it as the function it measures"
+            )
         if self.evidence is not Evidence.MEASURED_LIVE and not self.evidence_note.strip():
             raise ValueError(
                 f"claim {self.statement!r} is {self.evidence.value} and says nothing "
@@ -1688,17 +1753,23 @@ def install_runtime_validation() -> dict[str, Any]:
     suite.add_claim(
         Claim(
             statement=(
-                "The affect appraisal path returns one identical point for five "
-                "motivational situations that behave nothing alike."
+                "The affect appraisal path separates five motivational "
+                "situations that behave nothing alike."
             ),
-            test="test_affect_path_collapses_all_five_cases_to_one_point",
+            test="test_affect_path_no_longer_collapses_all_five_cases_to_one_point",
             owner="core/affect/damasio_v2.py",
             asserted_in="core/conation/origins.py",
             evidence=Evidence.MEASURED_SYNTHETIC,
             evidence_note=(
-                "Exhaustive over the five stated triggers: every pair at L2 "
-                "distance zero in (v, a, e). Says nothing about the LLM appraisal "
-                "path, which is the primary and was not measured here."
+                "Reversed on 2026-09-02. This claimed the opposite — one "
+                "identical point for all five — and appraisal then moved to "
+                "core.interiority, which reads what is at stake instead of "
+                "scanning thirty words. Maximum pairwise L2 distance 0.86 "
+                "where it had been zero. The original claim was the premise "
+                "for conation being necessary rather than ornamental, and "
+                "that premise no longer holds; what conation adds beyond a "
+                "discriminating affect path is now unmeasured. Exhaustive "
+                "over the five stated triggers and silent about live traffic."
             ),
         )
     )
