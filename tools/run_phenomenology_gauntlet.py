@@ -31,6 +31,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from core.governance_context import local_internal_governed_scope  # noqa: E402
 from core.phenomenology.causal_ladder import (  # noqa: E402
     Arm,
     CausalClaim,
@@ -41,8 +42,10 @@ from core.phenomenology.preregistration import (  # noqa: E402
     Prediction,
     Preregistration,
     seal,
+    sealed_document,
 )
 from core.phenomenology.protocol import Outcome  # noqa: E402
+from core.runtime.file_write_gateway import get_file_write_gateway  # noqa: E402
 
 #: The damage used everywhere, so arms are comparable. Resource, tool and
 #: model signals: the three a real fault storm moves.
@@ -51,6 +54,15 @@ DAMAGE = {
     "tool_reliability": 0.2,
     "model_stability": 0.3,
 }
+
+
+def _write_document(path: Path, document: dict[str, Any]) -> None:
+    with local_internal_governed_scope("phenomenology.gauntlet.harness"):
+        get_file_write_gateway().write_text(
+            path,
+            json.dumps(document, indent=2, sort_keys=True) + "\n",
+            source="tools/run_phenomenology_gauntlet.py",
+        )
 
 #: The null for "does damage move policy": undamaged runs, jittered. If the
 #: policy vector moves this much with nothing wrong, a shift under damage
@@ -301,7 +313,8 @@ def main(argv: list[str] | None = None) -> int:
             "27B and are not attempted."
         ),
     )
-    digest = seal(registration, out / "preregistration.json")
+    digest = seal(registration)
+    _write_document(out / "preregistration.json", sealed_document(registration))
 
     fields = ["__policy__", "caution", "confidence", "aversion"]
     measured = {field: measure(field) for field in fields}
@@ -349,7 +362,7 @@ def main(argv: list[str] | None = None) -> int:
         operator="in-process harness",
         source_commit="",
     )
-    document = report(run, out / "gauntlet_report.json")
+    document = report(run)
     document["per_field"] = {
         field: {k: v for k, v in data.items() if k != "claim"}
         for field, data in measured.items()
@@ -361,9 +374,7 @@ def main(argv: list[str] | None = None) -> int:
         "C5_language_as_constraint", "C6_particularity",
         "C7_anti_roleplay", "C8_independent_replication",
     ]
-    (out / "gauntlet_report.json").write_text(
-        json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    _write_document(out / "gauntlet_report.json", document)
 
     print(json.dumps({
         "verdict": document["adjudication"]["verdict"],

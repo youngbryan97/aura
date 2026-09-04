@@ -23,9 +23,7 @@ the one worth having.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 from core.phenomenology.battery import BATTERY, by_id
@@ -231,7 +229,7 @@ def score(run: Run) -> tuple[Adjudication, list[Evidence]]:
     return adjudicate(evidence, void_reason=void), evidence
 
 
-def report(run: Run, path: Path | str | None = None) -> dict[str, Any]:
+def report(run: Run) -> dict[str, Any]:
     """The document. Says what was shown, and says what was not."""
     verdict, evidence = score(run)
     document = {
@@ -274,10 +272,4 @@ def report(run: Run, path: Path | str | None = None) -> dict[str, Any]:
         "protocols_declared": len(BATTERY),
         "protocols_attempted": len(run.outcomes),
     }
-    if path is not None:
-        target = Path(path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(
-            json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
     return document

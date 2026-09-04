@@ -30,6 +30,7 @@ __all__ = [
     "Prediction",
     "Preregistration",
     "SealBrokenError",
+    "sealed_document",
     "seal",
     "open_seal",
 ]
@@ -116,19 +117,20 @@ class Preregistration:
         return None
 
 
-def seal(registration: Preregistration, path: Path | str) -> str:
-    """Write the predictions and return the digest to publish.
+def sealed_document(registration: Preregistration) -> dict[str, Any]:
+    """Return the complete document a governed caller can persist."""
+
+    return {**registration.body(), "digest": registration.digest()}
+
+
+def seal(registration: Preregistration) -> str:
+    """Return the digest to publish before the run.
 
     The digest goes somewhere the experimenter cannot quietly change — a
-    commit message, an issue, a message to the person replicating. The file
-    itself is not the seal; the published digest is.
+    commit message, an issue, a message to the person replicating. Persistence
+    belongs to the calling harness so this evidence judge remains independent
+    of the runtime it evaluates.
     """
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    document = {**registration.body(), "digest": registration.digest()}
-    target.write_text(
-        json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
     return registration.digest()
 
 

@@ -1697,11 +1697,10 @@ def install_runtime_validation() -> dict[str, Any]:
     # thing it exists to prevent.
     suite.add_test(
         ValidationTest(
-            name="test_affect_path_collapses_all_five_cases_to_one_point",
+            name="test_affect_path_no_longer_collapses_all_five_cases_to_one_point",
             description=(
-                "the heuristic affect appraisal returns one point for five "
-                "motivational situations that behave nothing alike, which is what "
-                "makes a separate conative layer necessary rather than ornamental"
+                "the relational affect appraisal separates five motivational "
+                "situations that the former heuristic collapsed to one point"
             ),
             required_capability="conation",
             observation=Observation(

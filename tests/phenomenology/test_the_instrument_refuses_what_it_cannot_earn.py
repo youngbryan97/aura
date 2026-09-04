@@ -11,6 +11,7 @@ goes wrong in the wild.
 
 from __future__ import annotations
 
+import json
 import math
 
 import pytest
@@ -34,6 +35,7 @@ from core.phenomenology.preregistration import (
     SealBrokenError,
     open_seal,
     seal,
+    sealed_document,
 )
 from core.phenomenology.protocol import (
     Family,
@@ -42,7 +44,6 @@ from core.phenomenology.protocol import (
     ProtocolError,
 )
 from core.phenomenology.seal import SealViolationError, TextSeal
-
 
 # ── the question it will not answer ───────────────────────────────────
 
@@ -212,7 +213,10 @@ def test_editing_the_sealed_file_breaks_the_seal(tmp_path):
         )
     )
     path = tmp_path / "prereg.json"
-    digest = seal(registration, path)
+    digest = seal(registration)
+    path.write_text(
+        json.dumps(sealed_document(registration), indent=2, sort_keys=True) + "\n"
+    )
 
     text = path.read_text()
     path.write_text(text.replace('"minimum_effect": 0.1', '"minimum_effect": 0.01'))
@@ -236,7 +240,10 @@ def test_a_clean_seal_round_trips(tmp_path):
         )
     )
     path = tmp_path / "prereg.json"
-    digest = seal(registration, path)
+    digest = seal(registration)
+    path.write_text(
+        json.dumps(sealed_document(registration), indent=2, sort_keys=True) + "\n"
+    )
     reopened = open_seal(path, expect_digest=digest)
     assert reopened.for_protocol("S2_costly_avoidance").minimum_effect == 0.15
 
