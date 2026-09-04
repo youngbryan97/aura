@@ -14,9 +14,14 @@ from core.runtime.errors import FallbackClassification, Severity, record_degrada
 from core.runtime.task_ownership import create_tracked_task
 
 from .field import MorphogenField
+from .governor import MorphBounds, MorphGovernor
+from .graph import EdgeType, MorphEdge, MorphGraph
+from .lineage import Lineage
 from .metabolism import MetabolismManager
+from .motifs import MotifLibrary
 from .organs import OrganStabilizer
 from .registry import MorphogenesisRegistry
+from .substrate import LocalRuntimeSubstrate
 from .types import MorphogenesisConfig, MorphogenSignal, SignalKind, stable_digest
 
 logger = logging.getLogger("Aura.Morphogenesis.Runtime")
@@ -74,6 +79,18 @@ class MorphogeneticRuntime:
       - persists registry through atomic writer when available
       - logs longitudinal episodes through EpisodicMemory when available
       - enforces caps on signals, cells, organs and actions per tick
+      - holds the topology as state, and changes it only through the governor
+
+    The topology is the part that was missing. The layer ran in production with
+    a population and no bindings between them: every cell reached every other
+    through one global signal queue, so two different shapes computed the same
+    thing and the shape was decoration. The graph makes reachability real and
+    the governor is the only thing allowed to change it.
+
+    The live governor runs with governance armed and with the in-process
+    substrate, which refuses ``migrate`` outright — a cell cannot leave this
+    process, and reporting a move that did not happen would put the graph and
+    the world out of agreement.
     """
 
     shutdown_timeout_s = 8.0
@@ -95,6 +112,30 @@ class MorphogeneticRuntime:
             min_coactivations=self.config.organ_min_coactivations,
             min_members=self.config.organ_min_members,
             edge_threshold=self.config.organ_edge_threshold,
+        )
+        self.graph = MorphGraph(
+            max_nodes=self.config.max_cells,
+            max_edges=self.config.max_edges,
+        )
+        self.substrate = LocalRuntimeSubstrate(max_cells=self.config.max_cells)
+        self.lineage = Lineage()
+        self.motifs = MotifLibrary()
+        self.governor = MorphGovernor(
+            self.graph,
+            self.substrate,
+            bounds=MorphBounds(
+                max_cells=self.config.max_cells,
+                max_edges=self.config.max_edges,
+            ),
+            lineage=self.lineage,
+            # No shadow evaluator on the live path yet: there is no offline
+            # replica of the running system to measure a candidate shape
+            # against, and an evaluator that cannot measure is a refusal. Until
+            # one exists the live layer proposes bindings and refuses anything
+            # above ROUTINE, which is Phase 2's work.
+            shadow_evaluator=None,
+            require_governance=self.config.require_governance_for_mutation,
+            emit_receipts=True,
         )
         self._signals: deque[MorphogenSignal] = deque(maxlen=max(16, self.config.max_signals_per_tick * 4))
         self._task: asyncio.Task | None = None
@@ -339,6 +380,7 @@ class MorphogeneticRuntime:
                 signals=active_signals,
                 field=self.field,
                 global_energy=self.metabolism.global_energy,
+                config=self.config,
             )
             if result.activated:
                 activated_ids.append(cell.cell_id)
@@ -385,6 +427,16 @@ class MorphogeneticRuntime:
                     except (ImportError, AttributeError, RuntimeError):
                         pass  # no-op: intentional
 
+        if self.config.topology_enabled:
+            self._sync_topology()
+            self._strengthen_coactivation(activated_ids)
+
+        if self._tick % max(1, self.config.prune_every_ticks) == 0:
+            self._prune_population()
+
+        if self._tick % max(1, self.config.telemetry_every_ticks) == 0:
+            self._publish_telemetry()
+
         if self._tick % max(1, self.config.snapshot_every_ticks) == 0:
             await asyncio.to_thread(self.registry.save)
 
@@ -399,6 +451,116 @@ class MorphogeneticRuntime:
             "resources": resource.to_dict(),
             "registry": self.registry.status(),
         }
+
+    def _sync_topology(self) -> None:
+        """Keep the graph's node set equal to the live population.
+
+        Cells are registered and retired by paths outside the governor — boot
+        registration, organ formation, quarantine — so the graph follows them
+        rather than trying to own them. Bindings are the governor's alone.
+        """
+        try:
+            live = {cell.cell_id for cell in self.registry.active_cells()}
+            known = set(self.graph.nodes())
+            if live == known:
+                return
+            for cell_id in live - known:
+                self.substrate.place(cell_id)
+                self.lineage.seed(cell_id, cause="registered")
+                cell = self.registry.get(cell_id)
+                if cell is not None:
+                    self.governor.set_capabilities(cell_id, cell.manifest.capabilities)
+            gone = known - live
+            arrived = live - known
+
+            def sync(scratch: Any) -> None:
+                for cell_id in sorted(arrived):
+                    scratch.add_node(cell_id)
+                for cell_id in sorted(gone):
+                    scratch.remove_node(cell_id)
+
+            self.graph.transaction(sync, cause=f"population_sync@tick{self._tick}")
+            if gone:
+                # Whatever the graph recorded about these cells was decided
+                # under a world that no longer holds.
+                self.governor.invalidate_reversal_history(
+                    cells=sorted(gone), reason="cells left the population"
+                )
+                for cell_id in gone:
+                    self.substrate.retire(cell_id)
+                    self.lineage.record_retirement(cell_id, cause="left the registry")
+        except _MORPHOGENESIS_RECOVERABLE_ERRORS as exc:
+            _record_morphogenesis_runtime_degradation(
+                exc,
+                action="kept the previous topology after a population sync failed",
+                severity="warning",
+                extra={"tick": self._tick},
+            )
+
+    def _strengthen_coactivation(self, activated: list[str]) -> None:
+        """Record which cells fire together, on the cells themselves.
+
+        ``MorphogenCell.strengthen`` and ``weaken`` were written and never
+        called from anywhere, so ``neighbours`` was empty on every cell for the
+        life of the process and every consumer of it read an empty dict.
+        """
+        if len(activated) < 2:
+            return
+        try:
+            for cell_id in activated[:16]:
+                cell = self.registry.get(cell_id)
+                if cell is None:
+                    continue
+                for other in activated[:16]:
+                    if other != cell_id:
+                        cell.strengthen(other, amount=0.04)
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_morphogenesis_runtime_degradation(
+                exc,
+                action="skipped one co-activation update",
+                severity="warning",
+            )
+
+    def _prune_population(self) -> None:
+        try:
+            summary = self.registry.prune()
+            if summary.get("removed"):
+                logger.info("Morphogenesis pruned %s", summary)
+        except _MORPHOGENESIS_RECOVERABLE_ERRORS as exc:
+            _record_morphogenesis_runtime_degradation(
+                exc, action="skipped one population prune", severity="warning",
+            )
+
+    def _publish_telemetry(self) -> None:
+        try:
+            from core.morphogenesis import telemetry
+
+            status = self.governor.status()
+            status["component_sizes"] = ",".join(
+                str(len(component)) for component in self.graph.components()
+            )
+            telemetry.publish(status)
+            telemetry.publish_motifs(self.motifs.status())
+        except (ImportError, AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+            _record_morphogenesis_runtime_degradation(
+                exc, action="skipped one telemetry publish", severity="warning",
+            )
+
+    def propose(self, proposals: Sequence[Any]) -> list[Any]:
+        """Submit topology proposals to the governor. The only way in."""
+        if not self.config.topology_enabled:
+            return []
+        self.governor.set_port_contract(self._port_contract())
+        return self.governor.submit(list(proposals))
+
+    def _port_contract(self) -> dict[str, tuple[frozenset[str], frozenset[str]]]:
+        contract: dict[str, tuple[frozenset[str], frozenset[str]]] = {}
+        for cell in self.registry.active_cells():
+            emits = frozenset(str(v) for v in cell.manifest.emits)
+            consumes = frozenset(str(v) for v in cell.manifest.consumes)
+            capabilities = frozenset(str(v) for v in cell.manifest.capabilities)
+            contract[cell.cell_id] = (emits | capabilities, consumes | capabilities)
+        return contract
 
     async def _run_loop(self) -> None:
         while not self._stopping.is_set():
@@ -801,6 +963,18 @@ class MorphogeneticRuntime:
             "metabolism": self.metabolism.status(),
             "registry": self.registry.status(),
             "organs": self.organ_stabilizer.to_dict().get("known_organs", {}),
+            "topology": {
+                "enabled": self.config.topology_enabled,
+                "version": self.graph.version,
+                "digest": self.graph.snapshot().digest(),
+                "nodes": self.graph.node_count,
+                "edges": self.graph.edge_count,
+                "components": len(self.graph.components()),
+                "substrate": self.substrate.health(),
+            },
+            "governor": self.governor.stats.to_dict(),
+            "lineage": self.lineage.status(),
+            "motifs": self.motifs.status(),
         }
 
 

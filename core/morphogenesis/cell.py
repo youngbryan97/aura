@@ -153,6 +153,7 @@ class MorphogenCell:
         signals: Sequence[MorphogenSignal],
         field: MorphogenField,
         global_energy: float = 1.0,
+        config: Any = None,
     ) -> CellTickResult:
         t0 = time.monotonic()
         self.state.age_ticks += 1
@@ -160,9 +161,10 @@ class MorphogenCell:
         if not self.is_available():
             return CellTickResult(cell_id=self.cell_id, activated=False, success=True)
 
-        # Gentle recovery for healthy idle cells.
+        # Gentle recovery for healthy idle cells, at the declared rate.
         if self.lifecycle in {CellLifecycle.ACTIVE, CellLifecycle.DORMANT}:
-            self.state.health = clamp01(self.state.health + 0.003)
+            recovery = float(getattr(config, "health_recovery_per_tick", 0.003) or 0.003)
+            self.state.health = clamp01(self.state.health + recovery)
             self.state.energy = clamp01(self.state.energy + 0.02)
 
         field_state = field.sample(self.manifest.subsystem)
@@ -186,7 +188,8 @@ class MorphogenCell:
             )
 
         if score < self.manifest.activation_threshold:
-            if self.state.age_ticks - self.state.activation_count > 900 and not self.protected:
+            idle_limit = int(getattr(config, "dormant_after_idle_ticks", 900) or 900)
+            if self.state.age_ticks - self.state.activation_count > idle_limit and not self.protected:
                 self.state.lifecycle = CellLifecycle.DORMANT
             return CellTickResult(cell_id=self.cell_id, activated=False, activation_score=score)
 
@@ -261,7 +264,7 @@ class MorphogenCell:
             finally:
                 self._running_tasks = max(0, self._running_tasks - 1)
 
-        self.apply_feedback(success=success)
+        self.apply_feedback(success=success, config=config)
         latency_ms = (time.monotonic() - t0) * 1000.0
         return CellTickResult(
             cell_id=self.cell_id,
@@ -274,17 +277,27 @@ class MorphogenCell:
             activation_score=score,
         )
 
-    def apply_feedback(self, *, success: bool) -> None:
+    def apply_feedback(self, *, success: bool, config: Any = None) -> None:
+        """Fold one outcome into the cell's health.
+
+        The reward, the penalty and the quarantine window come from the config
+        where one is supplied. They were declared there from the start and read
+        by nobody, so four tuning knobs sat in the persisted state file
+        describing behaviour no code had.
+        """
+        reward = float(getattr(config, "success_health_reward", 0.025) or 0.025)
+        penalty = float(getattr(config, "failure_health_penalty", 0.09) or 0.09)
+        quarantine_s = float(getattr(config, "quarantine_s", 300.0) or 300.0)
         if success:
             self.state.success_count += 1
             self.state.confidence = clamp01(self.state.confidence + 0.025)
-            self.state.health = clamp01(self.state.health + 0.025)
+            self.state.health = clamp01(self.state.health + reward)
         else:
             self.state.failure_count += 1
             self.state.confidence = clamp01(self.state.confidence - 0.06)
-            self.state.health = clamp01(self.state.health - 0.09)
+            self.state.health = clamp01(self.state.health - penalty)
             if self.state.failure_count >= 3 and not self.protected:
-                self.quarantine(reason="repeated_failures")
+                self.quarantine(reason="repeated_failures", seconds=quarantine_s)
 
     def strengthen(self, neighbour_cell_id: str, amount: float = 0.05) -> None:
         self.neighbours[neighbour_cell_id] = clamp01(self.neighbours.get(neighbour_cell_id, 0.0) + amount)

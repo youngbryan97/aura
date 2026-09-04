@@ -11,7 +11,14 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 from .cell import MorphogenCell, CellHandler
 from .field import MorphogenField
 from .organs import Organ, OrganStabilizer
-from .types import CellLifecycle, CellManifest, MorphogenesisConfig, json_safe, stable_digest
+from .types import (
+    CellLifecycle,
+    CellManifest,
+    CellState,
+    MorphogenesisConfig,
+    json_safe,
+    stable_digest,
+)
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Morphogenesis.Registry")
@@ -152,32 +159,154 @@ class MorphogenesisRegistry:
             }
 
     def save(self) -> None:
+        """Persist the registry, refusing to write an empty one over a full one.
+
+        A bare ``MorphogeneticRuntime()`` constructed anywhere — a probe, a
+        health check, a shutdown path that ran before registration — has zero
+        cells, and its ``stop()`` used to overwrite the real population with
+        ``{}``. That is how the live file came to hold ``cells: {}`` while
+        twelve were registered at every boot.
+
+        An empty registry is only written where the file is already empty or
+        absent, so a genuine first run still persists.
+        """
+        with self._lock:
+            empty = not self.cells and not self.organs
+        if empty and self._stored_is_populated():
+            logger.warning(
+                "Refusing to persist an empty morphogenesis registry over %s, which holds cells.",
+                self.state_path,
+            )
+            return
         payload = self.snapshot()
         _atomic_write_json(self.state_path, payload, schema_name="morphogenesis_registry")
         _emit_state_receipt(self.state_path, cause="morphogenesis.registry.persist")
 
-    def load(self) -> bool:
+    def _stored_is_populated(self) -> bool:
         if not self.state_path.exists():
             return False
         try:
             import json
+
             data = json.loads(self.state_path.read_text(encoding="utf-8"))
-            # AtomicWriter stores an envelope. Fallback stores same envelope shape.
-            payload = data.get("payload", data)
-            with self._lock:
-                self.cells = {
-                    cid: MorphogenCell.from_dict(cell_data)
-                    for cid, cell_data in dict(payload.get("cells", {})).items()
-                }
-                self.organs = {
-                    oid: Organ.from_dict(organ_data)
-                    for oid, organ_data in dict(payload.get("organs", {})).items()
-                }
-            return True
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('registry', exc)
+            payload = data.get("payload", data) if isinstance(data, dict) else {}
+            return bool(payload.get("cells")) or bool(payload.get("organs"))
+        except (OSError, UnicodeDecodeError, ValueError, TypeError, AttributeError):
+            # Unreadable is not populated; a first write should be allowed to
+            # replace a file nothing can parse.
+            return False
+
+    def prune(self) -> dict[str, int]:
+        """Housekeeping the loop owes the population.
+
+        ``prune_dead`` existed and had no callers, so apoptotic cells stayed in
+        the registry for the life of the process, counted in every status
+        report and iterated on every tick. The dormancy and death windows in
+        the config were read by nobody at all.
+        """
+        now = time.time()
+        with self._lock:
+            became_dormant = 0
+            died = 0
+            for cell in list(self.cells.values()):
+                lifecycle = cell.lifecycle
+                if lifecycle == CellLifecycle.APOPTOTIC:
+                    idle = cell.state.age_ticks - cell.state.activation_count
+                    if idle >= self.config.dead_after_apoptotic_ticks:
+                        cell.state.lifecycle = CellLifecycle.DEAD
+                        died += 1
+                    continue
+                if cell.protected or lifecycle != CellLifecycle.ACTIVE:
+                    continue
+                last = float(cell.state.last_activation_at or 0.0)
+                if last and (now - last) > self.config.dormant_after_idle_ticks:
+                    cell.state.lifecycle = CellLifecycle.DORMANT
+                    became_dormant += 1
+        removed = self.prune_dead()
+        return {"dormant": became_dormant, "died": died, "removed": removed}
+
+    def load(self) -> bool:
+        """Merge persisted state over what is already registered.
+
+        Two things here were wrong in production and between them the live
+        registry held zero cells while the loop ticked once a second for
+        months.
+
+        It replaced ``self.cells`` outright. Cells are registered by
+        ``register_morphogenesis_services`` *before* ``start()`` calls this, so
+        an empty or stale file wiped the whole registered population.
+
+        And it dropped every handler. ``MorphogenCell.from_dict`` builds a cell
+        with ``handler=None``, so from the second boot onward no cell could do
+        anything — ``reattach_handler`` existed and had no callers. State now
+        merges onto the registered cell instead of replacing it, which keeps
+        the handler that was registered with it.
+
+        The exception list was wrong too: ``json.loads`` raises
+        ``JSONDecodeError`` and ``read_text`` raises ``OSError``, neither of
+        which was caught, so a corrupt state file raised out of a method whose
+        contract is to return False.
+        """
+        if not self.state_path.exists():
+            return False
+        try:
+            import json
+
+            data = json.loads(self.state_path.read_text(encoding="utf-8"))
+            payload = data.get("payload", data) if isinstance(data, dict) else {}
+            stored_cells = dict(payload.get("cells", {}))
+            stored_organs = dict(payload.get("organs", {}))
+        except (OSError, UnicodeDecodeError, ValueError, TypeError, AttributeError) as exc:
+            record_degradation(
+                "registry", exc, severity="degraded",
+                action="kept the registered population after an unreadable morphogenesis state file",
+            )
             logger.warning("Morphogenesis registry load failed: %s", exc)
             return False
+
+        restored = 0
+        with self._lock:
+            for cell_id, cell_data in stored_cells.items():
+                existing = self.cells.get(cell_id)
+                if existing is not None:
+                    # Keep the live object and its handler; take back only the
+                    # state it earned last run.
+                    try:
+                        existing.state = CellState.from_dict(dict(cell_data.get("state", {})))
+                        existing.neighbours = {
+                            str(k): float(v)
+                            for k, v in dict(cell_data.get("neighbours", {})).items()
+                        }
+                        restored += 1
+                    except (TypeError, ValueError) as exc:
+                        record_degradation(
+                            "registry", exc, severity="warning",
+                            action=f"kept live defaults for cell {cell_id} after unreadable stored state",
+                        )
+                    continue
+                if len(self.cells) >= self.config.max_cells:
+                    continue
+                try:
+                    self.cells[cell_id] = MorphogenCell.from_dict(cell_data)
+                    restored += 1
+                except (TypeError, ValueError) as exc:
+                    record_degradation(
+                        "registry", exc, severity="warning",
+                        action=f"skipped unreadable stored cell {cell_id}",
+                    )
+            for organ_id, organ_data in stored_organs.items():
+                try:
+                    self.organs.setdefault(organ_id, Organ.from_dict(organ_data))
+                except (TypeError, ValueError) as exc:
+                    record_degradation(
+                        "registry", exc, severity="warning",
+                        action=f"skipped unreadable stored organ {organ_id}",
+                    )
+        logger.info(
+            "Morphogenesis registry loaded: %d cell record(s) restored, %d cell(s) live.",
+            restored, len(self.cells),
+        )
+        return True
 
     def status(self) -> Dict[str, Any]:
         with self._lock:
