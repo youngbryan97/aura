@@ -662,6 +662,25 @@ class HowItMoves:
         # moved them. Where nothing has ever moved, there is nothing to be
         # right about and the absence of movement is itself the finding.
         anything_moves = self.moved >= ENOUGH_TO_TRUST
+        if 0 < self.moved < ENOUGH_TO_TRUST:
+            # It moves, and not yet often enough to tell one rule from
+            # another.
+            #
+            # An act that changed nothing is agreed about by every rule there
+            # is, so the raw counts in between elect whichever rule claims
+            # least — and on a board where two of four directions do nothing
+            # from the opening position, "this does not move" wins three of
+            # the first four comparisons and is adopted.
+            #
+            # A rule that says nothing ever changes takes her search off the
+            # board: every move looks identical, looking ahead returns
+            # nothing, and she plays blind for the rest of the run. LIVE
+            # 2026-09-04: "I can see what my moves do here now — this does not
+            # move — right 75% of 4", on the fifth move of a game.
+            #
+            # Nothing is a fine answer here. She acts and looks instead, which
+            # is what fills these counts.
+            return None
         best: tuple[float, Rule] | None = None
         for rule in RULES:
             tried = (

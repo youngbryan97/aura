@@ -267,6 +267,19 @@ def _bundle_declares_scripting(app_path: str) -> bool:
 
 
 def _run_sdef(app_path: str) -> str:
+    """The application's own dictionary, however it can be got at.
+
+    ``sdef`` is one way to read it and not the only one. On a machine with
+    the command line tools and no Xcode it refuses — "tool 'sdef' requires
+    Xcode" — writes nothing to its output, and every application on the
+    machine came back as publishing no dictionary at all. So she could never
+    write into an app through the interface it publishes, and a request to
+    write a note in Notes fell through to typing at whatever had the keyboard
+    or to leaving a text file on disk.
+
+    The dictionary is a file inside the bundle either way. The application's
+    own Info.plist names it, and reading it needs nothing installed.
+    """
     sdef = shutil.which("sdef") or "/usr/bin/sdef"
     try:
         result = get_subprocess_gateway().run(
@@ -279,11 +292,49 @@ def _run_sdef(app_path: str) -> str:
             accelerator_capability="none",
         )
     except subprocess.TimeoutExpired:
-        return ""
+        return _sdef_in_the_bundle(app_path)
     except OSError as exc:
         logger.debug("sdef unavailable for %s: %s", app_path, exc)
+        return _sdef_in_the_bundle(app_path)
+    return (result.stdout or "").strip() or _sdef_in_the_bundle(app_path)
+
+
+def _sdef_in_the_bundle(app_path: str) -> str:
+    """The dictionary file the application ships, read straight off the disk."""
+    bundle = Path(str(app_path or ""))
+    if not bundle.name:
         return ""
-    return result.stdout or ""
+    resources = bundle / "Contents" / "Resources"
+    named = _sdef_named_in_the_plist(bundle)
+    wanted = [resources / named] if named else []
+    try:
+        wanted.extend(sorted(resources.glob("*.sdef")))
+    except OSError as exc:
+        logger.debug("could not list %s: %s", resources, exc)
+    for one in wanted:
+        try:
+            said = one.read_text(encoding="utf-8", errors="replace")
+        except (OSError, UnicodeError) as exc:
+            logger.debug("could not read %s: %s", one, exc)
+            continue
+        if said.strip():
+            return said
+    return ""
+
+
+def _sdef_named_in_the_plist(bundle: Path) -> str:
+    """What the application calls its own dictionary, from its Info.plist."""
+    plist = bundle / "Contents" / "Info.plist"
+    try:
+        with plist.open("rb") as reading:
+            said = plistlib.load(reading)
+    except (OSError, ValueError, plistlib.InvalidFileException) as exc:
+        logger.debug("could not read %s: %s", plist, exc)
+        return ""
+    named = str((said or {}).get("OSAScriptingDefinition") or "").strip()
+    if named and not named.lower().endswith(".sdef"):
+        named = f"{named}.sdef"
+    return named
 
 
 def _text_properties_of(element: ElementTree.Element) -> tuple[str, ...]:

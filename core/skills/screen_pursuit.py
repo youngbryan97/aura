@@ -3887,6 +3887,7 @@ async def pursue_on_screen(
                         ),
                     )
                     if responds["lattice"].held
+                    and responds["moving"].settled()
                     and not responds["state"].nothing_answers()
                     else 0.0
                 )
