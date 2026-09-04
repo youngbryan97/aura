@@ -51,7 +51,7 @@ def test_the_pursuit_narrows_to_the_set_and_lets_the_model_choose():
     source = inspect.getsource(screen_pursuit.pursue_on_screen)
     assert "reaches.the_ones_to_consider(foreseeable)" in source
     at = source.index("reaches.the_ones_to_consider(foreseeable)")
-    assert "one.name in wants" in source[at : at + 800]
+    assert "one.name in wants" in source[at : at + 1400]
 
 
 def test_a_habit_that_covers_everything_narrows_nothing():
@@ -62,4 +62,23 @@ def test_a_habit_that_covers_everything_narrows_nothing():
 
     source = inspect.getsource(screen_pursuit.pursue_on_screen)
     at = source.index("reaches.the_ones_to_consider(foreseeable)")
-    assert "len(wants) < len(foreseeable)" in source[at : at + 200]
+    assert "len(wants) < len(foreseeable)" in source[at : at + 900]
+
+
+def test_a_leaning_of_one_act_is_not_applied_as_a_filter():
+    """A choice of one is not a choice, and her search is worth more.
+
+    Offline, looking ahead reaches a median of 512 where taking any legal move
+    reaches 128. A habit that narrows the options to a single act takes that
+    search off the board: the deliberation arrives with one option in it and
+    reports "the only thing available".
+    """
+    import inspect
+
+    from core.skills import screen_pursuit
+
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    at = source.index("reaches.the_ones_to_consider(foreseeable)")
+    nearby = source[at : at + 900]
+    assert "if len(wants) < 2:" in nearby
+    assert "wants = ()" in nearby

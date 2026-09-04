@@ -4099,6 +4099,17 @@ async def pursue_on_screen(
                 # considers, and which the position calls for is the question
                 # the model answers.
                 wants = reaches.the_ones_to_consider(foreseeable)
+                # And it has to leave her something to consider.
+                #
+                # A leaning of one act, applied as a filter, is not a
+                # preference — it is the whole policy, and it takes her
+                # looking ahead off the board altogether: the deliberation
+                # arrives with one option and reports "the only thing
+                # available". Her search is worth far more than any leaning
+                # (offline, median 512 against 128 for taking any legal move),
+                # so a habit must never be able to replace it.
+                if len(wants) < 2:
+                    wants = ()
                 if wants and len(wants) < len(foreseeable):
                     # Everything she cannot foresee stays on the table: the way
                     # out and the ways of asking are never narrowed by a habit.
