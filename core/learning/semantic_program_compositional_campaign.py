@@ -188,16 +188,24 @@ def _family_report(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample],
 ) -> dict[str, Any]:
+    available_splits = tuple(
+        split
+        for split in ("train", "validation", "test")
+        if any(item.split == split for item in examples)
+    )
+    if not {"validation", "test"} <= set(available_splits):
+        raise ValueError("compositional family report needs validation and test examples")
     arms = {
         split: evaluate_shared_semantic_program_transducer(
             model,
             examples,
             split=split,
         ).to_dict()
-        for split in ("train", "validation", "test")
+        for split in available_splits
     }
     return {
         "example_count": len(examples),
+        "evaluated_splits": list(available_splits),
         "splits": arms,
         "held_out_program_exact": sum(
             arms[split]["program_exact"] for split in ("validation", "test")

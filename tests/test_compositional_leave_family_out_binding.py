@@ -3,8 +3,41 @@ from __future__ import annotations
 from dataclasses import replace
 from types import SimpleNamespace
 
+import pytest
+
 import core.learning.semantic_program_compositional_campaign as campaign
 from tests.test_semantic_program_shared_transducer import _examples, _grounding
+
+
+def test_held_out_family_report_does_not_invent_a_training_split(monkeypatch) -> None:
+    examples = (
+        SimpleNamespace(split="validation"),
+        SimpleNamespace(split="test"),
+    )
+
+    def evaluate(_model, _examples, *, split):
+        row = {
+            "total": 1,
+            "program_exact": int(split == "validation"),
+            "argument_exact": int(split == "validation"),
+            "answer_exact": int(split == "test"),
+        }
+        return SimpleNamespace(to_dict=lambda: row)
+
+    monkeypatch.setattr(campaign, "evaluate_shared_semantic_program_transducer", evaluate)
+
+    report = campaign._family_report(SimpleNamespace(), examples)
+
+    assert report["evaluated_splits"] == ["validation", "test"]
+    assert set(report["splits"]) == {"validation", "test"}
+    assert report["held_out_program_exact"] == 1
+    assert report["held_out_answer_exact"] == 1
+    assert report["held_out_total"] == 2
+
+
+def test_family_report_requires_both_held_out_splits() -> None:
+    with pytest.raises(ValueError, match="validation and test"):
+        campaign._family_report(SimpleNamespace(), (SimpleNamespace(split="test"),))
 
 
 def test_withheld_family_cannot_choose_the_training_session_basis(monkeypatch) -> None:
