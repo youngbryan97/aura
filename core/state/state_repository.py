@@ -1287,13 +1287,34 @@ class StateRepository:
                             _record_state_degradation(exc)
                             logger.warning("⚠️ [STATE] SHM propagation failed: %s", exc)
             else:
-                await self._commit_to_db(new_state, serialized_data)
-                if self._shm:
-                    try:
-                        await self._sync_to_shm(new_state, serialized_data)
-                    except _STATE_BOUNDARY_ERRORS as exc:
-                        _record_state_degradation(exc)
-                        logger.warning("⚠️ [STATE] SHM propagation failed: %s", exc)
+                # The same commit, so the same scope.
+                #
+                # The database write went through and its mirror into shared
+                # memory did not, because only the mirror is a declared
+                # effect sink. Every reader of the shared state then held a
+                # version older than the one on disk, and the only sign was
+                # "SHM Update Failed: sink:state.sync_to_shm called outside
+                # governed context" — eighteen of them in the live log.
+                #
+                # A commit with no decision behind it is her own state
+                # keeping up with itself, which is maintenance. What must not
+                # differ is what the two lanes are allowed to do.
+                from core.governance_context import (  # noqa: PLC0415
+                    local_internal_governed_scope,
+                )
+
+                with local_internal_governed_scope(
+                    "state_repository.commit", domain="state_mutation"
+                ):
+                    await self._commit_to_db(new_state, serialized_data)
+                    if self._shm:
+                        try:
+                            await self._sync_to_shm(new_state, serialized_data)
+                        except _STATE_BOUNDARY_ERRORS as exc:
+                            _record_state_degradation(exc)
+                            logger.warning(
+                                "⚠️ [STATE] SHM propagation failed: %s", exc
+                            )
         except _STATE_BOUNDARY_ERRORS as exc:
             self._record_commit_failure(f"persistence_failed:{type(exc).__name__}: {exc}")
             _record_state_degradation(exc)

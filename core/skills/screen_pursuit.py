@@ -865,29 +865,50 @@ def restart_controls(observation: dict[str, Any]) -> frozenset[str]:
     return frozenset(found)
 
 
-def a_run_she_can_carry(follow_on: Sequence[str], can_foresee: bool, moved: int) -> list[str]:
-    """The moves after this one that are still moves about THIS situation.
+def a_run_she_can_carry(
+    named: Sequence[str],
+    from_here: Any,
+    foresee: Any,
+    pick: Any,
+    choices: Sequence[str],
+    moved: int,
+) -> list[str]:
+    """The moves after this one that are still moves about the situation then.
 
-    A ranking is a judgement about alternatives at one moment. Carrying it
-    forward as a sequence is honest exactly while the first act leaves the
-    situation the ranking was made in: on a page where a key may simply do
-    nothing, the second-best thing to try is the next thing to try. On a
-    board, the second-best move is a move for a board that no longer exists.
+    A ranking is a judgement about alternatives at one moment. Sent as a
+    sequence it is four answers to the same question, executed in order: on a
+    page where a key may simply do nothing, the second-best thing to try is
+    the next thing to try, and on a board the second-best move is a move for
+    a board that no longer exists.
 
-    So a run outlives its own first act in one of two ways — she can say what
-    the situation becomes, or acting here has never been seen to change
-    anything. ``moved`` is how many of her acts have changed the thing.
+    So a named run keeps going while each step is still what she would choose
+    from the board the step before it leaves. That is the same judgement
+    carried forward, which is what committing without words claims to be, and
+    it is checkable. Where she cannot say what the board becomes, a run
+    outlives its own first act only where acting here has never changed
+    anything — ``moved`` is how many of her acts have.
 
     LIVE 2026-09-04: a ranking of four arrow keys went out as a four-move
     plan every cycle, down then up then left then right, on a board where
     each of them changed everything. Sixty moves a game, no rule ever formed,
-    and every game ended in about ninety seconds.
+    and every pair the learner was handed named an act that did not produce
+    it.
     """
-    if not follow_on:
+    if not named:
         return []
-    if can_foresee or moved <= 0:
-        return list(follow_on)
-    return []
+    if foresee is None or from_here is None or pick is None:
+        return list(named) if moved <= 0 else []
+    kept: list[str] = []
+    where = from_here
+    for step in named:
+        if pick(where, list(choices)) != step:
+            break
+        went = foresee(where, step)
+        if went is None or went == where:
+            break
+        kept.append(step)
+        where = went
+    return kept
 
 
 def a_way_back_that_was_not_there(
@@ -4493,32 +4514,40 @@ async def pursue_on_screen(
         # entirely, and the loop should read the same in all three cases.
 
         made = pending["deliberation"]
-        follow_on = [option.name for option in getattr(made, "then", ()) or ()] if made else []
+        named = [option.name for option in getattr(made, "then", ()) or ()] if made else []
         # And where she named no sequence, one taken on the model instead.
         expected["after"], expected["took"] = None, 0
         foresee = _expects(knows)
+        choices = [option.name for option in available]
+
+        def pick(board: Any, names: Sequence[str]) -> str:
+            ahead_now = look_ahead(
+                knows.rules, board, list(names),
+                toward=aiming_at, approach=held_line,
+                budget_s=0.05, world=world,
+            )
+            return max(ahead_now, key=lambda one: ahead_now[one][0]) if ahead_now else ""
+
         # A sequence she cannot carry from one step to the next is a list of
         # alternatives, not a plan.
         follow_on = a_run_she_can_carry(
-            follow_on, foresee is not None, int(getattr(knows.rules, "moved", 0) or 0)
+            named,
+            foresee(pending["arranged"], key)
+            if (foresee is not None and pending["arranged"] is not None)
+            else None,
+            foresee,
+            pick,
+            choices,
+            int(getattr(knows.rules, "moved", 0) or 0),
         )
         if not follow_on and foresee is not None and pending["arranged"] is not None:
             going = far.how_many(trusted=float(knows.rules.confidence()))
             if going > 1:
-
-                def pick(board: Any, names: Sequence[str]) -> str:
-                    ahead_now = look_ahead(
-                        knows.rules, board, list(names),
-                        toward=aiming_at, approach=held_line,
-                        budget_s=0.05, world=world,
-                    )
-                    return max(ahead_now, key=lambda one: ahead_now[one][0]) if ahead_now else ""
-
                 follow_on, _ = _the_rest_of_the_run(
                     key,
                     pending["arranged"],
                     foresee,
-                    [option.name for option in available],
+                    choices,
                     pick,
                     going,
                 )

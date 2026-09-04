@@ -170,17 +170,27 @@ class SelfModel:
 
     async def _persist_with_decision(self, decision: Any = None) -> None:
         """Persist within the caller's governance context when one exists."""
-        if decision is None:
-            await self.persist()
-            return
-
-        from core.governance_context import get_active_governance, governed_scope
+        from core.governance_context import (
+            get_active_governance,
+            governed_scope,
+            local_internal_governed_scope,
+        )
 
         if get_active_governance() is not None:
             await self.persist()
             return
-
-        async with governed_scope(decision):
+        if decision is not None:
+            async with governed_scope(decision):
+                await self.persist()
+            return
+        # Her own model of herself, written to her own file, with nobody's
+        # decision behind it because nobody asked — a retention trim, a save
+        # at boot. Writing it is a declared effect sink, so with no scope at
+        # all it was refused and the version on disk fell quietly behind the
+        # one in memory.
+        with local_internal_governed_scope(
+            "belief.self_model_persist", domain="memory_write"
+        ):
             await self.persist()
 
     def _belief_update_decision(self, key: str, value: Any, note: str | None) -> tuple[bool, str, bool, Any]:
