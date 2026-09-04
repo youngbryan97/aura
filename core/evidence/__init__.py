@@ -1,5 +1,17 @@
 """Evidence that carries where it came from."""
 
+from core.evidence.calibrated_binary import (
+    CalibratedBinaryScorer,
+    VerifiedBinaryObservation,
+    calibrated_binary_scorer_from_dict,
+    fit_calibrated_binary_scorer,
+)
+from core.evidence.calibrated_candidate_selector import (
+    CalibratedCandidateSelector,
+    VerifiedPairwiseObservation,
+    build_calibrated_candidate_selector,
+    calibrated_candidate_selector_from_dict,
+)
 from core.evidence.necessary_condition_selector import (
     CandidateSelectionDecision,
     NecessaryConditionSelector,
@@ -20,6 +32,8 @@ from core.evidence.packet import (
 )
 
 __all__ = [
+    "CalibratedBinaryScorer",
+    "CalibratedCandidateSelector",
     "CandidateSelectionDecision",
     "EvidenceKind",
     "EvidencePacket",
@@ -27,7 +41,13 @@ __all__ = [
     "NecessaryConditionSelector",
     "NecessaryEvidenceCondition",
     "PairwiseSelectionEvidence",
+    "VerifiedBinaryObservation",
+    "VerifiedPairwiseObservation",
+    "build_calibrated_candidate_selector",
     "build_necessary_condition_selector",
+    "calibrated_binary_scorer_from_dict",
+    "calibrated_candidate_selector_from_dict",
+    "fit_calibrated_binary_scorer",
     "fuse",
     "from_probability",
     "from_truth_value",

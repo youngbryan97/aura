@@ -332,12 +332,14 @@ def evaluate_path_ensemble_replication(
                 selector_reason="selector_forced_to_incumbent",
             )
         )
+        challenger_lesion_values = semantic_path_selection_values(arbitrated.challenger)
+        challenger_lesion_values[EXECUTABLE_PROGRAM_CONDITION] = 0.0
         evidence_lesion = ensemble.selector.select(
             incumbent="incumbent",
             challenger="challenger",
             evidence=PairwiseSelectionEvidence.from_mappings(
                 incumbent=semantic_path_selection_values(arbitrated.incumbent),
-                challenger={EXECUTABLE_PROGRAM_CONDITION: 0.0},
+                challenger=challenger_lesion_values,
                 packet=arbitrated.decision.evidence,
             ),
         )
