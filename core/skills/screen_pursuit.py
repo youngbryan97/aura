@@ -1771,6 +1771,37 @@ def _moves_she_will_not_make(
     )
 
 
+def _the_biggest_thing_on_it(reading: Any, reporting: Sequence[tuple[int, int]] = ()) -> float:
+    """The largest number among the things she is acting on.
+
+    Without the places that only report. A score sitting inside the thing's
+    own outline is larger than anything on the board almost at once, and it
+    is not something she made.
+    """
+    leave_out = set(reporting or ())
+    found = [
+        float(cell.says.replace(",", ""))
+        for cell in getattr(reading, "cells", ()) or ()
+        if (cell.row, cell.column) not in leave_out
+        and str(cell.says).replace(",", "").replace(".", "", 1).isdigit()
+    ]
+    return max(found, default=0.0)
+
+
+def _she_got_further(made: float, furthest: float) -> str:
+    """What to say when she has just built the biggest thing she has here.
+
+    Said only when it passes what she brought in, so a second game says
+    nothing until it is doing better than the first — which is what "furthest
+    she has got" means and what somebody watching wants to hear.
+    """
+    if made <= furthest:
+        return ""
+    if furthest <= 0.0:
+        return f"I have a {made:g} on the board."
+    return f"A {made:g} — the biggest I have made here. The best before was {furthest:g}."
+
+
 def _what_there_is_to_aim_at(reading: Any) -> str:
     """What to prefer one situation over another by, when nobody said.
 
@@ -2671,6 +2702,10 @@ async def pursue_on_screen(
     #: Where she stood when this run began, so what it came to can be reported
     #: as a rate rather than a total. A total says where the window sat.
     began_at: dict[str, Any] = {"worth": None, "seen": 0}
+    #: The largest thing she has ever made in this world. A watcher of a run
+    #: wants to know when it goes past what she has managed here before, and
+    #: she has the fact and has never said it.
+    furthest: dict[str, float] = {"here": 0.0}
     #: Where the page says it draws, asked once when the run gets its bearings.
     drawn: dict[str, Any] = {"where": None, "asked": False}
     #: Why the last cycle ended without a move. Eleven different facts used
@@ -3148,6 +3183,11 @@ async def pursue_on_screen(
     #: their sixth go at Ninja Gaiden is not reacting — they are replaying
     #: what they know and thinking only where they died last time.
     got_to = TheFurthestSheHasGot.from_memory(knew.get("got_to") or {})
+    try:
+        furthest["here"] = float(knew.get("furthest") or 0.0)
+    except (TypeError, ValueError):
+        # not a failure: a record that is not a number is not a record.
+        furthest["here"] = 0.0
     #: Places she has been, marked, so the way back is on the ground rather
     #: than in her head.
     marks = MarksOnTheGround.from_memory(knew.get("marks") or {})
@@ -3733,6 +3773,19 @@ async def pursue_on_screen(
                         plan["held"].approach if plan["held"] is not None else "",
                     ),
                 )
+                # And when she has just built the biggest thing she has ever
+                # built here, which is the thing somebody watching came for.
+                made = _the_biggest_thing_on_it(
+                    laid_out,
+                    _placed_in(
+                        responds["lattice"], responds["moving"].the_things_that_report()
+                    ),
+                )
+                further = _she_got_further(made, furthest["here"])
+                if further:
+                    furthest["here"] = made
+                    if narrate:
+                        _tell(further)
                 _say_what_she_worked_out(knows, foreseen)
                 _say_what_kind_of_problem(
                     knows, screen_options(move_keys), laid_out, success_when, foreseen
@@ -5075,6 +5128,9 @@ async def pursue_on_screen(
         this_world,
         {
             "responds": responds["state"].as_memory(),
+            # The largest thing she has made here. Carried whole rather than
+            # discounted: a thing she once built is a thing she once built.
+            "furthest": furthest["here"],
             # Which of the places that answer to her are the thing itself,
             # rather than a score reporting on it. Kept, because working it
             # out costs her several moves of a fresh game every time.
