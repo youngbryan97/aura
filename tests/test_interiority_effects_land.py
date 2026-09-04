@@ -336,3 +336,58 @@ def test_every_goal_a_faculty_emits_reaches_one_of_the_two_lanes():
     assert tendencies <= set(_DRIVE_FOR_GOAL), (
         f"tendencies that reach no drive budget: {sorted(tendencies - set(_DRIVE_FOR_GOAL))}"
     )
+
+
+def test_apply_refuses_to_re_enter_itself(wired):
+    """The affect push calls a consumer whose appraisal calls back in here."""
+    service = InteriorityService()
+
+    class Reentrant:
+        def __init__(self) -> None:
+            self.depth = 0
+            self.max_depth = 0
+
+        async def react(self, trigger, context=None):
+            self.depth += 1
+            self.max_depth = max(self.max_depth, self.depth)
+            await service.apply(_state())
+            self.depth -= 1
+            return {}
+
+    engine = Reentrant()
+    ServiceContainer.register_instance("affect_engine", engine)
+    asyncio.run(service.apply(_state()))
+    assert engine.max_depth == 1, "a consumer calling back in started a second push"
+
+
+def test_apply_soon_schedules_rather_than_blocking():
+    """A turn must never wait on the interior push to finish."""
+    ServiceContainer.clear()
+    service = InteriorityService()
+
+    async def main():
+        assert service.apply_soon(_state()) is True
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        return service.snapshot()
+
+    asyncio.run(main())
+    assert service.apply_soon(_state()) is False, (
+        "apply_soon must report that it could not schedule without a loop, "
+        "rather than silently doing nothing"
+    )
+
+
+def test_the_incoming_turn_reaches_apply(monkeypatch):
+    """`apply()` had no production caller anywhere in the runtime."""
+    import inspect
+
+    from core.orchestrator.mixins import incoming_logic
+
+    source = inspect.getsource(incoming_logic.IncomingLogicMixin._observe_social_turn)
+    assert "_observe_interior_turn" in source, (
+        "the incoming turn no longer appraises the interior, so every "
+        "faculty conclusion ends in a dataclass again"
+    )
+    hook = inspect.getsource(incoming_logic.IncomingLogicMixin._observe_interior_turn)
+    assert "apply_soon" in hook and "tick" in hook

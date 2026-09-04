@@ -242,6 +242,12 @@ class IncomingLogicMixin:
         user_id = self._resolve_social_user_id(payload_context)
         if not user_id:
             payload_context.pop("user_id", None)
+            # An unidentified turn is still a turn she is in. Most of what the
+            # faculties read — what is at stake, whether a standard was
+            # broken, how much is controllable — does not need a name
+            # attached, and returning here without appraising would make the
+            # interior go quiet exactly when she does not know who this is.
+            self._observe_interior_turn("", message, time.time())
             return ""
         payload_context["user_id"] = user_id
         observed_at = time.time()
@@ -305,7 +311,44 @@ class IncomingLogicMixin:
                 exc,
                 action="continued incoming turn without observer privacy posture update",
             )
+        self._observe_interior_turn(user_id, message, observed_at)
         return user_id
+
+    def _observe_interior_turn(self, user_id: str, message: str, observed_at: float) -> None:
+        """Appraise this turn and let the result reach the subsystems that read it.
+
+        The interiority layer already answered questions other subsystems
+        asked — the affect engine's appraisal, the resonance module's read of
+        the other person. Its own effects reached nothing, because `apply()`
+        had no caller anywhere in the runtime. Forty-three faculties ran once
+        per appraisal and their conclusions ended in a dataclass.
+
+        Here, once per incoming turn, is where they land. The tick is
+        synchronous and fast; the push is handed to the loop rather than
+        awaited, because an interior state is not on the answering path and
+        must never be the reason a reply is late.
+        """
+        try:
+            from core.interiority.event import EventKind, InteriorEvent
+            from core.interiority.service import get_interiority
+            from core.interiority.text_features import channels
+
+            service = get_interiority()
+            event = InteriorEvent(
+                kind=EventKind.SOCIAL,
+                summary=str(message)[:200],
+                subject=user_id or None,
+                object=str(message)[:64],
+                observations=channels(str(message)),
+                source="conversation_engine.user_turn",
+                at=observed_at,
+            )
+            service.apply_soon(service.tick(event))
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_incoming_degradation(
+                exc,
+                action="continued incoming turn without an interior appraisal",
+            )
 
     def _internal_model_updates_allowed(self) -> bool:
         """Authorize internal social/discourse mutation and fail closed."""

@@ -91,6 +91,9 @@ class InteriorityService:
         #: Standing retention claims by memory key, with the wall time each
         #: lapses at. Survives the arbitration that raised it.
         self._retention: dict[str, tuple[RetentionClaim, float]] = {}
+        #: True while a push is in flight, so a consumer that calls back in
+        #: cannot start a second one.
+        self._applying = False
         self.ledger = ledger or RelationalLedger()
         self.appraisal = AppraisalEngine(self.ledger)
         #: Fills the ledger from stores the runtime already keeps. Without it
@@ -221,6 +224,21 @@ class InteriorityService:
         if target is None:
             return {"applied": False, "reason": "nothing has been appraised yet"}
 
+        # The affect push calls the affect engine, whose own appraisal path
+        # calls back into this service. That loop terminates today because
+        # `tick` does not push, but the invariant is worth holding explicitly
+        # rather than depending on a caller three modules away not changing.
+        with self._lock:
+            if self._applying:
+                return {"applied": False, "reason": "already applying"}
+            self._applying = True
+        try:
+            return await self._apply_locked(target)
+        finally:
+            with self._lock:
+                self._applying = False
+
+    async def _apply_locked(self, target: Arbitrated) -> dict[str, Any]:
         landed: dict[str, Any] = {}
         landed["affect"] = await self._push_affect(target)
         landed["somatic"] = self._push_somatic(target)
