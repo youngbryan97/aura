@@ -63,9 +63,9 @@ def test_the_pursuit_says_it_and_keeps_it():
     from core.skills import screen_pursuit
 
     source = inspect.getsource(screen_pursuit.pursue_on_screen)
-    assert "_she_got_further(made, furthest[\"here\"])" in source
-    assert 'furthest["here"] = made' in source
-    assert '"furthest": furthest["here"],' in source
+    assert "_she_got_further(made, beaten)" in source
+    assert 'furthest["here"] = max(furthest["here"], made)' in source
+    assert '"furthest": (' in source
 
 
 def test_nothing_is_claimed_before_she_knows_what_the_thing_is():
@@ -79,8 +79,8 @@ def test_nothing_is_claimed_before_she_knows_what_the_thing_is():
     from core.skills import screen_pursuit
 
     source = inspect.getsource(screen_pursuit.pursue_on_screen)
-    at = source.index("_she_got_further(made,")
-    assert 'if responds["lattice"].held' in source[at - 700 : at]
+    at = source.index("_she_got_further(made, beaten)")
+    assert 'if responds["lattice"].held' in source[at - 2200 : at]
 
 
 def test_nothing_is_claimed_from_a_reading_of_an_ending():
@@ -96,5 +96,38 @@ def test_nothing_is_claimed_from_a_reading_of_an_ending():
     from core.skills import screen_pursuit
 
     source = inspect.getsource(screen_pursuit.pursue_on_screen)
-    at = source.index("_she_got_further(made,")
-    assert 'not responds["state"].nothing_answers()' in source[at - 900 : at]
+    at = source.index("made = (")
+    assert 'not responds["state"].nothing_answers()' in source[at : at + 900]
+
+
+# ── and a record she cannot earn again is not one ────────────────────────
+
+
+def test_a_carried_record_has_to_turn_up_again_before_it_counts():
+    """It is written from a reading, and a reading can be wrong.
+
+    LIVE 2026-09-04: one bad reading put 11619 in this record for a board
+    whose best tile was 128, and because the record only ever goes up she
+    could never say anything about her own progress in that world again.
+    Everything else she carries comes back discounted for exactly this reason.
+    """
+    import inspect
+
+    from core.skills import screen_pursuit
+
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    at = source.index('furthest["again"] = max(')
+    nearby = source[at : at + 500]
+    assert 'furthest["again"] >= furthest["here"]' in nearby
+    assert "_she_got_further(made, beaten)" in nearby
+
+
+def test_what_is_kept_is_the_record_this_sitting_could_stand_behind():
+    import inspect
+
+    from core.skills import screen_pursuit
+
+    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    at = source.index('"furthest": (')
+    nearby = source[at : at + 300]
+    assert 'furthest["again"] >= furthest["here"]' in nearby

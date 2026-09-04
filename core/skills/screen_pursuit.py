@@ -2727,7 +2727,10 @@ async def pursue_on_screen(
     #: The largest thing she has ever made in this world. A watcher of a run
     #: wants to know when it goes past what she has managed here before, and
     #: she has the fact and has never said it.
-    furthest: dict[str, float] = {"here": 0.0}
+    #: ``here`` is what she brought in, ``again`` is the biggest she has seen
+    #: THIS sitting. A carried record is provisional until something at least
+    #: that big turns up again — see below.
+    furthest: dict[str, float] = {"here": 0.0, "again": 0.0}
     #: Where the page says it draws, asked once when the run gets its bearings.
     drawn: dict[str, Any] = {"where": None, "asked": False}
     #: Why the last cycle ended without a move. Eleven different facts used
@@ -3887,9 +3890,24 @@ async def pursue_on_screen(
                     and not responds["state"].nothing_answers()
                     else 0.0
                 )
-                further = _she_got_further(made, furthest["here"])
+                # A record she has not been able to earn again is not one.
+                #
+                # It is written from a reading, and a reading can be wrong: a
+                # single bad one put 11619 in this record for a board whose
+                # best tile was 128, and because the record only ever goes up
+                # she could never say anything about her own progress here
+                # again. Everything else she carries comes back discounted for
+                # exactly this reason.
+                #
+                # So a carried record has to turn up again before it counts,
+                # which is the same rule the places she remembers are held to.
+                furthest["again"] = max(furthest["again"], made)
+                beaten = (
+                    furthest["here"] if furthest["again"] >= furthest["here"] else furthest["again"]
+                )
+                further = _she_got_further(made, beaten)
                 if further:
-                    furthest["here"] = made
+                    furthest["here"] = max(furthest["here"], made)
                     if narrate:
                         _tell(further)
                 _say_what_she_worked_out(knows, foreseen)
@@ -5275,9 +5293,14 @@ async def pursue_on_screen(
         this_world,
         {
             "responds": responds["state"].as_memory(),
-            # The largest thing she has made here. Carried whole rather than
-            # discounted: a thing she once built is a thing she once built.
-            "furthest": furthest["here"],
+            # The largest thing she has made here — the carried record only
+            # where this sitting saw something at least as big, so a reading
+            # that was wrong once cannot stand for ever.
+            "furthest": (
+                furthest["here"]
+                if furthest["again"] >= furthest["here"]
+                else furthest["again"]
+            ),
             # And what each thing about a situation turned out to be worth.
             "matters": matters.as_memory(),
             # Which of the places that answer to her are the thing itself,
