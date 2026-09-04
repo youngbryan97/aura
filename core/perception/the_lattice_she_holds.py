@@ -253,8 +253,7 @@ class TheLatticeSheHolds:
             return None
         room = _between(self.down_at)
         reach = _between(self.across_at)
-        found: dict[tuple[int, int], Cell] = {}
-        howfar: dict[tuple[int, int], float] = {}
+        landed: dict[tuple[int, int], list[tuple[float, float, float, str]]] = {}
         crowded = 0
         for y, x, text in said:
             words = str(text or "").strip()
@@ -266,22 +265,35 @@ class TheLatticeSheHolds:
             across = abs(self.across_at[column] - x)
             if down > room or across > reach:
                 continue
-            where = (row, column)
-            # Nearest wins, rather than giving up on the whole reading.
-            #
-            # A real capture had a system dialog sitting over the board, and
-            # its lines of prose landed on the board's places. Refusing the
-            # reading threw away the tiles that were perfectly visible beside
-            # it, every turn, and she read nothing for the whole run. A thing
-            # centred on a place is what is in that place; a line of prose
-            # that merely overlaps one is not, and the distance says which.
-            away = down + across
-            if where in found:
+            landed.setdefault((row, column), []).append((down + across, x, y, words))
+        found: dict[tuple[int, int], Cell] = {}
+        for (row, column), runs in landed.items():
+            if len(runs) > 1:
                 crowded += 1
-                if howfar.get(where, 0.0) <= away:
-                    continue
-            found[where] = Cell(row=row, column=column, says=words, at=(x, y))
-            howfar[where] = away
+            nearest = min(runs, key=lambda one: one[0])
+            # One thing read as several runs is still one thing.
+            #
+            # A reader splits a two-digit number now and then — "16" comes
+            # back as "1" and "6", both centred on the same place — and
+            # keeping the nearer of them puts a 6 where a 16 is. From there
+            # the wrong value is in the frame she compares the next move
+            # against, so it costs two comparisons rather than one. LIVE
+            # 2026-09-04: three readings in twenty-one, and the true rule sat
+            # at 58% because of them.
+            #
+            # Joined in reading order, and only where every run in the place
+            # is a number. That is what says they are pieces of one value
+            # rather than something lying across the board: a line of prose
+            # over a tile is not digits, and nearest still wins there.
+            if len(runs) > 1 and all(
+                one[3].replace(",", "").isdigit() for one in runs
+            ):
+                words = "".join(one[3] for one in sorted(runs, key=lambda one: one[1]))
+            else:
+                words = nearest[3]
+            found[(row, column)] = Cell(
+                row=row, column=column, says=words, at=(nearest[1], nearest[2])
+            )
         if not found:
             self.would_not_fit += 1
             return None
