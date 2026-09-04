@@ -12,6 +12,7 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_natural_replication_corpus,
     build_semantic_program_natural_request_corpus,
     build_semantic_program_natural_source_corpus,
+    build_semantic_program_natural_weave_replication_corpus,
     build_semantic_program_sequence_binary_corpus,
     build_semantic_program_sequence_cataphoric_corpus,
     build_semantic_program_sequence_corpus,
@@ -20,6 +21,7 @@ from core.learning.semantic_program_corpus import (
     project_example_to_ir,
     project_register_definition_spans,
 )
+from core.learning.semantic_program_natural_transfer import procedure_schema_signature
 
 
 def _character_offsets(text: str) -> tuple[tuple[int, int], ...]:
@@ -770,3 +772,49 @@ def test_natural_branch_replication_is_disjoint_from_all_prior_natural_corpora()
         item.construction_id for item in prior
     }
     assert not {item.topology_id for item in target} & {item.topology_id for item in prior}
+
+
+def test_natural_weave_replication_matches_the_preregistered_six_by_five_graph() -> None:
+    examples = build_semantic_program_natural_weave_replication_corpus()
+
+    assert len(examples) == 48
+    assert {item.topology_id for item in examples} == {
+        "scalar_branch_weave_five",
+        "lookup_branch_weave_five",
+        "count_branch_weave_five",
+    }
+    assert {item.split for item in examples} == {"validation", "test"}
+    assert all(len(item.inputs) == 6 and len(item.instructions) == 5 for item in examples)
+    assert all(
+        tuple(step.instruction.args for step in item.instructions)
+        == ((0, 1), (2, 3), (6, 4), (8, 7), (9, 5))
+        for item in examples
+    )
+    assert all(
+        tuple(step.depends_on for step in item.instructions) == ((), (), (0,), (1, 2), (3,))
+        for item in examples
+    )
+    assert all(item.report_value == 10 for item in examples)
+    assert all(type(item.program.run(item.inputs)) is int for item in examples)
+    assert len({item.source_text for item in examples}) == 48
+    assert build_semantic_program_natural_weave_replication_corpus() == examples
+    assert build_semantic_program_natural_weave_replication_corpus(seed=3141592654) != examples
+
+
+def test_natural_weave_replication_is_disjoint_from_every_prior_natural_corpus() -> None:
+    target = build_semantic_program_natural_weave_replication_corpus()
+    prior = (
+        *build_semantic_program_natural_request_corpus(),
+        *build_semantic_program_natural_replication_corpus(),
+        *build_semantic_program_natural_source_corpus(),
+        *build_semantic_program_natural_alias_source_corpus(),
+        *build_semantic_program_natural_identity_source_corpus(),
+        *build_semantic_program_natural_branch_replication_corpus(),
+    )
+
+    assert not {item.source_text for item in target} & {item.source_text for item in prior}
+    assert not {item.construction_id for item in target} & {item.construction_id for item in prior}
+    assert not {item.topology_id for item in target} & {item.topology_id for item in prior}
+    assert not {procedure_schema_signature(item) for item in target} & {
+        procedure_schema_signature(item) for item in prior
+    }

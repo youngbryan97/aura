@@ -2826,6 +2826,212 @@ _NATURAL_BRANCH_REPLICATION_SURFACES: Final = (
     ),
 )
 
+NATURAL_WEAVE_REPLICATION_DOMAINS: Final = (
+    "geothermal dispatch",
+    "library conservation",
+    "drone depot",
+    "orchard survey",
+    "ceramics kiln",
+    "marine laboratory",
+    "transit workshop",
+    "concert production",
+)
+
+_NATURAL_WEAVE_REPLICATION_SCALAR_DOMAINS: Final = (
+    (
+        "geothermal dispatch",
+        "intake flow",
+        "return flow",
+        "turbine reserve",
+        "storage reserve",
+        "correction",
+        "trim",
+    ),
+    (
+        "library conservation",
+        "treated folios",
+        "queued folios",
+        "drying reserve",
+        "binding reserve",
+        "inspection adjustment",
+        "catalogue trim",
+    ),
+    (
+        "drone depot",
+        "outbound units",
+        "returned units",
+        "charging reserve",
+        "repair reserve",
+        "route adjustment",
+        "dispatch trim",
+    ),
+    (
+        "orchard survey",
+        "north trees",
+        "south trees",
+        "sampling reserve",
+        "mapping reserve",
+        "boundary adjustment",
+        "survey trim",
+    ),
+    (
+        "ceramics kiln",
+        "glazed pieces",
+        "bisque pieces",
+        "shelf reserve",
+        "cooling reserve",
+        "firing adjustment",
+        "kiln trim",
+    ),
+    (
+        "marine laboratory",
+        "surface samples",
+        "deep samples",
+        "freezer reserve",
+        "assay reserve",
+        "salinity adjustment",
+        "lab trim",
+    ),
+    (
+        "transit workshop",
+        "inspected axles",
+        "serviced axles",
+        "parts reserve",
+        "bay reserve",
+        "schedule adjustment",
+        "workshop trim",
+    ),
+    (
+        "concert production",
+        "floor tickets",
+        "balcony tickets",
+        "access reserve",
+        "staffing reserve",
+        "seating adjustment",
+        "production trim",
+    ),
+)
+
+_NATURAL_WEAVE_REPLICATION_SEQUENCE_DOMAINS: Final = (
+    (
+        "geothermal dispatch",
+        "readings by well",
+        "well position",
+        "target reading",
+        "turbine reserve",
+        "storage reserve",
+        "correction",
+        "trim",
+    ),
+    (
+        "library conservation",
+        "folios by shelf",
+        "shelf position",
+        "target folio",
+        "drying reserve",
+        "binding reserve",
+        "inspection adjustment",
+        "catalogue trim",
+    ),
+    (
+        "drone depot",
+        "units by pad",
+        "pad position",
+        "target unit",
+        "charging reserve",
+        "repair reserve",
+        "route adjustment",
+        "dispatch trim",
+    ),
+    (
+        "orchard survey",
+        "trees by block",
+        "block position",
+        "target tree count",
+        "sampling reserve",
+        "mapping reserve",
+        "boundary adjustment",
+        "survey trim",
+    ),
+    (
+        "ceramics kiln",
+        "pieces by rack",
+        "rack position",
+        "target piece count",
+        "shelf reserve",
+        "cooling reserve",
+        "firing adjustment",
+        "kiln trim",
+    ),
+    (
+        "marine laboratory",
+        "samples by station",
+        "station position",
+        "target sample",
+        "freezer reserve",
+        "assay reserve",
+        "salinity adjustment",
+        "lab trim",
+    ),
+    (
+        "transit workshop",
+        "axles by lift",
+        "lift position",
+        "target axle count",
+        "parts reserve",
+        "bay reserve",
+        "schedule adjustment",
+        "workshop trim",
+    ),
+    (
+        "concert production",
+        "tickets by section",
+        "section position",
+        "target ticket count",
+        "access reserve",
+        "staffing reserve",
+        "seating adjustment",
+        "production trim",
+    ),
+)
+
+_NATURAL_WEAVE_REPLICATION_SURFACES: Final = (
+    (
+        "Inspect the {domain} worksheet",
+        "Build the primary path by",
+        "Keep its result as the lead measure",
+        "In parallel",
+        "Keep that result as the side measure",
+        "Continue the primary path and",
+        "Store that as the extended measure",
+        "Combine the paths and",
+        "Retain the combination as the consolidated measure",
+        "Apply the last input and",
+        "What integer does the worksheet yield",
+        "lead measure",
+        "side measure",
+        "extended measure",
+        "consolidated measure",
+    ),
+    (
+        "Review the {domain} record",
+        "Form the lead calculation by",
+        "Save that output as the primary result",
+        "Separately",
+        "Save this output as the auxiliary result",
+        "Refine the lead calculation and",
+        "Call that the refined result",
+        "Unify the two paths and",
+        "Name that the unified result",
+        "Complete the procedure and",
+        "Which integer belongs in the record",
+        "primary result",
+        "auxiliary result",
+        "refined result",
+        "unified result",
+    ),
+)
+
 _NATURAL_SCALAR_CHAINS: Final = (
     ("add", "mul", "sub"),
     ("sub", "add", "mul"),
@@ -2846,6 +3052,17 @@ _NATURAL_BRANCH_CHAINS: Final = (
     ("mul", "sub", "add", "add"),
     ("add", "idiv", "mul", "sub"),
     ("idiv", "add", "sub", "mul"),
+)
+
+_NATURAL_WEAVE_CHAINS: Final = (
+    ("add", "sub", "mul", "add", "idiv"),
+    ("sub", "add", "idiv", "mul", "add"),
+    ("mul", "idiv", "add", "sub", "mul"),
+    ("idiv", "mul", "sub", "add", "sub"),
+    ("add", "mul", "sub", "mul", "add"),
+    ("sub", "idiv", "mul", "add", "sub"),
+    ("mul", "add", "idiv", "sub", "add"),
+    ("idiv", "sub", "add", "mul", "sub"),
 )
 
 
@@ -3960,6 +4177,260 @@ def build_semantic_program_natural_branch_replication_corpus(
     return tuple(examples)
 
 
+def _natural_weave_replication_example(
+    *,
+    schema_kind: str,
+    domain_index: int,
+    sample_index: int,
+    inputs: tuple[SemanticValue, ...],
+    operations: tuple[str, str, str, str, str],
+) -> SemanticProgramExample:
+    """Render the preregistered branch, extension, merge, and terminal graph."""
+    if schema_kind == "scalar_branch_weave_five":
+        domain, *input_names = _NATURAL_WEAVE_REPLICATION_SCALAR_DOMAINS[domain_index]
+    else:
+        (
+            domain,
+            first_name,
+            index_name,
+            target_name,
+            third_name,
+            fourth_name,
+            fifth_name,
+            sixth_name,
+        ) = _NATURAL_WEAVE_REPLICATION_SEQUENCE_DOMAINS[domain_index]
+        second_name = index_name if schema_kind == "lookup_branch_weave_five" else target_name
+        input_names = [
+            first_name,
+            second_name,
+            third_name,
+            fourth_name,
+            fifth_name,
+            sixth_name,
+        ]
+    (
+        opening,
+        first_intro,
+        first_alias_clause,
+        second_intro,
+        second_alias_clause,
+        extend_intro,
+        extend_alias_clause,
+        merge_intro,
+        merge_alias_clause,
+        terminal_intro,
+        question,
+        first_alias,
+        second_alias,
+        extended_alias,
+        merge_alias,
+    ) = _NATURAL_WEAVE_REPLICATION_SURFACES[sample_index % len(_NATURAL_WEAVE_REPLICATION_SURFACES)]
+    builder = _AnnotatedText()
+    builder.append(opening.format(domain=domain))
+    builder.append(": inputs are ")
+    for index, (name, value) in enumerate(zip(input_names, inputs, strict=True)):
+        if index:
+            builder.append("; ")
+        builder.append(name)
+        builder.append(" = ")
+        rendered = (
+            "[" + ", ".join(str(item) for item in value) + "]"
+            if isinstance(value, tuple)
+            else str(value)
+        )
+        builder.append(rendered, label=f"weave-replication:input:{index}")
+    builder.append(f". {first_intro} ")
+
+    if schema_kind == "scalar_branch_weave_five":
+        _append_natural_binary_operation(
+            builder,
+            op=operations[0],
+            ordinal=0,
+            left_text=input_names[0],
+            left_label="weave-replication:argument:0:0",
+            right_text=input_names[1],
+            right_label="weave-replication:argument:0:1",
+        )
+    elif schema_kind == "lookup_branch_weave_five":
+        builder.append("retrieve", label="natural:operation:0")
+        builder.append(" the entry at ")
+        builder.append(input_names[1], label="weave-replication:argument:0:1")
+        builder.append(" in ")
+        builder.append(input_names[0], label="weave-replication:argument:0:0")
+    elif schema_kind == "count_branch_weave_five":
+        builder.append("count", label="natural:operation:0")
+        builder.append(" occurrences of ")
+        builder.append(input_names[1], label="weave-replication:argument:0:1")
+        builder.append(" in ")
+        builder.append(input_names[0], label="weave-replication:argument:0:0")
+    else:  # pragma: no cover - builder owns the schema inventory
+        raise ValueError("natural weave replication schema is unsupported")
+    instructions = [
+        SemanticInstructionAnnotation(
+            instruction=Instruction(operations[0], (0, 1)),
+            operation_span=builder.span("natural:operation:0"),
+            argument_spans=tuple(
+                builder.span(f"weave-replication:argument:0:{position}") for position in range(2)
+            ),
+            depends_on=(),
+        )
+    ]
+
+    clauses = (
+        (
+            first_alias_clause,
+            second_intro,
+            operations[1],
+            input_names[2],
+            input_names[3],
+            (2, 3),
+            (),
+        ),
+        (
+            second_alias_clause,
+            extend_intro,
+            operations[2],
+            first_alias,
+            input_names[4],
+            (6, 4),
+            (0,),
+        ),
+        (
+            extend_alias_clause,
+            merge_intro,
+            operations[3],
+            extended_alias,
+            second_alias,
+            (8, 7),
+            (1, 2),
+        ),
+        (
+            merge_alias_clause,
+            terminal_intro,
+            operations[4],
+            merge_alias,
+            input_names[5],
+            (9, 5),
+            (3,),
+        ),
+    )
+    for ordinal, (
+        preceding_alias_clause,
+        intro,
+        operation,
+        left_text,
+        right_text,
+        arguments,
+        dependencies,
+    ) in enumerate(clauses, start=1):
+        builder.append(f". {preceding_alias_clause}. {intro} ")
+        _append_natural_binary_operation(
+            builder,
+            op=operation,
+            ordinal=ordinal,
+            left_text=left_text,
+            left_label=f"weave-replication:argument:{ordinal}:0",
+            right_text=right_text,
+            right_label=f"weave-replication:argument:{ordinal}:1",
+        )
+        instructions.append(
+            SemanticInstructionAnnotation(
+                instruction=Instruction(operation, arguments),
+                operation_span=builder.span(f"natural:operation:{ordinal}"),
+                argument_spans=tuple(
+                    builder.span(f"weave-replication:argument:{ordinal}:{position}")
+                    for position in range(2)
+                ),
+                depends_on=dependencies,
+            )
+        )
+    builder.append(f". {question}?")
+    construction_id = f"natural-weave-replication-{schema_kind}-{domain_index}-{sample_index % 2}"
+    identity = f"{construction_id}|{sample_index}|{inputs}|{operations}|{builder.text}"
+    return SemanticProgramExample(
+        example_id=hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24],
+        construction_id=construction_id,
+        topology_id=schema_kind,
+        split="validation" if (domain_index + sample_index) % 2 == 0 else "test",
+        source_text=builder.text,
+        inputs=inputs,
+        input_spans=tuple(builder.span(f"weave-replication:input:{index}") for index in range(6)),
+        instructions=tuple(instructions),
+        report_value=10,
+        contrast_id=hashlib.sha256(
+            f"natural-weave-replication|{schema_kind}|{domain_index}|{sample_index}".encode("ascii")
+        ).hexdigest()[:24],
+    )
+
+
+def build_semantic_program_natural_weave_replication_corpus(
+    *,
+    seed: int = 3141592653,
+    examples_per_schema_domain: int = 2,
+) -> tuple[SemanticProgramExample, ...]:
+    """Build the preregistered unseen six-input, five-step transfer corpus."""
+    if examples_per_schema_domain < 1:
+        raise ValueError("natural weave replication needs every schema-domain cell")
+    rng = random.Random(seed)
+    examples: list[SemanticProgramExample] = []
+    schemas = (
+        "scalar_branch_weave_five",
+        "lookup_branch_weave_five",
+        "count_branch_weave_five",
+    )
+    for schema_index, schema_kind in enumerate(schemas):
+        for domain_index in range(len(NATURAL_WEAVE_REPLICATION_DOMAINS)):
+            for sample_index in range(examples_per_schema_domain):
+                operations = _NATURAL_WEAVE_CHAINS[
+                    (schema_index * 5 + domain_index + sample_index) % len(_NATURAL_WEAVE_CHAINS)
+                ]
+                if schema_kind == "scalar_branch_weave_five":
+                    inputs: tuple[SemanticValue, ...] = (
+                        rng.randint(100_000, 900_000),
+                        rng.randint(10_000, 90_000),
+                        rng.randint(1_000, 9_000),
+                        rng.randint(100, 900),
+                        rng.randint(2, 97),
+                        rng.randint(2, 31),
+                    )
+                else:
+                    values = [rng.randint(100_000, 900_000) for _ in range(7)]
+                    if schema_kind == "count_branch_weave_five":
+                        wanted = rng.randint(100_000, 900_000)
+                        values[0] = wanted
+                        values[4] = wanted
+                        first_op = "count_of"
+                        second_input = wanted
+                    else:
+                        first_op = "at"
+                        second_input = rng.randint(0, len(values) - 1)
+                    inputs = (
+                        tuple(values),
+                        second_input,
+                        rng.randint(1_000, 9_000),
+                        rng.randint(100, 900),
+                        rng.randint(2, 97),
+                        rng.randint(2, 31),
+                    )
+                    operations = (
+                        first_op,
+                        operations[1],
+                        operations[2],
+                        operations[3],
+                        operations[4],
+                    )
+                examples.append(
+                    _natural_weave_replication_example(
+                        schema_kind=schema_kind,
+                        domain_index=domain_index,
+                        sample_index=sample_index,
+                        inputs=inputs,
+                        operations=operations,
+                    )
+                )
+    return tuple(examples)
+
+
 def _character_to_token_span(
     span: CharacterSpan,
     offsets: Sequence[tuple[int, int]],
@@ -4033,6 +4504,7 @@ def project_example_to_ir(
 
 
 __all__ = [
+    "NATURAL_WEAVE_REPLICATION_DOMAINS",
     "CharacterSpan",
     "ForkJoinTopology",
     "ProgramTopology",
@@ -4048,6 +4520,7 @@ __all__ = [
     "build_semantic_program_natural_request_corpus",
     "build_semantic_program_natural_replication_corpus",
     "build_semantic_program_natural_source_corpus",
+    "build_semantic_program_natural_weave_replication_corpus",
     "build_semantic_program_sequence_binary_corpus",
     "build_semantic_program_sequence_cataphoric_corpus",
     "build_semantic_program_sequence_corpus",

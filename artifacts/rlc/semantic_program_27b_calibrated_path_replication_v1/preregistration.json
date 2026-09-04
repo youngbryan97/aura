@@ -42,7 +42,7 @@
         [],
         [],
         [0],
-        [2, 1],
+        [1, 2],
         [3]
       ],
       "report_value": 10
@@ -142,6 +142,15 @@
       "mechanism arm does not beat the necessary-condition lesion at p < 0.05"
     ]
   },
+  "post_implementation_contract_corrections": [
+    {
+      "field": "corpus.operation_graph.dependencies[3]",
+      "original": [2, 1],
+      "corrected": [1, 2],
+      "reason": "Dependency identities are canonicalized in ascending producer order. Operation argument order remains [8, 7], so program semantics are unchanged.",
+      "target_examples_generated_before_correction": 0
+    }
+  ],
   "ordinary_decode_deferred_until_mechanism_pass": true,
   "serving_authority": false
 }
