@@ -737,10 +737,14 @@ def _register_what_she_could_do() -> None:
     """Put everything she could do in the registry, once.
 
     The eight that widen a language, the two that change how she searches and
-    how she decides, and the three that change what she is made of. They are
+    how she decides, the three that change what she is made of, and the one
+    that writes a new action when none of the others can do anything. They are
     ranked together and none of them is tried first for being written first;
     what decides is what the record says each is worth.
     """
+    from core.cognition.an_action_she_writes_for_a_gap import (
+        offer_writing_an_action_for_a_gap,
+    )
     from core.cognition.an_operator_she_invents import offer_inventing_an_operator
     from core.cognition.she_improves_her_own_deciding import (
         offer_what_she_can_do_about_herself,
@@ -763,6 +767,9 @@ def _register_what_she_could_do() -> None:
     offer_what_she_can_do_about_herself(within=4.0)
     offer_what_she_can_do_about_what_she_is_made_of()
     offer_inventing_an_operator()
+    # Last, because it is about the others: it fires only where the record
+    # says every one of them was tried on a family and none held.
+    offer_writing_an_action_for_a_gap()
 
 
 def _what_family_this_is(

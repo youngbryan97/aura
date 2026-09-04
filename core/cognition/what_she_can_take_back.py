@@ -46,6 +46,10 @@ WHAT_A_CHANGE_CAN_REACH: tuple[tuple[str, str], ...] = (
     ("core.cognition.what_rests_on_what", "QUARANTINED"),
     ("core.cognition.sequence_induction", "WHAT_WOULD_SETTLE_IT"),
     ("core.cognition.growing_at_any_level", "REGISTRY"),
+    # The actions themselves. An action that writes another action is a change
+    # to what she can do, and a trial that does not cover it would leave the
+    # new action behind after the change that wrote it was taken back.
+    ("core.cognition.what_she_could_do_next", "WHAT_SHE_COULD_DO"),
 )
 
 
