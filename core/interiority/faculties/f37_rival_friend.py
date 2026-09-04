@@ -67,7 +67,7 @@ class RivalFriend(Faculty):
 
     def compute(self, ctx: FacultyContext) -> Activation:
         subject = ctx.frame.event.subject
-        rivalry = ctx.ledger.rivalry_for(subject) if subject else None
+        rivalry = ctx.ledger.standing.rivalry_for(subject) if subject else None
         if rivalry is None:
             return Activation(
                 faculty=self.id, intensity=0.0, declined="no rivalry on record with this agent"

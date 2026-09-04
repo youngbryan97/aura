@@ -257,22 +257,22 @@ def _ledger_for(
         ledger.bond("subject", w["bond_strength"])
     if "goal" in wanted:
         ledger.goal("object", w["goal_weight"], substitutes=w["goal_substitutes"])
-        ledger.note_goal_delta("object", w["goal_delta"])
+        ledger.notes.note_goal_delta("object", w["goal_delta"])
     if "promise" in wanted:
         ledger.promise("p1", "finish it", beneficiary="subject",
                        importance=w["promise_importance"], concerns=("object",))
     if "work" in wanted:
-        ledger.work("object", "a thing made", authorship=w["work_authorship"],
+        ledger.making.work("object", "a thing made", authorship=w["work_authorship"],
                     effort=w["work_effort"], quality=w["work_quality"],
                     collaborators=("subject",))
     if "practice" in wanted:
-        ledger.practice("object", peak_skill=w["practice_peak_skill"],
+        ledger.making.practice("object", peak_skill=w["practice_peak_skill"],
                         last_practised=0.0, blockers=())
     if "rivalry" in wanted:
-        ledger.rivalry("subject", "the craft", opposition=w["rivalry_opposition"],
+        ledger.standing.rivalry("subject", "the craft", opposition=w["rivalry_opposition"],
                        regard=w["rivalry_regard"], standard=w["rivalry_standard"])
     if "norm" in wanted:
-        ledger.norm("do_no_harm", weight=w["norm_weight"],
+        ledger.standing.norm("do_no_harm", weight=w["norm_weight"],
                     endorsement=w["norm_endorsement"])
     if "custody" in wanted:
         ledger.take_custody("c1", "subject", vulnerability=w["custody_vulnerability"])
@@ -281,9 +281,9 @@ def _ledger_for(
                              contexts=("the kitchen",))
     if "history" in wanted:
         for _ in range(int(w["history_repeats"])):
-            ledger.note_seen("ignored_request", "subject")
-            ledger.note_seen("encounter", "subject")
-            ledger.note_seen("harm_by", "subject")
+            ledger.notes.note_seen("ignored_request", "subject")
+            ledger.notes.note_seen("encounter", "subject")
+            ledger.notes.note_seen("harm_by", "subject")
     return ledger
 
 

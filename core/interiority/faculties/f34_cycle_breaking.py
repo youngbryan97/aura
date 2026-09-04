@@ -95,7 +95,7 @@ class CycleBreaking(Faculty):
         # How strongly this event pushes toward a dispositional reading.
         # Repetition is what makes the situational explanation feel thin,
         # so the pressure grows with the count and the harm.
-        prior_acts = ctx.ledger.times_seen("harm_by", subject)
+        prior_acts = ctx.ledger.notes.times_seen("harm_by", subject)
         pressure = harm * agency * (1.0 - 1.0 / (1.0 + prior_acts))
 
         # The block is strongest where the dispositional reading is most

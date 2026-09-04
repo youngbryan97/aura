@@ -75,7 +75,7 @@ class DormantRevival(Faculty):
 
     def compute(self, ctx: FacultyContext) -> Activation:
         name = ctx.frame.event.object
-        practice = ctx.ledger.practice_for(name) if name else None
+        practice = ctx.ledger.making.practice_for(name) if name else None
         if practice is None:
             return Activation(
                 faculty=self.id,

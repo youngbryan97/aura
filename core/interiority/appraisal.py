@@ -227,7 +227,7 @@ class AppraisalEngine:
         )
 
     def _novelty(self, event: InteriorEvent) -> Reading:
-        seen = self._ledger.times_seen(event.kind, event.subject)
+        seen = self._ledger.notes.times_seen(event.kind, event.subject)
         if seen < 0:
             return absent(source="ledger:unseen-counter-missing")
         return measured(1.0 / (1.0 + seen), source=f"ledger:seen={seen}")
@@ -248,7 +248,7 @@ class AppraisalEngine:
     # ── implication group ─────────────────────────────────────────────
     def _congruence(self, event: InteriorEvent) -> Reading:
         """Does this advance or block what the agent is holding? [-1, 1]."""
-        delta = self._ledger.goal_delta(event.object)
+        delta = self._ledger.notes.goal_delta(event.object)
         if delta is None:
             if event.kind is EventKind.LOSS:
                 return measured(-1.0, source="event:loss-is-incongruent-by-kind")
@@ -256,14 +256,14 @@ class AppraisalEngine:
         return measured(_clamp(delta, -1.0, 1.0), source="ledger:goal-delta")
 
     def _expectation_deviation(self, event: InteriorEvent) -> Reading:
-        expected = self._ledger.expectation(event.kind, event.subject)
+        expected = self._ledger.notes.expectation(event.kind, event.subject)
         if expected is None:
             return absent(source="ledger:no-expectation")
         return measured(abs(1.0 - expected), source="ledger:expectation")
 
     def _agency(self, event: InteriorEvent) -> tuple[Reading, Reading, Reading]:
         """Attribute the cause across self, other and circumstance."""
-        attribution = self._ledger.attribution(event.event_id)
+        attribution = self._ledger.notes.attribution(event.event_id)
         if attribution is None and event.subject:
             # A promise she made and did not keep is a self-attribution
             # whatever else the event was. Without this, guilt declined on
@@ -335,7 +335,7 @@ class AppraisalEngine:
             return event.channel("context").at_least(
                 measured(1.0, source="event:loss-kind")
             )
-        undo = self._ledger.undo_cost(event.object)
+        undo = self._ledger.notes.undo_cost(event.object)
         if undo is None:
             return absent(source="ledger:no-undo-cost")
         return measured(_clamp(undo), source="ledger:undo-cost")
@@ -350,13 +350,13 @@ class AppraisalEngine:
 
     # ── coping group ──────────────────────────────────────────────────
     def _control(self, event: InteriorEvent) -> Reading:
-        actions = self._ledger.actions_that_change(event.object)
+        actions = self._ledger.notes.actions_that_change(event.object)
         if actions is None:
             return assumed(_DEFAULT_CONTROL.value, source="no-action-model")
         return measured(1.0 - 1.0 / (1.0 + float(actions)), source="ledger:actions")
 
     def _power(self, event: InteriorEvent) -> Reading:
-        mine = self._ledger.own_actions_that_change(event.object)
+        mine = self._ledger.notes.own_actions_that_change(event.object)
         if mine is None:
             return assumed(_DEFAULT_CONTROL.value, source="no-own-action-model")
         return measured(1.0 - 1.0 / (1.0 + float(mine)), source="ledger:own-actions")
@@ -382,7 +382,7 @@ class AppraisalEngine:
         control because an outcome can be irreversible while an apology
         is still available, and that is exactly the case guilt is for.
         """
-        repairs = self._ledger.repairs_for(event.event_id, event.subject)
+        repairs = self._ledger.notes.repairs_for(event.event_id, event.subject)
         if repairs is None and event.subject:
             # A broken promise has an obvious repair — do the thing, or say
             # so — unless the ledger knows otherwise. Absent here turns guilt
@@ -397,7 +397,7 @@ class AppraisalEngine:
 
     # ── normative group ───────────────────────────────────────────────
     def _norm_fit(self, event: InteriorEvent) -> Reading:
-        fit = self._ledger.norm_fit(event.event_id)
+        fit = self._ledger.notes.norm_fit(event.event_id)
         if fit is not None:
             return measured(_clamp(fit, -1.0, 1.0), source="ledger:norm-fit")
 
@@ -418,7 +418,7 @@ class AppraisalEngine:
         return absent(source="ledger:no-norm-judgement")
 
     def _norm_endorsed(self, event: InteriorEvent) -> Reading:
-        endorsed = self._ledger.norm_endorsement(event.event_id)
+        endorsed = self._ledger.notes.norm_endorsement(event.event_id)
         if endorsed is not None:
             return measured(_clamp(endorsed), source="ledger:endorsement")
         # Making a promise IS endorsing the standard it creates. Guilt
@@ -438,7 +438,7 @@ class AppraisalEngine:
         return absent(source="other-minds:no-vulnerability-estimate")
 
     def _publicity(self, event: InteriorEvent) -> Reading:
-        observers = self._ledger.observer_count(event.event_id)
+        observers = self._ledger.notes.observer_count(event.event_id)
         if observers < 0:
             return absent(source="ledger:observers-unknown")
         return measured(1.0 - 1.0 / (1.0 + float(observers)), source="ledger:observers")

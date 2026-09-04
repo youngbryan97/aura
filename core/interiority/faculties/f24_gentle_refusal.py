@@ -115,7 +115,7 @@ class GentleRefusal(Faculty):
             )
         subject = ctx.frame.event.subject or "unknown"
 
-        encounters = ctx.ledger.times_seen("encounter", subject)
+        encounters = ctx.ledger.notes.times_seen("encounter", subject)
         # Persistence is evidence of effort, and effort earns weight. The
         # curve saturates: the tenth approach is not ten times the first.
         persistence = 1.0 - 1.0 / (1.0 + encounters)

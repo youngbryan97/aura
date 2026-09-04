@@ -97,7 +97,7 @@ class MortalityPreference(Faculty):
         # What continuation carries: commitments only this agent can honour.
         promises = ctx.ledger.active_promises()
         custody = ctx.ledger.active_custody()
-        works = ctx.ledger.works()
+        works = ctx.ledger.making.works()
         carried = sum(p.importance for p in promises) + len(custody) * 0.5
         carried_norm = 1.0 - 1.0 / (1.0 + carried)
 

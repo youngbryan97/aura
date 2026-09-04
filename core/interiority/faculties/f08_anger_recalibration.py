@@ -119,7 +119,7 @@ class AngerRecalibration(Faculty):
         # they weigh my welfare. Halving rather than subtracting, because
         # the evidence is multiplicative: two refusals are not twice one
         # refusal, they are a different conclusion about the person.
-        ignored = ctx.ledger.times_seen("ignored_request", subject)
+        ignored = ctx.ledger.notes.times_seen("ignored_request", subject)
         wtr = capability * pow(0.5, ignored)
 
         pressure = agency * capability * (1.0 - wtr)

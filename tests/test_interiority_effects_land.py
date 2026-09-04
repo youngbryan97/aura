@@ -195,7 +195,7 @@ def test_named_goal_deltas_are_recorded_rather_than_dropped(wired):
         service.apply(_state(goals=(GoalDelta("make the demo work", 0.6, "progress"),)))
     )
     assert result["landed"]["goals"]["deltas_recorded"] == 1
-    assert service.ledger.goal_delta("make the demo work") == pytest.approx(0.6), (
+    assert service.ledger.notes.goal_delta("make the demo work") == pytest.approx(0.6), (
         "the delta never reached the ledger, so the congruence check that "
         "asks for exactly this number still reads None"
     )

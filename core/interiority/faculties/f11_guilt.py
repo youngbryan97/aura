@@ -120,7 +120,7 @@ class Guilt(Faculty):
         intensity = (agency * violation * endorsed * (0.4 + 0.6 * investment)) ** 0.5
         intensity = max(0.0, min(1.0, intensity)) * (agency > 0.0) * (violation > 0.0)
 
-        repairs = ctx.ledger.repairs_for(ctx.frame.event.event_id, ctx.frame.event.subject)
+        repairs = ctx.ledger.notes.repairs_for(ctx.frame.event.event_id, ctx.frame.event.subject)
         effects = Effects(
             affect=AffectDelta(valence=-0.6 * intensity, arousal=0.35 * intensity),
             somatic=(

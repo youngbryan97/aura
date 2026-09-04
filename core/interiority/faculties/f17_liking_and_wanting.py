@@ -97,7 +97,7 @@ class LikingAndWanting(Faculty):
         # sensory-specifically with how much of this particular thing has
         # already been taken.
         item = ctx.frame.event.object or "item"
-        consumed = ctx.ledger.times_seen("consumed", item)
+        consumed = ctx.ledger.notes.times_seen("consumed", item)
         satiety = 1.0 - 1.0 / (1.0 + 0.5 * consumed)
         wanting = liking * (1.0 - satiety)
 

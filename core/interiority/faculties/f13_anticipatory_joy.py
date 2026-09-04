@@ -92,7 +92,7 @@ class AnticipatoryJoy(Faculty):
 
         # How long the uncertainty was held, from the goal's own record.
         goal_name = ctx.frame.event.object or ""
-        held_since = ctx.ledger.expectation("goal_opened", goal_name)
+        held_since = ctx.ledger.notes.expectation("goal_opened", goal_name)
         # Anticipation utility rises with the log of the wait: the first
         # year of waiting adds far more than the fifth, which is the shape
         # reported rather than a linear one.

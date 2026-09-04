@@ -308,7 +308,7 @@ class StakeFeed:
         cached = self._action_models.get(key)
         if cached is not None:
             self._action_models.move_to_end(key)
-            self._ledger.note_action_model(
+            self._ledger.notes.note_action_model(
                 key, total_actions=cached[0], own_actions=cached[1]
             )
             return cached
@@ -367,7 +367,7 @@ class StakeFeed:
         self._action_models[key] = model
         while len(self._action_models) > ACTION_MODEL_CACHE:
             self._action_models.popitem(last=False)
-        self._ledger.note_action_model(key, total_actions=model[0], own_actions=model[1])
+        self._ledger.notes.note_action_model(key, total_actions=model[0], own_actions=model[1])
         return model
 
     def refresh(self, *, force: bool = False, now: float | None = None) -> HarvestReport:

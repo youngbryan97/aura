@@ -79,7 +79,7 @@ class AuthenticPride(Faculty):
     def compute(self, ctx: FacultyContext) -> Activation:
         agency = ctx.v("agency_self")
         work_id = ctx.frame.event.object
-        work = ctx.ledger.work_for(work_id) if work_id else None
+        work = ctx.ledger.making.work_for(work_id) if work_id else None
 
         if work is None:
             return Activation(

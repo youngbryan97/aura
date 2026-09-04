@@ -101,7 +101,7 @@ class QuietCare(Faculty):
         # The coverage check. How much attention has this particular other
         # had, against everyone in the room? Low coverage raises weight,
         # which is the inverse of what salience does.
-        attended = ctx.ledger.times_seen("attended", subject)
+        attended = ctx.ledger.notes.times_seen("attended", subject)
         cohort = ctx.interior_value("cohort_size", 1.0)
         expected = max(1.0, ctx.interior_value("attention_events", 0.0) / max(1.0, cohort))
         coverage = min(1.0, attended / expected) if expected > 0 else 0.0

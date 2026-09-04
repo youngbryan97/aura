@@ -59,7 +59,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from core.interiority.params import ParamKind, declare
 from core.runtime.errors import record_degradation
@@ -283,23 +283,27 @@ class Norm:
     endorsement: float
 
 
-class RelationalLedger:
-    """The standing set of things this agent holds."""
 
-    def __init__(self) -> None:
+
+class EventNotes:
+    """What was observed about particular events.
+
+    Separate from the ledger because these have a different lifetime and a
+    different kind. A stake is something the agent holds until it is
+    released; a note is something that was true of one event and stays on
+    the record. Merging them made a class with fifty-nine methods and no
+    line between what she is carrying and what she saw.
+    """
+
+    def __init__(
+        self,
+        touch: "Callable[[], None]",
+        record: "Callable[[str, Mapping[str, Any]], None]",
+    ) -> None:
         self._lock = threading.RLock()
-        self.revision = 0
-        self._bonds: dict[str, Bond] = {}
-        self._promises: dict[str, Promise] = {}
-        self._custody: dict[str, Custody] = {}
-        self._losses: dict[str, Loss] = {}
-        self._works: dict[str, Work] = {}
-        self._practices: dict[str, Practice] = {}
-        self._rivalries: dict[str, Rivalry] = {}
-        self._norms: dict[str, Norm] = {}
-        self._goals: dict[str, float] = {}
+        self._touch = touch
+        self._record = record
         self._goal_deltas: dict[str, float] = {}
-        self._substitutes: dict[str, int] = {}
         self._undo_costs: dict[str, float] = {}
         self._actions_that_change: dict[str, int] = {}
         self._own_actions_that_change: dict[str, int] = {}
@@ -309,6 +313,296 @@ class RelationalLedger:
         self._repairs: dict[str, tuple[str, ...]] = {}
         self._seen: dict[tuple[str, str | None], int] = {}
         self._expectations: dict[tuple[str, str | None], float] = {}
+
+    def note_goal_delta(self, name: str, delta: float) -> None:
+        with self._lock:
+            self._goal_deltas[name] = max(-1.0, min(1.0, delta))
+            self._touch()
+
+    def note_attribution(
+        self, event_id: str, *, own: float, other: float, circumstance: float
+    ) -> None:
+        with self._lock:
+            self._attributions[event_id] = (
+                max(0.0, own),
+                max(0.0, other),
+                max(0.0, circumstance),
+            )
+            self._touch()
+
+    def note_norm_judgement(
+        self, event_id: str, *, fit: float, endorsement: float
+    ) -> None:
+        with self._lock:
+            self._norm_judgements[event_id] = (
+                max(-1.0, min(1.0, fit)),
+                max(0.0, min(1.0, endorsement)),
+            )
+            self._touch()
+
+    def note_observers(self, event_id: str, count: int) -> None:
+        with self._lock:
+            self._observers[event_id] = max(0, int(count))
+            self._touch()
+
+    def note_repairs(self, event_id: str, repairs: Iterable[str]) -> None:
+        with self._lock:
+            self._repairs[event_id] = tuple(repairs)
+            self._touch()
+
+    def note_action_model(
+        self, object_: str, *, total_actions: int, own_actions: int
+    ) -> None:
+        with self._lock:
+            self._actions_that_change[object_] = max(0, int(total_actions))
+            self._own_actions_that_change[object_] = max(0, int(own_actions))
+            self._touch()
+
+    def note_undo_cost(self, object_: str, cost: float) -> None:
+        with self._lock:
+            self._undo_costs[object_] = max(0.0, min(1.0, cost))
+            self._touch()
+
+    def note_expectation(self, kind: str, subject: str | None, value: float) -> None:
+        with self._lock:
+            self._expectations[(str(kind), subject)] = max(0.0, min(1.0, value))
+            self._touch()
+
+    def note_seen(self, kind: str, subject: str | None) -> int:
+        with self._lock:
+            key = (str(kind), subject)
+            self._seen[key] = self._seen.get(key, 0) + 1
+            self._touch()
+            return self._seen[key]
+    def goal_delta(self, object_: str | None) -> float | None:
+        if object_ is None:
+            return None
+        with self._lock:
+            return self._goal_deltas.get(object_)
+
+    def undo_cost(self, object_: str | None) -> float | None:
+        if object_ is None:
+            return None
+        with self._lock:
+            return self._undo_costs.get(object_)
+
+    def actions_that_change(self, object_: str | None) -> int | None:
+        if object_ is None:
+            return None
+        with self._lock:
+            return self._actions_that_change.get(object_)
+
+    def own_actions_that_change(self, object_: str | None) -> int | None:
+        if object_ is None:
+            return None
+        with self._lock:
+            return self._own_actions_that_change.get(object_)
+
+    def repairs_for(self, event_id: str, subject: str | None) -> tuple[str, ...] | None:
+        with self._lock:
+            return self._repairs.get(event_id)
+
+    def attribution(self, event_id: str) -> tuple[float, float, float] | None:
+        with self._lock:
+            return self._attributions.get(event_id)
+
+    def norm_fit(self, event_id: str) -> float | None:
+        with self._lock:
+            judgement = self._norm_judgements.get(event_id)
+            return None if judgement is None else judgement[0]
+
+    def norm_endorsement(self, event_id: str) -> float | None:
+        with self._lock:
+            judgement = self._norm_judgements.get(event_id)
+            return None if judgement is None else judgement[1]
+
+    def observer_count(self, event_id: str) -> int:
+        with self._lock:
+            return self._observers.get(event_id, -1)
+
+    def times_seen(self, kind: Any, subject: str | None) -> int:
+        with self._lock:
+            return self._seen.get((str(kind), subject), 0)
+
+    def expectation(self, kind: Any, subject: str | None) -> float | None:
+        with self._lock:
+            return self._expectations.get((str(kind), subject))
+
+
+class MakingRegister:
+    """What she made, and what she can do and is not doing.
+
+    Works carry an authorship share, because pride that does not divide by
+    it is the hubristic kind. Practices carry a residual skill and a
+    blocker list, because a dormant capability is retained rather than
+    lost and revives when the list empties.
+    """
+
+    def __init__(
+        self,
+        touch: "Callable[[], None]",
+        record: "Callable[[str, Mapping[str, Any]], None]",
+    ) -> None:
+        self._lock = threading.RLock()
+        self._touch = touch
+        self._record = record
+        self._works: dict[str, Work] = {}
+        self._practices: dict[str, Practice] = {}
+
+    def work(
+        self,
+        work_id: str,
+        description: str,
+        *,
+        authorship: float = 1.0,
+        effort: float = 0.0,
+        quality: float | None = None,
+        collaborators: Iterable[str] = (),
+    ) -> Work:
+        with self._lock:
+            record = Work(
+                work_id=work_id,
+                description=description,
+                authorship=max(0.0, min(1.0, authorship)),
+                effort=max(0.0, min(1.0, effort)),
+                quality=quality,
+                collaborators=tuple(collaborators),
+            )
+            self._works[work_id] = record
+            self._record("work", {"id": work_id, "authorship": record.authorship})
+            self._touch()
+            return record
+
+    def practice(
+        self,
+        name: str,
+        *,
+        peak_skill: float,
+        last_practised: float,
+        blockers: Iterable[str] = (),
+    ) -> Practice:
+        with self._lock:
+            record = Practice(
+                name=name,
+                peak_skill=max(0.0, min(1.0, peak_skill)),
+                last_practised=last_practised,
+                blockers=tuple(blockers),
+            )
+            self._practices[name] = record
+            self._record("practice", {"name": name})
+            self._touch()
+            return record
+
+    def clear_blocker(self, name: str, blocker: str) -> tuple[str, ...]:
+        with self._lock:
+            record = self._practices.get(name)
+            if record is None:
+                return ()
+            record.blockers = tuple(b for b in record.blockers if b != blocker)
+            self._record("blocker_cleared", {"name": name, "blocker": blocker})
+            self._touch()
+            return record.blockers
+
+    def works(self) -> tuple[Work, ...]:
+        with self._lock:
+            return tuple(self._works.values())
+
+    def work_for(self, work_id: str) -> Work | None:
+        with self._lock:
+            return self._works.get(work_id)
+
+    def practices(self) -> tuple[Practice, ...]:
+        with self._lock:
+            return tuple(self._practices.values())
+
+    def practice_for(self, name: str) -> Practice | None:
+        with self._lock:
+            return self._practices.get(name)
+
+
+class StandingRegister:
+    """Standing relations and standards.
+
+    A rivalry is opposed allocation with regard intact; a norm is a
+    standard with a separate record of whether she endorses it, because
+    breaking a rule she holds produces guilt and breaking one imposed on
+    her produces resentment.
+    """
+
+    def __init__(
+        self,
+        touch: "Callable[[], None]",
+        record: "Callable[[str, Mapping[str, Any]], None]",
+    ) -> None:
+        self._lock = threading.RLock()
+        self._touch = touch
+        self._record = record
+        self._rivalries: dict[str, Rivalry] = {}
+        self._norms: dict[str, Norm] = {}
+
+    def rivalry(
+        self, entity: str, domain: str, *, opposition: float, regard: float,
+        standard: float = 0.0,
+    ) -> Rivalry:
+        with self._lock:
+            record = Rivalry(
+                entity=entity,
+                domain=domain,
+                opposition=max(0.0, min(1.0, opposition)),
+                regard=max(0.0, min(1.0, regard)),
+                standard=max(0.0, min(1.0, standard)),
+            )
+            self._rivalries[entity] = record
+            self._touch()
+            return record
+
+    def norm(self, name: str, *, weight: float, endorsement: float) -> Norm:
+        with self._lock:
+            record = Norm(
+                name=name,
+                weight=max(0.0, min(1.0, weight)),
+                endorsement=max(0.0, min(1.0, endorsement)),
+            )
+            self._norms[name] = record
+            self._touch()
+            return record
+
+    def rivalries(self) -> tuple[Rivalry, ...]:
+        with self._lock:
+            return tuple(self._rivalries.values())
+
+    def rivalry_for(self, entity: str) -> Rivalry | None:
+        with self._lock:
+            return self._rivalries.get(entity)
+
+    def norm_for(self, name: str) -> Norm | None:
+        with self._lock:
+            return self._norms.get(name)
+
+    def norms(self) -> tuple[Norm, ...]:
+        with self._lock:
+            return tuple(self._norms.values())
+
+
+class RelationalLedger:
+    """The standing set of things this agent holds."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self.revision = 0
+        #: Observations about particular events, which have a different
+        #: lifetime from a stake and are kept apart from one.
+        self.notes = EventNotes(self._touch, self._record)
+        #: What she made and what she can do.
+        self.making = MakingRegister(self._touch, self._record)
+        #: Standing relations and the standards she holds.
+        self.standing = StandingRegister(self._touch, self._record)
+        self._bonds: dict[str, Bond] = {}
+        self._promises: dict[str, Promise] = {}
+        self._custody: dict[str, Custody] = {}
+        self._losses: dict[str, Loss] = {}
+        self._goals: dict[str, float] = {}
+        self._substitutes: dict[str, int] = {}
         self._events: list[dict[str, Any]] = []
 
     # ── mutation ──────────────────────────────────────────────────────
@@ -459,153 +753,12 @@ class RelationalLedger:
             self._touch()
             return gain
 
-    def work(
-        self,
-        work_id: str,
-        description: str,
-        *,
-        authorship: float = 1.0,
-        effort: float = 0.0,
-        quality: float | None = None,
-        collaborators: Iterable[str] = (),
-    ) -> Work:
-        with self._lock:
-            record = Work(
-                work_id=work_id,
-                description=description,
-                authorship=max(0.0, min(1.0, authorship)),
-                effort=max(0.0, min(1.0, effort)),
-                quality=quality,
-                collaborators=tuple(collaborators),
-            )
-            self._works[work_id] = record
-            self._record("work", {"id": work_id, "authorship": record.authorship})
-            self._touch()
-            return record
-
-    def practice(
-        self,
-        name: str,
-        *,
-        peak_skill: float,
-        last_practised: float,
-        blockers: Iterable[str] = (),
-    ) -> Practice:
-        with self._lock:
-            record = Practice(
-                name=name,
-                peak_skill=max(0.0, min(1.0, peak_skill)),
-                last_practised=last_practised,
-                blockers=tuple(blockers),
-            )
-            self._practices[name] = record
-            self._record("practice", {"name": name})
-            self._touch()
-            return record
-
-    def clear_blocker(self, name: str, blocker: str) -> tuple[str, ...]:
-        with self._lock:
-            record = self._practices.get(name)
-            if record is None:
-                return ()
-            record.blockers = tuple(b for b in record.blockers if b != blocker)
-            self._record("blocker_cleared", {"name": name, "blocker": blocker})
-            self._touch()
-            return record.blockers
-
-    def rivalry(
-        self, entity: str, domain: str, *, opposition: float, regard: float,
-        standard: float = 0.0,
-    ) -> Rivalry:
-        with self._lock:
-            record = Rivalry(
-                entity=entity,
-                domain=domain,
-                opposition=max(0.0, min(1.0, opposition)),
-                regard=max(0.0, min(1.0, regard)),
-                standard=max(0.0, min(1.0, standard)),
-            )
-            self._rivalries[entity] = record
-            self._touch()
-            return record
-
-    def norm(self, name: str, *, weight: float, endorsement: float) -> Norm:
-        with self._lock:
-            record = Norm(
-                name=name,
-                weight=max(0.0, min(1.0, weight)),
-                endorsement=max(0.0, min(1.0, endorsement)),
-            )
-            self._norms[name] = record
-            self._touch()
-            return record
-
     def goal(self, name: str, weight: float, *, substitutes: int = 0) -> None:
         with self._lock:
             self._goals[name] = max(0.0, min(1.0, weight))
             self._substitutes[name] = max(0, int(substitutes))
             self._touch()
 
-    def note_goal_delta(self, name: str, delta: float) -> None:
-        with self._lock:
-            self._goal_deltas[name] = max(-1.0, min(1.0, delta))
-            self._touch()
-
-    def note_attribution(
-        self, event_id: str, *, own: float, other: float, circumstance: float
-    ) -> None:
-        with self._lock:
-            self._attributions[event_id] = (
-                max(0.0, own),
-                max(0.0, other),
-                max(0.0, circumstance),
-            )
-            self._touch()
-
-    def note_norm_judgement(
-        self, event_id: str, *, fit: float, endorsement: float
-    ) -> None:
-        with self._lock:
-            self._norm_judgements[event_id] = (
-                max(-1.0, min(1.0, fit)),
-                max(0.0, min(1.0, endorsement)),
-            )
-            self._touch()
-
-    def note_observers(self, event_id: str, count: int) -> None:
-        with self._lock:
-            self._observers[event_id] = max(0, int(count))
-            self._touch()
-
-    def note_repairs(self, event_id: str, repairs: Iterable[str]) -> None:
-        with self._lock:
-            self._repairs[event_id] = tuple(repairs)
-            self._touch()
-
-    def note_action_model(
-        self, object_: str, *, total_actions: int, own_actions: int
-    ) -> None:
-        with self._lock:
-            self._actions_that_change[object_] = max(0, int(total_actions))
-            self._own_actions_that_change[object_] = max(0, int(own_actions))
-            self._touch()
-
-    def note_undo_cost(self, object_: str, cost: float) -> None:
-        with self._lock:
-            self._undo_costs[object_] = max(0.0, min(1.0, cost))
-            self._touch()
-
-    def note_expectation(self, kind: str, subject: str | None, value: float) -> None:
-        with self._lock:
-            self._expectations[(str(kind), subject)] = max(0.0, min(1.0, value))
-            self._touch()
-
-    def note_seen(self, kind: str, subject: str | None) -> int:
-        with self._lock:
-            key = (str(kind), subject)
-            self._seen[key] = self._seen.get(key, 0) + 1
-            self._touch()
-            return self._seen[key]
 
     # ── reads used by the appraisal engine ────────────────────────────
     def stakes_for(self, *, subject: str | None, object_: str | None) -> tuple[Stake, ...]:
@@ -618,7 +771,7 @@ class RelationalLedger:
                 loss = self._losses.get(subject)
                 if loss is not None:
                     stakes.append(Stake("loss", subject, loss.continuing()))
-                rival = self._rivalries.get(subject)
+                rival = self.standing.rivalry_for(subject)
                 if rival is not None:
                     stakes.append(Stake("rivalry", subject, rival.regard))
                 for custody in self._custody.values():
@@ -638,10 +791,10 @@ class RelationalLedger:
                 weight = self._goals.get(object_)
                 if weight is not None:
                     stakes.append(Stake("goal", None, weight, object_))
-                work = self._works.get(object_)
+                work = self.making.work_for(object_)
                 if work is not None:
                     stakes.append(Stake("work", None, work.authorship, object_))
-                practice = self._practices.get(object_)
+                practice = self.making.practice_for(object_)
                 if practice is not None:
                     stakes.append(Stake("practice", None, practice.residual(), object_))
             return tuple(stakes)
@@ -702,40 +855,6 @@ class RelationalLedger:
         with self._lock:
             return self._promises.get(promise_id)
 
-    def works(self) -> tuple[Work, ...]:
-        with self._lock:
-            return tuple(self._works.values())
-
-    def work_for(self, work_id: str) -> Work | None:
-        with self._lock:
-            return self._works.get(work_id)
-
-    def practices(self) -> tuple[Practice, ...]:
-        with self._lock:
-            return tuple(self._practices.values())
-
-    def practice_for(self, name: str) -> Practice | None:
-        with self._lock:
-            return self._practices.get(name)
-
-    def rivalry_for(self, entity: str) -> Rivalry | None:
-        with self._lock:
-            return self._rivalries.get(entity)
-
-    def norm_for(self, name: str) -> Norm | None:
-        with self._lock:
-            return self._norms.get(name)
-
-    def norms(self) -> tuple[Norm, ...]:
-        with self._lock:
-            return tuple(self._norms.values())
-
-    def goal_delta(self, object_: str | None) -> float | None:
-        if object_ is None:
-            return None
-        with self._lock:
-            return self._goal_deltas.get(object_)
-
     def goal_weight(self, object_: str | None) -> float | None:
         if object_ is None:
             return None
@@ -753,54 +872,6 @@ class RelationalLedger:
             if object_ is None:
                 return None
             return self._substitutes.get(object_)
-
-    def undo_cost(self, object_: str | None) -> float | None:
-        if object_ is None:
-            return None
-        with self._lock:
-            return self._undo_costs.get(object_)
-
-    def actions_that_change(self, object_: str | None) -> int | None:
-        if object_ is None:
-            return None
-        with self._lock:
-            return self._actions_that_change.get(object_)
-
-    def own_actions_that_change(self, object_: str | None) -> int | None:
-        if object_ is None:
-            return None
-        with self._lock:
-            return self._own_actions_that_change.get(object_)
-
-    def repairs_for(self, event_id: str, subject: str | None) -> tuple[str, ...] | None:
-        with self._lock:
-            return self._repairs.get(event_id)
-
-    def attribution(self, event_id: str) -> tuple[float, float, float] | None:
-        with self._lock:
-            return self._attributions.get(event_id)
-
-    def norm_fit(self, event_id: str) -> float | None:
-        with self._lock:
-            judgement = self._norm_judgements.get(event_id)
-            return None if judgement is None else judgement[0]
-
-    def norm_endorsement(self, event_id: str) -> float | None:
-        with self._lock:
-            judgement = self._norm_judgements.get(event_id)
-            return None if judgement is None else judgement[1]
-
-    def observer_count(self, event_id: str) -> int:
-        with self._lock:
-            return self._observers.get(event_id, -1)
-
-    def times_seen(self, kind: Any, subject: str | None) -> int:
-        with self._lock:
-            return self._seen.get((str(kind), subject), 0)
-
-    def expectation(self, kind: Any, subject: str | None) -> float | None:
-        with self._lock:
-            return self._expectations.get((str(kind), subject))
 
     def nearest_deadline(self, object_: str | None) -> float | None:
         with self._lock:
@@ -822,10 +893,10 @@ class RelationalLedger:
                 "promises": {k: vars(v) for k, v in self._promises.items()},
                 "custody": {k: vars(v) for k, v in self._custody.items()},
                 "losses": {k: vars(v) for k, v in self._losses.items()},
-                "works": {k: vars(v) for k, v in self._works.items()},
-                "practices": {k: vars(v) for k, v in self._practices.items()},
-                "rivalries": {k: vars(v) for k, v in self._rivalries.items()},
-                "norms": {k: vars(v) for k, v in self._norms.items()},
+                "works": {w.work_id: vars(w) for w in self.making.works()},
+                "practices": {p.name: vars(p) for p in self.making.practices()},
+                "rivalries": {r.entity: vars(r) for r in self.standing.rivalries()},
+                "norms": {n.name: vars(n) for n in self.standing.norms()},
                 "goals": dict(self._goals),
                 "events": list(self._events[-256:]),
             }
@@ -837,10 +908,10 @@ class RelationalLedger:
                 "promises_active": sum(1 for p in self._promises.values() if p.active),
                 "custody_active": sum(1 for c in self._custody.values() if c.active),
                 "losses": len(self._losses),
-                "works": len(self._works),
-                "practices": len(self._practices),
-                "rivalries": len(self._rivalries),
-                "norms": len(self._norms),
+                "works": len(self.making.works()),
+                "practices": len(self.making.practices()),
+                "rivalries": len(self.standing.rivalries()),
+                "norms": len(self.standing.norms()),
                 "goals": len(self._goals),
                 "events": len(self._events),
             }

@@ -495,7 +495,7 @@ class InteriorityService:
         if not named:
             return {"moved": False}
         for goal in named:
-            self.ledger.note_goal_delta(goal.goal, goal.delta)
+            self.ledger.notes.note_goal_delta(goal.goal, goal.delta)
         shifted = self._shift_goal_priorities(named)
         return {
             "moved": True,

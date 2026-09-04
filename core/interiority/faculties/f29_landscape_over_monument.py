@@ -86,7 +86,7 @@ class LandscapeOverMonument(Faculty):
 
         # The private gain: reputational, one beneficiary, and redundant
         # against a record that already exists.
-        works = len(ctx.ledger.works())
+        works = len(ctx.ledger.making.works())
         redundancy = 1.0 - 1.0 / (1.0 + works)
         private_gain = max(0.0, 1.0 - redundancy)
 
