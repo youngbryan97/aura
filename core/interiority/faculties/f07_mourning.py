@@ -58,6 +58,7 @@ class Mourning(Faculty):
             {"attachment_impact": 0.0},
             Direction.COLLAPSES,
             "There is nothing to extinguish without a held prediction.",
+            withhold=("loss",),
         ),
         Counterfactual(
             "recoverable",
@@ -65,6 +66,7 @@ class Mourning(Faculty):
             Direction.DECREASES,
             "A recoverable absence leaves the availability prediction partly "
             "true, so less of the model is wrong.",
+            do_world={"loss_irreversibility": 0.2},
         ),
     )
     null = NullSpec(values={"attachment_impact": 0.0, "irreversibility": 0.0})

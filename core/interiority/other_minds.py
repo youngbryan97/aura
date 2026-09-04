@@ -244,17 +244,16 @@ _BETA = declare(
     8.0,
     unit="1/logit",
     basis=(
-        "Derived, not chosen. A channel contributes reliability x loading x "
-        "deviation to a tendency's logit, so the largest single-channel "
-        "contribution available is about 0.85 x 0.5 = 0.425. Without a scale, "
-        "a softmax over ten tendencies turns that into a 0.006 margin and every "
-        "read is a shrug. Beta is set to preserve the published ordering of the "
-        "channels in the posterior: at full deviation the least manageable "
-        "channel, autonomic leakage, carries its leading tendency to about five "
-        "times the uniform prior (0.48 against 0.10), while the most "
-        "voluntarily controlled channel, face, stays under twice it (0.18). "
-        "test_channel_ordering_survives_beta.py measures that ordering rather "
-        "than taking the number on faith."
+        "Derived, not chosen. Logits are the evidence-weighted mean of "
+        "loading times deviation, so they live on the same scale as a single "
+        "loading regardless of how many channels are present or how reliable "
+        "they are — which is what keeps a thin signal from reading as an "
+        "ambiguous one. On that scale a full-deviation loading of 0.5 needs a "
+        "multiplier near 8 to carry its readiness clear of a uniform prior "
+        "over the reachable set. The property the number is set to preserve is "
+        "the published ordering of the channels, and "
+        "tests/interiority/test_other_minds.py measures that ordering rather "
+        "than taking the value on faith."
     ),
     kind=ParamKind.DERIVED,
     sensitivity=(
@@ -466,12 +465,28 @@ class OtherMindsModel:
         who = entity or event.subject or "unknown"
         allowed_tendencies = SPECIES_TENDENCIES.get(species, SPECIES_TENDENCIES["other"])
         allowed_channels = SPECIES_CHANNELS.get(species, SPECIES_CHANNELS["other"])
-        declined = tuple(t for t in TENDENCIES if t not in allowed_tendencies)
 
         with self._lock:
             self._reads += 1
             baseline = self._baselines.setdefault(who, _Baseline())
-            scores = {t: 0.0 for t in allowed_tendencies}
+
+            # The hypothesis space is the readinesses the *available*
+            # channels can actually tell apart. Carrying tendencies no
+            # present channel loads on adds uniform mass and flattens the
+            # posterior: with only text, a set of ten leaves every margin
+            # near 0.01 and the read is a permanent shrug. Marginalising
+            # them out is not a shortcut, it is what a posterior over
+            # hypotheses the evidence does not address is worth.
+            reachable: set[str] = set()
+            for channel in allowed_channels:
+                if event.channel(channel).present:
+                    reachable.update(_LOADINGS.get(channel, {}))
+            candidates = tuple(t for t in allowed_tendencies if t in reachable)
+            if not candidates:
+                candidates = allowed_tendencies
+            declined = tuple(t for t in TENDENCIES if t not in candidates)
+
+            scores = {t: 0.0 for t in candidates}
             used: dict[str, float] = {}
             evidence_mass = 0.0
 
@@ -497,7 +512,18 @@ class OtherMindsModel:
                     if tendency in scores:
                         scores[tendency] += weight * loading * deviation
 
-            posterior = _softmax({k: v * _BETA for k, v in scores.items()})
+            # Normalise by the evidence weight before the temperature.
+            # The raw sum conflates two questions: which readiness the
+            # evidence points at, and how much evidence there is. Without
+            # the division, a weak but perfectly consistent signal comes
+            # out as a flat posterior, which says the evidence is
+            # ambiguous when it is merely thin — and thin is what
+            # confidence is for. The posterior answers which; the
+            # confidence answers how sure.
+            weight_total = sum(used.values()) or 1.0
+            posterior = _softmax(
+                {k: (v / weight_total) * _BETA for k, v in scores.items()}
+            )
             confidence = self._confidence(posterior, evidence_mass, len(used))
 
             distress = (

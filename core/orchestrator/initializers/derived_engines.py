@@ -23,6 +23,7 @@ logger = logging.getLogger("Aura.DerivedEngines")
 def register_derived_engines(orchestrator: Any = None) -> dict[str, Any]:
     """Register the character-derived engines from their home organs."""
     from core.affect.affective_resonance import register_affective_resonance
+    from core.interiority.service import register_interiority
     from core.brain.deep_deliberation import register_deep_deliberation
     from core.brain.latent_cortex_service import register_latent_cortex
     from core.knowledge.compiled_understanding import register_compiled_understanding
@@ -61,6 +62,11 @@ def register_derived_engines(orchestrator: Any = None) -> dict[str, Any]:
         "data": register_honesty_governor,
         "daneel": register_aggregate_harm,
         "samantha": register_affective_resonance,
+        # The interiority layer: forty-three appraisal faculties whose
+        # effects land on the affect engine, the somatic marker gate, the
+        # drive budgets and the memory retention check. Pure registration;
+        # nothing ticks until an event is appraised.
+        "interiority": register_interiority,
     }
 
     engines: dict[str, Any] = {}

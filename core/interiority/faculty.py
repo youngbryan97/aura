@@ -47,6 +47,7 @@ import math
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
+from types import MappingProxyType
 from enum import StrEnum
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
@@ -82,6 +83,24 @@ class Counterfactual:
     do: Mapping[str, float | None]
     expect: Direction
     because: str
+    #: Ledger facts to WITHHOLD when this intervention runs. A faculty that
+    #: reads the world rather than the frame — mourning reads a registered
+    #: loss, sympathy reads a custody's vulnerability — is untouched by a
+    #: do() on the frame, and the run returns the baseline to the last
+    #: decimal while reporting a wrong direction. Naming the fact here is how
+    #: the intervention reaches what the faculty actually reads.
+    withhold: tuple[str, ...] = ()
+    #: Readings to force on the other-agent estimate, for the faculties whose
+    #: variable lives there rather than in the frame or the world.
+    do_other: Mapping[str, float | None] = MappingProxyType({})
+    #: Interior readings to force, for the faculties that read their own
+    #: body rather than the frame, the world, or another agent.
+    do_interior: Mapping[str, Any] = MappingProxyType({})
+    #: Build one world fact DIFFERENTLY rather than withholding it. Mourning
+    #: reads a loss's irreversibility off the ledger, so "recoverable" is not
+    #: a frame value and not an absent fact — it is the same fact with a
+    #: different number in it.
+    do_world: Mapping[str, Any] = MappingProxyType({})
 
     def __post_init__(self) -> None:
         unknown = set(self.do) - set(ALL_CHECKS)
@@ -192,6 +211,18 @@ class Faculty(ABC):
     optional: tuple[str, ...] = ()
     counterfactuals: tuple[Counterfactual, ...] = ()
     null: NullSpec = NullSpec()
+    #: Appraisal values under which this faculty should fire, overriding the
+    #: proving harness's defaults. A faculty that cannot produce an
+    #: activation in the world it declares is a mechanism that cannot fire,
+    #: and tests/interiority/test_faculties_can_fire.py refuses it.
+    activation: Mapping[str, float] = MappingProxyType({})
+    #: Interior readings the harness must supply for it to reach its own
+    #: mechanism. Merged over the defaults.
+    activation_interior: Mapping[str, Any] = MappingProxyType({})
+    #: What the ledger must contain. Empty means everything the harness
+    #: builds; naming subsets keeps worlds that contradict each other apart,
+    #: such as a live bond and a registered loss for the same person.
+    activation_world: tuple[str, ...] = ()
 
     def __init__(self) -> None:
         self._validate_declaration()
@@ -209,7 +240,7 @@ class Faculty(ABC):
             )
         if not self.mechanism.strip():
             raise ValueError(f"{self.id}: mechanism is empty")
-        unknown = set(self.requires) | set(self.optional)
+        unknown = set(self.requires) | set(self.optional) | set(self.activation)
         unknown -= set(ALL_CHECKS)
         if unknown:
             raise ValueError(f"{self.id}: unknown appraisal checks {sorted(unknown)}")
@@ -303,6 +334,8 @@ class Faculty(ABC):
             "mechanism": self.mechanism,
             "requires": list(self.requires),
             "optional": list(self.optional),
+            "activation": dict(self.activation),
+            "activation_world": list(self.activation_world),
             "falsifier": self.falsifier(),
             "counterfactuals": [
                 {

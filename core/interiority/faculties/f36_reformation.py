@@ -76,6 +76,7 @@ class Reformation(Faculty):
             Direction.DECREASES,
             "Solace is regulation the agent does not have to generate. With "
             "the interior already ordered there is nothing for it to do.",
+            do_interior={"external_rhythm_entrainment": 0.0},
         ),
     )
     null = NullSpec(values={"norm_endorsed": 0.0})

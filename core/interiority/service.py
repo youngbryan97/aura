@@ -37,10 +37,12 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from dataclasses import replace
 from typing import Any, Iterable, Mapping, Sequence
 
 from core.interiority.appraisal import AppraisalEngine, AppraisalFrame
 from core.interiority.arbitration import Arbitrated, arbitrate, permitted as _permitted
+from core.interiority.core_affect import core_affect
 from core.interiority.cleft import get_cleft
 from core.interiority.effects import BudgetDelta
 from core.interiority.evidence import Reading, measured
@@ -139,6 +141,11 @@ class InteriorityService:
             activations.append(faculty.evaluate(ctx))
 
         state = arbitrate(activations, dt=dt)
+        # Core affect first, faculties on top. Without the general term an
+        # event no faculty is about produces nothing, and a blocked
+        # commitment with nobody to be angry at reads as neutral.
+        base = core_affect(frame)
+        state = replace(state, affect=base + state.affect)
         self._absorb_ledger_writes(state)
 
         with self._lock:

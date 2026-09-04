@@ -74,6 +74,7 @@ class ReadingOthers(Faculty):
             "Understanding is knowing what the state is about. Strip the "
             "situation and identification survives while understanding must "
             "fall, because the channels never carried it.",
+            do_other={"distress": None},
         ),
         Counterfactual(
             "stranger",
@@ -82,6 +83,7 @@ class ReadingOthers(Faculty):
             "A person's own history is the baseline every channel is read "
             "against. With no relationship there is less to read against and "
             "the read must be less confident, not equally confident.",
+            do_other={"capability": None},
         ),
     )
     null = NullSpec(values={}, tolerance=0.0)

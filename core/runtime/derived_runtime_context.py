@@ -153,12 +153,27 @@ def build_derived_runtime_prompt_block(context: dict[str, Any]) -> str:
         else {}
     )
     if affect:
-        lines.append(
-            "- Affective resonance: "
-            f"tone={affect.get('recommended_tone')}; "
-            f"valence={affect.get('valence')}; arousal={affect.get('arousal')}; "
-            f"strength={affect.get('resonance')}"
-        )
+        # What reaches the model here is a measurement and its uncertainty,
+        # not an instruction about how to sound. The previous line carried
+        # `tone=` from a keyword scan, so a word list was telling the model
+        # to be warm and supportive with no evidence about the person. The
+        # read now comes from core.interiority.other_minds, declines when
+        # the top two readinesses do not separate, and says so.
+        declined = affect.get("declined")
+        if declined:
+            lines.append(
+                "- Read on them: none. "
+                f"{affect.get('recommended_tone')}"
+            )
+        else:
+            lines.append(
+                "- Read on them: "
+                f"readiness={affect.get('readiness') or 'unnamed'}; "
+                f"margin={affect.get('margin')}; "
+                f"confidence={affect.get('resonance')}; "
+                f"valence={affect.get('valence')}; arousal={affect.get('arousal')}; "
+                f"channels={','.join(sorted((affect.get('channels') or {}).keys())) or 'none'}"
+            )
 
     if governance.get("directive_safe") is False:
         conflicts = governance.get("directive_conflicts") or []

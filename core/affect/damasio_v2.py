@@ -1422,6 +1422,38 @@ class AffectEngineV2:
 
     @staticmethod
     def _heuristic_appraisal(trigger: str, context: dict | None) -> dict[str, float]:
+        """Appraise an event.
+
+        This was a scan of the trigger string against thirty words, which
+        meant an event with nothing at stake read as strongly negative if
+        it happened to contain "fail", and an event that broke a promise
+        read as neutral if it was phrased calmly. The words were doing the
+        work that the relationship between the event and what Aura is
+        holding should have been doing.
+
+        Appraisal now comes from :mod:`core.interiority`, which computes
+        the relational meaning: what is at stake, who caused it, whether
+        it can be undone, whether a standard Aura holds was broken. Change
+        nothing about the wording and change what she is committed to, and
+        the appraisal changes — which is the property that makes it an
+        appraisal rather than a classifier.
+
+        The word scan is kept below as the last resort, reached only when
+        the interiority layer is unavailable, because an affect engine
+        that returns nothing is worse than one that returns something
+        crude. Which path answered is recorded in the receipt.
+        """
+        try:
+            from core.interiority.service import get_interiority
+
+            return get_interiority().appraise(trigger, context)
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "damasio_v2",
+                exc,
+                action="fell back to the lexical appraisal; relational meaning unavailable",
+            )
+
         trigger_text = str(trigger or "").lower()
         base = _finite_clamp((context or {}).get("intensity", 1.0), 0.0, 1.0, default=0.0)
 

@@ -89,6 +89,9 @@ class SympatheticConcern(Faculty):
             Direction.DECREASES,
             "Concern is graded by how much the other cannot secure for "
             "themselves; a capable person in distress recruits less.",
+            do_world={"custody_vulnerability": 0.0},
+            do_other={"vulnerability": 0.0},
+            do_interior={"arousal": 0.0},
         ),
     )
     null = NullSpec(values={"vulnerability": 0.0, "attachment_impact": 0.0})

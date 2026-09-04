@@ -63,6 +63,7 @@ class GentleRefusal(Faculty):
             Direction.DECREASES,
             "Without a real constraint there is no refusal to soften, and the "
             "mechanism is describing ordinary courtesy.",
+            do_world={"history_repeats": 0},
         ),
         Counterfactual(
             "an_adult_professional",
@@ -77,6 +78,8 @@ class GentleRefusal(Faculty):
             Direction.DECREASES,
             "Specificity is what turns a diffuse disposition into an "
             "obligation. A stranger is not yet this child.",
+            withhold=("history",),
+            do_world={"history_repeats": 0},
         ),
     )
     null = NullSpec(values={"vulnerability": 0.0, "urgency": 0.0})

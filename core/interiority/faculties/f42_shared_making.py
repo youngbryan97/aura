@@ -59,6 +59,7 @@ class SharedMaking(Faculty):
             Direction.DECREASES,
             "Doing the same thing beside someone is a different state from "
             "doing it with them, and the mutual model is what separates them.",
+            withhold=("work",),
         ),
         Counterfactual(
             "it_was_guaranteed_to_happen",

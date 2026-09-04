@@ -67,6 +67,7 @@ class Reciprocity(Faculty):
             "A matched offer needs something of the agent's own that actually "
             "matches. Without one the honest move is to keep listening, and "
             "inventing an anecdote is the failure this rules out.",
+            do_interior={"episode_match": 0.0},
         ),
     )
     null = NullSpec(values={"relevance": 0.0})

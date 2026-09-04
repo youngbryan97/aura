@@ -60,6 +60,7 @@ class HatredLedger(Faculty):
             "held there is nothing to charge, and a ledger that charges an "
             "agent holding nothing is the Grok defect: 0.04 of tax on zero "
             "hatred, because a policy default leaked into the sum.",
+            do_interior={"agent_directed_dispositions": 0.0},
         ),
     )
     null = NullSpec(values={"agency_other": 0.0})

@@ -63,6 +63,7 @@ class DespairRecognition(Faculty):
             "Coping potential is the discriminator. Someone with routes open "
             "is in anguish, and answering that with presence rather than help "
             "is the mirror of the error this exists to prevent.",
+            do_other={"coping": 0.9},
         ),
     )
     null = NullSpec(values={"irreversibility": 0.0, "vulnerability": 0.0})

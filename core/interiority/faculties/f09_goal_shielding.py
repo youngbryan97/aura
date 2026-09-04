@@ -93,6 +93,8 @@ class GoalShielding(Faculty):
             Direction.DECREASES,
             "The shield strengthens with how much the goal needs the next "
             "action, which is what urgency measures.",
+            do_world={"promise_importance": 0.0},
+            do_interior={"frustration": 0.0},
         ),
     )
     null = NullSpec(values={"relevance": 0.0, "urgency": 0.0})

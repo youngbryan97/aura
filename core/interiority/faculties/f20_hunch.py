@@ -55,6 +55,7 @@ class Hunch(Faculty):
             Direction.DECREASES,
             "A hunch is what the fast path knows and the slow one has not "
             "reached. When they agree there is no hunch, only a conclusion.",
+            do_interior={"slow_path_posterior": 0.0},
         ),
     )
     null = NullSpec(values={}, tolerance=0.0)

@@ -60,6 +60,7 @@ class DormantRevival(Faculty):
             Direction.DECREASES,
             "A dormant capability needs an occasion. Without one the skill is "
             "retained and unreachable, which is the state it was already in.",
+            withhold=("practice",),
         ),
     )
     null = NullSpec(values={}, tolerance=0.0)

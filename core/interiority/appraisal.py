@@ -76,6 +76,7 @@ IMPLICATION_CHECKS = (
     "agency_other",
     "agency_circumstance",
     "other_capability",
+    "other_coping",
     "irreversibility",
     "attachment_impact",
 )
@@ -289,6 +290,20 @@ class AppraisalEngine:
             measured(circumstance / total, source="ledger:attribution"),
         )
 
+    def _other_coping(
+        self, event: InteriorEvent, other: "OtherEstimate | None"  # noqa: F821
+    ) -> Reading:
+        """Can the other agent change their own outcome?
+
+        Scherer's coping check applied to the other rather than the self,
+        and the variable that separates despair from anguish. Absent when
+        no estimate exists, because assuming someone can cope is how a
+        system answers grief with advice.
+        """
+        if other is None:
+            return absent(source="other-minds:no-estimate")
+        return other.coping
+
     def _other_capability(
         self, event: InteriorEvent, other: "OtherEstimate | None"  # noqa: F821
     ) -> Reading:
@@ -406,6 +421,7 @@ class AppraisalEngine:
             "agency_other": agency_other,
             "agency_circumstance": agency_circumstance,
             "other_capability": self._other_capability(event, other),
+            "other_coping": self._other_coping(event, other),
             "irreversibility": self._irreversibility(event),
             "attachment_impact": self._attachment_impact(event),
             "control": self._control(event),

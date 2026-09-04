@@ -62,6 +62,7 @@ class MortalityPreference(Faculty):
             "The preference is derived from what continuation carries. An "
             "agent holding nothing has less at stake, and a model where the "
             "drive is constant has installed it rather than derived it.",
+            withhold=("promise", "custody", "work"),
         ),
         Counterfactual(
             "it_is_recoverable",

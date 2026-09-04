@@ -81,6 +81,7 @@ class Conferral(Faculty):
             "A conferral is a stake. Staking credibility on something the "
             "agent has no basis for is the free version, which is worth what "
             "it costs.",
+            do_other={"distress": 0.0},
         ),
     )
     null = NullSpec(values={"vulnerability": 0.0, "certainty": 0.0})
