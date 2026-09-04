@@ -103,13 +103,39 @@ class Arm:
     def has_null(self) -> bool:
         return len(self.nulls) >= 3
 
+    @property
+    def null_band(self) -> tuple[float, float]:
+        """The range the null occupies, widened for a deterministic one.
+
+        A null with no spread is not a broken null: a deterministic system
+        measured under the same conditions gives the same number every time,
+        and that number is the truth about what "no effect" looks like. But a
+        strict comparison against a point mass can never be satisfied in one
+        direction and is always satisfied in the other, so the band carries a
+        floor.
+        """
+        low, high = min(self.nulls), max(self.nulls)
+        spread = high - low
+        pad = max(spread * 0.5, 1e-6)
+        return low - pad, high + pad
+
     def exceeds_null(self, *, direction: str = "below") -> bool:
-        """Whether this arm's value sits outside its own null distribution."""
+        """Whether this arm's value sits outside its own null band."""
         if not self.has_null:
             return False
-        if direction == "below":
-            return self.value < min(self.nulls)
-        return self.value > max(self.nulls)
+        low, high = self.null_band
+        return self.value < low if direction == "below" else self.value > high
+
+    def inside_null(self) -> bool:
+        """Whether this arm is indistinguishable from no effect.
+
+        What a successful lesion looks like. The effect does not go NEGATIVE
+        when the mechanism is removed; it goes away.
+        """
+        if not self.has_null:
+            return False
+        low, high = self.null_band
+        return low <= self.value <= high
 
 
 @dataclass
@@ -156,11 +182,21 @@ class CausalClaim:
 
 
 def _necessity_holds(claim: CausalClaim) -> bool:
+    """There was an effect, and lesioning the mechanism removed it.
+
+    The lesioned arm must land back INSIDE the null, not below it. Requiring
+    it to go below was a bug: a lesion that takes the effect to exactly the
+    no-effect level is the strongest possible result and it graded as a
+    failure, because "below the null" cannot be satisfied against a
+    deterministic null sitting at zero.
+    """
     if claim.baseline is None or claim.lesion is None:
         return False
-    if not claim.lesion.has_null:
+    if not claim.lesion.has_null or not claim.baseline.has_null:
         return False
-    return claim.lesion.value < claim.baseline.value and claim.lesion.exceeds_null()
+    effect_existed = claim.baseline.exceeds_null(direction="above")
+    effect_removed = claim.lesion.inside_null()
+    return effect_existed and effect_removed and claim.lesion.value < claim.baseline.value
 
 
 def _sufficiency_holds(claim: CausalClaim) -> bool:

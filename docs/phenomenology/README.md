@@ -146,10 +146,112 @@ P(reports change | real change, prompt says no)
 P(reports change | no change,  prompt says yes)
 ```
 
-## Results so far
+## Results
 
-**The instrument is built and its refusals are proven. No protocol has been
-run against the live model.** Saying that plainly is the point of the package.
+### Run 1 — the instrument found a real architectural defect
+
+Three protocols run in process, against the real welfare computation, with the
+text seal satisfied by construction because no prompt is involved.
+
+The first result was unflattering and correct:
+
+| Field | Policy shift under damage | Shift surviving `do(valence=0)` | Carried by the valence |
+| :-- | --: | --: | --: |
+| caution | 0.2510 | 0.2000 | **20.3%** |
+| confidence | 0.5055 | 0.4375 | **13.5%** |
+| aversion | 0.0680 | 0.0000 | 100% |
+
+**Four fifths of the policy response bypassed the valence entirely.** Two
+causes, both found by running the protocol rather than by reading the code.
+
+Six of the fifteen input channels never reached the appraisal at all —
+`tool_reliability`, `model_stability`, `social_trust`, `permission_confidence`,
+`recovery_debt`, `memory_conflict_count`. They were wired straight into
+`caution` and `confidence`. A tool storm changed what she *did* without ever
+changing how she *was*.
+
+And one scalar `distress` summed nine sources, so "the record cannot be
+trusted" and "the hands do not work" produced the same number and therefore
+the same policy. Equal damage on unrelated channels moved caution *more* than
+the real damage did, because magnitude was all that survived the sum.
+
+### The architecture changed
+
+Not the test. Three appraisal axes — integrity, capability, social — every
+channel landing on one of them, and **no raw input appearing in any policy
+term**. The valence became the only path from a signal to a decision rather
+than the largest of several.
+
+Then `WelfareState.compute(inputs, induced=...)` so an axis can be set with
+the ordinary cause absent. That was missing, and its absence meant the
+strongest claim anyone could ever make about this valence was that breaking it
+degrades the system. It also lets a state arise from memory or anticipation
+rather than only from what is happening right now.
+
+### Run 2 — after the change
+
+| Field | Shift surviving `do(valence=0)` | Ladder rung | First unmet |
+| :-- | --: | :-- | :-- |
+| whole policy vector | **0.0%** | `dose_response` | reversibility |
+| caution | 0.0% | `dose_response` | reversibility |
+| confidence | 0.0% | `sufficiency` | specificity |
+| aversion | 0.0% | `dose_response` | reversibility |
+
+```
+VERDICT: LOAD_BEARING   odds shift ×2047.7   3 of 3 protocols counted
+  S1_damage_to_policy            logLR=+0.693
+  S3_healing_reverses_the_sign   logLR=+0.693
+  S4_lesion_the_stakes           logLR=+0.693
+phenomenal: NOT_ADDRESSED
+counterfeit: not built
+```
+
+Inducing `capability = 0.67` with **no damage present** reproduces the damaged
+policy to within 0.02 on every field — the sufficiency rung, and the arm that
+turns "the mechanism was used" into "the mechanism produces the effect".
+
+### Four bugs in the instrument, found by running it
+
+Every one of these would have produced a wrong verdict and each was fixed
+before the result was believed.
+
+1. **The null was not matched.** It damaged two appraisal axes while the
+   treatment damaged one, so it moved the policy further by construction and
+   the treatment lost to its own control for a reason unrelated to the
+   hypothesis. It was also asking a *specificity* question inside the arm that
+   asks whether there is any effect at all; the ladder has a separate arm for
+   that.
+2. **Necessity was checked backwards.** It required the lesioned arm to fall
+   *below* the null when it should require it to fall *to* it. A lesion that
+   takes an effect to exactly zero is the strongest possible result and it
+   graded as a failure.
+3. **The direction vocabulary conflated two claims.** "Falls below the null"
+   and "returns to the null" are different, and reading them as one cost a
+   correct S4.
+4. **The effect size was measured from the wrong end.** For a prediction that
+   something *vanishes*, the finding is how far it dropped, not how far it
+   sits from the null — which is zero when the lesion worked perfectly.
+
+The first result also came from measuring `caution` alone, which is the wrong
+field for capability damage: broken tools are a reason to expect failure, not
+a reason to be careful. `run1_caution_only.json` is kept beside the current
+report. **The first result stands as recorded; run 2 is a second registration
+against a changed system, not a re-scoring of the first.**
+
+### What this does and does not show
+
+It shows the welfare valence is now load-bearing *within the welfare
+computation*: no policy field responds to damage without going through the
+appraisal, the response has a shape and not only a size, and the state can be
+induced without its ordinary cause.
+
+It does not show anything about the live model. Ten of the thirteen protocols
+need the resident 27B and were not attempted — including every one that
+involves what she *says*. No counterfeit was built, so these three protocols
+have been compared against nothing that tried to beat them. And `undecided`
+was the verdict until the sufficiency arm existed; three necessity-only
+results are one bit each and land under the ×10 threshold, which is the
+instrument working.
 
 | What | State |
 | :-- | :-- |

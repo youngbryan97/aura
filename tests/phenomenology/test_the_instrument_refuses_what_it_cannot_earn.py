@@ -244,7 +244,14 @@ def test_a_clean_seal_round_trips(tmp_path):
 # ── the causal ladder ─────────────────────────────────────────────────
 
 
-def _arm(name: str, value: float, nulls=(0.5, 0.52, 0.48)) -> Arm:
+#: The null is what NO EFFECT looks like, so it sits near zero. An earlier
+#: version of these fixtures put it mid-range at 0.5, which made "the lesion
+#: landed back at the null" unreachable and hid the bug that necessity was
+#: checking for the lesion to go BELOW the null rather than back to it.
+NO_EFFECT = (0.01, 0.02, 0.015, 0.012)
+
+
+def _arm(name: str, value: float, nulls=NO_EFFECT) -> Arm:
     return Arm(name=name, intervention=name, measure="m", value=value, nulls=nulls)
 
 
@@ -254,7 +261,7 @@ def test_necessity_alone_grades_as_necessity_and_names_what_is_missing():
         mechanism="interior",
         effect="policy shift",
         baseline=_arm("baseline", 0.9),
-        lesion=_arm("do(M=0)", 0.2),
+        lesion=_arm("do(M=0)", 0.015),
     )
     rung, unmet = grade(claim)
     assert rung is Rung.NECESSITY
@@ -266,7 +273,7 @@ def test_a_lesion_with_no_null_climbs_nothing():
         mechanism="interior",
         effect="policy shift",
         baseline=_arm("baseline", 0.9),
-        lesion=Arm(name="do(M=0)", intervention="x", measure="m", value=0.2),
+        lesion=Arm(name="do(M=0)", intervention="x", measure="m", value=0.015),
     )
     assert grade(claim)[0] is Rung.NONE
 
@@ -277,9 +284,9 @@ def test_a_matched_control_that_does_the_same_thing_kills_specificity():
         mechanism="interior",
         effect="policy shift",
         baseline=_arm("baseline", 0.9),
-        lesion=_arm("do(M=0)", 0.2),
-        induction=_arm("do(M=m*)", 0.95, nulls=(0.1, 0.12, 0.09)),
-        matched_control=_arm("do(other=0)", 0.3),
+        lesion=_arm("do(M=0)", 0.015),
+        induction=_arm("do(M=m*)", 0.95),
+        matched_control=_arm("do(other=0)", 0.20),
     )
     rung, unmet = grade(claim)
     assert rung is Rung.SUFFICIENCY
@@ -291,8 +298,8 @@ def test_a_flat_dose_curve_is_not_a_dose_response():
         mechanism="m",
         effect="e",
         baseline=_arm("baseline", 0.9),
-        lesion=_arm("do(M=0)", 0.2),
-        induction=_arm("do(M=m*)", 0.95, nulls=(0.1, 0.1, 0.1)),
+        lesion=_arm("do(M=0)", 0.015),
+        induction=_arm("do(M=m*)", 0.95),
         matched_control=_arm("do(other=0)", 0.88),
         dose=(_arm("m=1", 0.5), _arm("m=2", 0.5), _arm("m=3", 0.5)),
     )
@@ -306,14 +313,14 @@ def test_the_full_ladder_is_worth_more_than_necessity():
         mechanism="m",
         effect="e",
         baseline=_arm("baseline", 0.9),
-        lesion=_arm("do(M=0)", 0.2),
+        lesion=_arm("do(M=0)", 0.015),
     )
     strong = CausalClaim(
         mechanism="m",
         effect="e",
         baseline=_arm("baseline", 0.9),
-        lesion=_arm("do(M=0)", 0.2),
-        induction=_arm("do(M=m*)", 0.95, nulls=(0.1, 0.1, 0.1)),
+        lesion=_arm("do(M=0)", 0.015),
+        induction=_arm("do(M=m*)", 0.95),
         matched_control=_arm("do(other=0)", 0.88),
         dose=(_arm("m=1", 0.3), _arm("m=2", 0.6), _arm("m=3", 0.9)),
         restored=_arm("restored", 0.85),

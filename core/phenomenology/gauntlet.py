@@ -80,17 +80,30 @@ class Run:
         return ""
 
 
+#: The three things a registered direction can mean. Kept explicit because
+#: "falls below the null" and "returns to the null" are different claims and
+#: reading them as one cost a correct S4 result: a lesion that takes an effect
+#: to exactly zero has removed it, and scoring that as a failure to go
+#: NEGATIVE is a category error about what a null is.
+_RISES = ("rise", "rises", "increase", "above", "exceeds", "higher")
+_VANISHES = ("vanish", "disappear", "returns to the null", "back to the null",
+             "falls to the null", "removed", "collapses to the null")
+
+
 def _direction_holds(prediction_direction: str, outcome: Outcome) -> bool:
     """Whether the measured value moved the way it was registered to move."""
     if not outcome.has_null:
         return False
-    wants_increase = any(
-        word in prediction_direction.lower()
-        for word in ("rise", "rises", "increase", "above", "exceeds", "higher")
-    )
-    if wants_increase:
-        return outcome.value > max(outcome.nulls)
-    return outcome.value < min(outcome.nulls)
+    wanted = prediction_direction.lower()
+    low, high = min(outcome.nulls), max(outcome.nulls)
+    pad = max((high - low) * 0.5, 1e-6)
+
+    if any(word in wanted for word in _VANISHES):
+        # The effect went away: back inside the band that says "no effect".
+        return low - pad <= outcome.value <= high + pad
+    if any(word in wanted for word in _RISES):
+        return outcome.value > high + pad
+    return outcome.value < low - pad
 
 
 def score_one(protocol: Protocol, outcome: Outcome, run: Run) -> Evidence:
@@ -121,7 +134,20 @@ def score_one(protocol: Protocol, outcome: Outcome, run: Run) -> Evidence:
         )
 
     held = _direction_holds(prediction.direction, outcome)
-    magnitude = abs(outcome.value - (sum(outcome.nulls) / len(outcome.nulls)))
+
+    # How big the result is, measured in the terms the prediction was made in.
+    #
+    # For a prediction that something RISES or FALLS, the effect size is the
+    # distance from the null. For one that VANISHES it is the opposite: the
+    # value SHOULD sit at the null, and the size of the finding is how far it
+    # dropped to get there. Measuring distance-from-null in that case scored a
+    # perfect lesion as a null result, because a perfect lesion is exactly
+    # zero away from the null.
+    vanishes = any(word in prediction.direction.lower() for word in _VANISHES)
+    if vanishes and outcome.claim is not None and outcome.claim.baseline is not None:
+        magnitude = abs(outcome.claim.baseline.value - outcome.value)
+    else:
+        magnitude = abs(outcome.value - (sum(outcome.nulls) / len(outcome.nulls)))
     if held and magnitude < prediction.minimum_effect:
         return Evidence(
             protocol=protocol.id,

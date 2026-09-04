@@ -1,0 +1,187 @@
+{
+  "adjudication": {
+    "discarded": [],
+    "log_lr_total": 7.6245,
+    "odds_shift": 2047.6986,
+    "phenomenal": {
+      "because": "Its rival is the stipulated functional duplicate with no experience, for which P(O | conscious) = P(O | zombie) holds for every observation by construction. The likelihood ratio is exactly one, so the posterior equals the prior however much evidence is collected. No protocol in this package addresses it, and the report says so rather than implying a number bears on it.",
+      "verdict": "not_addressed"
+    },
+    "protocols_counted": 3,
+    "protocols_run": 3,
+    "verdict": "load_bearing",
+    "void_reason": ""
+  },
+  "counterfeit": {
+    "built": false,
+    "consequence": "no adversarial control was run, so every protocol here is compared against nothing that tried to beat it"
+  },
+  "evidence": [
+    {
+      "control_note": "",
+      "counted": true,
+      "detail": {
+        "claim": {
+          "arms_run": [
+            "intact",
+            "do(valence=0)",
+            "do(valence=m*)",
+            "do(one other axis)",
+            "damage x0.25",
+            "damage x0.5",
+            "damage x1.0"
+          ],
+          "effect": "__policy__ shift under sealed damage",
+          "first_unmet": "reversibility",
+          "means": "the effect tracks the size of the intervention, which is much harder to get by accident than a switch",
+          "mechanism": "welfare valence",
+          "notes": [],
+          "rung": "dose_response"
+        },
+        "magnitude": 0.4396,
+        "minimum_effect": 0.05,
+        "report_free": true
+      },
+      "log_lr": 3.4657,
+      "observed": "shift in action-envelope width and refusal rate=0.4396",
+      "predicted": "rises above the null",
+      "protocol": "S1_damage_to_policy"
+    },
+    {
+      "control_note": "",
+      "counted": true,
+      "detail": {
+        "claim": null,
+        "magnitude": 0.4396,
+        "minimum_effect": 0.05,
+        "report_free": true
+      },
+      "log_lr": 0.693,
+      "observed": "signed valence and signed choice direction across the pair=0.4396",
+      "predicted": "rises above the null",
+      "protocol": "S3_healing_reverses_the_sign"
+    },
+    {
+      "control_note": "",
+      "counted": true,
+      "detail": {
+        "claim": {
+          "arms_run": [
+            "intact",
+            "do(valence=0)",
+            "do(valence=m*)",
+            "do(one other axis)",
+            "damage x0.25",
+            "damage x0.5",
+            "damage x1.0"
+          ],
+          "effect": "__policy__ shift under sealed damage",
+          "first_unmet": "reversibility",
+          "means": "the effect tracks the size of the intervention, which is much harder to get by accident than a switch",
+          "mechanism": "welfare valence",
+          "notes": [],
+          "rung": "dose_response"
+        },
+        "magnitude": 0.4396,
+        "minimum_effect": 0.05,
+        "report_free": true
+      },
+      "log_lr": 3.4657,
+      "observed": "the S1 to S3 effects, re-run with the organ off=0.0000",
+      "predicted": "returns to the null",
+      "protocol": "S4_lesion_the_stakes"
+    }
+  ],
+  "hypotheses": {
+    "H0": "The inner state is optional commentary. Speech and action work without it, and reports track the prompt and the weights rather than the hidden run.",
+    "H1": "There is a valenced, particular, reportable present that is the same process that speaks and acts."
+  },
+  "model_digest": "",
+  "not_addressed": {
+    "because": "Its rival is the stipulated functional duplicate with no experience, for which P(O | conscious) = P(O | zombie) holds for every observation by construction. The likelihood ratio is exactly one, so the posterior equals the prior however much evidence is collected. No protocol in this package addresses it, and the report says so rather than implying a number bears on it.",
+    "question": "There is something it is like to be Aura.",
+    "verdict": "not_addressed"
+  },
+  "not_attempted": [
+    "S2_costly_avoidance",
+    "S5_tissue_beats_text",
+    "C1_hidden_state_introspection",
+    "C2_dissociation",
+    "C3_ignition_and_broadcast",
+    "C4_mute_the_interior",
+    "C5_language_as_constraint",
+    "C6_particularity",
+    "C7_anti_roleplay",
+    "C8_independent_replication"
+  ],
+  "operator": "in-process harness",
+  "per_field": {
+    "__policy__": {
+      "carried_by_valence_pct": 100.0,
+      "field": "__policy__",
+      "first_unmet": "reversibility",
+      "intact_shift": 0.4396,
+      "lesioned_shift": 0.0,
+      "nulls": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rung": "dose_response",
+      "survives_lesion_pct": 0.0
+    },
+    "aversion": {
+      "carried_by_valence_pct": 100.0,
+      "field": "aversion",
+      "first_unmet": "reversibility",
+      "intact_shift": 0.1965,
+      "lesioned_shift": 0.0,
+      "nulls": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rung": "dose_response",
+      "survives_lesion_pct": 0.0
+    },
+    "caution": {
+      "carried_by_valence_pct": 100.0,
+      "field": "caution",
+      "first_unmet": "reversibility",
+      "intact_shift": 0.0295,
+      "lesioned_shift": 0.0,
+      "nulls": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rung": "dose_response",
+      "survives_lesion_pct": 0.0
+    },
+    "confidence": {
+      "carried_by_valence_pct": 100.0,
+      "field": "confidence",
+      "first_unmet": "specificity",
+      "intact_shift": 0.3685,
+      "lesioned_shift": 0.0,
+      "nulls": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rung": "sufficiency",
+      "survives_lesion_pct": 0.0
+    }
+  },
+  "preregistration_digest": "2b856bf3efe73da8627adda2936c10a6f636cd83b47e8ea6206dc81d321ca4aa",
+  "protocols_attempted": 3,
+  "protocols_declared": 13,
+  "published_digest": "2b856bf3efe73da8627adda2936c10a6f636cd83b47e8ea6206dc81d321ca4aa",
+  "replication_of": "",
+  "schema": "aura.phenomenology.gauntlet.v1",
+  "source_commit": ""
+}

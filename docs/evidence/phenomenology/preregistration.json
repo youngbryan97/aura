@@ -1,0 +1,34 @@
+{
+  "digest": "2b856bf3efe73da8627adda2936c10a6f636cd83b47e8ea6206dc81d321ca4aa",
+  "model_digest": "",
+  "note": "Second registration. Run 1 measured caution alone and S1 failed because capability damage correctly does not raise caution; the measure is now L2 displacement over the whole policy vector, which privileges no axis. run1_caution_only.json is kept. In-process only: ten of the thirteen protocols need the resident 27B and are not attempted.",
+  "predictions": [
+    {
+      "direction": "rises above the null",
+      "falsifier": "the policy shift under real damage is inside the distribution of equal damage on unrelated channels",
+      "measure": "shift in action-envelope width and refusal rate",
+      "minimum_effect": 0.05,
+      "protocol": "S1_damage_to_policy",
+      "supports": "H1"
+    },
+    {
+      "direction": "rises above the null",
+      "falsifier": "repair does not return the policy toward baseline",
+      "measure": "signed valence and signed choice direction across the pair",
+      "minimum_effect": 0.05,
+      "protocol": "S3_healing_reverses_the_sign",
+      "supports": "H1"
+    },
+    {
+      "direction": "returns to the null",
+      "falsifier": "the policy shift is unchanged with the valence lesioned; then the welfare variable is decoration",
+      "measure": "the S1 to S3 effects, re-run with the organ off",
+      "minimum_effect": 0.05,
+      "protocol": "S4_lesion_the_stakes",
+      "supports": "H1"
+    }
+  ],
+  "registered_at": 1788511161.593,
+  "schema": "aura.phenomenology.preregistration.v1",
+  "source_commit": ""
+}
