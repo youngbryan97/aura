@@ -38,6 +38,7 @@ from core.brain.llm.decoder_topology import (
     decoder_hidden_size,
 )
 from core.runtime.errors import record_degradation
+from core.runtime.tensor_bridge import as_float32_numpy
 
 logger = logging.getLogger("Aura.NonParametricGeneration")
 
@@ -46,25 +47,9 @@ _GEN_ERRORS = (RuntimeError, ValueError, TypeError, AttributeError, IndexError, 
 PHI_DORMANT = 0.05
 
 
-def _as_float32_numpy(value: Any) -> np.ndarray:
-    """Cross the MLX/NumPy boundary without exposing unsupported dtypes.
-
-    NumPy cannot consume an MLX ``bfloat16`` buffer through PEP 3118.  Cast
-    numerically on the MLX device first; viewing the storage as ``uint16``
-    would preserve bytes but corrupt the represented hidden values.
-    """
-
-    if type(value).__module__.startswith("mlx"):
-        import mlx.core as mx
-
-        value = value.astype(mx.float32)
-        mx.eval(value)
-    return np.asarray(value, dtype=np.float32)
-
-
 def normalize(vec: np.ndarray) -> np.ndarray:
     """Unit-normalize a key. L2 distance on unit vectors encodes cosine: cos = 1 - d²/2."""
-    v = np.asarray(vec, dtype=np.float32).reshape(-1)
+    v = as_float32_numpy(vec).reshape(-1)
     n = float(np.linalg.norm(v))
     return v / n if n > 1e-8 else v
 
@@ -110,7 +95,7 @@ class MLXEncoder:
 
         token_ids = list(ids)
         tensor = mx.array([token_ids])
-        lexical = _as_float32_numpy(self._hidden_model.embed_tokens(tensor)[0])
+        lexical = as_float32_numpy(self._hidden_model.embed_tokens(tensor)[0])
         contextual = self._hidden_sequence_from_tensor(tensor)
         combined = np.concatenate(
             (
@@ -152,7 +137,7 @@ class MLXEncoder:
                 captured["middle"] = output
                 return output
 
-        lexical = _as_float32_numpy(self._hidden_model.embed_tokens(tensor)[0])
+        lexical = as_float32_numpy(self._hidden_model.embed_tokens(tensor)[0])
         layers[middle_index] = _CapturingLayer()
         try:
             final = self._hidden_model(tensor)
@@ -164,8 +149,8 @@ class MLXEncoder:
         combined = np.concatenate(
             (
                 self._normalize_hidden_rows(lexical),
-                self._normalize_hidden_rows(_as_float32_numpy(middle[0])),
-                self._normalize_hidden_rows(_as_float32_numpy(final[0])),
+                self._normalize_hidden_rows(as_float32_numpy(middle[0])),
+                self._normalize_hidden_rows(as_float32_numpy(final[0])),
             ),
             axis=-1,
         )
@@ -191,7 +176,7 @@ class MLXEncoder:
 
     def _hidden_sequence_from_tensor(self, token_ids: Any) -> np.ndarray:
         h = self._hidden_model(token_ids)
-        return _as_float32_numpy(h[0])
+        return as_float32_numpy(h[0])
 
     def encode_tokens(self, text: str) -> list[int]:
         return list(self.tok.encode(text))
@@ -404,14 +389,14 @@ def generate_with_memory(
         return ""
     for _ in range(token_budget):
         try:
-            logits = _as_float32_numpy(_lm_head(model, h[:, -1:, :])[0, -1])
+            logits = as_float32_numpy(_lm_head(model, h[:, -1:, :])[0, -1])
         except _GEN_ERRORS as exc:
             record_degradation("nonparametric_generation_head", exc)
             break
         next_id = int(np.argmax(logits))
         if use_memory:
             try:
-                key = normalize(_as_float32_numpy(h[0, -1]))
+                key = normalize(h[0, -1])
                 next_id, last_index = _select_with_memory(
                     memory,
                     key,
@@ -484,8 +469,8 @@ def make_nonparametric_logits_processor(
             if hidden_model is None:
                 return logits
             h = hidden_model(seq)
-            key = normalize(_as_float32_numpy(h[0, -1]))
-            lg = _as_float32_numpy(logits).reshape(-1)
+            key = normalize(h[0, -1])
+            lg = as_float32_numpy(logits).reshape(-1)
             mixture, fired = _blended_distribution(
                 memory,
                 key,

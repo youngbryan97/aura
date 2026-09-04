@@ -64,6 +64,22 @@ def test_exact_prompt_tail_is_admitted_as_non_authoritative_evidence(active_stor
     )
 
 
+def test_mlx_bfloat_hidden_is_admitted_without_a_pep3118_failure(active_store):
+    import mlx.core as mx
+
+    hidden = mx.array([1.0, 0.0, 0.0, 0.0], dtype=mx.bfloat16)
+    mx.eval(hidden)
+
+    observation, receipt = retrieve_observation(
+        hidden,
+        _Tokenizer(),
+        principal=TEST_PRINCIPAL,
+    )
+
+    assert observation is not None
+    assert validate_receipt(receipt)["status"] == "admitted"
+
+
 def test_unrelated_prompt_tail_fails_closed_at_similarity_gate(active_store):
     observation, receipt = retrieve_observation(
         np.array([0.0, 1.0, 0.0, 0.0]), _Tokenizer(), principal=TEST_PRINCIPAL
