@@ -1,0 +1,109 @@
+{
+  "arms": [
+    "frozen_v15_treatment",
+    "frozen_v15_coefficient_lesion",
+    "frozen_v14_treatment",
+    "ordinary_resident_27b_decode"
+  ],
+  "claim_boundary": "fresh bounded natural-language procedure replication; no open-domain or frontier-reasoning authority",
+  "corpus": {
+    "corpus_kind": "natural_replication_linear_4x3",
+    "domain_inventory": [
+      "observatory log",
+      "museum archive",
+      "harbor control",
+      "laboratory inventory",
+      "hotel desk",
+      "water utility",
+      "publishing queue",
+      "sports venue"
+    ],
+    "examples_per_schema_domain": 4,
+    "max_examples": 96,
+    "operation_graph": {
+      "arguments": [
+        [
+          0,
+          1
+        ],
+        [
+          4,
+          2
+        ],
+        [
+          5,
+          3
+        ]
+      ],
+      "inputs": 4,
+      "steps": 3,
+      "topology": "linear"
+    },
+    "schemas": [
+      "scalar_linear_three",
+      "lookup_linear_three",
+      "count_linear_three"
+    ],
+    "seed": 1732051,
+    "surface_construction_count": 4,
+    "surface_constructions_disjoint_from_fit_and_development": true,
+    "values": "fresh large-integer and sequence values generated only after this preregistration is committed"
+  },
+  "development_evidence": {
+    "coefficient_lesion_answer_exact": 0,
+    "prior_v14_answer_exact": 4,
+    "sequence_binary_v14_answer_exact": 156,
+    "sequence_binary_v15_answer_exact": 168,
+    "target_answer_exact_p": 1.9073486328125e-06,
+    "target_total": 24,
+    "v15_target_answer_exact": 19
+  },
+  "evaluation": {
+    "abort_conditions": [
+      "target examples enter any fit or calibration path",
+      "feature reconstruction or tokenizer identity differs",
+      "public input recovery is not exact on all tasks",
+      "any arm sees expected programs or answers during decode"
+    ],
+    "ordinary_decode_contract": "same exact resident checkpoint and public request text; one greedy response; final integer parsed without verifier feedback or retries",
+    "primary_metric": "exact final answer",
+    "secondary_metrics": [
+      "exact program",
+      "exact argument graph",
+      "accepted decode",
+      "wall time",
+      "resident model forward and generated-token counts"
+    ],
+    "statistics": "paired one-sided exact McNemar tests over identical tasks",
+    "success_conditions": [
+      "frozen_v15_treatment has at least 48 exact answers of 96",
+      "frozen_v15_treatment exceeds frozen_v15_coefficient_lesion with p < 0.05",
+      "frozen_v15_treatment exceeds frozen_v14_treatment with p < 0.05",
+      "frozen_v15_treatment exceeds ordinary resident 27B decode with p < 0.05",
+      "the frozen sequence_binary held-out control does not regress below 156 exact answers of 192"
+    ]
+  },
+  "expected_answers_available_to_decode": false,
+  "expected_answers_available_to_fit": false,
+  "feature_representation": "lexical_mid_final_v1",
+  "frozen_artifacts": {
+    "v14_transducer": {
+      "path": "artifacts/rlc/semantic_program_27b_compositional_v14/transducer.json",
+      "sha256": "4e833f30b9f68144f9a4bada167f6934496457f60fdbc8936511027cc27e67a0"
+    },
+    "v15_manifest": {
+      "path": "artifacts/rlc/semantic_program_27b_compositional_v15_natural/manifest.json",
+      "sha256": "e5271d71759281e871c07b52add04f1738b84f54c0b4098fbf2e6ffc53caf182"
+    },
+    "v15_transducer": {
+      "path": "artifacts/rlc/semantic_program_27b_compositional_v15_natural/transducer.json",
+      "sha256": "50705baeb33fd592be8dc6b086449dfec38af44df57cae5c9be1085fb145d61f"
+    }
+  },
+  "model_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+  "ordinary_decode_retries": 0,
+  "preregistered_before_target_generation": true,
+  "schema": "aura.semantic_program_natural_replication_preregistration.v1",
+  "serving_authority": false,
+  "source_commit": "a725b5809"
+}
