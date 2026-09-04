@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .graph import EdgeType, MorphGraph
-from .proposal import MorphProposal, bind, spawn
+from .proposal import MorphProposal, bind, grow
 from .types import clamp01, json_safe, stable_digest
 
 
@@ -84,9 +84,10 @@ class MotifTrial:
 class MorphMotif:
     """A reusable developmental prior.
 
-    ``seed_capabilities`` says what to have. ``preferred_bindings`` says how to
-    wire it, as ``(from_capability, to_capability)`` pairs rather than cell ids,
-    because the cells in a new situation are different cells.
+    ``seed_capabilities`` and ``seed_counts`` say what to have and how much of
+    it. ``preferred_bindings`` says how to wire it, as
+    ``(from_capability, to_capability)`` pairs rather than cell ids, because
+    the cells in a new situation are different cells.
     ``stop_when_cells`` is the growth bound the motif itself carries, so a
     motif cannot be the thing that makes a population run away.
     """
@@ -95,6 +96,10 @@ class MorphMotif:
     name: str
     fingerprint: tuple[str, ...]
     seed_capabilities: tuple[str, ...] = ()
+    #: How many providers of each capability the successful shape held. A
+    #: motif that records only *which* capabilities proposes nothing to a
+    #: population that already has one of each, and transfers nothing.
+    seed_counts: dict[str, int] = field(default_factory=dict)
     preferred_bindings: tuple[tuple[str, str], ...] = ()
     stop_when_cells: int = 12
     origin_scenario: str = ""
@@ -165,25 +170,40 @@ class MorphMotif:
                 have.setdefault(str(capability), []).append(str(cell_id))
 
         out: list[MorphProposal] = []
+        budget = max(0, self.stop_when_cells - len(present_capabilities))
         for capability in self.seed_capabilities:
-            if capability in have:
-                continue
-            out.append(spawn(
-                {
-                    "name": f"m_{capability}_{round_index}",
-                    "capabilities": [capability],
-                    "subsystem": "sandbox",
-                    "service_rate": 2,
-                },
-                proposer=proposer,
-                parent=proposer,
-                placement="local",
-                subsystem="sandbox",
-                benefit=0.6,
-                cost=0.6,
-                rationale=f"motif {self.name} seeds {capability}",
-                evidence={"motif_id": self.motif_id},
-            ))
+            wanted = max(1, int(self.seed_counts.get(capability, 1)))
+            held = len(have.get(capability, ()))
+            for index in range(min(budget, max(0, wanted - held))):
+                # Attach to a cell that already holds the capability where one
+                # exists, so the new provider shares real traffic; otherwise to
+                # the proposer, which at least makes it reachable.
+                anchor = sorted(have.get(capability, ()) or [proposer])[0]
+                if anchor == f"m_{capability}_{round_index}_{index}":
+                    continue
+                out.append(grow(
+                    {
+                        "name": f"m_{capability}_{round_index}_{index}",
+                        "capabilities": [capability],
+                        "subsystem": "sandbox",
+                        "service_rate": 2,
+                    },
+                    cell_id=f"m_{capability}_{round_index}_{index}",
+                    attach_from=anchor,
+                    port=capability,
+                    proposer=proposer,
+                    parent=proposer,
+                    placement="local",
+                    subsystem="sandbox",
+                    benefit=0.6,
+                    cost=0.6,
+                    rationale=(
+                        f"motif {self.name} wants {wanted} of {capability} and the "
+                        f"population holds {held}"
+                    ),
+                    evidence={"motif_id": self.motif_id, "capability": capability},
+                ))
+                budget -= 1
 
         for source_capability, target_capability in self.preferred_bindings:
             sources = have.get(source_capability, [])
@@ -217,6 +237,7 @@ class MorphMotif:
             "name": self.name,
             "fingerprint": list(self.fingerprint),
             "seed_capabilities": list(self.seed_capabilities),
+            "seed_counts": dict(sorted(self.seed_counts.items())),
             "preferred_bindings": [list(p) for p in self.preferred_bindings],
             "stop_when_cells": self.stop_when_cells,
             "origin_scenario": self.origin_scenario,
@@ -238,6 +259,7 @@ class MorphMotif:
             name=str(payload.get("name", "")),
             fingerprint=tuple(str(f) for f in payload.get("fingerprint", ())),
             seed_capabilities=tuple(str(c) for c in payload.get("seed_capabilities", ())),
+            seed_counts={str(k): int(v) for k, v in dict(payload.get("seed_counts", {})).items()},
             preferred_bindings=tuple(
                 (str(p[0]), str(p[1])) for p in payload.get("preferred_bindings", ()) if len(p) >= 2
             ),
@@ -301,6 +323,9 @@ class MotifLibrary:
                 bindings.add((source_capability, target_capability))
 
         seeds = tuple(sorted({c for c in capability_of.values()}))
+        counts: dict[str, int] = {}
+        for capability in capability_of.values():
+            counts[capability] = counts.get(capability, 0) + 1
         motif_id = "motif_" + stable_digest(name, *fingerprint, *seeds, length=14)
         existing = self._motifs.get(motif_id)
         if existing is not None:
@@ -311,6 +336,7 @@ class MotifLibrary:
             name=name,
             fingerprint=fingerprint,
             seed_capabilities=seeds,
+            seed_counts=counts,
             preferred_bindings=tuple(sorted(bindings)),
             stop_when_cells=max(4, len(capability_of) + 2),
             origin_scenario=scenario,

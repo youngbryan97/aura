@@ -501,6 +501,62 @@ def spawn(
     )
 
 
+def grow(
+    manifest_data: Mapping[str, Any],
+    *,
+    cell_id: str,
+    attach_from: str,
+    port: str,
+    proposer: str,
+    parent: str = "",
+    placement: str = "",
+    edge_type: EdgeType = EdgeType.DATA,
+    subsystem: str = "generic",
+    benefit: float = 0.0,
+    cost: float = 1.0,
+    rationale: str = "",
+    evidence: Mapping[str, Any] | None = None,
+) -> MorphProposal:
+    """Spawn a cell and bind it in, as one all-or-nothing change.
+
+    A cell nothing routes to cannot do any work, so a spawn on its own scores
+    exactly what doing nothing scores and is refused — correctly. Development
+    grows a part and connects it in the same step, which is also what a
+    docking module does: arriving and latching are one operation, and a module
+    that arrives without latching has not joined anything.
+
+    ``cell_id`` is given rather than derived, because the binding has to name
+    the cell before the cell exists.
+    """
+    return MorphProposal(
+        proposer=proposer,
+        subsystem=subsystem,
+        transitions=(
+            MorphTransition(
+                kind=TransitionKind.SPAWN,
+                subject=cell_id,
+                manifest_data=dict(manifest_data),
+                placement=placement,
+                metadata={"parent": parent or proposer},
+            ),
+            MorphTransition(
+                kind=TransitionKind.BIND,
+                subject=attach_from,
+                edge=MorphEdge(
+                    source=attach_from,
+                    target=cell_id,
+                    edge_type=edge_type,
+                    port=port,
+                ),
+            ),
+        ),
+        expected_benefit=benefit,
+        estimated_cost=max(0.05, float(cost)),
+        rationale=rationale,
+        evidence=dict(evidence or {}),
+    )
+
+
 def retire(
     subject: str,
     *,
@@ -589,6 +645,39 @@ def specialize(
     )
 
 
+def despecialize(
+    subject: str,
+    *,
+    proposer: str,
+    previous: str = "",
+    subsystem: str = "generic",
+    benefit: float = 0.0,
+    rationale: str = "",
+    evidence: Mapping[str, Any] | None = None,
+) -> MorphProposal:
+    """Give a cell its general capability back.
+
+    The counterpart to specializing, and the one that matters after damage: a
+    specialization is safe while something else covers what it gave up, and
+    stops being safe the moment that cover dies.
+    """
+    return MorphProposal(
+        proposer=proposer,
+        subsystem=subsystem,
+        transitions=(
+            MorphTransition(
+                kind=TransitionKind.DESPECIALIZE,
+                subject=subject,
+                metadata={"previous_specialization": previous},
+            ),
+        ),
+        expected_benefit=benefit,
+        estimated_cost=0.1,
+        rationale=rationale,
+        evidence=dict(evidence or {}),
+    )
+
+
 def migrate(
     subject: str,
     placement: str,
@@ -643,6 +732,8 @@ __all__ = [
     "TransitionKind",
     "WIRING_TRANSITIONS",
     "bind",
+    "despecialize",
+    "grow",
     "max_risk",
     "migrate",
     "rank_proposals",

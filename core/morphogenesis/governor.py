@@ -77,6 +77,16 @@ class MorphBounds:
     #: is worth its cost. The band is the hysteresis: a change that only just
     #: helps is not worth the disruption of making it.
     min_shadow_gain: float = 0.02
+    #: Below this baseline score, a change need only avoid making things worse.
+    #:
+    #: A band that always demands immediate improvement cannot cross a valley,
+    #: and recovery from damage is always a valley: with two capabilities
+    #: missing, restoring either one alone completes nothing and measures as a
+    #: gain of exactly zero, so both are refused and the population stays dead.
+    #: The bound is a floor rather than a switch, so exploration is available
+    #: only where there is nothing left to lose; the population and replica
+    #: caps still hold, so this widens what may be tried and not how much.
+    exploration_floor: float = 0.05
     #: Energy the proposer must hold to spend on a transition.
     min_proposer_energy: float = 0.12
     #: A run may not spend more than this in total. The ceiling stops a slow
@@ -99,6 +109,7 @@ class MorphBounds:
             "window_s": self.window_s,
             "cooldown_s": self.cooldown_s,
             "min_shadow_gain": self.min_shadow_gain,
+            "exploration_floor": self.exploration_floor,
             "min_proposer_energy": self.min_proposer_energy,
             "max_total_energy": self.max_total_energy,
             "max_components": self.max_components,
@@ -289,12 +300,20 @@ class MorphGovernor:
                     baseline_score=baseline_score,
                 )
             gain = shadow_score - baseline_score
-            if gain < self.bounds.min_shadow_gain:
+            exploring = baseline_score <= self.bounds.exploration_floor
+            required = 0.0 if exploring else self.bounds.min_shadow_gain
+            if gain < required:
+                band = (
+                    f"must not be worse (baseline {baseline_score:.4f} is at the "
+                    f"exploration floor)"
+                    if exploring
+                    else f"is under the {required:.4f} band"
+                )
                 return finish(
                     Decision.REJECTED,
                     (
-                        f"shadow: measured gain {gain:+.4f} is under the {self.bounds.min_shadow_gain:.4f} "
-                        f"band (claimed {proposal.expected_benefit:.3f})"
+                        f"shadow: measured gain {gain:+.4f} {band} "
+                        f"(claimed {proposal.expected_benefit:.3f})"
                     ),
                     shadow_score=shadow_score,
                     baseline_score=baseline_score,
@@ -381,6 +400,30 @@ class MorphGovernor:
         pieces = [c & scope for c in graph.components()]
         return sum(1 for piece in pieces if piece)
 
+    def _effective_ports(
+        self, proposal: MorphProposal
+    ) -> Mapping[str, tuple[frozenset[str], frozenset[str]]] | None:
+        """The port contract, extended with the cells this proposal creates.
+
+        A grow() binds to a cell that does not exist yet. Validated against a
+        contract built only from cells that already exist, that binding is
+        refused for a target that "does not accept" the port — and growing a
+        part and wiring it in could never happen in one step.
+        """
+        if self._port_contract is None:
+            return None
+        extended = dict(self._port_contract)
+        for transition in proposal.transitions:
+            if transition.kind is not TransitionKind.SPAWN:
+                continue
+            cell_id = self._spawn_id(proposal, transition)
+            capabilities = frozenset(
+                str(c) for c in (transition.manifest_data.get("capabilities") or ())
+            )
+            every_out = frozenset().union(*(v[0] for v in self._port_contract.values())) if self._port_contract else capabilities
+            extended[cell_id] = (every_out or capabilities, capabilities)
+        return extended
+
     def _candidate_graph(self, proposal: MorphProposal) -> tuple[MorphGraph | None, str]:
         """A copy of the graph with the proposal applied, and why not if not.
 
@@ -394,7 +437,7 @@ class MorphGovernor:
             candidate.transaction(
                 lambda scratch: self._apply_to_scratch(scratch, proposal, dry_run=True),
                 cause=f"shadow:{proposal.proposal_id}",
-                port_contract=self._port_contract,
+                port_contract=self._effective_ports(proposal),
             )
         except GraphIntegrityError as exc:
             return None, str(exc)
@@ -489,7 +532,7 @@ class MorphGovernor:
             self.graph.transaction(
                 lambda scratch: self._apply_to_scratch(scratch, proposal, dry_run=False),
                 cause=f"{proposal.proposer}:{proposal.proposal_id}",
-                port_contract=self._port_contract,
+                port_contract=self._effective_ports(proposal),
             )
         except GraphIntegrityError as exc:
             for prior, prior_subject in reversed(done):

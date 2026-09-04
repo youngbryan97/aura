@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from .graph import EdgeType, MorphEdge, MorphGraph
-from .proposal import MorphProposal, bind, route, spawn, specialize, unbind
+from .proposal import MorphProposal, bind, despecialize, grow, route, specialize, unbind
 from .workload import CAPABILITIES, RoutedWorkload, WorkerProfile
 
 
@@ -86,8 +86,11 @@ class LocalMorphPolicy:
 
     Four local rules, in the order a cell would reach for them:
 
+    * work waiting for something it specialized away from, that nothing in
+      reach covers → give the capability back
     * work it cannot serve and cannot forward → bind to a neighbour that can
     * a neighbour it never routes to that serves what it needs → bind
+    * work needing something no neighbour provides at all → grow that cell
     * its queue deep in one capability it holds, and a visible neighbour
       covers everything it would be giving up → specialize into it
     * still deep after that → spawn a helper
@@ -121,9 +124,39 @@ class LocalMorphPolicy:
         if worker is None:
             return []
 
-        served_here = set(worker.capabilities)
+        # What this cell can serve *now*, which is not the same as what it
+        # holds: a specialized cell keeps its other capabilities on paper and
+        # serves none of them. Reading the manifest instead of the rate is how
+        # a cell sits on work it cannot do and never notices.
+        served_here = {c for c in worker.capabilities if worker.rate_for(c) > 0}
         existing_ports = set(view["out_ports"])
         neighbour_caps: dict[str, list[str]] = view["neighbour_capabilities"]
+
+        # 0: a specialization is only safe while something else covers what it
+        # gave up. Work is waiting here for a capability this cell owns, cannot
+        # currently serve, and nothing in reach provides. Give the capability
+        # back — cheaper than growing a replacement, and it is the only move
+        # available when the damage took the cover away.
+        if worker.specialization:
+            stranded = [
+                (count, cap) for cap, count in demand.items()
+                if cap in set(worker.capabilities) and cap not in served_here
+                and not any(cap in caps for caps in neighbour_caps.values())
+            ]
+            if stranded:
+                count, capability = max(stranded)
+                return [despecialize(
+                    cell_id,
+                    proposer=cell_id,
+                    previous=worker.specialization,
+                    subsystem="sandbox",
+                    benefit=min(1.0, 0.5 + count / 10.0),
+                    rationale=(
+                        f"{count} task(s) here need {capability}, which this cell gave up "
+                        f"to specialize in {worker.specialization} and nothing in reach covers"
+                    ),
+                    evidence={"stranded": count, "capability": capability},
+                )]
 
         # 1 and 2: bind toward a neighbour that serves what is stuck here.
         blocked = sorted(
@@ -150,7 +183,31 @@ class LocalMorphPolicy:
                 evidence={"local_demand": count, "queue_depth": signals["queue_depth"]},
             ))
 
-        # 3: specialize into the capability this cell is asked for most.
+        # 3: nothing visible can do this at all — grow it back.
+        # This is what a lesion needs. Replicating only capabilities that still
+        # exist cannot restore one the damage took entirely, and a population
+        # that loses a stage keeps every task forever without it.
+        for count, capability in blocked[:1]:
+            visible = any(capability in caps for caps in neighbour_caps.values())
+            if visible or capability in set(worker.capabilities):
+                continue
+            new_id = f"r_{capability}_{context.round_index}_{cell_id}"
+            out.append(grow(
+                _worker_manifest(capability, context.round_index),
+                cell_id=new_id,
+                attach_from=cell_id,
+                port=capability,
+                proposer=cell_id,
+                parent=cell_id,
+                placement="local",
+                subsystem="sandbox",
+                benefit=min(1.0, 0.4 + count / 8.0),
+                cost=0.6,
+                rationale=f"{count} task(s) need {capability} and nothing in reach provides it",
+                evidence={"local_demand": count, "capability": capability, "regenerating": True},
+            ))
+
+        # 4: specialize into the capability this cell is asked for most.
         mine = sorted(
             ((count, cap) for cap, count in demand.items() if cap in served_here),
             reverse=True,
@@ -178,13 +235,15 @@ class LocalMorphPolicy:
                     evidence={"share": round(share, 3), "queue_depth": signals["queue_depth"]},
                 ))
 
-        # 4: still overloaded with a capability this cell holds — ask for help.
+        # 5: still overloaded with a capability this cell holds — ask for help.
         if mine and signals["queue_pressure"] >= self.queue_pressure_spawn:
             count, capability = mine[0]
-            index = context.round_index
-            manifest = _worker_manifest(capability, index)
-            out.append(spawn(
-                manifest,
+            new_id = f"h_{capability}_{context.round_index}_{cell_id}"
+            out.append(grow(
+                _worker_manifest(capability, context.round_index),
+                cell_id=new_id,
+                attach_from=cell_id,
+                port=capability,
                 proposer=cell_id,
                 parent=cell_id,
                 placement="local",
@@ -244,8 +303,11 @@ class CentralPolicy:
 
         if providers:
             busiest = max(providers, key=lambda n: (len(context.workload.queues.get(n, ())), n))
-            out.append(spawn(
+            out.append(grow(
                 _worker_manifest(capability, context.round_index),
+                cell_id=f"c_{capability}_{context.round_index}",
+                attach_from=busiest,
+                port=capability,
                 proposer="central",
                 parent=busiest,
                 placement="local",
@@ -281,8 +343,10 @@ class RandomPolicy:
         target = self._rng.choice([c for c in cells if c != source])
         capability = self._rng.choice(list(context.workload.workers[target].capabilities) or list(CAPABILITIES))
         if self._rng.random() < 0.25:
-            return [spawn(
+            return [grow(
                 _worker_manifest(capability, context.round_index),
+                cell_id=f"x_{capability}_{context.round_index}",
+                attach_from=source, port=capability,
                 proposer=source, parent=source, placement="local", subsystem="sandbox",
                 benefit=0.5, cost=0.6, rationale="random",
             )]
