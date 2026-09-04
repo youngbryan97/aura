@@ -47,14 +47,14 @@ def _would_pick(best: dict[str, str]):
 def test_a_run_holds_while_every_step_is_what_she_would_choose():
     pick = _would_pick({"b": "left", "b/left": "down"})
     assert a_run_she_can_carry(
-        ["left", "down"], "b", _foresee, pick, CHOICES, moved=9
+        ["left", "down"], "b", _foresee, pick, CHOICES, acted=9, changed=9
     ) == ["left", "down"]
 
 
 def test_it_stops_at_the_first_step_she_would_not_choose():
     pick = _would_pick({"b": "left", "b/left": "up"})
     assert a_run_she_can_carry(
-        ["left", "down", "right"], "b", _foresee, pick, CHOICES, moved=9
+        ["left", "down", "right"], "b", _foresee, pick, CHOICES, acted=9, changed=9
     ) == ["left"]
 
 
@@ -62,19 +62,30 @@ def test_a_ranking_of_every_key_is_cut_to_the_one_she_meant():
     """down, up, left, right — the live case."""
     pick = _would_pick({"b": "up"})
     assert (
-        a_run_she_can_carry(["up", "left", "right"], "b", _foresee, pick, CHOICES, moved=40)
+        a_run_she_can_carry(["up", "left", "right"], "b", _foresee, pick, CHOICES, acted=40, changed=40)
         == ["up"]
     )
 
 
 def test_a_world_whose_acts_change_it_gets_one_act_at_a_time_without_a_model():
-    assert a_run_she_can_carry(["up", "left"], None, None, None, CHOICES, moved=12) == []
+    assert a_run_she_can_carry(["up", "left"], None, None, None, CHOICES, 12, 12) == []
 
 
-def test_a_page_where_nothing_has_moved_yet_still_tries_the_next_thing():
+def test_a_place_she_has_never_acted_in_gets_one_act_and_a_look():
+    """No evidence is not evidence of nothing.
+
+    Read as the same thing, a fresh world gets four keys a cycle from the
+    first move, no pair she learns from spans one act, nothing is ever
+    recorded as having changed — and the condition that lets her go four at a
+    time is the one her going four at a time keeps true.
+    """
+    assert a_run_she_can_carry(["tab", "return"], None, None, None, CHOICES, 0, 0) == []
+
+
+def test_a_page_where_acting_has_been_seen_to_change_nothing_tries_the_next_thing():
     """A key that may simply do nothing: the ranking IS the list to try."""
     assert a_run_she_can_carry(
-        ["tab", "return"], None, None, None, CHOICES, moved=0
+        ["tab", "return"], None, None, None, CHOICES, 9, 0
     ) == ["tab", "return"]
 
 
@@ -85,12 +96,12 @@ def test_a_step_that_changes_nothing_ends_the_run():
         return where if step == "down" else f"{where}/{step}"
 
     assert a_run_she_can_carry(
-        ["left", "down"], "b", stuck, pick, CHOICES, moved=9
+        ["left", "down"], "b", stuck, pick, CHOICES, acted=9, changed=9
     ) == ["left"]
 
 
 def test_no_run_named_is_no_run_taken():
-    assert a_run_she_can_carry([], "b", _foresee, _would_pick({}), CHOICES, moved=0) == []
+    assert a_run_she_can_carry([], "b", _foresee, _would_pick({}), CHOICES, acted=0, changed=0) == []
 
 
 def test_the_pursuit_checks_a_named_sequence_before_committing_to_it():

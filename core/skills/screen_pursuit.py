@@ -871,7 +871,8 @@ def a_run_she_can_carry(
     foresee: Any,
     pick: Any,
     choices: Sequence[str],
-    moved: int,
+    acted: int,
+    changed: int,
 ) -> list[str]:
     """The moves after this one that are still moves about the situation then.
 
@@ -884,9 +885,16 @@ def a_run_she_can_carry(
     So a named run keeps going while each step is still what she would choose
     from the board the step before it leaves. That is the same judgement
     carried forward, which is what committing without words claims to be, and
-    it is checkable. Where she cannot say what the board becomes, a run
-    outlives its own first act only where acting here has never changed
-    anything — ``moved`` is how many of her acts have.
+    it is checkable.
+
+    Where she cannot say what the board becomes, a run outlives its own first
+    act only where acting here has been SEEN to change nothing. ``acted`` and
+    ``changed`` are her own record of that, and the difference between "no
+    evidence" and "evidence of nothing" is the whole of it: read as the same
+    thing, a fresh world gets four keys a cycle from the first move, no pair
+    she learns from spans one act, so nothing is ever recorded as having
+    changed — and the condition that lets her go four at a time is the one
+    her going four at a time keeps true.
 
     LIVE 2026-09-04: a ranking of four arrow keys went out as a four-move
     plan every cycle, down then up then left then right, on a board where
@@ -897,7 +905,10 @@ def a_run_she_can_carry(
     if not named:
         return []
     if foresee is None or from_here is None or pick is None:
-        return list(named) if moved <= 0 else []
+        if acted <= 0:
+            # Nothing known about this place at all. One act, then look.
+            return []
+        return [] if changed > 0 else list(named)
     kept: list[str] = []
     where = from_here
     for step in named:
@@ -4579,7 +4590,8 @@ async def pursue_on_screen(
             foresee,
             pick,
             choices,
-            int(getattr(knows.rules, "moved", 0) or 0),
+            int(getattr(responds["state"], "acts", 0) or 0),
+            int(getattr(responds["state"], "effective", 0) or 0),
         )
         if not follow_on and foresee is not None and pending["arranged"] is not None:
             going = far.how_many(trusted=float(knows.rules.confidence()))
