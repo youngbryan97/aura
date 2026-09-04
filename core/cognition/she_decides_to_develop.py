@@ -391,24 +391,30 @@ def what_to_do_next(
     )
 
 
-def she_decides_to_develop(
-    family: str,
+def _carry_it_out(
+    decided: Decision,
     *,
+    family: str,
     costs_now: int,
     situation: Any = None,
+    started_by: str = "she",
     asked_for: str | None = None,
-) -> tuple[Decision, Any]:
-    """Choose, do it, and write down what happened. The whole episode."""
-    decided = what_to_do_next(
-        family, costs_now=costs_now, asked_for=asked_for
-    )
-    if decided.action is None:
-        note_an_episode(family, route=None, walked=0, admitted=None)
-        return decided, None
-    # Said before it happens, so the comparison afterwards is against something
-    # fixed rather than against a memory of what she would have said.
+) -> Any:
+    """Do the action already chosen, and write down what came of it.
+
+    Both entry points ran their own copy of this and the copies had drifted:
+    only one of them applied the action's own success test, so an action that
+    declared itself failed was recorded as kept whenever the idle loop was the
+    caller. One episode, one place.
+    """
+    from core.cognition.what_she_can_take_back import as_it_stands
+
     expected = what_she_expects(decided.action.name, costs_now=costs_now)
-    _note("prediction", decided.started_by, expected.describes())
+    _note("prediction", started_by, expected.describes())
+    # What the promotion replaces. Nobody passed this, so the rollback stack
+    # was empty, put_it_back returned None every time, and the promotion
+    # module's claim that anything can go back was false of everything.
+    stood = as_it_stands()
     _ALREADY_DECIDING[0] = True
     try:
         came_of_it = decided.action.do_it(situation)
@@ -419,7 +425,7 @@ def she_decides_to_develop(
         _ALREADY_DECIDING[0] = False
     _note(
         "evaluation",
-        decided.started_by,
+        started_by,
         f"{decided.action.name} gave {came_of_it!r}",
     )
     if decided.action.succeeded is not None:
@@ -428,12 +434,13 @@ def she_decides_to_develop(
         except Exception:  # noqa: BLE001 - a success test that raises fails it
             came_of_it = None
     if came_of_it:
-        _note("installation", decided.started_by, decided.action.kind)
+        _note("installation", started_by, decided.action.kind)
         promote(
             f"{decided.action.over}/{decided.action.name}",
             became="shadow",
-            started_by=decided.started_by,
+            started_by=started_by,
             evidence=decided.grounds,
+            replaced=stood,
             asked_from_outside=asked_for,
         )
     note_what_it_did(
@@ -452,6 +459,35 @@ def she_decides_to_develop(
         route=decided.action.name if came_of_it else None,
         walked=decided.worth.cost if decided.worth else 0,
         admitted=decided.action.kind if came_of_it else None,
+        # Named whether or not it worked. Without this a family where
+        # everything she has was tried and nothing held reads the same as one
+        # she never tried, and only the first calls for a new operator.
+        tried=decided.action.name,
+    )
+    return came_of_it
+
+
+def she_decides_to_develop(
+    family: str,
+    *,
+    costs_now: int,
+    situation: Any = None,
+    asked_for: str | None = None,
+) -> tuple[Decision, Any]:
+    """Choose, do it, and write down what happened. The whole episode."""
+    decided = what_to_do_next(
+        family, costs_now=costs_now, asked_for=asked_for
+    )
+    if decided.action is None:
+        note_an_episode(family, route=None, walked=0, admitted=None)
+        return decided, None
+    came_of_it = _carry_it_out(
+        decided,
+        family=family,
+        costs_now=costs_now,
+        situation=situation,
+        started_by=decided.started_by,
+        asked_for=asked_for,
     )
     return decided, came_of_it
 
@@ -518,7 +554,9 @@ def what_is_worth_doing_now() -> Decision:
     )
 
 
-def she_develops_herself() -> tuple[Decision, Any]:
+def she_develops_herself(
+    decided: Decision | None = None,
+) -> tuple[Decision, Any]:
     """Nobody asked. Choose, do it, and write down what came of it.
 
     One at a time. A developmental action can cause development — retracting a
@@ -542,7 +580,13 @@ def she_develops_herself() -> tuple[Decision, Any]:
             ),
             None,
         )
-    decided = what_is_worth_doing_now()
+    # A caller that already asked what was worth doing passes it in. The idle
+    # loop asked, told the user "I decided to X", and then called this, which
+    # asked again — and the draw is a draw, so the second answer differed from
+    # the announced one in about four episodes out of five. She said one thing
+    # and did another, and the first decision was thrown away into `_again`.
+    if decided is None:
+        decided = what_is_worth_doing_now()
     if decided.action is None:
         return decided, None
     family = next(
@@ -551,42 +595,7 @@ def she_develops_herself() -> tuple[Decision, Any]:
         "herself",
     )
     each_costs = decided.worth.cost if decided.worth else 0
-    expected = what_she_expects(decided.action.name, costs_now=each_costs)
-    _note("prediction", "she", expected.describes())
-    _ALREADY_DECIDING[0] = True
-    try:
-        came_of_it = decided.action.do_it(None)
-    except Exception as exc:  # noqa: BLE001 - a failed action is a result
-        logger.info("%s raised: %s", decided.action.name, exc)
-        came_of_it = None
-    finally:
-        _ALREADY_DECIDING[0] = False
-    _note(
-        "evaluation", "she", f"{decided.action.name} gave {came_of_it!r}"
-    )
-    if came_of_it:
-        _note("installation", "she", decided.action.kind)
-        promote(
-            f"{decided.action.over}/{decided.action.name}",
-            became="shadow",
-            started_by="she",
-            evidence=decided.grounds,
-        )
-    note_what_it_did(
-        decided.action.name,
-        kept=bool(came_of_it),
-        gained=int(decided.worth.saving or 0) if decided.worth else 0,
-    )
-    what_actually_happened(
-        decided.action.name,
-        cost=decided.worth.cost if decided.worth else each_costs,
-        kept=bool(came_of_it),
-        gained=int(decided.worth.saving or 0) if decided.worth else 0,
-    )
-    note_an_episode(
-        family,
-        route=decided.action.name if came_of_it else None,
-        walked=decided.worth.cost if decided.worth else 0,
-        admitted=decided.action.kind if came_of_it else None,
+    came_of_it = _carry_it_out(
+        decided, family=family, costs_now=each_costs, started_by="she"
     )
     return decided, came_of_it

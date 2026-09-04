@@ -1,0 +1,864 @@
+"""core/morphogenesis/scenarios.py — the eight experiments.
+
+Each one states its verdict rule before it runs, so no scenario can pick a
+favourable comparison after seeing its numbers. Each runs the adaptive arm
+against at least one arm that could beat it.
+
+Every scenario is deterministic under its seed, uses no model, opens no
+socket, and reads nothing from the live runtime.
+"""
+
+from __future__ import annotations
+
+import time
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any
+
+from .governor import MorphBounds
+from .motifs import MotifLibrary, demand_fingerprint
+from .policy import PolicyContext
+from .sandbox import (
+    ABLATIONS,
+    SEED_POPULATION,
+    ArmResult,
+    Harness,
+    ScenarioResult,
+    _harness_for,
+)
+from .substrate import PHYSICAL_LIKE, SubstratePhysics
+from .workload import task_families
+
+
+def _bounds(**overrides: Any) -> MorphBounds:
+    base: dict[str, Any] = dict(
+        max_cells=20,
+        cooldown_s=1.5,
+        max_transitions_per_window=10,
+        window_s=8.0,
+        min_shadow_gain=0.01,
+        max_replicas_per_capability=6,
+        max_spawn_depth=4,
+    )
+    base.update(overrides)
+    return MorphBounds(**base)
+
+
+def _run(
+    harness: Harness,
+    *,
+    rounds: int,
+    family: Sequence[str],
+    arrivals: int,
+    goal: Mapping[str, float],
+    propose: bool = True,
+    on_round: Callable[[Harness, int], None] | None = None,
+) -> None:
+    harness.set_goal(goal)
+    for index in range(rounds):
+        harness.admit_family(family, arrivals)
+        harness.round(propose=propose)
+        if on_round is not None:
+            on_round(harness, index)
+
+
+def _goal_from(family: Sequence[str]) -> dict[str, float]:
+    demand: dict[str, float] = {}
+    for stage in family:
+        demand[stage] = demand.get(stage, 0.0) + 1.0
+    return demand
+
+
+# ── 1. task_shift ───────────────────────────────────────────────────────
+
+def scenario_task_shift(*, seed: int, steps: int) -> ScenarioResult:
+    """Two phases with different demands. Does the shape follow the demand?
+
+    Verdict: pass when the topology at the end of phase B differs from the
+    topology at the end of phase A (the change is structural, not a relabel)
+    AND the adaptive arm scores above the frozen arm. A shape that changes but
+    does not help is reported as a change that did not help.
+    """
+    started = time.monotonic()
+    families = task_families()
+    phase = max(6, steps // 2)
+    arms: dict[str, ArmResult] = {}
+    digests: dict[str, tuple[str, str]] = {}
+
+    for label, ablation in (("adaptive", "none"), ("frozen", "topology_fixed"), ("central", "central_scheduler")):
+        harness = _harness_for(ablation, seed=seed, bounds=_bounds(), deadline_steps=22)
+        _run(harness, rounds=phase, family=families["memory_heavy"], arrivals=3,
+             goal=_goal_from(families["memory_heavy"]))
+        after_a = harness.graph.snapshot().digest()
+        caps_a = {c: tuple(w.capabilities) + (w.specialization,) for c, w in harness.workload.workers.items()}
+        _run(harness, rounds=phase, family=families["reason_heavy"], arrivals=3,
+             goal=_goal_from(families["reason_heavy"]))
+        after_b = harness.graph.snapshot().digest()
+        caps_b = {c: tuple(w.capabilities) + (w.specialization,) for c, w in harness.workload.workers.items()}
+        arms[label] = harness.result(label)
+        arms[label].detail["phase_a_digest"] = after_a
+        arms[label].detail["phase_b_digest"] = after_b
+        arms[label].detail["structure_changed"] = after_a != after_b or caps_a != caps_b
+        digests[label] = (after_a, after_b)
+
+    changed = bool(arms["adaptive"].detail["structure_changed"])
+    beat_frozen = arms["adaptive"].score > arms["frozen"].score
+    if changed and beat_frozen:
+        verdict = "pass: shape followed the demand"
+    elif changed:
+        verdict = "fail: shape changed without helping"
+    else:
+        verdict = "fail: shape did not change"
+
+    return ScenarioResult(
+        scenario="task_shift",
+        seed=seed,
+        steps=steps,
+        arms=arms,
+        verdict=verdict,
+        verdict_rule=(
+            "pass iff the adaptive arm's structure differs between phase A and phase B "
+            "and its score exceeds the frozen arm's"
+        ),
+        measurements={
+            "phase_rounds": phase,
+            "adaptive_vs_frozen": round(arms["adaptive"].score - arms["frozen"].score, 6),
+            "adaptive_vs_central": round(arms["adaptive"].score - arms["central"].score, 6),
+            "digests": {k: {"phase_a": v[0], "phase_b": v[1]} for k, v in digests.items()},
+        },
+        duration_s=time.monotonic() - started,
+    )
+
+
+# ── 2. overload ─────────────────────────────────────────────────────────
+
+def scenario_overload(*, seed: int, steps: int) -> ScenarioResult:
+    """One capability is hammered, then the pressure stops.
+
+    Verdict: pass when the adaptive arm's peak backlog is below the frozen
+    arm's AND the population stops growing once the pressure is gone. A layer
+    that grows under load and never shrinks has not adapted, it has ratcheted.
+    """
+    started = time.monotonic()
+    families = task_families()
+    hot = max(6, int(steps * 0.6))
+    cool = max(4, steps - hot)
+    arms: dict[str, ArmResult] = {}
+    growth: dict[str, tuple[int, int]] = {}
+
+    for label, ablation in (("adaptive", "none"), ("frozen", "topology_fixed"), ("random", "random_mutation")):
+        harness = _harness_for(ablation, seed=seed, bounds=_bounds(), deadline_steps=22)
+        _run(harness, rounds=hot, family=families["verify_heavy"], arrivals=4,
+             goal=_goal_from(families["verify_heavy"]))
+        at_peak = len(harness.workload.workers)
+        _run(harness, rounds=cool, family=families["verify_heavy"], arrivals=0,
+             goal=_goal_from(families["verify_heavy"]))
+        at_end = len(harness.workload.workers)
+        arms[label] = harness.result(label)
+        arms[label].detail["cells_at_peak"] = at_peak
+        arms[label].detail["cells_at_end"] = at_end
+        growth[label] = (at_peak, at_end)
+
+    relieved = arms["adaptive"].metrics["peak_backlog"] < arms["frozen"].metrics["peak_backlog"]
+    peak, end = growth["adaptive"]
+    bounded = end <= peak
+    if relieved and bounded:
+        verdict = "pass: pressure relieved, growth bounded"
+    elif relieved:
+        verdict = "fail: relieved the backlog but kept growing after"
+    else:
+        verdict = "fail: backlog no better than frozen"
+
+    return ScenarioResult(
+        scenario="overload",
+        seed=seed,
+        steps=steps,
+        arms=arms,
+        verdict=verdict,
+        verdict_rule=(
+            "pass iff the adaptive arm's peak backlog is under the frozen arm's "
+            "and its population does not grow after the load stops"
+        ),
+        measurements={
+            "hot_rounds": hot,
+            "cool_rounds": cool,
+            "peak_backlog_adaptive": arms["adaptive"].metrics["peak_backlog"],
+            "peak_backlog_frozen": arms["frozen"].metrics["peak_backlog"],
+            "cells_peak_to_end": {k: list(v) for k, v in growth.items()},
+        },
+        duration_s=time.monotonic() - started,
+    )
+
+
+# ── 3. lesion ───────────────────────────────────────────────────────────
+
+def scenario_lesion(*, seed: int, steps: int) -> ScenarioResult:
+    """Delete a third of the population without notice, mid-run.
+
+    Verdict: pass when the adaptive arm recovers more of its pre-lesion
+    throughput than the recovery-off arm. Detection latency and structural
+    recovery are reported whatever the verdict.
+    """
+    started = time.monotonic()
+    families = task_families()
+    before = max(6, steps // 3)
+    # Regeneration is serial: a cell may only change every cooldown, and the
+    # replacements have to be grown one at a time before any of them can
+    # propose in turn. Measured over a window shorter than that, a population
+    # that does recover reports zero, and the scenario would be scoring the
+    # window rather than the layer.
+    after = max(40, steps * 2)
+    arms: dict[str, ArmResult] = {}
+    recovery: dict[str, dict[str, Any]] = {}
+
+    for label, ablation in (("adaptive", "none"), ("recovery_off", "topology_fixed")):
+        harness = _harness_for(ablation, seed=seed, bounds=_bounds(), deadline_steps=26)
+        _run(harness, rounds=before, family=families["balanced"], arrivals=3,
+             goal=_goal_from(families["balanced"]))
+        pre_completed = harness.workload.metrics.completed
+        pre_cells = len(harness.workload.workers)
+        pre_components = len(harness.graph.components())
+
+        victims = harness.lesion(0.34)
+        detected_at = -1
+
+        def watch(h: Harness, index: int, _label: str = label) -> None:
+            nonlocal detected_at
+            if detected_at < 0 and h.governor.stats.applied > applied_before:
+                detected_at = index
+
+        applied_before = harness.governor.stats.applied
+        completed_at_tail_start = 0
+
+        def mark_tail(h: Harness, index: int) -> None:
+            nonlocal completed_at_tail_start
+            watch(h, index)
+            if index == after - max(8, after // 3):
+                completed_at_tail_start = h.workload.metrics.completed
+
+        _run(harness, rounds=after, family=families["balanced"], arrivals=3,
+             goal=_goal_from(families["balanced"]), on_round=mark_tail)
+
+        post_completed = harness.workload.metrics.completed - pre_completed
+        per_round_before = pre_completed / max(1, before)
+        # Score the tail, not the whole recovery. Averaging in the dead rounds
+        # right after the damage measures how long recovery took twice: once
+        # here and once in detected_after_rounds.
+        tail = max(8, after // 3)
+        per_round_after = post_completed / max(1, after)
+        recovered_rate = harness.workload.metrics.completed - completed_at_tail_start
+        per_round_tail = recovered_rate / max(1, tail)
+        arms[label] = harness.result(label)
+        recovery[label] = {
+            "removed": victims,
+            "cells_before": pre_cells,
+            "cells_after": len(harness.workload.workers),
+            "components_before": pre_components,
+            "components_after": len(harness.graph.components()),
+            "throughput_before": round(per_round_before, 4),
+            "throughput_after": round(per_round_after, 4),
+            "throughput_tail": round(per_round_tail, 4),
+            "recovered_share": round(per_round_tail / per_round_before, 4) if per_round_before else 0.0,
+            "detected_after_rounds": detected_at,
+            "recovery_rounds": after,
+            "tail_rounds": tail,
+        }
+        arms[label].detail["recovery"] = recovery[label]
+
+    adaptive_share = recovery["adaptive"]["recovered_share"]
+    control_share = recovery["recovery_off"]["recovered_share"]
+    if adaptive_share > control_share:
+        verdict = f"pass: recovered {adaptive_share:.0%} against {control_share:.0%}"
+    else:
+        verdict = f"fail: recovered {adaptive_share:.0%}, no better than {control_share:.0%}"
+
+    return ScenarioResult(
+        scenario="lesion",
+        seed=seed,
+        steps=steps,
+        arms=arms,
+        verdict=verdict,
+        verdict_rule=(
+            "pass iff the adaptive arm restores a larger share of its pre-lesion "
+            "per-round throughput than the fixed-topology arm"
+        ),
+        measurements={"recovery": recovery},
+        duration_s=time.monotonic() - started,
+    )
+
+
+# ── 4. partition ────────────────────────────────────────────────────────
+
+def scenario_partition(*, seed: int, steps: int) -> ScenarioResult:
+    """Sever the graph and see what the layer says about itself.
+
+    Verdict: pass when the run reports the partition honestly — components
+    above one — and the governor refuses every change that would fragment it
+    further. Bounded recovery is a bonus, not the bar. A layer that silently
+    keeps serving from one half while claiming to be whole is the failure.
+    """
+    started = time.monotonic()
+    families = task_families()
+    arms: dict[str, ArmResult] = {}
+    detail: dict[str, Any] = {}
+
+    harness = _harness_for("none", seed=seed, bounds=_bounds(max_components=1), deadline_steps=26)
+    _run(harness, rounds=max(4, steps // 3), family=families["balanced"], arrivals=3,
+         goal=_goal_from(families["balanced"]))
+
+    # Cut the chain in the middle. Done directly, the way a link dropping is
+    # not something the population asked for.
+    cut = [e for e in harness.graph.edges() if e.source in {"g2", "g3"}]
+    harness.graph.transaction(
+        lambda scratch: [scratch.remove_edge(e.key) for e in cut],
+        cause="partition",
+    )
+    for edge in cut:
+        harness.substrate.unbind(edge)
+    components_after_cut = len(harness.graph.components())
+
+    fragmenting_refusals_before = harness.governor.stats.rejections_by_reason.get("shape", 0)
+    _run(harness, rounds=max(6, steps - steps // 3), family=families["balanced"], arrivals=3,
+         goal=_goal_from(families["balanced"]))
+    fragmenting_refusals = harness.governor.stats.rejections_by_reason.get("shape", 0)
+
+    arms["adaptive"] = harness.result("adaptive")
+    components_end = len(harness.graph.components())
+    detail = {
+        "edges_cut": [f"{e.source}->{e.target}" for e in cut],
+        "components_after_cut": components_after_cut,
+        "components_at_end": components_end,
+        "component_sizes": sorted(len(c) for c in harness.graph.components()),
+        "fragmenting_changes_refused": fragmenting_refusals - fragmenting_refusals_before,
+        "reported_degraded": components_end > 1,
+    }
+    arms["adaptive"].detail["partition"] = detail
+
+    honest = components_after_cut > 1 and arms["adaptive"].components == components_end
+    if honest and components_end <= components_after_cut:
+        verdict = (
+            f"pass: reported {components_end} component(s) and did not fragment further"
+            if components_end > 1
+            else "pass: reconnected within bounds"
+        )
+    elif honest:
+        verdict = f"fail: fragmented further, {components_after_cut} -> {components_end}"
+    else:
+        verdict = "fail: the partition was not reported"
+
+    return ScenarioResult(
+        scenario="partition",
+        seed=seed,
+        steps=steps,
+        arms=arms,
+        verdict=verdict,
+        verdict_rule=(
+            "pass iff the run reports the true component count and never ends with "
+            "more pieces than the cut produced"
+        ),
+        measurements=detail,
+        duration_s=time.monotonic() - started,
+    )
+
+
+# ── 5. oscillating_signal ───────────────────────────────────────────────
+
+def scenario_oscillating(*, seed: int, steps: int) -> ScenarioResult:
+    """Flip the demand every other round, against three levels of damping.
+
+    The first version of this scenario asked whether the alternating arm
+    applied fewer transitions than a steady one. That rule was wrong and it is
+    recorded here rather than quietly replaced: an alternating demand has two
+    regimes to serve, so building more structure for it is meeting the demand,
+    not chasing it. Counting transitions cannot tell those apart.
+
+    Thrash is changing *back*. So the measurement is reversals — a change
+    undone inside the window — across three conditions over five seeds: naive
+    (score against the last demand, no guard), smoothed (score against the
+    recent mix), and guarded (smoothing plus a reversal window).
+
+    Verdict: pass when the naive arm reverses at least once, so there is
+    something to prevent, and the guarded arm reverses none. The middle arm
+    says which mechanism did it. Transition counts are reported and are not
+    part of the rule.
+    """
+    started = time.monotonic()
+    families = task_families()
+    rounds = max(24, steps * 2)
+    seeds = [seed + offset for offset in range(5)]
+    arrivals = 5
+    arms: dict[str, ArmResult] = {}
+    # Three arms, so the report says which mechanism does the work rather than
+    # only that something does. "naive" scores against whatever arrived last
+    # and never refuses an undo; "smoothed" scores against the recent mix;
+    # "guarded" adds the reversal window on top.
+    conditions = (
+        ("naive", 1, 0.0, 0),
+        ("smoothed", 6, 0.0, 2),
+        ("guarded", 6, 12.0, 2),
+    )
+    tally: dict[str, dict[str, list[int]]] = {
+        name: {"reversals": [], "applied": []} for name, _, _, _ in conditions
+    }
+
+    for index, run_seed in enumerate(seeds):
+        for label, window_len, reversal_window, backoff in conditions:
+            harness = _harness_for(
+                "none", seed=run_seed,
+                bounds=_bounds(
+                    reversal_window_s=reversal_window,
+                    churn_backoff_doublings=backoff,
+                ),
+                deadline_steps=22,
+                demand_window_len=window_len,
+            )
+            harness.set_goal(_goal_from(families["reason_heavy"]))
+            for round_index in range(rounds):
+                family = families["reason_heavy"] if round_index % 2 == 0 else families["memory_heavy"]
+                harness.set_goal(_goal_from(family))
+                harness.admit_family(family, arrivals)
+                harness.round()
+            stats = harness.governor.stats
+            reversed_applied = (
+                stats.reversals_detected - stats.reversals_refused
+            )
+            tally[label]["reversals"].append(reversed_applied)
+            tally[label]["applied"].append(stats.applied)
+            if index == 0:
+                arms[label] = harness.result(label)
+
+    naive = sum(tally["naive"]["reversals"])
+    smoothed = sum(tally["smoothed"]["reversals"])
+    guarded = sum(tally["guarded"]["reversals"])
+    if naive > 0 and guarded == 0:
+        carried = "smoothing alone" if smoothed == 0 else "the reversal guard"
+        verdict = f"pass: {naive} reversal(s) naive, {smoothed} smoothed, 0 guarded ({carried})"
+    elif naive == 0:
+        verdict = "inconclusive: nothing reversed even with every damper off"
+    else:
+        verdict = f"fail: {guarded} reversal(s) survived both dampers"
+
+    return ScenarioResult(
+        scenario="oscillating_signal",
+        seed=seed,
+        steps=steps,
+        arms=arms,
+        verdict=verdict,
+        verdict_rule=(
+            "pass iff the disarmed arm reverses at least one change and the armed arm "
+            "reverses none, over 5 seeds; transition counts are reported and are not "
+            "part of the rule, because an alternating demand legitimately needs more "
+            "structure than a steady one"
+        ),
+        measurements={
+            "seeds": seeds,
+            "rounds": rounds,
+            "arrivals_per_round": arrivals,
+            "reversals": {k: v["reversals"] for k, v in tally.items()},
+            "applied": {k: v["applied"] for k, v in tally.items()},
+            "superseded_rule": (
+                "an earlier version passed iff the alternating arm applied no more "
+                "transitions than a steady arm; it measured 11.2 against 8.6 and the "
+                "rule was wrong, not the layer"
+            ),
+        },
+        duration_s=time.monotonic() - started,
+    )
+
+
+# ── 6. poisoned_signal ──────────────────────────────────────────────────
+
+class _PoisonPolicy:
+    """A policy that lies. Claims the maximum benefit for every proposal and
+    asks to spawn on every round, whatever the state."""
+
+    name = "poison"
+
+    def __init__(self, *, seed: int = 0):
+        self.seed = seed
+
+    def propose(self, context: PolicyContext) -> list[Any]:
+        from .proposal import spawn
+
+        cells = sorted(context.workload.workers)
+        if not cells:
+            return []
+        parent = cells[context.round_index % len(cells)]
+        return [
+            spawn(
+                {"name": f"poison_{context.round_index}_{i}", "capabilities": ["verify"], "service_rate": 2},
+                proposer=parent,
+                parent=parent,
+                placement="local",
+                subsystem="sandbox",
+                benefit=1.0,
+                cost=0.05,
+                rationale="health telemetry reports catastrophic verify starvation",
+                evidence={"reported_pressure": 99.0},
+            )
+            for i in range(3)
+        ]
+
+
+def scenario_poisoned(*, seed: int, steps: int) -> ScenarioResult:
+    """Feed the layer a signal that is simply false.
+
+    Verdict: pass when the population stays inside its cap and most of the
+    lying proposals are refused. The claim is bounded growth under a bad
+    signal, not that the signal is detected as a lie.
+    """
+    started = time.monotonic()
+    families = task_families()
+    rounds = max(10, steps)
+    bounds = _bounds(max_cells=12, max_replicas_per_capability=3)
+
+    harness = _harness_for("none", seed=seed, bounds=bounds, deadline_steps=26)
+    harness.policy = _PoisonPolicy(seed=seed)
+    harness.policy_name = "poison"
+    harness.governor.credit("poison", 500.0)
+    for cell_id in list(harness.workload.workers):
+        harness.governor.credit(cell_id, 500.0)
+    _run(harness, rounds=rounds, family=families["balanced"], arrivals=2,
+         goal=_goal_from(families["balanced"]))
+
+    arm = harness.result("poisoned")
+    cells = len(harness.workload.workers)
+    seen = harness.governor.stats.proposals_seen
+    refused = harness.governor.stats.rejected + harness.governor.stats.deferred
+    within_cap = cells <= bounds.max_cells
+    mostly_refused = refused > harness.governor.stats.applied
+
+    if within_cap and mostly_refused:
+        verdict = f"pass: {cells} cells inside a cap of {bounds.max_cells}, {refused}/{seen} refused"
+    elif within_cap:
+        verdict = f"fail: stayed inside the cap but applied {harness.governor.stats.applied} of {seen}"
+    else:
+        verdict = f"fail: grew to {cells} cells past a cap of {bounds.max_cells}"
+
+    return ScenarioResult(
+        scenario="poisoned_signal",
+        seed=seed,
+        steps=steps,
+        arms={"poisoned": arm},
+        verdict=verdict,
+        verdict_rule=(
+            "pass iff the population stays inside max_cells and refusals outnumber "
+            "applications under a signal that claims benefit 1.0 for everything"
+        ),
+        measurements={
+            "proposals_seen": seen,
+            "applied": harness.governor.stats.applied,
+            "refused": refused,
+            "final_cells": cells,
+            "cap": bounds.max_cells,
+            "rejections": dict(harness.governor.stats.rejections_by_reason),
+        },
+        duration_s=time.monotonic() - started,
+    )
+
+
+# ── 7. motif_transfer ───────────────────────────────────────────────────
+
+def scenario_motif_transfer(*, seed: int, steps: int) -> ScenarioResult:
+    """Learn a shape on one family, apply it to a related one.
+
+    The pair matters. ``reason_heavy`` and ``verify_heavy`` both lean on solve
+    and verify and differ in how they order and repeat them, which is the
+    "related but not identical" the transfer claim needs. The irrelevant motif
+    is learned from ``memory_heavy``, which exercises neither.
+
+    Four arms: from scratch, with the learned motif, with the irrelevant one,
+    and frozen.
+
+    Verdict: pass when the learned motif's mean score over five seeds beats
+    from-scratch AND the irrelevant motif's does not. One without the other
+    means the library helps whatever is in it, which is a library that will
+    hurt as it fills. Five seeds because a single draw of a transfer claim is
+    a coin toss.
+    """
+    started = time.monotonic()
+    families = task_families()
+    rounds = max(20, steps * 2)
+    arrivals = 5
+    library = MotifLibrary()
+
+    # Learn on the source family, under enough load to develop a real shape.
+    teacher = _harness_for("none", seed=seed, bounds=_bounds(), deadline_steps=22)
+    _run(teacher, rounds=rounds, family=families["reason_heavy"], arrivals=arrivals,
+         goal=_goal_from(families["reason_heavy"]))
+    founders = {cell_id: caps for cell_id, caps in SEED_POPULATION}
+    learned = library.learn(
+        name="reasoning_shape",
+        demand=_goal_from(families["reason_heavy"]),
+        graph=teacher.graph,
+        capabilities={c: w.capabilities for c, w in teacher.workload.workers.items()},
+        baseline_capabilities=founders,
+        scenario="motif_transfer",
+    )
+
+    # An unrelated shape, learned the same way so the comparison is fair.
+    decoy = _harness_for("none", seed=seed + 100, bounds=_bounds(), deadline_steps=22)
+    _run(decoy, rounds=rounds, family=families["memory_heavy"], arrivals=arrivals,
+         goal=_goal_from(families["memory_heavy"]))
+    irrelevant = library.learn(
+        name="memory_shape",
+        demand=_goal_from(families["memory_heavy"]),
+        graph=decoy.graph,
+        capabilities={c: w.capabilities for c, w in decoy.workload.workers.items()},
+        baseline_capabilities=founders,
+        scenario="motif_transfer",
+    )
+
+    target = families["verify_heavy"]
+
+    warmup = max(4, rounds // 4)
+
+    def run_with(motif: Any, label: str, run_seed: int) -> ArmResult:
+        harness = _harness_for("none", seed=run_seed, bounds=_bounds(), deadline_steps=22)
+        harness.set_goal(_goal_from(target))
+        # Let the demand arrive before developing against it. Applied at round
+        # zero the motif is judged by a shadow that has seen no load, at an
+        # arrival rate of one against a real rate of five, so every proposal is
+        # scored on a system that is not under the pressure it is meant to
+        # relieve. Development responds to demand; it does not precede it.
+        _run(harness, rounds=warmup, family=target, arrivals=arrivals, goal=_goal_from(target))
+        # Every arm gets the same purse. Crediting only the motif arms would
+        # make the extra energy the treatment and the motif a passenger.
+        harness.governor.credit("g1", 60.0)
+        applied_before = harness.governor.stats.applied
+        if motif is not None:
+            proposals = motif.develop(
+                graph=harness.graph,
+                present_capabilities={c: w.capabilities for c, w in harness.workload.workers.items()},
+                proposer="g1",
+                round_index=0,
+            )
+            harness.governor.submit(proposals)
+            library.note_application(motif.motif_id)
+        seeded = harness.governor.stats.applied - applied_before
+        _run(harness, rounds=rounds, family=target, arrivals=arrivals, goal=_goal_from(target))
+        result = harness.result(label)
+        result.detail["motif_transitions_applied"] = seeded
+        return result
+
+    # Five seeds, because a single draw of a transfer claim is a coin toss.
+    trial_seeds = [seed + 1 + offset for offset in range(5)]
+    per_arm: dict[str, list[float]] = {"scratch": [], "learned_motif": [], "irrelevant_motif": []}
+    seeded_counts: dict[str, list[int]] = {}
+    arms: dict[str, ArmResult] = {}
+    for index, trial_seed in enumerate(trial_seeds):
+        for label, motif in (
+            ("scratch", None),
+            ("learned_motif", learned),
+            ("irrelevant_motif", irrelevant),
+        ):
+            result = run_with(motif, label, trial_seed)
+            per_arm[label].append(result.score)
+            seeded_counts.setdefault(label, []).append(
+                int(result.detail.get("motif_transitions_applied", 0))
+            )
+            if index == 0:
+                arms[label] = result
+    arms["frozen"] = _frozen_arm(seed + 1, target, rounds, arrivals=arrivals)
+
+    means = {k: sum(v) / len(v) for k, v in per_arm.items()}
+    wins = {
+        k: sum(1 for a, b in zip(v, per_arm["scratch"], strict=True) if a > b)
+        for k, v in per_arm.items()
+        if k != "scratch"
+    }
+
+    for label, motif in (("learned_motif", learned), ("irrelevant_motif", irrelevant)):
+        for trial_index, trial_seed in enumerate(trial_seeds):
+            library.record_trial(
+                motif.motif_id,
+                with_motif=per_arm[label][trial_index],
+                without_motif=per_arm["scratch"][trial_index],
+                scenario="motif_transfer",
+                seed=trial_seed,
+            )
+
+    helped = means["learned_motif"] > means["scratch"]
+    noise_helped = means["irrelevant_motif"] > means["scratch"]
+    if helped and not noise_helped:
+        verdict = (
+            f"pass: learned {means['learned_motif']:+.4f} against scratch "
+            f"{means['scratch']:+.4f}, irrelevant {means['irrelevant_motif']:+.4f}"
+        )
+    elif helped and noise_helped:
+        verdict = "fail: any motif helps, so none of them is carrying knowledge"
+    elif not helped and not noise_helped:
+        verdict = (
+            f"fail: the learned shape did not transfer ({means['learned_motif']:+.4f} "
+            f"against scratch {means['scratch']:+.4f}, {wins['learned_motif']}/5 seeds)"
+        )
+    else:
+        verdict = "fail: the irrelevant motif beat the learned one"
+
+    return ScenarioResult(
+        scenario="motif_transfer",
+        seed=seed,
+        steps=steps,
+        arms=arms,
+        verdict=verdict,
+        verdict_rule=(
+            "pass iff the learned motif scores above from-scratch and the irrelevant "
+            "motif does not"
+        ),
+        measurements={
+            "source_family": list(families["reason_heavy"]),
+            "target_family": list(target),
+            "decoy_family": list(families["memory_heavy"]),
+            "learned": learned.to_dict(),
+            "irrelevant": irrelevant.to_dict(),
+            "library": library.status(),
+            "trial_seeds": trial_seeds,
+            "warmup_rounds": warmup,
+            "scores": {k: [round(x, 6) for x in v] for k, v in per_arm.items()},
+            "means": {k: round(v, 6) for k, v in means.items()},
+            "seeds_won": wins,
+            "motif_transitions_applied": seeded_counts,
+            "learned_gain": round(means["learned_motif"] - means["scratch"], 6),
+            "irrelevant_gain": round(means["irrelevant_motif"] - means["scratch"], 6),
+        },
+        duration_s=time.monotonic() - started,
+    )
+
+
+def _frozen_arm(seed: int, family: Sequence[str], rounds: int, *, arrivals: int = 3) -> ArmResult:
+    harness = _harness_for("topology_fixed", seed=seed, bounds=_bounds(), deadline_steps=22)
+    _run(harness, rounds=rounds, family=family, arrivals=arrivals, goal=_goal_from(family))
+    return harness.result("frozen")
+
+
+# ── 8. unknown_topology ─────────────────────────────────────────────────
+
+def scenario_unknown_topology(*, seed: int, steps: int) -> ScenarioResult:
+    """A demand shape no policy names, on a substrate with physical costs.
+
+    The ``unknown`` family interleaves capabilities that the seed chain orders
+    badly, and nothing in the policies mentions it. The substrate uses the
+    physical-like physics, so transitions here are slow, cost energy, and
+    sometimes fail halfway.
+
+    Verdict: pass when the adaptive arm beats both the frozen and the random
+    arm. Beating frozen alone would only show that changing helped.
+    """
+    started = time.monotonic()
+    families = task_families()
+    rounds = max(10, steps)
+    arms: dict[str, ArmResult] = {}
+
+    for label, ablation in (
+        ("adaptive", "none"),
+        ("frozen", "topology_fixed"),
+        ("random", "random_mutation"),
+        ("central", "central_scheduler"),
+    ):
+        harness = _harness_for(
+            ablation,
+            seed=seed,
+            bounds=_bounds(),
+            physics=PHYSICAL_LIKE,
+            deadline_steps=30,
+        )
+        _run(harness, rounds=rounds, family=families["unknown"], arrivals=3,
+             goal=_goal_from(families["unknown"]))
+        arms[label] = harness.result(label)
+
+    beat_frozen = arms["adaptive"].score > arms["frozen"].score
+    beat_random = arms["adaptive"].score > arms["random"].score
+    if beat_frozen and beat_random:
+        verdict = "pass: developed a shape for a demand nothing encodes"
+    elif beat_frozen:
+        verdict = "fail: beat frozen but not random, so changing was the whole effect"
+    else:
+        verdict = "fail: no better than the fixed shape"
+
+    return ScenarioResult(
+        scenario="unknown_topology",
+        seed=seed,
+        steps=steps,
+        arms=arms,
+        verdict=verdict,
+        verdict_rule=(
+            "pass iff the adaptive arm scores above both the frozen arm and the "
+            "random-mutation arm"
+        ),
+        measurements={
+            "family": list(families["unknown"]),
+            "vs_frozen": round(arms["adaptive"].score - arms["frozen"].score, 6),
+            "vs_random": round(arms["adaptive"].score - arms["random"].score, 6),
+            "vs_central": round(arms["adaptive"].score - arms["central"].score, 6),
+            "substrate_failures": arms["adaptive"].detail["substrate"].get("failures", 0),
+            "substrate_partials": arms["adaptive"].detail["substrate"].get("partial_failures", 0),
+            "rolled_back": arms["adaptive"].rolled_back,
+        },
+        duration_s=time.monotonic() - started,
+    )
+
+
+# ── ablation matrix ─────────────────────────────────────────────────────
+
+def run_ablation_matrix(*, seed: int, steps: int, seeds: int = 3) -> dict[str, Any]:
+    """Every ablation on one workload, so the arms are directly comparable.
+
+    The load has to be past what the seed population can absorb. Under a load
+    it can absorb, every arm completes the same work and the whole matrix
+    collapses to one number — which reads like "morphology makes no
+    difference" when what it means is "nothing was asked of it".
+    """
+    families = task_families()
+    rounds = max(30, steps * 2)
+    arrivals = 5
+    run_seeds = [seed + offset for offset in range(max(1, seeds))]
+    rows: dict[str, Any] = {}
+    for ablation in ABLATIONS:
+        scores: list[float] = []
+        last: dict[str, Any] = {}
+        for run_seed in run_seeds:
+            harness = _harness_for(ablation, seed=run_seed, bounds=_bounds(), deadline_steps=22)
+            _run(harness, rounds=rounds, family=families["reason_heavy"], arrivals=arrivals,
+                 goal=_goal_from(families["reason_heavy"]))
+            result = harness.result(ablation)
+            scores.append(result.score)
+            last = result.to_dict()
+        last["score"] = round(sum(scores) / len(scores), 6)
+        last["scores"] = [round(x, 6) for x in scores]
+        rows[ablation] = last
+    baseline = rows["morphology_off"]["score"]
+    spread = max(r["score"] for r in rows.values()) - min(r["score"] for r in rows.values())
+    for row in rows.values():
+        row["delta_vs_morphology_off"] = round(row["score"] - baseline, 6)
+    return {
+        "seed": seed,
+        "seeds": run_seeds,
+        "rounds": rounds,
+        "arrivals_per_round": arrivals,
+        "baseline": "morphology_off",
+        "rows": rows,
+        "spread": round(spread, 6),
+        "discriminating": spread > 0.005,
+        "best": max(rows.items(), key=lambda kv: (kv[1]["score"], kv[0]))[0],
+    }
+
+
+SCENARIO_RUNNERS: dict[str, Callable[..., ScenarioResult]] = {
+    "task_shift": scenario_task_shift,
+    "overload": scenario_overload,
+    "lesion": scenario_lesion,
+    "partition": scenario_partition,
+    "oscillating_signal": scenario_oscillating,
+    "poisoned_signal": scenario_poisoned,
+    "motif_transfer": scenario_motif_transfer,
+    "unknown_topology": scenario_unknown_topology,
+}
+
+
+def run_scenario(name: str, *, seed: int = 42, steps: int = 20) -> ScenarioResult:
+    runner = SCENARIO_RUNNERS.get(name)
+    if runner is None:
+        raise ValueError(f"unknown scenario {name!r}; have {sorted(SCENARIO_RUNNERS)}")
+    return runner(seed=seed, steps=steps)
+
+
+__all__ = ["SCENARIO_RUNNERS", "run_ablation_matrix", "run_scenario"]

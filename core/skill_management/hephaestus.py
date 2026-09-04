@@ -97,8 +97,19 @@ class HephaestusEngine(AuraBaseModule):
                     justification="Expanding Aura's capabilities autonomously."
                 )
                 if not granted:
-                    self.logger.info("🚫 Hephaestus: Skill synthesis vetoed by Aura.")
-                    return {"ok": False, "error": "Self-modification vetoed by Sovereign Identity core."}
+                    # Name the actual refusal. "vetoed by Aura" was printed for
+                    # a rung she has not reached and for missing user consent
+                    # alike, which sends anyone debugging this to the wrong
+                    # place.
+                    self.logger.info(
+                        "🚫 Hephaestus: Skill synthesis refused by the growth ladder (%s).",
+                        granted.status,
+                    )
+                    return {
+                        "ok": False,
+                        "error": f"Growth ladder refused this skill: {granted.status}",
+                        "refusal": granted.status,
+                    }
 
             report = await self._forge_verified_draft(
                 capability_name, objective, max_attempts=max_attempts
@@ -290,8 +301,19 @@ class HephaestusEngine(AuraBaseModule):
                     justification="Optimizing core behavior for resilient operations."
                 )
                 if not granted:
-                    self.logger.info("🚫 Hephaestus: Logic patch vetoed by Aura.")
-                    return {"ok": False, "error": "Self-modification vetoed by Sovereign Identity core."}
+                    # Name the actual refusal. "vetoed by Aura" was printed for
+                    # a rung she has not reached and for missing user consent
+                    # alike, which sends anyone debugging this to the wrong
+                    # place.
+                    self.logger.info(
+                        "🚫 Hephaestus: Logic patch refused by the growth ladder (%s).",
+                        granted.status,
+                    )
+                    return {
+                        "ok": False,
+                        "error": f"Growth ladder refused this core patch: {granted.status}",
+                        "refusal": granted.status,
+                    }
 
             brain = ServiceContainer.get("cognitive_engine", default=None)
 

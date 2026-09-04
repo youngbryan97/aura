@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import logging
 import os
 import time
@@ -880,8 +881,15 @@ class AutonomousInitiativeLoop:
             category="SelfDev",
         )
         try:
+            # Carry out the decision just announced. Calling this with no
+            # argument made a second, independent draw and acted on that
+            # instead, so what she told the user she would do and what she
+            # did were different four times in five.
             _again, came_of_it = await asyncio.wait_for(
-                loop.run_in_executor(None, she_develops_herself), timeout=120.0
+                loop.run_in_executor(
+                    None, functools.partial(she_develops_herself, decided)
+                ),
+                timeout=120.0,
             )
         except (TimeoutError, RuntimeError, ValueError) as exc:
             _record_initiative_degradation(

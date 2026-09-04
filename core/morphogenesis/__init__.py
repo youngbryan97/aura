@@ -1,10 +1,30 @@
 """Morphogenetic runtime for Aura.
 
-This package implements a bounded, enterprise-safe, self-organising layer:
-cells -> tissues -> organs, all governed by resource budgets, receipts,
-episodic memory, strict task ownership, and Aura's existing adaptive immunity.
+A population of governed computational cells whose runtime topology is state:
+cells bind, unbind, spawn, retire, specialize and route, and the shape they
+take changes what the system can compute. Every change goes through one
+governor that checks bounds, measures the change against the current shape,
+asks Aura's governance for anything critical, and can undo the whole thing.
+
+The layer is bounded by construction — population, replicas per capability,
+spawn depth, transition rate, per-cell cooldown, reversal window, energy — and
+subordinate to the existing runtime: resource budgets, receipts, episodic
+memory, task ownership, and adaptive immunity.
+
+Run the experiments with ``tools/run_morphogenesis_sandbox.py``.
 """
 
+from .governor import MorphBounds, MorphGovernor
+from .graph import EdgeType, GraphSnapshot, MorphEdge, MorphGraph
+from .lineage import Lineage, LineageRecord
+from .motifs import MorphMotif, MotifLibrary
+from .proposal import Decision, MorphProposal, MorphTransaction, MorphTransition, TransitionKind
+from .substrate import (
+    LocalRuntimeSubstrate,
+    SimulationSubstrate,
+    SubstrateAdapter,
+    SubstratePhysics,
+)
 from .types import (
     CellLifecycle,
     CellManifest,
@@ -28,6 +48,25 @@ from .integration import (
 
 __all__ = [
     "CellLifecycle",
+    "Decision",
+    "EdgeType",
+    "GraphSnapshot",
+    "Lineage",
+    "LineageRecord",
+    "LocalRuntimeSubstrate",
+    "MorphBounds",
+    "MorphEdge",
+    "MorphGovernor",
+    "MorphGraph",
+    "MorphMotif",
+    "MorphProposal",
+    "MorphTransaction",
+    "MorphTransition",
+    "MotifLibrary",
+    "SimulationSubstrate",
+    "SubstrateAdapter",
+    "SubstratePhysics",
+    "TransitionKind",
     "CellManifest",
     "CellRole",
     "CellState",

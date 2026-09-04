@@ -122,6 +122,34 @@ WHERE_A_TERM_CAN_GO: tuple[str, ...] = (
 WHAT_SHE_COULD_DO: dict[str, ADevelopmentalAction] = {}
 
 
+def _and_takes_itself_back(name: str, do_it: Callable[..., Any]) -> Callable[..., Any]:
+    """Wrap an action so that declining to act leaves nothing behind.
+
+    Every action here answers the same way: a sentence when it did something,
+    None when it decided not to. That convention is the invariant worth
+    enforcing — a change that reports it did nothing must have left nothing.
+
+    It used to be each author's job. Naming what two parts share popped the
+    head it added; letting go of a part did not put the part back, logged
+    "she kept it after all", and returned None over a registry that no longer
+    held it. Doing this at the one place actions are admitted means the next
+    action gets it without its author knowing this paragraph exists.
+    """
+    from functools import wraps
+
+    @wraps(do_it)
+    def acted(*args: Any, **kwargs: Any) -> Any:
+        from core.cognition.what_she_can_take_back import only_if_it_pays
+
+        with only_if_it_pays(name) as trial:
+            said = do_it(*args, **kwargs)
+            if said is not None:
+                trial.keep(str(said))
+        return said
+
+    return acted
+
+
 def what_she_could_do(
     name: str,
     *,
@@ -145,7 +173,7 @@ def what_she_could_do(
         name=str(name),
         over=over,
         kind=str(kind),
-        do_it=do_it,
+        do_it=_and_takes_itself_back(str(name), do_it),
         price=max(0, int(price)),
         written=written,
         hers=bool(hers),
@@ -189,15 +217,21 @@ def the_action_she_wrote(
     running closure. The installer is whichever one holds `over`, and there is
     no second mechanism for it.
     """
-    from core.cognition.the_floor_she_stands_on import Code, decode, run
+    from core.cognition.the_floor_she_stands_on import Code, build, decode, run
 
     put_it = _WHERE_IT_GOES.get(over)
     if put_it is None:
         raise ValueError(f"nothing installs at {over!r}")
 
+    # Built once, here, rather than on every call. Surface syntax handed in
+    # raw made `run` refuse, the refusal was caught as "gave nothing", and the
+    # action returned None forever — an operator she wrote that could not fire
+    # and said nothing about why.
+    looking = build(look_for)
+
     def do_it(situation: Any = None) -> Any:
         try:
-            made = run(look_for, fuel=200_000)
+            made = run(looking, fuel=200_000)
             if hasattr(made, "body"):
                 made = run(made.body, (situation, *made.env), fuel=200_000)
             # A quoted term arrives as itself; anything else arrives written
@@ -250,11 +284,72 @@ def _install_a_worth(term: Any) -> Any:
     return the_worth_she_wrote(term)
 
 
+def _install_a_word(term: Any) -> Any:
+    """A word is a term over two numbers: how long the state is, and where.
+
+    WHERE_FROM holds callables of (size, where). Closing the term over exactly
+    those two is the whole of it — a word is not a kind of thing either.
+    """
+    from core.cognition.an_invented_kind import WHERE_FROM
+    from core.cognition.the_floor_she_stands_on import A, N, build, run
+
+    name = f"a word ({len(WHERE_FROM)})"
+    # `build` passes a term through and compiles surface syntax, so an
+    # installer takes whichever a caller has.
+    body = build(term)
+
+    def says(size: int, where: int) -> Any:
+        # Applied, not seeded. The term takes its two numbers the way any term
+        # takes anything; handing them to `run` as an environment instead
+        # would work only for a term written against positions.
+        return run(build(A(body, N(int(size)), N(int(where)))), fuel=200_000)
+
+    WHERE_FROM[name] = says
+    return says
+
+
+def _install_a_way_of_building(term: Any) -> Any:
+    """A way of building is a term with holes, which is what a maker is."""
+    from core.cognition.an_invented_kind import WAYS_TO_BUILD
+    from core.cognition.one_algebra import as_a_maker
+    from core.cognition.the_floor_she_stands_on import build
+
+    name = f"a way of building ({len(WAYS_TO_BUILD)})"
+    made = as_a_maker(build(term))
+    WAYS_TO_BUILD[name] = made
+    return made
+
+
+def _install_a_shape_for_a_rule(term: Any) -> Any:
+    """A rule with no shape is its term plus where it has been held.
+
+    Fitted at nothing and judged at nothing, because an installed term has
+    been neither. Those fields are the record of what it survived, and
+    writing anything into them here would be writing a result nobody ran.
+    """
+    from core.cognition.a_rule_with_no_shape import RULES_WITH_NO_SHAPE, Rule
+    from core.cognition.the_floor_she_stands_on import build
+
+    name = f"a shape for a rule ({len(RULES_WITH_NO_SHAPE)})"
+    made = Rule(body=build(term))
+    RULES_WITH_NO_SHAPE[name] = made
+    return made
+
+
 #: Which installer holds each destination. The reason `the_action_she_wrote`
 #: needs no edit for a new action is that this table is about the substrate and
 #: not about development.
+#:
+#: Three of the seven destinations had no installer, so an action SHE invented
+#: could reach four of the places a hand-written one could reach, and asking
+#: for one of the other three raised ValueError before anything ran. That is
+#: the gap between "she can write a developmental operator" and "she can write
+#: one that goes where the operator needs to go".
 _WHERE_IT_GOES: dict[str, Callable[[Any], Any]] = {
+    "the words": _install_a_word,
+    "the ways of building words": _install_a_way_of_building,
     "the ways of computing": _install_a_head,
+    "the shapes a rule can have": _install_a_shape_for_a_rule,
     "the order she tries them in": _install_an_order,
     "the proposer": _install_a_proposer,
     "what a change is worth": _install_a_worth,

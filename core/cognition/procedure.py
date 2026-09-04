@@ -50,10 +50,9 @@ possibly apply rather than with the number that exist.
 
 from __future__ import annotations
 
-import math
 import threading
 import time
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any
@@ -92,18 +91,52 @@ _RECENT_DECAY = 0.99
 _RECENT_WEIGHT_FLOOR = 30.0
 
 
+def _kind_accepts_value(kind: str, value: Any) -> bool:
+    """Interpret the structural kinds shared by procedure backends.
+
+    Unknown kinds remain nominal labels and preserve the historical presence
+    semantics.  The closed structural kinds below are different: callers use
+    them to compose executable values, so accepting the wrong Python shape
+    would make the type field decorative.
+    """
+
+    if kind == "any":
+        return True
+    if kind == "integer":
+        return type(value) is int
+    if kind == "integer_sequence":
+        return isinstance(value, (list, tuple)) and all(type(item) is int for item in value)
+    if kind == "boolean":
+        return type(value) is bool
+    if kind == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if kind == "string":
+        return isinstance(value, str)
+    if kind == "mapping":
+        return isinstance(value, Mapping)
+    if kind == "sequence":
+        return isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray))
+    return True
+
+
+def _kinds_compose(produced: str, required: str) -> bool:
+    """Whether an effect of one structural kind can satisfy a later read."""
+
+    return produced == "any" or required == "any" or produced == required
+
+
 class Backend(StrEnum):
     """Which learner made this, and therefore what executes it."""
 
-    CHUNK = "chunk"                 # core/cognition/impasse.py
-    GENERALIZED_RULE = "rule"       # core/cognition/procedural_generalization.py
-    MACRO = "macro"                 # core/agency/skill_library.py
-    DOING = "doing"                 # core/cognition/an_action_she_composed.py
+    CHUNK = "chunk"  # core/cognition/impasse.py
+    GENERALIZED_RULE = "rule"  # core/cognition/procedural_generalization.py
+    MACRO = "macro"  # core/agency/skill_library.py
+    DOING = "doing"  # core/cognition/an_action_she_composed.py
     HABIT = "habit"
     PLANNER = "planner"
-    RLC = "rlc"                     # core/learning/semantic_neural_composition.py
+    RLC = "rlc"  # core/learning/semantic_neural_composition.py
     TOOL = "tool"
-    NEURAL = "neural"               # distilled into learned tissue
+    NEURAL = "neural"  # distilled into learned tissue
 
 
 class Reversibility(StrEnum):
@@ -136,7 +169,9 @@ class Precondition:
             return not present
         if not present:
             return False
-        return self.equals is None or value == self.equals
+        return _kind_accepts_value(self.kind, value) and (
+            self.equals is None or value == self.equals
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,10 +208,17 @@ class Signature:
             out = effect.applied_to(out)
         return out
 
-    def follows(self, other: "Signature") -> bool:
+    def follows(self, other: Signature) -> bool:
         """Whether this can run after ``other`` — its effects meet these needs."""
-        produced = {e.key for e in other.effects}
-        return any(p.key in produced for p in self.preconditions) or not self.preconditions
+        produced = {effect.key: effect.kind for effect in other.effects}
+        return (
+            any(
+                precondition.key in produced
+                and _kinds_compose(produced[precondition.key], precondition.kind)
+                for precondition in self.preconditions
+            )
+            or not self.preconditions
+        )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -260,7 +302,7 @@ class ProceduralValue:
     def pays(self) -> bool:
         return self.net > 0.0
 
-    def observed(self, *, success: bool, at: float, value: float | None = None) -> "ProceduralValue":
+    def observed(self, *, success: bool, at: float, value: float | None = None) -> ProceduralValue:
         """Fold in one use. ``p_success`` becomes measured rather than assumed.
 
         A reported value is averaged over the uses that worked, not written
@@ -387,7 +429,8 @@ class Procedure:
             "name": self.name,
             "backend": self.backend.value,
             "preconditions": [
-                {"key": p.key, "kind": p.kind, "negated": p.negated} for p in self.signature.preconditions
+                {"key": p.key, "kind": p.kind, "negated": p.negated}
+                for p in self.signature.preconditions
             ],
             "effects": [{"key": e.key, "kind": e.kind} for e in self.signature.effects],
             "value": self.value.to_dict(),
@@ -446,11 +489,18 @@ class ProcedureIndex:
 
 
 class ProcedureRegistry:
+    #: Seconds between pulls of the other learners' stores. A ranking wants
+    #: the current stores; scanning them on every match would cost more than
+    #: the ranking saves.
+    _REFRESH_SECONDS: float = 30.0
+
     """Every learned procedure, priced and matched through one door."""
 
     def __init__(self, *, max_procedures: int = 20_000, clock=time.time) -> None:
         self._lock = threading.RLock()
         self._procedures: dict[str, Procedure] = {}
+        self._interned: dict[tuple[Backend, str], tuple[str, str]] = {}
+        self._intern_key_by_procedure: dict[str, tuple[Backend, str]] = {}
         self._index = ProcedureIndex()
         self._counter = 0
         self._max = int(max_procedures)
@@ -458,6 +508,10 @@ class ProcedureRegistry:
         self._retired = 0
 
     # ── registration ──────────────────────────────────────────────────
+        #: What pulls the other learners' stores in, and when it last ran.
+        self._refresh: Callable[[], Any] | None = None
+        self._refreshed_at: float = 0.0
+        self._refresh_failed: str = ""
 
     def register(
         self,
@@ -498,18 +552,125 @@ class ProcedureRegistry:
             self._evict_locked()
             return procedure
 
+    def intern(
+        self,
+        identity: str,
+        contract_sha256: str,
+        name: str,
+        backend: Backend,
+        signature: Signature,
+        *,
+        program: Any = None,
+        value: ProceduralValue | None = None,
+        origin: Origin | None = None,
+        evidence: EvidencePacket | None = None,
+        reversibility: Reversibility = Reversibility.UNKNOWN,
+        parts: Sequence[str] = (),
+    ) -> Procedure:
+        """Register one executable contract once and accumulate its provenance.
+
+        ``identity`` names equivalence in the backend's own vocabulary;
+        ``contract_sha256`` prevents two different executions from claiming
+        that name. Re-observing the same contract fuses independent evidence
+        sources but does not count another use or create another match entry.
+        """
+
+        if not identity or not (
+            isinstance(contract_sha256, str)
+            and len(contract_sha256) == 64
+            and all(character in "0123456789abcdef" for character in contract_sha256)
+        ):
+            raise ValueError("interned procedure identity or contract is invalid")
+        key = (backend, identity)
+        with self._lock:
+            prior = self._interned.get(key)
+            if prior is not None:
+                procedure_id, prior_contract = prior
+                if prior_contract != contract_sha256:
+                    raise ValueError("interned procedure identity names a different contract")
+                existing = self._procedures.get(procedure_id)
+                if existing is None:
+                    raise RuntimeError("interned procedure index is inconsistent")
+                if evidence is not None:
+                    from core.evidence.packet import fuse
+
+                    combined = (
+                        fuse((existing.evidence, evidence))
+                        if existing.evidence is not None
+                        else evidence
+                    )
+                    existing = replace(existing, evidence=combined)
+                    self._procedures[procedure_id] = existing
+                return existing
+            procedure = self.register(
+                name,
+                backend,
+                signature,
+                program=program,
+                value=value,
+                origin=origin,
+                evidence=evidence,
+                reversibility=reversibility,
+                parts=parts,
+            )
+            self._interned[key] = (procedure.procedure_id, contract_sha256)
+            self._intern_key_by_procedure[procedure.procedure_id] = key
+            return procedure
+
     def get(self, procedure_id: str) -> Procedure | None:
         with self._lock:
             return self._procedures.get(procedure_id)
 
+    def _drop_interned_locked(self, procedure_id: str) -> None:
+        key = self._intern_key_by_procedure.pop(procedure_id, None)
+        if key is not None:
+            self._interned.pop(key, None)
+
     # ── matching ──────────────────────────────────────────────────────
+
+    def keep_current_with(self, refresh: Callable[[], Any] | None) -> None:
+        """Name what pulls the learners' stores in before a ranking is asked for.
+
+        The registry cannot go and get them itself — the adapters import this
+        module, so this module must not import the adapters. Naming the
+        refresher here keeps the direction right and gives the economy one
+        place where it is kept current, instead of none.
+        """
+        self._refresh = refresh
+
+    def _refresh_if_stale(self) -> None:
+        """Pull the learners in, at most every ``_REFRESH_SECONDS``.
+
+        Outside the lock: the refresher calls back into ``register``, and the
+        lock is not reentrant.
+        """
+        if self._refresh is None:
+            return
+        now = self._clock()
+        if now - self._refreshed_at < self._REFRESH_SECONDS:
+            return
+        self._refreshed_at = now
+        try:
+            self._refresh()
+        except Exception as exc:  # noqa: BLE001 - a stale ranking beats no ranking
+            # Held rather than logged. A refresh that keeps failing means the
+            # ranking silently covers one backend, and that belongs in the
+            # report somebody reads, not in a debug line nobody does.
+            self._refresh_failed = f"{type(exc).__name__}: {exc}"
+        else:
+            self._refresh_failed = ""
 
     def match(self, state: Mapping[str, Any], *, limit: int = 10) -> list[Procedure]:
         """The procedures that apply here, best net value first.
 
         Backends compete directly: a chunk and a generalized rule are ranked by
-        the same number.
+        the same number. That was true of the arithmetic and false of the
+        registry, because nothing ever put the other backends' procedures in
+        it: the adapters had no importer anywhere in production while the
+        claim ladder cited them as the wired evidence. The refresh is what
+        makes the sentence above describe the running system.
         """
+        self._refresh_if_stale()
         with self._lock:
             candidates = self._index.candidates(state)
             applicable = [
@@ -562,6 +723,7 @@ class ProcedureRegistry:
                 )
                 self._procedures[pid] = gone
                 self._index.remove(gone)
+                self._drop_interned_locked(pid)
                 self._retired += 1
                 retired.append(gone)
             return retired
@@ -598,7 +760,9 @@ class ProcedureRegistry:
                 ),
                 origin=replace(
                     origin,
-                    counterexamples=(*origin.counterexamples, counterexample) if counterexample else origin.counterexamples,
+                    counterexamples=(*origin.counterexamples, counterexample)
+                    if counterexample
+                    else origin.counterexamples,
                 ),
                 evidence=parent.evidence,
                 reversibility=parent.reversibility,
@@ -606,9 +770,7 @@ class ProcedureRegistry:
             )
             return child
 
-    def generalise(
-        self, procedure_id: str, drop: str, *, witness: str
-    ) -> Procedure | None:
+    def generalise(self, procedure_id: str, drop: str, *, witness: str) -> Procedure | None:
         """Widen a procedure after a run succeeded without one of its conditions.
 
         The counterpart of :meth:`specialise`, and the reason it has to exist:
@@ -632,9 +794,7 @@ class ProcedureRegistry:
             parent = self._procedures.get(procedure_id)
             if parent is None:
                 return None
-            kept = tuple(
-                p for p in parent.signature.preconditions if p.key != drop
-            )
+            kept = tuple(p for p in parent.signature.preconditions if p.key != drop)
             if len(kept) == len(parent.signature.preconditions):
                 return None
             origin = parent.origin or Origin(learner=parent.backend.value)
@@ -648,17 +808,14 @@ class ProcedureRegistry:
                     value_when_it_works=parent.value.value_when_it_works,
                     cost_when_it_fails=parent.value.cost_when_it_fails,
                     # One fewer condition to check is one less to pay for.
-                    match_cost=parent.value.match_cost * (
-                        len(kept) / len(parent.signature.preconditions)
-                    ),
+                    match_cost=parent.value.match_cost
+                    * (len(kept) / len(parent.signature.preconditions)),
                     risk_cost=parent.value.risk_cost,
                     transfer_tier=parent.value.transfer_tier,
                 ),
                 origin=replace(
                     origin,
-                    support_keys=tuple(
-                        k for k in origin.support_keys if k != drop
-                    ),
+                    support_keys=tuple(k for k in origin.support_keys if k != drop),
                     generalisations=(*origin.generalisations, f"{drop}<-{witness}"),
                 ),
                 evidence=parent.evidence,
@@ -696,6 +853,7 @@ class ProcedureRegistry:
                 absorb, retired=True, retired_because=f"merged into {keep_id}"
             )
             self._index.remove(absorb)
+            self._drop_interned_locked(absorb_id)
             return merged
 
     def _evict_locked(self) -> None:
@@ -707,6 +865,7 @@ class ProcedureRegistry:
         )
         for procedure in worst[: len(self._procedures) - self._max]:
             del self._procedures[procedure.procedure_id]
+            self._drop_interned_locked(procedure.procedure_id)
 
     # ── reporting ─────────────────────────────────────────────────────
 
@@ -724,9 +883,15 @@ class ProcedureRegistry:
             ]
             return {
                 "procedures": len(live),
+                "interned": len(self._interned),
                 "retired": self._retired,
                 "by_backend": dict(sorted(by_backend.items())),
                 "backends_competing": len(by_backend),
+                # One backend competing is one backend, whatever the arithmetic
+                # says it could do. This is the reading that caught the
+                # adapters having no importer at all.
+                "learners_installed": self._refresh is not None,
+                "refresh_failed": self._refresh_failed,
                 "composed": len(composed),
                 "composed_across_backends": len(cross_backend),
                 "index_comparisons": self._index.comparisons,
@@ -762,7 +927,7 @@ def compose(
     """
     if not parts:
         raise ValueError("nothing to compose")
-    produced: set[str] = set()
+    produced: dict[str, str] = {}
     preconditions: list[Precondition] = []
     effects: list[Effect] = []
     p_success = 1.0
@@ -774,8 +939,14 @@ def compose(
         for precondition in part.signature.preconditions:
             if precondition.key not in produced:
                 preconditions.append(precondition)
+            elif not _kinds_compose(produced[precondition.key], precondition.kind):
+                raise ValueError(
+                    f"procedure composition writes {precondition.key!r} as "
+                    f"{produced[precondition.key]!r} before it is read as "
+                    f"{precondition.kind!r}"
+                )
         for effect in part.signature.effects:
-            produced.add(effect.key)
+            produced[effect.key] = effect.kind
             effects = [e for e in effects if e.key != effect.key] + [effect]
         p_success *= part.value.p_success
         total_value += part.value.value_when_it_works
@@ -783,9 +954,14 @@ def compose(
         risk_cost += part.value.risk_cost
         if part.reversibility is Reversibility.IRREVERSIBLE:
             reversibility = Reversibility.IRREVERSIBLE
-        elif part.reversibility is Reversibility.COSTLY and reversibility is Reversibility.REVERSIBLE:
+        elif (
+            part.reversibility is Reversibility.COSTLY and reversibility is Reversibility.REVERSIBLE
+        ):
             reversibility = Reversibility.COSTLY
-        elif part.reversibility is Reversibility.UNKNOWN and reversibility is not Reversibility.IRREVERSIBLE:
+        elif (
+            part.reversibility is Reversibility.UNKNOWN
+            and reversibility is not Reversibility.IRREVERSIBLE
+        ):
             reversibility = Reversibility.UNKNOWN
 
     return registry.register(

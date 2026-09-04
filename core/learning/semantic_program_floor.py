@@ -45,7 +45,7 @@ from core.cognition.the_floor_she_stands_on import (
     build,
     run,
 )
-from core.learning.procedure_induction import PRIMITIVES_BY_NAME
+from core.learning.procedure_induction import PRIMITIVES_BY_NAME, Program
 from core.learning.semantic_program_ir import (
     SemanticProgramIR,
     SemanticValue,
@@ -53,6 +53,7 @@ from core.learning.semantic_program_ir import (
 )
 
 SEMANTIC_FLOOR_PROGRAM_SCHEMA: Final = "aura.semantic_floor_program.v1"
+SEMANTIC_FLOOR_PROCEDURE_SCHEMA: Final = "aura.semantic_floor_procedure.v1"
 SEMANTIC_FLOOR_EXECUTION_SCHEMA: Final = "aura.semantic_floor_execution.v1"
 DEFAULT_SEMANTIC_FLOOR_FUEL: Final = 2_000_000
 _INT: Final = "integer"
@@ -488,28 +489,24 @@ def _semantic_value(value: Any) -> SemanticValue:
     raise ValueError("semantic floor emitted a value outside the exact algebra")
 
 
-def _compile_body(ir: SemanticProgramIR, public_inputs: tuple[SemanticValue, ...]) -> Any:
-    registers = [f"register_{index}" for index in range(ir.n_inputs)]
-    register_types = [
-        _INT if isinstance(value, int) else _SEQUENCE for value in public_inputs
-    ]
+def _compile_body(program: Program, public_inputs: tuple[SemanticValue, ...]) -> Any:
+    registers = [f"register_{index}" for index in range(program.n_inputs)]
+    register_types = [_INT if isinstance(value, int) else _SEQUENCE for value in public_inputs]
     body: Any = None
     bindings: list[tuple[str, Any]] = [
-        (registers[index], _floor_value(public_inputs[index]))
-        for index in range(ir.n_inputs)
+        (registers[index], _floor_value(public_inputs[index])) for index in range(program.n_inputs)
     ]
-    for ordinal, instruction in enumerate(ir.instructions):
+    for ordinal, instruction in enumerate(program.instructions):
         primitive = PRIMITIVES_BY_NAME.get(instruction.op)
         signature = _TYPE_SIGNATURES.get(instruction.op)
         if (
             primitive is None
             or signature is None
             or len(instruction.args) != primitive.arity
-            or tuple(register_types[argument] for argument in instruction.args)
-            != signature[0]
+            or tuple(register_types[argument] for argument in instruction.args) != signature[0]
         ):
             raise ValueError("semantic IR primitive signature has no floor meaning")
-        name = f"register_{ir.n_inputs + ordinal}"
+        name = f"register_{program.n_inputs + ordinal}"
         expression = _primitive(
             instruction.op,
             tuple(V(registers[argument]) for argument in instruction.args),
@@ -517,7 +514,7 @@ def _compile_body(ir: SemanticProgramIR, public_inputs: tuple[SemanticValue, ...
         registers.append(name)
         register_types.append(signature[1])
         bindings.append((name, expression))
-    body = V(registers[ir.report_value])
+    body = V(registers[-1])
     for name, value in reversed(bindings):
         body = LET(name, value, body)
     return body
@@ -534,7 +531,8 @@ class SemanticFloorProgram:
         body = {key: value for key, value in self.receipt.items() if key != "receipt_sha256"}
         if (
             not isinstance(self.code, Code)
-            or body.get("schema") != SEMANTIC_FLOOR_PROGRAM_SCHEMA
+            or body.get("schema")
+            not in {SEMANTIC_FLOOR_PROGRAM_SCHEMA, SEMANTIC_FLOOR_PROCEDURE_SCHEMA}
             or self.receipt.get("receipt_sha256") != _sha(body)
         ):
             raise ValueError("semantic floor program receipt is invalid")
@@ -554,9 +552,8 @@ class SemanticFloorExecution:
             normalized != self.result
             or body.get("schema") != SEMANTIC_FLOOR_EXECUTION_SCHEMA
             or self.receipt.get("receipt_sha256") != _sha(body)
-            or body.get("result_sha256") != _sha(
-                list(normalized) if isinstance(normalized, tuple) else normalized
-            )
+            or body.get("result_sha256")
+            != _sha(list(normalized) if isinstance(normalized, tuple) else normalized)
         ):
             raise ValueError("semantic floor execution receipt is invalid")
 
@@ -572,14 +569,8 @@ def compile_semantic_program_to_floor(
     if not isinstance(public_inputs, tuple) or len(public_inputs) != ir.n_inputs:
         raise ValueError("semantic floor public inputs are invalid")
     inputs = tuple(normalize_semantic_value(value) for value in public_inputs)
-    missing = set(PRIMITIVES_BY_NAME) - _FLOOR_PRIMITIVES
-    missing_types = set(PRIMITIVES_BY_NAME) - set(_TYPE_SIGNATURES)
-    if missing or missing_types:
-        uncovered = missing | missing_types
-        raise RuntimeError(
-            f"semantic primitive floor coverage is incomplete: {sorted(uncovered)}"
-        )
-    code = build(_compile_body(ir, inputs))
+    _require_complete_floor()
+    code = build(_compile_body(ir.to_program(), inputs))
     body = {
         "schema": SEMANTIC_FLOOR_PROGRAM_SCHEMA,
         "ir_receipt_sha256": ir.receipt()["receipt_sha256"],
@@ -595,6 +586,71 @@ def compile_semantic_program_to_floor(
         "correctness_authority": False,
     }
     return SemanticFloorProgram(code=code, receipt={**body, "receipt_sha256": _sha(body)})
+
+
+def compile_source_independent_program_to_floor(
+    program: Program,
+    public_inputs: tuple[Any, ...],
+    *,
+    provenance_receipt_sha256: str,
+) -> SemanticFloorProgram:
+    """Compile a learned computation after its source utterance is gone.
+
+    ``SemanticProgramIR`` proves how language produced the program.  Reusing
+    the resulting procedure must not require the old tokens or spans, so this
+    boundary accepts only the source-independent straight-line program and a
+    hash of that immutable provenance.
+    """
+
+    if not isinstance(program, Program) or not program.instructions:
+        raise TypeError("semantic procedure compilation requires a non-empty Program")
+    if not isinstance(public_inputs, tuple) or len(public_inputs) != program.n_inputs:
+        raise ValueError("semantic procedure public inputs are invalid")
+    if not (
+        isinstance(provenance_receipt_sha256, str)
+        and len(provenance_receipt_sha256) == 64
+        and all(character in "0123456789abcdef" for character in provenance_receipt_sha256)
+    ):
+        raise ValueError("semantic procedure provenance receipt is invalid")
+    for ordinal, instruction in enumerate(program.instructions):
+        output = program.n_inputs + ordinal
+        primitive = PRIMITIVES_BY_NAME.get(instruction.op)
+        if (
+            primitive is None
+            or len(instruction.args) != primitive.arity
+            or any(
+                type(argument) is not int or not 0 <= argument < output
+                for argument in instruction.args
+            )
+        ):
+            raise ValueError("semantic procedure is not a validated forward program")
+    inputs = tuple(normalize_semantic_value(value) for value in public_inputs)
+    _require_complete_floor()
+    code = build(_compile_body(program, inputs))
+    body = {
+        "schema": SEMANTIC_FLOOR_PROCEDURE_SCHEMA,
+        "program_sha256": program.sha(),
+        "provenance_receipt_sha256": provenance_receipt_sha256,
+        "public_inputs_sha256": _sha(
+            [list(value) if isinstance(value, tuple) else value for value in inputs]
+        ),
+        "floor_semantics": "core.cognition.the_floor_she_stands_on.v1",
+        "expected_answer_available": False,
+        "verifier_trace_available": False,
+        "generated_code_available": False,
+        "source_tokens_available": False,
+        "family_router_present": False,
+        "correctness_authority": False,
+    }
+    return SemanticFloorProgram(code=code, receipt={**body, "receipt_sha256": _sha(body)})
+
+
+def _require_complete_floor() -> None:
+    missing = set(PRIMITIVES_BY_NAME) - _FLOOR_PRIMITIVES
+    missing_types = set(PRIMITIVES_BY_NAME) - set(_TYPE_SIGNATURES)
+    if missing or missing_types:
+        uncovered = missing | missing_types
+        raise RuntimeError(f"semantic primitive floor coverage is incomplete: {sorted(uncovered)}")
 
 
 def execute_semantic_floor_program(
@@ -640,9 +696,7 @@ def semantic_floor_primitive_coverage() -> dict[str, Any]:
         "missing_types": missing_types,
         "extra_semantics": extra_semantics,
         "extra_types": extra_types,
-        "complete": not any(
-            (missing_semantics, missing_types, extra_semantics, extra_types)
-        ),
+        "complete": not any((missing_semantics, missing_types, extra_semantics, extra_types)),
     }
 
 
@@ -674,10 +728,12 @@ _FLOOR_PRIMITIVES: Final = frozenset(
 __all__ = [
     "DEFAULT_SEMANTIC_FLOOR_FUEL",
     "SEMANTIC_FLOOR_EXECUTION_SCHEMA",
+    "SEMANTIC_FLOOR_PROCEDURE_SCHEMA",
     "SEMANTIC_FLOOR_PROGRAM_SCHEMA",
     "SemanticFloorExecution",
     "SemanticFloorProgram",
     "compile_semantic_program_to_floor",
+    "compile_source_independent_program_to_floor",
     "execute_semantic_floor_program",
     "semantic_floor_primitive_coverage",
     "semantic_primitive_type_signature",

@@ -96,6 +96,7 @@ class InvariantSpec:
     description: str
     owner: str
     check: CheckFn
+    observational: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -104,6 +105,7 @@ class InvariantSpec:
             "severity": str(self.severity),
             "description": self.description,
             "owner": self.owner,
+            "observational": self.observational,
         }
 
 
@@ -194,6 +196,11 @@ class InvariantRegistry:
                         "the same name — an invariant has one definition"
                     )
             self._specs[spec.name] = spec
+            # Re-registering the same definition is a hot reload. Its previous
+            # result described the old function body and must not survive as
+            # evidence about the replacement.
+            with _LAST_RESULTS_LOCK:
+                _LAST_RESULTS.pop(spec.name, None)
             return spec
 
     def specs(self, scopes: Iterable[str] | None = None) -> list[InvariantSpec]:
@@ -213,6 +220,8 @@ class InvariantRegistry:
     def clear_for_test(self) -> None:
         with self._lock:
             self._specs.clear()
+        with _LAST_RESULTS_LOCK:
+            _LAST_RESULTS.clear()
 
 
 _REGISTRY = InvariantRegistry()
@@ -229,6 +238,7 @@ def invariant(
     severity: Severity = Severity.ERROR,
     description: str = "",
     owner: str = "unknown",
+    observational: bool = True,
 ) -> Callable[[CheckFn], CheckFn]:
     """Declare a structural invariant next to the thing it protects.
 
@@ -252,6 +262,7 @@ def invariant(
                 description=description or (fn.__doc__ or "").strip().split("\n")[0],
                 owner=owner,
                 check=fn,
+                observational=observational,
             )
         )
         return fn
@@ -263,43 +274,55 @@ def verify(
     *scopes: str,
     fail_fast: bool = False,
     record: bool = True,
+    observational_only: bool = False,
 ) -> VerifyReport:
-    """Run every invariant in the given scopes (all scopes when empty)."""
+    """Run invariants in the given scopes (all scopes when empty).
+
+    ``observational_only`` is for read surfaces such as health. Active probes
+    are real mechanism tests that may stage and roll back temporary state; a
+    health read must never execute them. Full verification still runs every
+    invariant and records the result for observational surfaces to report.
+    """
     started = time.perf_counter()
     specs = _REGISTRY.specs(scopes or None)
+    if observational_only:
+        specs = [spec for spec in specs if spec.observational]
     violations: list[Violation] = []
     skipped: list[str] = []
+    outcomes: dict[str, tuple[Violation, ...]] = {}
 
     for spec in specs:
+        spec_violations: list[Violation] = []
         try:
             produced = list(spec.check() or ())
         except Exception as exc:  # noqa: BLE001 — a broken check IS a violation
             skipped.append(spec.name)
-            violations.append(
-                Violation(
-                    invariant=spec.name,
-                    severity=Severity.ERROR,
-                    subject=spec.owner,
-                    message=(
-                        f"the invariant check itself failed with {type(exc).__name__}: "
-                        f"{exc}. A verifier that cannot check reports clean, which is "
-                        "worse than reporting a breach"
-                    ),
-                    remedy="fix the check, or remove the invariant if it is obsolete",
-                )
+            failure = Violation(
+                invariant=spec.name,
+                severity=Severity.ERROR,
+                subject=spec.owner,
+                message=(
+                    f"the invariant check itself failed with {type(exc).__name__}: "
+                    f"{exc}. A verifier that cannot check reports clean, which is "
+                    "worse than reporting a breach"
+                ),
+                remedy="fix the check, or remove the invariant if it is obsolete",
             )
+            violations.append(failure)
+            spec_violations.append(failure)
             produced = []
         for item in produced:
             # Fill in what the check left to its spec.
-            violations.append(
-                Violation(
-                    subject=item.subject,
-                    message=item.message,
-                    remedy=item.remedy,
-                    invariant=item.invariant or spec.name,
-                    severity=item.severity or spec.severity,
-                )
+            normalized = Violation(
+                subject=item.subject,
+                message=item.message,
+                remedy=item.remedy,
+                invariant=item.invariant or spec.name,
+                severity=item.severity or spec.severity,
             )
+            violations.append(normalized)
+            spec_violations.append(normalized)
+        outcomes[spec.name] = tuple(spec_violations)
         if fail_fast and any(v.severity is Severity.ERROR for v in violations):
             break
 
@@ -311,16 +334,25 @@ def verify(
         skipped=skipped,
     )
     if record:
-        _record(report)
+        _record(report, outcomes)
     return report
 
 
 _LAST_REPORT: VerifyReport | None = None
+_LAST_RESULTS_LOCK = threading.Lock()
+_LAST_RESULTS: dict[str, tuple[float, tuple[Violation, ...]]] = {}
 
 
-def _record(report: VerifyReport) -> None:
+def _record(
+    report: VerifyReport,
+    outcomes: dict[str, tuple[Violation, ...]],
+) -> None:
     global _LAST_REPORT
     _LAST_REPORT = report
+    checked_at = time.time()
+    with _LAST_RESULTS_LOCK:
+        for name, result in outcomes.items():
+            _LAST_RESULTS[name] = (checked_at, result)
     if report.ok and not report.warnings:
         return
     for violation in report.errors:
@@ -353,6 +385,21 @@ def _record(report: VerifyReport) -> None:
 
 def last_report() -> dict[str, Any] | None:
     return _LAST_REPORT.to_dict() if _LAST_REPORT is not None else None
+
+
+def latest_invariant_result(name: str) -> dict[str, Any] | None:
+    """Return the last explicit proof for one invariant without re-running it."""
+    with _LAST_RESULTS_LOCK:
+        observed = _LAST_RESULTS.get(str(name))
+    if observed is None:
+        return None
+    checked_at, violations = observed
+    errors = [one for one in violations if one.severity is Severity.ERROR]
+    return {
+        "checked_at": checked_at,
+        "ok": not errors,
+        "violations": [one.to_dict() for one in violations],
+    }
 
 
 @contextmanager
@@ -390,6 +437,8 @@ def verifier_report() -> dict[str, Any]:
 def reset_verifier_for_test() -> None:
     global _LAST_REPORT
     _LAST_REPORT = None
+    with _LAST_RESULTS_LOCK:
+        _LAST_RESULTS.clear()
 
 
 __all__ = [
@@ -402,6 +451,7 @@ __all__ = [
     "get_registry",
     "invariant",
     "last_report",
+    "latest_invariant_result",
     "reset_verifier_for_test",
     "verifier_report",
     "verify",

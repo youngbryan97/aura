@@ -11,7 +11,14 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 from .cell import MorphogenCell, CellHandler
 from .field import MorphogenField
 from .organs import Organ, OrganStabilizer
-from .types import CellLifecycle, CellManifest, MorphogenesisConfig, json_safe, stable_digest
+from .types import (
+    CellLifecycle,
+    CellManifest,
+    CellState,
+    MorphogenesisConfig,
+    json_safe,
+    stable_digest,
+)
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Morphogenesis.Registry")
@@ -88,6 +95,25 @@ class MorphogenesisRegistry:
         self._lock = threading.RLock()
         self.cells: Dict[str, MorphogenCell] = {}
         self.organs: Dict[str, Organ] = {}
+        #: Topology, lineage and the motif library, attached by the runtime.
+        #:
+        #: These were held only in memory, so every restart threw away the
+        #: shape the population had developed, who descended from whom, and
+        #: every motif that had earned its credit. A developmental layer whose
+        #: development does not survive a reboot is a layer that starts from
+        #: the seed forever.
+        self._graph: Any = None
+        self._lineage: Any = None
+        self._motifs: Any = None
+
+    def attach_topology(self, *, graph: Any = None, lineage: Any = None, motifs: Any = None) -> None:
+        """Hand the registry the state it should persist alongside the cells."""
+        if graph is not None:
+            self._graph = graph
+        if lineage is not None:
+            self._lineage = lineage
+        if motifs is not None:
+            self._motifs = motifs
 
     def register_cell(self, manifest: CellManifest, *, handler: Optional[CellHandler] = None, replace: bool = False) -> MorphogenCell:
         cell = MorphogenCell(manifest, handler=handler)
@@ -149,35 +175,222 @@ class MorphogenesisRegistry:
                 "config": self.config.to_dict(),
                 "cells": {cid: cell.to_dict() for cid, cell in self.cells.items()},
                 "organs": {oid: organ.to_dict() for oid, organ in self.organs.items()},
+                "graph": self._graph.to_dict() if self._graph is not None else None,
+                "lineage": self._lineage.to_dict() if self._lineage is not None else None,
+                "motifs": self._motifs.to_dict() if self._motifs is not None else None,
             }
 
     def save(self) -> None:
+        """Persist the registry, refusing to write an empty one over a full one.
+
+        A bare ``MorphogeneticRuntime()`` constructed anywhere — a probe, a
+        health check, a shutdown path that ran before registration — has zero
+        cells, and its ``stop()`` used to overwrite the real population with
+        ``{}``. That is how the live file came to hold ``cells: {}`` while
+        twelve were registered at every boot.
+
+        An empty registry is only written where the file is already empty or
+        absent, so a genuine first run still persists.
+        """
+        with self._lock:
+            empty = not self.cells and not self.organs
+        if empty and self._stored_is_populated():
+            logger.warning(
+                "Refusing to persist an empty morphogenesis registry over %s, which holds cells.",
+                self.state_path,
+            )
+            return
         payload = self.snapshot()
         _atomic_write_json(self.state_path, payload, schema_name="morphogenesis_registry")
         _emit_state_receipt(self.state_path, cause="morphogenesis.registry.persist")
 
-    def load(self) -> bool:
+    def _stored_is_populated(self) -> bool:
         if not self.state_path.exists():
             return False
         try:
             import json
+
             data = json.loads(self.state_path.read_text(encoding="utf-8"))
-            # AtomicWriter stores an envelope. Fallback stores same envelope shape.
-            payload = data.get("payload", data)
-            with self._lock:
-                self.cells = {
-                    cid: MorphogenCell.from_dict(cell_data)
-                    for cid, cell_data in dict(payload.get("cells", {})).items()
-                }
-                self.organs = {
-                    oid: Organ.from_dict(organ_data)
-                    for oid, organ_data in dict(payload.get("organs", {})).items()
-                }
-            return True
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('registry', exc)
+            payload = data.get("payload", data) if isinstance(data, dict) else {}
+            return bool(payload.get("cells")) or bool(payload.get("organs"))
+        except (OSError, UnicodeDecodeError, ValueError, TypeError, AttributeError):
+            # Unreadable is not populated; a first write should be allowed to
+            # replace a file nothing can parse.
+            return False
+
+    def prune(self) -> dict[str, int]:
+        """Housekeeping the loop owes the population.
+
+        ``prune_dead`` existed and had no callers, so apoptotic cells stayed in
+        the registry for the life of the process, counted in every status
+        report and iterated on every tick. The dormancy and death windows in
+        the config were read by nobody at all.
+        """
+        now = time.time()
+        with self._lock:
+            became_dormant = 0
+            died = 0
+            for cell in list(self.cells.values()):
+                lifecycle = cell.lifecycle
+                if lifecycle == CellLifecycle.APOPTOTIC:
+                    idle = cell.state.age_ticks - cell.state.activation_count
+                    if idle >= self.config.dead_after_apoptotic_ticks:
+                        cell.state.lifecycle = CellLifecycle.DEAD
+                        died += 1
+                    continue
+                if cell.protected or lifecycle != CellLifecycle.ACTIVE:
+                    continue
+                last = float(cell.state.last_activation_at or 0.0)
+                if last and (now - last) > self.config.dormant_after_idle_ticks:
+                    cell.state.lifecycle = CellLifecycle.DORMANT
+                    became_dormant += 1
+        removed = self.prune_dead()
+        return {"dormant": became_dormant, "died": died, "removed": removed}
+
+    def load(self) -> bool:
+        """Merge persisted state over what is already registered.
+
+        Two things here were wrong in production and between them the live
+        registry held zero cells while the loop ticked once a second for
+        months.
+
+        It replaced ``self.cells`` outright. Cells are registered by
+        ``register_morphogenesis_services`` *before* ``start()`` calls this, so
+        an empty or stale file wiped the whole registered population.
+
+        And it dropped every handler. ``MorphogenCell.from_dict`` builds a cell
+        with ``handler=None``, so from the second boot onward no cell could do
+        anything — ``reattach_handler`` existed and had no callers. State now
+        merges onto the registered cell instead of replacing it, which keeps
+        the handler that was registered with it.
+
+        The exception list was wrong too: ``json.loads`` raises
+        ``JSONDecodeError`` and ``read_text`` raises ``OSError``, neither of
+        which was caught, so a corrupt state file raised out of a method whose
+        contract is to return False.
+        """
+        if not self.state_path.exists():
+            return False
+        try:
+            import json
+
+            data = json.loads(self.state_path.read_text(encoding="utf-8"))
+            payload = data.get("payload", data) if isinstance(data, dict) else {}
+            stored_cells = dict(payload.get("cells", {}))
+            stored_organs = dict(payload.get("organs", {}))
+            stored_graph = payload.get("graph")
+            stored_lineage = payload.get("lineage")
+            stored_motifs = payload.get("motifs")
+        except (OSError, UnicodeDecodeError, ValueError, TypeError, AttributeError) as exc:
+            record_degradation(
+                "registry", exc, severity="degraded",
+                action="kept the registered population after an unreadable morphogenesis state file",
+            )
             logger.warning("Morphogenesis registry load failed: %s", exc)
             return False
+
+        restored = 0
+        with self._lock:
+            for cell_id, cell_data in stored_cells.items():
+                existing = self.cells.get(cell_id)
+                if existing is not None:
+                    # Keep the live object and its handler; take back only the
+                    # state it earned last run.
+                    try:
+                        existing.state = CellState.from_dict(dict(cell_data.get("state", {})))
+                        existing.neighbours = {
+                            str(k): float(v)
+                            for k, v in dict(cell_data.get("neighbours", {})).items()
+                        }
+                        restored += 1
+                    except (TypeError, ValueError) as exc:
+                        record_degradation(
+                            "registry", exc, severity="warning",
+                            action=f"kept live defaults for cell {cell_id} after unreadable stored state",
+                        )
+                    continue
+                if len(self.cells) >= self.config.max_cells:
+                    continue
+                try:
+                    self.cells[cell_id] = MorphogenCell.from_dict(cell_data)
+                    restored += 1
+                except (TypeError, ValueError) as exc:
+                    record_degradation(
+                        "registry", exc, severity="warning",
+                        action=f"skipped unreadable stored cell {cell_id}",
+                    )
+            for organ_id, organ_data in stored_organs.items():
+                try:
+                    self.organs.setdefault(organ_id, Organ.from_dict(organ_data))
+                except (TypeError, ValueError) as exc:
+                    record_degradation(
+                        "registry", exc, severity="warning",
+                        action=f"skipped unreadable stored organ {organ_id}",
+                    )
+        self._restore_topology(stored_graph, stored_lineage, stored_motifs)
+        logger.info(
+            "Morphogenesis registry loaded: %d cell record(s) restored, %d cell(s) live, "
+            "graph v%s with %d binding(s).",
+            restored, len(self.cells),
+            getattr(self._graph, "version", "-"),
+            getattr(self._graph, "edge_count", 0),
+        )
+        return True
+
+    def _restore_topology(self, graph_data: Any, lineage_data: Any, motif_data: Any) -> None:
+        """Put back the developed shape, keeping only what still has a cell.
+
+        A stored binding whose endpoint no longer exists is dropped rather than
+        restored: the graph refuses a dangling edge, so restoring one wholesale
+        would fail the whole load and cost the topology that was still good.
+        """
+        live = set(self.cells)
+        if graph_data and self._graph is not None:
+            try:
+                from .graph import MorphEdge
+
+                nodes = [n for n in graph_data.get("nodes", []) if n in live]
+                edges = [
+                    MorphEdge.from_dict(e) for e in graph_data.get("edges", [])
+                    if e.get("source") in live and e.get("target") in live
+                ]
+
+                def restore(scratch: Any) -> None:
+                    for node in nodes:
+                        scratch.add_node(node)
+                    for edge in edges:
+                        scratch.add_edge(edge)
+
+                self._graph.transaction(restore, cause="registry.load")
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+                record_degradation(
+                    "registry", exc, severity="warning",
+                    action="started with an unseeded topology after a stored graph would not restore",
+                )
+        if lineage_data and self._lineage is not None:
+            try:
+                from .lineage import Lineage
+
+                restored = Lineage.from_dict(lineage_data)
+                for cell_id, record in restored._records.items():
+                    self._lineage._records.setdefault(cell_id, record)
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+                record_degradation(
+                    "registry", exc, severity="warning",
+                    action="started with fresh lineage after a stored one would not restore",
+                )
+        if motif_data and self._motifs is not None:
+            try:
+                from .motifs import MotifLibrary
+
+                restored_library = MotifLibrary.from_dict(motif_data)
+                for motif_id, motif in restored_library._motifs.items():
+                    self._motifs._motifs.setdefault(motif_id, motif)
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+                record_degradation(
+                    "registry", exc, severity="warning",
+                    action="started with an empty motif library after a stored one would not restore",
+                )
 
     def status(self) -> Dict[str, Any]:
         with self._lock:

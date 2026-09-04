@@ -6,17 +6,21 @@
 
 # Dynamically resolve root path relative to this script
 export AURA_ROOT="$(cd -P "$(dirname "$0")" && pwd -P)"
+AURA_GIT_COMMON_DIR="$(git -C "$AURA_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+AURA_PRIMARY_ROOT="$AURA_ROOT"
+if [ -n "$AURA_GIT_COMMON_DIR" ] && [ "$(basename "$AURA_GIT_COMMON_DIR")" = ".git" ]; then
+    AURA_PRIMARY_ROOT="$(dirname "$AURA_GIT_COMMON_DIR")"
+fi
 if [ -z "${AURA_MODELS_DIR:-}" ]; then
-    AURA_GIT_COMMON_DIR="$(git -C "$AURA_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-    if [ -n "$AURA_GIT_COMMON_DIR" ] && [ "$(basename "$AURA_GIT_COMMON_DIR")" = ".git" ]; then
-        AURA_PRIMARY_ROOT="$(dirname "$AURA_GIT_COMMON_DIR")"
-        if [ -d "$AURA_PRIMARY_ROOT/models" ]; then
-            export AURA_MODELS_DIR="$AURA_PRIMARY_ROOT/models"
-        fi
-        if [ -d "$AURA_PRIMARY_ROOT/training/fused-model" ]; then
-            export AURA_FUSED_MODEL_ROOT="$AURA_PRIMARY_ROOT/training/fused-model"
-        fi
+    if [ -d "$AURA_PRIMARY_ROOT/models" ]; then
+        export AURA_MODELS_DIR="$AURA_PRIMARY_ROOT/models"
     fi
+    if [ -d "$AURA_PRIMARY_ROOT/training/fused-model" ]; then
+        export AURA_FUSED_MODEL_ROOT="$AURA_PRIMARY_ROOT/training/fused-model"
+    fi
+fi
+if [ -z "${AURA_ENV_FILE:-}" ] && [ -f "$AURA_PRIMARY_ROOT/.env" ]; then
+    export AURA_ENV_FILE="$AURA_PRIMARY_ROOT/.env"
 fi
 cd "$AURA_ROOT" || exit 1
 
@@ -92,9 +96,13 @@ echo ""
 echo -e "🌸 \033[1;32mInitializing Aura\033[0m (Live Source Mode)..."
 
 # Version Lock: Aura requires Python 3.12 for binary compatibility with its native extensions (grpc, mlx).
-# We prefer the venv python if it matches 3.12, otherwise we search for system python3.12.
-if [ -f ".venv/bin/python3" ] && .venv/bin/python3 --version | grep -q "3.12"; then
-    PYTHON_CMD=".venv/bin/python3"
+# A linked worktree intentionally shares the primary checkout's ignored venv.
+# Resolve that interpreter before falling back to a system Python that may not
+# carry Aura's native/runtime dependencies.
+if [ -f "$AURA_ROOT/.venv/bin/python3" ] && "$AURA_ROOT/.venv/bin/python3" --version | grep -q "3.12"; then
+    PYTHON_CMD="$AURA_ROOT/.venv/bin/python3"
+elif [ -f "$AURA_PRIMARY_ROOT/.venv/bin/python3" ] && "$AURA_PRIMARY_ROOT/.venv/bin/python3" --version | grep -q "3.12"; then
+    PYTHON_CMD="$AURA_PRIMARY_ROOT/.venv/bin/python3"
 elif command -v python3.12 &>/dev/null; then
     echo "⚠️  Venv mismatch or missing. Using system python3.12 directly."
     PYTHON_CMD="python3.12"
@@ -160,7 +168,7 @@ backup_env_file() {
     # .env carries the local shared secret (AURA_API_TOKEN) and was once
     # destroyed with no recovery path. Keep a bounded backup ring; skip
     # writes when content is unchanged. Values are never printed.
-    local env_file="${AURA_ROOT}/.env"
+    local env_file="${AURA_ENV_FILE:-${AURA_ROOT}/.env}"
     [ -e "$env_file" ] || return 0
     local ring_dir="${HOME}/.aura/backups/env"
     mkdir -p "$ring_dir" 2>/dev/null || return 0
@@ -182,10 +190,11 @@ backup_env_file() {
 }
 
 check_env_file() {
-    if [ ! -e "${AURA_ROOT}/.env" ]; then
-        echo "⚠️  No .env at ${AURA_ROOT}/.env — GUI and server share AURA_API_TOKEN via this file."
+    local env_file="${AURA_ENV_FILE:-${AURA_ROOT}/.env}"
+    if [ ! -e "$env_file" ]; then
+        echo "⚠️  No .env at ${env_file} — GUI and server share AURA_API_TOKEN via this file."
         echo "   Recovery ring (if any): ${HOME}/.aura/backups/env/"
-    elif ! grep -q '^AURA_API_TOKEN=' "${AURA_ROOT}/.env" 2>/dev/null; then
+    elif ! grep -q '^AURA_API_TOKEN=' "$env_file" 2>/dev/null; then
         echo "⚠️  .env present but AURA_API_TOKEN is missing — the desktop GUI may fail to authenticate."
     fi
 }

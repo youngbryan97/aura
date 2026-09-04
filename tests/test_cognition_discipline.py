@@ -387,7 +387,11 @@ def test_cognition_invariants_registered_and_clean():
     install_runtime_providers()
     install_runtime_pings()
     val_mod.install_runtime_validation()
-    val_mod.run_validation()
+    # The boot posture, and for the same reason a boot uses it: the invariant
+    # below skips NOT_MEASURED, so re-running five experiments buys it nothing
+    # and cost this test 700 seconds. The experiments are run by the tests
+    # that own them.
+    val_mod.run_validation(include_expensive=False)
 
     report = verify("cognition", record=False)
     assert report.ok, report.summary()
@@ -400,3 +404,122 @@ def test_health_integrity_block_carries_the_self_model():
     block = _runtime_integrity_block()
     assert "self_model" in block
     assert block["self_model"]["claims"] > 0
+
+
+def test_a_boot_checks_instruments_and_does_not_re_run_experiments():
+    """141 seconds of activate_foundations were three claim predicates.
+
+    They run a full grown-against-reset search — 56.4s, 52.3s and 29.3s,
+    measured during a real boot on 2026-09-01. Until that day a refusal
+    escaping from the language aborted each one, so the boot reported them as
+    errors and never paid for them; handling the refusal correctly made them
+    complete for the first time and took the boot from 13.85s to 145s, past
+    the runtime's lease deadline.
+
+    A boot checks that instruments work. The experiments are measured by the
+    tests that own them, and a skipped one says so rather than reporting a
+    pass it did not earn.
+    """
+    from core.organism.model_validation import (
+        _AN_EXPERIMENT_NOT_AN_INSTRUMENT,
+        get_suite,
+        install_runtime_validation,
+        run_validation,
+    )
+
+    install_runtime_validation()
+    assert _AN_EXPERIMENT_NOT_AN_INSTRUMENT, "no predicate is declared an experiment"
+
+    tests = getattr(get_suite(), "_tests", {})
+    for name in _AN_EXPERIMENT_NOT_AN_INSTRUMENT:
+        assert name in tests, f"{name} is declared expensive but is not registered"
+        assert tests[name].expensive, f"{name} is not flagged on its test"
+
+    import time
+
+    started = time.perf_counter()
+    outcome = run_validation(include_expensive=False)
+    elapsed = time.perf_counter() - started
+    assert outcome is not None
+    # The boot posture must stay cheap. The three experiments alone were 138s.
+    #
+    # Name the predicate rather than only the total. The first time this bar
+    # was crossed it said "17.7s" and nothing else, and the two predicates
+    # responsible for 12 of those seconds had to be found by hand. A budget
+    # that reports a number tells you it is broken; one that reports a name
+    # tells you what to flag.
+    slow = [
+        (name, seconds)
+        for name, seconds in _seconds_per_predicate(tests).items()
+        if seconds > 1.5 and name not in _AN_EXPERIMENT_NOT_AN_INSTRUMENT
+    ]
+    assert not slow, (
+        "these run an experiment but are not declared one: "
+        + ", ".join(f"{n} ({s:.1f}s)" for n, s in sorted(slow, key=lambda r: -r[1]))
+    )
+    assert elapsed < 10.0, f"the boot posture took {elapsed:.1f}s"
+
+
+def _seconds_per_predicate(tests: dict) -> dict[str, float]:
+    """How long each cheap predicate takes, measured the way the boot pays it."""
+    import time
+
+    from core.organism.model_validation import RuntimeModel
+
+    model = RuntimeModel()
+    timed: dict[str, float] = {}
+    raised: dict[str, str] = {}
+    for name, test in list(tests.items()):
+        if test.expensive:
+            continue
+        began = time.perf_counter()
+        try:
+            test.score(test.predict(model), test.observation)
+        except Exception as exc:  # noqa: BLE001 - a raise is an ERROR outcome
+            # Kept rather than dropped. A predicate that raises still spends
+            # the time this measures, and a helper that swallows the reason
+            # makes a slow raising predicate look like a slow working one.
+            raised[name] = f"{type(exc).__name__}: {exc}"
+        timed[name] = time.perf_counter() - began
+    if raised:
+        print(f"predicates that raised while being timed: {raised}")
+    return timed
+
+
+def test_a_skipped_experiment_says_so_rather_than_passing():
+    """not-measured and passed are different readings, and only one is true."""
+    from core.organism.model_validation import (
+        Observation,
+        Outcome,
+        Score,
+        ValidationTest,
+    )
+
+    ran: list[str] = []
+
+    test = ValidationTest(
+        name="an_experiment",
+        description="runs a search",
+        required_capability="",
+        observation=Observation(name="violations", value=0, source="x", units=""),
+        predict=lambda _m: ran.append("ran") or 0,
+        score=lambda p, o: Score(
+            kind="threshold", value=1.0, outcome=Outcome.PASS, interpretation="ok"
+        ),
+        expensive=True,
+    )
+
+    class _Model:
+        name = "probe"
+
+        def capabilities(self):
+            return set()
+
+    skipped = test.run(_Model(), include_expensive=False)
+    assert not ran, "the experiment was run under the boot posture"
+    assert skipped.score.outcome is Outcome.NOT_MEASURED
+    assert "experiment" in skipped.score.interpretation
+
+    full = test.run(_Model(), include_expensive=True)
+    assert ran == ["ran"]
+    assert full.score.outcome is Outcome.PASS

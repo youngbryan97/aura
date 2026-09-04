@@ -36,6 +36,11 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
     build_semantic_program_fork_join_factorial_corpus,
+    build_semantic_program_natural_alias_source_corpus,
+    build_semantic_program_natural_identity_source_corpus,
+    build_semantic_program_natural_replication_corpus,
+    build_semantic_program_natural_request_corpus,
+    build_semantic_program_natural_source_corpus,
     build_semantic_program_sequence_binary_corpus,
     build_semantic_program_sequence_cataphoric_corpus,
     build_semantic_program_sequence_corpus,
@@ -67,12 +72,22 @@ SEQUENCE_BINARY_CHAIN_CORPUS_KIND: Final = "sequence_binary_chain_3x2_factorial"
 SEQUENCE_CATAPHORIC_CORPUS_KIND: Final = "sequence_cataphoric_chain_3x2_factorial"
 SEQUENCE_RESERVED_ALIAS_CORPUS_KIND: Final = "sequence_reserved_alias_chain_3x2_factorial"
 SEQUENCE_ROLE_BINDING_CORPUS_KIND: Final = "sequence_role_binding_chain_3x2_factorial"
+NATURAL_REQUEST_CORPUS_KIND: Final = "natural_request_linear_4x3"
+NATURAL_REPLICATION_CORPUS_KIND: Final = "natural_replication_linear_4x3"
+NATURAL_SOURCE_CORPUS_KIND: Final = "natural_source_linear_3x2"
+NATURAL_ALIAS_SOURCE_CORPUS_KIND: Final = "natural_alias_source_linear_3x2"
+NATURAL_IDENTITY_SOURCE_CORPUS_KIND: Final = "natural_identity_source_linear_3x2"
 SEMANTIC_CORPUS_KINDS: Final = frozenset(
     {
         CHAIN_CORPUS_KIND,
         FORK_JOIN_CORPUS_KIND,
         FORK_JOIN_FACTORIAL_CORPUS_KIND,
         FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
+        NATURAL_REQUEST_CORPUS_KIND,
+        NATURAL_REPLICATION_CORPUS_KIND,
+        NATURAL_ALIAS_SOURCE_CORPUS_KIND,
+        NATURAL_IDENTITY_SOURCE_CORPUS_KIND,
+        NATURAL_SOURCE_CORPUS_KIND,
         SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
         SEQUENCE_CATAPHORIC_CORPUS_KIND,
         SEQUENCE_RESERVED_ALIAS_CORPUS_KIND,
@@ -223,6 +238,31 @@ def build_semantic_program_corpus_for_config(
         return build_semantic_program_sequence_role_binding_corpus(
             seed=config.seed,
             examples_per_operation_pair=config.examples_per_operation_pair,
+        )
+    if config.corpus_kind == NATURAL_REQUEST_CORPUS_KIND:
+        return build_semantic_program_natural_request_corpus(
+            seed=config.seed,
+            examples_per_schema_domain=config.examples_per_operation_pair,
+        )
+    if config.corpus_kind == NATURAL_REPLICATION_CORPUS_KIND:
+        return build_semantic_program_natural_replication_corpus(
+            seed=config.seed,
+            examples_per_schema_domain=config.examples_per_operation_pair,
+        )
+    if config.corpus_kind == NATURAL_SOURCE_CORPUS_KIND:
+        return build_semantic_program_natural_source_corpus(
+            seed=config.seed,
+            examples_per_schema_domain=config.examples_per_operation_pair,
+        )
+    if config.corpus_kind == NATURAL_ALIAS_SOURCE_CORPUS_KIND:
+        return build_semantic_program_natural_alias_source_corpus(
+            seed=config.seed,
+            examples_per_schema_domain=config.examples_per_operation_pair,
+        )
+    if config.corpus_kind == NATURAL_IDENTITY_SOURCE_CORPUS_KIND:
+        return build_semantic_program_natural_identity_source_corpus(
+            seed=config.seed,
+            examples_per_schema_domain=config.examples_per_operation_pair,
         )
     raise AssertionError("validated semantic corpus kind is unreachable")
 
@@ -1480,6 +1520,11 @@ __all__ = [
     "LoadedSemanticFeatureBundle",
     "LoadedSemanticFeatureExample",
     "MaterializationResult",
+    "NATURAL_ALIAS_SOURCE_CORPUS_KIND",
+    "NATURAL_IDENTITY_SOURCE_CORPUS_KIND",
+    "NATURAL_REPLICATION_CORPUS_KIND",
+    "NATURAL_REQUEST_CORPUS_KIND",
+    "NATURAL_SOURCE_CORPUS_KIND",
     "SemanticFeatureConfig",
     "SemanticFeatureMaterializationError",
     "SEMANTIC_CORPUS_KINDS",

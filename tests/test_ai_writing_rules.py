@@ -88,6 +88,13 @@ NEGATIVES: list[str] = [
     "Public name; the underscore version is kept as an alias.",
     # A harness is a fixture here.
     "The test harness boots a stub container.",
+    # An ISO date followed by a unit word is not a range. The hedged-range
+    # rule read "2026-04-27 second reduction" as "04-27 second" and flagged a
+    # dated engineering note as an unmeasured estimate. Real ranges — "took
+    # 4-27 seconds", "a 58-82s first token" — still match.
+    "Alpha fell to 5 on 2026-04-27, the second reduction that month.",
+    "The 2026-04-27 second pass shipped without the steering vectors.",
+    "Recorded 2026-01-30 days after the first attempt.",
     # Quoted material keeps its wording, per docs/WRITING_RULES.md.
     'Persona displacement: the reply speaking "as a large language model".',
     # Correlatives and comparisons are arguments, not twin images.

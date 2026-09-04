@@ -27,7 +27,7 @@ import math
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Any, Final
+from typing import Any, Final, Literal
 
 import numpy as np
 
@@ -64,16 +64,33 @@ from core.learning.semantic_program_transducer import (
     _operation_feature,
 )
 
-COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v13"
-COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v13"
+_V13_COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v13"
+_V13_COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA: Final = (
+    "aura.semantic_program_transducer_receipt.v13"
+)
+_V14_COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v14"
+_V14_COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA: Final = (
+    "aura.semantic_program_transducer_receipt.v14"
+)
+_V15_COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v15"
+_V15_COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA: Final = (
+    "aura.semantic_program_transducer_receipt.v15"
+)
+COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v16"
+COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v16"
+_LEGACY_DEFINITION_CANDIDATE_STRATEGY: Final = "anchored_envelope_v1"
+_LOCAL_DEFINITION_CANDIDATE_STRATEGY: Final = "bounded_local_alias_v1"
+_STABLE_REGISTER_TABLE_STRATEGY: Final = "stable_register_table_v1"
 _OPERATION_MODE: Final = "contextual_mean"
 _RELATION_CHANNEL: Final = "middle_causal_hidden"
 _MAX_STEPS: Final = 16
 _MAX_INPUTS: Final = 8
 _OPERATION_CANDIDATES: Final = 256
 _ARGUMENT_CANDIDATES: Final = 128
+_LOCAL_ARGUMENT_CANDIDATES: Final = 256
 _ARGUMENT_BEAM: Final = 128
 _ARGUMENT_MENTIONS_PER_DEFINITION: Final = 4
+_LOCAL_DEFINITION_CANDIDATES: Final = 16
 _POINTER_HARD_NEGATIVES: Final = 16
 _OPERATION_PENALTY_POINTS: Final = 161
 _OPERATION_CHART_BEAM: Final = 16
@@ -86,9 +103,8 @@ _RELATION_TISSUE_SELECTION_INTERVAL: Final = 5
 _RELATION_TISSUE_LEARNING_RATE: Final = 0.01
 _RELATION_TISSUE_WEIGHT_DECAY: Final = 0.001
 _RELATION_TISSUE_GRADIENT_CLIP: Final = 1.0
-_ARGUMENT_PROPOSAL_SCALES: Final = tuple(
-    float(value) for value in np.linspace(0.0, 1.5, 13)
-)
+_ARGUMENT_PROPOSAL_SCALES: Final = tuple(float(value) for value in np.linspace(0.0, 1.5, 13))
+_LOCAL_ARGUMENT_CANDIDATE_STRATEGY: Final = "per_operation_clause_quota_v1"
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -135,9 +151,7 @@ def _mention_invariant_relation_evidence(
     combined_evidence = tuple(_log_sigmoid(value) for value in combined_logits)
     mention_evidence = max(base_evidence)
     combined_peak = max(combined_evidence)
-    return tuple(
-        mention_evidence + value - combined_peak for value in combined_evidence
-    )
+    return tuple(mention_evidence + value - combined_peak for value in combined_evidence)
 
 
 def _overlap(left: TokenSpan, right: TokenSpan) -> bool:
@@ -171,11 +185,128 @@ def _definition_span_candidates(
     *,
     token_count: int,
     max_span_tokens: int,
+    direction: Literal["left", "right"] = "right",
 ) -> tuple[TokenSpan, ...]:
-    """Enumerate causal definition envelopes anchored to one exact register."""
+    """Enumerate register envelopes toward where its name can be introduced.
 
-    stop = max(anchor.end, min(token_count, anchor.start + max_span_tokens))
-    return tuple(TokenSpan(anchor.start, end) for end in range(anchor.end, stop + 1))
+    Public literals conventionally follow their names (``reserve 7``), while a
+    computed value's name follows the operation that defines it.  Keeping the
+    direction explicit makes runtime capable of representing the same spans
+    used by relation training without opening a quadratic all-span search.
+    """
+
+    if direction == "left":
+        start = min(anchor.start, max(0, anchor.end - max_span_tokens))
+        return tuple(TokenSpan(index, anchor.end) for index in range(start, anchor.start + 1))
+    if direction == "right":
+        stop = max(anchor.end, min(token_count, anchor.start + max_span_tokens))
+        return tuple(TokenSpan(anchor.start, end) for end in range(anchor.end, stop + 1))
+    raise ValueError("definition span direction is invalid")
+
+
+def _register_definition_candidates(
+    anchors: Sequence[TokenSpan],
+    *,
+    input_count: int,
+    token_count: int,
+    max_span_tokens: int,
+    pointer_scores: LinearPointerSequenceScores,
+    strategy: str,
+) -> tuple[tuple[TokenSpan, ...], ...]:
+    """Localize each register inside its bounded defining clause.
+
+    The legacy decoder represented a computed value only with envelopes that
+    began at its operation verb. Natural language often names that value at
+    the other end of the clause, and a long literal can place an input's name
+    outside any value-ending envelope. Local strategies add learned subspans
+    inside the defining clause. The stable-table strategy resolves exactly one
+    identity span per register before any argument mention is scored, so later
+    uses cannot select contradictory definitions for the same register.
+    """
+
+    if not 0 <= input_count <= len(anchors):
+        raise ValueError("definition candidate input count is invalid")
+    if strategy not in {
+        _LEGACY_DEFINITION_CANDIDATE_STRATEGY,
+        _LOCAL_DEFINITION_CANDIDATE_STRATEGY,
+        _STABLE_REGISTER_TABLE_STRATEGY,
+    }:
+        raise ValueError("definition candidate strategy is invalid")
+    result: list[tuple[TokenSpan, ...]] = []
+    for index, anchor in enumerate(anchors):
+        direction: Literal["left", "right"] = "left" if index < input_count else "right"
+        envelopes = _definition_span_candidates(
+            anchor,
+            token_count=token_count,
+            max_span_tokens=max_span_tokens,
+            direction=direction,
+        )
+        if strategy == _LEGACY_DEFINITION_CANDIDATE_STRATEGY:
+            result.append(envelopes)
+            continue
+
+        if direction == "left":
+            clause_start = anchors[index - 1].end if index else 0
+            boundary_start = max(clause_start, anchor.start - max_span_tokens)
+            local_bounds = (boundary_start, anchor.start)
+            bounded_envelopes = envelopes
+        else:
+            next_operation = anchors[index + 1].start if index + 1 < len(anchors) else token_count
+            boundary = min(token_count, anchor.start + max_span_tokens, next_operation)
+            local_bounds = (anchor.end, boundary)
+            bounded_envelopes = tuple(span for span in envelopes if span.end <= boundary)
+        local: list[tuple[TokenSpan, float]] = []
+        for start in range(*local_bounds):
+            stop = min(local_bounds[1], start + max_span_tokens)
+            for end in range(start + 1, stop + 1):
+                span = TokenSpan(start, end)
+                local.append((span, pointer_scores.score_span(span)))
+        local.sort(key=lambda item: (-item[1], item[0].start, item[0].end))
+        candidates = tuple(
+            dict.fromkeys(
+                (
+                    *(bounded_envelopes or (anchor,)),
+                    *(span for span, _score in local[:_LOCAL_DEFINITION_CANDIDATES]),
+                )
+            )
+        )
+        if strategy == _STABLE_REGISTER_TABLE_STRATEGY:
+            candidates = (
+                max(
+                    candidates,
+                    key=lambda span: (
+                        pointer_scores.score_span(span),
+                        -(span.end - span.start),
+                        -span.start,
+                        -span.end,
+                    ),
+                ),
+            )
+        result.append(candidates)
+    return tuple(result)
+
+
+def _has_symbolic_register_definitions(item: SemanticTransducerTrainingExample) -> bool:
+    """Return whether every register has an identity span separate from its payload."""
+
+    if not item.register_definition_spans:
+        return False
+    definitions = _register_definition_spans(item)
+    return all(
+        not _overlap(definition, payload)
+        for definition, payload in zip(
+            definitions[: item.ir.n_inputs],
+            item.ir.input_spans,
+            strict=True,
+        )
+    ) and all(
+        not _overlap(definition, instruction.operation_span)
+        for definition, instruction in zip(
+            definitions[item.ir.n_inputs :],
+            item.ir.instructions,
+            strict=True,
+        )
+    )
 
 
 def _best_penalized_operation_chart(
@@ -365,8 +496,7 @@ class DirectionalRelationHead:
         if reference.shape != definition.shape or reference.ndim != 1:
             raise ValueError("compositional relation vectors differ")
         return float(
-            (reference @ self.query_projection)
-            @ (definition @ self.definition_projection)
+            (reference @ self.query_projection) @ (definition @ self.definition_projection)
         )
 
     def score(self, reference: np.ndarray, definition: np.ndarray) -> float:
@@ -418,8 +548,7 @@ class RegisterUseContract:
 
     def allows_partial(self, counts: Counter[int], *, n_inputs: int) -> bool:
         return all(
-            count
-            <= (self.input_max_uses if register < n_inputs else self.intermediate_max_uses)
+            count <= (self.input_max_uses if register < n_inputs else self.intermediate_max_uses)
             for register, count in counts.items()
         )
 
@@ -432,12 +561,9 @@ class RegisterUseContract:
         sink: int,
     ) -> bool:
         return all(
-            self.input_min_uses <= counts[index] <= self.input_max_uses
-            for index in range(n_inputs)
+            self.input_min_uses <= counts[index] <= self.input_max_uses for index in range(n_inputs)
         ) and all(
-            self.intermediate_min_uses
-            <= counts[n_inputs + index]
-            <= self.intermediate_max_uses
+            self.intermediate_min_uses <= counts[n_inputs + index] <= self.intermediate_max_uses
             for index in range(operation_count)
             if index != sink
         )
@@ -450,6 +576,67 @@ class _OperationNode:
     score: float
     pointer_score: float
     confidence: float
+
+
+def _argument_proposals_by_operation(
+    scores: LinearPointerSequenceScores,
+    *,
+    input_spans: Sequence[TokenSpan],
+    operation_nodes: Sequence[_OperationNode],
+    max_span_tokens: int,
+    clause_local: bool,
+) -> tuple[tuple[tuple[TokenSpan, float], ...], ...]:
+    """Allocate argument evidence independently to every operation clause."""
+
+    global_proposals = list(
+        scores.decode_candidates(
+            limit=_ARGUMENT_CANDIDATES,
+            max_span_tokens=max_span_tokens,
+        )
+    )
+    observed = {span for span, _score in global_proposals}
+    global_proposals.extend(
+        (span, scores.score_span(span)) for span in input_spans if span not in observed
+    )
+    global_proposals = [
+        (span, score)
+        for span, score in global_proposals
+        if not any(_overlap(span, node.span) for node in operation_nodes)
+    ]
+    if not clause_local:
+        shared = tuple(global_proposals)
+        return tuple(shared for _node in operation_nodes)
+
+    by_operation: list[tuple[tuple[TokenSpan, float], ...]] = []
+    token_count = scores.start.size
+    for node_index, _node in enumerate(operation_nodes):
+        clause_start = operation_nodes[node_index - 1].span.end if node_index else 0
+        clause_end = (
+            operation_nodes[node_index + 1].span.start
+            if node_index + 1 < len(operation_nodes)
+            else token_count
+        )
+        local: list[tuple[TokenSpan, float]] = []
+        for start in range(clause_start, clause_end):
+            stop = min(clause_end, start + max_span_tokens)
+            for end in range(start + 1, stop + 1):
+                span = TokenSpan(start, end)
+                if any(_overlap(span, operation.span) for operation in operation_nodes):
+                    continue
+                local.append((span, scores.score_span(span)))
+        local.sort(key=lambda item: (-item[1], item[0].start, item[0].end))
+        merged: dict[TokenSpan, float] = {}
+        for span, score in (*global_proposals, *local[:_LOCAL_ARGUMENT_CANDIDATES]):
+            merged[span] = max(score, merged.get(span, -float("inf")))
+        by_operation.append(
+            tuple(
+                sorted(
+                    merged.items(),
+                    key=lambda item: (-item[1], item[0].start, item[0].end),
+                )
+            )
+        )
+    return tuple(by_operation)
 
 
 @dataclass(frozen=True, slots=True)
@@ -555,9 +742,7 @@ def _best_nonoverlapping_node_charts(
 
     if limit < 1:
         raise ValueError("compositional operation-chart limit must be positive")
-    ordered = tuple(
-        sorted(nodes, key=lambda item: (item.span.end, item.span.start, -item.score))
-    )
+    ordered = tuple(sorted(nodes, key=lambda item: (item.span.end, item.span.start, -item.score)))
     previous: list[int] = []
     for index, node in enumerate(ordered):
         prior = index - 1
@@ -576,11 +761,12 @@ def _best_nonoverlapping_node_charts(
                     (score + node.score, (*selected, node))
                     for score, selected in table[previous[index - 1] + 1][size - 1]
                 )
-            unique: dict[tuple[tuple[int, int, str], ...], tuple[float, tuple[_OperationNode, ...]]] = {}
+            unique: dict[
+                tuple[tuple[int, int, str], ...], tuple[float, tuple[_OperationNode, ...]]
+            ] = {}
             for candidate in candidates:
                 key = tuple(
-                    (item.span.start, item.span.end, item.operation)
-                    for item in candidate[1]
+                    (item.span.start, item.span.end, item.operation) for item in candidate[1]
                 )
                 incumbent = unique.get(key)
                 if incumbent is None or candidate[0] > incumbent[0]:
@@ -665,9 +851,7 @@ def _fit_argument_role_heads(
         weights: list[float] = []
         for item in training:
             all_arguments = tuple(
-                span
-                for instruction in item.ir.instructions
-                for span in instruction.argument_spans
+                span for instruction in item.ir.instructions for span in instruction.argument_spans
             )
             for instruction in item.ir.instructions:
                 if position >= len(instruction.argument_spans):
@@ -749,9 +933,7 @@ def _argument_proposal_rows(
             for span in item.ir.input_spans
             if span not in observed
         )
-        operation_spans = tuple(
-            instruction.operation_span for instruction in item.ir.instructions
-        )
+        operation_spans = tuple(instruction.operation_span for instruction in item.ir.instructions)
         candidate_spans = tuple(
             span
             for span, _score in proposed
@@ -770,8 +952,7 @@ def _argument_proposal_rows(
                 span
                 for span in candidate_spans
                 if span != positive
-                and span.end - span.start
-                <= max_argument_span_tokens_by_type[required_type]
+                and span.end - span.start <= max_argument_span_tokens_by_type[required_type]
             )[:_POINTER_HARD_NEGATIVES]
             spans = (positive, *negatives)
             operation = _relation_span_vector(
@@ -883,9 +1064,7 @@ def _select_argument_proposal_scale(
             logits = semantic_logits + scale * proposal_logits
             losses = np.logaddexp(0.0, logits) - labels * logits
             totals[scale] += float(np.sum(losses * weights))
-            row_correct[scale] += int(
-                np.count_nonzero((logits >= 0.0) == labels)
-            )
+            row_correct[scale] += int(np.count_nonzero((logits >= 0.0) == labels))
         row_count += int(labels.size)
     if row_count < 1:
         raise ValueError("compositional argument proposal calibration has no support")
@@ -1064,9 +1243,7 @@ def _relation_tissue_metrics(
 ) -> tuple[int, float]:
     logits = _relation_tissue_logits(batch, query_projection, definition_projection)
     centered = logits - logits.max(axis=1, keepdims=True)
-    log_probabilities = centered - np.log(
-        np.exp(centered).sum(axis=1, keepdims=True)
-    )
+    log_probabilities = centered - np.log(np.exp(centered).sum(axis=1, keepdims=True))
     rows = np.arange(batch.targets.size)
     return (
         int(np.count_nonzero(logits.argmax(axis=1) == batch.targets)),
@@ -1193,12 +1370,12 @@ def _fit_low_rank_relation_tissue(
                 moment += (1.0 - beta1) * gradient
                 variance *= beta2
                 variance += (1.0 - beta2) * gradient * gradient
-                parameter *= 1.0 - (
-                    _RELATION_TISSUE_LEARNING_RATE * _RELATION_TISSUE_WEIGHT_DECAY
+                parameter *= 1.0 - (_RELATION_TISSUE_LEARNING_RATE * _RELATION_TISSUE_WEIGHT_DECAY)
+                parameter -= (
+                    _RELATION_TISSUE_LEARNING_RATE
+                    * (moment / (1.0 - beta1**update))
+                    / (np.sqrt(variance / (1.0 - beta2**update)) + epsilon)
                 )
-                parameter -= _RELATION_TISSUE_LEARNING_RATE * (
-                    moment / (1.0 - beta1**update)
-                ) / (np.sqrt(variance / (1.0 - beta2**update)) + epsilon)
         if epoch % _RELATION_TISSUE_SELECTION_INTERVAL:
             continue
         correct, loss = _relation_tissue_metrics(validate, query, definition)
@@ -1232,9 +1409,7 @@ def _fit_register_use_contract(
     distinct_arguments = True
     for item in training:
         counts: Counter[int] = Counter(
-            register
-            for instruction in item.ir.instructions
-            for register in instruction.args
+            register for instruction in item.ir.instructions for register in instruction.args
         )
         input_uses.extend(counts[index] for index in range(item.ir.n_inputs))
         intermediate_uses.extend(
@@ -1263,6 +1438,7 @@ def _select_definition_pointer_scale(
     relation_head: DirectionalRelationHead,
     definition_pointer: LinearPointerHead,
     max_definition_span_tokens: int,
+    definition_candidate_strategy: str,
     hidden_channels: Sequence[str],
     hidden_channel_widths: Sequence[int],
 ) -> tuple[float, list[dict[str, Any]]]:
@@ -1277,6 +1453,14 @@ def _select_definition_pointer_scale(
             *(instruction.operation_span for instruction in item.ir.instructions),
         )
         pointer_scores = definition_pointer.score_sequence(item.hidden_states)
+        candidate_spans = _register_definition_candidates(
+            anchors,
+            input_count=item.ir.n_inputs,
+            token_count=item.hidden_states.shape[0],
+            max_span_tokens=max_definition_span_tokens,
+            pointer_scores=pointer_scores,
+            strategy=definition_candidate_strategy,
+        )
         candidates = tuple(
             tuple(
                 (
@@ -1288,13 +1472,9 @@ def _select_definition_pointer_scale(
                         hidden_channel_widths=hidden_channel_widths,
                     ),
                 )
-                for span in _definition_span_candidates(
-                    anchor,
-                    token_count=item.hidden_states.shape[0],
-                    max_span_tokens=max_definition_span_tokens,
-                )
+                for span in register_candidates
             )
-            for anchor in anchors
+            for register_candidates in candidate_spans
         )
         for step, instruction in enumerate(item.ir.instructions):
             available = item.ir.n_inputs + step
@@ -1319,8 +1499,7 @@ def _select_definition_pointer_scale(
                         for register_candidates in candidates[:available]
                     )
                     correct[scale] += int(
-                        max(range(available), key=lambda index: scores[index])
-                        == expected_register
+                        max(range(available), key=lambda index: scores[index]) == expected_register
                     )
                 total += 1
     if total < 1:
@@ -1352,23 +1531,13 @@ def _assign_typed_arguments(
         and model.register_use_contract.intermediate_min_uses > 0
     ):
         return None
-    proposals = list(
-        argument_pointer_scores.decode_candidates(
-            limit=_ARGUMENT_CANDIDATES,
-            max_span_tokens=model.max_span_tokens,
-        )
+    proposals_by_operation = _argument_proposals_by_operation(
+        argument_pointer_scores,
+        input_spans=input_spans,
+        operation_nodes=operation_nodes,
+        max_span_tokens=model.max_span_tokens,
+        clause_local=model.schema == COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA,
     )
-    observed = {span for span, _score in proposals}
-    proposals.extend(
-        (span, argument_pointer_scores.score_span(span))
-        for span in input_spans
-        if span not in observed
-    )
-    proposals = [
-        (span, score)
-        for span, score in proposals
-        if not any(_overlap(span, node.span) for node in operation_nodes)
-    ]
     operation_types: list[tuple[tuple[str, ...], str]] = []
     for node in operation_nodes:
         signature = semantic_primitive_type_signature(node.operation)
@@ -1381,6 +1550,14 @@ def _assign_typed_arguments(
         *(result_type for _argument_types, result_type in operation_types),
     )
     definition_pointer_scores = model.definition_pointer.score_sequence(hidden)
+    definition_candidates = _register_definition_candidates(
+        definitions,
+        input_count=len(inputs),
+        token_count=hidden.shape[0],
+        max_span_tokens=model.max_definition_span_tokens,
+        pointer_scores=definition_pointer_scores,
+        strategy=model.definition_candidate_strategy,
+    )
     definition_vectors = tuple(
         tuple(
             (
@@ -1392,13 +1569,9 @@ def _assign_typed_arguments(
                     hidden_channel_widths=model.hidden_channel_widths,
                 ),
             )
-            for candidate in _definition_span_candidates(
-                span,
-                token_count=hidden.shape[0],
-                max_span_tokens=model.max_definition_span_tokens,
-            )
+            for candidate in candidates
         )
-        for span in definitions
+        for candidates in definition_candidates
     )
     reference_vectors = {
         span: _relation_span_vector(
@@ -1407,6 +1580,7 @@ def _assign_typed_arguments(
             hidden_channels=model.hidden_channels,
             hidden_channel_widths=model.hidden_channel_widths,
         )
+        for proposals in proposals_by_operation
         for span, _score in proposals
     }
     relation_scores = {
@@ -1456,7 +1630,7 @@ def _assign_typed_arguments(
             role_head = model.argument_role_heads[position]
             proposal_head = model.argument_proposal_heads[position]
             by_register: dict[int, list[tuple[float, TokenSpan]]] = {}
-            for span, pointer_score in proposals:
+            for span, pointer_score in proposals_by_operation[node_index]:
                 if span.end - span.start > model.max_argument_span_tokens_by_type[required_type]:
                     continue
                 reference = reference_vectors[span]
@@ -1481,8 +1655,7 @@ def _assign_typed_arguments(
                     relation_scores[span][register] for register in eligible_registers
                 )
                 base_raw_relation_scores = tuple(
-                    base_relation_scores[span][register]
-                    for register in eligible_registers
+                    base_relation_scores[span][register] for register in eligible_registers
                 )
                 relation_evidence = _mention_invariant_relation_evidence(
                     base_raw_relation_scores,
@@ -1507,8 +1680,7 @@ def _assign_typed_arguments(
                     score = (
                         model.argument_role_scale * _log_sigmoid(role_score)
                         + model.argument_proposal_scale * _log_sigmoid(proposal_score)
-                        + model.definition_relation_scale
-                        * candidate_relation_evidence
+                        + model.definition_relation_scale * candidate_relation_evidence
                         + model.argument_pointer_scale * _log_sigmoid(pointer_score)
                     )
                     by_register.setdefault(register, []).append((score, span))
@@ -1583,9 +1755,7 @@ def _assign_typed_arguments(
                 ):
                     continue
                 use_counts: Counter[int] = Counter(
-                    register
-                    for values in (*arguments, step_arguments)
-                    for register in values
+                    register for values in (*arguments, step_arguments) for register in values
                 )
                 if not model.register_use_contract.allows_partial(
                     use_counts,
@@ -1719,6 +1889,7 @@ class CompositionalSemanticProgramTransducer:
     argument_role_heads: tuple[LinearArgumentRoleHead, ...]
     argument_proposal_heads: tuple[LinearArgumentRoleHead, ...]
     definition_relation_head: DirectionalRelationHead
+    definition_candidate_strategy: str
     max_steps: int
     max_inputs: int
     max_span_tokens: int
@@ -1739,9 +1910,7 @@ class CompositionalSemanticProgramTransducer:
         receipt = json.loads(_canonical_bytes(self.training_receipt))
         relation_fit = receipt.get("relation_tissue_fit")
         relation_selection = (
-            relation_fit.get("validation_selection")
-            if isinstance(relation_fit, Mapping)
-            else None
+            relation_fit.get("validation_selection") if isinstance(relation_fit, Mapping) else None
         )
         relation_start, relation_end = _channel_span(
             _RELATION_CHANNEL,
@@ -1751,8 +1920,30 @@ class CompositionalSemanticProgramTransducer:
         coefficient = self._coefficient_body()
         argument_bounds = dict(self.max_argument_span_tokens_by_type)
         body = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+        schema_contracts = {
+            _V13_COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: (
+                _V13_COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA,
+                _LEGACY_DEFINITION_CANDIDATE_STRATEGY,
+            ),
+            _V14_COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: (
+                _V14_COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA,
+                _LOCAL_DEFINITION_CANDIDATE_STRATEGY,
+            ),
+            _V15_COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: (
+                _V15_COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA,
+                _STABLE_REGISTER_TABLE_STRATEGY,
+            ),
+            COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: (
+                COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA,
+                _STABLE_REGISTER_TABLE_STRATEGY,
+            ),
+        }
+        expected_receipt_schema, expected_candidate_strategy = schema_contracts.get(
+            self.schema,
+            (None, None),
+        )
         if (
-            self.schema != COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA
+            self.schema not in schema_contracts
             or type(self.hidden_size) is not int
             or self.hidden_size < 1
             or not _is_sha256(self.model_basis_sha256)
@@ -1792,7 +1983,13 @@ class CompositionalSemanticProgramTransducer:
             or self.argument_proposal_scale < 0
             or not math.isfinite(self.operation_length_penalty)
             or type(self.allow_computed_dependencies) is not bool
-            or receipt.get("schema") != COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA
+            or receipt.get("schema") != expected_receipt_schema
+            or self.definition_candidate_strategy != expected_candidate_strategy
+            or (
+                self.schema != _V13_COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA
+                and receipt.get("definition_candidate_strategy")
+                != self.definition_candidate_strategy
+            )
             or receipt.get("receipt_sha256") != _sha(body)
             or receipt.get("model_basis_sha256") != self.model_basis_sha256
             or receipt.get("input_grounding_sha256") != self.input_grounding.contract_sha256
@@ -1805,25 +2002,52 @@ class CompositionalSemanticProgramTransducer:
             or not 1 <= self.operation_chart_beam <= _OPERATION_CHART_BEAM
             or receipt.get("operation_chart_beam") != self.operation_chart_beam
             or receipt.get("register_use_contract") != self.register_use_contract.to_dict()
+            or (
+                self.schema
+                in {
+                    _V15_COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA,
+                    COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA,
+                }
+                and (
+                    not isinstance(receipt.get("identity_definition_supervision"), Mapping)
+                    or receipt["identity_definition_supervision"].get("selection")
+                    != "payload_and_operation_disjoint_register_spans_v1"
+                    or type(
+                        receipt["identity_definition_supervision"].get("training_examples")
+                    )
+                    is not int
+                    or receipt["identity_definition_supervision"]["training_examples"] < 1
+                    or type(
+                        receipt["identity_definition_supervision"].get("validation_examples")
+                    )
+                    is not int
+                    or receipt["identity_definition_supervision"]["validation_examples"] < 1
+                    or type(
+                        receipt["identity_definition_supervision"].get(
+                            "fallback_to_all_examples"
+                        )
+                    )
+                    is not bool
+                )
+            )
+            or (
+                self.schema == COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA
+                and receipt.get("argument_candidate_strategy")
+                != _LOCAL_ARGUMENT_CANDIDATE_STRATEGY
+            )
             or not isinstance(relation_fit, Mapping)
             or relation_fit.get("algorithm") != "minibatch_adamw_cross_entropy_v1"
-            or relation_fit.get("selection_objective")
-            != "minimum_validation_cross_entropy"
-            or relation_fit.get("rank")
-            != self.definition_relation_head.query_projection.shape[1]
+            or relation_fit.get("selection_objective") != "minimum_validation_cross_entropy"
+            or relation_fit.get("rank") != self.definition_relation_head.query_projection.shape[1]
             or relation_fit.get("seed") != _RELATION_TISSUE_SEED
-            or receipt.get("relation_score_contract")
-            != "mention_invariant_conditional_tissue_v1"
-            or receipt.get("argument_role_contract")
-            != "semantic_and_pointer_proposal_product_v1"
+            or receipt.get("relation_score_contract") != "mention_invariant_conditional_tissue_v1"
+            or receipt.get("argument_role_contract") != "semantic_and_pointer_proposal_product_v1"
             or not isinstance(receipt.get("argument_proposal_fit"), Mapping)
             or receipt["argument_proposal_fit"].get("hard_negative_limit")
             != _POINTER_HARD_NEGATIVES
             or receipt["argument_proposal_fit"].get("scale_selection_objective")
             != "minimum_validation_cross_entropy"
-            or not isinstance(
-                receipt["argument_proposal_fit"].get("scale_selection"), list
-            )
+            or not isinstance(receipt["argument_proposal_fit"].get("scale_selection"), list)
             or sum(
                 isinstance(row, Mapping) and row.get("selected") is True
                 for row in receipt["argument_proposal_fit"]["scale_selection"]
@@ -1837,8 +2061,7 @@ class CompositionalSemanticProgramTransducer:
             )
             or type(receipt["argument_proposal_fit"].get("positive_rows")) is not int
             or receipt["argument_proposal_fit"]["positive_rows"] < 1
-            or type(receipt["argument_proposal_fit"].get("pointer_hard_negative_rows"))
-            is not int
+            or type(receipt["argument_proposal_fit"].get("pointer_hard_negative_rows")) is not int
             or receipt["argument_proposal_fit"]["pointer_hard_negative_rows"] < 1
             or not isinstance(relation_selection, list)
             or sum(
@@ -1867,9 +2090,7 @@ class CompositionalSemanticProgramTransducer:
             "definition_pointer": self.definition_pointer.to_dict(),
             "operation_head": self.operation_head.to_dict(),
             "argument_role_heads": [head.to_dict() for head in self.argument_role_heads],
-            "argument_proposal_heads": [
-                head.to_dict() for head in self.argument_proposal_heads
-            ],
+            "argument_proposal_heads": [head.to_dict() for head in self.argument_proposal_heads],
             "definition_relation_head": self.definition_relation_head.to_dict(),
             "operation_length_penalty": self.operation_length_penalty,
             "argument_role_scale": self.argument_role_scale,
@@ -1885,7 +2106,7 @@ class CompositionalSemanticProgramTransducer:
         return str(self.training_receipt["receipt_sha256"])
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "schema": self.schema,
             "hidden_size": self.hidden_size,
             "model_basis_sha256": self.model_basis_sha256,
@@ -1901,6 +2122,9 @@ class CompositionalSemanticProgramTransducer:
             **self._coefficient_body(),
             "training_receipt": self.training_receipt,
         }
+        if self.schema != _V13_COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA:
+            payload["definition_candidate_strategy"] = self.definition_candidate_strategy
+        return payload
 
     def _with_coefficients(self, **changes: Any) -> CompositionalSemanticProgramTransducer:
         values = {
@@ -2357,8 +2581,16 @@ def fit_compositional_semantic_program_transducer(
             span for instruction in item.ir.instructions for span in instruction.argument_spans
         ),
     )
+    identity_training = tuple(item for item in training if _has_symbolic_register_definitions(item))
+    identity_validation = tuple(
+        item for item in validation if _has_symbolic_register_definitions(item)
+    )
+    identity_supervision_fallback = not identity_training or not identity_validation
+    if identity_supervision_fallback:
+        identity_training = training
+        identity_validation = validation
     definition_pointer = _fit_shared_pointer(
-        training,
+        identity_training,
         spans=_register_definition_spans,
     )
     register_use_contract = _fit_register_use_contract(training)
@@ -2403,21 +2635,22 @@ def fit_compositional_semantic_program_transducer(
         hidden_channels=hidden_channels,
         hidden_channel_widths=hidden_channel_widths,
     )
-    argument_proposal_scale, argument_proposal_scale_rows = (
-        _select_argument_proposal_scale(
-            validation,
-            argument_pointer=argument_pointer,
-            semantic_heads=argument_role_heads,
-            proposal_heads=argument_proposal_heads,
-            max_span_tokens=max_span_tokens,
-            max_argument_span_tokens_by_type=max_argument_span_tokens_by_type,
-            hidden_channels=hidden_channels,
-            hidden_channel_widths=hidden_channel_widths,
-        )
+    argument_proposal_scale, argument_proposal_scale_rows = _select_argument_proposal_scale(
+        validation,
+        argument_pointer=argument_pointer,
+        semantic_heads=argument_role_heads,
+        proposal_heads=argument_proposal_heads,
+        max_span_tokens=max_span_tokens,
+        max_argument_span_tokens_by_type=max_argument_span_tokens_by_type,
+        hidden_channels=hidden_channels,
+        hidden_channel_widths=hidden_channel_widths,
     )
-    item_weights = {id(item): 1.0 / geometries[_geometry(item)] for item in training}
+    identity_geometries = Counter(_geometry(item) for item in identity_training)
+    item_weights = {
+        id(item): 1.0 / identity_geometries[_geometry(item)] for item in identity_training
+    }
     relation_weight, relation_bias = _fit_directional_relation_head(
-        training,
+        identity_training,
         item_weights=item_weights,
         hidden_channels=hidden_channels,
         hidden_channel_widths=hidden_channel_widths,
@@ -2427,8 +2660,8 @@ def fit_compositional_semantic_program_transducer(
         relation_definition_projection,
         relation_tissue_rows,
     ) = _fit_low_rank_relation_tissue(
-        training,
-        validation,
+        identity_training,
+        identity_validation,
         relation_weight=relation_weight,
         relation_bias=relation_bias,
         hidden_channels=hidden_channels,
@@ -2446,6 +2679,7 @@ def fit_compositional_semantic_program_transducer(
         relation_head=uncalibrated_relation_head,
         definition_pointer=definition_pointer,
         max_definition_span_tokens=max_definition_span_tokens,
+        definition_candidate_strategy=_STABLE_REGISTER_TABLE_STRATEGY,
         hidden_channels=hidden_channels,
         hidden_channel_widths=hidden_channel_widths,
     )
@@ -2501,10 +2735,18 @@ def fit_compositional_semantic_program_transducer(
             {instruction.op for item in training for instruction in item.ir.instructions}
         ),
         "operation_length_penalty_selection": penalty_rows,
-        "chart_decoder": "directional_joint_probability_kbest_interval_dag_v3",
+        "chart_decoder": "stable_register_table_probability_kbest_interval_dag_v4",
         "operation_chart_beam": _OPERATION_CHART_BEAM,
         "argument_span_bounds": max_argument_span_tokens_by_type,
         "definition_span_bound": max_definition_span_tokens,
+        "definition_candidate_strategy": _STABLE_REGISTER_TABLE_STRATEGY,
+        "argument_candidate_strategy": _LOCAL_ARGUMENT_CANDIDATE_STRATEGY,
+        "identity_definition_supervision": {
+            "selection": "payload_and_operation_disjoint_register_spans_v1",
+            "training_examples": len(identity_training),
+            "validation_examples": len(identity_validation),
+            "fallback_to_all_examples": identity_supervision_fallback,
+        },
         "definition_pointer_scale_selection": definition_pointer_rows,
         "relation_tissue_fit": {
             "algorithm": "minibatch_adamw_cross_entropy_v1",
@@ -2550,6 +2792,7 @@ def fit_compositional_semantic_program_transducer(
         argument_role_heads=argument_role_heads,
         argument_proposal_heads=argument_proposal_heads,
         definition_relation_head=definition_relation_head,
+        definition_candidate_strategy=_STABLE_REGISTER_TABLE_STRATEGY,
         max_steps=max_steps,
         max_inputs=max_inputs,
         max_span_tokens=max_span_tokens,
@@ -2563,6 +2806,157 @@ def fit_compositional_semantic_program_transducer(
         definition_relation_scale=1.0,
         argument_pointer_scale=0.5,
         allow_computed_dependencies=True,
+        training_receipt={**body, "receipt_sha256": _sha(body)},
+    )
+
+
+def refit_compositional_register_identity(
+    model: CompositionalSemanticProgramTransducer,
+    examples: Sequence[SemanticTransducerTrainingExample],
+) -> CompositionalSemanticProgramTransducer:
+    """Refit only register identity localization and relation tissue.
+
+    Operation recognition, argument proposal, graph constraints, and input
+    grounding are intentionally inherited from the parent receipt. This keeps
+    a register-identity repair from silently changing unrelated capabilities.
+    """
+
+    training = tuple(
+        item
+        for item in examples
+        if item.split == "train" and _has_symbolic_register_definitions(item)
+    )
+    validation = tuple(
+        item
+        for item in examples
+        if item.split == "validation" and _has_symbolic_register_definitions(item)
+    )
+    if not training or not validation:
+        raise ValueError("register identity refit needs symbolic train and validation examples")
+    if len(training) + len(validation) != sum(
+        item.split in {"train", "validation"} for item in examples
+    ):
+        raise ValueError("register identity refit contains non-symbolic supervision")
+    if (
+        {item.ir.model_basis_receipt_sha256 for item in (*training, *validation)}
+        != {model.model_basis_sha256}
+        or {item.tokenizer_identity_sha256 for item in examples}
+        != {model.input_grounding.tokenizer_identity_sha256}
+        or {
+            (item.hidden_channels, item.hidden_channel_widths)
+            for item in (*training, *validation)
+        }
+        != {(model.hidden_channels, model.hidden_channel_widths)}
+    ):
+        raise ValueError("register identity refit neural basis differs from its parent")
+
+    definition_pointer = _fit_shared_pointer(
+        training,
+        spans=_register_definition_spans,
+    )
+    geometries = Counter(_geometry(item) for item in training)
+    item_weights = {id(item): 1.0 / geometries[_geometry(item)] for item in training}
+    relation_weight, relation_bias = _fit_directional_relation_head(
+        training,
+        item_weights=item_weights,
+        hidden_channels=model.hidden_channels,
+        hidden_channel_widths=model.hidden_channel_widths,
+    )
+    query_projection, definition_projection, relation_rows = _fit_low_rank_relation_tissue(
+        training,
+        validation,
+        relation_weight=relation_weight,
+        relation_bias=relation_bias,
+        hidden_channels=model.hidden_channels,
+        hidden_channel_widths=model.hidden_channel_widths,
+    )
+    uncalibrated = DirectionalRelationHead(
+        relation_weight,
+        relation_bias,
+        0.0,
+        query_projection,
+        definition_projection,
+    )
+    pointer_scale, pointer_rows = _select_definition_pointer_scale(
+        validation,
+        relation_head=uncalibrated,
+        definition_pointer=definition_pointer,
+        max_definition_span_tokens=model.max_definition_span_tokens,
+        definition_candidate_strategy=_STABLE_REGISTER_TABLE_STRATEGY,
+        hidden_channels=model.hidden_channels,
+        hidden_channel_widths=model.hidden_channel_widths,
+    )
+    definition_relation_head = DirectionalRelationHead(
+        relation_weight,
+        relation_bias,
+        pointer_scale,
+        query_projection,
+        definition_projection,
+    )
+    coefficient = model._coefficient_body()
+    coefficient["definition_pointer"] = definition_pointer.to_dict()
+    coefficient["definition_relation_head"] = definition_relation_head.to_dict()
+    body = {
+        key: value for key, value in model.training_receipt.items() if key != "receipt_sha256"
+    }
+    body.update(
+        {
+            "schema": COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA,
+            "chart_decoder": "stable_register_table_probability_kbest_interval_dag_v4",
+            "definition_candidate_strategy": _STABLE_REGISTER_TABLE_STRATEGY,
+            "argument_candidate_strategy": _LOCAL_ARGUMENT_CANDIDATE_STRATEGY,
+            "definition_pointer_scale_selection": pointer_rows,
+            "identity_definition_supervision": {
+                "selection": "payload_and_operation_disjoint_register_spans_v1",
+                "training_examples": len(training),
+                "validation_examples": len(validation),
+                "fallback_to_all_examples": False,
+            },
+            "identity_refit": {
+                "schema": "aura.semantic_program_register_identity_refit.v1",
+                "parent_transducer_receipt_sha256": model.receipt_sha256,
+                "training_example_ids_sha256": _sha(
+                    sorted(item.ir.source_text_sha256 for item in training)
+                ),
+                "validation_example_ids_sha256": _sha(
+                    sorted(item.ir.source_text_sha256 for item in validation)
+                ),
+                "inherited_coefficient_groups": [
+                    "operation_pointer",
+                    "argument_pointer",
+                    "operation_head",
+                    "argument_role_heads",
+                    "argument_proposal_heads",
+                    "operation_length_penalty",
+                    "register_use_contract",
+                ],
+                "refit_coefficient_groups": [
+                    "definition_pointer",
+                    "definition_relation_head",
+                ],
+            },
+            "relation_tissue_fit": {
+                "algorithm": "minibatch_adamw_cross_entropy_v1",
+                "selection_objective": "minimum_validation_cross_entropy",
+                "rank": int(query_projection.shape[1]),
+                "seed": _RELATION_TISSUE_SEED,
+                "epochs": _RELATION_TISSUE_EPOCHS,
+                "batch_size": _RELATION_TISSUE_BATCH_SIZE,
+                "selection_interval": _RELATION_TISSUE_SELECTION_INTERVAL,
+                "learning_rate": _RELATION_TISSUE_LEARNING_RATE,
+                "weight_decay": _RELATION_TISSUE_WEIGHT_DECAY,
+                "gradient_clip": _RELATION_TISSUE_GRADIENT_CLIP,
+                "validation_selection": relation_rows,
+            },
+            "coefficient_sha256": _sha(coefficient),
+        }
+    )
+    return replace(
+        model,
+        schema=COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA,
+        definition_pointer=definition_pointer,
+        definition_relation_head=definition_relation_head,
+        definition_candidate_strategy=_STABLE_REGISTER_TABLE_STRATEGY,
         training_receipt={**body, "receipt_sha256": _sha(body)},
     )
 
@@ -2581,7 +2975,7 @@ def _pointer_from_dict(value: Any) -> LinearPointerHead:
 def compositional_semantic_program_transducer_from_dict(
     payload: Any,
 ) -> CompositionalSemanticProgramTransducer:
-    """Reload one immutable v12 transducer without fitting or calibration."""
+    """Reload one immutable transducer without fitting or calibration."""
 
     if not isinstance(payload, Mapping):
         raise ValueError("compositional semantic transducer payload is invalid")
@@ -2606,6 +3000,13 @@ def compositional_semantic_program_transducer_from_dict(
         ),
     )
     relation = payload["definition_relation_head"]
+    schema = str(payload["schema"])
+    definition_candidate_strategy = str(
+        payload.get(
+            "definition_candidate_strategy",
+            _LEGACY_DEFINITION_CANDIDATE_STRATEGY,
+        )
+    )
     return CompositionalSemanticProgramTransducer(
         hidden_size=int(payload["hidden_size"]),
         model_basis_sha256=str(payload["model_basis_sha256"]),
@@ -2637,6 +3038,7 @@ def compositional_semantic_program_transducer_from_dict(
             np.asarray(relation["query_projection"], dtype=np.float32),
             np.asarray(relation["definition_projection"], dtype=np.float32),
         ),
+        definition_candidate_strategy=definition_candidate_strategy,
         max_steps=int(payload["max_steps"]),
         max_inputs=int(payload["max_inputs"]),
         max_span_tokens=int(payload["max_span_tokens"]),
@@ -2646,10 +3048,7 @@ def compositional_semantic_program_transducer_from_dict(
             for key, value in payload["max_argument_span_tokens_by_type"].items()
         },
         register_use_contract=RegisterUseContract(
-            **{
-                str(key): value
-                for key, value in payload["register_use_contract"].items()
-            }
+            **{str(key): value for key, value in payload["register_use_contract"].items()}
         ),
         operation_chart_beam=int(
             payload.get(
@@ -2664,6 +3063,7 @@ def compositional_semantic_program_transducer_from_dict(
         argument_pointer_scale=float(payload["argument_pointer_scale"]),
         allow_computed_dependencies=bool(payload["allow_computed_dependencies"]),
         training_receipt=dict(payload["training_receipt"]),
+        schema=schema,
     )
 
 
@@ -2676,4 +3076,5 @@ __all__ = [
     "RegisterUseContract",
     "compositional_semantic_program_transducer_from_dict",
     "fit_compositional_semantic_program_transducer",
+    "refit_compositional_register_identity",
 ]

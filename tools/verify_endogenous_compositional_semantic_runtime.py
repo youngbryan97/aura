@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,11 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 _FAMILY = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
-_LESIONS = frozenset({"relation_tissue_lesion", "argument_proposal_lesion"})
+_LESIONS = frozenset(
+    {"relation_tissue_lesion", "argument_proposal_lesion", "coefficient_lesion"}
+)
+_REPLICATION_SCHEMA = "aura.semantic_program_compositional_replication_verification.v1"
+_WHOLE_FAMILY_SCHEMA = "aura.semantic_program_family_withheld_verification.v1"
 
 
 def _strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -64,8 +69,41 @@ def _cohorts(values: list[str]) -> dict[str, tuple[Path, str]]:
         ):
             raise ValueError("cohort must be unique FAMILY=FEATURE_DIRECTORY=LESION")
         result[family] = (Path(raw_path).expanduser().resolve(strict=True), lesion)
-    if len(result) < 2:
-        raise ValueError("endogenous semantic verification needs at least two cohorts")
+    if not result:
+        raise ValueError("endogenous semantic verification needs at least one cohort")
+    return result
+
+
+def _expected_cohorts(source_verification: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    schema = source_verification.get("schema")
+    if schema == _REPLICATION_SCHEMA:
+        cohorts = source_verification.get("cohorts")
+        if not isinstance(cohorts, list) or len(cohorts) < 2:
+            raise ValueError("compositional replication cohorts are incomplete")
+    elif schema == _WHOLE_FAMILY_SCHEMA:
+        fresh = source_verification.get("fresh_replication")
+        held_out = source_verification.get("held_out_family")
+        if (
+            not isinstance(fresh, dict)
+            or not isinstance(held_out, str)
+            or fresh.get("family") != held_out
+            or source_verification.get("held_out_family_was_available_to_fit") is not False
+            or source_verification.get("source_fresh_example_overlap") != 0
+            or source_verification.get("source_fresh_text_overlap") != 0
+            or fresh.get("fit_or_refit_calls") != 0
+            or fresh.get("transfer_kind") != "whole_family_withheld_fresh_seed"
+        ):
+            raise ValueError("whole-family source evidence is incomplete")
+        cohorts = [fresh]
+    else:
+        raise ValueError("endogenous semantic source verification schema differs")
+    result = {
+        str(value["family"]): value
+        for value in cohorts
+        if isinstance(value, dict) and isinstance(value.get("family"), str)
+    }
+    if len(result) != len(cohorts):
+        raise ValueError("endogenous semantic source cohorts are not unique")
     return result
 
 
@@ -82,6 +120,8 @@ def _validate_source_evidence(
         key: value for key, value in source_verification.items() if key != "verification_sha256"
     }
     compatibility = source_report.get("representation_compatibility")
+    schema = source_verification.get("schema")
+    stored_model_key = "model" if schema == _REPLICATION_SCHEMA else "transducer"
     if (
         source_report.get("report_sha256") != _sha(source_body)
         or source_verification.get("verification_sha256") != _sha(verification_body)
@@ -91,7 +131,7 @@ def _validate_source_evidence(
         != source_report.get("report_sha256")
         or source_verification.get("transducer_receipt_sha256")
         != transducer.get("training_receipt", {}).get("receipt_sha256")
-        or source_verification.get("stored_file_sha256s", {}).get("model")
+        or source_verification.get("stored_file_sha256s", {}).get(stored_model_key)
         != hashlib.sha256(transducer_raw).hexdigest()
         or source_verification.get("stored_file_sha256s", {}).get("source_report")
         != hashlib.sha256(source_report_raw).hexdigest()
@@ -99,9 +139,56 @@ def _validate_source_evidence(
         or compatibility.get("hidden_states_changed") is not False
         or compatibility.get("serving_authority") is not False
         or not isinstance(compatibility.get("representation_basis_sha256"), str)
+        or (
+            schema == _WHOLE_FAMILY_SCHEMA
+            and source_verification.get("representation_basis_sha256")
+            != compatibility.get("representation_basis_sha256")
+        )
     ):
         raise ValueError("frozen compositional source evidence differs")
     return str(compatibility["representation_basis_sha256"])
+
+
+def _whole_family_source_texts(
+    *,
+    report: dict[str, Any],
+    report_raw: bytes,
+    source_verification: dict[str, Any],
+) -> Counter[str]:
+    body = {key: value for key, value in report.items() if key != "report_sha256"}
+    fresh = source_verification.get("fresh_replication")
+    compatibility = report.get("representation_compatibility")
+    treatment = report.get("arms", {}).get("treatment")
+    rows = [
+        row
+        for split in ("validation", "test")
+        for row in (treatment or {}).get(split, {}).get("rows", [])
+        if isinstance(row, dict)
+    ]
+    hashes = [row.get("source_text_sha256") for row in rows]
+    if (
+        report.get("schema") != "aura.semantic_program_compositional_lesions.v1"
+        or report.get("report_sha256") != _sha(body)
+        or hashlib.sha256(report_raw).hexdigest()
+        != source_verification.get("stored_file_sha256s", {}).get("fresh_report")
+        or not isinstance(fresh, dict)
+        or report.get("transducer_receipt_sha256")
+        != source_verification.get("transducer_receipt_sha256")
+        or not isinstance(compatibility, dict)
+        or compatibility.get("receipt_sha256")
+        != source_verification.get("fresh_representation_compatibility_sha256")
+        or compatibility.get("replication_feature_manifest_sha256")
+        != fresh.get("fresh_feature_manifest_sha256")
+        or len(rows) != fresh.get("held_out_total")
+        or any(
+            not isinstance(value, str)
+            or len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+            for value in hashes
+        )
+    ):
+        raise ValueError("whole-family frozen replication report differs")
+    return Counter(hashes)
 
 
 def _output_bytes(value: object) -> bytes:
@@ -122,6 +209,7 @@ def main() -> int:
     parser.add_argument("--transducer", type=Path, required=True)
     parser.add_argument("--source-report", type=Path, required=True)
     parser.add_argument("--source-verification", type=Path, required=True)
+    parser.add_argument("--replication-report", type=Path)
     parser.add_argument(
         "--cohort",
         action="append",
@@ -149,7 +237,6 @@ def main() -> int:
         )
         from core.runtime.atomic_writer import atomic_write_bytes_if_absent
 
-        cohort_specs = _cohorts(args.cohort)
         transducer_payload, transducer_raw = _read_json(
             args.transducer,
             max_bytes=32 * 1024 * 1024,
@@ -162,6 +249,27 @@ def main() -> int:
             args.source_verification,
             max_bytes=8 * 1024 * 1024,
         )
+        cohort_specs = _cohorts(args.cohort)
+        whole_family = source_verification.get("schema") == _WHOLE_FAMILY_SCHEMA
+        expected_source_texts: Counter[str] | None = None
+        source_replication_report_sha256: str | None = None
+        if whole_family:
+            if args.replication_report is None:
+                raise ValueError("whole-family verification needs its replication report")
+            replication_report, replication_report_raw = _read_json(
+                args.replication_report,
+                max_bytes=64 * 1024 * 1024,
+            )
+            expected_source_texts = _whole_family_source_texts(
+                report=replication_report,
+                report_raw=replication_report_raw,
+                source_verification=source_verification,
+            )
+            source_replication_report_sha256 = hashlib.sha256(
+                replication_report_raw
+            ).hexdigest()
+        elif args.replication_report is not None:
+            raise ValueError("historical multicohort verification has no replication report")
         representation_sha256 = _validate_source_evidence(
             transducer=transducer_payload,
             transducer_raw=transducer_raw,
@@ -170,11 +278,7 @@ def main() -> int:
             source_verification=source_verification,
         )
         model = compositional_semantic_program_transducer_from_dict(transducer_payload)
-        expected_cohorts = {
-            str(value["family"]): value
-            for value in source_verification.get("cohorts", [])
-            if isinstance(value, dict) and isinstance(value.get("family"), str)
-        }
+        expected_cohorts = _expected_cohorts(source_verification)
         bundles = {
             family: load_standard_semantic_feature_bundle(path)
             for family, (path, _lesion) in cohort_specs.items()
@@ -191,10 +295,14 @@ def main() -> int:
             or model_paths != {source_verification.get("model_path")}
             or len(tokenizer_ids) != 1
             or tokenizer_ids != {source_verification.get("tokenizer_identity_sha256")}
+            or set(bundles) != set(expected_cohorts)
             or any(
                 family not in expected_cohorts
-                or bundle.manifest.get("manifest_sha256")
-                != expected_cohorts[family].get("fresh_feature_manifest_sha256")
+                or (
+                    not whole_family
+                    and bundle.manifest.get("manifest_sha256")
+                    != expected_cohorts[family].get("fresh_feature_manifest_sha256")
+                )
                 or lesion != expected_cohorts[family].get("lesion_arm")
                 for family, bundle in bundles.items()
                 for lesion in (cohort_specs[family][1],)
@@ -223,6 +331,10 @@ def main() -> int:
                 expected_representation_basis_sha256=representation_sha256,
                 arm="treatment",
             )
+            if expected_source_texts is not None and Counter(
+                row["source_text_sha256"] for row in treatment.rows
+            ) != expected_source_texts:
+                raise ValueError("whole-family regenerated public corpus differs")
             print(
                 json.dumps(
                     {
@@ -283,12 +395,13 @@ def main() -> int:
             if verification["verified"] is not True:
                 raise RuntimeError(f"endogenous semantic cohort did not verify:{family}")
         body = {
-            "schema": "aura.semantic_program_endogenous_multicohort_verification.v1",
+            "schema": "aura.semantic_program_endogenous_verification_bundle.v2",
             "verified": all(
                 value["verification"]["verified"] is True
                 for value in cohort_results.values()
             ),
             "source_verification_sha256": source_verification["verification_sha256"],
+            "source_replication_report_sha256": source_replication_report_sha256,
             "transducer_receipt_sha256": model.receipt_sha256,
             "representation_basis_sha256": representation_sha256,
             "cohorts": cohort_results,
@@ -302,8 +415,12 @@ def main() -> int:
             "serving_authority": False,
             "claim_boundary": (
                 "bounded resident-27B endogenous public-input semantic execution "
-                "across two frozen cohorts; no open-domain, frontier-reasoning, "
-                "or serving claim"
+                + (
+                    "on a completely fit-withheld program family and disjoint fresh seed; "
+                    if whole_family
+                    else "across two frozen cohorts; "
+                )
+                + "no open-domain, frontier-reasoning, or serving claim"
             ),
         }
         report = {**body, "verification_sha256": _sha(body)}

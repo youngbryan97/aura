@@ -109,6 +109,12 @@ class Episode:
     used: tuple[str, ...] = ()
     #: What was admitted because of it, where anything was.
     admitted: str | None = None
+    #: What was TRIED, whether or not it worked. ``route`` names the action
+    #: only when the change was kept, so a family where everything she has was
+    #: tried and nothing held was indistinguishable from one she never tried.
+    #: The first of those calls for a new operator; the second calls for the
+    #: one she already has.
+    tried: str | None = None
     #: The cases themselves, for a few episodes, so a change can be judged on
     #: something other than the occasion that provoked it.
     #:
@@ -207,6 +213,7 @@ def note_an_episode(
     walked: int,
     used: Sequence[str] = (),
     admitted: str | None = None,
+    tried: str | None = None,
     about: Sequence[Any] = (),
 ) -> Episode:
     """Write down one occasion. Called from the answering path, not from a test."""
@@ -216,6 +223,7 @@ def note_an_episode(
         walked=max(0, int(walked)),
         used=tuple(str(one) for one in used),
         admitted=admitted,
+        tried=tried if tried is not None else route,
         about=tuple(
             (tuple(before), tuple(after)) for before, after in (about or ())
         ),

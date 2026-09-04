@@ -6,6 +6,11 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
     build_semantic_program_fork_join_factorial_corpus,
+    build_semantic_program_natural_alias_source_corpus,
+    build_semantic_program_natural_identity_source_corpus,
+    build_semantic_program_natural_replication_corpus,
+    build_semantic_program_natural_request_corpus,
+    build_semantic_program_natural_source_corpus,
     build_semantic_program_sequence_binary_corpus,
     build_semantic_program_sequence_cataphoric_corpus,
     build_semantic_program_sequence_corpus,
@@ -567,3 +572,160 @@ def test_sequence_role_binding_corpus_is_deterministic_and_seeded() -> None:
 
     assert first == replay
     assert tuple(item.inputs for item in first) != tuple(item.inputs for item in changed)
+
+
+def test_natural_request_corpus_withholds_three_complete_linear_schemas() -> None:
+    examples = build_semantic_program_natural_request_corpus()
+
+    assert len(examples) == 24
+    assert {item.topology_id for item in examples} == {
+        "scalar_linear_three",
+        "lookup_linear_three",
+        "count_linear_three",
+    }
+    assert {item.split for item in examples} == {"validation", "test"}
+    assert all(len(item.inputs) == 4 and len(item.instructions) == 3 for item in examples)
+    assert all(
+        tuple(step.instruction.args for step in item.instructions) == ((0, 1), (4, 2), (5, 3))
+        for item in examples
+    )
+    assert all(item.program.run(item.inputs) is not None for item in examples)
+
+
+def test_natural_request_corpus_varies_domain_independently_of_schema() -> None:
+    examples = build_semantic_program_natural_request_corpus()
+    by_schema = {
+        schema: [item for item in examples if item.topology_id == schema]
+        for schema in {item.topology_id for item in examples}
+    }
+
+    assert all(len(items) == 8 for items in by_schema.values())
+    assert all(len({item.construction_id for item in items}) == 8 for items in by_schema.values())
+    assert len({item.source_text for item in examples}) == len(examples)
+    assert build_semantic_program_natural_request_corpus() == examples
+    assert build_semantic_program_natural_request_corpus(seed=3141593) != examples
+
+
+def test_natural_source_teaches_shallow_relations_outside_target_domains() -> None:
+    source = build_semantic_program_natural_source_corpus()
+    target = build_semantic_program_natural_request_corpus()
+
+    assert all(not item.register_definition_spans for item in target)
+    assert len(source) == 24
+    assert {item.topology_id for item in source} == {
+        "scalar_linear_two",
+        "lookup_linear_two",
+        "count_linear_two",
+    }
+    assert {
+        split: sum(item.split == split for item in source)
+        for split in ("train", "validation", "test")
+    } == {"train": 12, "validation": 6, "test": 6}
+    assert all(len(item.inputs) == 3 and len(item.instructions) == 2 for item in source)
+    assert all(len(item.register_definition_spans) == 5 for item in source)
+    assert all(
+        tuple(step.instruction.args for step in item.instructions) == ((0, 1), (3, 2))
+        for item in source
+    )
+    assert not {item.source_text.split(",", 1)[0] for item in source} & {
+        item.source_text.split(",", 1)[0] for item in target
+    }
+    assert build_semantic_program_natural_source_corpus() == source
+    assert build_semantic_program_natural_source_corpus(seed=2718282) != source
+
+
+def test_natural_definition_envelopes_are_runtime_representable() -> None:
+    examples = build_semantic_program_natural_source_corpus()
+
+    for example in examples:
+        for index, input_span in enumerate(example.input_spans):
+            definition = example.register_definition_spans[index]
+            assert definition.start <= input_span.start
+            assert definition.end == input_span.end
+        for step, instruction in enumerate(example.instructions):
+            definition = example.register_definition_spans[len(example.inputs) + step]
+            assert definition.start == instruction.operation_span.start
+            assert definition.end >= instruction.operation_span.end
+
+
+def test_natural_alias_source_teaches_local_definitions_on_disjoint_language() -> None:
+    examples = build_semantic_program_natural_alias_source_corpus()
+    old_source = build_semantic_program_natural_source_corpus()
+    replication = build_semantic_program_natural_replication_corpus()
+
+    assert len(examples) == 24
+    assert {
+        split: sum(item.split == split for item in examples)
+        for split in ("train", "validation", "test")
+    } == {"train": 12, "validation": 6, "test": 6}
+    assert all(len(item.inputs) == 3 and len(item.instructions) == 2 for item in examples)
+    assert all(len(item.register_definition_spans) == 5 for item in examples)
+    for example in examples:
+        for step, instruction in enumerate(example.instructions):
+            definition = example.register_definition_spans[len(example.inputs) + step]
+            assert definition.start >= instruction.operation_span.end
+            assert definition.end - definition.start < 24
+    domains = {item.source_text.split(",", 1)[0] for item in examples}
+    old_domains = {item.source_text.split(",", 1)[0] for item in (*old_source, *replication)}
+    assert not domains & old_domains
+    assert build_semantic_program_natural_alias_source_corpus() == examples
+    assert build_semantic_program_natural_alias_source_corpus(seed=1618035) != examples
+
+
+def test_natural_identity_source_separates_register_names_from_payloads() -> None:
+    examples = build_semantic_program_natural_identity_source_corpus()
+    prior = (
+        *build_semantic_program_natural_alias_source_corpus(),
+        *build_semantic_program_natural_source_corpus(),
+        *build_semantic_program_natural_replication_corpus(),
+    )
+
+    assert len(examples) == 24
+    assert {
+        split: sum(item.split == split for item in examples)
+        for split in ("train", "validation", "test")
+    } == {"train": 12, "validation": 6, "test": 6}
+    for example in examples:
+        for definition, payload in zip(
+            example.register_definition_spans[:3],
+            example.input_spans,
+            strict=True,
+        ):
+            assert definition.end <= payload.start
+            assert example.source_text[definition.start : definition.end].strip()
+    domains = {item.source_text.split(",", 1)[0] for item in examples}
+    assert not domains & {item.source_text.split(",", 1)[0] for item in prior}
+    assert build_semantic_program_natural_identity_source_corpus() == examples
+    assert build_semantic_program_natural_identity_source_corpus(seed=2236068) != examples
+
+
+def test_natural_replication_is_fresh_large_and_preregistered_shape() -> None:
+    replication = build_semantic_program_natural_replication_corpus()
+    development = build_semantic_program_natural_request_corpus()
+    source = build_semantic_program_natural_source_corpus()
+
+    assert len(replication) == 96
+    assert {item.split for item in replication} == {"validation", "test"}
+    assert {
+        split: sum(item.split == split for item in replication) for split in ("validation", "test")
+    } == {"validation": 48, "test": 48}
+    assert all(len(item.inputs) == 4 and len(item.instructions) == 3 for item in replication)
+    assert all(
+        tuple(step.instruction.args for step in item.instructions) == ((0, 1), (4, 2), (5, 3))
+        for item in replication
+    )
+    assert all(
+        max(
+            nested
+            for value in item.inputs
+            for nested in (value if isinstance(value, tuple) else (value,))
+        )
+        > 1_000_000
+        for item in replication
+    )
+    replication_domains = {item.source_text.split(":", 1)[0] for item in replication}
+    old_domains = {item.source_text.split(",", 1)[0] for item in (*development, *source)}
+    assert not replication_domains & old_domains
+    assert len({item.construction_id for item in replication}) == 96
+    assert build_semantic_program_natural_replication_corpus() == replication
+    assert build_semantic_program_natural_replication_corpus(seed=1732052) != replication

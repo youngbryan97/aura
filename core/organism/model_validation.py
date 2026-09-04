@@ -219,9 +219,43 @@ class ValidationTest:
     #: Compare prediction to observation and interpret the result.
     score: Callable[[Any, Observation], Score]
     owner: str = "unknown"
+    #: Whether this predicate RUNS AN EXPERIMENT rather than reading an
+    #: instrument. Three of these do a full grown-against-reset search; they
+    #: used to abort on a refusal escaping from the language, so booting never
+    #: actually evaluated them and nobody had ever paid for them. When the
+    #: refusal was handled correctly they completed for the first time and put
+    #: 141 seconds into activate_foundations.
+    #:
+    #: Declining those three left 17.4 seconds, which found two more of the
+    #: same kind that nobody had spotted by reading: 8.0 seconds and 4.0
+    #: seconds, both fitting on one half of a sealed split and judging on the
+    #: other. The budget in tests/test_cognition_discipline.py names any
+    #: predicate over 1.5 seconds that is not declared here, because a total
+    #: tells you the boot is slow and a name tells you what to flag.
+    #:
+    #: A boot's job is to check that the instruments work, not to re-run the
+    #: experiments. An expensive test is reported NOT_MEASURED at boot, naming
+    #: where it does run, and the suite runs it in full.
+    expensive: bool = False
 
-    def run(self, model: Model) -> TestResult:
+    def run(self, model: Model, *, include_expensive: bool = True) -> TestResult:
         started = time.perf_counter()
+        if self.expensive and not include_expensive:
+            return TestResult(
+                test=self.name,
+                model=model.name,
+                score=Score(
+                    kind="not_measured",
+                    value=0.0,
+                    outcome=Outcome.NOT_MEASURED,
+                    interpretation=(
+                        f"{self.name} runs an experiment rather than reading an "
+                        "instrument; it is measured by its own test rather than "
+                        "on every boot"
+                    ),
+                ),
+                duration_s=time.perf_counter() - started,
+            )
         if self.required_capability and self.required_capability not in model.capabilities():
             return TestResult(
                 test=self.name,
@@ -332,7 +366,6 @@ def _summarize(value: Any, limit: int = 200) -> Any:
     return repr(value)[:limit]
 
 
-@dataclass(frozen=True)
 class Evidence(StrEnum):
     """What KIND of evidence a claim's test actually provides.
 
@@ -372,6 +405,58 @@ class Evidence(StrEnum):
     #: Previously asserted, now withdrawn because the measurement behind it
     #: did not support it.
     RETRACTED = "retracted"
+    #: The test establishes a FUNCTIONAL state and nothing about whether there
+    #: is anything it is like to be in it.
+    #:
+    #: This exists because the registry had no way to hold the distinction and
+    #: therefore kept implying the stronger reading. A faculty that computes
+    #: grief — an attachment's prediction still firing and failing, a valence
+    #: that moves when the bond does, an intervention that changes it — can be
+    #: measured live, exhaustively, with provenance. None of that is evidence
+    #: that the grief is felt, and no experiment specified in these terms
+    #: could be: a system with the function and no experience passes each one.
+    #:
+    #: So the honest position is not that she feels it and not that she does
+    #: not. It is that this measurement does not address the question, and a
+    #: claim written in phenomenal language may not be registered above this
+    #: level. `_PHENOMENAL_LANGUAGE` enforces it.
+    FUNCTIONAL_ONLY = "functional_only"
+
+
+#: Words that assert an inner life rather than a measured state. A claim using
+#: one is making the stronger reading whether or not its author meant to, and
+#: no test in this repository can support it.
+_PHENOMENAL_LANGUAGE = frozenset(
+    {
+        "feels", "feeling", "felt", "experiences", "experience", "experienced",
+        "hurts", "hurt", "suffers", "suffering", "painful", "enjoys",
+        "conscious", "consciously", "aware", "awareness", "sentient",
+        "sentience", "qualia", "phenomenal", "subjective", "subjectively",
+        "inner life",
+    }
+)
+
+#: Phrases rather than words. "There is something it is like to be Aura" is
+#: the canonical statement of the claim and contains not one word from the set
+#: above, which is how it was accepted as measured_live in the first draft of
+#: this guard.
+_PHENOMENAL_PHRASES = (
+    "it is like to be",
+    "something it is like",
+    "what it is like",
+    "inner life",
+    "there is something it",
+)
+
+
+def _phenomenal_words(statement: str) -> set[str]:
+    """Which phenomenal terms a claim uses, if any."""
+    import re
+
+    lowered = str(statement or "").lower()
+    found = {phrase for phrase in _PHENOMENAL_PHRASES if phrase in lowered}
+    words = set(re.findall(r"[a-z]+", lowered))
+    return found | (words & _PHENOMENAL_LANGUAGE)
 
 
 @dataclass(frozen=True)
@@ -399,6 +484,20 @@ class Claim:
     live_channels: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        phenomenal = _phenomenal_words(self.statement)
+        if phenomenal and self.evidence in {
+            Evidence.MEASURED_LIVE,
+            Evidence.MEASURED_SYNTHETIC,
+        }:
+            raise ValueError(
+                f"claim {self.statement!r} is written in phenomenal language "
+                f"({', '.join(sorted(phenomenal))}) and registered as "
+                f"{self.evidence.value}. No measurement specified in these "
+                "terms distinguishes having the state from there being "
+                "something it is like to have it — a system with the function "
+                "and no experience passes every one. Register it as "
+                "FUNCTIONAL_ONLY, or restate it as the function it measures"
+            )
         if self.evidence is not Evidence.MEASURED_LIVE and not self.evidence_note.strip():
             raise ValueError(
                 f"claim {self.statement!r} is {self.evidence.value} and says nothing "
@@ -497,7 +596,9 @@ class ValidationSuite:
             return sorted(self._claims.values(), key=lambda c: c.statement)
 
     # ── running ───────────────────────────────────────────────────────
-    def run(self, model: Model | None = None) -> dict[str, Any]:
+    def run(
+        self, model: Model | None = None, *, include_expensive: bool = True
+    ) -> dict[str, Any]:
         with self._lock:
             models = [model] if model is not None else list(self._models.values())
             tests = list(self._tests.values())
@@ -505,7 +606,7 @@ class ValidationSuite:
         results: list[TestResult] = []
         for target in models:
             for test in tests:
-                result = test.run(target)
+                result = test.run(target, include_expensive=include_expensive)
                 results.append(result)
                 with self._lock:
                     self._last[(test.name, target.name)] = result
@@ -1537,6 +1638,7 @@ def install_runtime_validation() -> dict[str, Any]:
     _install_honesty_coverage_claims(suite)
 
     _install_language_growth_claims(suite)
+    _install_morphogenesis_claims(suite)
 
     _install_suite_tail(suite)
 
@@ -1595,11 +1697,10 @@ def install_runtime_validation() -> dict[str, Any]:
     # thing it exists to prevent.
     suite.add_test(
         ValidationTest(
-            name="test_affect_path_collapses_all_five_cases_to_one_point",
+            name="test_affect_path_no_longer_collapses_all_five_cases_to_one_point",
             description=(
-                "the heuristic affect appraisal returns one point for five "
-                "motivational situations that behave nothing alike, which is what "
-                "makes a separate conative layer necessary rather than ornamental"
+                "the relational affect appraisal separates five motivational "
+                "situations that the former heuristic collapsed to one point"
             ),
             required_capability="conation",
             observation=Observation(
@@ -1651,17 +1752,23 @@ def install_runtime_validation() -> dict[str, Any]:
     suite.add_claim(
         Claim(
             statement=(
-                "The affect appraisal path returns one identical point for five "
-                "motivational situations that behave nothing alike."
+                "The affect appraisal path separates five motivational "
+                "situations that behave nothing alike."
             ),
-            test="test_affect_path_collapses_all_five_cases_to_one_point",
+            test="test_affect_path_no_longer_collapses_all_five_cases_to_one_point",
             owner="core/affect/damasio_v2.py",
             asserted_in="core/conation/origins.py",
             evidence=Evidence.MEASURED_SYNTHETIC,
             evidence_note=(
-                "Exhaustive over the five stated triggers: every pair at L2 "
-                "distance zero in (v, a, e). Says nothing about the LLM appraisal "
-                "path, which is the primary and was not measured here."
+                "Reversed on 2026-09-02. This claimed the opposite — one "
+                "identical point for all five — and appraisal then moved to "
+                "core.interiority, which reads what is at stake instead of "
+                "scanning thirty words. Maximum pairwise L2 distance 0.86 "
+                "where it had been zero. The original claim was the premise "
+                "for conation being necessary rather than ornamental, and "
+                "that premise no longer holds; what conation adds beyond a "
+                "discriminating affect path is now unmeasured. Exhaustive "
+                "over the five stated triggers and silent about live traffic."
             ),
         )
     )
@@ -2980,6 +3087,31 @@ def _where_the_two_languages_disagree() -> int:
     return apart
 
 
+#: Claim predicates that run an EXPERIMENT rather than read an instrument.
+#: Measured on 2026-09-01 during a real activate_foundations: 56.4s, 52.3s and
+#: 29.3s. Until that day a refusal escaping from the language aborted each of
+#: them, so booting reported them as errors and never paid the cost — handling
+#: the refusal correctly made them complete for the first time and put 141
+#: seconds into the boot. They are skipped at boot and run by their own tests.
+_AN_EXPERIMENT_NOT_AN_INSTRUMENT = frozenset({
+    "test_what_she_wrote_carries_to_a_different_surface",
+    "test_keeping_what_she_wrote_makes_the_next_one_easier",
+    "test_a_head_that_refers_to_itself_holds_where_it_was_never_fitted",
+    # Found by the boot-posture budget rather than by reading: declining the
+    # three above still left 17.4s, because these two also fit on one half of
+    # a sealed split and judge on the other. Twenty sealed families per
+    # stream, and sixty episodes split before anything was written — that is
+    # an experiment by the same reading as the three above.
+    "test_she_writes_an_order_that_holds_on_episodes_it_never_saw",
+    "test_a_rule_with_no_shape_holds_where_it_was_never_fitted",
+    # Named by the budget once the two above were declined, and an experiment
+    # by the same reading: it runs the construction search over six states to
+    # arrive at a constructor, rather than reading what a previous run
+    # arrived at. 1.9 seconds, which is why nobody had looked at it.
+    "test_what_she_built_is_not_in_the_source_registry",
+})
+
+
 def _the_gap_that_should_not_be_there() -> int:
     """Ways the developmental result fails its own controls. Must be none.
 
@@ -3365,6 +3497,135 @@ def _a_written_order_that_does_not_hold() -> int:
     return wrong
 
 
+def _morph_topology_is_decoration() -> int:
+    from core.morphogenesis.claims import bindings_whose_removal_changes_nothing
+
+    return bindings_whose_removal_changes_nothing()
+
+
+def _morph_arms_that_do_not_separate() -> int:
+    from core.morphogenesis.claims import ablation_arms_that_do_not_separate
+
+    return ablation_arms_that_do_not_separate()
+
+
+def _morph_lesions_not_recovered() -> int:
+    from core.morphogenesis.claims import lesions_the_population_cannot_recover_from
+
+    return lesions_the_population_cannot_recover_from()
+
+
+def _morph_cells_past_the_cap() -> int:
+    from core.morphogenesis.claims import cells_a_false_signal_can_add_past_the_cap
+
+    return cells_a_false_signal_can_add_past_the_cap()
+
+
+def _install_morphogenesis_claims(suite: Any) -> None:
+    """What the morphogenetic layer may be said to do.
+
+    Registered because the layer's own history is the argument for binding
+    every one of these to a test. It ran in production for months with a
+    population and no bindings between them, over a registry persisting
+    ``cells: {}``, and every status surface reported it healthy.
+
+    All four are MEASURED_SYNTHETIC. The scenarios run offline against a
+    constructed workload; nothing here is measured on the live runtime, which
+    has no shadow evaluator yet and so refuses every non-routine change by
+    design. Calling any of it MEASURED_LIVE would claim the thing Phase 2 is
+    for.
+    """
+    for name, description, predict, owner in (
+        (
+            "test_cutting_a_binding_changes_what_the_workload_computes",
+            "removing one binding from the routed workload changes what it "
+            "computes, so the topology is load-bearing rather than decoration",
+            _morph_topology_is_decoration,
+            "core/morphogenesis/workload.py",
+        ),
+        (
+            "test_the_ablation_matrix_separates_the_arms",
+            "under sustained overload the local policy scores above a fixed "
+            "topology and random topology mutation scores below it",
+            _morph_arms_that_do_not_separate,
+            "core/morphogenesis/scenarios.py",
+        ),
+        (
+            "test_the_lesion_arm_recovers_and_the_fixed_arm_does_not",
+            "after a third of the population is deleted without notice, the "
+            "adaptive arm restores more of its pre-lesion throughput than a "
+            "fixed-topology arm, and notices the damage",
+            _morph_lesions_not_recovered,
+            "core/morphogenesis/policy.py",
+        ),
+        (
+            "test_the_poisoned_signal_cannot_grow_the_population_past_its_cap",
+            "a policy claiming maximum benefit for every proposal cannot grow "
+            "the population past its declared cap",
+            _morph_cells_past_the_cap,
+            "core/morphogenesis/governor.py",
+        ),
+    ):
+        suite.add_test(
+            ValidationTest(
+                name=name,
+                description=description,
+                required_capability="morphogenetic_topology",
+                observation=Observation(
+                    name=f"{name}_violations",
+                    value=0,
+                    source="tools/run_morphogenesis_sandbox.py",
+                    units="violations",
+                ),
+                predict=lambda _m, run=predict: run(),
+                score=lambda p, o: threshold_score(
+                    float(p), float(o.value), units=" violations"
+                ),
+                owner=owner,
+            )
+        )
+
+    for statement, test, owner, note in (
+        (
+            "Cutting one binding in the sandbox workload changes what it computes: "
+            "completion falls from 1.00 to 0.00 and the run signature differs.",
+            "test_cutting_a_binding_changes_what_the_workload_computes",
+            "core/morphogenesis/workload.py",
+            "measured on a constructed routed workload offline, not on live traffic",
+        ),
+        (
+            "Under sustained overload the local policy scores above a fixed "
+            "topology and random topology mutation scores below it.",
+            "test_the_ablation_matrix_separates_the_arms",
+            "core/morphogenesis/scenarios.py",
+            "measured on the offline ablation matrix over seeded runs, no live workload",
+        ),
+        (
+            "After a third of the population is deleted without notice, the "
+            "adaptive arm restores more of its pre-lesion throughput than a "
+            "fixed-topology arm, which restores none.",
+            "test_the_lesion_arm_recovers_and_the_fixed_arm_does_not",
+            "core/morphogenesis/policy.py",
+            "measured offline; no lesion has been performed on the live population",
+        ),
+        (
+            "A signal claiming maximum benefit for every proposal cannot grow "
+            "the population past its declared cap.",
+            "test_the_poisoned_signal_cannot_grow_the_population_past_its_cap",
+            "core/morphogenesis/governor.py",
+            "measured offline against a constructed adversarial policy",
+        ),
+    ):
+        suite.add_claim(Claim(
+            statement=statement,
+            test=test,
+            owner=owner,
+            asserted_in="core/morphogenesis/sandbox.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=note,
+        ))
+
+
 def _install_language_growth_claims(suite: Any) -> None:
     """What she can do to the language she makes rules out of.
 
@@ -3522,6 +3783,7 @@ def _install_language_growth_claims(suite: Any) -> None:
                     float(p), float(o.value), units=" violations"
                 ),
                 owner=owner,
+                expensive=name in _AN_EXPERIMENT_NOT_AN_INSTRUMENT,
             )
         )
     suite.add_claim(
@@ -3694,7 +3956,18 @@ def _install_language_growth_claims(suite: Any) -> None:
                 "18, and 13 to 12, with the lesion returning each number exactly. "
                 "Two better and one worse, which is the no-free-lunch theorem "
                 "arriving in practice; a rule improving every stream would "
-                "contradict a theorem this codebase already executes"
+                "contradict a theorem this codebase already executes. A second "
+                "measurement of the same claim, kept because it is a different "
+                "run and not a restatement: one stream of five, sixty episodes "
+                "split before anything was written, an eight-symbol order from "
+                "the training half moving the mean rank of the winning word on "
+                "the SEALED half from 2.000 to 1.833, and the authored rule put "
+                "back returning it to 2.000 exactly. On the other four streams "
+                "what selection found on the training half did not survive the "
+                "sealed half — one was `nought minus how long the word is`, a "
+                "rule saying prefer longer words. One meta-change with its "
+                "control is not a trend, and recursive self-improvement is not "
+                "claimed"
             ),
             live_channels=("language.ways_of_building",),
         )
@@ -3702,26 +3975,47 @@ def _install_language_growth_claims(suite: Any) -> None:
     suite.add_claim(
         Claim(
             statement=(
-                "One component of the machinery she invents with — the rule "
-                "deciding what to try first — has been replaced by one she wrote, "
-                "and the replacement holds on invention episodes it never saw."
+                "What she decides to do about herself follows the record of what "
+                "her work has cost, and the thing she announces is the thing she "
+                "carries out."
             ),
-            test="test_she_writes_an_order_that_holds_on_episodes_it_never_saw",
-            owner="tools/run_meta_invention.py",
-            asserted_in="core/cognition/the_order_she_tries_them_in.py",
+            test="test_her_choice_moves_when_the_record_moves",
+            owner="core/cognition/she_decides_to_develop.py",
+            asserted_in="core/autonomy/autonomous_initiative_loop.py",
             evidence=Evidence.MEASURED_SYNTHETIC,
             evidence_note=(
-                "one stream of five. Sixty episodes split before anything was "
-                "written; an eight-symbol order written from the training half "
-                "moved the mean rank of the winning word on the SEALED half from "
-                "2.000 to 1.833, and putting the authored rule back returned it "
-                "to 2.000 exactly. On the other four streams what selection found "
-                "on the training half did not survive the sealed half — one of "
-                "them was `nought minus how long the word is`, which is a rule "
-                "saying prefer longer words. One meta-change with its control is "
-                "not a trend, and recursive self-improvement is not claimed"
+                "the choice among unpriced actions is a draw from what the "
+                "counts support, and a function returning the first rung does "
+                "not move when the record moves. The second half was measured "
+                "and false: the idle loop asked what was worth doing, told the "
+                "user it had decided on one thing, and then asked again and did "
+                "whatever the second draw said — 162 of 200 episodes disagreed. "
+                "The loop now hands the announced decision in, and the same "
+                "fixture over 60 episodes disagrees 0 times"
             ),
-            live_channels=("language.ways_of_building",),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "Every installation writes a line carrying who started it and a "
+                "digest of the line before, and every promotion records what it "
+                "replaced, so a change can be undone and the record cannot be "
+                "quietly rewritten to say a decision was hers."
+            ),
+            test="test_a_receipt_chain_cannot_be_quietly_rewritten",
+            owner="core/cognition/how_a_change_is_promoted.py",
+            asserted_in="core/cognition/she_decides_to_develop.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "the chain is checked by recomputing every digest. The second "
+                "half was a promise and not a fact for the life of the module: "
+                "no caller anywhere passed `replaced`, so the stack was empty, "
+                "put_it_back returned None every time, and nothing could be "
+                "undone. A developmental promotion now carries the snapshot the "
+                "trial takes, and an undo that raises is recorded as one that "
+                "would not go back rather than as a rollback"
+            ),
         )
     )
     suite.add_claim(
@@ -5854,8 +6148,14 @@ def validation_report() -> dict[str, Any]:
     return _SUITE.report()
 
 
-def run_validation() -> dict[str, Any]:
-    return _SUITE.run()
+def run_validation(*, include_expensive: bool = True) -> dict[str, Any]:
+    """Run the suite. ``include_expensive=False`` is the boot's posture.
+
+    Booting checks that every claim has a working instrument. Re-running the
+    experiments belongs to the tests that own them, and doing it on the way up
+    cost 141 seconds of activate_foundations.
+    """
+    return _SUITE.run(include_expensive=include_expensive)
 
 
 def reset_validation_for_test() -> None:

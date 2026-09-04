@@ -1123,6 +1123,17 @@ def test_shell_launcher_help_is_non_destructive():
     assert "Starting Aura Desktop" not in result.stdout
 
 
+def test_shell_launcher_uses_primary_runtime_resources_from_a_worktree():
+    shell = (PROJECT_ROOT / "launch_aura.sh").read_text(encoding="utf-8")
+
+    assert 'AURA_PRIMARY_ROOT="$AURA_ROOT"' in shell
+    assert 'AURA_PRIMARY_ROOT="$(dirname "$AURA_GIT_COMMON_DIR")"' in shell
+    assert 'export AURA_ENV_FILE="$AURA_PRIMARY_ROOT/.env"' in shell
+    assert '"$AURA_PRIMARY_ROOT/.venv/bin/python3" --version' in shell
+    assert 'PYTHON_CMD="$AURA_PRIMARY_ROOT/.venv/bin/python3"' in shell
+    assert 'local env_file="${AURA_ENV_FILE:-${AURA_ROOT}/.env}"' in shell
+
+
 def test_legacy_installer_uses_stable_bundle_manifest():
     installer = (PROJECT_ROOT / "scripts" / "install_to_applications.py").read_text(
         encoding="utf-8"

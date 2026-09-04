@@ -235,7 +235,11 @@ RULES: list[Rule] = [
     (
         "hedged-range",
         re.compile(
-            r"\b\d+\s*(?:to|–|—|-)\s*\d+\s*"
+            # Not preceded by a digit-and-dash, so an ISO date does not read
+            # as a range. "2026-04-27 second reduction" was flagged as
+            # "04-27 second": the rule is for "took 4-27 seconds", and a date
+            # followed by a unit word is the shape it must not match.
+            r"(?<!\d-)(?<!\d)\b\d+\s*(?:to|–|—|-)\s*\d+\s*"
             r"(?:seconds?|minutes?|hours?|days?|weeks?|months?|s\b|ms\b)",
             re.I,
         ),

@@ -1,0 +1,24 @@
+# core/phenomenology — layering rules. HAND-WRITTEN. Do not regenerate.
+#
+# This package decides whether evidence supports a claim about the system, so
+# it must not be able to reach the thing it is judging. A protocol that could
+# import the organ it is meant to perturb would be measuring something it also
+# controls, and the import would be invisible in the result.
+#
+# The rule is therefore stricter than the generated "what it imports today":
+# it imports NOTHING from core. The batteries are declarations, the ladder is
+# arithmetic, the seal is string matching, and the runner scores what it is
+# handed. Anything that must touch a live organ belongs in the harness that
+# CALLS this, where it is visible as a caller rather than hidden as an import.
+#
+# tools/generate_deps.py lists `phenomenology` in HANDWRITTEN so this survives
+# a regeneration.
+
+description = "core.phenomenology: imports nothing from core, so the judge cannot reach the defendant."
+
+include_rules = [
+    "+core.phenomenology",
+
+    # Everything else under core is out of reach, deliberately.
+    "-core",
+]

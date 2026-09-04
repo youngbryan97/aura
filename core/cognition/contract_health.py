@@ -45,12 +45,13 @@ def contract_health_fragment() -> dict[str, Any]:
     from core.cognition.action_receipt import get_receipt_ledger
     from core.cognition.architecture_invariants import architecture_report
     from core.cognition.automaticity import get_automaticity
-    from core.cognition.concept_handle import get_concept_registry
     from core.cognition.cognitive_event import get_event_graph
+    from core.cognition.concept_handle import get_concept_registry
     from core.cognition.entity_track import get_track_store
     from core.cognition.procedure import get_procedure_registry
     from core.cognition.situation import get_coordinator
     from core.cognition.substate import get_impasse_bus
+    from core.cognition.what_a_change_means import what_a_change_means
     from core.evidence.state_ref import handoff_coverage
     from core.knowledge.atomspace import get_atomspace
 
@@ -67,11 +68,27 @@ def contract_health_fragment() -> dict[str, Any]:
         "procedures": _safe("procedures", lambda: get_procedure_registry().report()),
         "automaticity": _safe("automaticity", lambda: get_automaticity().report()),
         "architecture_invariants": _safe("invariants", architecture_report),
+        "mutation_semantics": _safe(
+            "mutation_semantics",
+            lambda: what_a_change_means(execute_checks=False),
+        ),
     }
 
 
 def install_contract_health() -> bool:
-    """Register the contract fragment. Called at import, and safe to call again."""
+    """Register the contract fragment. Called at import, and safe to call again.
+
+    The procedure economy is installed from here because this is where the
+    contracts are wired and it is already imported in production. Ranking
+    across learners needs somebody to fetch the learners; until this call
+    existed, nobody did.
+    """
+    try:
+        from core.cognition.procedure_adapters import install_the_learners
+
+        install_the_learners()
+    except Exception as exc:  # noqa: BLE001 - the report still works without it
+        logger.debug("could not install the procedure economy: %s", exc)
     return _register(FRAGMENT_NAME, contract_health_fragment)
 
 

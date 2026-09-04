@@ -247,20 +247,43 @@ class TestExpandedAffectiveDrivers:
         assert diagnosis["detected"] is True
         assert affect_engine.markers.emotions == before
 
-    def test_heuristic_appraisal_recognizes_new_affect_language(self):
-        confused = AffectEngineV2._heuristic_appraisal(
-            "I am confused and unclear about this failure",
-            {"intensity": 0.8},
-        )
-        proud = AffectEngineV2._heuristic_appraisal(
-            "The task succeeded and I feel pride in the result",
-            {"intensity": 0.8},
+    def test_appraisal_reads_the_stakes_rather_than_the_words(self):
+        """This asserted the defect, in the words that caused it.
+
+        It required "I am confused and unclear about this failure" to score
+        negative, and it did — because the sentence contains confused, unclear
+        and failure. That is a classifier, not an appraisal: an event with
+        nothing at stake read as strongly negative for containing the word
+        fail, and an event that broke a promise read as neutral if it was
+        phrased calmly.
+
+        Appraisal comes from core.interiority now, so the same words score on
+        what they are about. Nothing held, nothing at stake: the sentence is
+        no longer negative for its vocabulary. That is the change, and it is
+        what this test measures.
+        """
+        from core.interiority.service import get_interiority
+
+        words = "I am confused and unclear about this failure"
+        indifferent = AffectEngineV2._heuristic_appraisal(words, {"intensity": 0.8})
+        assert indifferent["v"] >= 0.0, (
+            "the word scan is back: these words are negative to nobody who "
+            "has nothing at stake in them"
         )
 
-        assert confused["v"] < 0.0
-        assert confused["a"] > 0.5
-        assert confused["e"] > 0.5
-        assert proud["v"] > 0.0
+        # The same words, about something she is holding.
+        service = get_interiority()
+        service.ledger.bond("bryan", 0.9)
+        service.ledger.promise(
+            "p1", "review it", beneficiary="bryan", importance=0.9,
+            concerns=("the piece",),
+        )
+        service.ledger.settle_promise("p1", kept=False)
+        invested = service.appraise(words, {"intensity": 0.8, "subject": "bryan"})
+
+        assert invested["v"] < indifferent["v"], (
+            "identical words, and what she is committed to changed nothing"
+        )
 
     def test_deep_alignment_and_bonding_emotions_integration(self):
         markers = DamasioMarkers()

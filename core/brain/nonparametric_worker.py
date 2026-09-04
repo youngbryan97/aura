@@ -44,6 +44,7 @@ from core.brain.nonparametric_binding import MemoryBinding, binding_for_job
 from core.brain.nonparametric_generation import normalize
 from core.brain.nonparametric_memory import get_nonparametric_memory
 from core.runtime.errors import record_degradation
+from core.runtime.tensor_bridge import as_float32_numpy
 
 logger = logging.getLogger("Brain.NonParametricWorker")
 
@@ -396,7 +397,7 @@ class _TappedInner:
         out = self._inner(*args, **kwargs)
         try:
             # out is hidden states [B, T, H]; record the last position of the last call.
-            self._tap.last_key = normalize(np.array(out[0, -1], dtype=np.float32))
+            self._tap.last_key = normalize(out[0, -1])
         except (IndexError, ValueError, TypeError):
             self._tap.last_key = None
         return out
@@ -501,7 +502,7 @@ def make_tapped_nonparametric_processor(
             fe = 0.5 if free_energy is None else float(free_energy)
             lam = base_lam * ((sim - gate) / max(1e-6, 1.0 - gate)) * (0.6 + 0.8 * fe)
             lam = min(float(max_lam), max(0.0, float(lam)))
-            lg = np.array(logits, dtype=np.float32).reshape(-1)
+            lg = as_float32_numpy(logits).reshape(-1)
             ktop = min(64, lg.shape[0])
             idx = np.argpartition(lg, -ktop)[-ktop:]
             sub = lg[idx] - lg[idx].max()
@@ -580,8 +581,8 @@ def cached_generate_with_memory(
         try:
             hidden = hidden_model(cursor, cache=cache)          # cached forward (incremental)
             logits = _logits_from_hidden(model, hidden)
-            key = normalize(np.array(hidden[0, -1], dtype=np.float32))
-            lg = np.array(logits[0, -1], dtype=np.float32)
+            key = normalize(hidden[0, -1])
+            lg = as_float32_numpy(logits[0, -1])
         except (RuntimeError, ValueError, TypeError, AttributeError) as exc:
             record_degradation("nonparametric_cached_generate", exc)
             break

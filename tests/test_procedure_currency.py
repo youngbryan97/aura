@@ -8,6 +8,7 @@ from __future__ import annotations
 import pytest
 
 from core.cognition.impasse import Chunk, ImpasseType
+from core.cognition.procedural_generalization import GeneralizedRule, RuleTier
 from core.cognition.procedure import (
     Backend,
     Effect,
@@ -26,7 +27,6 @@ from core.cognition.procedure_adapters import (
     from_tool_schema,
     ingest_all,
 )
-from core.cognition.procedural_generalization import GeneralizedRule, RuleTier
 
 
 def sig(pre=(), eff=()):
@@ -169,6 +169,65 @@ def test_a_procedure_with_no_preconditions_is_always_a_candidate():
     registry = reset_procedure_registry_for_test()
     registry.register("always", Backend.MACRO, sig([], ["done"]))
     assert [p.name for p in registry.match({})] == ["always"]
+
+
+def test_interning_one_contract_does_not_multiply_match_entries():
+    registry = reset_procedure_registry_for_test()
+    first = registry.intern(
+        "same-operation", "1" * 64, "one", Backend.MACRO, sig(["x"], ["done"])
+    )
+    second = registry.intern(
+        "same-operation",
+        "1" * 64,
+        "one again",
+        Backend.MACRO,
+        sig(["x"], ["done"]),
+    )
+
+    assert first.procedure_id == second.procedure_id
+    assert len(registry.match({"x": True})) == 1
+    assert registry.report()["interned"] == 1
+
+
+def test_interning_refuses_an_identity_collision_between_execution_contracts():
+    registry = reset_procedure_registry_for_test()
+    registry.intern("claimed-identity", "1" * 64, "one", Backend.MACRO, sig())
+
+    with pytest.raises(ValueError, match="different contract"):
+        registry.intern(
+            "claimed-identity",
+            "2" * 64,
+            "other",
+            Backend.MACRO,
+            sig(),
+        )
+
+
+def test_pruning_an_interned_contract_allows_fresh_reacquisition():
+    registry = reset_procedure_registry_for_test()
+    old = registry.intern(
+        "relearnable",
+        "1" * 64,
+        "old",
+        Backend.MACRO,
+        sig(["x"], ["done"]),
+        value=ProceduralValue(uses=3, successes=0, p_success=0.0),
+    )
+
+    assert registry.prune(min_uses=3) == [registry.get(old.procedure_id)]
+    fresh = registry.intern(
+        "relearnable",
+        "1" * 64,
+        "fresh",
+        Backend.MACRO,
+        sig(["x"], ["done"]),
+    )
+
+    assert fresh.procedure_id != old.procedure_id
+    assert registry.report()["interned"] == 1
+    assert [item.procedure_id for item in registry.match({"x": True})] == [
+        fresh.procedure_id
+    ]
 
 
 def test_a_never_observed_key_never_satisfies_a_precondition():

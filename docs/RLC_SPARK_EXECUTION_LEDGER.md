@@ -6014,3 +6014,55 @@ promotion for the bounded exact families. It does not establish broad or
 open-domain reasoning, static weight fusion, frontier capability or `WOW!`.
 SPARK-069 through SPARK-072 remain open pending fresh broader-domain,
 equal-compute, lesion-backed powered replication.
+
+### 2026-09-02 - CP1093 a complete program family transfers without entering the fit
+
+One router-free transducer was fit on 1,584 examples from arithmetic,
+cataphoric reference, fork/join, reserved-alias and role-binding families while
+the complete `sequence_binary` family was absent. Only after fitting froze was
+that family bound through an exact neural-representation compatibility receipt.
+The frozen transducer recovered `156/192` source-cohort programs and answers,
+then recovered `79/96` programs and answers on a disjoint seed and worker
+session without fitting or refitting.
+
+On the fresh cohort, the coefficient lesion recovered `0/96` programs and
+`3/96` answers. Treatment had 79 program-only and 76 answer-only paired wins
+with no lesion-only wins; the one-sided exact probabilities are `1.65e-24` and
+`1.32e-23`. Independent verification reopened the exact coefficient set,
+neural-basis anchor and source manifests, recounted every row, and established
+zero example and source-text overlap. Evidence is frozen under
+`artifacts/rlc/semantic_program_27b_compositional_v14/`.
+
+This establishes causal transfer across a withheld program-family boundary.
+It does not establish unseen-primitive induction: reusable primitives and value
+rules occurred in other fitting families. It also does not establish
+open-domain general reasoning, ordinary serving authority or frontier parity.
+The next gate is to carry accepted learned programs into Aura's common
+procedure currency and universal metered floor, then test heterogeneous natural
+requests with complete procedure schemas and domains withheld against an
+equal-compute ordinary-decode control and causal lesions.
+
+### 2026-09-03 - CP1095 withheld-family programs enter common procedure currency
+
+The current semantic runtime lowers each accepted neural IR to one typed,
+source-independent `Program`, executes it through the universal metered floor
+and interns its executable contract in Aura's common procedure registry.
+Different source utterances that reveal the same computation no longer create
+duplicate procedures; their independent provenance accumulates on one entry.
+Retirement and merge release the interning identity so later evidence can
+establish a fresh live procedure without reviving a retired record.
+
+The live resident shadow now reopens the stronger v14 whole-family package.
+An independent replay regenerated the exact 144-example public corpus on a new
+27B worker session, recovered all 96 held-out public inputs from source text and
+produced `79/96` exact treatment programs and answers against `0/96` after the
+coefficient lesion. The exact paired probability is `1.65e-24`; a second replay
+produced the same certificate byte for byte. The verifier binds the frozen
+lesion report, every public source-text identity, model, tokenizer,
+representation basis, current execution sources and the live shadow itself.
+
+This closes the procedure-currency and current-shadow gate named by CP1093. It
+does not grant serving authority or establish heterogeneous natural-request,
+unseen-primitive, open-domain or frontier reasoning transfer. The next gate is
+the preregistered heterogeneous battery with complete procedure schemas and
+domains withheld against equal-compute ordinary decode and causal lesions.

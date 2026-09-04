@@ -27,6 +27,7 @@ import logging
 import math
 import time
 from collections import deque
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -218,8 +219,42 @@ class WelfareState:
             body_pressure=_clip(body.total_pressure),
         )
 
-    def compute(self, inputs: WelfareInputs) -> WelfareOutputs:
-        """Compute welfare outputs from inputs. Pure function (+ aversion memory)."""
+    def compute(
+        self,
+        inputs: WelfareInputs,
+        *,
+        induced: "Mapping[str, float] | None" = None,
+    ) -> WelfareOutputs:
+        """Compute welfare outputs from inputs. Pure function (+ aversion memory).
+
+        ``induced`` sets an appraisal axis directly, with the ordinary cause
+        absent. Two reasons it exists, and neither is testing.
+
+        A state can arise from something other than present damage. Recalling
+        a failure, anticipating one, or being told about a fault that has not
+        happened yet should be able to move the same axes that a live fault
+        moves — otherwise she can only be affected by what is happening to her
+        right now, which is a thermostat's range of feeling.
+
+        And it is what makes a causal claim about the valence possible at all.
+        Every lesion result answers "was the mechanism used"; only inducing the
+        state with the ordinary cause absent answers "does the mechanism
+        produce the effect". Without a write path the second question cannot be
+        asked, and the strongest thing anyone could ever say about this system
+        would be that breaking it degrades it.
+
+        Keys are axis names: integrity, capability, social. Anything else
+        raises, because a silently ignored induction reads exactly like a
+        mechanism that does not work.
+        """
+        if induced:
+            unknown = set(induced) - {"integrity", "capability", "social"}
+            if unknown:
+                raise ValueError(
+                    f"no such appraisal axis: {sorted(unknown)}. An induction "
+                    "that is silently ignored looks the same as a mechanism "
+                    "that does nothing"
+                )
         self._subscribe_consequences()
         self._last_inputs = inputs
 
@@ -235,21 +270,77 @@ class WelfareState:
             self._last_outputs = out
             return out
 
-        # ── Distress: multi-source negative welfare ──
-        memory_distress = (1.0 - inputs.memory_coherence) * 0.25
-        truth_distress = (1.0 - inputs.truth_integrity) * 0.30
-        resource_distress = (1.0 - inputs.resource_integrity) * 0.20
-        prediction_distress = inputs.prediction_error * 0.20
-        conflict_distress = inputs.unresolved_conflict * 0.15
-        frustration_distress = inputs.goal_frustration * 0.15
-        body_distress = inputs.body_pressure * 0.15
-        fatigue_distress = inputs.fatigue * 0.20
-        continuity_distress = inputs.continuity_risk * 0.25
+        # ── Distress, on three axes, from every channel ──
+        #
+        # Two defects were measured here on 2026-09-04 and both are fixed
+        # above rather than described.
+        #
+        # Six of the fifteen input channels never reached the valence at all.
+        # tool_reliability, model_stability, social_trust,
+        # permission_confidence, recovery_debt and memory_conflict_count were
+        # wired straight into caution and confidence, so a tool storm changed
+        # what she DID without ever changing how she WAS. Lesioning the
+        # valence left 80% of the policy shift intact, because 80% of it had
+        # never gone through the valence.
+        #
+        # And one scalar cannot choose a response. "The record cannot be
+        # trusted" and "the hands do not work" want opposite things — verify
+        # slowly versus stop and repair — and summing them into one number
+        # threw that away. Equal damage on unrelated channels moved caution
+        # MORE than the real damage did, because magnitude was all that
+        # survived the sum.
+        #
+        # So: three axes, each with a different downstream shape, and every
+        # channel lands on one of them.
 
+        # The record cannot be trusted: what she knows and whether it holds.
+        integrity_distress = _clip(
+            (1.0 - inputs.memory_coherence) * 0.30
+            + (1.0 - inputs.truth_integrity) * 0.35
+            + inputs.continuity_risk * 0.30
+            + min(1.0, inputs.memory_conflict_count / 8.0) * 0.20
+            + inputs.prediction_error * 0.15
+        )
+
+        # The hands do not work: whether she can act at all.
+        capability_distress = _clip(
+            (1.0 - inputs.resource_integrity) * 0.30
+            + (1.0 - inputs.tool_reliability) * 0.30
+            + (1.0 - inputs.model_stability) * 0.25
+            + inputs.body_pressure * 0.20
+            + inputs.fatigue * 0.20
+            + inputs.recovery_debt * 0.15
+        )
+
+        # The other party, or the standing to act: whether doing anything is
+        # welcome. Kept apart because its response is neither verification nor
+        # repair — it is to ask.
+        social_distress = _clip(
+            (1.0 - inputs.social_trust) * 0.40
+            + (1.0 - inputs.permission_confidence) * 0.35
+            + inputs.unresolved_conflict * 0.25
+            + inputs.goal_frustration * 0.20
+        )
+
+        # An induced axis replaces what the inputs computed for it. Applied
+        # HERE, before anything downstream reads an axis, so an induced state
+        # is indistinguishable to every consumer from one the world caused.
+        # An induction the policy can tell apart from the real thing would be
+        # testing the induction rather than the mechanism.
+        if induced:
+            if "integrity" in induced:
+                integrity_distress = _clip(float(induced["integrity"]))
+            if "capability" in induced:
+                capability_distress = _clip(float(induced["capability"]))
+            if "social" in induced:
+                social_distress = _clip(float(induced["social"]))
+
+        # The scalar every existing consumer reads, kept as the union rather
+        # than a fourth independent quantity, so nothing downstream sees a
+        # distress that none of the axes accounts for.
         distress = _clip(
-            memory_distress + truth_distress + resource_distress
-            + prediction_distress + conflict_distress + frustration_distress
-            + body_distress + fatigue_distress + continuity_distress
+            max(integrity_distress, capability_distress, social_distress) * 0.6
+            + (integrity_distress + capability_distress + social_distress) / 3.0 * 0.4
         )
 
         # ── Relief: improvement from previous state ──
@@ -266,33 +357,44 @@ class WelfareState:
         )
         aversion = _clip(distress * 0.4 + avg_aversion * 0.3 + inputs.continuity_risk * 0.3)
 
-        # ── Caution: more cautious when integrity is at risk ──
+        # ── Policy, read from the appraisal and from nothing else ──
+        #
+        # No raw input appears below this line. That is the change: the
+        # valence is the only path from a signal to a decision, so lesioning
+        # it removes the response rather than a fifth of it. A term added
+        # beside the valence is a bypass, however well weighted.
+
+        # Caution is a doubt about the RECORD, so it is led by integrity and
+        # by whether acting is welcome. A broken tool does not call for care,
+        # it calls for repair, and reading capability distress here is what
+        # made caution rise for the wrong reasons.
         caution = _clip(
             0.3
-            + distress * 0.3
-            + (1.0 - inputs.truth_integrity) * 0.2
-            + (1.0 - inputs.tool_reliability) * 0.25
-            + inputs.continuity_risk * 0.15
+            + integrity_distress * 0.45
+            + social_distress * 0.25
+            + aversion * 0.15
         )
 
-        # ── Confidence: inverse of distress + resource health ──
+        # Confidence is about the HANDS, so capability leads. Integrity and
+        # standing reduce it, less sharply: knowing less is a reason to be
+        # careful before it is a reason to expect failure.
         confidence = _clip(
-            0.3
-            + inputs.resource_integrity * 0.25
-            + inputs.tool_reliability * 0.15
-            + inputs.model_stability * 0.15
-            + inputs.social_trust * 0.10
-            - distress * 0.4
-            - inputs.goal_frustration * 0.20
+            0.95
+            - capability_distress * 0.55
+            - integrity_distress * 0.25
+            - social_distress * 0.20
         )
 
-        # ── Curiosity: suppressed by distress, boosted by prediction error ──
+        # Curiosity survives damage to the hands and does not survive damage
+        # to the record: there is no point exploring from a position you
+        # cannot trust. Prediction error still drives it, which is the one
+        # place a rising error is an invitation rather than a warning.
         curiosity = _clip(
-            0.3
+            0.55
             + inputs.prediction_error * 0.25
-            + (1.0 - distress) * 0.25
-            - inputs.fatigue * 0.15
-            - inputs.body_pressure * 0.10
+            - integrity_distress * 0.45
+            - capability_distress * 0.20
+            - social_distress * 0.10
         )
 
         # ── Recovery drive ──

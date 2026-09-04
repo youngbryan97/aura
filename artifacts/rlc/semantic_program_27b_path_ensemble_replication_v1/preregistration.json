@@ -1,0 +1,101 @@
+{
+  "schema": "aura.semantic_program_path_ensemble_replication_preregistration.v1",
+  "source_commit_before_preregistration": "2ee7fc39e7b84c8f7278611b23d93c6d1cee2ece",
+  "preregistered_before_generator_implementation": true,
+  "preregistered_before_target_generation": true,
+  "claim_boundary": "fresh bounded natural-language branch-and-merge transfer through a label-free path ensemble; no open-domain, frontier-reasoning, or serving authority",
+  "corpus": {
+    "builder": "build_semantic_program_natural_branch_replication_corpus",
+    "seed": 2718281828,
+    "max_examples": 48,
+    "examples_per_schema_domain": 2,
+    "schemas": [
+      "scalar_branch_merge_four",
+      "lookup_branch_merge_four",
+      "count_branch_merge_four"
+    ],
+    "domain_count": 8,
+    "surface_construction_count": 2,
+    "inputs": 5,
+    "steps": 4,
+    "operation_graph": {
+      "topology": "two_independent_branches_then_merge_then_terminal",
+      "arguments": [
+        [0, 1],
+        [2, 3],
+        [5, 6],
+        [7, 4]
+      ],
+      "report_value": 8
+    },
+    "language_and_domain_contract": "all domain nouns, register aliases, clause order, and surface constructions are disjoint from the natural source, development, alias-source, identity-source, and CP1102 replication inventories",
+    "value_contract": "fresh deterministic integer and integer-sequence values generated only after this preregistration is committed",
+    "evaluation_only": true
+  },
+  "frozen_paths": {
+    "incumbent": {
+      "path": "artifacts/rlc/semantic_program_27b_compositional_v17_alias_local_dev/transducer.json",
+      "file_sha256": "9d396bdcdaf0fc53180247fee8e7d73f391db7726d14ebc0c5fe4b29bf11a57a",
+      "receipt_sha256": "e105dcf8db8d56fab1cdfe533a0ccf7a793b16051247b007cf4b985a57feced7"
+    },
+    "challenger": {
+      "path": "artifacts/rlc/semantic_program_27b_compositional_v19_clause_local_identity_dev/transducer.json",
+      "file_sha256": "7ffbae72100283b2b47cf91540dd0ac7db97d13ee1433418549ff4a066ebc931",
+      "receipt_sha256": "a79674be5460d12e985efe406939e181e0b51bec6163bd3c2b4ae41db9c55c59"
+    },
+    "model_basis_sha256": "178def8469d79d6265fddad9b1de5a9b034d5772679f608fda4d46f327bbfbe9"
+  },
+  "arms": [
+    "frozen_incumbent",
+    "frozen_challenger",
+    "necessary_condition_ensemble",
+    "forced_incumbent_selector_lesion",
+    "challenger_evidence_absent_lesion",
+    "ordinary_resident_27b_decode"
+  ],
+  "arm_contract": {
+    "same_tasks_and_features": true,
+    "path_decode_compute_matched_for_neural_arms": true,
+    "selector_inputs": "only executable IR availability and signed path provenance",
+    "labels_available_to_paths_or_selector": false,
+    "text_or_domain_identity_available_to_selector": false,
+    "expected_answers_available_to_paths_or_selector": false,
+    "forced_incumbent_lesion": "decode both paths and replace the selector decision with incumbent without changing either path",
+    "challenger_evidence_absent_lesion": "decode both paths and set challenger executable-IR evidence to zero before the unchanged selector",
+    "ordinary_decode_contract": "same resident checkpoint and public request text, one greedy response, one final-integer parse, no verifier feedback and no retries"
+  },
+  "evaluation": {
+    "primary_metric": "exact executed answer",
+    "secondary_metrics": [
+      "exact program",
+      "executable IR availability",
+      "selector switches",
+      "improvements over incumbent",
+      "regressions from incumbent",
+      "per-arm wall time"
+    ],
+    "statistics": "paired one-sided exact McNemar tests over identical tasks",
+    "mechanism_success_conditions": [
+      "necessary_condition_ensemble has zero regressions from every exact incumbent answer",
+      "necessary_condition_ensemble improves at least 5 incumbent failures",
+      "necessary_condition_ensemble exceeds forced_incumbent_selector_lesion with p < 0.05",
+      "necessary_condition_ensemble exceeds challenger_evidence_absent_lesion with p < 0.05",
+      "every treatment improvement is selected because the incumbent lacked executable IR and the challenger supplied it"
+    ],
+    "generalization_success_conditions": [
+      "mechanism success conditions pass",
+      "necessary_condition_ensemble exceeds ordinary resident 27B decode with p < 0.05",
+      "the frozen seven-family source control has zero regressions from incumbent"
+    ],
+    "abort_before_ordinary_decode": [
+      "any frozen path hash or receipt differs",
+      "corpus overlaps a prior source text, construction id, domain, or procedure schema",
+      "feature model basis differs",
+      "public input recovery is not exact on all tasks",
+      "mechanism arm has any incumbent regression",
+      "mechanism arm improves fewer than 5 incumbent failures"
+    ]
+  },
+  "ordinary_decode_deferred_until_mechanism_pass": true,
+  "serving_authority": false
+}

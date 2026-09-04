@@ -47,8 +47,14 @@ def _sha(value: Any) -> str:
 
 def training_examples_from_feature_bundle(
     bundle: LoadedSemanticFeatureBundle,
+    *,
+    required_splits: frozenset[str] = frozenset({"train", "validation", "test"}),
 ) -> tuple[SemanticTransducerTrainingExample, ...]:
     """Convert a verified bundle without widening its evidence authority."""
+
+    valid_splits = frozenset({"train", "validation", "test"})
+    if not required_splits or not required_splits <= valid_splits:
+        raise ValueError("semantic campaign required splits are invalid")
 
     converted: list[SemanticTransducerTrainingExample] = []
     for item in bundle.examples:
@@ -82,8 +88,9 @@ def training_examples_from_feature_bundle(
     examples = tuple(converted)
     if len(examples) != bundle.manifest["example_count"]:
         raise ValueError("semantic campaign bundle count changed during conversion")
-    if {item.split for item in examples} != {"train", "validation", "test"}:
-        raise ValueError("semantic campaign requires train, validation, and test splits")
+    observed_splits = {item.split for item in examples}
+    if not observed_splits <= valid_splits or not required_splits <= observed_splits:
+        raise ValueError("semantic campaign bundle lacks required splits")
     return examples
 
 

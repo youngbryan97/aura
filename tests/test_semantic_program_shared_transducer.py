@@ -19,9 +19,9 @@ from core.learning.semantic_program_compositional_campaign import (
     diagnose_compositional_transfer_lesions,
 )
 from core.learning.semantic_program_compositional_transducer import (
-    _POINTER_HARD_NEGATIVES as _COMPOSITIONAL_POINTER_HARD_NEGATIVES,
-)
-from core.learning.semantic_program_compositional_transducer import (
+    _LOCAL_DEFINITION_CANDIDATE_STRATEGY,
+    _STABLE_REGISTER_TABLE_STRATEGY,
+    _argument_proposals_by_operation,
     DirectionalRelationHead,
     _best_penalized_operation_chart,
     _definition_span_candidates,
@@ -31,8 +31,13 @@ from core.learning.semantic_program_compositional_transducer import (
     _operation_chart_candidates,
     _operation_order,
     _OperationNode,
+    _register_definition_candidates,
     compositional_semantic_program_transducer_from_dict,
     fit_compositional_semantic_program_transducer,
+    refit_compositional_register_identity,
+)
+from core.learning.semantic_program_compositional_transducer import (
+    _POINTER_HARD_NEGATIVES as _COMPOSITIONAL_POINTER_HARD_NEGATIVES,
 )
 from core.learning.semantic_program_floor_verification import (
     SEMANTIC_PROGRAM_FLOOR_VERIFICATION_SOURCES,
@@ -61,6 +66,7 @@ from core.learning.semantic_program_shared_verification import (
 )
 from core.learning.semantic_program_transducer import (
     LinearPointerHead,
+    LinearPointerSequenceScores,
     SemanticTransducerTrainingExample,
 )
 
@@ -303,13 +309,8 @@ def test_compositional_transducer_assembles_typed_atoms_without_a_geometry_head(
     )
     assert proposal_fit["positive_rows"] > 0
     assert proposal_fit["pointer_hard_negative_rows"] > 0
-    assert (
-        proposal_fit["hard_negative_limit"]
-        == _COMPOSITIONAL_POINTER_HARD_NEGATIVES
-    )
-    selected_proposal_scales = [
-        row for row in proposal_fit["scale_selection"] if row["selected"]
-    ]
+    assert proposal_fit["hard_negative_limit"] == _COMPOSITIONAL_POINTER_HARD_NEGATIVES
+    selected_proposal_scales = [row for row in proposal_fit["scale_selection"] if row["selected"]]
     assert len(selected_proposal_scales) == 1
     assert selected_proposal_scales[0]["proposal_scale"] == model.argument_proposal_scale
     assert model.register_use_contract.to_dict() == {
@@ -321,9 +322,10 @@ def test_compositional_transducer_assembles_typed_atoms_without_a_geometry_head(
     }
     assert model.training_receipt["definition_pointer_scale_selection"]
     assert replay.chart_beam_lesion().operation_chart_beam == 1
-    assert np.count_nonzero(
-        replay.relation_tissue_lesion().definition_relation_head.query_projection
-    ) == 0
+    assert (
+        np.count_nonzero(replay.relation_tissue_lesion().definition_relation_head.query_projection)
+        == 0
+    )
     proposal_lesion = replay.argument_proposal_lesion()
     assert proposal_lesion.argument_proposal_scale == replay.argument_proposal_scale
     assert all(
@@ -357,6 +359,66 @@ def test_compositional_transducer_binds_learned_type_limits_to_its_receipt() -> 
         compositional_semantic_program_transducer_from_dict(payload)
 
 
+def test_compositional_transducer_replays_the_frozen_v13_candidate_geometry() -> None:
+    model = fit_compositional_semantic_program_transducer(
+        _examples(),
+        input_grounding=_grounding(),
+    )
+    payload = copy.deepcopy(model.to_dict())
+    payload["schema"] = "aura.semantic_program_transducer.v13"
+    payload.pop("definition_candidate_strategy")
+    receipt = payload["training_receipt"]
+    receipt["schema"] = "aura.semantic_program_transducer_receipt.v13"
+    receipt.pop("definition_candidate_strategy")
+    body = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+    receipt["receipt_sha256"] = _sha(body)
+
+    replay = compositional_semantic_program_transducer_from_dict(payload)
+
+    assert replay.definition_candidate_strategy == "anchored_envelope_v1"
+    assert replay.to_dict() == payload
+
+
+def test_compositional_transducer_replays_the_frozen_v14_candidate_geometry() -> None:
+    model = fit_compositional_semantic_program_transducer(
+        _examples(),
+        input_grounding=_grounding(),
+    )
+    payload = copy.deepcopy(model.to_dict())
+    payload["schema"] = "aura.semantic_program_transducer.v14"
+    payload["definition_candidate_strategy"] = "bounded_local_alias_v1"
+    receipt = payload["training_receipt"]
+    receipt["schema"] = "aura.semantic_program_transducer_receipt.v14"
+    receipt["definition_candidate_strategy"] = "bounded_local_alias_v1"
+    receipt.pop("identity_definition_supervision")
+    body = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+    receipt["receipt_sha256"] = _sha(body)
+
+    replay = compositional_semantic_program_transducer_from_dict(payload)
+
+    assert replay.definition_candidate_strategy == "bounded_local_alias_v1"
+    assert replay.to_dict() == payload
+
+
+def test_compositional_transducer_replays_the_frozen_v15_global_argument_budget() -> None:
+    model = fit_compositional_semantic_program_transducer(
+        _examples(),
+        input_grounding=_grounding(),
+    )
+    payload = copy.deepcopy(model.to_dict())
+    payload["schema"] = "aura.semantic_program_transducer.v15"
+    receipt = payload["training_receipt"]
+    receipt["schema"] = "aura.semantic_program_transducer_receipt.v15"
+    receipt.pop("argument_candidate_strategy")
+    body = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+    receipt["receipt_sha256"] = _sha(body)
+
+    replay = compositional_semantic_program_transducer_from_dict(payload)
+
+    assert replay.schema == "aura.semantic_program_transducer.v15"
+    assert replay.to_dict() == payload
+
+
 def test_compositional_graph_orders_dependencies_instead_of_prose_position() -> None:
     nodes = (
         _OperationNode(TokenSpan(2, 3), "add", 1.0, 1.0, 1.0),
@@ -383,6 +445,116 @@ def test_compositional_relation_preserves_reference_direction() -> None:
 
     np.testing.assert_array_equal(forward[:4], reverse[:4])
     np.testing.assert_array_equal(forward[4:], -reverse[4:])
+
+
+def test_local_definition_candidates_stay_inside_their_operation_clause() -> None:
+    anchors = (TokenSpan(1, 2), TokenSpan(5, 6), TokenSpan(12, 13))
+    pointer = LinearPointerSequenceScores(
+        np.zeros(20, dtype=np.float32),
+        np.zeros(20, dtype=np.float32),
+    )
+
+    candidates = _register_definition_candidates(
+        anchors,
+        input_count=1,
+        token_count=20,
+        max_span_tokens=12,
+        pointer_scores=pointer,
+        strategy=_LOCAL_DEFINITION_CANDIDATE_STRATEGY,
+    )
+
+    assert any(span.start >= anchors[1].end for span in candidates[1])
+    assert all(span.end <= anchors[2].start for span in candidates[1])
+    assert all(span.start == anchors[1].start for span in candidates[1][:1])
+
+
+def test_stable_register_table_separates_a_long_value_from_its_identity() -> None:
+    anchors = (TokenSpan(20, 60), TokenSpan(72, 73))
+    start = np.zeros(90, dtype=np.float32)
+    end = np.zeros(90, dtype=np.float32)
+    start[15] = 10.0
+    end[17] = 10.0
+    start[75] = 9.0
+    end[77] = 9.0
+    pointer = LinearPointerSequenceScores(start, end)
+
+    candidates = _register_definition_candidates(
+        anchors,
+        input_count=1,
+        token_count=90,
+        max_span_tokens=32,
+        pointer_scores=pointer,
+        strategy=_STABLE_REGISTER_TABLE_STRATEGY,
+    )
+
+    assert candidates == ((TokenSpan(15, 18),), (TokenSpan(75, 78),))
+
+
+def test_clause_local_argument_budget_cannot_be_consumed_by_earlier_text() -> None:
+    start = -np.arange(300, dtype=np.float32)
+    end = np.zeros(300, dtype=np.float32)
+    scores = LinearPointerSequenceScores(start, end)
+    nodes = (
+        _OperationNode(TokenSpan(140, 141), "add", 1.0, 1.0, 1.0),
+        _OperationNode(TokenSpan(200, 201), "sub", 1.0, 1.0, 1.0),
+    )
+
+    shared = _argument_proposals_by_operation(
+        scores,
+        input_spans=(),
+        operation_nodes=nodes,
+        max_span_tokens=1,
+        clause_local=False,
+    )
+    local = _argument_proposals_by_operation(
+        scores,
+        input_spans=(),
+        operation_nodes=nodes,
+        max_span_tokens=1,
+        clause_local=True,
+    )
+
+    assert TokenSpan(220, 221) not in {span for span, _score in shared[1]}
+    assert TokenSpan(220, 221) in {span for span, _score in local[1]}
+
+
+def test_register_identity_refit_preserves_unrelated_coefficients() -> None:
+    examples = _examples()
+    parent = fit_compositional_semantic_program_transducer(
+        examples,
+        input_grounding=_grounding(),
+    )
+    symbolic = []
+    for item in examples:
+        definitions = []
+        for register in range(item.ir.n_inputs + len(item.ir.instructions)):
+            mentions = [
+                span
+                for instruction in item.ir.instructions
+                for span, argument in zip(
+                    instruction.argument_spans,
+                    instruction.args,
+                    strict=True,
+                )
+                if argument == register
+            ]
+            definitions.append(mentions[0] if mentions else TokenSpan(0, 1))
+        symbolic.append(replace(item, register_definition_spans=tuple(definitions)))
+
+    refit = refit_compositional_register_identity(parent, symbolic)
+
+    assert refit.schema == "aura.semantic_program_transducer.v16"
+    np.testing.assert_array_equal(
+        refit.operation_pointer.start_weight,
+        parent.operation_pointer.start_weight,
+    )
+    np.testing.assert_array_equal(
+        refit.operation_head.heads[0].weight,
+        parent.operation_head.heads[0].weight,
+    )
+    assert refit.training_receipt["identity_refit"]["parent_transducer_receipt_sha256"] == (
+        parent.receipt_sha256
+    )
 
 
 def test_compositional_relation_tissue_scores_cross_feature_identity() -> None:
@@ -421,8 +593,7 @@ def test_compositional_relation_tissue_is_bound_to_the_receipt() -> None:
     selected = [row for row in relation_fit["validation_selection"] if row["selected"]]
     assert len(selected) == 1
     assert selected[0]["validation_cross_entropy"] == min(
-        row["validation_cross_entropy"]
-        for row in relation_fit["validation_selection"]
+        row["validation_cross_entropy"] for row in relation_fit["validation_selection"]
     )
 
     payload = copy.deepcopy(model.to_dict())
@@ -449,13 +620,28 @@ def test_compositional_definition_envelope_always_contains_its_anchor() -> None:
         token_count=10,
         max_span_tokens=1,
     ) == (anchor,)
+    assert _definition_span_candidates(
+        anchor,
+        token_count=12,
+        max_span_tokens=4,
+        direction="left",
+    ) == (TokenSpan(6, 10), TokenSpan(7, 10), anchor)
+    assert _definition_span_candidates(
+        anchor,
+        token_count=12,
+        max_span_tokens=4,
+        direction="right",
+    ) == (anchor, TokenSpan(8, 11), TokenSpan(8, 12))
 
 
 def test_compositional_calibration_treats_a_missing_chart_as_a_refusal() -> None:
-    assert _best_penalized_operation_chart(
-        ((float("-inf"), ()),),
-        penalty=0.0,
-    ) == ()
+    assert (
+        _best_penalized_operation_chart(
+            ((float("-inf"), ()),),
+            penalty=0.0,
+        )
+        == ()
+    )
 
 
 def test_compositional_kbest_chart_preserves_the_greedy_chart_then_falls_back() -> None:
@@ -513,9 +699,21 @@ def test_compositional_relation_diagnostic_separates_runtime_and_oracle_spans() 
     assert report["splits"]["test"]["total"] == 20
     assert report["splits"]["test"]["runtime_top1"] <= 20
     assert report["splits"]["test"]["oracle_top1"] <= 20
-    assert sum(
-        row["total"] for row in report["splits"]["test"]["by_slot"].values()
-    ) == 20
+    assert sum(row["total"] for row in report["splits"]["test"]["by_slot"].values()) == 20
+
+
+def test_compositional_relation_diagnostic_accepts_a_held_out_only_cohort() -> None:
+    examples = _examples()
+    model = fit_compositional_semantic_program_transducer(
+        examples,
+        input_grounding=_grounding(),
+    )
+    held_out = tuple(item for item in examples if item.split in {"validation", "test"})
+
+    report = diagnose_compositional_definition_relations(model, held_out)
+
+    assert report["evaluated_splits"] == ["validation", "test"]
+    assert set(report["splits"]) == {"validation", "test"}
 
 
 def test_compositional_lesion_diagnostic_replays_without_refitting() -> None:
@@ -531,9 +729,10 @@ def test_compositional_lesion_diagnostic_replays_without_refitting() -> None:
     assert report["expected_answers_available_to_decode"] is False
     assert set(report["evaluated_arms"]) == set(report["arms"])
     assert report["arms"]["treatment"]["test"]["total"] == 4
-    assert report["arms"]["coefficient_lesion"]["test"]["program_exact"] < report[
-        "arms"
-    ]["treatment"]["test"]["program_exact"]
+    assert (
+        report["arms"]["coefficient_lesion"]["test"]["program_exact"]
+        < report["arms"]["treatment"]["test"]["program_exact"]
+    )
 
     focused = diagnose_compositional_transfer_lesions(
         model,
@@ -557,9 +756,7 @@ def test_compositional_lesion_diagnostic_replays_without_refitting() -> None:
 def test_shared_transducer_programs_replay_on_the_universal_floor() -> None:
     examples = _examples()
     model = fit_shared_semantic_program_transducer(examples, input_grounding=_grounding())
-    sources = {
-        relative: "d" * 64 for relative in SEMANTIC_PROGRAM_FLOOR_VERIFICATION_SOURCES
-    }
+    sources = {relative: "d" * 64 for relative in SEMANTIC_PROGRAM_FLOOR_VERIFICATION_SOURCES}
 
     report = verify_semantic_program_floor_equivalence(
         model,
@@ -654,8 +851,7 @@ def test_tokenizer_grounding_round_trips_signed_scalars_and_sequences() -> None:
         if isinstance(value, tuple):
             expected.add(str(list(value)))
         assert any(
-            tokenizer.decode(list(tokens[span.start : span.end])).strip(" ,.")
-            in expected
+            tokenizer.decode(list(tokens[span.start : span.end])).strip(" ,.") in expected
             for span in spans
         )
     assert replay.to_dict() == contract.to_dict()
@@ -698,6 +894,7 @@ def test_shared_campaign_records_family_controls_without_a_router(monkeypatch) -
         "establish_semantic_training_representation_compatibility",
         lambda _manifests: compatibility,
     )
+
     def bind(grouped, *, compatibility):
         assert compatibility["target_training_session_basis_sha256"] == _BASIS
         return tuple(
@@ -726,9 +923,7 @@ def test_shared_campaign_records_family_controls_without_a_router(monkeypatch) -
     assert set(result.report["families"]) == {"short", "long"}
     assert result.report["arms"]["treatment:test"]["program_exact"] == 4
     assert result.report["arms"]["coefficient_lesion:test"]["program_exact"] < 4
-    assert result.report["paired_program_controls"][
-        "coefficient_lesion:test"
-    ]["treatment_only"] > 0
+    assert result.report["paired_program_controls"]["coefficient_lesion:test"]["treatment_only"] > 0
 
 
 def test_shared_verifier_replays_frozen_arms_and_rejects_tampering(monkeypatch) -> None:
@@ -778,14 +973,10 @@ def test_shared_verifier_replays_frozen_arms_and_rejects_tampering(monkeypatch) 
             self.examples = examples
 
     monkeypatch.setattr(
-        "core.learning.semantic_program_shared_verification."
-        "training_examples_from_feature_bundle",
+        "core.learning.semantic_program_shared_verification.training_examples_from_feature_bundle",
         lambda bundle: bundle.examples,
     )
-    bundles = {
-        family: _Bundle(manifests[family], by_family[family])
-        for family in by_family
-    }
+    bundles = {family: _Bundle(manifests[family], by_family[family]) for family in by_family}
     sources = {
         relative: hashlib.sha256(relative.encode()).hexdigest()
         for relative in SEMANTIC_PROGRAM_SHARED_VERIFICATION_SOURCES

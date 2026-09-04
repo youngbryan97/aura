@@ -7,9 +7,8 @@ import json
 import math
 from typing import Any
 
-import numpy as np
-
 from core.brain.nonparametric_generation import normalize
+from core.runtime.tensor_bridge import as_float32_numpy
 
 SCHEMA = "aura.rlc.nonparametric_context.v1"
 _STATUSES = frozenset(
@@ -160,7 +159,7 @@ def retrieve_observation(
             source_identity={},
         )
     try:
-        key = normalize(np.asarray(hidden, dtype=np.float32).reshape(-1))
+        key = normalize(as_float32_numpy(hidden).reshape(-1))
     except (TypeError, ValueError, FloatingPointError):
         return None, _base_receipt(status="invalid_hidden", source_identity={})
     from core.brain.nonparametric_worker import foreground_enabled

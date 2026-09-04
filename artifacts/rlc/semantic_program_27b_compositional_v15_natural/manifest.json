@@ -1,0 +1,53 @@
+{
+  "claim_boundary": "development canary for bounded natural-language procedure transfer; fresh replication, ordinary decode, and broad-domain authority remain open",
+  "expected_answers_available_to_fit": false,
+  "feature_manifest_sha256s": {
+    "arithmetic": "9ffd830ce9250b6ef9ef07a1e2f59de90b90832342dd00ee513dff9f82eff3d6",
+    "cataphoric": "66c906d23f735c9cb4ba0657ffbbd3d054a1fc70f74aeb1f4ffc4fb0488b3209",
+    "fork_join": "55b873814f49f75599db2dad857911af954cc55559070599b6f49489cbb2e66b",
+    "natural_source": "8cf33083bb225db1072e653fc7738431ba6100cc447855609df6b3b8f33c020c",
+    "natural_target": "7869ef79f9ac466e82123185fe405c9deab2111d2f5fc198b4821bafd75728d0",
+    "reserved_alias": "c4872dbca51122f0d558d8c2c08c578313a3487d330df0cb555b761c1e153e16",
+    "role_binding": "007d497b910516229df54d2596db6570e191a7e52f9ad87b29705ea1c676b245"
+  },
+  "files": {
+    "endogenous_canary.json": "e1826a21a7fc60ba9ed89f9f69049bcc2395f88e9e7a64acef525ce67e1bb121",
+    "sequence_binary_regression.json": "16ed57b46bf4a83109e5a61e83e873c132f351284ba6639022a18eda658d71f8",
+    "source_campaign.json": "52e9c80f4449440dfcd0a1aab536d6e46f932d319d4db40e7163d5c761b05120",
+    "transducer.json": "50705baeb33fd592be8dc6b086449dfec38af44df57cae5c9be1085fb145d61f"
+  },
+  "fit_example_count": 1680,
+  "fit_families": [
+    "arithmetic",
+    "cataphoric",
+    "fork_join",
+    "natural_source",
+    "reserved_alias",
+    "role_binding"
+  ],
+  "held_out_family": "natural_target",
+  "held_out_family_was_available_to_fit": false,
+  "manifest_sha256": "8a73a8602247215a84e363e2d28770e008ec7800d33b333944c7358b924a516e",
+  "natural_target": {
+    "answer_exact_p": 1.9073486328125e-06,
+    "coefficient_lesion_answer_exact": 0,
+    "prior_v14_answer_exact": 4,
+    "public_input_exact": 24,
+    "total": 24,
+    "treatment_accepted": 21,
+    "treatment_answer_exact": 19,
+    "treatment_program_exact": 18
+  },
+  "schema": "aura.semantic_program_natural_transfer_development.v1",
+  "sequence_binary_regression": {
+    "held_out_total": 192,
+    "v14_answer_exact": 156,
+    "v15_answer_exact": 168,
+    "v15_argument_exact": 164,
+    "v15_program_exact": 164
+  },
+  "serving_authority": false,
+  "source_commit": "aa6192c6e",
+  "target_family_available_to_fit": false,
+  "transducer_receipt_sha256": "fd67c96688f29e5b16986a9f6a818584a1eb24b1ae92128b82056e8b12f38cba"
+}

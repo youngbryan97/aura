@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 from core.brain.llm.latent_cortex.runtime_identity import worker_representation_basis
+from core.cognition.procedure import Procedure, ProcedureRegistry
+from core.learning.semantic_procedure_currency import from_semantic_program
 from core.learning.semantic_program_compositional_transducer import (
     CompositionalSemanticProgramTransducer,
 )
@@ -56,6 +58,7 @@ class CompositionalSemanticRuntimeOutcome:
     ir: SemanticProgramIR
     execution: SemanticFloorExecution
     receipt: dict[str, Any]
+    procedure: Procedure | None = None
 
     def __post_init__(self) -> None:
         body = {key: value for key, value in self.receipt.items() if key != "receipt_sha256"}
@@ -77,6 +80,7 @@ def execute_compositional_semantic_observation(
     hidden_states: Any,
     worker_model_basis: Mapping[str, Any],
     expected_representation_basis_sha256: str,
+    procedure_registry: ProcedureRegistry | None = None,
 ) -> CompositionalSemanticRuntimeOutcome:
     """Decode and execute one resident observation without external semantics."""
 
@@ -136,6 +140,11 @@ def execute_compositional_semantic_observation(
         raise SemanticProgramDecodeRejectedError(
             "compositional semantic program was not executable"
         ) from exc
+    procedure = (
+        from_semantic_program(decoded.ir, registry=procedure_registry)
+        if procedure_registry is not None
+        else None
+    )
     body = {
         "schema": COMPOSITIONAL_SEMANTIC_RUNTIME_SCHEMA,
         "source_text_sha256": public_inputs.source_text_sha256,
@@ -157,9 +166,20 @@ def execute_compositional_semantic_observation(
         "verifier_trace_available": False,
         "generated_text_available": False,
         "correctness_authority": False,
+        "procedure_currency_receipt_sha256": (
+            procedure.program.receipt()["receipt_sha256"]
+            if procedure is not None
+            else None
+        ),
     }
     receipt = {**body, "receipt_sha256": _sha(body)}
-    return CompositionalSemanticRuntimeOutcome(public_inputs, decoded.ir, execution, receipt)
+    return CompositionalSemanticRuntimeOutcome(
+        public_inputs,
+        decoded.ir,
+        execution,
+        receipt,
+        procedure,
+    )
 
 
 __all__ = [

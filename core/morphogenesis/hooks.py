@@ -249,10 +249,25 @@ def modulate_metabolic_energy() -> float | None:
         encourage = max(growth, curiosity) * 0.3
         modifier = max(0.3, min(1.5, 1.0 - suppress + encourage))
 
-        # Apply: modulate the coordinator's refill rate
-        base_rate = 0.05  # default refill rate
-        coord._energy_refill_rate = base_rate * modifier
-
+        # Apply the modifier to the coordinator's OWN base rate, remembered
+        # once. The previous version multiplied a hardcoded 0.05 and wrote the
+        # result back every five ticks, so whatever the coordinator had been
+        # configured with was overwritten with a constant this module invented,
+        # and the modulation compounded against its own last output.
+        attribute = "_energy_refill_rate"
+        if not hasattr(coord, attribute):
+            return None
+        base = getattr(coord, "_morphogenesis_base_refill_rate", None)
+        if base is None:
+            base = float(getattr(coord, attribute, 0.05) or 0.05)
+            try:
+                coord._morphogenesis_base_refill_rate = base
+            except (AttributeError, TypeError):
+                return None
+        try:
+            setattr(coord, attribute, base * modifier)
+        except (AttributeError, TypeError):
+            return None
         return modifier
     except (ImportError, AttributeError, RuntimeError) as exc:
         record_degradation('hooks', exc)
@@ -364,8 +379,13 @@ def emit_task_signal(
     task_description: str = "",
     intensity: float = 0.4,
 ) -> None:
-    """Emit a task signal into the morphogenetic field when the orchestrator
-    starts processing a user request. This drives growth/curiosity gradients.
+    """Emit a task signal into the morphogenetic field when a turn starts.
+
+    Had no callers for the life of the module — a writer with no writer, which
+    is the same defect as a channel with no reader and just as invisible. The
+    live seam is now :func:`core.morphogenesis.bridge.announce_demand`, called
+    from the chat turn; this stays for callers that already know their
+    subsystem and do not need the capability router to work it out.
     """
     try:
         from core.container import ServiceContainer

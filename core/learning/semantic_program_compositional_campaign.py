@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Final
 
 from core.learning.semantic_input_grounding import SemanticInputGroundingContract
 from core.learning.semantic_program_basis import (
+    bind_examples_to_compatible_training_session,
     bind_training_examples_to_shared_representation,
+    establish_semantic_representation_compatibility,
     establish_semantic_training_representation_compatibility,
 )
 from core.learning.semantic_program_campaign import (
@@ -17,7 +19,7 @@ from core.learning.semantic_program_campaign import (
 )
 from core.learning.semantic_program_compositional_transducer import (
     CompositionalSemanticProgramTransducer,
-    _definition_span_candidates,
+    _register_definition_candidates,
     _register_definition_spans,
     fit_compositional_semantic_program_transducer,
 )
@@ -57,11 +59,16 @@ def diagnose_compositional_definition_relations(
 ) -> dict[str, Any]:
     """Measure the relation head with gold references but no gold answers."""
 
+    available_splits = tuple(
+        split
+        for split in ("train", "validation", "test")
+        if any(item.split == split for item in examples)
+    )
+    if not available_splits:
+        raise ValueError("compositional relation diagnostic has no observed split")
     by_split: dict[str, dict[str, Any]] = {}
-    for split in ("train", "validation", "test"):
+    for split in available_splits:
         selected = tuple(item for item in examples if item.split == split)
-        if not selected:
-            raise ValueError(f"compositional relation diagnostic split is empty: {split}")
         total = 0
         runtime_top1 = 0
         oracle_top1 = 0
@@ -73,8 +80,14 @@ def diagnose_compositional_definition_relations(
                 *item.ir.input_spans,
                 *(instruction.operation_span for instruction in item.ir.instructions),
             )
-            definition_pointer_scores = model.definition_pointer.score_sequence(
-                item.hidden_states
+            definition_pointer_scores = model.definition_pointer.score_sequence(item.hidden_states)
+            runtime_candidate_spans = _register_definition_candidates(
+                runtime_anchors,
+                input_count=item.ir.n_inputs,
+                token_count=item.hidden_states.shape[0],
+                max_span_tokens=model.max_definition_span_tokens,
+                pointer_scores=definition_pointer_scores,
+                strategy=model.definition_candidate_strategy,
             )
             runtime_definitions = tuple(
                 tuple(
@@ -87,13 +100,9 @@ def diagnose_compositional_definition_relations(
                             hidden_channel_widths=model.hidden_channel_widths,
                         ),
                     )
-                    for candidate in _definition_span_candidates(
-                        anchor,
-                        token_count=item.hidden_states.shape[0],
-                        max_span_tokens=model.max_definition_span_tokens,
-                    )
+                    for candidate in candidates
                 )
-                for anchor in runtime_anchors
+                for candidates in runtime_candidate_spans
             )
             oracle_vectors = tuple(
                 (
@@ -115,9 +124,9 @@ def diagnose_compositional_definition_relations(
                 available = item.ir.n_inputs + step
                 for position, (reference_span, expected_register) in enumerate(
                     zip(
-                    instruction.argument_spans,
-                    instruction.args,
-                    strict=True,
+                        instruction.argument_spans,
+                        instruction.args,
+                        strict=True,
                     )
                 ):
                     reference = _relation_span_vector(
@@ -178,6 +187,7 @@ def diagnose_compositional_definition_relations(
         "gold_definition_spans_available_to_runtime_arm": False,
         "expected_answers_available": False,
         "serving_authority": False,
+        "evaluated_splits": list(available_splits),
         "splits": by_split,
     }
     return {**body, "report_sha256": _sha(body)}
@@ -187,16 +197,24 @@ def _family_report(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample],
 ) -> dict[str, Any]:
+    available_splits = tuple(
+        split
+        for split in ("train", "validation", "test")
+        if any(item.split == split for item in examples)
+    )
+    if not {"validation", "test"} <= set(available_splits):
+        raise ValueError("compositional family report needs validation and test examples")
     arms = {
         split: evaluate_shared_semantic_program_transducer(
             model,
             examples,
             split=split,
         ).to_dict()
-        for split in ("train", "validation", "test")
+        for split in available_splits
     }
     return {
         "example_count": len(examples),
+        "evaluated_splits": list(available_splits),
         "splits": arms,
         "held_out_program_exact": sum(
             arms[split]["program_exact"] for split in ("validation", "test")
@@ -229,9 +247,7 @@ def diagnose_compositional_transfer_lesions(
         "dependency_lesion": model.dependency_lesion(),
         "coefficient_lesion": model.coefficient_lesion(),
     }
-    selected_arm_names = (
-        COMPOSITIONAL_LESION_ARMS if arm_names is None else tuple(arm_names)
-    )
+    selected_arm_names = COMPOSITIONAL_LESION_ARMS if arm_names is None else tuple(arm_names)
     if not selected_arm_names:
         raise ValueError("compositional lesion arm selection is empty")
     if len(set(selected_arm_names)) != len(selected_arm_names):
@@ -257,9 +273,7 @@ def diagnose_compositional_transfer_lesions(
     body = {
         "schema": "aura.semantic_program_compositional_lesions.v1",
         "transducer_receipt_sha256": model.receipt_sha256,
-        "example_ids_sha256": _sha(
-            sorted(item.ir.source_text_sha256 for item in examples)
-        ),
+        "example_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in examples)),
         "evaluated_arms": list(selected_arm_names),
         "arms": results,
         "fit_or_refit_calls": 0,
@@ -274,6 +288,7 @@ def run_compositional_leave_family_out_campaign(
     *,
     held_out_family: str,
     input_grounding: SemanticInputGroundingContract,
+    evaluation_families: Sequence[str] | None = None,
 ) -> CompositionalLeaveFamilyOutResult:
     """Fit without one named family and measure transfer to every family."""
 
@@ -282,50 +297,92 @@ def run_compositional_leave_family_out_campaign(
     if len(bundles) < 3:
         raise ValueError("compositional held-family diagnosis needs at least three families")
     examples_by_family = {
-        family: training_examples_from_feature_bundle(bundle)
+        family: training_examples_from_feature_bundle(
+            bundle,
+            required_splits=(
+                frozenset({"validation", "test"})
+                if family == held_out_family
+                else frozenset({"train", "validation", "test"})
+            ),
+        )
         for family, bundle in bundles.items()
     }
     manifests = {family: bundle.manifest for family, bundle in bundles.items()}
-    compatibility = establish_semantic_training_representation_compatibility(manifests)
-    bound = bind_training_examples_to_shared_representation(
-        examples_by_family,
-        compatibility=compatibility,
+    fit_families = sorted(set(bundles) - {held_out_family})
+    fit_manifests = {family: manifests[family] for family in fit_families}
+    fit_compatibility = establish_semantic_training_representation_compatibility(fit_manifests)
+    fit_bound = bind_training_examples_to_shared_representation(
+        {family: examples_by_family[family] for family in fit_families},
+        compatibility=fit_compatibility,
     )
-    bound_by_family = {
-        family: tuple(
-            item
-            for item in bound
-            if item.construction_id.startswith(f"{family}:")
-        )
-        for family in bundles
+    fit_bound_by_family = {
+        family: tuple(item for item in fit_bound if item.construction_id.startswith(f"{family}:"))
+        for family in fit_families
     }
     if any(
-        len(bound_by_family[family]) != len(examples_by_family[family])
-        for family in bundles
+        len(fit_bound_by_family[family]) != len(examples_by_family[family])
+        for family in fit_families
     ):
-        raise ValueError("compositional held-family inventory changed during binding")
-    fit_examples = tuple(
-        item
-        for family, examples in bound_by_family.items()
-        if family != held_out_family
-        for item in examples
-    )
+        raise ValueError("compositional fit-family inventory changed during binding")
+    fit_examples = tuple(item for family in fit_families for item in fit_bound_by_family[family])
     model = fit_compositional_semantic_program_transducer(
         fit_examples,
         input_grounding=input_grounding,
     )
+    target_basis = fit_compatibility["target_training_session_basis_sha256"]
+    anchor_families = [
+        family
+        for family in fit_families
+        if target_basis in fit_compatibility["source_session_basis_sha256s"][family]
+    ]
+    if len(anchor_families) != 1 or model.model_basis_sha256 != target_basis:
+        raise ValueError("compositional fit basis has no unique source cohort")
+    held_out_compatibility = establish_semantic_representation_compatibility(
+        model=model,
+        training_manifest=manifests[anchor_families[0]],
+        replication_manifest=manifests[held_out_family],
+    )
+    held_out_examples = bind_examples_to_compatible_training_session(
+        examples_by_family[held_out_family],
+        compatibility=held_out_compatibility,
+    )
+    bound_by_family = {
+        **fit_bound_by_family,
+        held_out_family: tuple(
+            replace(
+                item,
+                construction_id=f"{held_out_family}:{item.construction_id}",
+                topology_id=f"{held_out_family}:{item.topology_id}",
+            )
+            for item in held_out_examples
+        ),
+    }
+    evaluated_families = (
+        tuple(sorted(bound_by_family))
+        if evaluation_families is None
+        else tuple(dict.fromkeys(evaluation_families))
+    )
+    if (
+        not evaluated_families
+        or held_out_family not in evaluated_families
+        or not set(evaluated_families) <= set(bound_by_family)
+    ):
+        raise ValueError(
+            "compositional evaluation families must be known and include the held-out family"
+        )
     families = {
-        family: _family_report(model, examples)
-        for family, examples in sorted(bound_by_family.items())
+        family: _family_report(model, bound_by_family[family]) for family in evaluated_families
     }
     body = {
         "schema": COMPOSITIONAL_LEAVE_FAMILY_OUT_SCHEMA,
         "held_out_family": held_out_family,
-        "fit_families": sorted(set(bundles) - {held_out_family}),
+        "fit_families": fit_families,
+        "evaluated_families": list(evaluated_families),
         "feature_manifest_sha256s": {
             family: manifests[family]["manifest_sha256"] for family in sorted(manifests)
         },
-        "representation_compatibility": compatibility,
+        "representation_compatibility": fit_compatibility,
+        "held_out_representation_compatibility": held_out_compatibility,
         "model_basis_sha256": model.model_basis_sha256,
         "transducer_receipt_sha256": model.receipt_sha256,
         "fit_example_count": len(fit_examples),

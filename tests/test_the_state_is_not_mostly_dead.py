@@ -166,3 +166,53 @@ def test_the_unreachable_list_names_a_reason_for_every_entry():
         assert name in names, f"{name} is not a declared dimension"
         assert reason.strip(), name
     assert len(KNOWN_UNREACHABLE) <= 3
+
+
+def test_the_bands_track_the_real_organ_not_a_randomised_stub():
+    """The stub above varies every band on every read. The real one does not.
+
+    `_Substrate` returns `rng.normal(size=64)` seeded per step, so every band
+    moves and the liveness assertions above pass on plumbing alone. Measured
+    against a real LiquidSubstrate on 2026-09-02: 34 dimensions present and 32
+    distinct band values — the probe reads it correctly — but only the band
+    holding a pushed axis moves, because the 64-neuron reservoir is integrated
+    by a 20Hz loop that is not running in a test process.
+
+    So the honest claim is what this checks: the probe RECOVERS the organ's
+    state and TRACKS a change to it. How many bands vary per turn live is a
+    property of the substrate's own loop, not of this probe, and asserting it
+    here against a stub would be measuring the stub.
+    """
+    import asyncio
+
+    from core.consciousness.liquid_substrate import LiquidSubstrate
+    from core.brain.llm import endogenous_state as module
+
+    real = LiquidSubstrate()
+
+    def _only_real(name):
+        return real if name in ("conscious_substrate", "liquid_state") else None
+
+    original = module._service
+    module._service = _only_real
+    try:
+        first = module._probe_substrate() or {}
+        bands = {k: v for k, v in first.items() if k.startswith("substrate.band_")}
+        assert len(bands) == 32, f"only {len(bands)} bands recovered from the real organ"
+        assert len(set(round(v, 9) for v in bands.values())) > 16, (
+            "the bands carry one repeated number; the pooling has collapsed"
+        )
+
+        asyncio.run(real.update(delta_curiosity=0.4))
+        second = module._probe_substrate() or {}
+        moved = [
+            k
+            for k in bands
+            if abs(second.get(k, 0.0) - bands[k]) > 1e-9
+        ]
+        assert moved, (
+            "pushing a named axis of the substrate moved no band; the probe is "
+            "reading something that is not the live state"
+        )
+    finally:
+        module._service = original

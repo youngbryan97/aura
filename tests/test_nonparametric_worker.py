@@ -89,7 +89,7 @@ def test_tap_records_last_hidden_and_restores_model():
         def __call__(self, seq, cache=None):
             self.calls += 1
             n = int(seq.shape[1])
-            return mx.array(np.tile(kvec.astype(np.float32), (1, n, 1)))
+            return mx.array(np.tile(kvec.astype(np.float32), (1, n, 1)), dtype=mx.bfloat16)
 
     class Model:
         def __init__(self):
@@ -167,7 +167,7 @@ def test_tapped_processor_uses_tap_without_recompute():
         model.model(mx.array([[1, 2, 3]]))
         forwards_after_generation = model.model.calls
         proc = make_tapped_nonparametric_processor(tap, mem, free_energy=1.0, binding=_binding())
-        logits = mx.array(np.array([0.0, 0.0, 5.0, 0.0], dtype=np.float32))
+        logits = mx.array([0.0, 0.0, 5.0, 0.0], dtype=mx.bfloat16)
         out = np.array(proc(mx.array([1, 2, 3]), logits)).reshape(-1)
         # recalled token 0 is boosted ...
         assert _softmax(out)[0] > _softmax(np.array([0.0, 0.0, 5.0, 0.0]))[0]

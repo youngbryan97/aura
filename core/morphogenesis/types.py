@@ -225,6 +225,21 @@ class MorphogenesisConfig:
     strict_no_source_patch_apply: bool = True
     require_governance_for_mutation: bool = True
     runtime_name: str = "morphogenesis"
+    #: Topology. The layer ran for months with a population and no bindings
+    #: between them, so every cell reached every other through one global
+    #: queue and the shape meant nothing.
+    topology_enabled: bool = True
+    max_edges: int = 512
+    prune_every_ticks: int = 120
+    telemetry_every_ticks: int = 10
+    #: How often the population may propose changes to its own anatomy.
+    #: Slower than the tick on purpose: development is not a control loop, and
+    #: a layer that reconsiders its shape every second is thrashing by design.
+    propose_every_ticks: int = 30
+    #: Change budget a cell accrues per tick. At the default one-second tick a
+    #: cell can afford a binding after about twelve seconds and a grown cell
+    #: after about eighty, which is the pace development should run at.
+    energy_credit_per_tick: float = 0.01
 
     def to_dict(self) -> dict[str, Any]:
         return json_safe(asdict(self))

@@ -49,9 +49,20 @@ CORE = ROOT / "core"
 #: state may never be produced by generated text, and a closed-world list of
 #: today's imports would allow core.brain the moment somebody added one — which
 #: is precisely the import that the organ's own invariant exists to forbid.
+#: Packages whose DEPS says something a generator cannot derive. The check is
+#: byte-exact against generated content, so a real rule written into a
+#: generated file makes the gate red until somebody regenerates it away —
+#: which is how core/learning's rule about the procedure currency sat here
+#: with `make deps-check` failing, one regeneration from being deleted.
 HANDWRITTEN = {
-    "conation", "engineering", "fsw", "health", "observability", "persistence",
-    "runtime", "utils", "verify",
+    "conation", "engineering", "fsw", "health", "learning", "observability",
+    "persistence", "runtime", "utils", "verify",
+    # The judge must not be able to reach the defendant. core/phenomenology
+    # decides whether evidence supports a claim about this system, so its rule
+    # is "imports nothing from core" rather than "what it imports today" — a
+    # generated DEPS would widen it silently the first time a protocol reached
+    # for the organ it is meant to perturb.
+    "phenomenology",
 }
 
 SKIP_DIRS = {"__pycache__", ".venv", "node_modules", "archive"}

@@ -20,7 +20,6 @@ from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.service_access import (
     optional_service,
     resolve_kernel_interface,
-    resolve_llm_router,
     resolve_memory_facade,
     resolve_state_repository,
 )
@@ -140,7 +139,15 @@ async def _extract_history(context: dict[str, Any] | None = None) -> list[dict[s
 
 async def _run_inline_inference(message: str, history: list[dict[str, str]]) -> dict[str, Any] | None:
     try:
-        router = resolve_llm_router()
+        # optional_service, not resolve_llm_router(): the original call here
+        # was ServiceContainer.get("llm_router", default=None), which returns
+        # None when nothing is registered. resolve_llm_router falls through to
+        # llm_organ.get_instance() and BUILDS one, which during a real boot
+        # took tests/test_instruments_measure_in_a_real_boot.py from 14
+        # seconds to 145 and past the runtime lease deadline. A named resolver
+        # is not automatically a drop-in for a raw get; this one has richer
+        # fallback semantics that this call site never had.
+        router = optional_service("llm_router")
         if not router:
             return None
 

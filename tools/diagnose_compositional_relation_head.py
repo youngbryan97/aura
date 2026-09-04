@@ -75,7 +75,12 @@ def main() -> int:
         compatibility = establish_semantic_training_representation_compatibility(manifests)
         examples = bind_training_examples_to_shared_representation(
             {
-                name: training_examples_from_feature_bundle(bundle)
+                name: training_examples_from_feature_bundle(
+                    bundle,
+                    required_splits=frozenset(
+                        str(item.metadata["split"]) for item in bundle.examples
+                    ),
+                )
                 for name, bundle in bundles.items()
             },
             compatibility=compatibility,

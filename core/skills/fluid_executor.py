@@ -67,6 +67,12 @@ class StepResult:
     verified: bool = False
     recovered: bool = False
     blocked: bool = False
+    #: Wall-clock this step spent, retries and backoff included. Numbers, not
+    #: a ceiling: a limit chosen without knowing the distribution is an
+    #: arbitrary constant wearing a safety label, and the distribution is what
+    #: this is for. A receipt that says only "failed after 3 attempts" cannot
+    #: tell a step that failed fast from one that burned a minute doing it.
+    seconds: float = 0.0
     detail: str = ""
     #: Copied from the Step, so a receipt can say which APPROACH failed rather
     #: than only which step did.
@@ -81,6 +87,7 @@ class StepResult:
             "verified": self.verified,
             "recovered": self.recovered,
             "blocked": self.blocked,
+            "seconds": round(self.seconds, 3),
             "detail": self.detail,
         }
 
@@ -100,6 +107,25 @@ class ExecutionReceipt:
     #: len(steps): a cycle can decide to do nothing and still be a cycle.
     cycles: int = 0
 
+    @property
+    def seconds_in_steps(self) -> float:
+        """What the steps spent, as against how long the run took.
+
+        The gap between this and ``elapsed_s`` is what went on deciding rather
+        than doing, which is the number that says whether a slow run was slow
+        at thinking or slow at acting.
+        """
+        return sum(one.seconds for one in self.steps)
+
+    @property
+    def seconds_deciding(self) -> float:
+        return max(0.0, self.elapsed_s - self.seconds_in_steps)
+
+    @property
+    def attempts(self) -> int:
+        """Every try, not every step. Three steps at two tries each is six."""
+        return sum(one.attempts for one in self.steps)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "goal": self.goal,
@@ -109,6 +135,9 @@ class ExecutionReceipt:
             "elapsed_s": round(self.elapsed_s, 3),
             "outcome": self.outcome,
             "cycles": self.cycles,
+            "attempts": self.attempts,
+            "seconds_in_steps": round(self.seconds_in_steps, 3),
+            "seconds_deciding": round(self.seconds_deciding, 3),
             "steps": [s.to_dict() for s in self.steps],
         }
 
@@ -219,10 +248,14 @@ class FluidExecutor:
 
     async def run_step(self, step: Step) -> StepResult:
         """Govern → act → verify → (recover+retry). Returns the step outcome."""
+        began = time.monotonic()
         approved, reason = await self._approved(step)
         if not approved:
             logger.info("🛡️ [Fluid] step '%s' blocked by governance: %s", step.name, reason)
-            return StepResult(step.name, ok=False, blocked=True, detail=f"blocked: {reason}", approach=step.approach)
+            return StepResult(
+                step.name, ok=False, blocked=True, detail=f"blocked: {reason}",
+                approach=step.approach, seconds=time.monotonic() - began,
+            )
 
         recovered = False
         last_detail = ""
@@ -247,6 +280,7 @@ class FluidExecutor:
                 return StepResult(
                     step.name, ok=True, attempts=attempt, verified=True,
                     recovered=recovered, detail=detail, approach=step.approach,
+                    seconds=time.monotonic() - began,
                 )
             await self._sleep(step.backoff_base_s * attempt)
 
@@ -255,6 +289,7 @@ class FluidExecutor:
         return StepResult(
             step.name, ok=False, attempts=step.max_retries + 1, verified=False,
             recovered=recovered, detail=last_detail, approach=step.approach,
+            seconds=time.monotonic() - began,
         )
 
     async def pursue(
