@@ -71,7 +71,19 @@ def contract_health_fragment() -> dict[str, Any]:
 
 
 def install_contract_health() -> bool:
-    """Register the contract fragment. Called at import, and safe to call again."""
+    """Register the contract fragment. Called at import, and safe to call again.
+
+    The procedure economy is installed from here because this is where the
+    contracts are wired and it is already imported in production. Ranking
+    across learners needs somebody to fetch the learners; until this call
+    existed, nobody did.
+    """
+    try:
+        from core.cognition.procedure_adapters import install_the_learners
+
+        install_the_learners()
+    except Exception as exc:  # noqa: BLE001 - the report still works without it
+        logger.debug("could not install the procedure economy: %s", exc)
     return _register(FRAGMENT_NAME, contract_health_fragment)
 
 

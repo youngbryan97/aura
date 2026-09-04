@@ -52,7 +52,7 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any
@@ -489,6 +489,11 @@ class ProcedureIndex:
 
 
 class ProcedureRegistry:
+    #: Seconds between pulls of the other learners' stores. A ranking wants
+    #: the current stores; scanning them on every match would cost more than
+    #: the ranking saves.
+    _REFRESH_SECONDS: float = 30.0
+
     """Every learned procedure, priced and matched through one door."""
 
     def __init__(self, *, max_procedures: int = 20_000, clock=time.time) -> None:
@@ -503,6 +508,10 @@ class ProcedureRegistry:
         self._retired = 0
 
     # ── registration ──────────────────────────────────────────────────
+        #: What pulls the other learners' stores in, and when it last ran.
+        self._refresh: Callable[[], Any] | None = None
+        self._refreshed_at: float = 0.0
+        self._refresh_failed: str = ""
 
     def register(
         self,
@@ -619,12 +628,49 @@ class ProcedureRegistry:
 
     # ── matching ──────────────────────────────────────────────────────
 
+    def keep_current_with(self, refresh: Callable[[], Any] | None) -> None:
+        """Name what pulls the learners' stores in before a ranking is asked for.
+
+        The registry cannot go and get them itself — the adapters import this
+        module, so this module must not import the adapters. Naming the
+        refresher here keeps the direction right and gives the economy one
+        place where it is kept current, instead of none.
+        """
+        self._refresh = refresh
+
+    def _refresh_if_stale(self) -> None:
+        """Pull the learners in, at most every ``_REFRESH_SECONDS``.
+
+        Outside the lock: the refresher calls back into ``register``, and the
+        lock is not reentrant.
+        """
+        if self._refresh is None:
+            return
+        now = self._clock()
+        if now - self._refreshed_at < self._REFRESH_SECONDS:
+            return
+        self._refreshed_at = now
+        try:
+            self._refresh()
+        except Exception as exc:  # noqa: BLE001 - a stale ranking beats no ranking
+            # Held rather than logged. A refresh that keeps failing means the
+            # ranking silently covers one backend, and that belongs in the
+            # report somebody reads, not in a debug line nobody does.
+            self._refresh_failed = f"{type(exc).__name__}: {exc}"
+        else:
+            self._refresh_failed = ""
+
     def match(self, state: Mapping[str, Any], *, limit: int = 10) -> list[Procedure]:
         """The procedures that apply here, best net value first.
 
         Backends compete directly: a chunk and a generalized rule are ranked by
-        the same number.
+        the same number. That was true of the arithmetic and false of the
+        registry, because nothing ever put the other backends' procedures in
+        it: the adapters had no importer anywhere in production while the
+        claim ladder cited them as the wired evidence. The refresh is what
+        makes the sentence above describe the running system.
         """
+        self._refresh_if_stale()
         with self._lock:
             candidates = self._index.candidates(state)
             applicable = [
@@ -841,6 +887,11 @@ class ProcedureRegistry:
                 "retired": self._retired,
                 "by_backend": dict(sorted(by_backend.items())),
                 "backends_competing": len(by_backend),
+                # One backend competing is one backend, whatever the arithmetic
+                # says it could do. This is the reading that caught the
+                # adapters having no importer at all.
+                "learners_installed": self._refresh is not None,
+                "refresh_failed": self._refresh_failed,
                 "composed": len(composed),
                 "composed_across_backends": len(cross_backend),
                 "index_comparisons": self._index.comparisons,

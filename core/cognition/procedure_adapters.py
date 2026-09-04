@@ -54,6 +54,8 @@ __all__ = [
     "from_doing",
     "from_tool_schema",
     "ingest_all",
+    "install_the_learners",
+    "whatever_the_learners_hold",
 ]
 
 
@@ -248,3 +250,118 @@ def ingest_all(
             from_learned_skill(skill, seconds_per_step=seconds_per_step, registry=registry).procedure_id
         )
     return {"landed": {k: len(v) for k, v in landed.items()}, "ids": landed}
+
+
+def whatever_the_learners_hold(
+    *,
+    registry: ProcedureRegistry | None = None,
+    seconds_per_step: float | None = None,
+    rule_value: float | None = None,
+) -> dict[str, Any]:
+    """Find the three stores and price everything in them together.
+
+    ``ingest_all`` takes the stores as arguments, so somebody has to go and
+    get them. Nobody did: this module had no importer anywhere in production,
+    while the claim ladder cited it as the WIRED evidence that procedures from
+    different learners compete under one value. They could have. They never
+    were asked to.
+
+    The two prices are measured rather than assumed, and where a measurement
+    is missing the caller's default of zero stands — a learner that never
+    timed itself competes on nothing, which is the truthful ranking for a
+    procedure nobody has timed.
+
+    A store that will not import or will not answer is skipped and named in
+    the result, because a partial ranking that says which learners are in it
+    is worth more than one that quietly ranks two of three.
+    """
+    registry = registry or get_procedure_registry()
+    held: dict[str, Any] = {"chunks": (), "rules": (), "skills": ()}
+    missing: list[str] = []
+
+    try:
+        from core.cognition.impasse import get_impasse_learner
+
+        # The learner holds the store; the store is what lists the chunks.
+        held["chunks"] = tuple(get_impasse_learner()._store.chunks())  # noqa: SLF001
+    except Exception as exc:  # noqa: BLE001 - a store that is not there is data
+        missing.append(f"chunks ({type(exc).__name__})")
+
+    try:
+        from core.cognition.procedural_generalization import (
+            get_procedural_generalizer,
+        )
+
+        held["rules"] = tuple(get_procedural_generalizer().rules())
+    except Exception as exc:  # noqa: BLE001
+        missing.append(f"rules ({type(exc).__name__})")
+
+    try:
+        from core.container import ServiceContainer
+
+        library = ServiceContainer.get("skill_library", default=None)
+        held["skills"] = tuple(library.skills.values()) if library else ()
+        if library is None:
+            missing.append("skills (no skill_library in the container)")
+    except Exception as exc:  # noqa: BLE001
+        missing.append(f"skills ({type(exc).__name__})")
+
+    landed = ingest_all(
+        chunks=held["chunks"],
+        rules=held["rules"],
+        skills=held["skills"],
+        rule_value=_a_rule_is_worth(held["chunks"]) if rule_value is None else rule_value,
+        seconds_per_step=(
+            _what_a_step_costs() if seconds_per_step is None else seconds_per_step
+        ),
+        registry=registry,
+    )
+    landed["missing"] = tuple(missing)
+    return landed
+
+
+def _a_rule_is_worth(chunks: Sequence[Any]) -> float:
+    """What being right is worth, from the one learner that measured it.
+
+    The rule store measured whether a rule is right and never what being right
+    saves. Rather than invent a number, take the median saving the chunk
+    learner measured on the same kind of work. With no chunks there is no
+    measurement, and zero is the honest answer.
+    """
+    from statistics import median
+
+    saved = [
+        float(one.cost_saved_per_use)
+        for one in chunks
+        if getattr(one, "cost_saved_per_use", None) is not None
+    ]
+    return median(saved) if saved else 0.0
+
+
+def _what_a_step_costs() -> float:
+    """Seconds per tool call, read from what tool calls have actually taken."""
+    try:
+        from core.cognition.procedure import get_procedure_registry as _reg
+
+        timings = [
+            one.value.value_when_it_works / max(1, len(one.program or ()))
+            for one in _reg().all()
+            if one.backend is Backend.MACRO and one.value.value_when_it_works > 0
+        ]
+        return sum(timings) / len(timings) if timings else 0.0
+    except Exception:  # noqa: BLE001 - no measurement is 0.0, not a guess
+        return 0.0
+
+
+def install_the_learners(registry: ProcedureRegistry | None = None) -> bool:
+    """Tell the registry where the other learners keep their procedures.
+
+    Without this the registry holds only what is registered through it
+    directly, which in production was the semantic-program path and nothing
+    else — so "backends compete directly" described the arithmetic and not
+    the running system. Safe to call again; the last caller wins.
+    """
+    (registry or get_procedure_registry()).keep_current_with(
+        lambda: whatever_the_learners_hold(registry=registry)
+    )
+    return True
