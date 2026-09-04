@@ -2095,9 +2095,21 @@ def _cached_boot_health_payload(
 
 
 def _runtime_manifest_boot_health_payload(reason: str) -> tuple[dict[str, Any], int] | None:
+    manifest_path = config.paths.project_root / "artifacts" / "current" / "runtime_manifest.json"
     try:
-        manifest_path = config.paths.project_root / "artifacts" / "current" / "runtime_manifest.json"
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        raw_manifest = manifest_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        # The canonical launcher writes this artifact only after bounded boot
+        # health has settled. Absence before that write is the normal cold-boot
+        # state, not a runtime fault and not an incident-worthy degradation.
+        return None
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
+        record_degradation("system", exc)
+        logger.debug("Runtime manifest health fallback failed: %s", exc)
+        return None
+
+    try:
+        manifest = json.loads(raw_manifest)
         readiness = manifest.get("readiness_snapshot")
         if not isinstance(readiness, dict):
             return None

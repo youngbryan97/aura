@@ -912,6 +912,54 @@ def test_runtime_manifest_health_fallback_preserves_required_probe_shape(tmp_pat
         }
 
 
+def test_runtime_manifest_absence_before_emission_is_not_a_degradation(
+    tmp_path,
+    monkeypatch,
+):
+    from interface.routes import system as system_routes
+
+    degradations: list[tuple] = []
+    monkeypatch.setattr(
+        system_routes,
+        "config",
+        SimpleNamespace(paths=SimpleNamespace(project_root=tmp_path)),
+    )
+    monkeypatch.setattr(
+        system_routes,
+        "record_degradation",
+        lambda *args, **kwargs: degradations.append((args, kwargs)),
+    )
+
+    assert system_routes._runtime_manifest_boot_health_payload("cold_boot") is None
+    assert degradations == []
+
+
+def test_runtime_manifest_malformed_after_emission_remains_a_degradation(
+    tmp_path,
+    monkeypatch,
+):
+    from interface.routes import system as system_routes
+
+    artifact_root = tmp_path / "artifacts" / "current"
+    artifact_root.mkdir(parents=True)
+    (artifact_root / "runtime_manifest.json").write_text("{not-json", encoding="utf-8")
+    degradations: list[tuple] = []
+    monkeypatch.setattr(
+        system_routes,
+        "config",
+        SimpleNamespace(paths=SimpleNamespace(project_root=tmp_path)),
+    )
+    monkeypatch.setattr(
+        system_routes,
+        "record_degradation",
+        lambda *args, **kwargs: degradations.append((args, kwargs)),
+    )
+
+    assert system_routes._runtime_manifest_boot_health_payload("probe_failed") is None
+    assert len(degradations) == 1
+    assert isinstance(degradations[0][0][1], json.JSONDecodeError)
+
+
 def test_runtime_manifest_health_fallback_rejects_stale_ready_manifest(tmp_path, monkeypatch):
     from interface.routes import system as system_routes
 
