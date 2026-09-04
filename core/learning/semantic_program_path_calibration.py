@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, Final, Protocol
 
 from core.evidence.calibrated_binary import (
@@ -24,6 +25,7 @@ from core.learning.semantic_program_execution import execute_semantic_program
 from core.learning.semantic_program_path_ensemble import (
     EXECUTABLE_PROGRAM_CONDITION,
     EXECUTABLE_PROGRAM_NECESSITY_CONTRACT,
+    SEMANTIC_PATH_QUALITY_FEATURES,
     semantic_path_selection_values,
 )
 from core.learning.semantic_program_transducer import (
@@ -32,6 +34,10 @@ from core.learning.semantic_program_transducer import (
 )
 
 SEMANTIC_PATH_CALIBRATION_SCHEMA: Final = "aura.semantic_program_path_calibration.v1"
+SEMANTIC_PATH_EVIDENCE_CALIBRATION_SCHEMA: Final = (
+    "aura.semantic_program_path_evidence_calibration.v1"
+)
+_CALIBRATION_SPLITS: Final = frozenset({"validation", "tuning", "admission"})
 
 
 class _SemanticPath(Protocol):
@@ -49,6 +55,66 @@ class _SemanticPath(Protocol):
     ) -> SemanticTransductionOutcome: ...
 
 
+@dataclass(frozen=True, slots=True)
+class VerifiedSemanticPathObservation:
+    """One text-blind path comparison whose outcomes were verified externally."""
+
+    pair: VerifiedPairwiseObservation
+    calibration_split: str
+    construction_id: str
+    topology_id: str
+
+    def __post_init__(self) -> None:
+        if (
+            self.calibration_split not in _CALIBRATION_SPLITS
+            or not isinstance(self.construction_id, str)
+            or not self.construction_id
+            or not isinstance(self.topology_id, str)
+            or not self.topology_id
+            or {name for name, _value in self.pair.incumbent}
+            != set(SEMANTIC_PATH_QUALITY_FEATURES)
+        ):
+            raise ValueError("verified semantic path observation is invalid")
+
+    @classmethod
+    def from_mappings(
+        cls,
+        *,
+        incumbent: Mapping[str, float],
+        challenger: Mapping[str, float],
+        incumbent_correct: bool,
+        challenger_correct: bool,
+        source_ref: str,
+        calibration_split: str,
+        construction_id: str,
+        topology_id: str,
+    ) -> VerifiedSemanticPathObservation:
+        return cls(
+            pair=VerifiedPairwiseObservation.from_mappings(
+                incumbent=incumbent,
+                challenger=challenger,
+                incumbent_correct=incumbent_correct,
+                challenger_correct=challenger_correct,
+                source_ref=source_ref,
+            ),
+            calibration_split=calibration_split,
+            construction_id=construction_id,
+            topology_id=topology_id,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_ref": self.pair.source_ref,
+            "calibration_split": self.calibration_split,
+            "construction_id": self.construction_id,
+            "topology_id": self.topology_id,
+            "incumbent_correct": self.pair.incumbent_correct,
+            "challenger_correct": self.pair.challenger_correct,
+            "incumbent_selection_values": dict(self.pair.incumbent),
+            "challenger_selection_values": dict(self.pair.challenger),
+        }
+
+
 def _sha(value: Any) -> str:
     return hashlib.sha256(
         json.dumps(
@@ -59,6 +125,14 @@ def _sha(value: Any) -> str:
             allow_nan=False,
         ).encode("ascii")
     ).hexdigest()
+
+
+def _is_sha256(value: Any) -> bool:
+    return bool(
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 def _is_correct(
@@ -86,6 +160,134 @@ def _decode(
         source_text_sha256=item.ir.source_text_sha256,
         model_basis_sha256=item.ir.model_basis_receipt_sha256,
     )
+
+
+def calibrate_semantic_program_path_evidence(
+    *,
+    model_basis_sha256: str,
+    incumbent_receipt_sha256: str,
+    challenger_receipt_sha256: str,
+    observations: Sequence[VerifiedSemanticPathObservation],
+    evidence_source_receipts: Sequence[str],
+) -> tuple[CalibratedCandidateSelector | None, dict[str, Any]]:
+    """Fit and independently admit arbitration from reusable verified evidence."""
+    rows = tuple(observations)
+    source_receipts = tuple(sorted(evidence_source_receipts))
+    if (
+        not _is_sha256(model_basis_sha256)
+        or not _is_sha256(incumbent_receipt_sha256)
+        or not _is_sha256(challenger_receipt_sha256)
+        or incumbent_receipt_sha256 == challenger_receipt_sha256
+        or not rows
+        or not source_receipts
+        or len(set(source_receipts)) != len(source_receipts)
+        or any(not _is_sha256(receipt) for receipt in source_receipts)
+        or any(not isinstance(row, VerifiedSemanticPathObservation) for row in rows)
+        or len({row.pair.source_ref for row in rows}) != len(rows)
+        or {row.calibration_split for row in rows} != _CALIBRATION_SPLITS
+    ):
+        raise ValueError("semantic path evidence calibration contract is invalid")
+
+    fit_rows: list[VerifiedBinaryObservation] = []
+    scorer_calibration_rows: list[VerifiedBinaryObservation] = []
+    pairwise_tuning: list[VerifiedPairwiseObservation] = []
+    pairwise_admission: list[VerifiedPairwiseObservation] = []
+    counts = {
+        split: {"examples": 0, "incumbent": 0, "challenger": 0}
+        for split in sorted(_CALIBRATION_SPLITS)
+    }
+    for row in rows:
+        pair = row.pair
+        split_counts = counts[row.calibration_split]
+        split_counts["examples"] += 1
+        split_counts["incumbent"] += int(pair.incumbent_correct)
+        split_counts["challenger"] += int(pair.challenger_correct)
+        if row.calibration_split in {"validation", "tuning"}:
+            destination = (
+                fit_rows
+                if row.calibration_split == "validation"
+                else scorer_calibration_rows
+            )
+            destination.extend(
+                (
+                    VerifiedBinaryObservation(
+                        values=pair.incumbent,
+                        verified_correct=pair.incumbent_correct,
+                        source_ref=f"{pair.source_ref}:incumbent",
+                    ),
+                    VerifiedBinaryObservation(
+                        values=pair.challenger,
+                        verified_correct=pair.challenger_correct,
+                        source_ref=f"{pair.source_ref}:challenger",
+                    ),
+                )
+            )
+        if row.calibration_split == "tuning":
+            pairwise_tuning.append(pair)
+        elif row.calibration_split == "admission":
+            pairwise_admission.append(pair)
+
+    scorer, scorer_report = fit_calibrated_binary_scorer(
+        fit_rows,
+        scorer_calibration_rows,
+    )
+    selector: CalibratedCandidateSelector | None = None
+    selector_report: dict[str, Any] = {
+        "admitted": False,
+        "reason": "candidate_quality_scorer_not_admitted",
+    }
+    if scorer is not None:
+        necessary = build_necessary_condition_selector(
+            (
+                NecessaryEvidenceCondition(
+                    name=EXECUTABLE_PROGRAM_CONDITION,
+                    minimum=1.0,
+                    necessity_contract=EXECUTABLE_PROGRAM_NECESSITY_CONTRACT,
+                ),
+            )
+        )
+        selector, selector_report = build_calibrated_candidate_selector(
+            necessary=necessary,
+            scorer=scorer,
+            calibration_rows=pairwise_tuning,
+            admission_rows=pairwise_admission,
+            maximum_regressions=0,
+        )
+
+    serialized_rows = [row.to_dict() for row in rows]
+    body = {
+        "schema": SEMANTIC_PATH_EVIDENCE_CALIBRATION_SCHEMA,
+        "admitted": selector is not None,
+        "reason": (
+            "independent_mixed_evidence_calibration_passed"
+            if selector is not None
+            else (
+                "candidate_quality_scorer_not_admitted"
+                if scorer is None
+                else "pairwise_selector_not_admitted"
+            )
+        ),
+        "model_basis_sha256": model_basis_sha256,
+        "incumbent_receipt_sha256": incumbent_receipt_sha256,
+        "challenger_receipt_sha256": challenger_receipt_sha256,
+        "evidence_source_receipts": list(source_receipts),
+        "evidence_source_receipts_sha256": _sha(source_receipts),
+        "evidence_rows_sha256": _sha(serialized_rows),
+        "counts": counts,
+        "evidence_rows": serialized_rows,
+        "scorer_report": scorer_report,
+        "selector_report": selector_report,
+        "selector_receipt_sha256": (
+            selector.receipt_sha256 if selector is not None else None
+        ),
+        "verified_outcomes_available_to_calibration": True,
+        "verified_outcomes_available_to_runtime": False,
+        "fresh_target_examples_available_to_build": False,
+        "text_available_to_selector": False,
+        "domain_identity_available_to_selector": False,
+        "serving_authority": False,
+    }
+    return selector, {**body, "report_sha256": _sha(body)}
 
 
 def calibrate_semantic_program_paths(
@@ -127,6 +329,7 @@ def calibrate_semantic_program_paths(
         "tuning": {"incumbent": 0, "challenger": 0},
         "admission": {"incumbent": 0, "challenger": 0},
     }
+    evidence_rows: list[dict[str, Any]] = []
     for split_name, split_examples in (
         ("validation", validation),
         ("tuning", tuning),
@@ -141,6 +344,19 @@ def calibrate_semantic_program_paths(
             counts[split_name]["challenger"] += int(challenger_correct)
             incumbent_values = semantic_path_selection_values(incumbent_outcome)
             challenger_values = semantic_path_selection_values(challenger_outcome)
+            evidence_rows.append(
+                {
+                    "source_text_sha256": item.ir.source_text_sha256,
+                    "source_split": item.split,
+                    "calibration_split": split_name,
+                    "construction_id": item.construction_id,
+                    "topology_id": item.topology_id,
+                    "incumbent_correct": incumbent_correct,
+                    "challenger_correct": challenger_correct,
+                    "incumbent_selection_values": incumbent_values,
+                    "challenger_selection_values": challenger_values,
+                }
+            )
             if split_name == "validation":
                 destination = fit_rows
             elif split_name == "tuning":
@@ -231,6 +447,7 @@ def calibrate_semantic_program_paths(
             ]
         ),
         "counts": counts,
+        "evidence_rows": evidence_rows,
         "scorer_report": scorer_report,
         "selector_report": selector_report,
         "selector_receipt_sha256": (
@@ -248,5 +465,8 @@ def calibrate_semantic_program_paths(
 
 __all__ = [
     "SEMANTIC_PATH_CALIBRATION_SCHEMA",
+    "SEMANTIC_PATH_EVIDENCE_CALIBRATION_SCHEMA",
+    "VerifiedSemanticPathObservation",
+    "calibrate_semantic_program_path_evidence",
     "calibrate_semantic_program_paths",
 ]

@@ -28,6 +28,13 @@ from core.learning.semantic_program_compositional_transducer import (
 )
 from core.learning.semantic_program_transducer import SemanticTransductionOutcome
 
+_CALIBRATION_REPORT_SCHEMAS: Final = frozenset(
+    {
+        "aura.semantic_program_path_calibration.v1",
+        "aura.semantic_program_path_evidence_calibration.v1",
+    }
+)
+
 SEMANTIC_PATH_ENSEMBLE_SCHEMA: Final = "aura.semantic_program_path_ensemble.v1"
 SEMANTIC_PATH_ENSEMBLE_RECEIPT_SCHEMA: Final = (
     "aura.semantic_program_path_ensemble_receipt.v1"
@@ -312,8 +319,7 @@ def build_calibrated_semantic_program_path_ensemble(
     }
     if (
         set(selector.scorer.feature_names) != set(SEMANTIC_PATH_QUALITY_FEATURES)
-        or calibration_report.get("schema")
-        != "aura.semantic_program_path_calibration.v1"
+        or calibration_report.get("schema") not in _CALIBRATION_REPORT_SCHEMAS
         or calibration_report.get("admitted") is not True
         or calibration_report.get("model_basis_sha256") != incumbent.model_basis_sha256
         or calibration_report.get("incumbent_receipt_sha256")

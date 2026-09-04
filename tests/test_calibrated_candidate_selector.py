@@ -134,6 +134,23 @@ def test_binary_scorer_refuses_noise_and_tampering() -> None:
         calibrated_binary_scorer_from_dict(payload)
 
 
+def test_verified_observations_refuse_non_string_feature_names() -> None:
+    with pytest.raises(ValueError, match="feature names"):
+        VerifiedBinaryObservation.from_mapping(
+            {1: 0.5},  # type: ignore[dict-item]
+            verified_correct=True,
+            source_ref="binary:bad-key",
+        )
+    with pytest.raises(ValueError, match="feature names"):
+        VerifiedPairwiseObservation.from_mappings(
+            incumbent={1: 0.5},  # type: ignore[dict-item]
+            challenger={1: 0.6},  # type: ignore[dict-item]
+            incumbent_correct=False,
+            challenger_correct=True,
+            source_ref="pair:bad-key",
+        )
+
+
 def test_pairwise_selector_repairs_necessary_failures_then_uses_calibration() -> None:
     selector, report = build_calibrated_candidate_selector(
         necessary=_necessary(),

@@ -11,8 +11,12 @@ from core.learning.semantic_program_ir import (
     TokenSpan,
 )
 from core.learning.semantic_program_path_calibration import (
+    SEMANTIC_PATH_EVIDENCE_CALIBRATION_SCHEMA,
+    VerifiedSemanticPathObservation,
+    calibrate_semantic_program_path_evidence,
     calibrate_semantic_program_paths,
 )
+from core.learning.semantic_program_path_ensemble import SEMANTIC_PATH_QUALITY_FEATURES
 from core.learning.semantic_program_transducer import (
     SemanticTransducerTrainingExample,
     SemanticTransductionOutcome,
@@ -107,6 +111,8 @@ def test_semantic_paths_are_calibrated_on_three_disjoint_source_splits() -> None
     assert report["admission_examples"] == 12
     assert report["selector_report"]["admission_improvements"] == 12
     assert report["selector_report"]["admission_regressions"] == 0
+    assert len(report["evidence_rows"]) == 48
+    assert all("source_text" not in row for row in report["evidence_rows"])
     assert report["expected_answers_available_to_paths"] is False
     assert report["expected_answers_available_to_runtime"] is False
     assert report["target_examples_available_to_build"] is False
@@ -137,3 +143,76 @@ def test_semantic_calibration_refuses_same_path_and_duplicate_source() -> None:
         assert "source contract" in str(exc)
     else:
         raise AssertionError("duplicate source evidence must be refused")
+
+
+def _selection_values(quality: float) -> dict[str, float]:
+    values = {name: quality for name in SEMANTIC_PATH_QUALITY_FEATURES}
+    values["executable_program"] = 1.0
+    values["input_count"] = 5.0
+    values["instruction_count"] = 4.0
+    return values
+
+
+def test_verified_evidence_recalibrates_across_multiple_geometries() -> None:
+    observations = tuple(
+        VerifiedSemanticPathObservation.from_mappings(
+            incumbent=_selection_values(0.1),
+            challenger=_selection_values(0.9),
+            incumbent_correct=False,
+            challenger_correct=True,
+            source_ref=f"geometry:{index // 24}:{index}",
+            calibration_split=(
+                "validation" if index < 24 else "tuning" if index < 36 else "admission"
+            ),
+            construction_id=f"construction:{index}",
+            topology_id="four_by_three" if index < 24 else "five_by_four",
+        )
+        for index in range(48)
+    )
+
+    selector, report = calibrate_semantic_program_path_evidence(
+        model_basis_sha256="a" * 64,
+        incumbent_receipt_sha256="b" * 64,
+        challenger_receipt_sha256="c" * 64,
+        observations=observations,
+        evidence_source_receipts=("d" * 64, "e" * 64),
+    )
+
+    assert selector is not None
+    assert report["schema"] == SEMANTIC_PATH_EVIDENCE_CALIBRATION_SCHEMA
+    assert report["counts"]["admission"] == {
+        "examples": 12,
+        "incumbent": 0,
+        "challenger": 12,
+    }
+    assert report["selector_report"]["admission_improvements"] == 12
+    assert report["selector_report"]["admission_regressions"] == 0
+    assert report["fresh_target_examples_available_to_build"] is False
+    assert report["text_available_to_selector"] is False
+
+
+def test_verified_evidence_refuses_duplicate_sources_and_missing_splits() -> None:
+    row = VerifiedSemanticPathObservation.from_mappings(
+        incumbent=_selection_values(0.1),
+        challenger=_selection_values(0.9),
+        incumbent_correct=False,
+        challenger_correct=True,
+        source_ref="duplicate",
+        calibration_split="validation",
+        construction_id="construction",
+        topology_id="topology",
+    )
+
+    for observations in ((row,), (row, row)):
+        try:
+            calibrate_semantic_program_path_evidence(
+                model_basis_sha256="a" * 64,
+                incumbent_receipt_sha256="b" * 64,
+                challenger_receipt_sha256="c" * 64,
+                observations=observations,
+                evidence_source_receipts=("d" * 64,),
+            )
+        except ValueError as exc:
+            assert "contract" in str(exc)
+        else:
+            raise AssertionError("invalid reusable evidence must be refused")

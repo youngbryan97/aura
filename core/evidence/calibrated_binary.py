@@ -95,10 +95,12 @@ class VerifiedBinaryObservation:
     ) -> VerifiedBinaryObservation:
         if not isinstance(values, Mapping):
             raise ValueError("verified binary features must be a mapping")
+        if any(not isinstance(name, str) or not name for name in values):
+            raise ValueError("verified binary feature names must be non-empty strings")
         normalized = tuple(
             sorted(
                 (
-                    str(name),
+                    name,
                     _finite(value, field=f"feature {name!r}"),
                 )
                 for name, value in values.items()

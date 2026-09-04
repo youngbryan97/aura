@@ -90,7 +90,11 @@ class VerifiedPairwiseObservation:
         def normalized(values: Mapping[str, float]) -> tuple[tuple[str, float], ...]:
             if not isinstance(values, Mapping):
                 raise ValueError("pairwise observation features must be mappings")
-            return tuple(sorted((str(name), float(value)) for name, value in values.items()))
+            if any(not isinstance(name, str) or not name for name in values):
+                raise ValueError(
+                    "pairwise observation feature names must be non-empty strings"
+                )
+            return tuple(sorted((name, float(value)) for name, value in values.items()))
 
         return cls(
             incumbent=normalized(incumbent),
