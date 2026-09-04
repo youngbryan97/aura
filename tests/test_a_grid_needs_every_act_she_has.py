@@ -27,7 +27,7 @@ ACTS = ("up", "down", "left", "right")
 
 def _twice(lattice: TheLatticeSheHolds, places, **rest) -> bool:
     lattice.built_from(places, 10, **rest)
-    return lattice.built_from(places, 10, **rest)
+    return lattice.built_from(places, 20, **rest)
 
 
 def test_one_act_tried_is_not_enough_to_draw_a_grid():

@@ -84,8 +84,11 @@ class TheLatticeSheHolds:
     #: The places offered last time, so a set that has stopped changing can be
     #: told from one that is still growing.
     _offered: frozenset[tuple[int, int]] = field(default_factory=frozenset)
-    #: The act this offer first appeared on.
+    #: The act this offer first appeared on, and the longest it has ever gone
+    #: between taking on a place. Still for longer than that is what says it
+    #: has stopped growing.
     _offered_at: int = 0
+    _longest_gap: int = 0
 
     #: How many readings in a row have to refuse to fit before she accepts the
     #: thing itself has changed. One is a bad glance. Two disagreeing with each
@@ -192,8 +195,27 @@ class TheLatticeSheHolds:
         # the lines she already holds is bookkeeping and has to be recorded
         # whenever it arrives; only REPLACING the grid has to wait.
         if held != self._offered:
+            if self._offered:
+                self._longest_gap = max(self._longest_gap, acts - self._offered_at)
             self._offered = held
             self._offered_at = acts
+            return False
+        # Still for longer than it has ever gone between growing.
+        #
+        # "The same set twice running" is nearly free on a board: the set
+        # grows by at most one place an act, so any act that happened to add
+        # nothing looks like a set that has finished. LIVE 2026-09-04: nine
+        # places offered twice, all four acts tried, and a four by four board
+        # became a three by three lattice — after which every reading was
+        # cropped to nine cells and the rule was scored against a board with
+        # a column missing.
+        #
+        # How long is not a number anybody picks. This set has a record of
+        # how long it goes between taking on a place, and being still for
+        # longer than it has ever been still is what says it has stopped.
+        # Nothing to wait for on the first offer, which is right: a set that
+        # has never grown has no gap to beat.
+        if acts - self._offered_at <= self._longest_gap:
             return False
         self.across_at, self.down_at = across, down
         self._built_from, self.from_acts = held, acts

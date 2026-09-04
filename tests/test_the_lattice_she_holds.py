@@ -31,9 +31,11 @@ PLACES = frozenset(
 
 def _held() -> TheLatticeSheHolds:
     lattice = TheLatticeSheHolds()
-    # Offered twice, because a set that is still growing is not evidence yet.
+    # Offered twice, with an act between, because a set that grows by at most
+    # one place an act looks finished after any act that happened to add
+    # nothing. A set that has never grown has no gap to beat.
     assert not lattice.built_from(PLACES, acts=6)
-    assert lattice.built_from(PLACES, acts=6)
+    assert lattice.built_from(PLACES, acts=7)
     return lattice
 
 
@@ -287,6 +289,7 @@ def test_the_rule_comes_out_on_the_geometry_of_a_real_reading() -> None:
     lattice = TheLatticeSheHolds()
     before, was, exact, seen = screen(grid, score), None, 0, 0
     lately: list[bool] = []
+    settled_at: int | None = None
     for _ in range(60):
         act = roll.choice(acts)
         went = _move(grid, act)
@@ -314,6 +317,8 @@ def test_the_rule_comes_out_on_the_geometry_of_a_real_reading() -> None:
         seen += 1
         exact += right
         lately.append(right)
+        if lattice.held and settled_at is None:
+            settled_at = len(lately)
         if was is not None:
             rules.watched(was, act, laid)
         was, before = laid, after
@@ -325,7 +330,11 @@ def test_the_rule_comes_out_on_the_geometry_of_a_real_reading() -> None:
     # worked out from whatever the screen happened to be showing. What is
     # claimed is that she gets there and then stays there.
     assert exact > seen // 2, f"{exact}/{seen} readings exactly right"
-    assert all(lately[-30:]), "once settled, every reading should be exact"
+    # From the move the grid held, rather than a fixed window: how long it
+    # takes to settle is what the waiting rule decides, and the claim being
+    # made is about afterwards.
+    assert settled_at is not None
+    assert all(lately[settled_at:]), "once settled, every reading should be exact"
     # The misses are the first turns, before anything has moved twice and
     # there is any lattice to place them in.
     # Lower than it was, and the trade is deliberate: the grid now waits for
@@ -351,7 +360,7 @@ def test_a_new_grid_does_not_inherit_the_old_one_s_complaints() -> None:
         for col in range(5)
     )
     lattice.built_from(wider, acts=9)
-    assert lattice.built_from(wider, acts=9)
+    assert lattice.built_from(wider, acts=18)
     assert not lattice.looks_covered()
     assert not lattice.has_changed()
 
@@ -370,7 +379,7 @@ def test_one_place_that_got_in_does_not_become_a_column() -> None:
     stray = (int(round(0.86 * 100)), int(round(0.35 * 100)))
     lattice = TheLatticeSheHolds()
     lattice.built_from(board | {stray}, acts=12)
-    assert lattice.built_from(board | {stray}, acts=12)
+    assert lattice.built_from(board | {stray}, acts=24)
     assert (lattice.rows, lattice.columns) == (4, 4), (
         f"{lattice.rows}x{lattice.columns}"
     )
@@ -384,6 +393,6 @@ def test_a_sparse_thing_keeps_all_of_its_lines() -> None:
                  (50, 70), (70, 50), (10, 50), (30, 70)}
     lattice = TheLatticeSheHolds()
     lattice.built_from(scattered, acts=6)
-    assert lattice.built_from(scattered, acts=6)
+    assert lattice.built_from(scattered, acts=12)
     assert lattice.rows == 4
     assert lattice.columns == 4
