@@ -19,9 +19,7 @@ from core.learning.semantic_program_compositional_campaign import (
     diagnose_compositional_transfer_lesions,
 )
 from core.learning.semantic_program_compositional_transducer import (
-    _POINTER_HARD_NEGATIVES as _COMPOSITIONAL_POINTER_HARD_NEGATIVES,
-)
-from core.learning.semantic_program_compositional_transducer import (
+    _LOCAL_DEFINITION_CANDIDATE_STRATEGY,
     DirectionalRelationHead,
     _best_penalized_operation_chart,
     _definition_span_candidates,
@@ -31,8 +29,12 @@ from core.learning.semantic_program_compositional_transducer import (
     _operation_chart_candidates,
     _operation_order,
     _OperationNode,
+    _register_definition_candidates,
     compositional_semantic_program_transducer_from_dict,
     fit_compositional_semantic_program_transducer,
+)
+from core.learning.semantic_program_compositional_transducer import (
+    _POINTER_HARD_NEGATIVES as _COMPOSITIONAL_POINTER_HARD_NEGATIVES,
 )
 from core.learning.semantic_program_floor_verification import (
     SEMANTIC_PROGRAM_FLOOR_VERIFICATION_SOURCES,
@@ -61,6 +63,7 @@ from core.learning.semantic_program_shared_verification import (
 )
 from core.learning.semantic_program_transducer import (
     LinearPointerHead,
+    LinearPointerSequenceScores,
     SemanticTransducerTrainingExample,
 )
 
@@ -353,6 +356,26 @@ def test_compositional_transducer_binds_learned_type_limits_to_its_receipt() -> 
         compositional_semantic_program_transducer_from_dict(payload)
 
 
+def test_compositional_transducer_replays_the_frozen_v13_candidate_geometry() -> None:
+    model = fit_compositional_semantic_program_transducer(
+        _examples(),
+        input_grounding=_grounding(),
+    )
+    payload = copy.deepcopy(model.to_dict())
+    payload["schema"] = "aura.semantic_program_transducer.v13"
+    payload.pop("definition_candidate_strategy")
+    receipt = payload["training_receipt"]
+    receipt["schema"] = "aura.semantic_program_transducer_receipt.v13"
+    receipt.pop("definition_candidate_strategy")
+    body = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+    receipt["receipt_sha256"] = _sha(body)
+
+    replay = compositional_semantic_program_transducer_from_dict(payload)
+
+    assert replay.definition_candidate_strategy == "anchored_envelope_v1"
+    assert replay.to_dict() == payload
+
+
 def test_compositional_graph_orders_dependencies_instead_of_prose_position() -> None:
     nodes = (
         _OperationNode(TokenSpan(2, 3), "add", 1.0, 1.0, 1.0),
@@ -379,6 +402,27 @@ def test_compositional_relation_preserves_reference_direction() -> None:
 
     np.testing.assert_array_equal(forward[:4], reverse[:4])
     np.testing.assert_array_equal(forward[4:], -reverse[4:])
+
+
+def test_local_definition_candidates_stay_inside_their_operation_clause() -> None:
+    anchors = (TokenSpan(1, 2), TokenSpan(5, 6), TokenSpan(12, 13))
+    pointer = LinearPointerSequenceScores(
+        np.zeros(20, dtype=np.float32),
+        np.zeros(20, dtype=np.float32),
+    )
+
+    candidates = _register_definition_candidates(
+        anchors,
+        input_count=1,
+        token_count=20,
+        max_span_tokens=12,
+        pointer_scores=pointer,
+        strategy=_LOCAL_DEFINITION_CANDIDATE_STRATEGY,
+    )
+
+    assert any(span.start >= anchors[1].end for span in candidates[1])
+    assert all(span.end <= anchors[2].start for span in candidates[1])
+    assert all(span.start == anchors[1].start for span in candidates[1][:1])
 
 
 def test_compositional_relation_tissue_scores_cross_feature_identity() -> None:

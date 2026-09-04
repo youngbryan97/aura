@@ -64,8 +64,14 @@ from core.learning.semantic_program_transducer import (
     _operation_feature,
 )
 
-COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v13"
-COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v13"
+_LEGACY_COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v13"
+_LEGACY_COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA: Final = (
+    "aura.semantic_program_transducer_receipt.v13"
+)
+COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v14"
+COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA: Final = "aura.semantic_program_transducer_receipt.v14"
+_LEGACY_DEFINITION_CANDIDATE_STRATEGY: Final = "anchored_envelope_v1"
+_LOCAL_DEFINITION_CANDIDATE_STRATEGY: Final = "bounded_local_alias_v1"
 _OPERATION_MODE: Final = "contextual_mean"
 _RELATION_CHANNEL: Final = "middle_causal_hidden"
 _MAX_STEPS: Final = 16
@@ -74,6 +80,7 @@ _OPERATION_CANDIDATES: Final = 256
 _ARGUMENT_CANDIDATES: Final = 128
 _ARGUMENT_BEAM: Final = 128
 _ARGUMENT_MENTIONS_PER_DEFINITION: Final = 4
+_LOCAL_DEFINITION_CANDIDATES: Final = 16
 _POINTER_HARD_NEGATIVES: Final = 16
 _OPERATION_PENALTY_POINTS: Final = 161
 _OPERATION_CHART_BEAM: Final = 16
@@ -184,6 +191,67 @@ def _definition_span_candidates(
         stop = max(anchor.end, min(token_count, anchor.start + max_span_tokens))
         return tuple(TokenSpan(anchor.start, end) for end in range(anchor.end, stop + 1))
     raise ValueError("definition span direction is invalid")
+
+
+def _register_definition_candidates(
+    anchors: Sequence[TokenSpan],
+    *,
+    input_count: int,
+    token_count: int,
+    max_span_tokens: int,
+    pointer_scores: LinearPointerSequenceScores,
+    strategy: str,
+) -> tuple[tuple[TokenSpan, ...], ...]:
+    """Localize each register inside its bounded defining clause.
+
+    The legacy decoder represented a computed value only with envelopes that
+    began at its operation verb.  Natural language often names that value at
+    the other end of the clause.  The local strategy retains every legacy
+    envelope and adds the strongest learned subspans before the next operation.
+    The search cost is bounded by the learned definition width and never grows
+    quadratically with the full request.
+    """
+
+    if not 0 <= input_count <= len(anchors):
+        raise ValueError("definition candidate input count is invalid")
+    if strategy not in {
+        _LEGACY_DEFINITION_CANDIDATE_STRATEGY,
+        _LOCAL_DEFINITION_CANDIDATE_STRATEGY,
+    }:
+        raise ValueError("definition candidate strategy is invalid")
+    result: list[tuple[TokenSpan, ...]] = []
+    for index, anchor in enumerate(anchors):
+        direction: Literal["left", "right"] = "left" if index < input_count else "right"
+        envelopes = _definition_span_candidates(
+            anchor,
+            token_count=token_count,
+            max_span_tokens=max_span_tokens,
+            direction=direction,
+        )
+        if strategy == _LEGACY_DEFINITION_CANDIDATE_STRATEGY or direction == "left":
+            result.append(envelopes)
+            continue
+
+        next_operation = anchors[index + 1].start if index + 1 < len(anchors) else token_count
+        boundary = min(token_count, anchor.start + max_span_tokens, next_operation)
+        bounded_envelopes = tuple(span for span in envelopes if span.end <= boundary)
+        local: list[tuple[TokenSpan, float]] = []
+        for start in range(anchor.end, boundary):
+            stop = min(boundary, start + max_span_tokens)
+            for end in range(start + 1, stop + 1):
+                span = TokenSpan(start, end)
+                local.append((span, pointer_scores.score_span(span)))
+        local.sort(key=lambda item: (-item[1], item[0].start, item[0].end))
+        candidates = tuple(
+            dict.fromkeys(
+                (
+                    *(bounded_envelopes or (anchor,)),
+                    *(span for span, _score in local[:_LOCAL_DEFINITION_CANDIDATES]),
+                )
+            )
+        )
+        result.append(candidates)
+    return tuple(result)
 
 
 def _best_penalized_operation_chart(
@@ -1254,6 +1322,7 @@ def _select_definition_pointer_scale(
     relation_head: DirectionalRelationHead,
     definition_pointer: LinearPointerHead,
     max_definition_span_tokens: int,
+    definition_candidate_strategy: str,
     hidden_channels: Sequence[str],
     hidden_channel_widths: Sequence[int],
 ) -> tuple[float, list[dict[str, Any]]]:
@@ -1268,6 +1337,14 @@ def _select_definition_pointer_scale(
             *(instruction.operation_span for instruction in item.ir.instructions),
         )
         pointer_scores = definition_pointer.score_sequence(item.hidden_states)
+        candidate_spans = _register_definition_candidates(
+            anchors,
+            input_count=item.ir.n_inputs,
+            token_count=item.hidden_states.shape[0],
+            max_span_tokens=max_definition_span_tokens,
+            pointer_scores=pointer_scores,
+            strategy=definition_candidate_strategy,
+        )
         candidates = tuple(
             tuple(
                 (
@@ -1279,14 +1356,9 @@ def _select_definition_pointer_scale(
                         hidden_channel_widths=hidden_channel_widths,
                     ),
                 )
-                for span in _definition_span_candidates(
-                    anchor,
-                    token_count=item.hidden_states.shape[0],
-                    max_span_tokens=max_definition_span_tokens,
-                    direction=("left" if index < item.ir.n_inputs else "right"),
-                )
+                for span in register_candidates
             )
-            for index, anchor in enumerate(anchors)
+            for register_candidates in candidate_spans
         )
         for step, instruction in enumerate(item.ir.instructions):
             available = item.ir.n_inputs + step
@@ -1372,6 +1444,14 @@ def _assign_typed_arguments(
         *(result_type for _argument_types, result_type in operation_types),
     )
     definition_pointer_scores = model.definition_pointer.score_sequence(hidden)
+    definition_candidates = _register_definition_candidates(
+        definitions,
+        input_count=len(inputs),
+        token_count=hidden.shape[0],
+        max_span_tokens=model.max_definition_span_tokens,
+        pointer_scores=definition_pointer_scores,
+        strategy=model.definition_candidate_strategy,
+    )
     definition_vectors = tuple(
         tuple(
             (
@@ -1383,14 +1463,9 @@ def _assign_typed_arguments(
                     hidden_channel_widths=model.hidden_channel_widths,
                 ),
             )
-            for candidate in _definition_span_candidates(
-                span,
-                token_count=hidden.shape[0],
-                max_span_tokens=model.max_definition_span_tokens,
-                direction=("left" if index < len(inputs) else "right"),
-            )
+            for candidate in candidates
         )
-        for index, span in enumerate(definitions)
+        for candidates in definition_candidates
     )
     reference_vectors = {
         span: _relation_span_vector(
@@ -1707,6 +1782,7 @@ class CompositionalSemanticProgramTransducer:
     argument_role_heads: tuple[LinearArgumentRoleHead, ...]
     argument_proposal_heads: tuple[LinearArgumentRoleHead, ...]
     definition_relation_head: DirectionalRelationHead
+    definition_candidate_strategy: str
     max_steps: int
     max_inputs: int
     max_span_tokens: int
@@ -1737,8 +1813,22 @@ class CompositionalSemanticProgramTransducer:
         coefficient = self._coefficient_body()
         argument_bounds = dict(self.max_argument_span_tokens_by_type)
         body = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+        expected_receipt_schema = (
+            _LEGACY_COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA
+            if self.schema == _LEGACY_COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA
+            else COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA
+        )
+        expected_candidate_strategy = (
+            _LEGACY_DEFINITION_CANDIDATE_STRATEGY
+            if self.schema == _LEGACY_COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA
+            else _LOCAL_DEFINITION_CANDIDATE_STRATEGY
+        )
         if (
-            self.schema != COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA
+            self.schema
+            not in {
+                _LEGACY_COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA,
+                COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA,
+            }
             or type(self.hidden_size) is not int
             or self.hidden_size < 1
             or not _is_sha256(self.model_basis_sha256)
@@ -1778,7 +1868,13 @@ class CompositionalSemanticProgramTransducer:
             or self.argument_proposal_scale < 0
             or not math.isfinite(self.operation_length_penalty)
             or type(self.allow_computed_dependencies) is not bool
-            or receipt.get("schema") != COMPOSITIONAL_SEMANTIC_RECEIPT_SCHEMA
+            or receipt.get("schema") != expected_receipt_schema
+            or self.definition_candidate_strategy != expected_candidate_strategy
+            or (
+                self.schema == COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA
+                and receipt.get("definition_candidate_strategy")
+                != self.definition_candidate_strategy
+            )
             or receipt.get("receipt_sha256") != _sha(body)
             or receipt.get("model_basis_sha256") != self.model_basis_sha256
             or receipt.get("input_grounding_sha256") != self.input_grounding.contract_sha256
@@ -1862,7 +1958,7 @@ class CompositionalSemanticProgramTransducer:
         return str(self.training_receipt["receipt_sha256"])
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "schema": self.schema,
             "hidden_size": self.hidden_size,
             "model_basis_sha256": self.model_basis_sha256,
@@ -1878,6 +1974,9 @@ class CompositionalSemanticProgramTransducer:
             **self._coefficient_body(),
             "training_receipt": self.training_receipt,
         }
+        if self.schema == COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA:
+            payload["definition_candidate_strategy"] = self.definition_candidate_strategy
+        return payload
 
     def _with_coefficients(self, **changes: Any) -> CompositionalSemanticProgramTransducer:
         values = {
@@ -2421,6 +2520,7 @@ def fit_compositional_semantic_program_transducer(
         relation_head=uncalibrated_relation_head,
         definition_pointer=definition_pointer,
         max_definition_span_tokens=max_definition_span_tokens,
+        definition_candidate_strategy=_LOCAL_DEFINITION_CANDIDATE_STRATEGY,
         hidden_channels=hidden_channels,
         hidden_channel_widths=hidden_channel_widths,
     )
@@ -2480,6 +2580,7 @@ def fit_compositional_semantic_program_transducer(
         "operation_chart_beam": _OPERATION_CHART_BEAM,
         "argument_span_bounds": max_argument_span_tokens_by_type,
         "definition_span_bound": max_definition_span_tokens,
+        "definition_candidate_strategy": _LOCAL_DEFINITION_CANDIDATE_STRATEGY,
         "definition_pointer_scale_selection": definition_pointer_rows,
         "relation_tissue_fit": {
             "algorithm": "minibatch_adamw_cross_entropy_v1",
@@ -2525,6 +2626,7 @@ def fit_compositional_semantic_program_transducer(
         argument_role_heads=argument_role_heads,
         argument_proposal_heads=argument_proposal_heads,
         definition_relation_head=definition_relation_head,
+        definition_candidate_strategy=_LOCAL_DEFINITION_CANDIDATE_STRATEGY,
         max_steps=max_steps,
         max_inputs=max_inputs,
         max_span_tokens=max_span_tokens,
@@ -2556,7 +2658,7 @@ def _pointer_from_dict(value: Any) -> LinearPointerHead:
 def compositional_semantic_program_transducer_from_dict(
     payload: Any,
 ) -> CompositionalSemanticProgramTransducer:
-    """Reload one immutable v12 transducer without fitting or calibration."""
+    """Reload one immutable transducer without fitting or calibration."""
 
     if not isinstance(payload, Mapping):
         raise ValueError("compositional semantic transducer payload is invalid")
@@ -2581,6 +2683,13 @@ def compositional_semantic_program_transducer_from_dict(
         ),
     )
     relation = payload["definition_relation_head"]
+    schema = str(payload["schema"])
+    definition_candidate_strategy = str(
+        payload.get(
+            "definition_candidate_strategy",
+            _LEGACY_DEFINITION_CANDIDATE_STRATEGY,
+        )
+    )
     return CompositionalSemanticProgramTransducer(
         hidden_size=int(payload["hidden_size"]),
         model_basis_sha256=str(payload["model_basis_sha256"]),
@@ -2612,6 +2721,7 @@ def compositional_semantic_program_transducer_from_dict(
             np.asarray(relation["query_projection"], dtype=np.float32),
             np.asarray(relation["definition_projection"], dtype=np.float32),
         ),
+        definition_candidate_strategy=definition_candidate_strategy,
         max_steps=int(payload["max_steps"]),
         max_inputs=int(payload["max_inputs"]),
         max_span_tokens=int(payload["max_span_tokens"]),
@@ -2636,6 +2746,7 @@ def compositional_semantic_program_transducer_from_dict(
         argument_pointer_scale=float(payload["argument_pointer_scale"]),
         allow_computed_dependencies=bool(payload["allow_computed_dependencies"]),
         training_receipt=dict(payload["training_receipt"]),
+        schema=schema,
     )
 
 

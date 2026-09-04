@@ -20,6 +20,7 @@ from core.brain.llm.hidden_sequence_contract import (
 from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
+    build_semantic_program_natural_alias_source_corpus,
     build_semantic_program_natural_source_corpus,
     build_semantic_program_sequence_binary_corpus,
     build_semantic_program_sequence_cataphoric_corpus,
@@ -32,6 +33,7 @@ from core.learning.semantic_program_feature_materialization import (
     FORK_JOIN_CORPUS_KIND,
     FORK_JOIN_FACTORIAL_CORPUS_KIND,
     FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
+    NATURAL_ALIAS_SOURCE_CORPUS_KIND,
     NATURAL_REPLICATION_CORPUS_KIND,
     NATURAL_REQUEST_CORPUS_KIND,
     NATURAL_SOURCE_CORPUS_KIND,
@@ -512,6 +514,24 @@ def test_natural_source_family_reconstructs_from_declared_config() -> None:
 
     assert corpus == build_semantic_program_natural_source_corpus(
         seed=2718281,
+        examples_per_schema_domain=2,
+    )
+    assert len(corpus) == 48
+
+
+def test_natural_alias_source_family_reconstructs_from_declared_config() -> None:
+    config = SemanticFeatureConfig(
+        seed=1618034,
+        examples_per_operation_pair=2,
+        max_examples=48,
+        corpus_kind=NATURAL_ALIAS_SOURCE_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+    )
+
+    corpus = build_semantic_program_corpus_for_config(config)
+
+    assert corpus == build_semantic_program_natural_alias_source_corpus(
+        seed=1618034,
         examples_per_schema_domain=2,
     )
     assert len(corpus) == 48
