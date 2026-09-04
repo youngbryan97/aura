@@ -264,31 +264,66 @@ def look_ahead(
         no_further_than=as_far_as_the_world_lets_her(state, world),
     )
     known = _AlreadyWorkedOut()
-    scored: dict[str, tuple[float, str]] = {}
     here_now = _reading(state)
-    for action in actions:
-        future = known.what_it_becomes(expect, state, action)
-        if future is None or _reading(future) == here_now:
-            # A move that would change nothing has not gone anywhere.
-            #
-            # Scored like any other, it collects the value of the situation it
-            # left alone, once at every level of the search — so standing
-            # still outscores every move that costs something to make.
-            # Measured against a null on 2026-08-26: choosing this way was
-            # WORSE than choosing at random, with 78% of moves doing nothing.
-            #
-            # Ruling one out before making it is the whole point of being able
-            # to try a move without making it.
-            continue
-        here = known.what_it_is_worth(
-            future, toward=toward, approach=approach, weights=weights
-        )
-        onward = _after_the_world(
-            expect, future, actions, depth - 1,
-            toward=toward, approach=approach, trust=trust, world=world, weights=weights,
-            known=known,
-        )
-        scored[action] = (here + trust * onward, why(future, toward=toward, approach=approach))
+
+    def one_pass(how_far: int) -> dict[str, tuple[float, str]]:
+        found: dict[str, tuple[float, str]] = {}
+        for action in actions:
+            future = known.what_it_becomes(expect, state, action)
+            if future is None or _reading(future) == here_now:
+                # A move that would change nothing has not gone anywhere.
+                #
+                # Scored like any other, it collects the value of the
+                # situation it left alone, once at every level of the search —
+                # so standing still outscores every move that costs something
+                # to make. Measured against a null on 2026-08-26: choosing
+                # this way was WORSE than choosing at random, with 78% of
+                # moves doing nothing.
+                #
+                # Ruling one out before making it is the whole point of being
+                # able to try a move without making it.
+                continue
+            here = known.what_it_is_worth(
+                future, toward=toward, approach=approach, weights=weights
+            )
+            onward = _after_the_world(
+                expect, future, actions, how_far - 1,
+                toward=toward, approach=approach, trust=trust, world=world,
+                weights=weights, known=known,
+            )
+            found[action] = (
+                here + trust * onward,
+                why(future, toward=toward, approach=approach),
+            )
+        return found
+
+    # Deeper while the clock allows, rather than a guess at how deep it will
+    # allow.
+    #
+    # What a level costs is a projection from an average, and it is wrong by
+    # whatever the world's fan-out and what has already been worked out do to
+    # it — the two together were a factor of tens. Going one level deeper and
+    # stopping when the time is gone is measured by construction, and the
+    # deeper pass is nearly free because the shallower one is still
+    # remembered. What she hands back is always a completed pass.
+    scored = one_pass(depth)
+    if not fixed_depth and scored:
+        ends_at = started + max(0.0, budget_s)
+        a_pass = time.monotonic() - started
+        ceiling = as_far_as_the_world_lets_her(state, world)
+        while (ceiling <= 0 or depth < ceiling) and a_pass > 0.0:
+            # Only a level there is time to FINISH. A pass abandoned halfway
+            # is a pass that cost the budget and answered nothing.
+            branching = max(2, len(actions)) * max(1, _how_many_ways(world, state))
+            if time.monotonic() + a_pass * branching > ends_at:
+                break
+            deeper_at = time.monotonic()
+            deeper = one_pass(depth + 1)
+            if not deeper:
+                break
+            depth += 1
+            scored = deeper
+            a_pass = time.monotonic() - deeper_at
 
     spent = time.monotonic() - started
     if scored and depth and not fixed_depth:

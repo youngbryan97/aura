@@ -2882,8 +2882,23 @@ async def pursue_on_screen(
                 # detectable when someone thought to declare an expectation.
                 if not anchor["page"]:
                     page = await current_page_identity()
+                    # A run that is not about a page has no page.
+                    #
+                    # This took whatever a browser happened to be showing.
+                    # Driving a desktop application, the run anchored itself
+                    # to somebody's open tab — and then every cycle checked
+                    # that the tab was still in front and brought the BROWSER
+                    # forward to restore it, over the window it was driving.
+                    #
+                    # LIVE 2026-09-04: "this run belongs to '2048 Game' on
+                    # 'https://x.com/home'", and readings of the board that
+                    # came back full of a timeline. The same care is two lines
+                    # below, deciding which application the run belongs to,
+                    # and was never applied to the page.
+                    about_a_page = bool(open_page or expect_page)
                     anchor["page"] = str(
-                        expect_page or page.get("url") or page.get("title") or ""
+                        expect_page
+                        or (page.get("url") or page.get("title") or "" if about_a_page else "")
                     ).strip()
                     # And the window it is in, so a keystroke has somewhere it
                     # belongs.
@@ -2899,7 +2914,6 @@ async def pursue_on_screen(
                         # about a page at all. A task about a desktop
                         # application would otherwise anchor itself to a
                         # browser that happens to be open behind it.
-                        about_a_page = bool(open_page or expect_page)
                         holder = str(page.get("app") or "") if about_a_page else ""
                         anchor["app"] = (holder or await _frontmost() or "").strip()
                         if anchor["app"]:
