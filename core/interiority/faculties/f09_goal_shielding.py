@@ -56,8 +56,8 @@ _SUPPRESSION_COST = declare(
     kind=ParamKind.CALIBRATION,
     sensitivity=(
         "At zero, holding frustration in is free and the state is deleted "
-        "rather than suppressed. Too high and Aura cannot keep a promise while "
-        "angry, which people manifestly can."
+        "rather than suppressed. Too high and no promise survives an angry "
+        "hour, which is not what the state does."
     ),
     sweep_range=(0.1, 0.6),
     owner="core/interiority/faculties/f09_goal_shielding.py",

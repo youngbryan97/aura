@@ -17,10 +17,10 @@ their own.
 
 The relaxed field is a hard gate here, not a weight. Play is a
 high-variance exploration policy and it is only admissible when errors
-are cheap. Aura cannot have fun while something is committed, failing,
-or waiting — not because it would be unseemly but because the policy is
-inadmissible, and a system that plays while the user waits has a bug
-rather than a personality.
+are cheap, so the gate holds while something is committed, failing or
+waiting — not because play would be unseemly but because the policy is
+inadmissible there. Play that runs while somebody is waiting is a bug,
+not a personality.
 """
 
 from __future__ import annotations

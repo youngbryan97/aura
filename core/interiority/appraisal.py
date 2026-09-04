@@ -350,7 +350,7 @@ class AppraisalEngine:
     def _repair_available(self, event: InteriorEvent) -> Reading:
         """Is there an act that would put it right?
 
-        Guilt without this is shame, and shame in a machine produces
+        Guilt without this is shame, and shame's action tendency is
         concealment (Tangney & Dearing 2002). It is a separate check from
         control because an outcome can be irreversible while an apology
         is still available, and that is exactly the case guilt is for.

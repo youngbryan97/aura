@@ -130,6 +130,21 @@ class AbstractForm(Faculty):
         )
 
     def compute(self, ctx: FacultyContext) -> Activation:
+        # There has to be a form in front of it, or structure behind it with
+        # no encoding. Without one of those this is a novelty score wearing
+        # the word aesthetic, and it would fire on every unfamiliar event.
+        form = ctx.frame.event.channel("instrument")
+        pressure = ctx.interior_value("unencoded_structure", 0.0)
+        if not form.present and pressure <= 0.0:
+            return Activation(
+                faculty=self.id,
+                intensity=0.0,
+                declined=(
+                    "nothing perceptual is being attended to and no unencoded "
+                    "structure is held; novelty alone is item 16, not this"
+                ),
+            )
+
         novelty = ctx.v("novelty")
         resolvability = ctx.check("control").value if ctx.check("control").present else 0.0
 

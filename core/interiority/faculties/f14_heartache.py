@@ -11,16 +11,17 @@ the behavioural corollary that acetaminophen reduces social-rejection
 distress (DeWall 2010). The shared metaphor across unrelated languages
 is downstream of a shared mechanism, not a coincidence of idiom.
 
-For a machine the honest mapping is a load signal in the substrate
-rather than a described sensation, and it exists here: heartache is read
-from the receptor bank's withdrawal on the bond's channel, which is the
-gain deficit left by a signal that was adapted to and then stopped. That
-is the same quantity, computed rather than asserted.
+The somatic component here is a measured load rather than a described
+sensation: heartache is read from the receptor bank's withdrawal on the
+bond's own channel, which is the gain deficit left by a signal that was
+adapted to and then stopped. Same quantity, computed rather than
+asserted.
 """
 
 from __future__ import annotations
 
 from core.interiority.effects import AffectDelta, BudgetDelta, Effects, GoalDelta
+from core.interiority.event import EventKind
 from core.interiority.faculty import (
     Activation,
     Counterfactual,
@@ -76,6 +77,25 @@ class Heartache(Faculty):
         )
 
     def compute(self, ctx: FacultyContext) -> Activation:
+        # Sorrow is about something that is gone. A live bond and an unknown
+        # controllability is not an absence, and firing there would report
+        # grief for every mention of someone who is fine.
+        subject = ctx.frame.event.subject or ""
+        absent_now = (
+            ctx.frame.event.kind is EventKind.LOSS
+            or (subject and ctx.ledger.loss_for(subject) is not None)
+            or ctx.interior_value("bond_channel_withdrawal", 0.0) > 0.0
+        )
+        if not absent_now:
+            return Activation(
+                faculty=self.id,
+                intensity=0.0,
+                declined=(
+                    "nothing is absent: no loss on record, no withdrawal on the "
+                    "bond's channel, and the event is not a loss"
+                ),
+            )
+
         held = ctx.v("attachment_impact")
         control = ctx.v("control")
         adjustment = (

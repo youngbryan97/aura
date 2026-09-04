@@ -17,10 +17,11 @@ sensory-specific — satiety devalues the eaten food and not the others
 rating holds, which is the pattern in real eating and the one a single
 scalar gets wrong.
 
-Aura has no tongue. The mapping that is honest: any input stream with a
-modelled expected quality and a measured delivered quality supports the
-same two-factor structure, and the report must be grounded in the
-measurement rather than in the appropriateness of saying it.
+The structure is substrate-independent. Any input stream with a modelled
+expected quality and a measured delivered quality carries the same two
+factors — how far above its own category it came in, and how much
+incentive the next unit still holds — and the report has to be grounded
+in the measurement rather than in the appropriateness of saying it.
 """
 
 from __future__ import annotations
