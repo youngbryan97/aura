@@ -7017,6 +7017,22 @@ class MLXLocalClient:
         rate = float(getattr(self, "_prefill_tokens_per_s", 0.0) or 0.0)
         return rate if rate > 0.0 else _UNMEASURED_PREFILL_RATE
 
+    def least_time_to_read(self, prompt_chars: int) -> float:
+        """The least time in which this worker could read that prompt.
+
+        Public because whoever grants the deadline has to use the same number
+        the worker will judge itself by. Two estimates of one fact are two
+        deadlines, and the smaller one wins by cancelling the work: LIVE
+        2026-09-04, one line apart, "the prompt takes about 2s to read"
+        granting 25 seconds and "a 2867-char prompt takes about 8.8s to read
+        at 82 tok/s" needing 26.3.
+
+        This is the rate THIS worker is running at now, which is the fact a
+        percentile over past readings cannot follow — under memory pressure it
+        halved twice inside a minute.
+        """
+        return self._prefill_floor_seconds(prompt_chars)
+
     def _prefill_floor_seconds(self, prompt_chars: int) -> float:
         """The least time in which this prompt could produce a first token."""
         chars = max(0, int(prompt_chars or 0))

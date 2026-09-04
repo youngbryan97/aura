@@ -14231,14 +14231,32 @@ class InferenceGate:
                 # Reading the prompt is the other half of a generation, and
                 # on this hardware it is the larger half. A turn was given time
                 # to SAY its answer and none to read the question.
-                _read_s = _seconds_to_read(
-                    len(str(system_prompt or ""))
-                    + sum(
-                        len(str((msg or {}).get("content") or ""))
-                        for msg in (messages or [])
-                        if isinstance(msg, dict)
-                    ),
+                _prompt_chars_for_clock = len(str(system_prompt or "")) + sum(
+                    len(str((msg or {}).get("content") or ""))
+                    for msg in (messages or [])
+                    if isinstance(msg, dict)
                 )
+                _read_s = _seconds_to_read(_prompt_chars_for_clock)
+                # And what the worker that will serve this says, which is the
+                # number it will cancel itself by.
+                #
+                # A percentile over past readings cannot follow a rate that
+                # halves under memory pressure, and the worker measures its
+                # own. LIVE 2026-09-04, one line apart: "the prompt takes
+                # about 2s to read", granting 25 seconds, and "a 2867-char
+                # prompt takes about 8.8s to read at 82 tok/s", needing 26.3.
+                # Cancelled at 25, every user-facing turn, with the runtime
+                # healthy throughout.
+                _worker_says = 0.0
+                _asking = getattr(self, "_mlx_client", None)
+                _knows = getattr(_asking, "least_time_to_read", None)
+                if callable(_knows):
+                    try:
+                        _worker_says = float(_knows(_prompt_chars_for_clock) or 0.0)
+                    except (TypeError, ValueError):
+                        # not a failure: a rate that will not parse is not one.
+                        _worker_says = 0.0
+                _read_s = max(_read_s, _worker_says)
                 if _decode_s > 0.0:
                     _needed = (
                         (_decode_s + _read_s) * _generations

@@ -48,3 +48,37 @@ def test_a_recorded_rate_makes_reading_cost_something():
         thinking_reserve.record_read_rate(prompt_chars=6000, elapsed_s=14.0)
     assert thinking_reserve.seconds_to_read(6000) > 0.0
     thinking_reserve.forget()
+
+
+# ── and the deadline uses the number the worker judges itself by ─────────
+
+
+def test_the_worker_says_how_long_its_own_prompt_takes():
+    from core.brain.llm import mlx_client
+
+    assert callable(getattr(mlx_client.MLXLocalClient, "least_time_to_read", None))
+
+
+def test_the_answer_clock_asks_the_worker_that_will_serve_it():
+    """Two estimates of one fact are two deadlines, and the smaller one wins
+    by cancelling the work.
+
+    LIVE 2026-09-04, one line apart: "the prompt takes about 2s to read",
+    granting 25 seconds, and "a 2867-char prompt takes about 8.8s to read at
+    82 tok/s", needing 26.3.
+    """
+    from core.brain import inference_gate
+
+    source = inspect.getsource(inference_gate)
+    at = source.index("_read_s = _seconds_to_read(_prompt_chars_for_clock)")
+    nearby = source[at : at + 1400]
+    assert "least_time_to_read" in nearby
+    assert "_read_s = max(_read_s, _worker_says)" in nearby
+
+
+def test_a_worker_that_cannot_say_leaves_the_clock_as_it_was():
+    from core.brain import inference_gate
+
+    source = inspect.getsource(inference_gate)
+    at = source.index("_worker_says = 0.0")
+    assert "if callable(_knows):" in source[at : at + 400]
