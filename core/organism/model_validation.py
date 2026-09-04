@@ -220,11 +220,18 @@ class ValidationTest:
     score: Callable[[Any, Observation], Score]
     owner: str = "unknown"
     #: Whether this predicate RUNS AN EXPERIMENT rather than reading an
-    #: instrument. Three of these do a full grown-against-reset search and take
-    #: 29 to 56 seconds each; they used to abort on a refusal escaping from the
-    #: language, so booting never actually evaluated them and nobody had ever
-    #: paid for them. When the refusal was handled correctly they completed for
-    #: the first time and put 141 seconds into activate_foundations.
+    #: instrument. Three of these do a full grown-against-reset search; they
+    #: used to abort on a refusal escaping from the language, so booting never
+    #: actually evaluated them and nobody had ever paid for them. When the
+    #: refusal was handled correctly they completed for the first time and put
+    #: 141 seconds into activate_foundations.
+    #:
+    #: Declining those three left 17.4 seconds, which found two more of the
+    #: same kind that nobody had spotted by reading: 8.0 seconds and 4.0
+    #: seconds, both fitting on one half of a sealed split and judging on the
+    #: other. The budget in tests/test_cognition_discipline.py names any
+    #: predicate over 1.5 seconds that is not declared here, because a total
+    #: tells you the boot is slow and a name tells you what to flag.
     #:
     #: A boot's job is to check that the instruments work, not to re-run the
     #: experiments. An expensive test is reported NOT_MEASURED at boot, naming
@@ -3019,6 +3026,13 @@ _AN_EXPERIMENT_NOT_AN_INSTRUMENT = frozenset({
     "test_what_she_wrote_carries_to_a_different_surface",
     "test_keeping_what_she_wrote_makes_the_next_one_easier",
     "test_a_head_that_refers_to_itself_holds_where_it_was_never_fitted",
+    # Found by the boot-posture budget rather than by reading: declining the
+    # three above still left 17.4s, because these two also fit on one half of
+    # a sealed split and judge on the other. Twenty sealed families per
+    # stream, and sixty episodes split before anything was written — that is
+    # an experiment by the same reading as the three above.
+    "test_she_writes_an_order_that_holds_on_episodes_it_never_saw",
+    "test_a_rule_with_no_shape_holds_where_it_was_never_fitted",
 })
 
 
@@ -3737,7 +3751,18 @@ def _install_language_growth_claims(suite: Any) -> None:
                 "18, and 13 to 12, with the lesion returning each number exactly. "
                 "Two better and one worse, which is the no-free-lunch theorem "
                 "arriving in practice; a rule improving every stream would "
-                "contradict a theorem this codebase already executes"
+                "contradict a theorem this codebase already executes. A second "
+                "measurement of the same claim, kept because it is a different "
+                "run and not a restatement: one stream of five, sixty episodes "
+                "split before anything was written, an eight-symbol order from "
+                "the training half moving the mean rank of the winning word on "
+                "the SEALED half from 2.000 to 1.833, and the authored rule put "
+                "back returning it to 2.000 exactly. On the other four streams "
+                "what selection found on the training half did not survive the "
+                "sealed half — one was `nought minus how long the word is`, a "
+                "rule saying prefer longer words. One meta-change with its "
+                "control is not a trend, and recursive self-improvement is not "
+                "claimed"
             ),
             live_channels=("language.ways_of_building",),
         )
@@ -3745,26 +3770,47 @@ def _install_language_growth_claims(suite: Any) -> None:
     suite.add_claim(
         Claim(
             statement=(
-                "One component of the machinery she invents with — the rule "
-                "deciding what to try first — has been replaced by one she wrote, "
-                "and the replacement holds on invention episodes it never saw."
+                "What she decides to do about herself follows the record of what "
+                "her work has cost, and the thing she announces is the thing she "
+                "carries out."
             ),
-            test="test_she_writes_an_order_that_holds_on_episodes_it_never_saw",
-            owner="tools/run_meta_invention.py",
-            asserted_in="core/cognition/the_order_she_tries_them_in.py",
+            test="test_her_choice_moves_when_the_record_moves",
+            owner="core/cognition/she_decides_to_develop.py",
+            asserted_in="core/autonomy/autonomous_initiative_loop.py",
             evidence=Evidence.MEASURED_SYNTHETIC,
             evidence_note=(
-                "one stream of five. Sixty episodes split before anything was "
-                "written; an eight-symbol order written from the training half "
-                "moved the mean rank of the winning word on the SEALED half from "
-                "2.000 to 1.833, and putting the authored rule back returned it "
-                "to 2.000 exactly. On the other four streams what selection found "
-                "on the training half did not survive the sealed half — one of "
-                "them was `nought minus how long the word is`, which is a rule "
-                "saying prefer longer words. One meta-change with its control is "
-                "not a trend, and recursive self-improvement is not claimed"
+                "the choice among unpriced actions is a draw from what the "
+                "counts support, and a function returning the first rung does "
+                "not move when the record moves. The second half was measured "
+                "and false: the idle loop asked what was worth doing, told the "
+                "user it had decided on one thing, and then asked again and did "
+                "whatever the second draw said — 162 of 200 episodes disagreed. "
+                "The loop now hands the announced decision in, and the same "
+                "fixture over 60 episodes disagrees 0 times"
             ),
-            live_channels=("language.ways_of_building",),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "Every installation writes a line carrying who started it and a "
+                "digest of the line before, and every promotion records what it "
+                "replaced, so a change can be undone and the record cannot be "
+                "quietly rewritten to say a decision was hers."
+            ),
+            test="test_a_receipt_chain_cannot_be_quietly_rewritten",
+            owner="core/cognition/how_a_change_is_promoted.py",
+            asserted_in="core/cognition/she_decides_to_develop.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "the chain is checked by recomputing every digest. The second "
+                "half was a promise and not a fact for the life of the module: "
+                "no caller anywhere passed `replaced`, so the stack was empty, "
+                "put_it_back returned None every time, and nothing could be "
+                "undone. A developmental promotion now carries the snapshot the "
+                "trial takes, and an undo that raises is recorded as one that "
+                "would not go back rather than as a rollback"
+            ),
         )
     )
     suite.add_claim(

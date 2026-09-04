@@ -438,7 +438,42 @@ def test_a_boot_checks_instruments_and_does_not_re_run_experiments():
     elapsed = time.perf_counter() - started
     assert outcome is not None
     # The boot posture must stay cheap. The three experiments alone were 138s.
+    #
+    # Name the predicate rather than only the total. The first time this bar
+    # was crossed it said "17.7s" and nothing else, and the two predicates
+    # responsible for 12 of those seconds had to be found by hand. A budget
+    # that reports a number tells you it is broken; one that reports a name
+    # tells you what to flag.
+    slow = [
+        (name, seconds)
+        for name, seconds in _seconds_per_predicate(tests).items()
+        if seconds > 1.5 and name not in _AN_EXPERIMENT_NOT_AN_INSTRUMENT
+    ]
+    assert not slow, (
+        "these run an experiment but are not declared one: "
+        + ", ".join(f"{n} ({s:.1f}s)" for n, s in sorted(slow, key=lambda r: -r[1]))
+    )
     assert elapsed < 10.0, f"the boot posture took {elapsed:.1f}s"
+
+
+def _seconds_per_predicate(tests: dict) -> dict[str, float]:
+    """How long each cheap predicate takes, measured the way the boot pays it."""
+    import time
+
+    from core.organism.model_validation import RuntimeModel
+
+    model = RuntimeModel()
+    timed: dict[str, float] = {}
+    for name, test in list(tests.items()):
+        if test.expensive:
+            continue
+        began = time.perf_counter()
+        try:
+            test.score(test.predict(model), test.observation)
+        except Exception:  # a raise is an ERROR outcome, and still costs time
+            pass
+        timed[name] = time.perf_counter() - began
+    return timed
 
 
 def test_a_skipped_experiment_says_so_rather_than_passing():

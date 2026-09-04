@@ -36,7 +36,7 @@ from core.verify.invariants import Severity, Violation, invariant
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["what_a_change_means"]
+__all__ = ["WHAT_A_CHANGE_MEANS", "what_a_change_means"]
 
 
 @invariant(
@@ -155,84 +155,35 @@ def _a_promotion_can_go_back() -> Iterator[Violation]:
         )
 
 
-@invariant(
-    "development.a_refused_proposal_does_not_run",
-    scope="cognition",
-    severity=Severity.ERROR,
-    owner="core/self_modification/growth_ladder.py",
-)
-def _a_refused_proposal_does_not_run() -> Iterator[Violation]:
-    """Denied(m) ⇒ m does not run, at every interface that asks.
-
-    The ladder returns a proposal object, and the natural thing to write with
-    one is ``if not granted:``. Every object is truthy, so for as long as the
-    object did not answer that question, both callers read a refusal as a
-    grant. The check is the caller's own expression, not the field it should
-    have used.
-    """
-    try:
-        from core.self_modification.growth_ladder import (
-            ModificationLevel,
-            ModificationProposal,
-        )
-    except ImportError:
-        return
-
-    refused = ModificationProposal(
-        id="an-invariant",
-        timestamp=0.0,
-        level=ModificationLevel.SKILL_CREATION,
-        domain="an invariant checking a refusal",
-        description="",
-        justification="",
-        diff_patch=None,
-        proposed_by="aura",
-        status="rejected_user",
-        decision=False,
-    )
-    if refused:
-        yield Violation(
-            invariant="development.a_refused_proposal_does_not_run",
-            subject="ModificationProposal",
-            message=(
-                "a refused proposal reads as truthy, so `if not granted:` "
-                "proceeds over a refusal at every caller"
-            ),
-            severity=Severity.ERROR,
-        )
-    unadjudicated = ModificationProposal(
-        id="an-invariant",
-        timestamp=0.0,
-        level=ModificationLevel.OBSERVATION,
-        domain="an invariant checking a default",
-        description="",
-        justification="",
-        diff_patch=None,
-        proposed_by="aura",
-    )
-    if unadjudicated:
-        yield Violation(
-            invariant="development.a_refused_proposal_does_not_run",
-            subject="ModificationProposal",
-            message=(
-                "a proposal nobody has adjudicated reads as granted, so the "
-                "default answer to a request to change herself is yes"
-            ),
-            severity=Severity.ERROR,
-        )
+#: The three sentences, by the name each is registered under. Read through the
+#: registry rather than called directly, because the third protects the growth
+#: ladder and lives beside it — core.cognition may not import
+#: core.self_modification, and an invariant belongs next to what it protects.
+WHAT_A_CHANGE_MEANS: dict[str, str] = {
+    "a refusal changes nothing": "development.a_refusal_changes_nothing",
+    "a promotion can go back": "development.a_promotion_can_go_back",
+    "a refused proposal does not run": "development.a_refused_proposal_does_not_run",
+}
 
 
 def what_a_change_means() -> dict[str, object]:
-    """The three sentences, and whether each holds right now."""
-    checks = {
-        "a refusal changes nothing": _a_refusal_changes_nothing,
-        "a promotion can go back": _a_promotion_can_go_back,
-        "a refused proposal does not run": _a_refused_proposal_does_not_run,
-    }
+    """The three sentences, and whether each holds right now.
+
+    A sentence whose invariant is not registered reads "not registered"
+    rather than True. An unregistered check is one nobody runs, and reporting
+    that as holding is the failure this whole module exists to stop.
+    """
+    from core.verify.invariants import get_registry
+
+    known = {one.name: one for one in get_registry().specs()}
     held: dict[str, object] = {}
-    for said, check in checks.items():
+    for said, name in WHAT_A_CHANGE_MEANS.items():
+        spec = known.get(name)
+        if spec is None:
+            held[said] = ["not registered, so nobody runs it"]
+            continue
         try:
-            broken = [one.message for one in check()]
+            broken = [one.message for one in spec.check()]
         except Exception as exc:  # noqa: BLE001 - a check that raises is a breach
             broken = [f"{type(exc).__name__}: {exc}"]
         held[said] = broken or True

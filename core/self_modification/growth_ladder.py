@@ -90,6 +90,11 @@ class ModificationLevel(IntEnum):
         return mapping.get(level_str.lower(), cls.OBSERVATION)
 
 
+# Register the rule that a denial is a denial. Imported for the side effect
+# rather than for a name: the module that denies is the one that has to be
+# loaded for the rule about denials to be checkable at all.
+from core.self_modification import consent_invariant as _consent_invariant  # noqa: E402,F401
+
 #: Kinds of modification, and the rung each is governed at. Members absent
 #: here govern themselves, which is what a rung does.
 _GOVERNING_RUNG: dict[ModificationLevel, ModificationLevel] = {

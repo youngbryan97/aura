@@ -49,9 +49,14 @@ CORE = ROOT / "core"
 #: state may never be produced by generated text, and a closed-world list of
 #: today's imports would allow core.brain the moment somebody added one — which
 #: is precisely the import that the organ's own invariant exists to forbid.
+#: Packages whose DEPS says something a generator cannot derive. The check is
+#: byte-exact against generated content, so a real rule written into a
+#: generated file makes the gate red until somebody regenerates it away —
+#: which is how core/learning's rule about the procedure currency sat here
+#: with `make deps-check` failing, one regeneration from being deleted.
 HANDWRITTEN = {
-    "conation", "engineering", "fsw", "health", "observability", "persistence",
-    "runtime", "utils", "verify",
+    "conation", "engineering", "fsw", "health", "learning", "observability",
+    "persistence", "runtime", "utils", "verify",
 }
 
 SKIP_DIRS = {"__pycache__", ".venv", "node_modules", "archive"}
