@@ -31,14 +31,17 @@ confidence, and adds a somatic annotation visible to downstream processing.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections import deque
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import numpy as np
 
 from core.memory.retention_policy import working_history_retention_policy
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Consciousness.SomaticGate")
 
@@ -48,6 +51,46 @@ _RECOVERABLE_SOMATIC_ERRORS = (
     RuntimeError,
     TypeError,
     ValueError,
+)
+
+
+#: How far an appraisal may move the gut feeling. Bounded well below the
+#: [-1, 1] the score lives in, so an appraisal informs the verdict rather than
+#: overruling what experience recorded.
+_MAX_INTERIOR_BIAS = 0.35
+
+#: Confidence the appraisal carries when NO stored pattern resembles the
+#: situation. Below the confidence a full pattern match earns, because
+#: "nothing like this has happened before and I am in a poor state for it" is
+#: weaker evidence than "this went badly the last four times".
+_INTERIOR_ONLY_CONFIDENCE = 0.5
+
+#: How much of an option name must appear in the candidate before the bias for
+#: that option is taken to be about this candidate. Below this the appraisal is
+#: about something else and applying it would be worse than applying nothing.
+_INTERIOR_MATCH_FLOOR = 0.6
+
+#: How long an appraisal stays relevant. An appraisal is about a situation, and
+#: situations end; a bias with no expiry is the state of a moment that has
+#: passed being applied to one nobody looked at.
+_INTERIOR_BIAS_TTL_S = 180.0
+
+#: Shortest single word that may match an option on its own.
+_INTERIOR_SOLO_WORD_LEN = 5
+
+
+def _words(text: str) -> frozenset[str]:
+    """Content words of an option name or a candidate, for matching.
+
+    Short function words are dropped: ``the`` and ``and`` appear in almost
+    every sentence and would make every option match everything.
+    """
+    tokens = re.split(r"[^a-z0-9]+", str(text).lower())
+    return frozenset(t for t in tokens if len(t) > 2 and t not in _MATCH_STOPWORDS)
+
+
+_MATCH_STOPWORDS = frozenset(
+    {"the", "and", "for", "with", "own", "that", "this", "its", "was", "are"}
 )
 
 
@@ -101,6 +144,12 @@ class SomaticMarkerGate:
     }
 
     def __init__(self):
+        #: Per-option bias from appraised interior state, set by
+        #: core.interiority through set_interior_bias. Empty until it is.
+        self._interior_bias: dict[str, float] = {}
+        self._interior_bias_source: str = ""
+        self._interior_bias_at: float = 0.0
+        self._interior_lock = checked_lock("somatic_gate.interior_bias")
         self._outcome_patterns: deque[OutcomeRecord] = deque(maxlen=self._MAX_PATTERNS)
 
         # External refs (set by bridge)
@@ -195,12 +244,110 @@ class SomaticMarkerGate:
 
     # ── Gut feeling ──────────────────────────────────────────────────────
 
+    def set_interior_bias(
+        self,
+        biases: Mapping[str, float] | float,
+        *,
+        source: str = "interiority",
+    ) -> None:
+        """A pull toward or away from named options, from appraised state.
+
+        The gut feeling is learned from stored outcome patterns, which means
+        it can only speak about situations resembling ones already met. An
+        appraisal says something the pattern store cannot: that THIS option
+        is one to be careful about, before anything has gone wrong with it.
+
+        ``core.interiority`` computes exactly that, per option, and had
+        nowhere to put it. Its effect bus called a ``set_interior_bias`` that
+        existed nowhere, so every somatic marker the 43 faculties produced was
+        discarded at the boundary and the gate never heard about any of it.
+
+        A mapping sets a bias per option name (``refuse_with_attention``,
+        ``concede``); a bare float sets one that applies to every candidate.
+        Both are bounded well below the [-1, 1] the gut score lives in, so an
+        appraisal informs the verdict rather than overruling what experience
+        recorded.
+        """
+        if isinstance(biases, (int, float)) and not isinstance(biases, bool):
+            table = {"": float(biases)}
+        elif isinstance(biases, Mapping):
+            table = {}
+            for option, value in biases.items():
+                try:
+                    number = float(value)
+                except (TypeError, ValueError):
+                    continue
+                if number != number:  # NaN
+                    continue
+                table[str(option)] = max(
+                    -_MAX_INTERIOR_BIAS, min(_MAX_INTERIOR_BIAS, number)
+                )
+        else:
+            return
+        with self._interior_lock:
+            self._interior_bias = table
+            self._interior_bias_source = str(source)[:64]
+            self._interior_bias_at = time.time()
+
+    def _interior_bias_for(self, content: str, source: str) -> tuple[float, str]:
+        """The appraised bias that applies to this candidate, and its option.
+
+        An option name is an action class — ``state_the_boundary_and_the_cost``
+        — and the content reaching the gate is whatever the caller wrote. The
+        match is on words rather than on the identifier, because the two are
+        written by different subsystems and will never be spelled the same.
+        """
+        with self._interior_lock:
+            table = dict(self._interior_bias)
+            set_at = self._interior_bias_at
+        if not table:
+            return 0.0, ""
+        if set_at and (time.time() - set_at) > _INTERIOR_BIAS_TTL_S:
+            # An appraisal is about a situation, and situations end. A bias
+            # that outlives its state is the appraisal of a moment that has
+            # passed being applied to one nobody looked at.
+            return 0.0, ""
+
+        haystack = _words(f"{content} {source}")
+        best_bias, best_option, best_score = 0.0, "", 0.0
+        for option, bias in table.items():
+            if option == "":
+                if abs(bias) > abs(best_bias) and best_score == 0.0:
+                    best_bias, best_option = bias, "*"
+                continue
+            needle = _words(option)
+            if not needle:
+                continue
+            overlap = len(needle & haystack) / len(needle)
+            if overlap < _INTERIOR_MATCH_FLOOR:
+                continue
+            if len(needle) == 1:
+                # A third of the option vocabulary is one word — concede,
+                # repair, conceal. Requiring two would throw those away, so a
+                # single word has to carry the match alone, and only a word
+                # long enough to be specific is allowed to.
+                only = next(iter(needle))
+                if len(only) < _INTERIOR_SOLO_WORD_LEN:
+                    continue
+            if overlap > best_score:
+                best_bias, best_option, best_score = bias, option, overlap
+        return best_bias, best_option
+
     def _gut_feeling(self, content: str, source: str) -> tuple[float, float]:
         """Match current executive mesh state against stored outcome patterns.
 
         Returns (approach_score [-1, 1], confidence [0, 1]).
         """
+        bias, _option = self._interior_bias_for(content, source)
         if self._mesh_ref is None or len(self._outcome_patterns) < 3:
+            # No stored pattern resembles this. An appraisal is then the only
+            # thing that can say anything, so it carries the verdict alone
+            # rather than being averaged into a neutral score.
+            if bias:
+                return (
+                    max(-1.0, min(1.0, bias)),
+                    min(1.0, abs(bias) * _INTERIOR_ONLY_CONFIDENCE),
+                )
             return 0.0, 0.1  # no data → neutral, low confidence
 
         # Get current executive tier state
@@ -241,7 +388,11 @@ class SomaticMarkerGate:
         gut_score = float(np.sum(vals[top_idx] * weights) / total_weight)
         confidence = float(min(1.0, total_weight / k))
 
-        return max(-1.0, min(1.0, gut_score)), confidence
+        # The appraisal is added to what experience says rather than replacing
+        # it. Both are real evidence about whether to act, and they disagree
+        # often — a situation that went well before can still be one she is
+        # in no state for now.
+        return max(-1.0, min(1.0, gut_score + bias)), confidence
 
     # ── Body budget ──────────────────────────────────────────────────────
 

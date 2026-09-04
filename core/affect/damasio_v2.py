@@ -75,6 +75,12 @@ _TRUSTED_STIMULUS_SOURCES = frozenset(
         "memory_governor",
         "contract_test",
         "internal",
+        # core.interiority tracks the provenance of every reading a faculty
+        # used and only attaches evidence when the weakest of them was
+        # measured or inferred. Without it here, the untrusted branch below
+        # zeroed valence — the one axis the faculties actually compute — so
+        # the whole interior appraisal reached affect as an unsigned nudge.
+        "interiority",
     }
 )
 
