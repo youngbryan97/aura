@@ -320,14 +320,23 @@ class AmbientPresence:
         protects them from one does not apply to it. Those lines queue and
         are shown in order, so a run narrating twenty moves says twenty
         things rather than overwriting nineteen of them before anyone reads
-        them. Unprompted thoughts keep the old behaviour exactly.
+        them. Unprompted thoughts keep the old behaviour exactly — including
+        the quiet window, which is about her volunteering something and not
+        about answering.
+
+        The quiet-window check sat above that split and applied to both, so
+        the commentary a person asked to watch disappeared whenever the
+        control could not confirm permission she had already given — and the
+        control fails closed, so a moment without an orchestrator silences
+        the whole run. Nothing said, and nothing saying why.
         """
         body = str(text or "").strip()
         if not body:
             return False
         if self.mode is PresenceMode.HIDDEN:
+            # No surface to speak to. True of asked-for lines as well.
             return False
-        if _proactivity_suppressed():
+        if not requested and _proactivity_suppressed():
             return False
         with self._lock:
             if requested:

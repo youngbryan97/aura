@@ -513,9 +513,31 @@ def test_she_does_not_speak_while_suppressed(presence, monkeypatch):
     assert presence.state()["has_utterance"] is False
 
 
+def test_a_commentary_she_was_asked_for_is_not_unprompted_speech(presence, monkeypatch):
+    """The quiet window is about her volunteering something, not about answering.
+
+    The check sat above the split and applied to both, so a commentary a
+    person asked to watch disappeared whenever the control could not confirm
+    permission they had already given — and it fails closed, so one moment
+    without an orchestrator silenced the whole run.
+    """
+    monkeypatch.setattr(
+        "core.perception.ambient_presence._proactivity_suppressed", lambda: True
+    )
+
+    assert presence.offer_utterance("Going up", requested=True) is True
+    assert presence.state()["has_utterance"] is True
+
+
 def test_she_does_not_speak_while_hidden(presence):
     presence.hide()
     assert presence.offer_utterance("I noticed something") is False
+
+
+def test_not_even_a_commentary_she_was_asked_for_while_hidden(presence):
+    """There is no surface to speak to."""
+    presence.hide()
+    assert presence.offer_utterance("Going up", requested=True) is False
 
 
 def test_an_accepted_utterance_reaches_the_bubble(presence):

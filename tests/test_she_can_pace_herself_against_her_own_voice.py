@@ -67,8 +67,16 @@ def test_the_presence_reports_its_own_backlog():
 def body(monkeypatch):
     state = {"pressed": [], "said": [], "backlog": 3, "text": "board 0"}
 
-    async def read(app_name=""):
-        return {"ok": True, "text": state["text"], "layout": [], "bounds": []}
+    async def read(app_name="", over=None):
+        return {
+            "ok": True,
+            "text": state["text"],
+            "layout": [],
+            "bounds": [],
+            "scoped_to": app_name,
+            "in_front_then": app_name,
+            "her_window_showing": True,
+        }
 
     async def press(key, *, expect_app=""):
         state["pressed"].append(key)
@@ -496,3 +504,21 @@ def test_an_undertaking_nobody_touched_stops_being_the_present():
         assert doing.as_lines() == []
     finally:
         doing.how_it_went(False, "test", graph=_Store())
+
+
+def test_the_stand_in_reader_still_matches_the_real_one():
+    """A double whose signature has drifted fails the whole test silently.
+
+    These five tests raised TypeError out of the middle of the loop for
+    however long the real reader has taken a region argument, so none of them
+    were exercising the pacing they are named for.
+    """
+    import inspect
+
+    real = set(inspect.signature(sp.read_screen).parameters)
+    state = {"text": ""}
+
+    async def stand_in(app_name="", over=None):
+        return {}
+
+    assert set(inspect.signature(stand_in).parameters) == real
