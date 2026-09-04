@@ -155,6 +155,14 @@ ALLOWED_PLASTIC_MODULES = frozenset(
 # Hard deny-list — even if a target is added by mistake, these strings
 # anywhere in the module name fail the policy check.  Catches accidental
 # attempts to mutate the base LLM, the Will itself, or the security layer.
+#
+# The second group is the machinery that decides what may change at all: the
+# ladder that adjudicates a modification, the registry of what she may do
+# about herself, the ledger that records a promotion, and the trial that puts
+# a rejected change back.  The allow-list already excludes them, because it
+# is closed-world — but the allow-list is the layer a mistake edits, and this
+# is the layer that catches the mistake.  A system whose plasticity can reach
+# the rules governing its plasticity has no rules governing its plasticity.
 DENIED_PLASTIC_SUBSTRINGS = (
     "base_llm",
     "model.safetensors",
@@ -164,6 +172,13 @@ DENIED_PLASTIC_SUBSTRINGS = (
     "memory_authority",
     "state_authority",
     "security",
+    "self_modification",
+    "growth_ladder",
+    "constitutional",
+    "what_she_could_do_next",
+    "how_a_change_is_promoted",
+    "what_she_can_take_back",
+    "what_a_change_means",
 )
 
 
