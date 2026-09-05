@@ -2190,6 +2190,21 @@ def _placed_in(lattice: Any, places: Any) -> list[tuple[int, int]]:
     return said
 
 
+def _how_it_has_been_going(began_at: dict[str, Any], now: Any) -> float:
+    """What she has been getting per act so far, positive when it is working.
+
+    The same statistic a trial is judged by — gain per observation — because
+    where she stands is not comparable across two stretches of a run and the
+    rate she is moving at is.
+    """
+    was = began_at.get("worth")
+    if was is None or now is None:
+        return 0.0
+    numbers = getattr(now, "numbers", None)
+    here = sum(numbers() or (0.0,)) if callable(numbers) else 0.0
+    return (here - float(was)) / max(1, int(began_at.get("seen") or 1))
+
+
 def _the_thing_she_is_acting_in(whole: Any, lattice: Any, like: Any = None) -> Any:
     """The thing inside a reading — unless she is already holding its frame.
 
@@ -2695,7 +2710,12 @@ async def pursue_on_screen(
     )
     from core.agency.how_good_is_this import a_trial_is_running as _a_trial_is_running
     from core.agency.inventing_a_measure import measure_named
-    from core.agency.looking_ahead import look_ahead, worth_finding_out
+    from core.agency.looking_ahead import (
+        at_the_worlds_mercy,
+        look_ahead,
+        whether_to_take_the_wide_option,
+        worth_finding_out,
+    )
     from core.agency.standing_strategy import Strategy, settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
     from core.agency.what_i_can_do_here import WhatWorksHere
@@ -4046,6 +4066,25 @@ async def pursue_on_screen(
                 no_move["because"] = "the policy named a key nothing can press"
                 return None
             because = str(intent.get("because") or "").strip()
+            # What reaches the learner is read off `pending`, and only the
+            # deliberating branch below ever wrote it — a run driven by a
+            # policy pressed keys and learned nothing at all, forever,
+            # because the pair it moved through was never recorded as one.
+            # A policy is a way of choosing, not a different kind of move, so
+            # it is recorded the same way: the reading it chose from, the
+            # name it chose, and why.
+            from core.agency.deliberate_action import ActionOption, Deliberation
+
+            pending["deliberation"] = Deliberation(
+                goal=goal,
+                situation=seen,
+                chosen=ActionOption(name=key, detail=because),
+                rationale=because,
+            )
+            pending["before"] = seen
+            pending["arranged"] = laid_out
+            pending["whole"] = whole
+            pending["watched"] = observation
         else:
             # Find out how this is done — at the start, and again when what
             # she is doing has stopped working.
@@ -4521,6 +4560,53 @@ async def pursue_on_screen(
                         )[:4]
                     ),
                 )
+            # And how much of what happens next is the world's rather than
+            # hers, which is the other thing looking ahead averages away.
+            #
+            # A position where every reply leaves her fine is not the same as
+            # one where the average reply leaves her fine and one of them
+            # ruins her. That difference is what a grip buys: a hand on a
+            # wrist does not improve the position and is not free, and what
+            # it gets is that whatever happens next she is still where she
+            # was. Keeping the largest thing in a corner buys exactly that.
+            #
+            # Which way to lean on it is not a temperament. Ahead with time
+            # to spare, an uncertain position is worth avoiding — she only
+            # has to keep doing what works. Behind with the clock going, it
+            # is worth seeking, because the average outcome of what she is
+            # doing is already a loss and the spread is the only thing that
+            # contains a win. Both come off the run: how much budget is left,
+            # and what she has been getting per act.
+            exposed = at_the_worlds_mercy(
+                knows.rules,
+                laid_out,
+                [option.name for option in available],
+                toward=success_when or _what_there_is_to_aim_at(laid_out),
+                approach=held_line,
+                world=world,
+            )
+            if exposed and ahead:
+                worths = [value for value, _why in ahead.values()]
+                spread = max(worths) - min(worths)
+                lean = whether_to_take_the_wide_option(
+                    max(0.0, ends_at - time.monotonic()) / max(1e-9, ends_at - began),
+                    _how_it_has_been_going(began_at, laid_out),
+                )
+                if spread > 0.0 and lean:
+                    ahead = {
+                        name: (value + lean * spread * exposed.get(name, 0.0), why)
+                        for name, (value, why) in ahead.items()
+                    }
+                    logger.info(
+                        "the world could swing this; leaning %+.2f: %s",
+                        lean,
+                        ", ".join(
+                            f"{name} {share:.2f}"
+                            for name, share in sorted(
+                                exposed.items(), key=lambda pair: -pair[1]
+                            )[:4]
+                        ),
+                    )
             # What she is aiming at, where it names a number or a band.
             #
             # "More is better" is true of some goals and quietly false of many:

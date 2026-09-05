@@ -214,6 +214,97 @@ def worth_finding_out(
     return {action: share * spread for action, share in told.items()}
 
 
+def at_the_worlds_mercy(
+    knows: Any,
+    state: Any,
+    actions: Sequence[str],
+    *,
+    toward: str = "",
+    approach: str = "",
+    weights: Any = None,
+    world: Any = None,
+) -> dict[str, float]:
+    """For each act, how much of what happens next is the world's to decide.
+
+    Looking ahead averages over what the world might do, which is right for
+    working out what a move is worth and throws away the thing a person plays
+    for. A position where every reply leaves her fine is not the same as one
+    where the average reply leaves her fine and one of them ruins her, and the
+    average cannot tell them apart.
+
+    This is what a grip is. A hand on a wrist does not improve the position by
+    itself and it is not free — it occupies a hand. What it buys is that
+    whatever the other side does next, she is still where she was. Keeping the
+    largest thing in a corner buys the same: wherever the world puts something
+    next, the structure survives. Every account of controlling a position is
+    this quantity, and none of them is about the average.
+
+    Said as a share rather than in points, so it can be weighed beside things
+    measured in other units: how far the world's replies spread, against how
+    far her own choices spread. One is what happens to her and the other is
+    what she does, and the ratio is how much of this position is hers.
+    """
+    might = getattr(world, "might_do", None)
+    expect = getattr(knows, "expect", None)
+    if not callable(might) or not callable(expect):
+        return {}
+    how = {"toward": toward, "approach": approach, "weights": weights}
+    spreads: dict[str, float] = {}
+    mine: list[float] = []
+    for action in actions:
+        try:
+            future = expect(state, action)
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if future is None:
+            continue
+        mine.append(how_good(future, **how))
+        try:
+            ways = might(future)
+        except (AttributeError, TypeError, ValueError):
+            ways = ()
+        seen = [how_good(way, **how) for way, _share in ways or ()]
+        spreads[action] = (max(seen) - min(seen)) if len(seen) > 1 else 0.0
+    if not spreads or not any(spreads.values()):
+        return {}
+    # Against how much her own choice moves things, so the number says how
+    # much of what happens is the world's doing rather than hers.
+    hers = (max(mine) - min(mine)) if len(mine) > 1 else 0.0
+    return {
+        action: spread / (spread + hers) if (spread + hers) > 0 else 0.0
+        for action, spread in spreads.items()
+    }
+
+
+def whether_to_take_the_wide_option(left: float, gaining: float) -> float:
+    """Which way to lean on a position the world could swing, from -1 to 1.
+
+    A fighter takes a shot at nineteen seconds that he would not take at
+    three minutes, and he takes it when he is behind and not when he is
+    ahead. Neither is recklessness or caution as a temperament: the value of
+    an uncertain outcome depends on how much time is left to recover from it
+    and on whether the sure thing is winning.
+
+    Both come from the run rather than from a setting. ``left`` is the share
+    of the budget still to go, and ``gaining`` is what she has been getting
+    per act — positive when the way she is playing is working.
+
+    Ahead with time to spare, an uncertain position is worth avoiding: she
+    only needs to keep doing what works. Behind with the clock going, it is
+    worth seeking, because the average outcome of what she is doing is
+    already a loss and the spread is the only thing that contains a win.
+    """
+    share = max(0.0, min(1.0, float(left)))
+    # Losing counts for more the less time is left to recover from it: the
+    # same deficit is a reason to steady early and a reason to gamble late.
+    urgency = 1.0 - share
+    if gaining > 0:
+        return -share
+    if gaining < 0:
+        return urgency
+    return 0.0
+
+
 def look_ahead(
     knows: Any,
     state: Any,
