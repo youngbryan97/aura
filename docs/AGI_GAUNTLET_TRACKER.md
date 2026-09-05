@@ -12,7 +12,7 @@ the strength of an argument.
 | A2 | `_freedom` halved for a duplicated productive act | DONE 71aa50c84 |
 | A3 | Two relation-invention tests red against a false null | DONE 71aa50c84 |
 | A4 | `keep_the_record`/`recall_the_record` had no production caller | DONE 84efe1028 |
-| A5 | `unknown_failure.py` isolated from the repair ladder | |
+| A5 | `unknown_failure.py` isolated from the repair ladder | DONE |
 | A6 | `value_levels.py` isolated; duplicated theories of what may change | |
 | A7 | `expected_information_gain.py` isolated; no organism-wide epistemic controller | |
 | A8 | `long_horizon.py` and the relationship history APIs underfed by ordinary experience | |

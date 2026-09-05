@@ -752,4 +752,14 @@ def get_fault_registry() -> FaultRegistry:
                     or os.environ.get("PYTEST_CURRENT_TEST"),
                 )
                 _registry = FaultRegistry(persistent_evidence=not testing)
+        # What every known fault actually looks like, learned from its
+        # instances. Without this the recogniser in unknown_failure.py has
+        # nothing to compare a new failure against, and it had nothing: the
+        # module was correct, complete, and reached by no fault in the tree.
+        try:
+            from core.resilience.unknown_failure import attach_to_the_fault_registry
+
+            attach_to_the_fault_registry(_registry)
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug("Failure ontology not attached: %s", exc)
     return _registry

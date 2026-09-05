@@ -194,6 +194,15 @@ def _distance(
     categorical difference: on the first run a consciousness-subsystem drift
     error came back as a known inference fault, because 2.5 looked small
     beside a typical separation of 5144 that was entirely made of latency.
+
+    A channel only one of them carries is dropped rather than read as zero.
+    Absence is not a measurement, and treating it as one does damage in both
+    directions: a failure reported with no numbers at all looked like a
+    failure whose every number was zero, so it was far from everything and
+    always novel; and two failures neither of which was measured looked
+    identical, so the second was always known. Where nothing is shared the
+    comparison is the categorical one, which is a smaller claim honestly
+    made.
     """
     parts: list[float] = []
     parts.append(0.0 if left.subsystem == right.subsystem else 1.0)
@@ -201,15 +210,20 @@ def _distance(
     a, b = set(left.broken_invariants), set(right.broken_invariants)
     union = a | b
     parts.append(0.0 if not union else 1.0 - len(a & b) / len(union))
-    if keys:
+    shared = [
+        key
+        for key in keys
+        if key in left.observations and key in right.observations
+    ]
+    if shared:
         total = 0.0
-        for key in keys:
+        for key in shared:
             span = ranges.get(key, (0.0, 1.0))
             difference = _normalise(
-                float(left.observations.get(key, 0.0)), span
-            ) - _normalise(float(right.observations.get(key, 0.0)), span)
+                float(left.observations[key]), span
+            ) - _normalise(float(right.observations[key]), span)
             total += difference * difference
-        parts.append(math.sqrt(total / len(keys)))
+        parts.append(math.sqrt(total / len(shared)))
     return sum(parts) / len(parts)
 
 
@@ -438,16 +452,326 @@ def propose_repairs(verdict: Verdict) -> tuple[Repair, ...]:
     )
 
 
+# ── the part that was missing: this happening in a running system ────────
+#
+# Everything above was correct and nothing called it. A module that can
+# recognise a failure nobody has a concept for, and which no failure ever
+# reaches, is a description of a capability rather than the capability. The
+# live ladder went failure → restart → localisation → governed reconstruction
+# → receipt, and never once asked whether it had seen this before.
+#
+# Two seams, in the two places that can afford them:
+#
+#   learning what the known ones look like, from the fault registry's own
+#   listener hook, which must be O(1) and is;
+#
+#   recognising a new one, at the escalation point in the healing ladder,
+#   which is already async and already off every hot path.
+#
+# The ontology persists for the same reason the record of her own work does.
+# A failure concept invented on Tuesday and forgotten at the next restart is
+# rediscovered at full diagnostic cost on Wednesday, which is exactly the
+# thing step six exists to prevent.
+
+
+def _where_it_is_kept() -> Any:
+    from core.runtime.state_ownership import state_root
+
+    return state_root() / "what_failure_looks_like.json"
+
+
+class _KeptOntology(FailureOntology):
+    """A FailureOntology that survives the process it learned in."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._restored = False
+        self._unwritten = 0
+
+    def _restore_once(self) -> None:
+        with self._lock:
+            if self._restored:
+                return
+            self._restored = True
+        try:
+            import json
+
+            held = json.loads(_where_it_is_kept().read_text(encoding="utf-8"))
+        except (OSError, ValueError, ImportError, AttributeError):
+            return
+        if not isinstance(held, dict):
+            return
+        with self._lock:
+            for fault_id, rows in (held.get("instances") or {}).items():
+                for row in rows or ():
+                    if not isinstance(row, dict):
+                        continue
+                    self._instances.setdefault(str(fault_id), []).append(
+                        Signature(
+                            subsystem=str(row.get("subsystem") or ""),
+                            kind=str(row.get("kind") or ""),
+                            broken_invariants=tuple(
+                                str(one) for one in row.get("broken_invariants") or ()
+                            ),
+                            observations={
+                                str(k): float(v)
+                                for k, v in (row.get("observations") or {}).items()
+                            },
+                            at=float(row.get("at") or 0.0),
+                        )
+                    )
+            self._invented |= {str(one) for one in held.get("invented") or ()}
+
+    def keep(self) -> bool:
+        """Write down what failure looks like, through the governed gateway."""
+        import json
+
+        with self._lock:
+            body = {
+                "instances": {
+                    fault: [one.to_dict() for one in group[-HOW_MANY_KEPT_EACH:]]
+                    for fault, group in self._instances.items()
+                },
+                "invented": sorted(self._invented),
+            }
+        try:
+            from core.governance_context import local_internal_governed_scope
+            from core.runtime.file_write_gateway import get_file_write_gateway
+
+            with local_internal_governed_scope(
+                "unknown_failure.keep", domain="state_mutation"
+            ):
+                gateway = get_file_write_gateway()
+                gateway.ensure_directory(
+                    _where_it_is_kept().parent, source="unknown_failure"
+                )
+                gateway.write_text(
+                    _where_it_is_kept(), json.dumps(body), source="unknown_failure"
+                )
+            return True
+        except (OSError, RuntimeError, TypeError, ValueError, ImportError) as exc:
+            from core.runtime.errors import record_degradation
+
+            record_degradation(
+                "unknown_failure", exc, severity="info",
+                action="keep what failure looks like",
+            )
+            return False
+
+    def observe(self, fault_id: str, signature: Signature) -> None:
+        self._restore_once()
+        super().observe(fault_id, signature)
+        with self._lock:
+            self._unwritten += 1
+            due = self._unwritten >= HOW_OFTEN_IT_IS_WRITTEN
+            if due:
+                self._unwritten = 0
+        if due:
+            _ASKED_TO_WRITE.set()
+
+    def recognise(self, signature: Signature) -> Verdict:
+        self._restore_once()
+        return super().recognise(signature)
+
+    def _learned(self) -> dict[str, list[Signature]]:
+        # Every question about what is known goes through here, so this is
+        # the one place the restore has to happen. Putting it only on the
+        # three public methods left `known_faults` answering from an empty
+        # ontology after a restart, which is the persistence bug this class
+        # exists to fix, one level down.
+        self._restore_once()
+        return super()._learned()
+
+    @property
+    def invented(self) -> tuple[str, ...]:
+        self._restore_once()
+        return super().invented
+
+    def snapshot(self) -> dict[str, Any]:
+        self._restore_once()
+        return super().snapshot()
+
+    def integrate(self, name: str, signature: Signature) -> str:
+        self._restore_once()
+        fault_id = super().integrate(name, signature)
+        _ASKED_TO_WRITE.set()
+        return fault_id
+
+
+#: Instances kept per fault. The signature is a shape, and thirty instances of
+#: one shape say what three hundred do at a tenth of the file.
+HOW_MANY_KEPT_EACH = 30
+
+#: Observations between write-backs.
+HOW_OFTEN_IT_IS_WRITTEN = 8
+
+_ONTOLOGY: _KeptOntology | None = None
+_ONTOLOGY_LOCK = threading.Lock()
+_ASKED_TO_WRITE = threading.Event()
+_WRITER: threading.Thread | None = None
+_ATTACHED = [False]
+
+
+def get_failure_ontology() -> FailureOntology:
+    """The one ontology, restoring itself and writing itself back."""
+    global _ONTOLOGY, _WRITER
+    with _ONTOLOGY_LOCK:
+        if _ONTOLOGY is None:
+            _ONTOLOGY = _KeptOntology()
+        if _WRITER is None:
+            _WRITER = threading.Thread(
+                target=_write_when_asked,
+                name="what-failure-looks-like",
+                daemon=True,
+            )
+            _WRITER.start()
+        return _ONTOLOGY
+
+
+def _write_when_asked() -> None:
+    while True:
+        _ASKED_TO_WRITE.wait()
+        _ASKED_TO_WRITE.clear()
+        held = _ONTOLOGY
+        if held is None:
+            continue
+        try:
+            held.keep()
+        except Exception as exc:  # noqa: BLE001 - a writer thread may not die
+            logger.debug("could not keep what failure looks like: %s", exc)
+
+
+def signature_of(record: Any, *, broken_invariants: Sequence[str] = ()) -> Signature:
+    """The observable shape of one recorded fault.
+
+    Features anything can produce, so a new failure is compared against what
+    known faults were actually seen doing rather than against the prose in a
+    catalogue entry.
+    """
+    severity = getattr(record, "severity", None)
+    recovery = getattr(record, "recovery_time_s", None)
+    return Signature(
+        subsystem=str(getattr(record, "subsystem", "") or ""),
+        kind=str(getattr(record, "error_type", "") or "")
+        or str(getattr(record, "fault_id", "") or ""),
+        broken_invariants=tuple(str(one) for one in broken_invariants),
+        observations={
+            "severity": float(int(severity)) if severity is not None else 0.0,
+            "recovered": 1.0 if getattr(record, "recovered", False) else 0.0,
+            "recovery_seconds": float(recovery) if recovery else 0.0,
+            "message_length": float(len(str(getattr(record, "error_message", "")))),
+        },
+    )
+
+
+def learn_from_fault(record: Any) -> None:
+    """What one known fault looked like. The registry listener body: O(1)."""
+    fault_id = str(getattr(record, "fault_id", "") or "")
+    if not fault_id:
+        return
+    try:
+        get_failure_ontology().observe(fault_id, signature_of(record))
+    except (AttributeError, TypeError, ValueError, OSError) as exc:
+        logger.debug("could not learn from fault %s: %s", fault_id, exc)
+
+
+def attach_to_the_fault_registry(registry: Any = None) -> bool:
+    """Learn the shape of every fault the system records. Idempotent.
+
+    The registry is passed in by the singleton that is building itself, so
+    this never re-enters ``get_fault_registry`` from inside it.
+    """
+    with _ONTOLOGY_LOCK:
+        if _ATTACHED[0]:
+            return False
+        _ATTACHED[0] = True
+    try:
+        if registry is None:
+            from core.resilience.fault_taxonomy import get_fault_registry
+
+            registry = get_fault_registry()
+        return bool(registry.add_listener(learn_from_fault))
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        logger.debug("could not attach the failure ontology: %s", exc)
+        with _ONTOLOGY_LOCK:
+            _ATTACHED[0] = False
+        return False
+
+
+@dataclass(frozen=True)
+class Diagnosis:
+    """What was recognised and what to try, for one failure in flight."""
+
+    verdict: Verdict
+    signature: Signature
+    repairs: tuple[Repair, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "verdict": self.verdict.to_dict(),
+            "signature": self.signature.to_dict(),
+            "repairs": [one.to_dict() for one in self.repairs],
+        }
+
+
+def look_at_this_failure(
+    subsystem: str,
+    kind: str,
+    *,
+    broken_invariants: Sequence[str] = (),
+    observations: Mapping[str, float] | None = None,
+) -> Diagnosis:
+    """Steps one to four, at the point where the ladder is about to escalate.
+
+    Not on any hot path. This runs where the watchdog has already decided a
+    service is not coming back, which is the only place worth spending a
+    diagnosis and the one place the ladder never asked.
+    """
+    signature = Signature(
+        subsystem=str(subsystem),
+        kind=str(kind),
+        broken_invariants=tuple(str(one) for one in broken_invariants),
+        observations=dict(observations or {}),
+    )
+    verdict = get_failure_ontology().recognise(signature)
+    return Diagnosis(
+        verdict=verdict,
+        signature=signature,
+        repairs=propose_repairs(verdict) if verdict.needs_a_new_concept else (),
+    )
+
+
+def a_repair_that_held(diagnosis: Diagnosis, *, called: str) -> str:
+    """Step six. Give the novel failure a name, so it is known next time.
+
+    Only for a repair that actually held. Integrating a concept for a failure
+    that is still happening teaches the recogniser to expect the broken state,
+    and the next occurrence comes back KNOWN with nothing known about it.
+    """
+    if not diagnosis.verdict.needs_a_new_concept:
+        return ""
+    return get_failure_ontology().integrate(called, diagnosis.signature)
+
+
 __all__ = [
+    "HOW_MANY_KEPT_EACH",
+    "HOW_OFTEN_IT_IS_WRITTEN",
     "MATCH_FRACTION",
     "MIN_INSTANCES",
     "MIN_KNOWN_FAULTS",
     "REPAIR_REPERTOIRE",
+    "Diagnosis",
     "FailureOntology",
     "Recognition",
     "Repair",
     "RepairOutcome",
     "Signature",
     "Verdict",
+    "a_repair_that_held",
+    "attach_to_the_fault_registry",
+    "get_failure_ontology",
+    "learn_from_fault",
+    "look_at_this_failure",
     "propose_repairs",
+    "signature_of",
 ]

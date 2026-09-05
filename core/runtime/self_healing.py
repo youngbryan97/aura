@@ -80,6 +80,67 @@ def _bounded_env_float(
     return min(maximum, max(minimum, configured))
 
 
+def _which_invariants_stopped_holding(subsystem: str) -> tuple[str, ...]:
+    """The invariants that are actually failing, rather than a guess at one.
+
+    A repair verified against an invariant nobody checked is verified against
+    nothing. The declared invariants are already scoped, so this asks the
+    scope named after the failing subsystem and falls back to every scope
+    when there is no such scope — a wider check, never a silent empty one.
+    """
+
+    try:
+        from core.verify.invariants import get_registry, verify
+    except ImportError:
+        return ()
+    try:
+        scopes = set(get_registry().scopes())
+        wanted = [one for one in (subsystem, subsystem.split("_")[0]) if one in scopes]
+        report = verify(*wanted) if wanted else verify()
+        return tuple(sorted({str(one.invariant) for one in report.violations}))
+    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Could not read which invariants stopped holding: %s", exc)
+        return ()
+
+
+def _diagnose_this_failure(subsystem: str, reason: str) -> Any:
+    """Recognise a failure before escalating, or None when that is impossible.
+
+    Runs on a worker thread. Everything it touches is either bounded or
+    optional, and a diagnosis that cannot be made must never stop a repair
+    that can.
+    """
+
+    try:
+        from core.resilience.unknown_failure import look_at_this_failure
+    except ImportError:
+        return None
+    try:
+        return look_at_this_failure(
+            subsystem,
+            reason,
+            broken_invariants=_which_invariants_stopped_holding(subsystem),
+        )
+    except (AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
+        logger.debug("Could not diagnose %s: %s", subsystem, exc)
+        return None
+
+
+def _learn_this_failure_class(diagnosis: Any, module_path: str) -> str:
+    """Name a novel failure whose repair held, so next time it is known."""
+
+    try:
+        from core.resilience.unknown_failure import a_repair_that_held
+    except ImportError:
+        return ""
+    try:
+        called = str(module_path).replace("/", ".").removesuffix(".py")
+        return a_repair_that_held(diagnosis, called=called)
+    except (AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
+        logger.debug("Could not learn the failure class for %s: %s", module_path, exc)
+        return ""
+
+
 def _deep_repair_block_reason(origin: str = "self_healing_deep_repair") -> str:
     """Return a reason deep repair must not run in this runtime mode."""
 
@@ -654,6 +715,18 @@ class SelfHealing:
             record["result"] = block_reason
             await self._append_record_async(record)
             return record
+        # Is this anything we know?
+        #
+        # The ladder reached governed reconstruction without ever asking. A
+        # failure the system has a concept for should be repaired by the
+        # concept's runbook; one it does not is the hard case, and the hard
+        # case is worth naming so the next occurrence is cheap. Off the loop,
+        # because inferring the broken invariant runs the verifier.
+        diagnosis = await asyncio.to_thread(
+            _diagnose_this_failure, watch_name or str(module_path), reason
+        )
+        if diagnosis is not None:
+            record["diagnosis"] = diagnosis.to_dict()
         try:
             from core.service_names import ServiceNames
 
@@ -685,6 +758,14 @@ class SelfHealing:
             result_dict = result.to_dict() if hasattr(result, "to_dict") else {"success": False}
             record["result"] = "deep_repair_succeeded" if result_dict.get("success") else "deep_repair_rejected"
             record["lab_result"] = result_dict
+            # Step six, and only on a repair that held. A concept minted for
+            # a failure that is still happening teaches the recogniser to
+            # expect the broken state, and every later occurrence comes back
+            # KNOWN with nothing known about it.
+            if diagnosis is not None and result_dict.get("success"):
+                learned = _learn_this_failure_class(diagnosis, module_path)
+                if learned:
+                    record["failure_concept"] = learned
             return record
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('self_healing', exc)
