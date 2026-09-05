@@ -168,7 +168,7 @@ def test_the_report_counts_what_is_not_sayable(instances):
     assert report["native"] == 1
     assert report["verbal"] == 1
     assert report["residual"] == 1
-    assert report["names"] == ["the_xor_axis"]
+    assert report["names"] == ["b"]
 
 
 def test_no_natives_is_a_real_finding(instances):
