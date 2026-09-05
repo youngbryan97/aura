@@ -49,7 +49,7 @@ the strength of an argument.
 | # | Item | State |
 |---|---|---|
 | C1 | Freeze: commit hash, weight hash, config hash; environments sealed after | DONE — commit, source digest, weights, config; seed derived from all four |
-| C2 | Ablations: full / no-development / reset-between-episodes / base model in a plain scaffold | PARTIAL — reset ablation runs (B3); base-model-in-a-plain-scaffold needs the model |
+| C2 | Ablations: full / no-development / reset-between-episodes / base model in a plain scaffold | DONE for what can run — five lesions, gaps measured; the plain-scaffold and self-model lesions are declared with what they need |
 | C3 | Human baselines and the competent-adult threshold | NOT RUN — needs human baselines |
 | C4 | P_0 and P_L, and the difference between them | DONE — P0 and PL, and the difference, in scoring.py |
 | C5 | Interaction efficiency beside accuracy | DONE — interaction efficiency beside accuracy in B2 |
@@ -58,3 +58,28 @@ the strength of an argument.
 | C8 | No benchmark-specific code path, checked rather than promised | DONE — B16 parses rather than greps |
 | C9 | `make agi-gauntlet` and the written protocol | DONE — make agi-gauntlet and docs/AGI_GAUNTLET.md |
 | C10 | The reproduction bundle an outside evaluator runs | PARTIAL — the run reproduces; an outside evaluator is still needed |
+
+## What the ablations said
+
+Run on gate 2, twenty worlds, eight lives:
+
+| lesion | solved | gap |
+|---|---|---|
+| whole | 0.80 | — |
+| no newness | 0.75 | 0.05 |
+| no development | 0.80 | 0.00 |
+| reset between episodes | 0.80 | 0.00 |
+| the standing guess from the first move | 0.80 | 0.00 |
+| no library | 0.80 | 0.00 |
+
+The newness term does the work. The weight learning, the developmental record
+and the library of structures contribute nothing measurable here, and that
+corrects an attribution made earlier in this work: the jump from one world
+solved in twelve to ten was read as the cold-start rule and it was the term.
+A gap of zero is the only way to tell a component that matters from one that
+is present.
+
+Two lesions are declared rather than run. The same weights in a plain
+scaffold needs the weights, and a second 32B beside the resident one is how
+this host dies. The self-model lesion needs a live runtime, because a lesion
+applied to a process that never booted removes nothing.

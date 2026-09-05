@@ -46,6 +46,9 @@ logger = logging.getLogger("Aura.Agency.WhatMattersHere")
 
 __all__ = [
     "ENOUGH_RUNS",
+    "always_the_guess",
+    "keep_nothing",
+    "keeping_nothing",
     "WhatMattersHere",
     "for_this_world",
     "forget_what_mattered",
@@ -94,6 +97,8 @@ class WhatMattersHere:
 
         if not along:
             return
+        if _KEEP_NOTHING[0]:
+            return
         into = self.well if went_well else self.badly
         for name in {key for one in along for key in one}:
             got = [float(one.get(name, 0.0)) for one in along]
@@ -126,7 +131,9 @@ class WhatMattersHere:
         same and nothing else was allowed to speak.
         """
 
-        if not self.wins:
+        if _ALWAYS_THE_GUESS[0]:
+            return dict(guess)
+        if _KEEP_NOTHING[0] or not self.wins:
             return {
                 name: (1.0 if name in _WHAT_IS_IN_FRONT_OF_HER else 0.0)
                 for name in guess
@@ -159,6 +166,36 @@ class WhatMattersHere:
 
 
 _LEARNED: dict[str, WhatMattersHere] = {}
+
+#: When set, nothing learned about a world outlives the run it was learned
+#: in. A lesion, not a setting: it exists so the gap between keeping what she
+#: worked out and throwing it away can be measured, and a part whose removal
+#: changes nothing was not doing the work.
+_KEEP_NOTHING = [False]
+
+
+def keep_nothing(on: bool = True) -> None:
+    """Throw away what each run taught, as an ablation."""
+
+    _KEEP_NOTHING[0] = bool(on)
+    if on:
+        _LEARNED.clear()
+
+
+def keeping_nothing() -> bool:
+    return bool(_KEEP_NOTHING[0])
+
+
+#: When set, the standing guess is used from the first move, as if entering
+#: an unfamiliar world were the same as entering a familiar one. The other
+#: lesion, and the one that says which half of this module does the work.
+_ALWAYS_THE_GUESS = [False]
+
+
+def always_the_guess(on: bool = True) -> None:
+    """Judge an unfamiliar world by what mattered in the last one."""
+
+    _ALWAYS_THE_GUESS[0] = bool(on)
 
 
 def for_this_world(world: str) -> WhatMattersHere:
