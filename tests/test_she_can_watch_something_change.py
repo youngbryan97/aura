@@ -463,6 +463,27 @@ def test_clearing_a_blocker_happens_before_the_policy_is_asked(monkeypatch):
     assert screen_state["clicks"], "nothing dismissed the dialog"
 
 
+@pytest.fixture(autouse=True)
+def _nothing_above_her_work(monkeypatch):
+    """Nothing is over her window, without asking the window server.
+
+    The loop asks what is above her work every cycle, and a test that does
+    not answer sends that question to the real window server — several
+    seconds a cycle, forty cycles, on a machine that has a screen. This file
+    is about what the loop decides, not about what is actually on this
+    display.
+    """
+
+    async def above(_mine, over=None):
+        return ()
+
+    async def on_top(_mine, over=None):
+        return ""
+
+    monkeypatch.setattr(sp, "_everything_on_top", above, raising=False)
+    monkeypatch.setattr(sp, "_whats_on_top", on_top, raising=False)
+
+
 def test_a_blocker_that_will_not_clear_is_reported_not_repeated(monkeypatch):
     """A dismissal that does not work must not be tried forever.
 

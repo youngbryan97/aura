@@ -43,12 +43,28 @@ def keyboard(monkeypatch):
 
 
 def _sees(monkeypatch, *answers: str):
+    """What is above her work, answer by answer.
+
+    Both readers are patched. The check for "did it close" used to ask
+    `_whats_on_top(on_top)`, whose first argument names the window to leave
+    OUT — so it excluded the very thing it was checking for and reported
+    success whenever the overlay was the only thing above her. That was
+    fixed to read `_everything_on_top`, and this fixture went on patching
+    only the old one, so the check saw an empty screen and said yes to
+    everything.
+    """
+
     seen = list(answers)
 
-    async def on_top(_mine):
-        return seen.pop(0) if seen else ""
+    async def everything(_mine, over=None):
+        return tuple(one for one in ([seen.pop(0)] if seen else []) if one)
+
+    async def on_top(mine, over=None):
+        above = await everything(mine, over=over)
+        return above[0] if above else ""
 
     monkeypatch.setattr(screen_pursuit, "_whats_on_top", on_top)
+    monkeypatch.setattr(screen_pursuit, "_everything_on_top", everything)
 
 
 # ── what she sends ───────────────────────────────────────────────────────

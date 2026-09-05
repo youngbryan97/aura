@@ -1,0 +1,287 @@
+{
+  "modules": 3476,
+  "total_paths": 77573,
+  "worst_total": 722.23,
+  "worst": [
+    {
+      "module": "core.brain.cognitive_engine",
+      "fan_in": 52,
+      "fan_out": 64,
+      "paths": 3328,
+      "surface": 57.38
+    },
+    {
+      "module": "core.brain.llm.mlx_client",
+      "fan_in": 26,
+      "fan_out": 76,
+      "paths": 1976,
+      "surface": 38.75
+    },
+    {
+      "module": "core.conversation.response_reliability",
+      "fan_in": 30,
+      "fan_out": 41,
+      "paths": 1230,
+      "surface": 34.65
+    },
+    {
+      "module": "core.runtime.action_executor",
+      "fan_in": 38,
+      "fan_out": 24,
+      "paths": 912,
+      "surface": 29.42
+    },
+    {
+      "module": "core.container",
+      "fan_in": 519,
+      "fan_out": 14,
+      "paths": 7266,
+      "surface": 27.26
+    },
+    {
+      "module": "core.governance.will",
+      "fan_in": 29,
+      "fan_out": 22,
+      "paths": 638,
+      "surface": 25.02
+    },
+    {
+      "module": "core.runtime.health_contract",
+      "fan_in": 15,
+      "fan_out": 54,
+      "paths": 810,
+      "surface": 23.48
+    },
+    {
+      "module": "core.kernel.aura_kernel",
+      "fan_in": 14,
+      "fan_out": 51,
+      "paths": 714,
+      "surface": 21.97
+    },
+    {
+      "module": "core.runtime.errors",
+      "fan_in": 1282,
+      "fan_out": 11,
+      "paths": 14102,
+      "surface": 21.81
+    },
+    {
+      "module": "core.executive.authority_gateway",
+      "fan_in": 19,
+      "fan_out": 18,
+      "paths": 342,
+      "surface": 18.49
+    },
+    {
+      "module": "core.capability_engine",
+      "fan_in": 11,
+      "fan_out": 48,
+      "paths": 528,
+      "surface": 17.9
+    },
+    {
+      "module": "core.brain.inference_gate",
+      "fan_in": 10,
+      "fan_out": 77,
+      "paths": 770,
+      "surface": 17.7
+    },
+    {
+      "module": "core.runtime.background_policy",
+      "fan_in": 67,
+      "fan_out": 10,
+      "paths": 670,
+      "surface": 17.4
+    },
+    {
+      "module": "core.runtime.service_access",
+      "fan_in": 63,
+      "fan_out": 10,
+      "paths": 630,
+      "surface": 17.26
+    },
+    {
+      "module": "core.runtime",
+      "fan_in": 115,
+      "fan_out": 9,
+      "paths": 1035,
+      "surface": 16.69
+    },
+    {
+      "module": "core.interiority.faculty",
+      "fan_in": 50,
+      "fan_out": 10,
+      "paths": 500,
+      "surface": 16.67
+    },
+    {
+      "module": "core.constitution",
+      "fan_in": 33,
+      "fan_out": 11,
+      "paths": 363,
+      "surface": 16.5
+    },
+    {
+      "module": "core.runtime.subprocess_gateway",
+      "fan_in": 145,
+      "fan_out": 8,
+      "paths": 1160,
+      "surface": 15.16
+    },
+    {
+      "module": "core.learning.recurrent_grpo",
+      "fan_in": 13,
+      "fan_out": 17,
+      "paths": 221,
+      "surface": 14.73
+    },
+    {
+      "module": "core.brain.llm.model_registry",
+      "fan_in": 36,
+      "fan_out": 9,
+      "paths": 324,
+      "surface": 14.4
+    },
+    {
+      "module": "core.phases.response_contract",
+      "fan_in": 16,
+      "fan_out": 13,
+      "paths": 208,
+      "surface": 14.34
+    },
+    {
+      "module": "core.runtime.model_lane_control",
+      "fan_in": 19,
+      "fan_out": 11,
+      "paths": 209,
+      "surface": 13.93
+    },
+    {
+      "module": "core.runtime.file_write_gateway",
+      "fan_in": 288,
+      "fan_out": 7,
+      "paths": 2016,
+      "surface": 13.67
+    },
+    {
+      "module": "core.brain.llm.llm_router",
+      "fan_in": 18,
+      "fan_out": 11,
+      "paths": 198,
+      "surface": 13.66
+    },
+    {
+      "module": "core.consciousness.global_workspace",
+      "fan_in": 13,
+      "fan_out": 14,
+      "paths": 182,
+      "surface": 13.48
+    },
+    {
+      "module": "core.runtime.desktop_objective_intent",
+      "fan_in": 14,
+      "fan_out": 13,
+      "paths": 182,
+      "surface": 13.48
+    },
+    {
+      "module": "core.runtime.receipts",
+      "fan_in": 41,
+      "fan_out": 8,
+      "paths": 328,
+      "surface": 13.39
+    },
+    {
+      "module": "interface.auth",
+      "fan_in": 20,
+      "fan_out": 10,
+      "paths": 200,
+      "surface": 13.33
+    },
+    {
+      "module": "core.brain.reasoning_amplifier_v2",
+      "fan_in": 10,
+      "fan_out": 19,
+      "paths": 190,
+      "surface": 13.1
+    },
+    {
+      "module": "core.state.aura_state",
+      "fan_in": 36,
+      "fan_out": 8,
+      "paths": 288,
+      "surface": 13.09
+    },
+    {
+      "module": "core.voice.substrate_voice_engine",
+      "fan_in": 14,
+      "fan_out": 12,
+      "paths": 168,
+      "surface": 12.92
+    },
+    {
+      "module": "core.organism.model_validation",
+      "fan_in": 7,
+      "fan_out": 74,
+      "paths": 518,
+      "surface": 12.79
+    },
+    {
+      "module": "core.runtime.shutdown_coordinator",
+      "fan_in": 73,
+      "fan_out": 7,
+      "paths": 511,
+      "surface": 12.78
+    },
+    {
+      "module": "core.actuators.actuator_registry",
+      "fan_in": 11,
+      "fan_out": 15,
+      "paths": 165,
+      "surface": 12.69
+    },
+    {
+      "module": "core.ontogeny.service",
+      "fan_in": 10,
+      "fan_out": 17,
+      "paths": 170,
+      "surface": 12.59
+    },
+    {
+      "module": "core.brain.llm_health_router",
+      "fan_in": 8,
+      "fan_out": 27,
+      "paths": 216,
+      "surface": 12.34
+    },
+    {
+      "module": "core.service_registration",
+      "fan_in": 7,
+      "fan_out": 48,
+      "paths": 336,
+      "surface": 12.22
+    },
+    {
+      "module": "core.consciousness.executive_authority",
+      "fan_in": 15,
+      "fan_out": 10,
+      "paths": 150,
+      "surface": 12.0
+    },
+    {
+      "module": "core.learning.recurrence_native_objective_v2",
+      "fan_in": 11,
+      "fan_out": 13,
+      "paths": 143,
+      "surface": 11.92
+    },
+    {
+      "module": "core.senses.voice_engine",
+      "fan_in": 8,
+      "fan_out": 23,
+      "paths": 184,
+      "surface": 11.87
+    }
+  ]
+}
