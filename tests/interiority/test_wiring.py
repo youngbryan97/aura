@@ -433,3 +433,52 @@ def test_a_callers_intensity_is_not_a_perceptual_measurement(
     )
     declined = state.declines.get("f04_abstract_form", "")
     assert "perceptual" in declined or "structure" in declined, declined
+
+
+def test_a_turn_runs_the_whole_layer_not_only_the_reader(
+    service: InteriorityService,
+) -> None:
+    """Found live: four conversational turns produced one appraisal.
+
+    attune is called on every turn by derived_runtime_context. Estimating
+    the other agent and stopping there left the forty-three faculties
+    running only when the affect engine happened to react to a stimulus.
+    A read on someone that changes nothing about what she is holding or
+    what this turn may spend is a reading, not a state.
+    """
+    service.census.reset_for_test()
+    service.ledger.goal("ship", 0.8)
+    service.ledger.notes.note_goal_delta("ship", -0.5)
+
+    for step in range(5):
+        service.attune(f"a message about the thing {step}", subject="bryan")
+
+    assert service.census.report()["turns"] == 5, (
+        "attune did not run the layer; the faculties saw none of these turns"
+    )
+
+
+def test_the_per_turn_cost_stays_off_the_critical_path(
+    service: InteriorityService,
+) -> None:
+    """Forty-three faculties on every turn, on the path a person waits on.
+
+    Measured at about three milliseconds against turns that take seconds,
+    which is why it can live here at all. Pinned so a change that makes it
+    expensive is caught by the thing it would slow down.
+    """
+    import time
+
+    service.ledger.goal("ship", 0.8)
+    service.attune("warm the caches", subject="bryan")
+
+    started = time.perf_counter()
+    rounds = 20
+    for step in range(rounds):
+        service.attune(f"message {step}", subject="bryan")
+    per_turn_ms = (time.perf_counter() - started) / rounds * 1000.0
+
+    assert per_turn_ms < 50.0, (
+        f"the interiority layer costs {per_turn_ms:.1f} ms per turn, which is "
+        "no longer negligible against a turn a person is waiting through"
+    )

@@ -718,7 +718,24 @@ class InteriorityService:
             observations={**sensed, **dict(observations or {})},
             source="attune",
         )
-        return self.other_minds.estimate(event, species=species)
+        estimate = self.other_minds.estimate(event, species=species)
+        # And run the turn through the whole layer, not only the reader.
+        #
+        # This is called on every turn by
+        # core/runtime/derived_runtime_context.py. Estimating the other
+        # agent and stopping there left the forty-three faculties running
+        # only when the affect engine happened to react to a stimulus: four
+        # live conversational turns produced one appraisal. A read on
+        # someone that changes nothing about what she is holding, what she
+        # is weighing, or what this turn may spend is a reading, not a
+        # state.
+        try:
+            self.tick(event, other=estimate, species=species)
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "interiority.service", exc, action="turn not appraised"
+            )
+        return estimate
 
     def _hold_retention(self, state: Arbitrated) -> None:
         """Move this turn's retention claims into the standing hold.
@@ -944,6 +961,17 @@ def register_interiority(orchestrator: Any = None) -> InteriorityService:
     wrong in the only case that matters.
     """
     service = get_interiority()
+    # An empty ledger makes every relevance check read zero, so the layer
+    # declines everything and looks calm. Give it what the runtime already
+    # knows she is trying to do.
+    try:
+        from core.interiority.hydrate import hydrate
+
+        hydrate(service)
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "interiority.service", exc, action="ledger not hydrated at registration"
+        )
     registered = False
     try:
         from core.container import ServiceContainer
