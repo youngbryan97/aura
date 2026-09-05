@@ -95,4 +95,36 @@ instead.
 | # | Item | Note |
 |---|---|---|
 | ~~N1~~ | ~~Vision and audio channels carry nothing~~ | **Closed.** The senses were producing them the whole time and nothing was reading them: `core/senses/interaction_signals.py` has typing hesitation, pause-before-submit, voice steadiness and stress cue, gaze direction and head pose. `senses.py` translates them, and `tick` and `attune` merge whatever is carrying under the caller's own observations. Timing and prosody enter as measurements; the vision backend calls its own output a rough attention indicator, so its readings enter as inferences with a confidence ceiling. A stale sample is absent rather than zero, because a system that cannot tell a silent microphone from a silent person will describe the first as the second |
-| N2 | Nothing has run against live traffic | **Open, and instrumented.** `census.py` accumulates across real turns: a firing rate and a mean intensity per faculty, a histogram of decline reasons, and channel availability turn by turn. It is on the tick, so the first live session produces the answer rather than needing a separate effort. What it will show is unknown — a mechanism for a specific relational situation that fires on nine turns in ten is matching something it should not, and that is the finding this is built to surface |
+| ~~N2~~ | ~~Nothing has run against live traffic~~ | **Closed. It ran.** See the live-run findings below. Was: `census.py` accumulates across real turns: a firing rate and a mean intensity per faculty, a histogram of decline reasons, and channel availability turn by turn. It is on the tick, so the first live session produces the answer rather than needing a separate effort. What it will show is unknown — a mechanism for a specific relational situation that fires on nine turns in ten is matching something it should not, and that is the finding this is built to surface |
+
+
+## What running it found
+
+The layer went live on the desktop runtime. Six of these were invisible
+to every constructed proof, and five of the six were defects in the
+wiring rather than in the mechanisms — which is the part a test harness
+cannot reach, because the harness supplies the world.
+
+| # | Found | How |
+|---|---|---|
+| L1 | **Registered according to the boot log, unreachable to every consumer.** `register_derived_engines` hands each registrar the orchestrator; this one treated it as a service container and called `orchestrator.register(...)`, so the service went somewhere nothing reads while the log said it had registered | The route returned "not registered in this runtime" against a boot log that said otherwise |
+| L2 | **The abstract-form faculty fired on a conversation about how she was feeling.** The affect engine's own magnitude for an event was written to the `instrument` channel, which means a measurement from a tool of the thing being perceived | The census flagged it on the first live turn |
+| L3 | **Four live turns produced one appraisal.** The layer was reached only when the affect engine happened to react to a stimulus | `ticks: 1` after four conversational turns |
+| L4 | **Six live turns produced two appraisals.** Moving the hook to the per-turn context bridge was not enough: the repair and protected chat lanes never build one. It now runs where every turn is recorded, whichever lane produced it | `turns: 2` in the census after a six-turn battery |
+| L5 | **The ledger booted empty**, so every relevance check read zero and all forty-three faculties declined correctly for want of anything at stake. It hydrates from the runtime's own active goals now. Bonds are deliberately not hydrated — the relationship graph is consent-gated per node | `ledger: {goals: 0, bonds: 0, ...}` on a booted instance |
+| L6 | **A declared cap of twenty-four produced seventy-six goals.** The boot path registers the derived engines several times and each pass returns a different slice. A guard on the service object was not enough either, because a second copy of the module brings a second singleton | 76 goals against `_MAX_GOALS = 24` |
+
+Still open from L6: the bound is measured against the ledger now and the
+live instance still reports 76 goals with that code deployed, so
+something is hydrating a ledger the bound is not reading. It is bounded
+in effect — more goals means relevance reads high for more objects, not
+that anything is wrong — but the cap is not yet a cap.
+
+### The first census
+
+Four turns of ordinary conversation, appraised:
+
+- `f18_receptor_adjustment` fired on half of them at mean intensity 0.56 — the gain substrate reporting real adaptation across a session.
+- `f16_neat` and `f27_pursuit_gait` fired on every turn, weakly (0.157 and 0.043), which is the pattern the census reports both numbers for: firing on every turn is the likelier defect, and a mean intensity that low is closer to declining.
+- Mean tendency conflict 0.25; dominant readiness `attend` on three turns of four.
+- The decline histogram names which inputs are unconnected: `irreversibility` absent 17 times, `vulnerability` 9, `norm_endorsed` 8, `urgency` 5. That is not forty-three mechanisms being careful — it is four appraisal checks nothing feeds, and the histogram says so where an aggregate would not.
