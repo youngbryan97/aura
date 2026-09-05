@@ -7,7 +7,6 @@ This helps Aura answer questions like:
 - "What's broken?"
 """
 import logging
-from core.capability_engine import CapabilityEngine as RobustSkillRegistry
 from typing import Any, Dict, List
 
 logger = logging.getLogger("SelfDiagnosis")

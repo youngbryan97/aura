@@ -1,7 +1,7 @@
 {
   "modules": 3476,
-  "total_paths": 77573,
-  "worst_total": 722.23,
+  "total_paths": 77511,
+  "worst_total": 720.88,
   "worst": [
     {
       "module": "core.brain.cognitive_engine",
@@ -74,13 +74,6 @@
       "surface": 18.49
     },
     {
-      "module": "core.capability_engine",
-      "fan_in": 11,
-      "fan_out": 48,
-      "paths": 528,
-      "surface": 17.9
-    },
-    {
       "module": "core.brain.inference_gate",
       "fan_in": 10,
       "fan_out": 77,
@@ -114,6 +107,13 @@
       "fan_out": 10,
       "paths": 500,
       "surface": 16.67
+    },
+    {
+      "module": "core.capability_engine",
+      "fan_in": 10,
+      "fan_out": 48,
+      "paths": 480,
+      "surface": 16.55
     },
     {
       "module": "core.constitution",

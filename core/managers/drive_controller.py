@@ -4,7 +4,6 @@ import random
 import time
 from typing import Any, Dict, List, Optional
 
-from core.bus.events import Event, EventPriority
 from core.runtime.impulse_governance import run_governed_impulse
 from core.utils.task_tracker import get_task_tracker
 

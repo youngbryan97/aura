@@ -303,6 +303,7 @@ layering:
 convergence:
 	@echo "🕸  Checking privileged convergence surfaces..."
 	@$(PYTHON) tools/lint_convergence_surface.py
+	@$(PYTHON) tools/lint_dead_cross_package_imports.py
 
 agi-gauntlet:
 	@echo "🧭 Running the AGI proof gauntlet..."

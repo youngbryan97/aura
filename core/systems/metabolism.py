@@ -17,9 +17,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
-# Backward-compatibility shim for older imports that still expect the lightweight
-# metabolism state service from this module path.
-from core.services.metabolism import MetabolismService
+# The backward-compatibility shim that re-exported MetabolismService from
+# here is gone: nothing imported it from this path. What callers actually
+# want from this module is MetabolismEngine, and the shim was one package
+# reaching into another for a name nobody asked it for.
 
 logger = logging.getLogger("Kernel.Metabolism")
 

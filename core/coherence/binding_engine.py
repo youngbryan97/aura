@@ -102,14 +102,20 @@ class BindingEngine:
             return
 
         try:
-            from core.consciousness.phenomenal_now import PhenomenalNowEngine
+            # The import IS the check, and the name it binds is deliberately
+            # unused: it separates "the engine is not registered", which the
+            # container answers with None, from "the module is not there at
+            # all", which raises. A sweep for imports whose name is never
+            # read will call this dead. It is not.
+            from core.consciousness.phenomenal_now import PhenomenalNowEngine  # noqa: F401
             self._phenomenal_engine = ServiceContainer.get("phenomenal_now_engine", default=None)
         except (ImportError, AttributeError, RuntimeError) as _exc:
             record_degradation('binding_engine', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         try:
-            from core.self.canonical_self import CanonicalSelfEngine
+            # As above: the import is the availability probe.
+            from core.self.canonical_self import CanonicalSelfEngine  # noqa: F401
             self._self_engine = ServiceContainer.get("canonical_self_engine", default=None)
         except (ImportError, AttributeError, RuntimeError) as _exc:
             record_degradation('binding_engine', _exc)

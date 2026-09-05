@@ -1,7 +1,6 @@
 import logging
 import asyncio
 from typing import Any, Dict, List
-from core.kernel.organs import OrganStub
 
 logger = logging.getLogger("Cybernetics.Sibyl")
 
