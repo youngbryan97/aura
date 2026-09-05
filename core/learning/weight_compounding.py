@@ -180,6 +180,21 @@ class CompoundingConfig:
 
 # ── receipts ──────────────────────────────────────────────────────────────────
 
+#: The statuses a compounding cycle ends in having produced something.
+#:
+#: Named here, beside the field, because a caller that has to know what
+#: counts as working can only find out by reading this file — and one of them
+#: guessed. The real RSI loop asked whether the status was "promoted", which
+#: is not a value this contract has ever produced: a cycle that trained a
+#: qualified adapter was recorded as a failed weight update, and the rollback
+#: that only runs when a weight action SUCCEEDED could not run either. One
+#: wrong string, two mechanisms that could not fire.
+#:
+#: Promotion is deliberately not one of them. A cycle qualifies an adapter and
+#: leaves the active model pointer alone; moving it is a separate, staged act.
+WORKED = frozenset({"candidate", "qualified_adapter"})
+
+
 @dataclass
 class CycleReceipt:
     generation_id: str
@@ -207,6 +222,10 @@ class CycleReceipt:
     run_dir: str = ""
     elapsed_s: float = 0.0
     ledger_entry_hash: str = ""
+
+    def worked(self) -> bool:
+        """Whether this cycle produced something, by this contract's own words."""
+        return str(self.status) in WORKED
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -1245,6 +1264,7 @@ def default_config(**overrides: Any) -> CompoundingConfig:
 
 
 __all__ = [
+    "WORKED",
     "CompoundingConfig",
     "CycleReceipt",
     "WeightCompoundingLoop",
