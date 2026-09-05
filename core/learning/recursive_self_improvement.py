@@ -118,6 +118,30 @@ class ImprovementCycleResult:
 Evaluator = Callable[[], Any]
 
 
+def _the_weight_update_worked(receipt: Any) -> bool:
+    """Whether a compounding cycle produced something, asked of its own contract.
+
+    This asked whether the status was "promoted", which is not a value the
+    compounding contract has ever produced: a cycle ends as a candidate or a
+    qualified adapter, and moving the active model pointer is a separate
+    staged act on purpose. So a cycle that trained and qualified an adapter
+    was recorded as a failed weight update — and the rollback that only runs
+    when a weight action SUCCEEDED could not run either. One wrong string, two
+    mechanisms that could not fire, and the tests could not see it because
+    their learner returns a boolean and never reaches this branch at all.
+
+    Asked of the contract rather than compared against a copy of it, so the
+    two cannot drift apart again.
+    """
+    from core.learning.weight_compounding import WORKED  # noqa: PLC0415
+
+    if hasattr(receipt, "worked"):
+        return bool(receipt.worked())
+    if isinstance(receipt, dict):
+        return str(receipt.get("status") or "") in WORKED
+    return bool(receipt)
+
+
 class RecursiveSelfImprovementLoop:
     """Coordinates recursive improvement across weights and source code.
 
@@ -671,7 +695,7 @@ class RecursiveSelfImprovementLoop:
                 scheduler = resolve_weight_compounding(default=None)
                 if scheduler is not None and hasattr(scheduler, "run_cycle_now"):
                     receipt = await scheduler.run_cycle_now(reason="rsi_weight_update")
-                    return receipt.get("status") == "promoted"
+                    return _the_weight_update_worked(receipt)
 
             result = self.live_learner.force_train()
             if inspect.isawaitable(result):
