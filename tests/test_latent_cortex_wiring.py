@@ -3363,6 +3363,45 @@ def test_compound_objective_expands_answer_surface(monkeypatch):
     ), "the completion prior must leave room under the capacity"
     assert svc._last_allocation["answer_surface_required_wall_clock_s"] < 472.0
 
+    # Admission must price the context the worker receives, not only the
+    # visible question. The live failure carried 12,365 prompt tokens.
+    from core.brain.llm.measured_admission import Confidence
+
+    measured_prompts = []
+
+    def price_context(**kwargs):
+        measured_prompts.append(kwargs["prompt_tokens"])
+        return 300.0, Confidence.MEASURED, 10
+
+    with monkeypatch.context() as pricing:
+        pricing.setattr("core.brain.memory_guard.estimate_tokens", lambda _: 12365)
+        pricing.setattr(
+            "core.brain.llm.measured_admission.recommended_foreground_deadline",
+            price_context,
+        )
+        pricing.setattr(
+            "core.brain.llm.measured_admission.recommended_completion_tokens",
+            lambda **kwargs: (kwargs["prior_tokens"], Confidence.MEASURED, 10),
+        )
+        captured.clear()
+        context_messages = [
+            {"role": "system", "content": "retained context " * 3000},
+            {"role": "user", "content": live_dijkstra},
+        ]
+        result = asyncio.run(
+            svc.deep_reason(
+                live_dijkstra,
+                messages=context_messages,
+                stakes=0.75,
+                uncertainty=0.8,
+                timeout_s=600.0,
+                foreground_request=True,
+            )
+        )
+        assert result["reason"] == "profile_observed"
+        assert measured_prompts and set(measured_prompts) == {12365}
+        assert captured["messages"] == context_messages
+
     # An owner window that cannot physically hold the answer floor is rejected
     # before acquiring or spending the resident model. ResponseGeneration can
     # then use the ordinary lane with the full surface instead of waiting for

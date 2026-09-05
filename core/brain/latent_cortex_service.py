@@ -53,6 +53,14 @@ class _ActionSelectionNeverRanError(Exception):
 _GENERAL_LATENT_UNMEASURED_FLOOR_SECONDS = 120.0
 
 
+def _input_prompt_tokens(messages: list | None, objective: str) -> int:
+    """Price the supplied context, retaining the cold-start minimum."""
+    from core.brain.memory_guard import estimate_tokens
+
+    inputs = messages or [{"role": "user", "content": objective}]
+    return max(2048, estimate_tokens(inputs))
+
+
 def _foreground_surplus_plan(
     *,
     messages: list | None,
@@ -78,13 +86,12 @@ def _foreground_surplus_plan(
             recommended_foreground_deadline,
         )
         from core.brain.llm.model_registry import get_active_cortex_spec
-        from core.brain.memory_guard import estimate_tokens
         from core.runtime.structured_input import answer_surface_planning_tokens
 
         spec = get_active_cortex_spec()
         if spec is not None:
             model = os.path.basename(str(spec.model_path))
-        prompt_tokens = max(2048, estimate_tokens(messages or []))
+        prompt_tokens = _input_prompt_tokens(messages, visible_objective)
         planned_decode_tokens = min(
             decode_capacity,
             answer_surface_planning_tokens(visible_objective),
@@ -5277,9 +5284,7 @@ class LatentCortexService:
                     )
                     from core.brain.llm.model_registry import runtime_model_measurement_key
 
-                    prompt_tokens = max(
-                        2048, 1800 + len(str(visible_objective or "")) // 4
-                    )
+                    prompt_tokens = _input_prompt_tokens(messages, question)
                     target_decode_tokens, length_confidence, length_samples = (
                         recommended_completion_tokens(
                             model=runtime_model_measurement_key(),
@@ -5303,6 +5308,7 @@ class LatentCortexService:
                     ] = int(samples)
                     self._last_allocation.update(
                         {
+                            "answer_surface_prompt_tokens": prompt_tokens,
                             "answer_surface_capacity_tokens": capacity_decode_tokens,
                             "answer_surface_planning_tokens": target_decode_tokens,
                             "answer_surface_length_confidence": length_confidence.value,

@@ -52609,3 +52609,27 @@ Claude's deterministic search and repeated-scan fixes through a49365744 are
 incorporated. Native cognition gauntlet improvements remain distinct from
 resident neural transfer. Parallel follow-up now covers capability selection
 and existing semantic arbitration reuse; the resident lane has one owner.
+
+## Checkpoint 2026-09-05: Price the Context Sent to the Worker
+
+The source-matched 50a95c4f7 desktop replay passed the former readiness
+deadlock and did not report the cache-coordinate error. It did not pass live
+latency validation. The checked-fact/inference turn supplied 12,365 tokens;
+latent prefill took 140.685 seconds and the episode exhausted its budget
+before decode. The eventual ordinary answer was persisted after 365.65
+seconds. This remains a fallback result, not recurrent serving evidence.
+
+Compound-answer admission was estimating only the visible objective, while
+the foreground surplus planner counted the supplied messages. A regression
+reproduced 2,048 tokens reaching the estimator for a 12,365-token context.
+Both paths now share the existing memory-guard token estimator and preserve
+the full message payload. Allocation records the estimated prompt count.
+The service/allocation suites passed 136 tests. This change repairs pricing;
+it does not establish faster prefill or solve progress-aware budget ownership.
+
+The one-shot runtime exited with code 1 after orchestrator_shutdown. Its
+coordinator reported cleanup complete, but the root CancelledError remains
+to investigate. The unrelated autonomous Reddit progress label, foreground
+event-loop stalls, optional-tool requiredness, and independent semantic
+source arbitration remain open. Parallel agents reached usage limits before
+their proposed integrations were implemented; their notes are not fixes.
