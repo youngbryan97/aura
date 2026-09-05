@@ -145,9 +145,21 @@ def test_inference_gate_owns_the_relevance_scoped_receipt_projection() -> None:
 
 
 def test_the_receipts_survive_prompt_compaction() -> None:
-    src = GATE.read_text(encoding="utf-8")
-    critical = src[src.index("important_headers = ("):]
-    assert "## WHAT YOU ACTUALLY JUST DID" in critical[: critical.index(")")]
+    """The block a compaction may not drop, checked where the list now lives.
+
+    This read `inference_gate.py` for a literal `important_headers = (`. The
+    list moved to `context_budget.py` and the gate imports it, so the
+    guarantee held and the test went red on the file layout rather than on
+    the guarantee. Read from the canonical list instead: what has to survive
+    is that this header is in it, wherever it is kept.
+    """
+
+    from core.brain.llm.context_budget import CRITICAL_FOREGROUND_HEADERS
+
+    assert "## WHAT YOU ACTUALLY JUST DID" in CRITICAL_FOREGROUND_HEADERS
+    assert "CRITICAL_FOREGROUND_HEADERS" in GATE.read_text(encoding="utf-8"), (
+        "the gate no longer reaches the list that protects the receipts"
+    )
 
 
 # ── The ledger decides, not the instruction ────────────────────────────────

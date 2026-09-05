@@ -877,16 +877,31 @@ async def deliberate(
     # move that could not have come out otherwise.
     only = nothing_to_decide(options)
     if only is not None:
-        return Deliberation(
+        # Nothing to weigh, and it still happened.
+        #
+        # This returned without recording anything, so a forced move left no
+        # trace: her history had a hole exactly where she had no choice, and
+        # the check that closes an episode had no episode to close. A move
+        # she could not have made otherwise is still a move she made, and
+        # what follows from it is still evidence.
+        forced = Deliberation(
             goal=goal,
             situation=situation,
             chosen=only,
+            expected=only.expectation if only.expectation.says_something() else None,
             rationale=f"{only.name} is the only thing available",
             confidence=1.0,
             considered=(only.name,),
             reason="",
             spoke=False,
         )
+        forced.episode_id = _open_episode(
+            forced, options, stakes=stakes, control_point=control_point,
+            spine=spine, lived=lived,
+        )
+        if announce:
+            _announce(forced, control_point)
+        return forced
 
     # The kind of situation, where the reading kept its arrangement.
     #

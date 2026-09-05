@@ -7,6 +7,8 @@ moves — nineteen minutes of watching a screen, and none of it is the thinking.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
 
 
@@ -84,12 +86,23 @@ def test_a_run_of_one_counts_or_it_can_never_grow() -> None:
     assert far.how_many(trusted=1.0) == 2, "one act landing where she said is evidence"
 
 
-def test_the_loop_checks_a_single_act_too() -> None:
+def test_the_loop_checks_a_run_of_any_length_including_one() -> None:
+    """A prediction is made and checked however many acts the run is.
+
+    This used to grep for the branch that handled a run of one on its own,
+    and that branch is gone: the count and the prediction are worked out once
+    for every run, folding the model over each act in it, so a run of one is
+    checked by the same line as a run of four. The guarantee is stronger and
+    the literal it was written against no longer exists.
+    """
+
     from core.skills import screen_pursuit
 
-    with open(screen_pursuit.__file__, encoding="utf-8") as handle:
-        text = handle.read()
+    text = Path(screen_pursuit.__file__).read_text(encoding="utf-8")
     assert 'expected["took"] >= 1' in text, "a run of one has to be checked"
-    at = text.index('expected["after"], expected["took"] = alone, 1')
-    near = text[at - 400 : at]
-    assert "foresee(pending[" in near
+    at = text.index('expected["took"] = len(follow_on) + 1')
+    near = text[at : at + 500]
+    assert "for step in (key, *follow_on):" in near, (
+        "the prediction is no longer folded over the whole run"
+    )
+    assert "where = foresee(where, step)" in near

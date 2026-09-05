@@ -231,12 +231,20 @@ class WhatSheHasWorkedOut:
             return float(held)
         if not self.readings:
             return float(state.score)
-        near = min(
-            self.readings,
-            key=lambda place: abs(place[0] - there[0]) + abs(place[1] - there[1]),
+        # The tightest guess consistent with everything she has read, rather
+        # than the reading nearest by. A number that falls by at most one a
+        # step cannot be lower than any reading minus the distance to it, so
+        # the best guess is the largest of those bounds — and every reading
+        # she has contributes to it.
+        #
+        # Taking the nearest one alone throws the rest away, and far from
+        # anywhere she has stood that is a guess made from one number. She
+        # climbed correctly near what she had seen and wandered beyond it.
+        return max(
+            float(value)
+            - (abs(place[0] - there[0]) + abs(place[1] - there[1]))
+            for place, value in self.readings.items()
         )
-        gap = abs(near[0] - there[0]) + abs(near[1] - there[1])
-        return float(self.readings[near]) - gap
 
     def confidence(self) -> float:
         """No prediction, no confidence. Nothing is assumed on her behalf."""

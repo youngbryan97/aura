@@ -166,7 +166,18 @@ def take_the_freeze(root: Path | None = None) -> Freeze:
 
     here = Path(root) if root is not None else Path(__file__).resolve().parents[2]
     commit = _run("git", "-C", str(here), "rev-parse", "HEAD")
-    status = _run("git", "-C", str(here), "status", "--porcelain")
+    # What makes a freeze untrustworthy is source that differs from the
+    # commit. The receipts this harness writes are not source, and counting
+    # them made every run report itself untrustworthy for having been run.
+    status = "\n".join(
+        line
+        for line in _run("git", "-C", str(here), "status", "--porcelain").splitlines()
+        if any(
+            line[3:].startswith(where)
+            for where in ("core/", "interface/", "skills/", "llm/", "executors/",
+                          "security/", "tools/", "config/", "tests/")
+        )
+    )
     config = ""
     where = here / "config"
     if where.exists():

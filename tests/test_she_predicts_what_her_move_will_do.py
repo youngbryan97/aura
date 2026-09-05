@@ -138,7 +138,11 @@ async def test_the_decision_rests_on_measured_facts_not_on_urging():
     await deliberate(
         "reach 4096",
         "highest tile is 8",
-        [_option("up", detail="slide every tile up")],
+        # Two, because a choice of one is not a choice: a single option is a
+        # forced move now and never reaches her reasoning at all, so a test
+        # about what her reasoning is handed has to give her something to
+        # decide.
+        [_option("up", detail="slide every tile up"), _option("down")],
         think=think,
         spine=_Spine(),
         graph=_Graph(),
@@ -243,7 +247,14 @@ async def test_she_can_say_why_before_the_move_lands():
     result = await deliberate(
         "reach 4096",
         "a board",
-        [_option("up", detail="slide up", expectation=Expectation(describes="the big tile to stay in the corner"))],
+        [
+            _option(
+                "up",
+                detail="slide up",
+                expectation=Expectation(describes="the big tile to stay in the corner"),
+            ),
+            _option("down", detail="slide down"),
+        ],
         think=_thinks("Keeping the corner matters most. Go up."),
         spine=_Spine(),
         graph=_Graph(),
@@ -252,6 +263,51 @@ async def test_she_can_say_why_before_the_move_lands():
     assert "slide up" in spoken
     assert "Go up" in spoken
     assert "the big tile to stay in the corner" in spoken
+
+
+@pytest.mark.asyncio
+async def test_a_forced_move_still_says_what_it_expects():
+    """Nothing to weigh, and it still happened.
+
+    A move she could not have made otherwise is still a move she made. It
+    reached no reasoning, so there is no "why" beyond that it was the only
+    thing available — and what she expects of it is hers and has to be said,
+    because what follows from it is what the check compares against.
+    """
+
+    result = await deliberate(
+        "reach 4096",
+        "a board",
+        [
+            _option(
+                "up",
+                detail="slide up",
+                expectation=Expectation(describes="the big tile to stay in the corner"),
+            )
+        ],
+        think=_thinks("this is never called"),
+        spine=_Spine(),
+        graph=_Graph(),
+    )
+    spoken = result.narrate()
+    assert "slide up" in spoken
+    assert "the only thing available" in spoken
+    assert "the big tile to stay in the corner" in spoken
+
+
+@pytest.mark.asyncio
+async def test_a_forced_move_leaves_a_trace():
+    """It left none, so her history had a hole exactly where she had no
+    choice, and the check that closes an episode had no episode to close."""
+
+    spine = _Spine()
+    result = await deliberate(
+        "reach 4096", "a board", [_option("up")],
+        think=_thinks("never called"), spine=spine, graph=_Graph(),
+    )
+    assert spine.recorded, "a forced move was not recorded at all"
+    assert spine.recorded[0].decision == "up"
+    assert result.episode_id is not None
 
 
 @pytest.mark.asyncio
