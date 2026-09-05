@@ -10179,7 +10179,9 @@ async def _answer_from_fallback_ladder(
                     break
                 generation_metadata: dict[str, Any] = {}
                 try:
-                    candidate = await asyncio.wait_for(
+                    from core.brain.llm_health_router import _await_while_it_is_working
+
+                    candidate = await _await_while_it_is_working(
                         router.think(
                             text,
                             system_prompt=identity,
@@ -10189,7 +10191,9 @@ async def _answer_from_fallback_ladder(
                             allow_cloud_fallback=False,
                             _generation_metadata_sink=generation_metadata,
                         ),
-                        timeout=remaining,
+                        budget_s=remaining,
+                        user_facing=True,
+                        person_is_waiting=True,
                     )
                 except (TimeoutError, *_CHAT_RECOVERABLE_ERRORS):
                     continue

@@ -43,6 +43,29 @@ def test_finished_code_uses_the_callers_generation_receipt(monkeypatch):
     assert "fixed slice of time" not in reply
 
 
+def test_owned_fallback_finishes_after_its_estimate(monkeypatch):
+    from core.runtime.turn_outcome import TurnOutcome, bind_turn
+
+    class Router(_Router):
+        async def think(self, text, **kwargs):
+            await asyncio.sleep(1.05)
+            kwargs["_generation_metadata_sink"].update(generation_stop_reason="eos")
+            return "The complete answer."
+
+    async def no_readings(_text):
+        return []
+
+    monkeypatch.setattr(chat_module, "_readings_for", no_readings)
+    monkeypatch.setattr(chat_module, "_FALLBACK_LADDER_TIMEOUT_S", 1.01)
+    monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: Router())
+
+    async def run():
+        with bind_turn(TurnOutcome("fallback-completion")):
+            return await chat_module._answer_from_fallback_ladder("explain", reason="offline")
+
+    assert "The complete answer." in _run(run())
+
+
 def test_the_ladder_answers_instead_of_describing_the_lane(monkeypatch) -> None:
     router = _Router()
     monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)
