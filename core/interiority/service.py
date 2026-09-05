@@ -256,6 +256,7 @@ class InteriorityService:
         landed["drives"] = await self._push_drives(target)
         landed["goals"] = self._push_goals(target)
         landed["curiosity"] = self._push_curiosity(target)
+        landed["workspace"] = await self._push_workspace(target)
         with self._lock:
             self._applied += 1
         return {"applied": True, "landed": landed}
@@ -561,6 +562,54 @@ class InteriorityService:
         if isinstance(budgets, Mapping):
             return frozenset(str(k) for k in budgets)
         return frozenset()
+
+    async def _push_workspace(self, state: Arbitrated) -> dict[str, Any]:
+        """Attention biases become focus bias on a bid for the broadcast slot.
+
+        The homes map claimed the workspace as a consumer for twelve
+        faculties and nothing wrote to it, which made the claim false in
+        exactly the way this package exists to prevent. It also named the
+        retired facade rather than the canonical workspace.
+
+        A bias is not a broadcast. What it does is weight a bid: the
+        competition still decides, and a faculty that has noticed
+        something can raise what it noticed without being able to seize
+        the slot. Negative biases are submitted too — a faculty that wants
+        less of something is as informative as one that wants more, and
+        dropping them would make the interior only ever able to shout.
+        """
+        if not state.attention:
+            return {"moved": False}
+        try:
+            from core.consciousness.global_workspace import (
+                CognitiveCandidate,
+                ContentType,
+            )
+            from core.container import ServiceContainer
+
+            workspace = ServiceContainer.get("global_workspace", default=None)
+            if workspace is None or not hasattr(workspace, "submit"):
+                return {"moved": False, "reason": "no workspace registered"}
+
+            submitted = 0
+            for bias in sorted(state.attention, key=lambda a: -abs(a.weight))[:5]:
+                candidate = CognitiveCandidate(
+                    content=bias.target,
+                    source=f"interiority:{bias.reason[:48]}",
+                    priority=min(1.0, abs(bias.weight)),
+                    content_type=ContentType.UNKNOWN,
+                    affect_weight=state.affect.arousal,
+                    focus_bias=bias.weight,
+                    metadata={"interiority_reason": bias.reason[:160]},
+                )
+                if await workspace.submit(candidate):
+                    submitted += 1
+            return {"moved": submitted > 0, "submitted": submitted}
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "interiority.service", exc, action="attention bias not submitted"
+            )
+            return {"moved": False, "error": type(exc).__name__}
 
     def _push_curiosity(self, state: Arbitrated) -> dict[str, Any]:
         wanted = [a for a in state.attention if a.target.startswith("source:") and a.weight > 0]

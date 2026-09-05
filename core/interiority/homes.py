@@ -80,9 +80,10 @@ _SOMATIC = Binding(
     "the approach score returned for a decision candidate, before deliberation",
 )
 _WORKSPACE = Binding(
-    "core.global_workspace",
-    "GlobalWorkspace",
+    "core.consciousness.global_workspace",
+    "CognitiveCandidate",
     "AttentionBias",
+    "the focus bias on a bid for the broadcast slot, which is what decides "
     "which content wins the workspace competition this tick",
 )
 _GOALS = Binding(
