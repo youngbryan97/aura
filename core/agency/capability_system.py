@@ -1,8 +1,7 @@
+import logging
 import time
 import uuid
-import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set
 
 logger = logging.getLogger("Aura.Capability")
 
@@ -13,10 +12,10 @@ class CapabilityToken:
     Prevents 'Skill Creep' by ensuring the TaskEngine can only use pre-authorized tools.
     """
     token_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
-    allowed_tools: Set[str] = field(default_factory=set)
+    allowed_tools: set[str] = field(default_factory=set)
     max_steps: int = 10
     expires_at: float = field(default_factory=lambda: time.time() + 3600)  # 1 hour default
-    metadata: Dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
     
     def is_valid(self, tool_name: str) -> bool:
         if time.time() > self.expires_at:
@@ -28,11 +27,11 @@ class CapabilityManager:
     Registry for active capability tokens and global tool access policies.
     """
     def __init__(self):
-        self._tokens: Dict[str, CapabilityToken] = {}
+        self._tokens: dict[str, CapabilityToken] = {}
         # Default safe tools that require no special authorization
-        self._global_allowlist: Set[str] = {"think", "read_file", "remember"}
+        self._global_allowlist: set[str] = {"think", "read_file", "remember"}
 
-    def generate_token(self, tools: List[str], duration_s: int = 3600) -> CapabilityToken:
+    def generate_token(self, tools: list[str], duration_s: int = 3600) -> CapabilityToken:
         token = CapabilityToken(
             allowed_tools=set(tools),
             expires_at=time.time() + duration_s
@@ -41,7 +40,7 @@ class CapabilityManager:
         logger.info("Capability: Generated token %s for tools: %s", token.token_id, tools)
         return token
 
-    def verify_access(self, tool_name: str, token_id: Optional[str] = None) -> bool:
+    def verify_access(self, tool_name: str, token_id: str | None = None) -> bool:
         """Check if a tool can be executed with the given token."""
         if tool_name in self._global_allowlist:
             return True

@@ -27,7 +27,7 @@ of a spreadsheet, a calendar, a seating plan or a set of search filters.
 from __future__ import annotations
 
 import logging
-from typing import Sequence
+from collections.abc import Sequence
 
 from core.perception.what_is_there import Arrangement, Cell
 

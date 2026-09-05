@@ -3,7 +3,7 @@ Workspace file actuator executing create, write, and delete operations.
 """
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from core.body.motor_controller import BaseMotor
 from core.runtime.errors import record_degradation
@@ -21,7 +21,7 @@ class FileMotor(BaseMotor):
     def name(self) -> str:
         return "file"
 
-    async def actuate(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def actuate(self, params: dict[str, Any]) -> dict[str, Any]:
         action = params.get("action", "write")
         path_str = params.get("path")
         content = params.get("content", "")

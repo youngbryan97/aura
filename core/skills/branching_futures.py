@@ -14,21 +14,21 @@ import shutil
 import sys
 import tempfile
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.skills.base_skill import BaseSkill
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.BranchingFutures")
 
 
 class BranchingFutureInput(BaseModel):
     goal: str = Field(..., description="The experimental task or hypothesis for the ghost thread to execute.")
-    files_to_copy: Optional[list[str]] = Field(None, description="Specific files/dirs to copy. If None, the entire live-source is branched (can be slow).")
+    files_to_copy: list[str] | None = Field(None, description="Specific files/dirs to copy. If None, the entire live-source is branched (can be slow).")
     timeout_minutes: int = Field(15, description="Maximum time to allow the ghost thread to run.")
 
 
@@ -41,7 +41,7 @@ class BranchingFuturesSkill(BaseSkill):
     metabolic_cost = 3
     requires_approval = True  # Branching requires heavy compute
 
-    async def execute(self, params: BranchingFutureInput, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: BranchingFutureInput, context: dict[str, Any]) -> dict[str, Any]:
         """Execute a branching future."""
         # 1. Create Checkpoint Sandbox
         branch_id = f"future_{uuid.uuid4().hex[:6]}"
@@ -119,7 +119,7 @@ if __name__ == "__main__":
                     process.communicate(), 
                     timeout=params.timeout_minutes * 60
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 process.kill()
                 return {
                     "ok": False,

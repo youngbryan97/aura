@@ -3,14 +3,13 @@ Implements the persistent conversation loop for Aura.
 
 v5.2: Added exponential backoff with circuit breaker for fault tolerance.
 """
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
 import sys
-import time
 
 from core.container import get_container
+from core.runtime.errors import record_degradation
 
 # Ensure parent dir is in path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -56,7 +55,7 @@ async def conversation_loop(orchestrator: RobustOrchestrator | None = None):
 
     if not getattr(orchestrator, "_conversation_loop_heartbeat_started", False):
         fire_and_track(orchestrator.run(), name="OrchestratorMainLoop")
-        setattr(orchestrator, "_conversation_loop_heartbeat_started", True)
+        orchestrator._conversation_loop_heartbeat_started = True
 
     consecutive_failures = 0
     backoff = INITIAL_BACKOFF_SECONDS

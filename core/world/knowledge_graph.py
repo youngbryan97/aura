@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Set
+from typing import Any
 
 logger = logging.getLogger("Aura.KnowledgeGraph")
 
@@ -15,7 +15,7 @@ logger = logging.getLogger("Aura.KnowledgeGraph")
 class GraphNode:
     node_id: str
     kind: str  # "person", "organization", "project", "technology", "codebase", "regulation"
-    attributes: Dict[str, Any] = field(default_factory=dict)
+    attributes: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -23,16 +23,16 @@ class GraphEdge:
     source_id: str
     target_id: str
     relationship: str  # "depends_on", "owns", "author_of", "competes_with", "violates"
-    attributes: Dict[str, Any] = field(default_factory=dict)
+    attributes: dict[str, Any] = field(default_factory=dict)
 
 
 class KnowledgeGraph:
     """Manages the structured model entities and semantic links."""
 
     def __init__(self) -> None:
-        self.nodes: Dict[str, GraphNode] = {}
-        self.edges: List[GraphEdge] = []
-        self._adjacency: Dict[str, Set[str]] = {}
+        self.nodes: dict[str, GraphNode] = {}
+        self.edges: list[GraphEdge] = []
+        self._adjacency: dict[str, set[str]] = {}
 
     def add_node(self, node: GraphNode) -> None:
         self.nodes[node.node_id] = node
@@ -52,13 +52,13 @@ class KnowledgeGraph:
     def get_node(self, node_id: str) -> GraphNode | None:
         return self.nodes.get(node_id)
 
-    def get_outgoing(self, node_id: str) -> List[GraphEdge]:
+    def get_outgoing(self, node_id: str) -> list[GraphEdge]:
         return [e for e in self.edges if e.source_id == node_id]
 
-    def get_incoming(self, node_id: str) -> List[GraphEdge]:
+    def get_incoming(self, node_id: str) -> list[GraphEdge]:
         return [e for e in self.edges if e.target_id == node_id]
 
-    def find_path(self, start_id: str, end_id: str, visited: Set[str] | None = None) -> List[str] | None:
+    def find_path(self, start_id: str, end_id: str, visited: set[str] | None = None) -> list[str] | None:
         """Finds a path between nodes using simple depth-first search."""
         if visited is None:
             visited = set()

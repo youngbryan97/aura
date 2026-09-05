@@ -57,9 +57,8 @@ Technical choices:
     - Singleton via get_homeostatic_rl()
 """
 from __future__ import annotations
+
 from core.runtime.errors import record_degradation
-
-
 
 __all__ = [
     "HomeostaticRL",
@@ -72,15 +71,15 @@ __all__ = [
 import asyncio
 import json
 import logging
-import math
 import threading
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
+
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Cognitive.HomeostaticRL")
@@ -99,7 +98,7 @@ class ActionType(str, Enum):
     REPAIR    = "REPAIR"     # Fix errors, heal degraded subsystems
     INITIATE  = "INITIATE"   # Proactively reach out or start something
 
-ACTION_LIST: List[str] = [a.value for a in ActionType]
+ACTION_LIST: list[str] = [a.value for a in ActionType]
 NUM_ACTIONS: int = len(ACTION_LIST)
 
 # State vector indices (7 dimensions)
@@ -205,7 +204,7 @@ class HomeostaticRL:
     be called from the asyncio event loop without deadlocking.
     """
 
-    def __init__(self, data_dir: Optional[Path] = None):
+    def __init__(self, data_dir: Path | None = None):
         # ── Resolve persistence directory ─────────────────────────────
         if data_dir is None:
             try:
@@ -236,14 +235,14 @@ class HomeostaticRL:
         self._V: float = 0.0
 
         # ── Previous state (for TD update) ────────────────────────────
-        self._prev_state: Optional[np.ndarray] = None
+        self._prev_state: np.ndarray | None = None
 
         # ── External signal inputs (written by other modules) ─────────
         self._free_energy_signal: float = 0.3
         self._threat_level: float = 0.0
 
         # ── Energy event log (ring buffer) ────────────────────────────
-        self._energy_log: List[EnergyEvent] = []
+        self._energy_log: list[EnergyEvent] = []
         self._energy_log_max: int = 200
 
         # ── Persistence bookkeeping ───────────────────────────────────
@@ -364,7 +363,7 @@ class HomeostaticRL:
     # Public API: Drives
     # ------------------------------------------------------------------
 
-    def get_drives(self) -> Dict[str, float]:
+    def get_drives(self) -> dict[str, float]:
         """Return a snapshot of all drives and their set points.
 
         Each drive is 0-1 where higher means *more need* (more hungry
@@ -423,7 +422,7 @@ class HomeostaticRL:
     # Public API: Action Preferences
     # ------------------------------------------------------------------
 
-    def get_action_preferences(self) -> Dict[str, float]:
+    def get_action_preferences(self) -> dict[str, float]:
         """Compute a probability distribution over action types.
 
         Returns a dict like ``{"RESPOND": 0.35, "EXPLORE": 0.20, ...}``
@@ -439,7 +438,7 @@ class HomeostaticRL:
             state = self._build_state_vector_unlocked()
             return self._compute_preferences_unlocked(state)
 
-    def _compute_preferences_unlocked(self, state: np.ndarray) -> Dict[str, float]:
+    def _compute_preferences_unlocked(self, state: np.ndarray) -> dict[str, float]:
         """Softmax over Q-values with energy-modulated temperature.
         Caller must hold ``_lock``.
         """
@@ -468,7 +467,7 @@ class HomeostaticRL:
     # Public API: Step (the core learning loop)
     # ------------------------------------------------------------------
 
-    async def step(self, action_taken: str, outcome: Dict[str, Any]) -> float:
+    async def step(self, action_taken: str, outcome: dict[str, Any]) -> float:
         """Process the result of an action and learn from it.
 
         This is the heartbeat of the motivation system. Every time Aura
@@ -506,7 +505,7 @@ class HomeostaticRL:
 
         return reward
 
-    def _step_sync(self, action_taken: str, outcome: Dict[str, Any]) -> float:
+    def _step_sync(self, action_taken: str, outcome: dict[str, Any]) -> float:
         """Synchronous core of step(). Caller is in executor thread."""
         with self._lock:
             # 1. Tick drives forward
@@ -560,7 +559,7 @@ class HomeostaticRL:
     # ------------------------------------------------------------------
 
     def _apply_outcome_to_drives(
-        self, action: str, outcome: Dict[str, Any]
+        self, action: str, outcome: dict[str, Any]
     ) -> None:
         """Adjust drives based on what just happened.
         Caller must hold ``_lock``.
@@ -607,7 +606,7 @@ class HomeostaticRL:
     # ------------------------------------------------------------------
 
     def _compute_reward_unlocked(
-        self, action: str, outcome: Dict[str, Any]
+        self, action: str, outcome: dict[str, Any]
     ) -> float:
         """Compute a scalar reward signal from the outcome.
         Caller must hold ``_lock``.
@@ -763,7 +762,7 @@ class HomeostaticRL:
         with self._lock:
             return self._energy < ENERGY_CRITICAL
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         """Return a complete snapshot of the motivation system.
         Useful for dashboards, debugging, and context injection.
         """
@@ -873,7 +872,7 @@ class HomeostaticRL:
             return
 
         try:
-            with open(self._state_path, "r") as f:
+            with open(self._state_path) as f:
                 data = json.load(f)
 
             version = data.get("version", 0)
@@ -994,7 +993,7 @@ class HomeostaticRL:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_instance: Optional[HomeostaticRL] = None
+_instance: HomeostaticRL | None = None
 _instance_lock: threading.Lock = threading.Lock()
 
 

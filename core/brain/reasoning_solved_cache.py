@@ -28,8 +28,8 @@ import json
 import logging
 import os
 import re
-import tempfile
 import sys
+import tempfile
 import threading
 import time
 from dataclasses import dataclass, field
@@ -130,7 +130,7 @@ class SolvedEntry:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "SolvedEntry":
+    def from_dict(cls, data: dict[str, Any]) -> SolvedEntry:
         return cls(
             answer=str(data.get("answer", "")),
             confidence=float(data.get("confidence", 0.0) or 0.0),

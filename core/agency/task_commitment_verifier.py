@@ -45,7 +45,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.config import config
 from core.continuity import is_evaluation_contamination
@@ -156,19 +156,19 @@ class DispatchOutcome(str, Enum):
 class CapabilityAssessment:
     """Result of checking whether Aura can fulfil a given request."""
     can_fulfil: bool
-    matched_skills: List[str] = field(default_factory=list)
-    matched_tools: List[str] = field(default_factory=list)
+    matched_skills: list[str] = field(default_factory=list)
+    matched_tools: list[str] = field(default_factory=list)
     confidence: float = 0.0       # 0–1 confidence that matched skills cover the request
     gap_description: str = ""     # Human-readable explanation of what is missing
-    alternatives: List[str] = field(default_factory=list)  # What CAN be offered instead
+    alternatives: list[str] = field(default_factory=list)  # What CAN be offered instead
 
 
 @dataclass
 class TaskAcceptance:
     """Structured result returned to GodModeToolPhase for working_memory injection."""
     outcome: DispatchOutcome
-    task_id: Optional[str] = None
-    commitment_id: Optional[str] = None
+    task_id: str | None = None
+    commitment_id: str | None = None
     objective: str = ""
     requested_objective: str = ""
     summary: str = ""
@@ -221,8 +221,8 @@ class TaskCommitmentVerifier:
         self._lock = checked_lock("task_commitment.state", reentrant=True)
         self._state_generation = 0
         self._persisted_generation = 0
-        self._active_tasks: Dict[str, Dict] = {}   # task_id → status record
-        self._background_tasks: Dict[str, asyncio.Task] = {}
+        self._active_tasks: dict[str, dict] = {}   # task_id → status record
+        self._background_tasks: dict[str, asyncio.Task] = {}
         self._updated_at: float = 0.0
         self._load()
 
@@ -403,7 +403,7 @@ class TaskCommitmentVerifier:
                 resume_plan_id=resume_plan_id,
             )
 
-    def get_task_status(self, task_id: str) -> Optional[Dict]:
+    def get_task_status(self, task_id: str) -> dict | None:
         """Return stored status for a previously dispatched task.
 
         Used by the response generator to answer "are you done with X?" accurately.
@@ -412,7 +412,7 @@ class TaskCommitmentVerifier:
             entry = self._active_tasks.get(task_id)
             return dict(entry) if isinstance(entry, dict) else entry
 
-    def get_all_active(self) -> List[Dict]:
+    def get_all_active(self) -> list[dict]:
         """Return all non-terminal task records."""
         with self._lock:
             return [
@@ -423,7 +423,7 @@ class TaskCommitmentVerifier:
             ]
 
     @staticmethod
-    def _is_evaluation_task(entry: Dict[str, Any]) -> bool:
+    def _is_evaluation_task(entry: dict[str, Any]) -> bool:
         """Return true when an entry contains sealed evaluation input.
 
         Evaluation work still executes through the canonical task engine, but
@@ -489,7 +489,7 @@ class TaskCommitmentVerifier:
         self,
         objective: str,
         *,
-        last_result_payload: Optional[Dict[str, Any]] = None,
+        last_result_payload: dict[str, Any] | None = None,
     ) -> str:
         if not self.is_status_followup_request(objective):
             return ""
@@ -567,13 +567,13 @@ class TaskCommitmentVerifier:
             )
 
         # Pattern-match the objective against registered skills
-        matched: List[str] = []
+        matched: list[str] = []
         if hasattr(cap_engine, "detect_intent"):
             matched = cap_engine.detect_intent(objective) or []
 
         # Fall back to checking skill list by keyword overlap
         if not matched and hasattr(cap_engine, "list_skills"):
-            skill_names: List[str] = cap_engine.list_skills() or []
+            skill_names: list[str] = cap_engine.list_skills() or []
             obj_lower = objective.lower()
             matched = [s for s in skill_names if any(w in obj_lower for w in s.split("_"))]
 
@@ -655,8 +655,8 @@ class TaskCommitmentVerifier:
         task_engine: Any,
         t0: float,
         *,
-        matched_skills: Optional[List[str]] = None,
-        matched_tools: Optional[List[str]] = None,
+        matched_skills: list[str] | None = None,
+        matched_tools: list[str] | None = None,
         requested_objective: str = "",
         continued_from_task_id: str = "",
         resume_plan_id: str = "",
@@ -751,9 +751,9 @@ class TaskCommitmentVerifier:
                 result_data=result,
                 elapsed_ms=elapsed,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             commitment_id = self._register_commitment(objective)
-            updates: Dict[str, Any] = {"status": "running_async"}
+            updates: dict[str, Any] = {"status": "running_async"}
             if commitment_id:
                 updates["commitment_id"] = commitment_id
             await self._update_task_entry_async(task_id, **updates)
@@ -818,8 +818,8 @@ class TaskCommitmentVerifier:
         task_engine: Any,
         t0: float,
         *,
-        matched_skills: Optional[List[str]] = None,
-        matched_tools: Optional[List[str]] = None,
+        matched_skills: list[str] | None = None,
+        matched_tools: list[str] | None = None,
         requested_objective: str = "",
         continued_from_task_id: str = "",
         resume_plan_id: str = "",
@@ -895,7 +895,7 @@ class TaskCommitmentVerifier:
             await asyncio.wait_for(
                 asyncio.shield(execution_task), timeout=self.PLANNING_GRACE_S
             )
-        except (asyncio.TimeoutError, asyncio.CancelledError):
+        except (TimeoutError, asyncio.CancelledError):
             pass  # Still running, which is what STARTED means.
         except (AttributeError, RuntimeError, TypeError, ValueError):
             pass  # A real failure is the finalizer's to record.
@@ -941,28 +941,28 @@ class TaskCommitmentVerifier:
             elapsed_ms=elapsed,
         )
 
-    def _get_cap_engine(self) -> Optional[Any]:
+    def _get_cap_engine(self) -> Any | None:
         try:
             from core.container import ServiceContainer
             return ServiceContainer.get("capability_engine", default=None)
         except (ImportError, AttributeError, RuntimeError):
             return None
 
-    def _get_task_engine(self) -> Optional[Any]:
+    def _get_task_engine(self) -> Any | None:
         try:
             from core.container import ServiceContainer
             return ServiceContainer.get("task_engine", default=None)
         except (ImportError, AttributeError, RuntimeError):
             return None
 
-    def _get_goal_engine(self) -> Optional[Any]:
+    def _get_goal_engine(self) -> Any | None:
         try:
             from core.container import ServiceContainer
             return ServiceContainer.get("goal_engine", default=None)
         except (ImportError, AttributeError, RuntimeError):
             return None
 
-    def _register_commitment(self, objective: str) -> Optional[str]:
+    def _register_commitment(self, objective: str) -> str | None:
         try:
             from core.agency.commitment_engine import CommitmentType, get_commitment_engine
 
@@ -979,9 +979,9 @@ class TaskCommitmentVerifier:
             return None
 
     @staticmethod
-    def _extract_result_tracking_fields(result: Any) -> tuple[Dict[str, Any], List[str]]:
-        updates: Dict[str, Any] = {}
-        evidence: List[str] = []
+    def _extract_result_tracking_fields(result: Any) -> tuple[dict[str, Any], list[str]]:
+        updates: dict[str, Any] = {}
+        evidence: list[str] = []
         for key in ("plan_id", "trace_id", "steps_completed", "steps_total", "duration_s"):
             value = getattr(result, key, None)
             if value not in (None, ""):
@@ -1017,7 +1017,7 @@ class TaskCommitmentVerifier:
         *,
         task_id: str,
         objective: str,
-        commitment_id: Optional[str],
+        commitment_id: str | None,
         reason: str,
     ) -> None:
         """Ask again once admission has had time to clear.
@@ -1127,7 +1127,7 @@ class TaskCommitmentVerifier:
         *,
         task_id: str,
         source: str,
-        commitment_id: Optional[str] = None,
+        commitment_id: str | None = None,
         quick_win: bool,
     ) -> None:
         goal_engine = self._get_goal_engine()
@@ -1151,7 +1151,7 @@ class TaskCommitmentVerifier:
         status: str,
         summary: str = "",
         error: str = "",
-        evidence: Optional[List[str]] = None,
+        evidence: list[str] | None = None,
     ) -> None:
         goal_engine = self._get_goal_engine()
         if goal_engine and hasattr(goal_engine, "update_task_lifecycle"):
@@ -1173,7 +1173,7 @@ class TaskCommitmentVerifier:
         task_id: str,
         objective: str,
         future: asyncio.Future,
-        commitment_id: Optional[str],
+        commitment_id: str | None,
     ) -> None:
         self._background_tasks.pop(task_id, None)
         try:
@@ -1337,7 +1337,7 @@ class TaskCommitmentVerifier:
     ) -> tuple[int, dict[str, Any]] | None:
         now = time.time()
 
-        def _cleanup_deadline(entry: Dict[str, Any]) -> float:
+        def _cleanup_deadline(entry: dict[str, Any]) -> float:
             explicit = float(entry.get("cleanup_at", 0.0) or 0.0)
             if explicit > 0.0:
                 return explicit
@@ -1363,7 +1363,7 @@ class TaskCommitmentVerifier:
                 return self._snapshot_task_state_locked()
         return None
 
-    def _task_engine_entries(self) -> List[Dict[str, Any]]:
+    def _task_engine_entries(self) -> list[dict[str, Any]]:
         task_engine = self._get_task_engine()
         if task_engine is None or not hasattr(task_engine, "get_active_plans"):
             return []
@@ -1374,7 +1374,7 @@ class TaskCommitmentVerifier:
             logger.debug("TaskCommitmentVerifier: task engine snapshot skipped: %s", exc)
             return []
 
-        entries: List[Dict[str, Any]] = []
+        entries: list[dict[str, Any]] = []
         for item in snapshot:
             if not isinstance(item, dict):
                 continue
@@ -1405,7 +1405,7 @@ class TaskCommitmentVerifier:
         overlap = text_tokens & objective_tokens
         return len(overlap) / max(1, len(objective_tokens))
 
-    def _relevant_entries(self, objective: str, *, limit: int) -> List[Dict]:
+    def _relevant_entries(self, objective: str, *, limit: int) -> list[dict]:
         with self._lock:
             records = [
                 dict(item)
@@ -1419,7 +1419,7 @@ class TaskCommitmentVerifier:
         lowered = str(objective or "").lower()
         followup_query = any(marker in lowered for marker in _STATUS_FOLLOWUP_MARKERS)
 
-        def _score(entry: Dict[str, Any]) -> tuple[float, float]:
+        def _score(entry: dict[str, Any]) -> tuple[float, float]:
             status = str(entry.get("status", "") or "")
             overlap = self._token_overlap_score(entry.get("objective", ""), objective)
             terminal = status in {"completed", "failed", "cancelled"}
@@ -1455,7 +1455,7 @@ class TaskCommitmentVerifier:
                 return filtered_external[:limit]
         return (ordered or ordered_external)[:limit]
 
-    def _resolve_relevant_entry(self, objective: str) -> Optional[Dict[str, Any]]:
+    def _resolve_relevant_entry(self, objective: str) -> dict[str, Any] | None:
         entries = self._relevant_entries(objective, limit=1)
         if entries:
             return dict(entries[0])
@@ -1463,10 +1463,10 @@ class TaskCommitmentVerifier:
 
     def _build_continuation_reuse_acceptance(
         self,
-        entry: Dict[str, Any],
+        entry: dict[str, Any],
         *,
         t0: float,
-    ) -> Optional[TaskAcceptance]:
+    ) -> TaskAcceptance | None:
         status = str(entry.get("status", "") or "")
         task_id = str(entry.get("task_id", "") or "") or None
         commitment_id = str(entry.get("commitment_id", "") or "") or None
@@ -1503,7 +1503,7 @@ class TaskCommitmentVerifier:
             )
         return None
 
-    def _render_entry_status_reply(self, entry: Dict[str, Any], objective: str) -> str:
+    def _render_entry_status_reply(self, entry: dict[str, Any], objective: str) -> str:
         status = str(entry.get("status", "") or "unknown")
         task_objective = str(entry.get("objective", "") or "that task").strip()
         summary = str(entry.get("summary", "") or "").strip()
@@ -1551,7 +1551,7 @@ class TaskCommitmentVerifier:
 
         return ""
 
-    def _render_payload_status_reply(self, payload: Dict[str, Any], objective: str) -> str:
+    def _render_payload_status_reply(self, payload: dict[str, Any], objective: str) -> str:
         status = str(payload.get("status", "") or "")
         task_objective = str(payload.get("objective", "") or "that task").strip()
         summary = str(payload.get("summary", "") or payload.get("error", "") or "").strip()
@@ -1584,14 +1584,14 @@ class TaskCommitmentVerifier:
             return base
         return ""
 
-    def _store_task_entry(self, task_id: str, entry: Dict[str, Any]) -> None:
+    def _store_task_entry(self, task_id: str, entry: dict[str, Any]) -> None:
         snapshot = self._store_task_entry_state(task_id, entry)
         self._persist_task_snapshot_sync(*snapshot)
 
     async def _store_task_entry_async(
         self,
         task_id: str,
-        entry: Dict[str, Any],
+        entry: dict[str, Any],
     ) -> None:
         snapshot = self._store_task_entry_state(task_id, entry)
         await self._persist_task_snapshot_async(*snapshot)
@@ -1599,7 +1599,7 @@ class TaskCommitmentVerifier:
     def _store_task_entry_state(
         self,
         task_id: str,
-        entry: Dict[str, Any],
+        entry: dict[str, Any],
     ) -> tuple[int, dict[str, Any]]:
         with self._lock:
             payload = dict(entry)
@@ -1711,7 +1711,7 @@ class TaskCommitmentVerifier:
             return
 
         now = time.time()
-        loaded: Dict[str, Dict[str, Any]] = {}
+        loaded: dict[str, dict[str, Any]] = {}
         needs_save = False
         for item in list(raw.get("active_tasks") or []):
             if not isinstance(item, dict):
@@ -1751,7 +1751,7 @@ class TaskCommitmentVerifier:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_verifier: Optional[TaskCommitmentVerifier] = None
+_verifier: TaskCommitmentVerifier | None = None
 
 
 def get_task_commitment_verifier(kernel: Any = None) -> TaskCommitmentVerifier:

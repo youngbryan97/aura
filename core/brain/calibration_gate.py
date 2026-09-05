@@ -20,11 +20,11 @@ path and governance can read.
 from __future__ import annotations
 
 import re
-
-from core.runtime.errors import record_degradation
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+
+from core.runtime.errors import record_degradation
 
 
 class EpistemicStatus(StrEnum):

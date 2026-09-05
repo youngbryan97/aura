@@ -15,14 +15,13 @@ serenity while it is on fire.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
 import logging
-import threading
-import time
 from collections import deque
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Interiority.Interoception")
 

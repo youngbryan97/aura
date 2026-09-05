@@ -14,11 +14,11 @@ from pathlib import Path
 from typing import Any
 
 from core.config import config
-from core.runtime.atomic_writer import async_atomic_write_text, atomic_write_text
+from core.runtime.atomic_writer import async_atomic_write_text
 from core.runtime.errors import record_degradation
+from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.tasks.managed_command import ManagedCommandResult
-from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Airlock")
 _PIPE = -1

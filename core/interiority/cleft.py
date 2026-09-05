@@ -42,16 +42,15 @@ forty-two use, which is the honest reading of what a synapse is.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
 import math
 import random
-import threading
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Mapping
 
 from core.interiority.params import Param, ParamKind, declare
 from core.interiority.receptors import ReceptorBank, get_receptor_bank
+from core.runtime.lockdep import checked_lock
 
 
 def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> Param:

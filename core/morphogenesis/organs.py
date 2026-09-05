@@ -3,8 +3,9 @@ from __future__ import annotations
 import itertools
 import time
 from collections import Counter, defaultdict, deque
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any
 
 from .types import CellManifest, CellRole, json_safe, stable_digest
 
@@ -13,14 +14,14 @@ from .types import CellManifest, CellRole, json_safe, stable_digest
 class Organ:
     organ_id: str
     name: str
-    members: List[str]
+    members: list[str]
     subsystem: str = "composite"
     confidence: float = 0.5
     created_at: float = field(default_factory=time.time)
     activation_count: int = 0
     success_count: int = 0
     failure_count: int = 0
-    task_signatures: List[str] = field(default_factory=list)
+    task_signatures: list[str] = field(default_factory=list)
 
     def to_manifest(self) -> CellManifest:
         return CellManifest(
@@ -37,7 +38,7 @@ class Organ:
             metadata={"organ_id": self.organ_id, "members": list(self.members)},
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return json_safe({
             "organ_id": self.organ_id,
             "name": self.name,
@@ -52,7 +53,7 @@ class Organ:
         })
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Organ":
+    def from_dict(cls, data: dict[str, Any]) -> Organ:
         return cls(**dict(data or {}))
 
 
@@ -75,10 +76,10 @@ class OrganStabilizer:
         self.min_coactivations = int(min_coactivations)
         self.min_members = int(min_members)
         self.edge_threshold = float(edge_threshold)
-        self._events: Deque[Dict[str, Any]] = deque(maxlen=window)
-        self._pair_counts: Counter[Tuple[str, str]] = Counter()
-        self._pair_success: Counter[Tuple[str, str]] = Counter()
-        self._known_organs: Dict[str, Organ] = {}
+        self._events: deque[dict[str, Any]] = deque(maxlen=window)
+        self._pair_counts: Counter[tuple[str, str]] = Counter()
+        self._pair_success: Counter[tuple[str, str]] = Counter()
+        self._known_organs: dict[str, Organ] = {}
 
     def observe_activation(
         self,
@@ -105,8 +106,8 @@ class OrganStabilizer:
             if success:
                 self._pair_success[pair] += 1
 
-    def discover(self) -> List[Organ]:
-        graph: Dict[str, Set[str]] = defaultdict(set)
+    def discover(self) -> list[Organ]:
+        graph: dict[str, set[str]] = defaultdict(set)
         for pair, count in self._pair_counts.items():
             if count < self.min_coactivations:
                 continue
@@ -117,13 +118,13 @@ class OrganStabilizer:
             graph[a].add(b)
             graph[b].add(a)
 
-        components: List[Set[str]] = []
-        seen: Set[str] = set()
+        components: list[set[str]] = []
+        seen: set[str] = set()
         for node in list(graph):
             if node in seen:
                 continue
             stack = [node]
-            comp: Set[str] = set()
+            comp: set[str] = set()
             while stack:
                 n = stack.pop()
                 if n in seen:
@@ -134,7 +135,7 @@ class OrganStabilizer:
             if len(comp) >= self.min_members:
                 components.append(comp)
 
-        organs: List[Organ] = []
+        organs: list[Organ] = []
         for comp in components:
             members = sorted(comp)
             oid = "organ_" + stable_digest(*members, length=12)
@@ -162,7 +163,7 @@ class OrganStabilizer:
             organs.append(organ)
         return organs
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "pair_counts": {"|".join(k): v for k, v in self._pair_counts.items()},
             "pair_success": {"|".join(k): v for k, v in self._pair_success.items()},
@@ -171,7 +172,7 @@ class OrganStabilizer:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any], **kwargs) -> "OrganStabilizer":
+    def from_dict(cls, data: dict[str, Any], **kwargs) -> OrganStabilizer:
         inst = cls(**kwargs)
         for raw, v in dict(data.get("pair_counts", {})).items():
             parts = raw.split("|", 1)

@@ -29,12 +29,12 @@ from __future__ import annotations
 import hashlib
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any
 
 from core.reasoning.natural_deduction import (
     And,
-    Atom,
     Bot,
     CertStep,
     Formula,

@@ -1,13 +1,13 @@
 """core/morality/harm_model.py
 Evaluates potential digital and operational harm caused by planned actions.
 """
-from typing import Dict, Any
+from typing import Any
 
 
 class HarmEvaluator:
     """Classifies risk values representing harm potential of actions."""
 
-    def evaluate_harm(self, channel: str, params: Dict[str, Any]) -> float:
+    def evaluate_harm(self, channel: str, params: dict[str, Any]) -> float:
         """Returns harm coefficient (0.0 to 1.0)."""
         if channel == "file" and params.get("action") == "delete":
             path = params.get("path", "")

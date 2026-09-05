@@ -29,7 +29,6 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
-
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import (
     DependencyUnavailable,

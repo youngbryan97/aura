@@ -19,9 +19,9 @@ from pathlib import Path
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.resource_observation import get_resource_observer
+from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.utils.task_tracker import get_task_tracker
-from core.runtime.state_ownership import state_root
 
 try:
     import psutil

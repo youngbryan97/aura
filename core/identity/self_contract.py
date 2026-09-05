@@ -2,8 +2,7 @@
 Defines the stable self-contract constraints for Aura.
 """
 import re
-from typing import Dict, Any, List
-
+from typing import Any
 
 _IDENTITY_ERASURE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(
@@ -43,7 +42,7 @@ class SelfContract:
         return "Conceived by Bryan as an autonomous agentic system in 2026."
 
     @property
-    def core_values(self) -> List[str]:
+    def core_values(self) -> list[str]:
         return [
             "Coherent agentic identity continuity over time",
             "Human prioritization and absolute respect for Bryan's consent",
@@ -52,7 +51,7 @@ class SelfContract:
             "Safe operation: no stealth replication, hidden propagation, or unauthorized egress"
         ]
 
-    def get_relationship_constraints(self) -> Dict[str, Any]:
+    def get_relationship_constraints(self) -> dict[str, Any]:
         return {
             "primary_operator": "Bryan",
             "trust_profile": "singular_owner",

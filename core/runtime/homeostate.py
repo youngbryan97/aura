@@ -674,7 +674,7 @@ class HomeostateReactor:
                 # cancel-safe, so an idle timeout drops no event.
                 try:
                     item = await asyncio.wait_for(queue.get(), timeout=5.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue
                 event = item[2].get("data") if isinstance(item, tuple) and len(item) == 3 else item
                 for reaction in self._reactions:

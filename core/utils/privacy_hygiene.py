@@ -4,9 +4,10 @@ Provides clean, audit-safe utilities to scrub credentials, system paths, IPs,
 MAC addresses, and secrets from outgoing text and data structures.
 """
 from __future__ import annotations
+
 import os
-import re
 import platform
+import re
 from ipaddress import ip_address
 from pathlib import Path, PurePosixPath
 from typing import Any

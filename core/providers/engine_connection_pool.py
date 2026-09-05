@@ -10,7 +10,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
@@ -137,7 +137,7 @@ class CognitiveEngineConnectionPool:
         engine: Any,
         connection_id: str = "default",
         force_refresh: bool = False,
-    ) -> Optional[Any]:
+    ) -> Any | None:
         """
         Acquire a connection to the CognitiveEngine with persistence.
         
@@ -213,7 +213,7 @@ class CognitiveEngineConnectionPool:
             try:
                 remaining = deadline - loop.time()
                 if remaining <= 0:
-                    raise asyncio.TimeoutError(
+                    raise TimeoutError(
                         f"{operation_name} exceeded total budget {total_timeout:.1f}s"
                     )
                 # Calculate timeout for this attempt without exceeding the caller's
@@ -244,7 +244,7 @@ class CognitiveEngineConnectionPool:
                 )
                 return result
                 
-            except asyncio.TimeoutError as e:
+            except TimeoutError as e:
                 stats.record_failure(is_timeout=True)
                 last_exception = e
                 logger.warning(
@@ -369,7 +369,7 @@ class CognitiveEngineConnectionPool:
 
 
 # Global instance
-_global_pool: Optional[CognitiveEngineConnectionPool] = None
+_global_pool: CognitiveEngineConnectionPool | None = None
 
 
 def get_engine_connection_pool() -> CognitiveEngineConnectionPool:

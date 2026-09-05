@@ -34,8 +34,9 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any
 
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
 
@@ -253,8 +254,8 @@ class AffectiveResonance:
 
             model = get_other_minds_model()
             # Rebuild the minimum estimate shape the learner needs.
-            from core.interiority.other_minds import OtherEstimate
             from core.interiority.evidence import absent
+            from core.interiority.other_minds import OtherEstimate
 
             estimate = OtherEstimate(
                 entity="unknown",

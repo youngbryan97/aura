@@ -67,8 +67,9 @@ whole of what "no authored ceiling" can honestly mean.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable, Sequence
+from typing import Any
 
 __all__ = [
     "AUTHORED_FOREVER",

@@ -13,10 +13,10 @@ from core.brain.personality_engine import (
     get_personality_engine,
     integrate_personality_into_conversation,
 )
-from core.morality.moral_reasoning import get_moral_reasoning
-from core.runtime.service_registry import register_runtime_service
-from core.perception.sensory_integration import integrate_sensory_system
 from core.consciousness.theory_of_mind import get_theory_of_mind
+from core.morality.moral_reasoning import get_moral_reasoning
+from core.perception.sensory_integration import integrate_sensory_system
+from core.runtime.service_registry import register_runtime_service
 
 
 def integrate_complete_moral_and_sensory_systems(orchestrator):

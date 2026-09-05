@@ -7,12 +7,11 @@ control signals.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Iterable, List, Optional
 
 from .belief_state import EnvironmentBeliefState
 from .environment_parser import EnvironmentState
-
 
 RISK_ORDER = {"safe": 0, "caution": 1, "danger": 2, "critical": 3}
 
@@ -21,9 +20,9 @@ RISK_ORDER = {"safe": 0, "caution": 1, "danger": 2, "critical": 3}
 class DangerAssessment:
     risk_level: str
     reason: str
-    recommended_override: Optional[str] = None
+    recommended_override: str | None = None
     score: float = 0.0
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     source: str = "reflex"
 
 
@@ -31,7 +30,7 @@ class DangerAssessment:
 class RiskProfile:
     """Aggregated risk state for the current observation."""
 
-    assessments: List[DangerAssessment] = field(default_factory=list)
+    assessments: list[DangerAssessment] = field(default_factory=list)
 
     @property
     def level(self) -> str:
@@ -53,11 +52,11 @@ class RiskProfile:
     def danger_or_worse(self) -> bool:
         return RISK_ORDER.get(self.level, 0) >= RISK_ORDER["danger"]
 
-    def reasons(self) -> List[str]:
+    def reasons(self) -> list[str]:
         return [item.reason for item in self.assessments]
 
-    def tags(self) -> List[str]:
-        tags: List[str] = []
+    def tags(self) -> list[str]:
+        tags: list[str] = []
         for item in self.assessments:
             for tag in item.tags:
                 if tag not in tags:
@@ -72,7 +71,7 @@ class EnvironmentReflexLayer:
         self,
         state: EnvironmentState,
         belief: EnvironmentBeliefState,
-    ) -> List[DangerAssessment]:
+    ) -> list[DangerAssessment]:
         return self.assess_profile(state, belief).assessments
 
     def assess_profile(
@@ -80,7 +79,7 @@ class EnvironmentReflexLayer:
         state: EnvironmentState,
         belief: EnvironmentBeliefState,
     ) -> RiskProfile:
-        assessments: List[DangerAssessment] = []
+        assessments: list[DangerAssessment] = []
         assessments.extend(self._resource_assessments(state))
         assessments.extend(self._prompt_assessments(state))
         assessments.extend(self._status_assessments(state))
@@ -90,7 +89,7 @@ class EnvironmentReflexLayer:
         assessments.extend(self._loop_assessments(belief))
         return RiskProfile(assessments=assessments)
 
-    def generate_reflex_percepts(self, assessments: Iterable[DangerAssessment]) -> List[str]:
+    def generate_reflex_percepts(self, assessments: Iterable[DangerAssessment]) -> list[str]:
         percepts = []
         for assessment in assessments:
             if RISK_ORDER.get(assessment.risk_level, 0) >= RISK_ORDER["danger"]:
@@ -100,8 +99,8 @@ class EnvironmentReflexLayer:
                 percepts.append(msg)
         return percepts
 
-    def _resource_assessments(self, state: EnvironmentState) -> List[DangerAssessment]:
-        assessments: List[DangerAssessment] = []
+    def _resource_assessments(self, state: EnvironmentState) -> list[DangerAssessment]:
+        assessments: list[DangerAssessment] = []
         resource_pairs = (
             ("hp", "max_hp", "Health", "stabilize_or_retreat"),
             ("energy", "max_energy", "Energy", "stabilize_resource"),
@@ -136,7 +135,7 @@ class EnvironmentReflexLayer:
                 )
         return assessments
 
-    def _prompt_assessments(self, state: EnvironmentState) -> List[DangerAssessment]:
+    def _prompt_assessments(self, state: EnvironmentState) -> list[DangerAssessment]:
         if not state.active_prompts:
             return []
         prompt_text = " | ".join(state.active_prompts)
@@ -150,8 +149,8 @@ class EnvironmentReflexLayer:
             )
         ]
 
-    def _status_assessments(self, state: EnvironmentState) -> List[DangerAssessment]:
-        assessments: List[DangerAssessment] = []
+    def _status_assessments(self, state: EnvironmentState) -> list[DangerAssessment]:
+        assessments: list[DangerAssessment] = []
         hunger = str(state.self_state.get("hunger", "")).lower()
         if hunger in {"fainting", "fainted", "starved"}:
             assessments.append(
@@ -191,8 +190,8 @@ class EnvironmentReflexLayer:
                 )
         return assessments
 
-    def _message_assessments(self, state: EnvironmentState) -> List[DangerAssessment]:
-        assessments: List[DangerAssessment] = []
+    def _message_assessments(self, state: EnvironmentState) -> list[DangerAssessment]:
+        assessments: list[DangerAssessment] = []
         for msg in state.messages:
             lowered = msg.lower()
             if "you die" in lowered or "killed" in lowered or "fatal" in lowered:
@@ -216,8 +215,8 @@ class EnvironmentReflexLayer:
                 )
         return assessments
 
-    def _entity_assessments(self, state: EnvironmentState) -> List[DangerAssessment]:
-        assessments: List[DangerAssessment] = []
+    def _entity_assessments(self, state: EnvironmentState) -> list[DangerAssessment]:
+        assessments: list[DangerAssessment] = []
         for entity in state.entities:
             entity_type = str(entity.get("type", "")).lower()
             tags = [str(tag).lower() for tag in entity.get("tags", []) or []]
@@ -243,7 +242,7 @@ class EnvironmentReflexLayer:
         self,
         state: EnvironmentState,
         belief: EnvironmentBeliefState,
-    ) -> List[DangerAssessment]:
+    ) -> list[DangerAssessment]:
         score = max(
             [belief.epistemic_uncertainty(), *[float(v) for v in state.uncertainty.values()]]
             or [0.0]
@@ -270,8 +269,8 @@ class EnvironmentReflexLayer:
             ]
         return []
 
-    def _loop_assessments(self, belief: EnvironmentBeliefState) -> List[DangerAssessment]:
-        assessments: List[DangerAssessment] = []
+    def _loop_assessments(self, belief: EnvironmentBeliefState) -> list[DangerAssessment]:
+        assessments: list[DangerAssessment] = []
         outcomes = belief.action_outcomes[-8:]
         
         # 1. Action outcome looping (already existing)

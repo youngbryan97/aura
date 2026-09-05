@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import List, Any
 import logging
+from dataclasses import dataclass, field
+from typing import Any
+
 from core.runtime.service_registry import has_runtime_service
 
 logger = logging.getLogger("Aura.BootValidator")
@@ -10,8 +11,8 @@ logger = logging.getLogger("Aura.BootValidator")
 @dataclass
 class ValidationResult:
     passed: bool
-    failures: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    failures: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 class BootValidator:
     @staticmethod
@@ -21,7 +22,7 @@ class BootValidator:
                 return bool(container.has(name))
             return has_runtime_service(name)
             
-        failures: List[str] = []
+        failures: list[str] = []
 
         # 1. Infrastructure Ready
         if not has_service("event_bus"):

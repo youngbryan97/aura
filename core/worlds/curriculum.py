@@ -29,7 +29,7 @@ from core.config import get_config
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
-from core.worlds.embodied import AGENT_RADIUS, EmbodiedAgent
+from core.worlds.embodied import EmbodiedAgent
 from core.worlds.generation import generate_world
 from core.worlds.physics import Body, PhysicsError
 

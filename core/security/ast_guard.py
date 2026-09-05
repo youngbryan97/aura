@@ -9,7 +9,6 @@ When no allowed_modules are specified, ALL imports are blocked.
 
 import ast
 import logging
-from typing import List, Optional, Set
 
 logger = logging.getLogger("Aura.Security")
 
@@ -48,13 +47,13 @@ class ASTGuard(ast.NodeVisitor):
 
     def __init__(
         self,
-        allowed_modules: Optional[List[str]] = None,
-        unsafe_builtins: Optional[List[str]] = None,
+        allowed_modules: list[str] | None = None,
+        unsafe_builtins: list[str] | None = None,
         deny_all_imports: bool = True,
     ):
         # M-04 FIX: Default to safe modules if none specified and deny_all is True
         if allowed_modules is not None:
-            self.allowed_modules: Set[str] = set(allowed_modules)
+            self.allowed_modules: set[str] = set(allowed_modules)
         elif deny_all_imports:
             self.allowed_modules = set(DEFAULT_SAFE_MODULES)
         else:
@@ -66,7 +65,7 @@ class ASTGuard(ast.NodeVisitor):
             or ["eval", "exec", "compile", "__import__", "globals", "locals",
                 "getattr", "setattr", "delattr", "open", "input", "breakpoint"]
         )
-        self.violations: List[str] = []
+        self.violations: list[str] = []
 
     def visit_Import(self, node):
         for alias in node.names:

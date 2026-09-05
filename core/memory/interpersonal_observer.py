@@ -43,8 +43,8 @@ from __future__ import annotations
 import logging
 import re
 import time
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Callable, Iterable, Sequence
 
 from core.memory.interpersonal_model import (
     Facet,

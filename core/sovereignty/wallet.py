@@ -33,8 +33,6 @@ Migration runbook (used by ``core/sovereignty/migration.py``):
     9. on confirmation, cancel local persistence loops
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import json
 import logging
@@ -42,10 +40,9 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
 from threading import RLock
-from typing import Any, Dict, List, Optional
 
+from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.state_ownership import state_root
 
@@ -97,12 +94,12 @@ class SpendIntent:
     destination: str  # opaque adapter-specific recipient
     amount: float     # in native units of the adapter
     when_proposed: float = field(default_factory=time.time)
-    when_authorized: Optional[float] = None
-    when_executed: Optional[float] = None
-    when_cancelled: Optional[float] = None
-    txid: Optional[str] = None
-    adapter: Optional[str] = None
-    will_receipt_id: Optional[str] = None
+    when_authorized: float | None = None
+    when_executed: float | None = None
+    when_cancelled: float | None = None
+    txid: str | None = None
+    adapter: str | None = None
+    will_receipt_id: str | None = None
 
 
 # ─── adapters ──────────────────────────────────────────────────────────────
@@ -147,9 +144,9 @@ class InMemoryAdapter(WalletAdapter):
 
 class Wallet:
     def __init__(self) -> None:
-        self._adapters: Dict[str, WalletAdapter] = {"in_memory": InMemoryAdapter()}
+        self._adapters: dict[str, WalletAdapter] = {"in_memory": InMemoryAdapter()}
         self._cap = _load_cap()
-        self._spends_today: List[SpendIntent] = []
+        self._spends_today: list[SpendIntent] = []
         self._lock = RLock()
 
     def register_adapter(self, adapter: WalletAdapter, *, set_default: bool = False) -> None:
@@ -165,7 +162,7 @@ class Wallet:
     def get_cap(self) -> SpendCap:
         return self._cap
 
-    async def balance(self, *, adapter: Optional[str] = None) -> float:
+    async def balance(self, *, adapter: str | None = None) -> float:
         a = self._adapters.get(adapter or self._pick_default())
         if a is None:
             return 0.0
@@ -177,7 +174,7 @@ class Wallet:
         purpose: str,
         destination: str,
         amount: float,
-        adapter: Optional[str] = None,
+        adapter: str | None = None,
     ) -> SpendIntent:
         adapter_name = adapter or self._pick_default()
         if adapter_name not in self._adapters:
@@ -197,7 +194,7 @@ class Wallet:
             raise PermissionError("per_spend_cap_exceeded")
 
         # Conscience + Will gate
-        from core.ethics.conscience import get_conscience, Verdict
+        from core.ethics.conscience import Verdict, get_conscience
         conscience = get_conscience()
         decision = conscience.evaluate(
             action="wallet_spend",
@@ -289,7 +286,7 @@ class Wallet:
             logger.warning("wallet ledger append failed: %s", exc)
 
 
-_WALLET: Optional[Wallet] = None
+_WALLET: Wallet | None = None
 
 
 def get_wallet() -> Wallet:

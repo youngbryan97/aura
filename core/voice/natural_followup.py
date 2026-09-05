@@ -20,14 +20,12 @@ that requires real substrate justification.
 """
 from __future__ import annotations
 
-
-import asyncio
 import logging
 import random
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
+from typing import Any
 
 from core.voice.speech_profile import SpeechProfile
 
@@ -59,8 +57,8 @@ class NaturalFollowupEngine:
         self._last_followup_time: float = 0.0
         self._followups_this_conversation: int = 0
         self._max_followups_per_conversation: int = 3  # don't overdo it
-        self._recent_topics: List[str] = []
-        self._pending_followup: Optional[FollowupDecision] = None
+        self._recent_topics: list[str] = []
+        self._pending_followup: FollowupDecision | None = None
 
     def reset_conversation(self):
         """Call when a new conversation starts."""
@@ -73,9 +71,9 @@ class NaturalFollowupEngine:
         profile: SpeechProfile,
         user_message: str,
         aura_response: str,
-        conversation_history: List[Dict[str, str]] = None,
+        conversation_history: list[dict[str, str]] = None,
         affect: Any = None,
-        neurochemicals: Optional[Dict[str, float]] = None,
+        neurochemicals: dict[str, float] | None = None,
     ) -> FollowupDecision:
         """Decide whether the substrate wants a follow-up.
 
@@ -251,7 +249,7 @@ class NaturalFollowupEngine:
         self._followups_this_conversation += 1
         self._pending_followup = None
 
-    def get_pending(self) -> Optional[FollowupDecision]:
+    def get_pending(self) -> FollowupDecision | None:
         """Get the pending follow-up decision, if any."""
         return self._pending_followup
 
@@ -268,7 +266,7 @@ def _build_context_hint(
     followup_type: str,
     user_message: str,
     aura_response: str,
-    history: Optional[List[Dict[str, str]]],
+    history: list[dict[str, str]] | None,
 ) -> str:
     """Build a context hint to guide the follow-up generation."""
     if followup_type == "curiosity":

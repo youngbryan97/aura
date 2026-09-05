@@ -1,11 +1,10 @@
 # core/evolution/liquid_time_engine.py
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
-import math
 import time
 from dataclasses import dataclass
-from typing import Dict
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.LTC_Engine")
 
@@ -16,7 +15,6 @@ class LiquidNode:
     tau: float = 1.0  # Time constant (resistance to change)
     leakage: float = 0.1 # Rate at which it returns to resting state
 
-from pathlib import Path
 
 import numpy as np
 
@@ -38,7 +36,7 @@ class ContinuousState:
         if weights_path.exists():
             try:
                 w = np.load(weights_path)
-                self.nodes: Dict[str, LiquidNode] = {
+                self.nodes: dict[str, LiquidNode] = {
                     "curiosity": LiquidNode(
                         value=w['liquid_curiosity_resting'], 
                         resting_state=w['liquid_curiosity_resting'], 
@@ -70,14 +68,14 @@ class ContinuousState:
         self._lock = asyncio.Lock()
 
     def _set_defaults(self):
-        self.nodes: Dict[str, LiquidNode] = {
+        self.nodes: dict[str, LiquidNode] = {
             "curiosity": LiquidNode(value=0.5, resting_state=0.3, tau=2.5, leakage=0.05),
             "frustration": LiquidNode(value=0.0, resting_state=0.0, tau=1.2, leakage=0.15),
             "energy": LiquidNode(value=1.0, resting_state=0.5, tau=5.0, leakage=0.01)
         }
 
 
-    async def pulse(self, stimuli: Dict[str, float] = None):
+    async def pulse(self, stimuli: dict[str, float] = None):
         """Inject stimuli and update network via forward Euler method."""
         async with self._lock:
             current_time = time.time()
@@ -106,7 +104,7 @@ class ContinuousState:
                 # Bound between physical limits
                 node.value = max(0.0, min(1.0, node.value))
 
-    async def get_fluid_state(self) -> Dict[str, float]:
+    async def get_fluid_state(self) -> dict[str, float]:
         """Observing the state forces a time-step calculation."""
         await self.pulse() 
         return {name: node.value for name, node in self.nodes.items()}

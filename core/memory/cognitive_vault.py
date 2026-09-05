@@ -17,8 +17,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.runtime.errors import FallbackClassification, record_degradation
-from core.utils.task_tracker import get_task_tracker
 from core.runtime.sqlite_support import connecting
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.CognitiveVault")
 

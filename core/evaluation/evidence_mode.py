@@ -11,7 +11,6 @@ service) to activate. The normal runtime stays forgiving; only the evidence
 path is strict.
 """
 from __future__ import annotations
-from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import os
@@ -19,7 +18,9 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
+
+from core.runtime.atomic_writer import atomic_write_text
 
 
 @dataclass
@@ -28,7 +29,7 @@ class EvidenceViolation:
     detail: str
     timestamp: float = field(default_factory=time.time)
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {"kind": self.kind, "detail": self.detail, "timestamp": self.timestamp}
 
 
@@ -44,8 +45,8 @@ class EvidenceMode:
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._override: Optional[bool] = None
-        self._violations: List[EvidenceViolation] = []
+        self._override: bool | None = None
+        self._violations: list[EvidenceViolation] = []
 
     # ------------------------------------------------------------------
     def active(self) -> bool:
@@ -54,7 +55,7 @@ class EvidenceMode:
                 return bool(self._override)
         return _env_truthy(os.environ.get("AURA_EVIDENCE_MODE"))
 
-    def set_override(self, value: Optional[bool]) -> None:
+    def set_override(self, value: bool | None) -> None:
         with self._lock:
             self._override = None if value is None else bool(value)
 
@@ -62,7 +63,7 @@ class EvidenceMode:
         with self._lock:
             self._violations.clear()
 
-    def violations(self) -> List[Dict[str, Any]]:
+    def violations(self) -> list[dict[str, Any]]:
         with self._lock:
             return [v.as_dict() for v in self._violations]
 
@@ -89,7 +90,7 @@ class EvidenceMode:
         with self._lock:
             self._violations.append(EvidenceViolation(kind=kind, detail=detail))
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {
             "active": self.active(),
             "violations": self.violations(),
@@ -100,7 +101,7 @@ class EvidenceMode:
         atomic_write_text(p, json.dumps(self.snapshot(), indent=2, sort_keys=True) + "\n")
 
 
-_singleton: Optional[EvidenceMode] = None
+_singleton: EvidenceMode | None = None
 _lock = threading.Lock()
 
 
@@ -118,7 +119,7 @@ def reset_singleton_for_test() -> None:
         _singleton = None
 
 
-def _env_truthy(value: Optional[str]) -> bool:
+def _env_truthy(value: str | None) -> bool:
     if value is None:
         return False
     return str(value).strip().lower() in {"1", "true", "yes", "on"}

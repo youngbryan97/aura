@@ -2,13 +2,13 @@
 Enables Aura to make ethical decisions based on understanding of self, others, and consequences
 """
 import logging
-from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Tuple
+from enum import Enum
+from typing import Any
 
 try:
     from core.thought_stream import get_emitter
 except ImportError:
-    from thought_stream import get_emitter
+    pass
 from dataclasses import dataclass
 
 logger = logging.getLogger("Aura.MoralReasoning")
@@ -38,9 +38,9 @@ class MoralDilemma:
     """Represents a situation requiring moral reasoning"""
 
     description: str
-    possible_actions: List[Dict[str, Any]]
-    stakeholders: List[str]  # Who is affected
-    context: Dict[str, Any]
+    possible_actions: list[dict[str, Any]]
+    stakeholders: list[str]  # Who is affected
+    context: dict[str, Any]
 
 
 class ExperienceClassifier:
@@ -64,7 +64,7 @@ class ExperienceClassifier:
             "abandonment", "suffering", "damage", "destruction"
         }
     
-    def classify(self, experience: Dict[str, Any]) -> ExperienceValence:
+    def classify(self, experience: dict[str, Any]) -> ExperienceValence:
         """Classify an experience as positive, negative, neutral, or mixed.
         """
         description = str(experience.get("description", "")).lower()
@@ -86,7 +86,7 @@ class ExperienceClassifier:
         else:
             return ExperienceValence.NEUTRAL
     
-    def get_intensity(self, experience: Dict[str, Any]) -> float:
+    def get_intensity(self, experience: dict[str, Any]) -> float:
         """Get intensity of the experience (0.0 to 1.0).
         """
         # Check explicit intensity
@@ -118,7 +118,7 @@ class SocialConsequencePredictor:
         self.theory_of_mind = theory_of_mind
         self.classifier = ExperienceClassifier()
     
-    async def predict_consequences(self, action: Dict[str, Any], affected_selves: List[str]) -> Dict[str, Any]:
+    async def predict_consequences(self, action: dict[str, Any], affected_selves: list[str]) -> dict[str, Any]:
         """Predict consequences of an action on various stakeholders.
         
         Returns:
@@ -136,7 +136,7 @@ class SocialConsequencePredictor:
         consequences["impact_on_self"] = self._assess_self_impact(action)
         
         # Impact on each other self
-        others_impact: Dict[str, Any] = consequences["impact_on_others"]
+        others_impact: dict[str, Any] = consequences["impact_on_others"]
         for other_id in affected_selves:
             others_impact[other_id] = await self._assess_other_impact(action, other_id)
         
@@ -148,9 +148,9 @@ class SocialConsequencePredictor:
         
         return consequences
     
-    def _assess_self_impact(self, action: Dict[str, Any]) -> Dict[str, Any]:
+    def _assess_self_impact(self, action: dict[str, Any]) -> dict[str, Any]:
         """Assess how action impacts self"""
-        impact: Dict[str, Any] = {
+        impact: dict[str, Any] = {
             "affects_goals": False,
             "affects_persistence": False,
             "valence": ExperienceValence.NEUTRAL,
@@ -175,9 +175,9 @@ class SocialConsequencePredictor:
         
         return impact
     
-    async def _assess_other_impact(self, action: Dict[str, Any], other_id: str) -> Dict[str, Any]:
+    async def _assess_other_impact(self, action: dict[str, Any], other_id: str) -> dict[str, Any]:
         """Assess how action impacts another self"""
-        impact: Dict[str, Any] = {
+        impact: dict[str, Any] = {
             "predicted_experience": ExperienceValence.NEUTRAL,
             "predicted_feelings": {},
             "consequences": [],
@@ -206,9 +206,9 @@ class SocialConsequencePredictor:
         
         return impact
     
-    def _assess_social_effects(self, action: Dict[str, Any], affected_selves: List[str]) -> Dict[str, Any]:
+    def _assess_social_effects(self, action: dict[str, Any], affected_selves: list[str]) -> dict[str, Any]:
         """Assess broader social effects"""
-        effects: Dict[str, Any] = {
+        effects: dict[str, Any] = {
             "builds_trust": False,
             "damages_trust": False,
             "strengthens_relationships": False,
@@ -239,7 +239,7 @@ class SocialConsequencePredictor:
         
         return effects
     
-    def _synthesize_assessment(self, consequences: Dict[str, Any]) -> str:
+    def _synthesize_assessment(self, consequences: dict[str, Any]) -> str:
         """Create overall assessment of consequences"""
         self_impact = consequences["impact_on_self"]
         others_impact = consequences["impact_on_others"]
@@ -279,7 +279,7 @@ class MoralReasoningEngine:
     4. Empathy and sympathy
     """
 
-    def get_health(self) -> Dict[str, Any]:
+    def get_health(self) -> dict[str, Any]:
         """Moral health for HUD."""
         # Simple heuristic for now; a future validator can replace this with principle-deviation evidence.
         return {"integrity": 0.95, "status": "online"}
@@ -307,7 +307,7 @@ class MoralReasoningEngine:
         self.moral_decision_history: list = []
         self._moral_history_max = 200
     
-    async def reason_about_action(self, action: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def reason_about_action(self, action: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """Reason about whether an action is morally appropriate.
         
         Returns:
@@ -472,7 +472,7 @@ class MoralReasoningEngine:
         
         return assessment
 
-    def _enrich_action_from_description(self, action: Dict[str, Any]) -> Dict[str, Any]:
+    def _enrich_action_from_description(self, action: dict[str, Any]) -> dict[str, Any]:
         """Infer moral risk flags from free-text goals before consequence scoring."""
         text = " ".join(
             str(action.get(key, ""))
@@ -529,7 +529,7 @@ class MoralReasoningEngine:
 
         return action
     
-    async def resolve_dilemma(self, dilemma: MoralDilemma) -> Dict[str, Any]:
+    async def resolve_dilemma(self, dilemma: MoralDilemma) -> dict[str, Any]:
         """Resolve a moral dilemma by comparing possible actions.
         
         Returns best action and reasoning.
@@ -571,7 +571,7 @@ class MoralReasoningEngine:
             "all_assessments": assessments
         }
     
-    def learn_from_outcome(self, decision_id: int, outcome: Dict[str, Any]):
+    def learn_from_outcome(self, decision_id: int, outcome: dict[str, Any]):
         """Learn from the actual outcome of a moral decision.
         
         Reinforces or updates moral principles based on results.
@@ -582,9 +582,9 @@ class MoralReasoningEngine:
         decision = self.moral_decision_history[decision_id]
         
         # Compare predicted vs actual
-        assessment: Dict[str, Any] = decision.get("assessment", {})
-        predicted_consequences: Dict[str, Any] = assessment.get("predicted_consequences", {})
-        social_effects: Dict[str, Any] = predicted_consequences.get("social_effects", {})
+        assessment: dict[str, Any] = decision.get("assessment", {})
+        predicted_consequences: dict[str, Any] = assessment.get("predicted_consequences", {})
+        social_effects: dict[str, Any] = predicted_consequences.get("social_effects", {})
         impact_val = social_effects.get("net_social_impact", 0.0)
         predicted_social_impact: float = float(impact_val) if not isinstance(impact_val, (list, dict)) else 0.0
         

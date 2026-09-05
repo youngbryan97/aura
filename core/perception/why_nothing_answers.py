@@ -33,7 +33,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
 
 __all__ = ["ELSEWHERE", "ENDED", "IN_FRONT", "UNKNOWN", "WhyNothingAnswers", "work_out_why"]
 

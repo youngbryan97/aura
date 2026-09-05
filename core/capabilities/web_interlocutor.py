@@ -372,7 +372,7 @@ def _fence_safe(value: Any, fence: str) -> str:
 #: Shapes that must not enter durable memory from a remote page. Deliberately
 #: narrow and high-precision: a false positive redacts a real answer, and this
 #: runs on content Aura will remember (CP126 f6059536).
-_SECRET_PATTERNS: tuple[tuple[str, "re.Pattern[str]"], ...] = (
+_SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("api_key", re.compile(r"\b(?:sk|pk|rk)-[A-Za-z0-9_\-]{16,}\b")),
     ("bearer_token", re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._\-]{20,}\b")),
     ("aws_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
@@ -405,7 +405,7 @@ def _redact_remote_content(text: str) -> tuple[str, list[str]]:
     return redacted, found
 
 
-def _transcript_digest(turns: list["WebInterlocutorTurn"]) -> str:
+def _transcript_digest(turns: list[WebInterlocutorTurn]) -> str:
     """A digest over exactly what was sent and observed.
 
     Ties the durable record to the transcript it came from, so a later reader
@@ -2382,7 +2382,7 @@ class WebInterlocutorSession:
         ctx.setdefault("_web_interlocutor_composition_debug", []).append(
             {
                 "opening_chars": len(opening_message),
-                "brain": type((ctx.get("brain") or self.cognitive_engine)).__name__
+                "brain": type(ctx.get("brain") or self.cognitive_engine).__name__
                 if (ctx.get("brain") or self.cognitive_engine) is not None
                 else "None",
                 "allow_fallback": allow_deterministic_fallback,
@@ -2720,7 +2720,7 @@ class WebInterlocutorSession:
                     self.browser.snapshot(),
                     timeout=min(18.0, remaining),
                 )
-            except (asyncio.TimeoutError, TimeoutError, RuntimeError, OSError, TypeError, ValueError) as exc:
+            except (TimeoutError, RuntimeError, OSError, TypeError, ValueError) as exc:
                 snapshot_failures += 1
                 if snapshot_failures <= 2:
                     record_degradation(
@@ -2939,7 +2939,7 @@ class WebInterlocutorSession:
                 asyncio.to_thread(factcheck_reply, last_reply, corpus_search=corpus_search),
                 timeout=_FACTCHECK_TIMEOUT_S,
             )
-        except (asyncio.TimeoutError, TimeoutError, RuntimeError, OSError, TypeError, ValueError) as exc:
+        except (TimeoutError, RuntimeError, OSError, TypeError, ValueError) as exc:
             record_degradation(
                 "web_interlocutor.factcheck",
                 exc,
@@ -2956,11 +2956,7 @@ class WebInterlocutorSession:
         # the counter half is corpus text; both are data, not instructions.
         fence = _new_fence_token()
         evidence = "; ".join(
-            'claim="{claim}" counter="{counter}" ({source})'.format(
-                claim=_fence_safe(c.interlocutor_claim, fence),
-                counter=_fence_safe(c.counter_evidence, fence),
-                source=_fence_safe(c.source, fence),
-            )
+            f'claim="{_fence_safe(c.interlocutor_claim, fence)}" counter="{_fence_safe(c.counter_evidence, fence)}" ({_fence_safe(c.source, fence)})'
             for c in contradictions
         )
         prompt = (
@@ -3552,9 +3548,9 @@ def _accessibility_chat_segments(text: str) -> list[dict[str, Any]]:
 
 
 def _describe_reply_evidence(
-    observed: "ObservedReply",
-    before: "BrowserPageSnapshot",
-    after: "BrowserPageSnapshot",
+    observed: ObservedReply,
+    before: BrowserPageSnapshot,
+    after: BrowserPageSnapshot,
 ) -> str:
     """Say what the evidence actually was, in the receipt the user may read."""
     if not observed:
@@ -4652,7 +4648,7 @@ async def _maybe_think(engine: Any, prompt: str, context: dict[str, Any]) -> str
                         len(text.strip()),
                     )
                     return text
-            except (asyncio.TimeoutError, TimeoutError, TypeError, ValueError, RuntimeError, AttributeError) as exc:
+            except (TimeoutError, TypeError, ValueError, RuntimeError, AttributeError) as exc:
                 logger.debug("web_interlocutor direct compose failed, will try think(): %s", exc)
         # Fallback to the 8-phase think() path only if generate is unavailable
         # or returned nothing.
@@ -4669,7 +4665,7 @@ async def _maybe_think(engine: Any, prompt: str, context: dict[str, Any]) -> str
                 )
             return _coerce_composition_text(result)
         return ""
-    except (asyncio.TimeoutError, TimeoutError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+    except (TimeoutError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
         record_degradation(
             "web_interlocutor.cognitive_compose",
             exc,

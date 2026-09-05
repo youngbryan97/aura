@@ -122,7 +122,7 @@ def _sat_axes(rot_a: np.ndarray, rot_b: np.ndarray) -> list[np.ndarray]:
 
 def _project_radius(rotation: np.ndarray, half_extents: np.ndarray,
                     axis: np.ndarray) -> float:
-    return float(np.sum(np.abs((rotation.T @ axis)) * half_extents))
+    return float(np.sum(np.abs(rotation.T @ axis) * half_extents))
 
 
 def obb_vs_obb(center_a: np.ndarray, rot_a: np.ndarray, half_a: np.ndarray,

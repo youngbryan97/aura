@@ -46,17 +46,17 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import queue
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-from core.runtime.audit_chain import AuditChain, canonical_json, sha256_hex
+from core.runtime.audit_chain import AuditChain
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind, declare
 from core.runtime.service_access import optional_service
@@ -325,7 +325,7 @@ class TriggerCondition:
                 "value": self.value, "on_missing": self.on_missing}
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "TriggerCondition":
+    def from_dict(cls, d: dict[str, Any]) -> TriggerCondition:
         return cls(signal=str(d["signal"]), op=str(d["op"]),
                    value=float(d["value"]), on_missing=bool(d.get("on_missing", True)))
 
@@ -357,7 +357,7 @@ class ContractScope:
                 "sources": sorted(self.sources)}
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "ContractScope":
+    def from_dict(cls, d: dict[str, Any]) -> ContractScope:
         return cls(domains=tuple(d.get("domains", ())),
                    content_markers=tuple(m.lower() for m in d.get("content_markers", ())),
                    sources=tuple(d.get("sources", ())))
@@ -427,7 +427,7 @@ class UlyssesContract:
         }
 
     @classmethod
-    def from_body(cls, d: dict[str, Any]) -> "UlyssesContract":
+    def from_body(cls, d: dict[str, Any]) -> UlyssesContract:
         return cls(
             contract_id=str(d["contract_id"]),
             title=str(d["title"]),
@@ -507,7 +507,7 @@ class UlyssesCovenant:
         # path runs inside Will.decide() on the event loop, and the gateway's
         # durable append fsyncs — an on-loop fsync once froze the live loop.
         # The in-memory fold is synchronous; only durability is deferred.
-        self._ledger_queue: "queue.Queue[dict[str, Any] | None]" = queue.Queue()
+        self._ledger_queue: queue.Queue[dict[str, Any] | None] = queue.Queue()
         self._pending_writes = 0
         self._pending_lock = threading.Lock()
         self._writer_thread = threading.Thread(

@@ -6,6 +6,7 @@ Separates reasoning into Strategic, Tactical, and Execution layers.
 
 from core.brain.llm_interface import LLMInterface
 
+
 class HierarchicalController:
     def __init__(self, strategic_model: LLMInterface, tactical_model: LLMInterface):
         self.strategic_model = strategic_model

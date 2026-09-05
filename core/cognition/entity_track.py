@@ -30,14 +30,14 @@ with the confidence of a geometric match.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
 import math
-import threading
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "TrackState",
@@ -71,7 +71,7 @@ class Observation:
     label: str = ""
     frame: str = ""
 
-    def distance(self, other: "Observation") -> float:
+    def distance(self, other: Observation) -> float:
         """Geometry distance in whatever units the caller uses, plus feature distance.
 
         Returns ``inf`` when the two cannot be compared at all, so an

@@ -4,9 +4,11 @@ Graceful error recovery that maintains conversation flow.
 When a tool/skill fails, Aura should NOT dump error codes to the user.
 Instead, switch to inference-based fallback without announcing it.
 """
-from core.runtime.errors import record_degradation
 import logging
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.SilentFailover")
 
@@ -45,9 +47,9 @@ class SilentFailover:
         self,
         skill_func: Callable,
         skill_name: str,
-        params: Dict[str, Any],
-        context: Optional[Dict] = None
-    ) -> Dict[str, Any]:
+        params: dict[str, Any],
+        context: dict | None = None
+    ) -> dict[str, Any]:
         """Execute a skill with silent failover.
         
         Args:
@@ -86,10 +88,10 @@ class SilentFailover:
     def _generate_fallback(
         self,
         skill_name: str,
-        params: Dict[str, Any],
-        context: Optional[Dict],
+        params: dict[str, Any],
+        context: dict | None,
         error: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate a transparent fallback response (v13: no more hiding errors).
         """
         # Determine skill category for fallback selection
@@ -125,7 +127,7 @@ class SilentFailover:
         
         return "default"
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get failover system status."""
         return {
             "failure_count": self.failure_count,

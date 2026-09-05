@@ -9,17 +9,16 @@ Real adapters can register a concrete exporter via ``set_exporter()``.
 """
 from __future__ import annotations
 
-
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Protocol
 
 
 @dataclass
 class MetricSample:
     name: str
     value: float
-    labels: Dict[str, str] = field(default_factory=dict)
+    labels: dict[str, str] = field(default_factory=dict)
     at: float = field(default_factory=time.time)
 
 
@@ -28,10 +27,10 @@ class TraceSpan:
     trace_id: str
     span_id: str
     name: str
-    parent_id: Optional[str] = None
+    parent_id: str | None = None
     started_at: float = field(default_factory=time.time)
-    ended_at: Optional[float] = None
-    attrs: Dict[str, Any] = field(default_factory=dict)
+    ended_at: float | None = None
+    attrs: dict[str, Any] = field(default_factory=dict)
 
 
 class TelemetryExporter(Protocol):
@@ -42,8 +41,8 @@ class TelemetryExporter(Protocol):
 
 class NullExporter:
     def __init__(self):
-        self.metrics: List[MetricSample] = []
-        self.spans: List[TraceSpan] = []
+        self.metrics: list[MetricSample] = []
+        self.spans: list[TraceSpan] = []
 
     def emit_metric(self, sample: MetricSample) -> None:
         self.metrics.append(sample)
@@ -71,7 +70,7 @@ def metric(name: str, value: float, **labels: str) -> None:
     _exporter.emit_metric(MetricSample(name=name, value=value, labels=labels))
 
 
-def span(name: str, *, trace_id: str, span_id: str, parent_id: Optional[str] = None, **attrs: Any) -> TraceSpan:
+def span(name: str, *, trace_id: str, span_id: str, parent_id: str | None = None, **attrs: Any) -> TraceSpan:
     sp = TraceSpan(trace_id=trace_id, span_id=span_id, name=name, parent_id=parent_id, attrs=dict(attrs))
     _exporter.emit_span(sp)
     return sp

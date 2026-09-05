@@ -88,7 +88,7 @@ class BehaviorFingerprinter:
             "runtime_receipt_paths": graph.metrics.get("runtime_receipt_paths", 0),
         }
         fingerprint_id = hashlib.sha256(
-            f"{cfg.repo_root}:{graph.metrics.get('nodes')}:{graph.metrics.get('edges')}:{changed_files}".encode("utf-8")
+            f"{cfg.repo_root}:{graph.metrics.get('nodes')}:{graph.metrics.get('edges')}:{changed_files}".encode()
         ).hexdigest()[:16]
         return BehaviorFingerprint(
             id=fingerprint_id,

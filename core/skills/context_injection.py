@@ -8,9 +8,10 @@ instructions, constraints, and knowledge.
 Hierarchy: workspace → parent → global (~/.aura/AURA.md)
 """
 
-from core.runtime.errors import record_degradation
 import logging
 import os
+
+from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.ContextInjection")

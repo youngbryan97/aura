@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from core.environment.command import ActionIntent
 from core.environment.parsed_state import ParsedState
+
 
 @dataclass
 class SemanticEvent:

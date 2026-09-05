@@ -10,10 +10,10 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from core.mission.objective_graph import ObjectiveGraph, Milestone
 from core.mission.campaign_planner import CampaignPlanner
+from core.mission.objective_graph import ObjectiveGraph
 from core.mission.progress_monitor import MissionProgressMonitor
 from core.runtime.action_executor import ActionExecutor
 
@@ -38,8 +38,8 @@ class MissionConstraints:
     max_cost_dollars: float = 0.0
     abort_on_first_failure: bool = False
     required_confidence: float = 0.6
-    allowed_action_classes: List[str] = field(default_factory=lambda: ["tool_execution", "file_write", "shell_command"])
-    forbidden_action_classes: List[str] = field(default_factory=list)
+    allowed_action_classes: list[str] = field(default_factory=lambda: ["tool_execution", "file_write", "shell_command"])
+    forbidden_action_classes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -54,11 +54,11 @@ class Campaign:
     milestones_completed: int = 0
     milestones_total: int = 0
     tool_calls_used: int = 0
-    blockers: List[str] = field(default_factory=list)
-    evidence: List[Dict[str, Any]] = field(default_factory=list)
-    progress_log: List[Dict[str, Any]] = field(default_factory=list)
-    final_review: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    blockers: list[str] = field(default_factory=list)
+    evidence: list[dict[str, Any]] = field(default_factory=list)
+    progress_log: list[dict[str, Any]] = field(default_factory=list)
+    final_review: dict[str, Any] | None = None
+    error: str | None = None
 
 
 class MissionEngine:
@@ -68,13 +68,13 @@ class MissionEngine:
     def __init__(self) -> None:
         self.graph = ObjectiveGraph()
         self.monitor = MissionProgressMonitor()
-        self.campaigns: Dict[str, Campaign] = {}
+        self.campaigns: dict[str, Campaign] = {}
         self._campaign_counter = 0
 
     async def create_campaign(
         self,
         objective: str,
-        constraints: Optional[Dict[str, Any]] = None,
+        constraints: dict[str, Any] | None = None,
     ) -> Campaign:
         """Create and register a new campaign."""
         self._campaign_counter += 1
@@ -91,9 +91,9 @@ class MissionEngine:
 
     async def run_mission(
         self,
-        plan_steps: List[str],
-        constraints: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        plan_steps: list[str],
+        constraints: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Run a mission through the campaign pipeline."""
         campaign = await self.create_campaign(" ".join(plan_steps), constraints)
         campaign.status = MissionStatus.ACTIVE
@@ -205,10 +205,10 @@ class MissionEngine:
             "review": campaign.final_review,
         }
 
-    def get_active_campaigns(self) -> List[Campaign]:
+    def get_active_campaigns(self) -> list[Campaign]:
         return [c for c in self.campaigns.values() if c.status in (MissionStatus.ACTIVE, MissionStatus.PLANNING)]
 
-    def get_campaign(self, campaign_id: str) -> Optional[Campaign]:
+    def get_campaign(self, campaign_id: str) -> Campaign | None:
         return self.campaigns.get(campaign_id)
 
     def abort_campaign(self, campaign_id: str, reason: str = "manual") -> bool:

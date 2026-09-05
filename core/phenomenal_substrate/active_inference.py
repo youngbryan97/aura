@@ -1,8 +1,9 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Dict, Tuple
 
-from .maths import Vector, clamp, clamp_signed, weighted_error, l2, mix, bound01, sigmoid
+from dataclasses import dataclass, field
+
+from .maths import Vector, bound01, clamp, l2, mix, weighted_error
+
 
 @dataclass
 class GenerativeModel:
@@ -40,7 +41,7 @@ class GenerativeModel:
     })
     learning_rate: float = 0.26
 
-    def infer(self, observed: Vector, recurrent_cycles: int = 4) -> Tuple[Vector, Vector, float]:
+    def infer(self, observed: Vector, recurrent_cycles: int = 4) -> tuple[Vector, Vector, float]:
         recurrent_cycles = max(1, int(recurrent_cycles))
         local = dict(self.belief)
         for _ in range(recurrent_cycles):

@@ -9,10 +9,11 @@ Sits between the LLM response and the user to catch:
 This is the last line of defense before the user sees Aura's output.
 """
 
-from core.runtime.errors import record_degradation
 import logging
 import re
-from typing import Any, Dict, Tuple
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Security.OutputGuardrails")
 
@@ -58,7 +59,7 @@ class OutputGuardrails:
         self._total_checks = 0
         self._total_blocks = 0
 
-    def check_response(self, response: str) -> Tuple[str, Dict[str, Any]]:
+    def check_response(self, response: str) -> tuple[str, dict[str, Any]]:
         """Check and sanitize an outgoing response.
         
         Returns:
@@ -67,7 +68,7 @@ class OutputGuardrails:
         """
         self._total_checks += 1
         issues: list[str] = []
-        report: Dict[str, Any] = {
+        report: dict[str, Any] = {
             "ok": True,
             "issues": issues,
             "original_length": len(response) if response else 0,
@@ -167,7 +168,7 @@ class OutputGuardrails:
             key = re.sub(r"[^a-z0-9']+", " ", sentence.lower()).strip()
             return re.sub(r"\s+", " ", key)
 
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for part in parts:
             key = _key(part)
             if key:
@@ -187,7 +188,7 @@ class OutputGuardrails:
             kept.append(part)
         return " ".join(kept).strip()
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         return {
             "total_checks": self._total_checks,
             "total_blocks": self._total_blocks,

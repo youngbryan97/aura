@@ -30,9 +30,10 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Iterable
+from typing import Any
 
 logger = logging.getLogger("Aura.CapabilityCondition")
 

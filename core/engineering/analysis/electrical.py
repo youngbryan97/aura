@@ -13,11 +13,10 @@ the same law written in three domains.
 
 from __future__ import annotations
 
-import math
 from collections.abc import Iterable
 
 from core.engineering.analysis import Finding, register
-from core.engineering.units import Q, Quantity
+from core.engineering.units import Q
 
 #: Copper resistivity at 20 C, and its temperature coefficient. A hot wire
 #: has more resistance than a cold one, by enough to matter over a run.

@@ -1,11 +1,11 @@
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
+import asyncio
 import logging
 import re
 import time
-import asyncio
-from typing import Tuple
+
+from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("aura.identity_guard")
 
@@ -32,7 +32,7 @@ class PersonaEnforcementGate:
             r"(?i)to better assist"
         ]
 
-    def validate_output(self, content: str, *, enforce_supervision: bool = True) -> Tuple[bool, str, float]:
+    def validate_output(self, content: str, *, enforce_supervision: bool = True) -> tuple[bool, str, float]:
         """Validate if the output aligns with Aura's identity."""
         # 1. Pattern Matching (Fast Path)
         for pattern in self.forbidden_patterns:

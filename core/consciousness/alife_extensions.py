@@ -51,13 +51,11 @@ from scratch to avoid adding a heavy dependency).
 """
 from __future__ import annotations
 
-
 import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -207,15 +205,15 @@ class PatternReplicator:
         self._protection_expires = np.zeros(n_columns, dtype=np.int64)
 
         # Rate limit: last replication tick per tier.
-        self._last_replication_tick: Dict[str, int] = {
+        self._last_replication_tick: dict[str, int] = {
             "SENSORY": -100,
             "ASSOCIATION": -100,
             "EXECUTIVE": -100,
         }
 
         # Tracking
-        self._events: List[ReplicationEvent] = []
-        self._pending_checks: List[Tuple[int, int, float, int]] = []  # (recipient, tick_due, pre_fitness, event_idx)
+        self._events: list[ReplicationEvent] = []
+        self._pending_checks: list[tuple[int, int, float, int]] = []  # (recipient, tick_due, pre_fitness, event_idx)
         self._successes: int = 0
         self._total_checked: int = 0
 
@@ -230,7 +228,7 @@ class PatternReplicator:
 
     # -- Tier helpers ------------------------------------------------------
 
-    _TIER_RANGES: Dict[str, Tuple[int, int]] = {
+    _TIER_RANGES: dict[str, tuple[int, int]] = {
         "SENSORY": (0, 16),
         "ASSOCIATION": (16, 48),
         "EXECUTIVE": (48, 64),
@@ -263,10 +261,10 @@ class PatternReplicator:
 
     def tick(
         self,
-        columns_W: List[np.ndarray],
+        columns_W: list[np.ndarray],
         fitness: np.ndarray,
         tick_count: int,
-    ) -> List[ReplicationEvent]:
+    ) -> list[ReplicationEvent]:
         """Run one replication cycle.
 
         Args:
@@ -279,7 +277,7 @@ class PatternReplicator:
             List of ReplicationEvent for any replications that occurred
             this tick (usually 0 or 1).
         """
-        new_events: List[ReplicationEvent] = []
+        new_events: list[ReplicationEvent] = []
 
         with self._lock:
             # Check pending success evaluations first
@@ -341,7 +339,7 @@ class PatternReplicator:
 
     def _replicate(
         self,
-        columns_W: List[np.ndarray],
+        columns_W: list[np.ndarray],
         donor: int,
         recipient: int,
         tier_name: str,
@@ -408,7 +406,7 @@ class PatternReplicator:
             return 0.0
         return self._successes / self._total_checked
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "total_replications": len(self._events),
@@ -431,8 +429,8 @@ class SpeciesInfo:
     """Snapshot of current species structure."""
     species_ids: np.ndarray           # (n_columns,) int -- species label per column
     n_species: int
-    species_sizes: Dict[int, int]     # species_id -> member count
-    species_fitness: Dict[int, float] # species_id -> mean fitness
+    species_sizes: dict[int, int]     # species_id -> member count
+    species_fitness: dict[int, float] # species_id -> mean fitness
     shannon_diversity: float          # Shannon diversity index of species distribution
     turnover_rate: float              # fraction of columns that changed species since last clustering
     silhouette_score: float           # quality of the clustering
@@ -485,7 +483,7 @@ class ColumnSpeciation:
         self._last_clustering_tick: int = -500  # force first clustering
 
         # Species info cache
-        self._info: Optional[SpeciesInfo] = None
+        self._info: SpeciesInfo | None = None
 
         # Pruning threshold modifiers
         self._same_species_pruning_factor: float = 0.7    # 30% easier to keep
@@ -495,7 +493,7 @@ class ColumnSpeciation:
 
     @staticmethod
     def _kmeans(data: np.ndarray, k: int, max_iter: int = 30,
-                rng: np.random.Generator | None = None) -> Tuple[np.ndarray, np.ndarray]:
+                rng: np.random.Generator | None = None) -> tuple[np.ndarray, np.ndarray]:
         """Simple k-means clustering.  Returns (labels, centroids).
 
         Args:
@@ -616,7 +614,7 @@ class ColumnSpeciation:
         specialization_profiles: np.ndarray,
         column_fitness: np.ndarray,
         tick_count: int,
-    ) -> Optional[SpeciesInfo]:
+    ) -> SpeciesInfo | None:
         """Run speciation clustering if the interval has elapsed.
 
         Args:
@@ -696,7 +694,7 @@ class ColumnSpeciation:
             return self._same_species_pruning_factor
         return self._cross_species_pruning_factor
 
-    def get_protected_columns(self) -> List[int]:
+    def get_protected_columns(self) -> list[int]:
         """Return column indices that are immune from pruning.
 
         Niche protection: at least one representative from each species
@@ -712,7 +710,7 @@ class ColumnSpeciation:
                 protected.append(int(members[0]))  # first member as representative
         return protected
 
-    def get_species_expansion_scores(self) -> Dict[int, float]:
+    def get_species_expansion_scores(self) -> dict[int, float]:
         """Return a score for each species indicating whether it should
         expand (positive) or contract (negative).
 
@@ -732,10 +730,10 @@ class ColumnSpeciation:
     def get_species_id(self, col_idx: int) -> int:
         return int(self._species_ids[col_idx])
 
-    def get_info(self) -> Optional[SpeciesInfo]:
+    def get_info(self) -> SpeciesInfo | None:
         return self._info
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         with self._lock:
             if self._info is None:
                 return {
@@ -798,7 +796,7 @@ class ThermodynamicPolicy:
     """
 
     # Default cost table
-    _DEFAULT_COSTS: Dict[str, Tuple[float, float]] = {
+    _DEFAULT_COSTS: dict[str, tuple[float, float]] = {
         "llm_inference_primary":    (8.0,  5.0),
         "llm_inference_secondary":  (3.0,  2.0),
         "llm_inference_tertiary":   (1.0,  0.5),
@@ -820,15 +818,15 @@ class ThermodynamicPolicy:
         self._lock = threading.Lock()
 
         # Mutable cost table -- seeded from defaults, modifiable at runtime
-        self._costs: Dict[str, ThermodynamicCost] = {}
+        self._costs: dict[str, ThermodynamicCost] = {}
         for op, (energy, entropy) in self._DEFAULT_COSTS.items():
             self._costs[op] = ThermodynamicCost(energy=energy, entropy=entropy)
 
         # Running totals (for telemetry)
         self._total_energy_applied: float = 0.0
         self._total_entropy_applied: float = 0.0
-        self._operation_counts: Dict[str, int] = {}
-        self._failed_operation_counts: Dict[str, int] = {}
+        self._operation_counts: dict[str, int] = {}
+        self._failed_operation_counts: dict[str, int] = {}
 
         # Error penalty multiplier on entropy
         self._failure_entropy_multiplier: float = 1.5
@@ -842,7 +840,7 @@ class ThermodynamicPolicy:
         """
         return self._costs.get(operation, ThermodynamicCost(energy=0.0, entropy=0.0))
 
-    def apply_cost(self, operation: str, failed: bool = False) -> Tuple[float, float]:
+    def apply_cost(self, operation: str, failed: bool = False) -> tuple[float, float]:
         """Apply the cost for an operation and return (energy_delta, entropy_delta).
 
         If the operation failed, entropy is multiplied by 1.5 (waste from
@@ -894,7 +892,7 @@ class ThermodynamicPolicy:
 
     # -- Query API ---------------------------------------------------------
 
-    def get_cost_table(self) -> Dict[str, Dict[str, float]]:
+    def get_cost_table(self) -> dict[str, dict[str, float]]:
         """Return the full cost table as a JSON-friendly dict."""
         with self._lock:
             return {
@@ -902,7 +900,7 @@ class ThermodynamicPolicy:
                 for op, c in self._costs.items()
             }
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "total_energy_applied": round(self._total_energy_applied, 2),
@@ -958,7 +956,7 @@ class OwnershipModel:
     """
 
     # Tier assignments for known subsystems
-    _TIER_MAP: Dict[str, str] = {
+    _TIER_MAP: dict[str, str] = {
         # Sensory tier
         "embodied_interoception": "sensory",
         "neural_mesh":           "sensory",
@@ -994,7 +992,7 @@ class OwnershipModel:
     }
 
     # Cost multipliers
-    _COST_MULTIPLIERS: Dict[str, float] = {
+    _COST_MULTIPLIERS: dict[str, float] = {
         "own":     1.0,
         "sibling": 1.5,
         "foreign": 2.0,
@@ -1005,7 +1003,7 @@ class OwnershipModel:
         self._lock = threading.Lock()
 
         # Access tracking
-        self._access_counts: Dict[str, int] = {
+        self._access_counts: dict[str, int] = {
             "own": 0,
             "sibling": 0,
             "foreign": 0,
@@ -1014,7 +1012,7 @@ class OwnershipModel:
         self._total_accesses: int = 0
 
         # Ownership distribution tracking: subsystem -> entry count
-        self._ownership_counts: Dict[str, int] = {}
+        self._ownership_counts: dict[str, int] = {}
 
     # -- Tier resolution ---------------------------------------------------
 
@@ -1072,11 +1070,11 @@ class OwnershipModel:
                 self._ownership_counts.get(subsystem, 0) + count
             )
 
-    def get_ownership_stats(self) -> Dict[str, Any]:
+    def get_ownership_stats(self) -> dict[str, Any]:
         """Return ownership distribution and access pattern statistics."""
         with self._lock:
             total_entries = sum(self._ownership_counts.values()) or 1
-            tier_distribution: Dict[str, int] = {}
+            tier_distribution: dict[str, int] = {}
             for sub, count in self._ownership_counts.items():
                 tier = self._get_tier(sub)
                 tier_distribution[tier] = tier_distribution.get(tier, 0) + count
@@ -1094,7 +1092,7 @@ class OwnershipModel:
                 ),
             }
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return self.get_ownership_stats()
 
 
@@ -1105,11 +1103,11 @@ class OwnershipModel:
 @dataclass
 class ALifeExtensionState:
     """Snapshot returned by ALifeExtensions.tick() for downstream consumers."""
-    replications_this_tick: List[ReplicationEvent] = field(default_factory=list)
-    species_info: Optional[SpeciesInfo] = None
-    toroidal_distances: Optional[np.ndarray] = None
-    thermodynamic_costs_applied: Tuple[float, float] = (0.0, 0.0)
-    ownership_stats: Dict[str, Any] = field(default_factory=dict)
+    replications_this_tick: list[ReplicationEvent] = field(default_factory=list)
+    species_info: SpeciesInfo | None = None
+    toroidal_distances: np.ndarray | None = None
+    thermodynamic_costs_applied: tuple[float, float] = (0.0, 0.0)
+    ownership_stats: dict[str, Any] = field(default_factory=dict)
 
 
 class ALifeExtensions:
@@ -1151,8 +1149,8 @@ class ALifeExtensions:
 
     async def tick(
         self,
-        mesh_state: Dict[str, Any],
-        evolution_state: Dict[str, Any],
+        mesh_state: dict[str, Any],
+        evolution_state: dict[str, Any],
         tick_count: int,
     ) -> ALifeExtensionState:
         """Run one integration step across all five ALife subsystems.
@@ -1206,7 +1204,7 @@ class ALifeExtensions:
         )
 
         # -- 1. Pattern Replication ----------------------------------------
-        replications: List[ReplicationEvent] = []
+        replications: list[ReplicationEvent] = []
         if columns_W:
             replications = self.replicator.tick(columns_W, fitness, tick_count)
 
@@ -1238,7 +1236,7 @@ class ALifeExtensions:
             ownership_stats=ownership_stats,
         )
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Dashboard-ready summary of all ALife extension subsystems."""
         with self._lock:
             return {

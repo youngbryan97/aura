@@ -37,9 +37,10 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from itertools import product
-from typing import Any, Callable, Iterator, Sequence
+from typing import Any
 
 __all__ = [
     "AT",

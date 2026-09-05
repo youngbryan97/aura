@@ -7,7 +7,6 @@ This forces the LLM to think step-by-step, dramatically improving
 response quality and consistency for complex queries.
 """
 import logging
-from typing import Optional
 
 logger = logging.getLogger("Pipeline.PromptScaffold")
 
@@ -62,7 +61,7 @@ Respond concisely and directly."""
     def build_structured_prompt(
         self,
         query: str,
-        context: Optional[str] = None,
+        context: str | None = None,
         mode: str = "deep",
     ) -> str:
         """Build a reasoning prompt appropriate to the thinking mode.

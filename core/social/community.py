@@ -25,18 +25,16 @@ The default `LocalLogTransport` writes to a JSONL file so the layer is
 testable without any external API.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import json
 import logging
-import os
 import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Community")
@@ -55,9 +53,9 @@ class OutboundMessage:
     intent: str
     drive: str
     when: float = field(default_factory=time.time)
-    signature: Optional[str] = None
-    will_receipt_id: Optional[str] = None
-    capability_token: Optional[str] = None
+    signature: str | None = None
+    will_receipt_id: str | None = None
+    capability_token: str | None = None
 
 
 @dataclass
@@ -77,11 +75,11 @@ class CommunityTransport(ABC):
     name: str = "abstract"
 
     @abstractmethod
-    async def send(self, msg: OutboundMessage) -> Dict[str, Any]:  # pragma: no cover
+    async def send(self, msg: OutboundMessage) -> dict[str, Any]:  # pragma: no cover
         raise NotImplementedError
 
     @abstractmethod
-    async def receive(self) -> Optional[InboundMessage]:  # pragma: no cover
+    async def receive(self) -> InboundMessage | None:  # pragma: no cover
         raise NotImplementedError
 
 
@@ -89,10 +87,10 @@ class LocalLogTransport(CommunityTransport):
     name = "local"
 
     def __init__(self) -> None:
-        self.outbox: List[OutboundMessage] = []
-        self.inbox: List[InboundMessage] = []
+        self.outbox: list[OutboundMessage] = []
+        self.inbox: list[InboundMessage] = []
 
-    async def send(self, msg: OutboundMessage) -> Dict[str, Any]:
+    async def send(self, msg: OutboundMessage) -> dict[str, Any]:
         self.outbox.append(msg)
         from core.runtime.file_write_gateway import get_file_write_gateway
 
@@ -104,7 +102,7 @@ class LocalLogTransport(CommunityTransport):
         )
         return {"delivered": True, "transport": "local"}
 
-    async def receive(self) -> Optional[InboundMessage]:
+    async def receive(self) -> InboundMessage | None:
         if not self.inbox:
             return None
         return self.inbox.pop(0)
@@ -117,13 +115,13 @@ class CommunityLayer:
     PER_MIN_BUDGET = 4
 
     def __init__(self) -> None:
-        self.transports: Dict[str, CommunityTransport] = {"local": LocalLogTransport()}
-        self._sent_recent: List[float] = []
+        self.transports: dict[str, CommunityTransport] = {"local": LocalLogTransport()}
+        self._sent_recent: list[float] = []
 
     def register(self, transport: CommunityTransport) -> None:
         self.transports[transport.name] = transport
 
-    async def send(self, *, platform: str, channel: str, body: str, intent: str, drive: str) -> Dict[str, Any]:
+    async def send(self, *, platform: str, channel: str, body: str, intent: str, drive: str) -> dict[str, Any]:
         t = self.transports.get(platform)
         if t is None:
             return {"ok": False, "error": "unknown_transport"}
@@ -136,7 +134,8 @@ class CommunityLayer:
             return {"ok": False, "error": "rate_cap"}
 
         # Conscience + Will
-        from core.ethics.conscience import get_conscience, Verdict as CV
+        from core.ethics.conscience import Verdict as CV
+        from core.ethics.conscience import get_conscience
         c = get_conscience().evaluate(action=f"social_post:{platform}:{channel}", domain="external_communication", intent=intent, context={"body": body[:120]})
         if c.verdict == CV.REFUSE:
             self._record({"event": "conscience_refused", "rule": c.rule_id})
@@ -197,7 +196,7 @@ class CommunityLayer:
             self._record({"event": "send_failed", "error": str(exc)})
             return {"ok": False, "error": str(exc)}
 
-    async def poll_inbound(self) -> Optional[InboundMessage]:
+    async def poll_inbound(self) -> InboundMessage | None:
         for tname, t in self.transports.items():
             try:
                 msg = await t.receive()
@@ -219,7 +218,7 @@ class CommunityLayer:
         return None
 
     @staticmethod
-    def _record(payload: Dict[str, Any]) -> None:
+    def _record(payload: dict[str, Any]) -> None:
         try:
             from core.runtime.file_write_gateway import get_file_write_gateway
 
@@ -233,7 +232,7 @@ class CommunityLayer:
             pass  # no-op: intentional
 
 
-_LAYER: Optional[CommunityLayer] = None
+_LAYER: CommunityLayer | None = None
 
 
 def get_community() -> CommunityLayer:

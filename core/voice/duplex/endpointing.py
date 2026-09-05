@@ -167,7 +167,7 @@ class Endpointer:
         silence_ms: float,
         speech_ms: float,
         min_utterance_ms: float,
-        terminality: "TerminalityReading | None" = None,
+        terminality: TerminalityReading | None = None,
     ) -> EndpointDecision:
         """Should the turn end now?
 

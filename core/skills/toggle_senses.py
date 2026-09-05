@@ -7,7 +7,7 @@ import signal
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -36,13 +36,13 @@ def _save_pid(sense_name: str, pid: int):
         source="skills.toggle_senses.pid",
     )
 
-def _load_pid(sense_name: str) -> Optional[int]:
+def _load_pid(sense_name: str) -> int | None:
     path = _get_pid_file(sense_name)
     if os.path.exists(path):
         try:
-            with open(path, "r") as f:
+            with open(path) as f:
                 return int(f.read().strip())
-        except (OSError, IOError):
+        except OSError:
             return None
     return None
 
@@ -59,7 +59,7 @@ class SenseController:
     """Manages spawning and kill of sense subprocesses (vision, hearing, etc.)"""
     
     def __init__(self):
-        self._processes: Dict[str, subprocess.Popen] = {}
+        self._processes: dict[str, subprocess.Popen] = {}
         # Load from disk and clean up zombies
         for sense in ["vision", "hearing", "vocal"]:
             pass  # no-op: intentional
@@ -75,7 +75,7 @@ def _is_pid_alive(pid: int) -> bool:
 class ToggleParams(BaseModel):
     sense: Literal["vision", "hearing"] = Field(..., description="The sense to toggle.")
     action: Literal["on", "off"] = Field(..., description="Action to perform.")
-    pid: Optional[int] = Field(None, description="Specific PID to stop (optional).")
+    pid: int | None = Field(None, description="Specific PID to stop (optional).")
 
 class ToggleSensesSkill(BaseSkill):
     name = "toggle_senses"
@@ -95,7 +95,7 @@ class ToggleSensesSkill(BaseSkill):
                 else:
                     self._script_pids[sense] = pid
         
-    async def execute(self, params: ToggleParams, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: ToggleParams, context: dict[str, Any]) -> dict[str, Any]:
         # Legacy support
         if isinstance(params, dict):
              try:

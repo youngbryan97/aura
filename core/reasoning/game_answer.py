@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from core.reasoning.finite_game import describe_solution, solve_game
 from core.reasoning.game_planner import describes_a_game, game_schema, plan_from_json

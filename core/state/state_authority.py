@@ -8,13 +8,13 @@ import logging
 from enum import Enum
 from typing import Any
 
+from core.runtime.errors import record_degradation
 from core.runtime.service_registry import (
     SERVICE_LIFETIME_SINGLETON,
     get_runtime_service,
     has_runtime_service,
     register_runtime_factory,
 )
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Core.StateAuthority")
 

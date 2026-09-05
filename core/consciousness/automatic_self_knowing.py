@@ -10,9 +10,10 @@ import hashlib
 import json
 import time
 from collections import deque
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Any, Deque, Mapping
+from typing import Any
 
 
 def _now() -> float:
@@ -89,8 +90,8 @@ class AutomaticSelfKnowingKernel:
         self.recursive_self_knowing = recursive_self_knowing
         self.phenomenal_knowing = phenomenal_knowing
         self.live_substrate = live_substrate
-        self._pending: Deque[tuple[AutoEventKind, dict[str, Any], str]] = deque(maxlen=max_pending)
-        self._frames: Deque[AutomaticSelfKnowingFrame] = deque(maxlen=128)
+        self._pending: deque[tuple[AutoEventKind, dict[str, Any], str]] = deque(maxlen=max_pending)
+        self._frames: deque[AutomaticSelfKnowingFrame] = deque(maxlen=128)
         self._latest = AutomaticSelfKnowingFrame(
             timestamp=_now(),
             event_kind=AutoEventKind.TIMER.value,

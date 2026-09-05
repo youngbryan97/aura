@@ -1,7 +1,8 @@
 """core/actuation/email_actuator.py — Email Draft and Send Actuator."""
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
+
 from core.actuation.world_actuator import get_world_actuator
 
 
@@ -9,7 +10,7 @@ class EmailActuator:
     """Wrapper for drafting and sending emails."""
 
     @classmethod
-    async def create_draft(cls, to: str, subject: str, body: str, source: str = "email_actuator") -> Dict[str, Any]:
+    async def create_draft(cls, to: str, subject: str, body: str, source: str = "email_actuator") -> dict[str, Any]:
         return await get_world_actuator().actuate(
             category="email_drafts",
             action_name="create_draft",
@@ -18,7 +19,7 @@ class EmailActuator:
         )
 
     @classmethod
-    async def send_email(cls, to: str, subject: str, body: str, source: str = "email_actuator") -> Dict[str, Any]:
+    async def send_email(cls, to: str, subject: str, body: str, source: str = "email_actuator") -> dict[str, Any]:
         # High risk: actual sending
         return await get_world_actuator().actuate(
             category="email_drafts",

@@ -1,8 +1,7 @@
 """Temporal resource management and trend tracking."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 from core.environment.homeostasis import Resource
 

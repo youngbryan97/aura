@@ -141,7 +141,7 @@ class SensoryGateActor:
             await asyncio.wait_for(
                 asyncio.gather(*tasks, return_exceptions=True), timeout=timeout
             )
-        except (TimeoutError, asyncio.TimeoutError):
+        except TimeoutError:
             stuck = [task.get_name() for task in tasks if not task.done()]
             _record_sensory_degradation(
                 TimeoutError("background_tasks_did_not_cancel"),
@@ -197,7 +197,7 @@ class SensoryGateActor:
                     # CP126 1fb6515c: an unbounded close could hang teardown
                     # behind a wedged browser process.
                     await asyncio.wait_for(self.browser.close(), timeout=SHUTDOWN_GRACE_S)
-                except (TimeoutError, asyncio.TimeoutError) as exc:
+                except TimeoutError as exc:
                     _record_sensory_degradation(
                         exc,
                         action="abandoned a browser close that exceeded the shutdown budget",
@@ -298,7 +298,7 @@ class SensoryGateActor:
             try:
                 await asyncio.wait_for(shutdown_event.wait(), timeout=self._heartbeat_interval)
                 return
-            except (TimeoutError, asyncio.TimeoutError):
+            except TimeoutError:
                 continue
 
     def _parent_alive(self) -> bool:
@@ -407,7 +407,7 @@ class SensoryGateActor:
                 self._observe(url, principal, decision, trace_id, started),
                 timeout=deadline_s,
             )
-        except (TimeoutError, asyncio.TimeoutError) as exc:
+        except TimeoutError as exc:
             _record_sensory_degradation(
                 exc,
                 action="returned a browse timeout receipt within the request deadline",
@@ -562,7 +562,7 @@ class SensoryGateActor:
                 "observation_only": True,
                 "requires_governance_for_effects": True,
             }
-        except (TimeoutError, asyncio.TimeoutError) as exc:
+        except TimeoutError as exc:
             _record_sensory_degradation(
                 exc,
                 action="returned a search timeout receipt within the request deadline",

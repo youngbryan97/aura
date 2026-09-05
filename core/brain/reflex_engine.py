@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
 
 logger = logging.getLogger("Aura.Brain.ReflexEngine")
 
@@ -16,11 +16,11 @@ class ReflexEngine:
     
     def __init__(self):
         self._action_priority = 0.8
-        self._last_pos: Optional[Tuple[int, int]] = None
+        self._last_pos: tuple[int, int] | None = None
         self._stuck_count = 0
-        self._target_path: List[str] = []
+        self._target_path: list[str] = []
         
-    def decide(self, state: Dict[str, Any]) -> Optional[str]:
+    def decide(self, state: dict[str, Any]) -> str | None:
         """Decide on a reflex action based on structured environment state."""
         
         # 1. Prompt Handling (High Priority)
@@ -89,7 +89,7 @@ class ReflexEngine:
         directions = ["move_n", "move_s", "move_e", "move_w", "move_ne", "move_nw", "move_se", "move_sw"]
         return random.choice(directions)
 
-_INSTANCE: Optional[ReflexEngine] = None
+_INSTANCE: ReflexEngine | None = None
 
 def get_reflex_engine() -> ReflexEngine:
     global _INSTANCE

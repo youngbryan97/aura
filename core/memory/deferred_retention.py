@@ -32,8 +32,8 @@ from pathlib import Path
 from typing import Any
 
 from core.governance_context import local_internal_governed_scope
-from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.errors import record_degradation
+from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.flags import FlagKind, declare
 
 logger = logging.getLogger("Aura.DeferredRetention")

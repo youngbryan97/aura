@@ -1,10 +1,11 @@
 """Thread-safe ThoughtEmitter — the broadcast backbone for Aura's internal thought stream.
 """
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import threading
 from datetime import datetime
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Kernel.ThoughtStream")
 
@@ -21,7 +22,7 @@ class ThoughtEmitter:
             with cls._creation_lock:
                 # Double-check after acquiring lock
                 if cls._instance is None:
-                    cls._instance = super(ThoughtEmitter, cls).__new__(cls)
+                    cls._instance = super().__new__(cls)
                     cls._instance.initialized = False
         return cls._instance
 

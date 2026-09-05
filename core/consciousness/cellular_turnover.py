@@ -52,16 +52,13 @@ Registered as ``cellular_turnover`` in ServiceContainer and linked to
 the NeuralMesh instance.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
 
 import logging
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -91,12 +88,12 @@ class TurnoverEvent:
 @dataclass
 class IdentityFingerprint:
     tick: int
-    tier_energies: Tuple[float, float, float]   # (sensory, assoc, exec) mean energy
+    tier_energies: tuple[float, float, float]   # (sensory, assoc, exec) mean energy
     column_synchrony: float                       # 0..1 global synchrony proxy
     projection_signature: np.ndarray              # 16-d executive-projection slice
     ts: float = field(default_factory=time.time)
 
-    def similarity(self, other: "IdentityFingerprint") -> float:
+    def similarity(self, other: IdentityFingerprint) -> float:
         """Cosine similarity across the combined feature vector."""
         a = np.concatenate([
             np.asarray(self.tier_energies, dtype=np.float32),
@@ -128,11 +125,11 @@ class CellularTurnover:
 
     def __init__(self, turnover_rate: float = DEFAULT_TURNOVER_RATE):
         self._turnover_rate = float(turnover_rate)
-        self._mesh: Optional[Any] = None
+        self._mesh: Any | None = None
         self._lock = threading.Lock()
         self._tick: int = 0
-        self._events: Deque[TurnoverEvent] = deque(maxlen=512)
-        self._fingerprints: Deque[IdentityFingerprint] = deque(maxlen=FINGERPRINT_HISTORY)
+        self._events: deque[TurnoverEvent] = deque(maxlen=512)
+        self._fingerprints: deque[IdentityFingerprint] = deque(maxlen=FINGERPRINT_HISTORY)
         self._last_similarity: float = 1.0
         self._rng = np.random.default_rng(seed=0xB10C)
         logger.info(
@@ -154,14 +151,14 @@ class CellularTurnover:
 
     # ── tick ─────────────────────────────────────────────────────────────
 
-    def tick(self) -> Optional[TurnoverEvent]:
+    def tick(self) -> TurnoverEvent | None:
         if self._mesh is None:
             return None
         self._tick += 1
 
         # Decide how many neurons to replace this tick.
         target_count = self._neurons_to_replace()
-        event: Optional[TurnoverEvent] = None
+        event: TurnoverEvent | None = None
         if target_count > 0:
             event = self._replace_neurons(target_count)
 
@@ -232,7 +229,7 @@ class CellularTurnover:
             return 0
         return int(getattr(cfg, "total_neurons", 0))
 
-    def _replace_neurons(self, count: int) -> Optional[TurnoverEvent]:
+    def _replace_neurons(self, count: int) -> TurnoverEvent | None:
         mesh = self._mesh
         cfg = getattr(mesh, "cfg", None)
         cols = getattr(mesh, "columns", [])
@@ -280,7 +277,7 @@ class CellularTurnover:
 
     # ── internal: fingerprint ───────────────────────────────────────────
 
-    def _capture_fingerprint(self) -> Optional[IdentityFingerprint]:
+    def _capture_fingerprint(self) -> IdentityFingerprint | None:
         mesh = self._mesh
         if mesh is None:
             return None
@@ -322,11 +319,11 @@ class CellularTurnover:
         with self._lock:
             return len(self._fingerprints)
 
-    def recent_events(self, n: int = 8) -> List[TurnoverEvent]:
+    def recent_events(self, n: int = 8) -> list[TurnoverEvent]:
         with self._lock:
             return list(self._events)[-n:]
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         with self._lock:
             total_replaced = sum(e.n_replaced for e in self._events)
             return {
@@ -342,7 +339,7 @@ class CellularTurnover:
 
 # ── Singleton accessor ────────────────────────────────────────────────────────
 
-_INSTANCE: Optional[CellularTurnover] = None
+_INSTANCE: CellularTurnover | None = None
 
 
 def get_cellular_turnover() -> CellularTurnover:

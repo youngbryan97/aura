@@ -223,7 +223,7 @@ class Probe:
         expect_keys: Sequence[str] = (),
         label: str = "",
         **expectation: Any,
-    ) -> "Probe":
+    ) -> Probe:
         """Build a probe, optionally precommitting an exact result.
 
         The expectation is passed as ``expect=<value>`` and its *presence* is

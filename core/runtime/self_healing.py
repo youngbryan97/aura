@@ -39,8 +39,8 @@ from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.service_registry import get_runtime_service
 from core.runtime.shutdown_coordinator import is_shutdown_requested
-from core.runtime.task_ownership import create_tracked_task
 from core.runtime.state_ownership import state_root
+from core.runtime.task_ownership import create_tracked_task
 
 logger = logging.getLogger("Aura.SelfHealing")
 

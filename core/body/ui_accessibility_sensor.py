@@ -4,7 +4,7 @@ UI accessibility tree and system window hierarchy sensor.
 import logging
 import os
 from subprocess import SubprocessError
-from typing import Any, Dict
+from typing import Any
 
 from core.body.sensor_registry import BaseSensor
 from core.runtime.errors import record_degradation
@@ -22,7 +22,7 @@ class UiAccessibilitySensor(BaseSensor):
     def name(self) -> str:
         return "ui_accessibility"
 
-    async def read(self) -> Dict[str, Any]:
+    async def read(self) -> dict[str, Any]:
         try:
             if os.path.exists("/usr/bin/osascript"):
                 # Use a lightweight AppleScript to get window titles of all running apps

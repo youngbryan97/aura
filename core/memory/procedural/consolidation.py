@@ -20,7 +20,7 @@ def procedure_from_outcome(
     if not trace_id:
         raise ValueError("procedure_requires_valid_trace")
     pid = "proc_" + hashlib.sha256(
-        f"{environment_family}:{option_name}:{context_signature}:{actions}".encode("utf-8")
+        f"{environment_family}:{option_name}:{context_signature}:{actions}".encode()
     ).hexdigest()[:16]
     return ProcedureRecord(
         procedure_id=pid,

@@ -17,8 +17,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.skills.fluid_executor import ExecutionReceipt, FluidExecutor, Step
@@ -121,7 +122,7 @@ class ParallelExecutor:
                         executor.run(task.goal, task.steps),
                         timeout=self.per_task_timeout_s,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning("⏱️ [Parallel] task '%s' timed out after %.0fs", task.goal, self.per_task_timeout_s)
                     return ExecutionReceipt(goal=task.goal, completed=False, stalled=True, elapsed_s=self.per_task_timeout_s)
                 except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:

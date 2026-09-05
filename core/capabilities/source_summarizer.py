@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
@@ -33,7 +33,7 @@ class SourceEntry:
 class SummarizationResult:
     """Result of a multi-source summarization."""
     summary: str
-    sources: List[Dict[str, str]]
+    sources: list[dict[str, str]]
     word_count: int = 0
     generated_at: float = field(default_factory=time.time)
     model_used: str = ""
@@ -84,7 +84,7 @@ Do NOT just list facts from each source separately. Weave them into a narrative.
 
     async def summarize_sources(
         self,
-        sources: List[SourceEntry],
+        sources: list[SourceEntry],
         objective: str = "Summarize the following sources",
         target_words: int = 500,
     ) -> SummarizationResult:
@@ -153,7 +153,7 @@ Do NOT just list facts from each source separately. Weave them into a narrative.
             return ""
 
     def _extractive_summary(
-        self, sources: List[SourceEntry], objective: str, target_words: int
+        self, sources: list[SourceEntry], objective: str, target_words: int
     ) -> str:
         """Fallback extractive summarization when LLM unavailable."""
         parts = [f"# {objective}\n"]
@@ -182,7 +182,7 @@ Do NOT just list facts from each source separately. Weave them into a narrative.
 
     async def summarize_urls(
         self,
-        urls: List[str],
+        urls: list[str],
         objective: str = "Summarize",
         target_words: int = 500,
     ) -> SummarizationResult:
@@ -212,11 +212,11 @@ Do NOT just list facts from each source separately. Weave them into a narrative.
 
         return await self.summarize_sources(sources, objective, target_words)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {"started": self._started}
 
 
-_instance: Optional[SourceSummarizer] = None
+_instance: SourceSummarizer | None = None
 
 
 def get_source_summarizer() -> SourceSummarizer:

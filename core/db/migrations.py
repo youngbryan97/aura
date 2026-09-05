@@ -29,14 +29,15 @@ now records ``started`` before the DDL and ``applied`` after it, so an
 interrupted migration is a state the next boot can see and act on rather
 than a gap it cannot distinguish from never having run.
 """
-from core.runtime.errors import record_degradation
 import hashlib
 import logging
 import os
 import sqlite3
 import time
 from pathlib import Path
-from typing import Callable, List, NamedTuple, Optional, Union
+from typing import NamedTuple
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Migrations")
 
@@ -115,7 +116,7 @@ class Migrator:
         ("started_at", "ALTER TABLE _aura_migrations ADD COLUMN started_at REAL"),
     )
 
-    def __init__(self, db_path: Union[str, Path]) -> None:
+    def __init__(self, db_path: str | Path) -> None:
         path_str = str(db_path)
         if path_str.startswith("~/.aura/data/"):
             data_dir = os.environ.get("AURA_DATA_DIR")
@@ -143,7 +144,7 @@ class Migrator:
                     logger.debug("Suppressed Exception: %s", _exc)
         
         self.db_path = str(Path(path_str).expanduser())
-        self._migrations: List[Migration] = []
+        self._migrations: list[Migration] = []
 
     def register(self, version: int, description: str, up_sql: str) -> None:
         if any(m.version == version for m in self._migrations):
@@ -171,7 +172,7 @@ class Migrator:
                 con.execute(statement)
         con.commit()
 
-    def ledger(self) -> "List[LedgerRow]":
+    def ledger(self) -> "list[LedgerRow]":
         """What the database says has been applied to it."""
         con = self._open()
         try:
@@ -186,7 +187,7 @@ class Migrator:
         finally:
             con.close()
 
-    def verify(self) -> "List[str]":
+    def verify(self) -> "list[str]":
         """Every difference between what was applied and what the code says.
 
         Three kinds, all of which the version-number check could not see:
@@ -198,7 +199,7 @@ class Migrator:
         * a migration that recorded starting and never recorded finishing.
         """
         registered = {m.version: m for m in self._migrations}
-        problems: List[str] = []
+        problems: list[str] = []
         for row in self.ledger():
             if row.status == STATUS_STARTED:
                 problems.append(
@@ -291,7 +292,7 @@ class Migrator:
             logger.debug("All migrations already applied.")
         return applied
 
-    def _ledger_rows(self, con: sqlite3.Connection) -> "List[LedgerRow]":
+    def _ledger_rows(self, con: sqlite3.Connection) -> "list[LedgerRow]":
         return [
             LedgerRow(int(v), str(d), str(c), float(a or 0.0), str(st or STATUS_APPLIED))
             for v, d, c, a, st in con.execute(
@@ -407,7 +408,7 @@ class Migrator:
             con.close()
 
 
-def _build_knowledge_migrator(db_path: Optional[Union[str, Path]] = None) -> Migrator:
+def _build_knowledge_migrator(db_path: str | Path | None = None) -> Migrator:
     """Build and configure the knowledge graph migrator (ISSUE 5)."""
     m = Migrator(db_path or "~/.aura/data/knowledge.db")
     m.register(1, "Initial schema", _SQL_V1)
@@ -416,7 +417,7 @@ def _build_knowledge_migrator(db_path: Optional[Union[str, Path]] = None) -> Mig
     m.register(4, "Add execution audit log", _SQL_V4)
     return m
 
-def get_migrator(db_path: Optional[Union[str, Path]] = None) -> Migrator:
+def get_migrator(db_path: str | Path | None = None) -> Migrator:
     """Convenience factory for the knowledge migrator."""
     return _build_knowledge_migrator(db_path)
 

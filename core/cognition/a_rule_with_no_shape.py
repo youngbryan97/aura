@@ -39,20 +39,21 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 from core.cognition.the_floor_she_stands_on import (
-    A,
-    Code,
     FST,
     IF,
-    L,
     MINUS,
+    SAME,
+    SND,
+    A,
+    Code,
+    L,
     N,
     OutOfFuel,
-    SND,
-    SAME,
     Stuck,
     V,
     Y,
@@ -111,7 +112,7 @@ THE_CELL_AT: Code = build(
 
 #: The rules she wrote whose shape is their own. Empty at boot and filled from
 #: what was kept, the same as the heads.
-RULES_WITH_NO_SHAPE: dict[str, "Rule"] = {}
+RULES_WITH_NO_SHAPE: dict[str, Rule] = {}
 
 #: What one rule may spend on one place.
 _A_RULE_MAY_SPEND = 20_000
@@ -630,7 +631,7 @@ def _finish(
     fitting: Sequence[tuple[list[int], list[int]]],
     judging: Sequence[tuple[list[int], list[int]]],
     transitions: Sequence[tuple[Sequence[Any], Sequence[Any]]],
-) -> "Rule | None":
+) -> Rule | None:
     """Build the rule and hold it to the half it never saw."""
     from core.cognition.the_old_language_on_the_floor import compile_an_operation
 

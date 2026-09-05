@@ -22,8 +22,9 @@ goals end-to-end, gated by background policy + timing.
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Sequence
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service

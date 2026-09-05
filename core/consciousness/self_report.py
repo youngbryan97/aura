@@ -1,5 +1,7 @@
-from core.runtime.errors import record_degradation
 import logging
+
+from core.runtime.errors import record_degradation
+
 """
 Aura's self-reports grounded in actual internal telemetry.
 
@@ -9,7 +11,8 @@ The difference between:
               + explore action + rising arousal, expressed in language)
 """
 
-from typing import Optional, Dict, Any
+from typing import Any
+
 from core.consciousness.free_energy import get_free_energy_engine
 from core.runtime.service_registry import get_runtime_service
 
@@ -27,7 +30,7 @@ class SelfReportEngine:
         name = str(causes[0][0] or "").replace("_", " ")
         return name or "something measurable but still unresolved"
 
-    def generate_state_report(self) -> Optional[str]:
+    def generate_state_report(self) -> str | None:
         """
         Returns a first-person report of current internal state.
         """
@@ -88,7 +91,7 @@ class SelfReportEngine:
 
         return None
 
-    def get_affect_description(self) -> Dict[str, Any]:
+    def get_affect_description(self) -> dict[str, Any]:
         """
         Returns affect state as grounded values for system prompt injection.
         """

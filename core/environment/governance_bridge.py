@@ -3,6 +3,7 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 
+
 @dataclass
 class GovernanceDecision:
     approved: bool

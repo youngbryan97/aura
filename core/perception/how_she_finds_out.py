@@ -44,16 +44,14 @@ import hashlib
 import json
 import logging
 import random
-import threading
 import time
-from contextlib import contextmanager
 from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
 from core.perception.expected_information_gain import (
     Observation,
-    Recommendation,
     Score,
     choose,
 )

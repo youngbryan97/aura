@@ -47,7 +47,7 @@ abstract node/weight field that the memory and substrate layers bind to (see
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np

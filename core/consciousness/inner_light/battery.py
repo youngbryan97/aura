@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -82,7 +82,7 @@ class BatteryResult:
     real_values: dict[str, float] = field(default_factory=dict)
     real_membership: dict[str, bool] = field(default_factory=dict)
     controls: dict[str, dict] = field(default_factory=dict)
-    phi_system: Optional[float] = None
+    phi_system: float | None = None
     n_channels: int = 0
     n_timesteps: int = 0
     caveat: str = CAVEAT
@@ -116,7 +116,7 @@ def _build_controls(M: np.ndarray, *, seed: int) -> dict[str, np.ndarray]:
     }
 
 
-def run_on_matrix(M: np.ndarray, *, phi_system: Optional[float] = None, seed: int = 20260709) -> BatteryResult:
+def run_on_matrix(M: np.ndarray, *, phi_system: float | None = None, seed: int = 20260709) -> BatteryResult:
     """Run the full battery on an activity matrix and its negative controls."""
     M = np.asarray(M, dtype=float)
     if M.ndim != 2 or M.shape[0] < 2 or M.shape[1] < 16:

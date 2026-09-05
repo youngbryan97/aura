@@ -146,7 +146,7 @@ class StreamingTurn:
     """
 
     channel: Any
-    task: "asyncio.Task[str | None]"
+    task: asyncio.Task[str | None]
 
     async def final(self) -> str | None:
         """Await the finished governed reply. Safe to call more than once."""
@@ -238,7 +238,7 @@ class MindBridge:
 
     async def respond_streaming(
         self, transcript: str, *, delivery_context: str = ""
-    ) -> "StreamingTurn | None":
+    ) -> StreamingTurn | None:
         """One governed turn, with its reply readable while it forms.
 
         Same responder, same governed path, same final answer — the only

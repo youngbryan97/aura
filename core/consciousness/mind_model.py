@@ -2,24 +2,25 @@
 Theory of Mind (ToM) Engine.
 Tracks the system's internal model of the user's beliefs, intents, and feelings.
 """
-from core.runtime.errors import record_degradation
 import json
-import logging
 import time
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any
+
 from core.runtime.base_module import AuraBaseModule
+from core.runtime.errors import record_degradation
+
 
 class UserBeliefState:
     """Represents what Aura think the USER knows, wants, and feels."""
     def __init__(self):
-        self.known_facts: List[str] = []
-        self.active_goals: List[str] = []
+        self.known_facts: list[str] = []
+        self.active_goals: list[str] = []
         self.perceived_mood: str = "NEUTRAL"
         self.confidence_in_projection: float = 0.5
         self.last_updated: float = time.time()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "known_facts": self.known_facts,
             "active_goals": self.active_goals,
@@ -29,7 +30,7 @@ class UserBeliefState:
         }
 
 class MindModel(AuraBaseModule):
-    def __init__(self, data_path: Optional[Path] = None):
+    def __init__(self, data_path: Path | None = None):
         super().__init__("MindModel")
         if not data_path:
             from core.config import config
@@ -43,7 +44,7 @@ class MindModel(AuraBaseModule):
     def _load(self):
         if self.data_path.exists():
             try:
-                with open(self.data_path, 'r') as f:
+                with open(self.data_path) as f:
                     data = json.load(f)
                     self.user_state.known_facts = data.get("known_facts", [])
                     self.user_state.active_goals = data.get("active_goals", [])
@@ -56,8 +57,8 @@ class MindModel(AuraBaseModule):
 
     def save(self):
         try:
-            from core.runtime.file_write_gateway import get_file_write_gateway
             from core.governance_context import local_internal_governed_scope
+            from core.runtime.file_write_gateway import get_file_write_gateway
 
             with local_internal_governed_scope("mind_model.save", domain="file_write"):
                 get_file_write_gateway().write_text(

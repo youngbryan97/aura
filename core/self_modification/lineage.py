@@ -60,25 +60,27 @@ import random
 import sqlite3
 import threading
 import time
-from dataclasses import dataclass, field
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Tuple
-from core.runtime.state_ownership import state_root
+from typing import Any
+
 from core.runtime.sqlite_support import connecting
+from core.runtime.state_ownership import state_root
 
 
 @dataclass(frozen=True)
 class LineageSnapshot:
     snapshot_id: str
-    parent_id: Optional[str]
+    parent_id: str | None
     generation: int
-    config: Dict[str, Any]
+    config: dict[str, Any]
     trait_signature: str
     created_at: float
     selection_score: float = 0.0
     survived: bool = True
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "snapshot_id": self.snapshot_id,
             "parent_id": self.parent_id,
@@ -97,7 +99,7 @@ class LineageManager:
     MUTATION_MAGNITUDE = 0.08
     MIN_SURVIVAL_SCORE = 0.25
 
-    def __init__(self, db_path: Optional[str | Path] = None, *, seed: Optional[int] = None) -> None:
+    def __init__(self, db_path: str | Path | None = None, *, seed: int | None = None) -> None:
         self._lock = threading.RLock()
         self._rng = random.Random(seed)
         if db_path is None:
@@ -148,8 +150,8 @@ class LineageManager:
         self._persist(child)
         return child
 
-    def _mutate(self, config: Mapping[str, Any], mask: Mapping[str, float]) -> Dict[str, Any]:
-        mutated: Dict[str, Any] = {}
+    def _mutate(self, config: Mapping[str, Any], mask: Mapping[str, float]) -> dict[str, Any]:
+        mutated: dict[str, Any] = {}
         for key, value in config.items():
             rate = float(mask.get(key, self.MUTATION_MAGNITUDE))
             if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -164,10 +166,10 @@ class LineageManager:
                 mutated[key] = value
         return mutated
 
-    def _make_snapshot(self, *, config: Dict[str, Any], parent_id: Optional[str], generation: int) -> LineageSnapshot:
+    def _make_snapshot(self, *, config: dict[str, Any], parent_id: str | None, generation: int) -> LineageSnapshot:
         created = time.time()
         payload = json.dumps(config, sort_keys=True, default=str)
-        snapshot_id = hashlib.sha256(f"{parent_id}|{generation}|{created}|{payload}".encode("utf-8")).hexdigest()[:16]
+        snapshot_id = hashlib.sha256(f"{parent_id}|{generation}|{created}|{payload}".encode()).hexdigest()[:16]
         trait_signature = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:24]
         return LineageSnapshot(
             snapshot_id=snapshot_id,
@@ -222,7 +224,7 @@ class LineageManager:
     # ------------------------------------------------------------------
     # Queries
     # ------------------------------------------------------------------
-    def get(self, snapshot_id: str) -> Optional[LineageSnapshot]:
+    def get(self, snapshot_id: str) -> LineageSnapshot | None:
         with connecting(sqlite3.connect(self._db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute("SELECT * FROM lineage_snapshots WHERE snapshot_id = ?", (snapshot_id,)).fetchone()
@@ -239,7 +241,7 @@ class LineageManager:
             survived=bool(row["survived"]),
         )
 
-    def descendants(self, snapshot_id: str) -> List[LineageSnapshot]:
+    def descendants(self, snapshot_id: str) -> list[LineageSnapshot]:
         with connecting(sqlite3.connect(self._db_path)) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
@@ -260,7 +262,7 @@ class LineageManager:
             for r in rows
         ]
 
-    def survivors(self) -> List[LineageSnapshot]:
+    def survivors(self) -> list[LineageSnapshot]:
         with connecting(sqlite3.connect(self._db_path)) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
@@ -281,7 +283,7 @@ class LineageManager:
         ]
 
 
-_singleton: Optional[LineageManager] = None
+_singleton: LineageManager | None = None
 _lock = threading.Lock()
 
 

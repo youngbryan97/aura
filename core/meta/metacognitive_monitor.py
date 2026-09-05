@@ -32,12 +32,13 @@ import json
 import logging
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
-from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
+
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.MetaCognitive")
@@ -78,7 +79,7 @@ class MetaCognitiveSnapshot:
     confidence: float
     accuracy: float  # Actual accuracy on recent predictions
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "timestamp": self.timestamp,
             "gradient_norm": round(self.gradient_norm, 6),
@@ -93,13 +94,13 @@ class MetaCognitiveSnapshot:
 class MetaCognitiveReflection:
     """Result of a meta-cognitive assessment cycle."""
     condition: LearningCondition
-    recommended_actions: List[StrategyAction]
-    evidence: Dict[str, float]
+    recommended_actions: list[StrategyAction]
+    evidence: dict[str, float]
     reasoning: str
     cycle: int
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "condition": self.condition.value,
             "actions": [a.value for a in self.recommended_actions],
@@ -144,12 +145,12 @@ class MetaCognitiveMonitor:
                 apply_strategy(action)
     """
 
-    def __init__(self, config: Optional[MetaCognitiveConfig] = None) -> None:
+    def __init__(self, config: MetaCognitiveConfig | None = None) -> None:
         self._config = config or MetaCognitiveConfig()
-        self._history: Deque[MetaCognitiveSnapshot] = deque(
+        self._history: deque[MetaCognitiveSnapshot] = deque(
             maxlen=self._config.window_size * 3
         )
-        self._reflections: List[MetaCognitiveReflection] = []
+        self._reflections: list[MetaCognitiveReflection] = []
         self._cycle = 0
 
         # EMA-smoothed signals
@@ -160,21 +161,21 @@ class MetaCognitiveMonitor:
         self._ema_accuracy = 0.5
 
         # Trend tracking
-        self._grad_norm_history: Deque[float] = deque(
+        self._grad_norm_history: deque[float] = deque(
             maxlen=self._config.window_size
         )
-        self._loss_history: Deque[float] = deque(
+        self._loss_history: deque[float] = deque(
             maxlen=self._config.window_size
         )
-        self._pred_error_history: Deque[float] = deque(
+        self._pred_error_history: deque[float] = deque(
             maxlen=self._config.window_size
         )
 
         # Forgetting detection: track prediction error on "old" tasks
-        self._old_task_errors: Deque[float] = deque(maxlen=100)
+        self._old_task_errors: deque[float] = deque(maxlen=100)
 
         # Strategy action callbacks (registered by subsystems)
-        self._action_handlers: Dict[StrategyAction, Callable[[], None]] = {}
+        self._action_handlers: dict[StrategyAction, Callable[[], None]] = {}
 
         _DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -240,9 +241,9 @@ class MetaCognitiveMonitor:
             )
 
         # Compute diagnostic signals
-        evidence: Dict[str, float] = {}
-        conditions: List[LearningCondition] = []
-        actions: List[StrategyAction] = []
+        evidence: dict[str, float] = {}
+        conditions: list[LearningCondition] = []
+        actions: list[StrategyAction] = []
 
         # 1. Gradient norm trend
         grad_trend = self._compute_trend(list(self._grad_norm_history))
@@ -349,7 +350,7 @@ class MetaCognitiveMonitor:
 
         return reflection
 
-    def execute_actions(self, reflection: MetaCognitiveReflection) -> List[str]:
+    def execute_actions(self, reflection: MetaCognitiveReflection) -> list[str]:
         """Execute registered handlers for recommended actions.
 
         Returns list of actions that were actually executed.
@@ -368,7 +369,7 @@ class MetaCognitiveMonitor:
     # ── Signal Processing ────────────────────────────────────────────
 
     @staticmethod
-    def _compute_trend(values: List[float]) -> float:
+    def _compute_trend(values: list[float]) -> float:
         """Compute linear trend (slope) of a signal via least squares."""
         if len(values) < 3:
             return 0.0
@@ -390,7 +391,7 @@ class MetaCognitiveMonitor:
         return float(slope)
 
     @staticmethod
-    def _compute_curvature(values: List[float]) -> float:
+    def _compute_curvature(values: list[float]) -> float:
         """Approximate second derivative (curvature) of a signal."""
         if len(values) < 5:
             return 0.0
@@ -404,8 +405,8 @@ class MetaCognitiveMonitor:
     def _build_reasoning(
         self,
         condition: LearningCondition,
-        evidence: Dict[str, float],
-        all_conditions: List[LearningCondition],
+        evidence: dict[str, float],
+        all_conditions: list[LearningCondition],
     ) -> str:
         """Build human-readable reasoning for the reflection."""
         parts = [f"Primary condition: {condition.value}"]
@@ -452,12 +453,12 @@ class MetaCognitiveMonitor:
                 json.dumps(reflection.to_dict(), default=str) + "\n",
                 source="metacognitive_monitor.log_reflection",
             )
-        except (OSError, IOError):
+        except OSError:
             return
 
     # ── Public API ───────────────────────────────────────────────────
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "cycle": self._cycle,
             "observations": len(self._history),
@@ -478,5 +479,5 @@ class MetaCognitiveMonitor:
             ),
         }
 
-    def get_recent_reflections(self, n: int = 10) -> List[Dict[str, Any]]:
+    def get_recent_reflections(self, n: int = 10) -> list[dict[str, Any]]:
         return [r.to_dict() for r in self._reflections[-n:]]

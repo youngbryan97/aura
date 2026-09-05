@@ -3,13 +3,13 @@
 Orchestrates the 'Self-Evolution Loop' by coordinating audit, 
 patch generation, and safe application of core logic improvements.
 """
-from core.runtime.errors import record_degradation
 import logging
 import time
 from collections import deque
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any
 
 from core.runtime.base_module import AuraBaseModule
+from core.runtime.errors import record_degradation
 from core.runtime.lockdep import LockRank, checked_lock
 from core.runtime.service_registry import get_runtime_service
 
@@ -38,16 +38,16 @@ class MetaEvolutionEngine(AuraBaseModule):
         # reader holding the old list saw a snapshot that silently stopped
         # being the queue), guarded by a ranked lock, and reachable only
         # through queue_optimization().
-        self._pending_curiosity: Deque[Dict[str, Any]] = deque(maxlen=PENDING_CURIOSITY_LIMIT)
+        self._pending_curiosity: deque[dict[str, Any]] = deque(maxlen=PENDING_CURIOSITY_LIMIT)
         self._pending_lock = checked_lock("meta_evolution.pending_curiosity", rank=LockRank.LEAF)
         self._dropped_curiosity = 0
         logger.info("⚡ Meta-Evolution Engine Online (Recursive Self-Improvement Active)")
 
-    async def evolve(self, target_area: str = None) -> Dict[str, Any]:
+    async def evolve(self, target_area: str = None) -> dict[str, Any]:
         """Alias for run_optimization_cycle — called by orchestrator scheduler."""
         return await self.run_optimization_cycle(target_area=target_area)
 
-    def queue_optimization(self, target_area: Optional[str] = None, context: Optional[str] = None):
+    def queue_optimization(self, target_area: str | None = None, context: str | None = None):
         """Queue an optimization request for the next cycle.
 
         The only supported way in. Called by the Curiosity Engine and
@@ -77,7 +77,7 @@ class MetaEvolutionEngine(AuraBaseModule):
 
         logger.info("📋 Queued autonomous optimization: %s", (context or "No context")[:100])
 
-    def take_pending_optimization(self) -> Optional[Dict[str, Any]]:
+    def take_pending_optimization(self) -> dict[str, Any] | None:
         """Pop the oldest queued request, or None. The only supported way out."""
         with self._pending_lock:
             if not self._pending_curiosity:
@@ -88,7 +88,7 @@ class MetaEvolutionEngine(AuraBaseModule):
         with self._pending_lock:
             return len(self._pending_curiosity)
 
-    async def run_optimization_cycle(self, target_area: Optional[str] = None) -> Dict[str, Any]:
+    async def run_optimization_cycle(self, target_area: str | None = None) -> dict[str, Any]:
         """Runs a complete self-optimization cycle.
         
         Steps:
@@ -239,7 +239,7 @@ class MetaEvolutionEngine(AuraBaseModule):
         finally:
             self._is_optimizing = False
 
-    async def optimize_underperforming_skills(self) -> Dict[str, Any]:
+    async def optimize_underperforming_skills(self) -> dict[str, Any]:
         """Analyzes audit logs for failing skills and triggers autonomous refinement."""
         if self._is_optimizing:
             return {"ok": False, "error": "Optimization in progress."}
@@ -278,7 +278,7 @@ class MetaEvolutionEngine(AuraBaseModule):
         finally:
             self._is_optimizing = False
 
-    def get_health(self) -> Dict[str, Any]:
+    def get_health(self) -> dict[str, Any]:
         """Provides health info for the meta-layer."""
         return {
             **super().get_health(),

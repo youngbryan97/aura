@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 @dataclass
@@ -17,7 +17,7 @@ class ActionResult:
     next_observation: Any  # Instantiated as an Observation subclass
     reward: float  # Normalized score from -1.0 to 1.0
     latency_ms: float  # Action execution duration
-    side_effects: Dict[str, Any] = field(default_factory=dict)
+    side_effects: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -57,11 +57,11 @@ class EnvironmentProtocol(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def snapshot(self) -> Dict[str, Any]:
+    async def snapshot(self) -> dict[str, Any]:
         """Captures a snapshot of the current state of the environment for simulation rollback."""
         pass
 
     @abc.abstractmethod
-    async def restore(self, checkpoint: Dict[str, Any]) -> None:
+    async def restore(self, checkpoint: dict[str, Any]) -> None:
         """Restores the environment state from a prior snapshot."""
         pass

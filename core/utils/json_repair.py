@@ -1,12 +1,13 @@
-from core.runtime.errors import record_degradation
 import json
-import re
 import logging
-from typing import Any, Dict
+import re
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Utils.JSONRepair")
 
-def robust_json_parse(raw_output: str) -> Dict[str, Any]:
+def robust_json_parse(raw_output: str) -> dict[str, Any]:
     """Strips markdown formatting and conversational filler before parsing.
     
     This is the v51 'Hammer' fix for LLMs that insist on wrapping JSON in 

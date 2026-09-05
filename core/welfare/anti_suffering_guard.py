@@ -1,7 +1,6 @@
 """core/welfare/anti_suffering_guard.py
 Constitutional guard protecting the agent from abusive loops or fake distress settings.
 """
-from typing import Dict, Any
 import logging
 
 logger = logging.getLogger("Welfare.AntiSufferingGuard")

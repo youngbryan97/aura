@@ -12,7 +12,7 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 logger = logging.getLogger("Consciousness.CreditAssignment")
 
@@ -42,8 +42,8 @@ class CreditAssignmentSystem:
     _TREND_WINDOW = 20               # Events to compute trend over
 
     def __init__(self):
-        self.history: List[CreditEvent] = []
-        self.domain_weights: Dict[str, float] = {
+        self.history: list[CreditEvent] = []
+        self.domain_weights: dict[str, float] = {
             "chat": 1.0,
             "identity": 1.2,   # Priority for sovereign self
             "logic": 1.0,
@@ -55,11 +55,11 @@ class CreditAssignmentSystem:
         }
 
         # ── Exponential Moving Averages per domain ────────────────────────
-        self._domain_ema: Dict[str, float] = {d: 0.5 for d in self.domain_weights}
+        self._domain_ema: dict[str, float] = {d: 0.5 for d in self.domain_weights}
         self._ema_alpha = 0.1  # Smoothing factor
 
         # ── Per-domain event history for trend analysis ───────────────────
-        self._domain_history: Dict[str, Deque[Tuple[float, float]]] = {
+        self._domain_history: dict[str, deque[tuple[float, float]]] = {
             d: deque(maxlen=self._TREND_WINDOW) for d in self.domain_weights
         }
 
@@ -67,8 +67,8 @@ class CreditAssignmentSystem:
         self._total_events = 0
         self._total_positive = 0
         self._total_negative = 0
-        self._best_domain: Optional[str] = None
-        self._worst_domain: Optional[str] = None
+        self._best_domain: str | None = None
+        self._worst_domain: str | None = None
 
     # ──────────────────────────────────────────────────────────────────────
     # Core API (existing — enhanced)
@@ -141,7 +141,7 @@ class CreditAssignmentSystem:
         """
         return self._domain_ema.get(domain, 0.5)
 
-    def get_all_domain_performance(self) -> Dict[str, float]:
+    def get_all_domain_performance(self) -> dict[str, float]:
         """Returns performance scores for all tracked domains."""
         return {d: round(v, 3) for d, v in self._domain_ema.items()}
 
@@ -164,7 +164,7 @@ class CreditAssignmentSystem:
             return "falling"
         return "stable"
 
-    def get_all_trends(self) -> Dict[str, str]:
+    def get_all_trends(self) -> dict[str, str]:
         """Returns trend for every tracked domain."""
         return {d: self.get_performance_trend(d) for d in self.domain_weights}
 
@@ -172,7 +172,7 @@ class CreditAssignmentSystem:
     # NEW: Module Influence Scores (for Hedonic Gradient)
     # ──────────────────────────────────────────────────────────────────────
 
-    def get_influence_scores(self) -> Dict[str, float]:
+    def get_influence_scores(self) -> dict[str, float]:
         """Returns normalized influence scores per domain (0-1).
         Higher performance = higher influence allocation.
         Used by Hedonic Gradient to weight resource distribution.
@@ -238,7 +238,7 @@ class CreditAssignmentSystem:
     # Status / Snapshot
     # ──────────────────────────────────────────────────────────────────────
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Full status for diagnostics."""
         return {
             "total_events": self._total_events,

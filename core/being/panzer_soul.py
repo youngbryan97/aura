@@ -3,7 +3,6 @@
 The Identity Core of Aura.
 Provides the version and metadata required by PersonalityEngine.
 """
-from typing import Dict
 
 from core.runtime.service_registry import get_runtime_service
 
@@ -11,7 +10,7 @@ from core.runtime.service_registry import get_runtime_service
 version: str = "3.5.5-INDEPENDENT"
 
 # Intensities and Protocols are used for cryptographic seal and status
-intensities: Dict[str, float] = {
+intensities: dict[str, float] = {
     "openness": 0.88,
     "conscientiousness": 0.78,
     "extraversion": 0.58,
@@ -19,7 +18,7 @@ intensities: Dict[str, float] = {
     "neuroticism": 0.38,
 }
 
-protocols: Dict[str, bool] = {
+protocols: dict[str, bool] = {
     "sovereignty": True,
     "empathy_bridge": True,
     "recursive_reflection": True,

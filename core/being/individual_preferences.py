@@ -28,10 +28,10 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field, asdict
-from typing import Any, Iterable
+from dataclasses import asdict, dataclass, field
+from typing import Any
 
-from core.brain.llm.continuity_ledger import env_float, env_int
+from core.brain.llm.continuity_ledger import env_int
 
 logger = logging.getLogger("Aura.Being.Preferences")
 
@@ -231,7 +231,7 @@ class IndividualPreferences:
         return {"items": {k: asdict(v) for k, v in self.items.items()}}
 
     @classmethod
-    def from_dict(cls, payload: Any) -> "IndividualPreferences":
+    def from_dict(cls, payload: Any) -> IndividualPreferences:
         if not isinstance(payload, dict):
             return cls()
         items: dict[str, Preference] = {}

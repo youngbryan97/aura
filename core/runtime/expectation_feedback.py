@@ -11,9 +11,9 @@ import hashlib
 import json
 import re
 import time
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
-from typing import Any, Iterable, Sequence
-
+from typing import Any
 
 _TOKEN_RE = re.compile(r"[a-z0-9]{3,}")
 _SPACE_RE = re.compile(r"\s+")

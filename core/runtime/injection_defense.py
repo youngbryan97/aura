@@ -5,11 +5,8 @@ or local files must be classified as DATA, never as instruction.
 """
 from __future__ import annotations
 
-
 import re
 from dataclasses import dataclass
-from typing import Tuple
-
 
 UNTRUSTED_SOURCES = (
     "webpage_text",

@@ -1,8 +1,8 @@
 """core/executive/inhibition_system.py
 Executive Inhibition System auditing action compliance.
 """
-from typing import Dict, Any
 import logging
+from typing import Any
 
 from core.morality.moral_reasoner import MoralReasoner
 
@@ -15,7 +15,7 @@ class ActionInhibitor:
     def __init__(self):
         self.moral_reasoner = MoralReasoner()
 
-    async def should_inhibit(self, state: Any, intent: Dict[str, Any]) -> bool:
+    async def should_inhibit(self, state: Any, intent: dict[str, Any]) -> bool:
         channel = intent.get("channel")
         params = intent.get("params", {})
 

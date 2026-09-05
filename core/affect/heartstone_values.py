@@ -23,7 +23,6 @@ Values are persisted to ~/.aura/data/heartstone_values.json and survive restarts
 They are injected into every LLM system prompt so the model's dispositions
 actually reflect earned experience, not fixed constants.
 """
-from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -32,7 +31,8 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+
+from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.HeartstoneValues")
@@ -43,7 +43,7 @@ _PERSIST_PATH = state_root() / "data" / "heartstone_values.json"
 _MIN = 0.10
 _MAX = 0.90
 # Default starting weights (balanced)
-_DEFAULTS: Dict[str, float] = {
+_DEFAULTS: dict[str, float] = {
     "Curiosity":          0.70,
     "Empathy":            0.75,
     "Self_Preservation":  0.55,
@@ -95,7 +95,7 @@ class ValueEvidence:
     """
 
     verified: bool = False
-    quality: Optional[float] = None
+    quality: float | None = None
     detail: str = ""
     source: str = ""
 
@@ -123,7 +123,7 @@ class _ProvisionalEvent:
     created_at: float
     detail: str = ""
 
-    def expired(self, now: float, ttl_s: Optional[float] = None) -> bool:
+    def expired(self, now: float, ttl_s: float | None = None) -> bool:
         """Age out against the CURRENT ttl, not the one bound at import.
 
         A default argument is evaluated once when the class is defined, so
@@ -142,14 +142,14 @@ class HeartstoneValues:
     """
 
     def __init__(self):
-        self._values: Dict[str, float] = dict(_DEFAULTS)
+        self._values: dict[str, float] = dict(_DEFAULTS)
         self._last_saved: float = 0.0
         self._event_log: list = []    # Recent events for transparency
         self._save_lock = threading.Lock()
-        self._save_timer: Optional[threading.Timer] = None
+        self._save_timer: threading.Timer | None = None
         # Value changes earned in shape but not yet in evidence. Nothing
         # here has moved a value; see ValueEvidence.
-        self._provisional: Dict[str, _ProvisionalEvent] = {}
+        self._provisional: dict[str, _ProvisionalEvent] = {}
         self._provisional_seq = 0
         self._provisional_confirmed = 0
         self._provisional_expired = 0
@@ -158,7 +158,7 @@ class HeartstoneValues:
     # ─── Public API ───────────────────────────────────────────────────────────
 
     @property
-    def values(self) -> Dict[str, float]:
+    def values(self) -> dict[str, float]:
         return dict(self._values)
 
     def get(self, key: str, default: float = 0.5) -> float:
@@ -200,7 +200,7 @@ class HeartstoneValues:
         self._log_event(f"{event}_provisional", f"{detail} (awaiting outcome)")
         return token
 
-    def confirm_provisional(self, token: str, *, quality: Optional[float] = None) -> bool:
+    def confirm_provisional(self, token: str, *, quality: float | None = None) -> bool:
         """Bank a provisional change because an outcome confirmed it."""
         self._expire_provisional()
         pending = self._provisional.pop(str(token or ""), None)
@@ -235,9 +235,9 @@ class HeartstoneValues:
         dimension: str,
         delta: float,
         autopoiesis: dict,
-        evidence: Optional[ValueEvidence],
+        evidence: ValueEvidence | None,
         detail: str = "",
-    ) -> Optional[str]:
+    ) -> str | None:
         """Mutate on evidence, hold otherwise. Returns a token when held."""
         if evidence is not None and evidence.verified:
             quality = evidence.scored_quality()
@@ -262,8 +262,8 @@ class HeartstoneValues:
         self,
         insight_length: int = 0,
         *,
-        evidence: Optional[ValueEvidence] = None,
-    ) -> Optional[str]:
+        evidence: ValueEvidence | None = None,
+    ) -> str | None:
         """Research produced something. Whether it was GOOD is a separate claim.
 
         ``quality = min(1.0, insight_length / 300)`` scored a three-hundred
@@ -284,8 +284,8 @@ class HeartstoneValues:
         )
 
     def on_dream_insight(
-        self, *, evidence: Optional[ValueEvidence] = None,
-    ) -> Optional[str]:
+        self, *, evidence: ValueEvidence | None = None,
+    ) -> str | None:
         """A dream produced a connection — validity is the caller's claim.
 
         The live gate was ``"NO_CONNECTION" not in content and
@@ -335,8 +335,8 @@ class HeartstoneValues:
         self._feed_autopoiesis("Obedience", outcome_quality=0.8, engagement=0.7, free_energy=0.1, context="sandbox_success")
 
     def on_user_away(
-        self, *, evidence: Optional[ValueEvidence] = None,
-    ) -> Optional[str]:
+        self, *, evidence: ValueEvidence | None = None,
+    ) -> str | None:
         """Aura stayed quiet while the user was away.
 
         That is a DECISION, not an outcome. Whether the restraint was
@@ -363,8 +363,8 @@ class HeartstoneValues:
         self._feed_scar("identity_threat", "Identity guard blocked a potential breach", severity=0.5)
 
     def on_silence_chosen(
-        self, *, evidence: Optional[ValueEvidence] = None,
-    ) -> Optional[str]:
+        self, *, evidence: ValueEvidence | None = None,
+    ) -> str | None:
         """Aura chose silence — discernment, or a missed reply.
 
         The docstring used to assert "demonstrates discernment". Sometimes
@@ -439,7 +439,7 @@ class HeartstoneValues:
             finally:
                 try:
                     Path(tmp_path).unlink(missing_ok=True)
-                except (OSError, IOError) as _exc:
+                except OSError as _exc:
                     record_degradation('heartstone_values', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
             self._last_saved = time.time()
@@ -498,7 +498,7 @@ class HeartstoneValues:
         engine so that value shifts are grounded in actual experience.
         """
         try:
-            from core.adaptation.value_autopoiesis import get_value_autopoiesis, OutcomeEvidence
+            from core.adaptation.value_autopoiesis import OutcomeEvidence, get_value_autopoiesis
             get_value_autopoiesis().record_evidence(OutcomeEvidence(
                 drive_name=drive,
                 outcome_quality=outcome_quality,
@@ -512,7 +512,7 @@ class HeartstoneValues:
     def _feed_scar(self, avoidance_tag: str, description: str, severity: float = 0.3) -> None:
         """Feed a critical event to the scar formation system."""
         try:
-            from core.memory.scar_formation import get_scar_formation, ScarDomain
+            from core.memory.scar_formation import ScarDomain, get_scar_formation
             domain_map = {
                 "tool_failure": ScarDomain.TOOL_FAILURE,
                 "identity_threat": ScarDomain.IDENTITY_THREAT,
@@ -530,7 +530,7 @@ class HeartstoneValues:
 
 
 # ── Singleton ──────────────────────────────────────────────────────────────────
-_values: Optional[HeartstoneValues] = None
+_values: HeartstoneValues | None = None
 
 
 def get_heartstone_values() -> HeartstoneValues:

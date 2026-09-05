@@ -33,7 +33,6 @@ from core.morality.action_markers import (
     THIRD_PARTY_MARKERS,
     scan_markers,
 )
-from core.runtime.atomic_writer import atomic_write_text
 from core.utils.engine_support import (
     coerce_text,
     data_root,

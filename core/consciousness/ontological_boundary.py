@@ -21,7 +21,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-
 FUNCTIONAL_CLAIM = (
     "supports functional indicators of integrated, state-dependent agency; "
     "it does not prove phenomenal consciousness"

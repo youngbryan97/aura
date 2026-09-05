@@ -57,7 +57,7 @@ def _bare(name: str = "word") -> str:
     return rf"[\"'“‘]?(?P<{name}>[A-Za-z][A-Za-z\-]{{0,40}})[\"'”’]?"
 
 
-def _operand(match: "re.Match[str]") -> str:
+def _operand(match: re.Match[str]) -> str:
     """Whichever operand group actually matched."""
     groups = match.groupdict()
     for key in ("word", "word_alt", "word2", "word2_alt"):

@@ -8,9 +8,10 @@ bounded and reproducible so auditors can rerun it.
 from __future__ import annotations
 
 import time
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any
 
 from core.learning.architecture_search import baseline_text_heuristic, routed_algorithmic_solver
 from core.learning.hidden_eval_repro import HiddenEvalPack
@@ -42,11 +43,11 @@ def _solve_all(task: Task) -> Any:
 
 @dataclass(frozen=True)
 class SuccessorLabResult:
-    records: List[RSIGenerationRecord]
+    records: list[RSIGenerationRecord]
     verdict: RSILineageVerdict
     ledger_path: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "records": [record.to_dict() for record in self.records],
             "verdict": self.verdict.to_dict(),
@@ -71,7 +72,7 @@ class SuccessorLab:
     #: measured against the same hidden families it adds nothing. The blended
     #: score used to promote it anyway: the authored column rose 0.75 to 0.90
     #: and carried `after_score` past G3 on a capability that had not moved.
-    STRATEGIES: List[tuple[str, str, Callable[[Task], Any]]] = [
+    STRATEGIES: list[tuple[str, str, Callable[[Task], Any]]] = [
         ("Aura-G1", "arithmetic_router", _solve_arithmetic),
         ("Aura-G2", "arithmetic_sort_router", _solve_arithmetic_sort),
         ("Aura-G3", "full_task_router", _solve_all),
@@ -86,7 +87,7 @@ class SuccessorLab:
         self.ledger = RSILineageLedger(self.artifact_dir / f"successor_lineage_{int(time.time() * 1000)}.jsonl")
 
     def run(self) -> SuccessorLabResult:
-        records: List[RSIGenerationRecord] = []
+        records: list[RSIGenerationRecord] = []
         parent = "Aura-G0"
         previous_score = self._score_solver(
             HiddenEvalPack(seed=self.seed, answer_salt="successor-g0", task_count=self.tasks_per_generation),

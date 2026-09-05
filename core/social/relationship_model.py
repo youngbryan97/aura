@@ -26,10 +26,6 @@ atomically (write-tmp + rename) so a crash mid-write never produces a
 half-written dossier.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
-from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
@@ -39,7 +35,10 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from threading import RLock
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Relationships")
@@ -53,15 +52,15 @@ class TrustEvent:
     when: float
     delta: float  # -1.0 to +1.0
     reason: str
-    receipt_id: Optional[str] = None
+    receipt_id: str | None = None
 
 
 @dataclass
 class Apology:
     when: float
     acknowledged: str
-    repair_offered: Optional[str] = None
-    accepted_by_user: Optional[bool] = None
+    repair_offered: str | None = None
+    accepted_by_user: bool | None = None
 
 
 @dataclass
@@ -69,11 +68,11 @@ class Commitment:
     commitment_id: str
     when_made: float
     description: str
-    deadline_hint: Optional[str] = None
-    fulfilled_at: Optional[float] = None
-    receipt_id: Optional[str] = None
-    waived_at: Optional[float] = None
-    waiver_reason: Optional[str] = None
+    deadline_hint: str | None = None
+    fulfilled_at: float | None = None
+    receipt_id: str | None = None
+    waived_at: float | None = None
+    waiver_reason: str | None = None
 
 
 @dataclass
@@ -81,7 +80,7 @@ class Boundary:
     when: float
     description: str  # e.g. "do not initiate after midnight"
     active: bool = True
-    last_acknowledged_at: Optional[float] = None
+    last_acknowledged_at: float | None = None
 
 
 @dataclass
@@ -98,16 +97,16 @@ class RelationshipDossier:
     name: str
     created_at: float = field(default_factory=time.time)
     last_seen_at: float = field(default_factory=time.time)
-    style_preferences: Dict[str, Any] = field(default_factory=dict)
+    style_preferences: dict[str, Any] = field(default_factory=dict)
     humor_style: str = ""
-    sensitivities: List[str] = field(default_factory=list)
-    boundaries: List[Boundary] = field(default_factory=list)
-    trust_history: List[TrustEvent] = field(default_factory=list)
-    apologies: List[Apology] = field(default_factory=list)
-    commitments: List[Commitment] = field(default_factory=list)
-    topics: List[TopicNote] = field(default_factory=list)
-    open_threads: List[str] = field(default_factory=list)  # unresolved projects/questions
-    interaction_affect_history: List[Dict[str, Any]] = field(default_factory=list)
+    sensitivities: list[str] = field(default_factory=list)
+    boundaries: list[Boundary] = field(default_factory=list)
+    trust_history: list[TrustEvent] = field(default_factory=list)
+    apologies: list[Apology] = field(default_factory=list)
+    commitments: list[Commitment] = field(default_factory=list)
+    topics: list[TopicNote] = field(default_factory=list)
+    open_threads: list[str] = field(default_factory=list)  # unresolved projects/questions
+    interaction_affect_history: list[dict[str, Any]] = field(default_factory=list)
     notes: str = ""
 
     # ---- derived metrics ----
@@ -121,7 +120,7 @@ class RelationshipDossier:
             s = max(0.0, min(1.0, s + e.delta * 0.05))
         return s
 
-    def open_commitments(self) -> List[Commitment]:
+    def open_commitments(self) -> list[Commitment]:
         return [c for c in self.commitments if c.fulfilled_at is None and c.waived_at is None]
 
     def fulfilled_rate(self) -> float:
@@ -130,7 +129,7 @@ class RelationshipDossier:
         completed = [c for c in self.commitments if c.fulfilled_at is not None]
         return len(completed) / max(1, len(self.commitments))
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -142,14 +141,14 @@ class RelationshipDossier:
 class RelationshipStore:
     def __init__(self) -> None:
         self._lock = RLock()
-        self._cache: Dict[str, RelationshipDossier] = {}
+        self._cache: dict[str, RelationshipDossier] = {}
 
     def _path(self, relationship_id: str) -> Path:
         return _REL_DIR / f"{relationship_id}.json"
 
     # ---- read ----
 
-    def get(self, relationship_id: str) -> Optional[RelationshipDossier]:
+    def get(self, relationship_id: str) -> RelationshipDossier | None:
         with self._lock:
             if relationship_id in self._cache:
                 return self._cache[relationship_id]
@@ -174,7 +173,7 @@ class RelationshipStore:
         self._save(dossier)
         return dossier
 
-    def list_all(self) -> List[RelationshipDossier]:
+    def list_all(self) -> list[RelationshipDossier]:
         with self._lock:
             out = list(self._cache.values())
             for path in _REL_DIR.glob("*.json"):
@@ -187,7 +186,7 @@ class RelationshipStore:
 
     # ---- write ----
 
-    def add_trust_event(self, relationship_id: str, *, delta: float, reason: str, receipt_id: Optional[str] = None) -> None:
+    def add_trust_event(self, relationship_id: str, *, delta: float, reason: str, receipt_id: str | None = None) -> None:
         d = self.get(relationship_id)
         if d is None:
             return
@@ -195,7 +194,7 @@ class RelationshipStore:
         d.last_seen_at = time.time()
         self._save(d)
 
-    def add_apology(self, relationship_id: str, *, acknowledged: str, repair_offered: Optional[str] = None) -> None:
+    def add_apology(self, relationship_id: str, *, acknowledged: str, repair_offered: str | None = None) -> None:
         d = self.get(relationship_id)
         if d is None:
             return
@@ -203,7 +202,7 @@ class RelationshipStore:
         d.last_seen_at = time.time()
         self._save(d)
 
-    def make_commitment(self, relationship_id: str, *, description: str, deadline_hint: Optional[str] = None) -> Commitment:
+    def make_commitment(self, relationship_id: str, *, description: str, deadline_hint: str | None = None) -> Commitment:
         d = self.get(relationship_id)
         if d is None:
             raise ValueError(f"unknown relationship_id={relationship_id}")
@@ -218,7 +217,7 @@ class RelationshipStore:
         self._save(d)
         return c
 
-    def fulfill_commitment(self, relationship_id: str, commitment_id: str, *, receipt_id: Optional[str] = None) -> None:
+    def fulfill_commitment(self, relationship_id: str, commitment_id: str, *, receipt_id: str | None = None) -> None:
         d = self.get(relationship_id)
         if d is None:
             return
@@ -293,7 +292,7 @@ class RelationshipStore:
         d.open_threads = [t for t in d.open_threads if t != thread]
         self._save(d)
 
-    def record_interaction_affect(self, relationship_id: str, affect: Dict[str, Any]) -> None:
+    def record_interaction_affect(self, relationship_id: str, affect: dict[str, Any]) -> None:
         d = self.get(relationship_id)
         if d is None:
             return
@@ -317,7 +316,7 @@ class RelationshipStore:
             os.replace(tmp, path)
 
     @staticmethod
-    def _from_dict(data: Dict[str, Any]) -> RelationshipDossier:
+    def _from_dict(data: dict[str, Any]) -> RelationshipDossier:
         return RelationshipDossier(
             relationship_id=data.get("relationship_id", "unknown"),
             name=data.get("name", "unknown"),
@@ -337,7 +336,7 @@ class RelationshipStore:
         )
 
 
-_STORE: Optional[RelationshipStore] = None
+_STORE: RelationshipStore | None = None
 
 
 def get_store() -> RelationshipStore:

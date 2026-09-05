@@ -34,7 +34,8 @@ single surface; the typed methods are there for callers that already know which 
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
@@ -52,7 +53,7 @@ class UnifiedWorldModel:
         self._causal = causal
         self._outcome = outcome
         self._rules = rules
-        self._failed: Dict[str, bool] = {}
+        self._failed: dict[str, bool] = {}
 
     # ── lazy, fault-isolated facet resolution ─────────────────────────────
 
@@ -114,7 +115,7 @@ class UnifiedWorldModel:
 
     # ── forward dynamics (LearnedWorldModel) ──────────────────────────────
 
-    def observe(self, observation: Any, action: Any = None, *, learn: bool = True) -> Optional[Dict[str, Any]]:
+    def observe(self, observation: Any, action: Any = None, *, learn: bool = True) -> dict[str, Any] | None:
         """Feed an observation through the dynamics model; returns the prediction (incl. surprise)."""
         m = self.learned
         if m is None:
@@ -126,7 +127,7 @@ class UnifiedWorldModel:
             record_degradation("unified_world_model", exc, severity="debug", action="observe failed")
             return None
 
-    def surprise(self) -> Optional[float]:
+    def surprise(self) -> float | None:
         """Current running surprise (prediction error) from the dynamics model."""
         m = self.learned
         if m is None:
@@ -150,7 +151,7 @@ class UnifiedWorldModel:
                                action="watched an act without learning from it")
             return False
 
-    def imagine(self, observation: Any, action_sequence: Sequence[Any]) -> Optional[List[Dict[str, Any]]]:
+    def imagine(self, observation: Any, action_sequence: Sequence[Any]) -> list[dict[str, Any]] | None:
         """Roll a sequence of actions forward, through whichever facet can answer.
 
         A typed state — something laid out in rows and columns, that can be
@@ -173,12 +174,12 @@ class UnifiedWorldModel:
 
     def _imagine_typed(
         self, state: Any, action_sequence: Sequence[Any]
-    ) -> Optional[List[Dict[str, Any]]]:
+    ) -> list[dict[str, Any]] | None:
         """Roll a sequence forward over a typed state, one act at a time."""
         m = self.rules
         if m is None:
             return None
-        trajectory: List[Dict[str, Any]] = []
+        trajectory: list[dict[str, Any]] = []
         here = state
         for action in action_sequence:
             here = m.expect(here, str(action))
@@ -192,12 +193,12 @@ class UnifiedWorldModel:
     def predict_outcome(
         self,
         domain: str,
-        state: Dict[str, Any],
+        state: dict[str, Any],
         *,
         action_kind: str,
-        action_params: Optional[Dict[str, Any]] = None,
+        action_params: dict[str, Any] | None = None,
         reversible: bool = True,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Predict reward/harm/surprise for an action in a state, from past experience.
 
         Accepts plain dicts and builds the schema objects internally, so callers don't have to
@@ -220,7 +221,7 @@ class UnifiedWorldModel:
                                action="predict_outcome failed")
             return None
 
-    def observe_episode(self, episode: Any) -> Optional[Dict[str, Any]]:
+    def observe_episode(self, episode: Any) -> dict[str, Any] | None:
         """Fold a completed episode into the experience-grounded outcome model."""
         m = self.outcome
         if m is None:
@@ -246,7 +247,7 @@ class UnifiedWorldModel:
             record_degradation("unified_world_model", exc, severity="debug")
             return False
 
-    def causal_effects(self, source: str) -> Optional[List[Any]]:
+    def causal_effects(self, source: str) -> list[Any] | None:
         """What does ``source`` causally push on, and how strongly?"""
         m = self.causal
         if m is None:
@@ -257,7 +258,7 @@ class UnifiedWorldModel:
             record_degradation("unified_world_model", exc, severity="debug")
             return None
 
-    def counterfactual(self, do_interventions: Dict[str, float], steps: int = 3) -> Optional[Dict[str, float]]:
+    def counterfactual(self, do_interventions: dict[str, float], steps: int = 3) -> dict[str, float] | None:
         """Simulate ``do(interventions)`` forward through the causal graph."""
         m = self.causal
         if m is None:
@@ -269,7 +270,7 @@ class UnifiedWorldModel:
                                action="counterfactual failed")
             return None
 
-    def preventative_actions(self, undesirable_node: str) -> Optional[List[Any]]:
+    def preventative_actions(self, undesirable_node: str) -> list[Any] | None:
         """Which upstream causes, suppressed, most reduce an undesirable outcome?"""
         m = self.causal
         if m is None:
@@ -285,12 +286,12 @@ class UnifiedWorldModel:
     def plan(
         self,
         current_observation: Any,
-        action_space: List[Any],
+        action_space: list[Any],
         value_scorer: Callable[[Any], float],
         *,
         num_simulations: int = 100,
         max_depth: int = 20,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Multi-step lookahead via MCTS over the learned dynamics model."""
         m = self.learned
         if m is None:
@@ -309,14 +310,14 @@ class UnifiedWorldModel:
 
     # ── the single dispatch surface ───────────────────────────────────────
 
-    def query(self, intent: str, **kwargs: Any) -> Dict[str, Any]:
+    def query(self, intent: str, **kwargs: Any) -> dict[str, Any]:
         """One entry point: route a world-model question to the facet that answers it.
 
         Intents: ``observe``, ``surprise``, ``imagine``, ``predict_outcome``, ``observe_causal``,
         ``causal_effects``, ``counterfactual``, ``prevent``, ``plan``. Always returns a dict with
         the routed facet, availability, and the result (``None`` if that facet is unavailable).
         """
-        routes: Dict[str, tuple] = {
+        routes: dict[str, tuple] = {
             "observe": ("learned", self.observe),
             "surprise": ("learned", lambda **k: self.surprise()),
             "imagine": ("learned", self.imagine),
@@ -348,12 +349,12 @@ class UnifiedWorldModel:
 
     # ── readout ───────────────────────────────────────────────────────────
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         """Which facets are live, and each one's own status where it exposes one."""
-        out: Dict[str, Any] = {"module": "UnifiedWorldModel", "facets": {}}
+        out: dict[str, Any] = {"module": "UnifiedWorldModel", "facets": {}}
         for name in ("learned", "causal", "outcome"):
             facet = getattr(self, name)
-            entry: Dict[str, Any] = {"available": facet is not None}
+            entry: dict[str, Any] = {"available": facet is not None}
             if facet is not None:
                 for status_attr in ("get_status", "status", "to_dict"):
                     if hasattr(facet, status_attr):
@@ -366,7 +367,7 @@ class UnifiedWorldModel:
         return out
 
 
-_instance: Optional[UnifiedWorldModel] = None
+_instance: UnifiedWorldModel | None = None
 
 
 def get_unified_world_model() -> UnifiedWorldModel:

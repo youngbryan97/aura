@@ -18,7 +18,6 @@ import logging
 import math
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -38,12 +37,12 @@ class TaskGradientSignature:
 class LoRANode:
     """A single node in the TreeLoRA adapter tree."""
     node_id: str
-    parent_id: Optional[str]
+    parent_id: str | None
     layer_idx: int
-    adapter_weights: Dict[str, np.ndarray]  # e.g., 'A' and 'B' matrices
+    adapter_weights: dict[str, np.ndarray]  # e.g., 'A' and 'B' matrices
     signature_centroid: np.ndarray          # Mean gradient signature of tasks in this node
     task_count: int = 0
-    children: List[str] = field(default_factory=list)
+    children: list[str] = field(default_factory=list)
     is_active: bool = True
 
 
@@ -61,8 +60,8 @@ class TreeLoRAManager:
         self.layer_count = layer_count
         
         # In-memory tree structure: layer_idx -> node_id -> LoRANode
-        self.tree: Dict[int, Dict[str, LoRANode]] = {i: {} for i in range(layer_count)}
-        self.root_nodes: Dict[int, str] = {}
+        self.tree: dict[int, dict[str, LoRANode]] = {i: {} for i in range(layer_count)}
+        self.root_nodes: dict[int, str] = {}
         
         self._initialize_roots()
 
@@ -184,7 +183,7 @@ class TreeLoRAManager:
         logger.info("TreeLoRA: Branched new adapter %s from %s", new_id, parent.node_id)
         return new_id
 
-    def compose_adapters(self, leaf_node_id: str, layer_idx: int) -> Dict[str, np.ndarray]:
+    def compose_adapters(self, leaf_node_id: str, layer_idx: int) -> dict[str, np.ndarray]:
         """Compose weights from root down to the leaf node."""
         composed = {"A": None, "B": None}
         path = []
@@ -231,7 +230,7 @@ class TreeLoRAManager:
         return float(np.dot(v1, v2) / (v1_norm * v2_norm))
 
     @staticmethod
-    def _adapter_delta_from_signature(shape: Tuple[int, ...], signature: np.ndarray) -> np.ndarray:
+    def _adapter_delta_from_signature(shape: tuple[int, ...], signature: np.ndarray) -> np.ndarray:
         flat_sig = np.asarray(signature, dtype=np.float64).reshape(-1)
         flat_sig = np.nan_to_num(flat_sig, nan=0.0, posinf=0.0, neginf=0.0)
         total = int(np.prod(shape))

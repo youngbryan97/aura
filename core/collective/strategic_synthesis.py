@@ -3,20 +3,20 @@ Strategic Synthesis Engine: Coordinates specialized swarm agents to solve comple
 Produces a unified ExecutionPlan from multi-agent consensus.
 """
 
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
-from typing import Optional
-from core.runtime.service_registry import get_runtime_service
-from core.planning.planner import ExecutionPlan, ToolCall, PlanSchema
+
 from core.collective.delegator import AgentDelegator
+from core.planning.planner import ExecutionPlan, PlanSchema, ToolCall
+from core.runtime.errors import record_degradation
+from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("Aura.StrategicSynthesis")
 
 class StrategicSynthesizer:
     def __init__(self, orchestrator=None):
         self.orchestrator = orchestrator
-        self.delegator: Optional[AgentDelegator] = None
+        self.delegator: AgentDelegator | None = None
         
     def _resolve_delegator(self) -> bool:
         """Lazily resolve the AgentDelegator from the container or orchestrator."""
@@ -31,7 +31,7 @@ class StrategicSynthesizer:
             
         return self.delegator is not None
 
-    async def synthesize_strategic_plan(self, goal: str, context: str = "") -> Optional[ExecutionPlan]:
+    async def synthesize_strategic_plan(self, goal: str, context: str = "") -> ExecutionPlan | None:
         """
         Orchestrates a multi-agent debate and synthesizes a final ExecutionPlan.
         This is used for high-complexity goals that require architectural, security, or optimization review.
@@ -71,7 +71,7 @@ class StrategicSynthesizer:
         if wait_tasks:
             try:
                 await asyncio.wait_for(asyncio.gather(*wait_tasks), timeout=90.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("StrategicSynthesizer: Swarm agents timed out during synthesis.")
             
         # 4. Gather results

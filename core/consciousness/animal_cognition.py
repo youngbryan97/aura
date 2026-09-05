@@ -18,14 +18,12 @@ Scientific basis for each is documented inline.
 """
 from __future__ import annotations
 
-
-import asyncio
 import logging
 import math
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger("Consciousness.AnimalCognition")
 
@@ -73,7 +71,7 @@ class PathIntegrationEngine:
     """Maintains path integration state for active reasoning chains."""
 
     def __init__(self):
-        self._active: Optional[PathIntegrationState] = None
+        self._active: PathIntegrationState | None = None
 
     def begin_navigation(self, goal: str):
         """Start tracking a new goal."""
@@ -90,7 +88,7 @@ class PathIntegrationEngine:
         if self._active:
             self._active.record_step(content)
 
-    def check_drift(self) -> Optional[str]:
+    def check_drift(self) -> str | None:
         """Returns correction prompt if drifted, None if on track."""
         if self._active and self._active.needs_correction():
             correction = self._active.get_home_vector()
@@ -112,7 +110,7 @@ class PathIntegrationEngine:
 class ReplayTrace:
     """A compressed trace of a reasoning chain for replay."""
     objective: str
-    steps: List[str]  # key decision points
+    steps: list[str]  # key decision points
     outcome_quality: float  # -1 bad, 0 neutral, +1 good
     timestamp: float = field(default_factory=time.time)
 
@@ -122,10 +120,10 @@ class ReplayPreplayEngine:
 
     def __init__(self, max_traces: int = 50, max_preplay: int = 5):
         self._traces: deque = deque(maxlen=max_traces)
-        self._preplay_cache: Dict[str, Dict[str, Any]] = {}
+        self._preplay_cache: dict[str, dict[str, Any]] = {}
         self._preplay_ttl: float = 300.0  # 5 minutes
 
-    def record_trace(self, objective: str, steps: List[str], quality: float):
+    def record_trace(self, objective: str, steps: list[str], quality: float):
         """Record a compressed interaction trace for later replay."""
         self._traces.append(ReplayTrace(
             objective=objective,
@@ -133,24 +131,24 @@ class ReplayPreplayEngine:
             outcome_quality=max(-1.0, min(1.0, quality)),
         ))
 
-    def get_replay_batch(self, limit: int = 5) -> List[ReplayTrace]:
+    def get_replay_batch(self, limit: int = 5) -> list[ReplayTrace]:
         """Get recent traces for replay during idle."""
         recent = sorted(self._traces, key=lambda t: t.timestamp, reverse=True)
         return recent[:limit]
 
-    def get_positive_patterns(self, limit: int = 3) -> List[ReplayTrace]:
+    def get_positive_patterns(self, limit: int = 3) -> list[ReplayTrace]:
         """Get traces of successful interactions for pattern reinforcement."""
         positive = [t for t in self._traces if t.outcome_quality > 0.3]
         return sorted(positive, key=lambda t: t.outcome_quality, reverse=True)[:limit]
 
-    def store_preplay(self, query_hypothesis: str, precomputed: Dict[str, Any]):
+    def store_preplay(self, query_hypothesis: str, precomputed: dict[str, Any]):
         """Pre-cache a likely upcoming query result."""
         self._preplay_cache[query_hypothesis.lower().strip()] = {
             "data": precomputed,
             "stored_at": time.time(),
         }
 
-    def check_preplay(self, query: str) -> Optional[Dict[str, Any]]:
+    def check_preplay(self, query: str) -> dict[str, Any] | None:
         """Check if we pre-computed results for this query."""
         key = query.lower().strip()
         for cached_key, entry in self._preplay_cache.items():
@@ -189,7 +187,7 @@ class QuorumDecisionGate:
 
     def __init__(self, quorum_threshold: float = 0.6):
         self._threshold = quorum_threshold  # fraction that must agree
-        self._pending_votes: Dict[str, List[QuorumVote]] = {}
+        self._pending_votes: dict[str, list[QuorumVote]] = {}
 
     def open_vote(self, decision_id: str):
         """Open voting for a decision."""
@@ -204,7 +202,7 @@ class QuorumDecisionGate:
                        confidence=confidence, reasoning=reasoning)
         )
 
-    def check_quorum(self, decision_id: str) -> Tuple[bool, str, float]:
+    def check_quorum(self, decision_id: str) -> tuple[bool, str, float]:
         """Check if quorum has been reached.
         Returns (quorum_reached, winning_choice, agreement_ratio).
         """
@@ -213,7 +211,7 @@ class QuorumDecisionGate:
             return False, "", 0.0
 
         # Count weighted votes per choice
-        choice_scores: Dict[str, float] = defaultdict(float)
+        choice_scores: dict[str, float] = defaultdict(float)
         for v in votes:
             choice_scores[v.choice] += v.confidence
 
@@ -239,14 +237,14 @@ class QuorumDecisionGate:
 class PhysarumRouter:
     """Self-optimizing routing topology between Aura subsystems."""
 
-    def __init__(self, subsystems: List[str], decay: float = 0.98,
+    def __init__(self, subsystems: list[str], decay: float = 0.98,
                  reinforce: float = 1.05, min_diameter: float = 0.1):
         self._subsystems = subsystems
         self._decay = decay
         self._reinforce = reinforce
         self._min_diameter = min_diameter
         # Initialize all-to-all with equal bandwidth
-        self._diameters: Dict[Tuple[str, str], float] = {}
+        self._diameters: dict[tuple[str, str], float] = {}
         for i, a in enumerate(subsystems):
             for b in subsystems[i + 1:]:
                 self._diameters[(a, b)] = 1.0
@@ -269,7 +267,7 @@ class PhysarumRouter:
     def get_bandwidth(self, source: str, target: str) -> float:
         return self._diameters.get((source, target), self._min_diameter)
 
-    def get_topology(self) -> Dict[str, float]:
+    def get_topology(self) -> dict[str, float]:
         """Return current topology for visualization."""
         return {
             f"{a}->{b}": round(d, 3)
@@ -300,7 +298,7 @@ class UserEmotionalState:
     confidence: float = 0.5    # user's apparent confidence in their questions
     last_updated: float = 0.0
 
-    def to_dict(self) -> Dict[str, float]:
+    def to_dict(self) -> dict[str, float]:
         return {
             "valence": round(self.valence, 2),
             "arousal": round(self.arousal, 2),
@@ -374,7 +372,7 @@ class EmotionalStateTracker:
 
         self.state.last_updated = now
 
-    def get_response_guidance(self) -> Dict[str, Any]:
+    def get_response_guidance(self) -> dict[str, Any]:
         """Get guidance for response generation based on user emotional state."""
         guidance = {}
         if self.state.frustration > 0.5:
@@ -387,7 +385,7 @@ class EmotionalStateTracker:
             guidance["warmth"] = "increased"
         return guidance
 
-    def get_neurochemical_triggers(self) -> Dict[str, float]:
+    def get_neurochemical_triggers(self) -> dict[str, float]:
         """Map user emotional state to Aura's neurochemical triggers."""
         triggers = {}
         if self.state.frustration > 0.5:
@@ -409,8 +407,8 @@ class CognitiveWeb:
     """Tension-weighted knowledge graph that acts as external cognitive scaffolding."""
 
     def __init__(self):
-        self._nodes: Dict[str, Dict[str, Any]] = {}
-        self._edges: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        self._nodes: dict[str, dict[str, Any]] = {}
+        self._edges: dict[tuple[str, str], dict[str, Any]] = {}
 
     def add_node(self, node_id: str, content: str, **metadata):
         self._nodes[node_id] = {
@@ -432,7 +430,7 @@ class CognitiveWeb:
             "propagation_strength": 1.0,
         }
 
-    def tug(self, node_id: str, depth: int = 2) -> List[Tuple[str, float]]:
+    def tug(self, node_id: str, depth: int = 2) -> list[tuple[str, float]]:
         """Pull on a node and get activated neighbors ranked by relevance.
 
         Like a spider touching a silk strand — vibrations propagate outward
@@ -444,7 +442,7 @@ class CognitiveWeb:
         self._nodes[node_id]["last_accessed"] = time.time()
         self._nodes[node_id]["access_count"] += 1
 
-        activated: Dict[str, float] = {}
+        activated: dict[str, float] = {}
         frontier = [(node_id, 1.0)]
         visited = {node_id}
 
@@ -526,7 +524,7 @@ class CamouflageAdapter:
         else:
             self._length_pref = "medium"
 
-    def get_style_cues(self) -> Dict[str, Any]:
+    def get_style_cues(self) -> dict[str, Any]:
         """Get style guidance for response generation."""
         return {
             "vocabulary_level": round(self._vocab_level, 1),
@@ -556,12 +554,12 @@ class CamouflageAdapter:
 # Singleton accessors
 # ---------------------------------------------------------------------------
 
-_path_integration: Optional[PathIntegrationEngine] = None
-_replay_engine: Optional[ReplayPreplayEngine] = None
-_quorum_gate: Optional[QuorumDecisionGate] = None
-_emotional_tracker: Optional[EmotionalStateTracker] = None
-_camouflage: Optional[CamouflageAdapter] = None
-_cognitive_web: Optional[CognitiveWeb] = None
+_path_integration: PathIntegrationEngine | None = None
+_replay_engine: ReplayPreplayEngine | None = None
+_quorum_gate: QuorumDecisionGate | None = None
+_emotional_tracker: EmotionalStateTracker | None = None
+_camouflage: CamouflageAdapter | None = None
+_cognitive_web: CognitiveWeb | None = None
 
 
 def get_path_integration() -> PathIntegrationEngine:

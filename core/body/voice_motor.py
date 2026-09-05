@@ -4,7 +4,7 @@ Voice motor output channel executing speech synthesis.
 import logging
 import os
 from subprocess import SubprocessError
-from typing import Any, Dict
+from typing import Any
 
 from core.body.motor_controller import BaseMotor
 from core.runtime.errors import record_degradation
@@ -22,7 +22,7 @@ class VoiceMotor(BaseMotor):
     def name(self) -> str:
         return "voice"
 
-    async def actuate(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def actuate(self, params: dict[str, Any]) -> dict[str, Any]:
         text = params.get("text", "")
         if not text:
             return {"status": "ignored", "message": "Empty voice text"}

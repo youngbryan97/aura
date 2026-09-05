@@ -56,8 +56,9 @@ import math
 import random
 import time
 from collections import Counter, defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Optional, Sequence
+from typing import Any
 
 logger = logging.getLogger("Aura.Ghost.CausalIntegration")
 
@@ -193,7 +194,7 @@ class SystemIntegration:
         self._min_events = int(min_events)
         self._max_partition_subsystems = int(max_partition_subsystems)
         self._co_activation_window = int(co_activation_window)
-        self._cached: Optional[SystemIntegrationReport] = None
+        self._cached: SystemIntegrationReport | None = None
         self._cached_at: float = 0.0
 
     # ── bus access ────────────────────────────────────────────────────────
@@ -211,7 +212,7 @@ class SystemIntegration:
             return []
 
     # ── public API ────────────────────────────────────────────────────────
-    def report(self, *, now: Optional[float] = None, force: bool = False) -> SystemIntegrationReport:
+    def report(self, *, now: float | None = None, force: bool = False) -> SystemIntegrationReport:
         now = time.time() if now is None else now
         if (
             not force
@@ -429,7 +430,7 @@ class SystemIntegration:
 # Singleton
 # ─────────────────────────────────────────────────────────────────────────────
 
-_ENGINE: Optional[SystemIntegration] = None
+_ENGINE: SystemIntegration | None = None
 
 
 def get_system_integration() -> SystemIntegration:

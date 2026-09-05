@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
 import time
 import uuid
-from typing import Any, Dict, Literal, Optional
+from dataclasses import asdict, dataclass, field
+from typing import Any, Literal
 
 UnityLevel = Literal["coherent", "strained", "fragmented", "dissociated", "unknown"]
 Ownership = Literal["self", "world", "other", "ambiguous"]
@@ -26,11 +26,11 @@ class TemporalWindow:
     drift_from_previous: float = 0.0
     phase_lag: dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "TemporalWindow":
+    def from_dict(cls, data: dict[str, Any] | None) -> TemporalWindow:
         return cls(**dict(data or {}))
 
 
@@ -48,11 +48,11 @@ class BoundContent:
     affective_charge: float
     evidence_ref: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "BoundContent":
+    def from_dict(cls, data: dict[str, Any]) -> BoundContent:
         return cls(**dict(data))
 
 
@@ -65,11 +65,11 @@ class DraftBinding:
     chosen: bool
     suppressed_reason: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "DraftBinding":
+    def from_dict(cls, data: dict[str, Any]) -> DraftBinding:
         return cls(**dict(data))
 
 
@@ -91,7 +91,7 @@ class ReconciledDraftSet:
     unresolved_residue: list[str] = field(default_factory=list)
     memory_commit_mode: CommitMode = "clean"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "set_id": self.set_id,
             "chosen": self.chosen.to_dict(),
@@ -103,7 +103,7 @@ class ReconciledDraftSet:
         }
 
     @classmethod
-    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "ReconciledDraftSet":
+    def from_dict(cls, data: dict[str, Any] | None) -> ReconciledDraftSet:
         payload = dict(data or {})
         chosen = DraftBinding.from_dict(payload.get("chosen") or {})
         alternatives = [
@@ -135,11 +135,11 @@ class SelfWorldBinding:
     boundary_integrity: float = 1.0
     contamination_flags: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "SelfWorldBinding":
+    def from_dict(cls, data: dict[str, Any] | None) -> SelfWorldBinding:
         return cls(**dict(data or {}))
 
 
@@ -155,11 +155,11 @@ class FragmentationReport:
     safe_to_act: bool = True
     safe_to_self_report: bool = True
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "FragmentationReport":
+    def from_dict(cls, data: dict[str, Any] | None) -> FragmentationReport:
         payload = dict(data or {})
         payload["top_causes"] = [
             (str(name), float(weight), str(text))
@@ -181,11 +181,11 @@ class UnityRepairPlan:
     requires_will: bool = True
     expected_improvement: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "UnityRepairPlan":
+    def from_dict(cls, data: dict[str, Any] | None) -> UnityRepairPlan:
         return cls(**dict(data or {}))
 
 
@@ -201,7 +201,7 @@ class WorkspaceBroadcastFrame:
     reentry_targets: list[str] = field(default_factory=list)
     will_receipt_id: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "frame_id": self.frame_id,
             "focus": self.focus.to_dict() if self.focus else None,
@@ -215,7 +215,7 @@ class WorkspaceBroadcastFrame:
         }
 
     @classmethod
-    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "WorkspaceBroadcastFrame":
+    def from_dict(cls, data: dict[str, Any] | None) -> WorkspaceBroadcastFrame:
         payload = dict(data or {})
         focus = payload.get("focus")
         periphery = [
@@ -276,7 +276,7 @@ class MindMoment:
     safe_to_act: bool = True
     receipt_required: bool = True
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "moment_id": self.moment_id,
             "created_at": self.created_at,
@@ -311,7 +311,7 @@ class MindMoment:
         }
 
     @classmethod
-    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "MindMoment":
+    def from_dict(cls, data: dict[str, Any] | None) -> MindMoment:
         payload = dict(data or {})
         return cls(
             moment_id=str(payload.get("moment_id") or _new_id("mind")),
@@ -381,7 +381,7 @@ class UnityState:
     state_version: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "unity_id": self.unity_id,
             "created_at": self.created_at,
@@ -409,7 +409,7 @@ class UnityState:
         }
 
     @classmethod
-    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "UnityState":
+    def from_dict(cls, data: dict[str, Any] | None) -> UnityState:
         payload = dict(data or {})
         temporal = TemporalWindow.from_dict(payload.get("temporal") or {})
         contents = [

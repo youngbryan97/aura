@@ -40,7 +40,6 @@ nothing.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
 import itertools
 import threading
 import time
@@ -48,6 +47,8 @@ from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Phase",
@@ -177,7 +178,7 @@ class _CycleScope:
         self.cycle_id = 0
         self._previous = 0
 
-    def __enter__(self) -> "_CycleScope":
+    def __enter__(self) -> _CycleScope:
         self._previous = current_cycle()
         self.cycle_id = next(_cycle_counter)
         _cycle_local.cycle_id = self.cycle_id

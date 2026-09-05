@@ -37,12 +37,11 @@ import statistics
 import time
 from collections import deque
 from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any
 
 from core.runtime.file_write_gateway import get_file_write_gateway
-from core.utils.task_tracker import get_task_tracker
 from core.runtime.state_ownership import state_root
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.PerformanceGuard")
 
@@ -80,12 +79,12 @@ class AckSample:
 class PerformanceGuard:
     def __init__(self) -> None:
         self.budgets = Budgets()
-        self._frames: Deque[FrameSample] = deque(maxlen=512)
-        self._acks: Deque[AckSample] = deque(maxlen=512)
+        self._frames: deque[FrameSample] = deque(maxlen=512)
+        self._acks: deque[AckSample] = deque(maxlen=512)
         self._motion_throttled: bool = False
         self._streak: int = 0
-        self._on_motion_change: List = []
-        self._task: Optional[asyncio.Task] = None
+        self._on_motion_change: list = []
+        self._task: asyncio.Task | None = None
         self._running = False
         self._derive_concurrency_from_ram()
 
@@ -146,7 +145,7 @@ class PerformanceGuard:
 
     # ── reports ───────────────────────────────────────────────────────
 
-    def report(self) -> Dict[str, Any]:
+    def report(self) -> dict[str, Any]:
         frame_durations = [f.duration_ms for f in self._frames]
         ack_latencies = [a.latency_ms for a in self._acks]
         return {
@@ -160,7 +159,7 @@ class PerformanceGuard:
     # ── persistence ───────────────────────────────────────────────────
 
     @staticmethod
-    def _persist(row: Dict[str, Any]) -> None:
+    def _persist(row: dict[str, Any]) -> None:
         try:
             from core.governance_context import local_internal_governed_scope
             with local_internal_governed_scope("runtime.performance_guard.samples", domain="file_write"):
@@ -202,7 +201,7 @@ class PerformanceGuard:
             self._task = None
 
 
-def _pct(values: List[float]) -> Dict[str, float]:
+def _pct(values: list[float]) -> dict[str, float]:
     if not values:
         return {"count": 0}
     s = sorted(values)
@@ -218,7 +217,7 @@ def _pct(values: List[float]) -> Dict[str, float]:
     }
 
 
-_GUARD: Optional[PerformanceGuard] = None
+_GUARD: PerformanceGuard | None = None
 
 
 def get_guard() -> PerformanceGuard:

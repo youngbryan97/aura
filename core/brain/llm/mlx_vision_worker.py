@@ -1,9 +1,9 @@
-import multiprocessing as mp
-import time
-import os
 import logging
+import multiprocessing as mp
+import os
 import queue
 import threading
+import time
 
 logger = logging.getLogger("MLXVisionWorker")
 
@@ -46,7 +46,7 @@ def _mlx_vision_worker_loop(model_path: str, req_q: mp.Queue, res_q: mp.Queue):
     
     try:
         import mlx.core  # noqa: F401
-        from mlx_vlm import load, generate
+        from mlx_vlm import generate, load
         from mlx_vlm.utils import load_config
         
         logger.info("Loading Vision Model: %s", model_path)

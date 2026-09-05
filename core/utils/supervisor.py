@@ -10,7 +10,6 @@ Managed Task Supervisor.
 import asyncio
 import logging
 import time
-from typing import Dict, Optional, Set
 
 from core.runtime import resource_psutil as psutil
 from core.runtime.errors import record_degradation
@@ -25,20 +24,20 @@ MEMORY_CHECK_INTERVAL = 5.0  # seconds
 
 
 class ManagedTask:
-    def __init__(self, task: asyncio.Task, created_at: float, name: Optional[str], meta: Optional[dict]):
+    def __init__(self, task: asyncio.Task, created_at: float, name: str | None, meta: dict | None):
         self.task = task
         self.created_at = created_at
         import uuid
         base_name = name or f"task-{int(created_at)}"
         self.name = f"{base_name}_{uuid.uuid4().hex[:6]}"
         self.meta = meta or {}
-        self.cancel_reason: Optional[str] = None
+        self.cancel_reason: str | None = None
 
     @property
     def done(self) -> bool:
         return self.task.done()
 
-    def cancel(self, reason: Optional[str] = None) -> None:
+    def cancel(self, reason: str | None = None) -> None:
         self.cancel_reason = reason
         if not self.task.done():
             try:
@@ -49,21 +48,21 @@ class ManagedTask:
 
 class Supervisor:
     def __init__(self,
-                 loop: Optional[asyncio.AbstractEventLoop] = None,
+                 loop: asyncio.AbstractEventLoop | None = None,
                  memory_high_percent: float = DEFAULT_MEMORY_HIGH_PERCENT,
                  memory_critical_percent: float = DEFAULT_MEMORY_CRITICAL_PERCENT):
         try:
             self.loop = loop or asyncio.get_running_loop()
         except RuntimeError:
             self.loop = loop  # Will be set when the event loop starts
-        self._tasks: Dict[str, ManagedTask] = {}
+        self._tasks: dict[str, ManagedTask] = {}
         import threading
         self._tasks_lock = threading.Lock()  # Protect against cross-thread mutation
         self.memory_high_percent = memory_high_percent
         self.memory_critical_percent = memory_critical_percent
         self._memory_watcher_active = False
-        self._memory_watcher_task: Optional[ManagedTask] = None
-        self._optional_task_tags: Set[str] = set()  # tasks allowed to be auto-evicted
+        self._memory_watcher_task: ManagedTask | None = None
+        self._optional_task_tags: set[str] = set()  # tasks allowed to be auto-evicted
 
     def start_memory_watcher(self) -> None:
         # Ensure we have a valid event loop
@@ -83,7 +82,7 @@ class Supervisor:
             self._memory_watcher_task.cancel("supervisor-stopping")
             self._memory_watcher_task = None
 
-    def create_managed_task(self, coro, name: Optional[str] = None, meta: Optional[dict] = None) -> ManagedTask:
+    def create_managed_task(self, coro, name: str | None = None, meta: dict | None = None) -> ManagedTask:
         """
         Schedule a coroutine and return a ManagedTask wrapper.
         Use this instead of asyncio.create_task across the codebase.
@@ -168,7 +167,7 @@ class Supervisor:
             logger.info("Evicting optional task %s (reason=%s)", m.name, reason)
             m.cancel(reason)
 
-    async def cancel_all(self, reason: Optional[str] = "shutdown"):
+    async def cancel_all(self, reason: str | None = "shutdown"):
         with self._tasks_lock:
             snapshot = list(self._tasks.values())
         for m in snapshot:
@@ -182,7 +181,7 @@ class Supervisor:
         with self._tasks_lock:
             return list(self._tasks.keys())
 
-    def get_task(self, name: str) -> Optional[ManagedTask]:
+    def get_task(self, name: str) -> ManagedTask | None:
         with self._tasks_lock:
             return self._tasks.get(name)
 

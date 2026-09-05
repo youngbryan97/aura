@@ -9,11 +9,11 @@ required) so the contract is exercised in CI even without the full chaos run.
 """
 from __future__ import annotations
 
-
 import random
 import string
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 _DEFAULT_ALLOWED_PARSE_ERRORS = (
     RuntimeError,
@@ -26,10 +26,10 @@ def random_string(rng: random.Random, *, max_len: int = 64) -> str:
     return "".join(rng.choice(string.printable) for _ in range(n))
 
 
-def random_dict(rng: random.Random, *, depth: int = 2) -> Dict[str, Any]:
+def random_dict(rng: random.Random, *, depth: int = 2) -> dict[str, Any]:
     if depth <= 0:
         return {}
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     for _ in range(rng.randint(0, 4)):
         key = random_string(rng, max_len=12)
         roll = rng.random()
@@ -48,7 +48,7 @@ def random_dict(rng: random.Random, *, depth: int = 2) -> Dict[str, Any]:
 class FuzzReport:
     target: str
     iterations: int
-    failures: List[Dict[str, Any]] = field(default_factory=list)
+    failures: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def passed(self) -> bool:
@@ -61,8 +61,8 @@ def fuzz_target(
     *,
     iterations: int = 500,
     seed: int = 12345,
-    input_fn: Optional[Callable[[random.Random], Any]] = None,
-    forbidden_exceptions: Optional[List[type]] = None,
+    input_fn: Callable[[random.Random], Any] | None = None,
+    forbidden_exceptions: list[type] | None = None,
 ) -> FuzzReport:
     """Drive ``parse`` with ``iterations`` random inputs.
 

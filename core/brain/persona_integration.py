@@ -18,8 +18,9 @@ from __future__ import annotations
 import functools
 import inspect
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
@@ -190,9 +191,9 @@ def _restore(target: Any, original: Callable) -> None:
         del target.__dict__["think"]
         if getattr(getattr(target, "think", None), _WRAPPER_MARKER, False):
             # A class-level wrapper survived the instance-level delete.
-            setattr(target, "think", original)
+            target.think = original
     except (AttributeError, KeyError, TypeError):
-        setattr(target, "think", original)
+        target.think = original
 
 
 def initialize_persona_integration(
@@ -257,7 +258,7 @@ def initialize_persona_integration(
         replaced = True
 
     try:
-        setattr(target, "think", _build_wrapper(think, adapter, persona_name))
+        target.think = _build_wrapper(think, adapter, persona_name)
     except (AttributeError, TypeError) as exc:
         record_degradation("persona_integration", exc)
         return PersonaIntegrationReceipt(

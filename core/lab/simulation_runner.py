@@ -15,7 +15,7 @@ validated. No randomness, no rigged effect, no manufactured confidence.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
@@ -25,7 +25,7 @@ logger = logging.getLogger("Aura.SimulationRunner")
 class SimulationRunner:
     """Runs a designed experiment as an exact falsification (no fabrication)."""
 
-    async def run_sim(self, experiment_spec: Dict[str, Any]) -> Dict[str, Any]:
+    async def run_sim(self, experiment_spec: dict[str, Any]) -> dict[str, Any]:
         claim = str(
             experiment_spec.get("claim")
             or experiment_spec.get("hypothesis_statement")

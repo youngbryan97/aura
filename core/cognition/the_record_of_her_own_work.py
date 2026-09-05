@@ -37,9 +37,10 @@ import logging
 import threading
 import time
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from core.runtime.errors import record_degradation
 

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger("Aura.PromotionGate")
 
@@ -12,7 +12,7 @@ class PromotionGate:
     approval and a rollback path."""
 
     @staticmethod
-    def check_gate(eval_report: Dict[str, Any], requires_approval: bool = False) -> bool:
+    def check_gate(eval_report: dict[str, Any], requires_approval: bool = False) -> bool:
         """Determines if the patch satisfies code safety standards autonomously."""
         if eval_report.get("regression_detected", False):
             logger.error("🚫 Promotion Gate: Blocked due to regression check failure.")

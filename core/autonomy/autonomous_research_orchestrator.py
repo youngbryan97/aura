@@ -55,8 +55,8 @@ from core.autonomy.memory_persister import (
 from core.autonomy.reflection_loop import ReflectionLoop, ReflectionRecord
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import Severity, record_degradation
-from core.runtime.task_ownership import create_tracked_task
 from core.runtime.lockdep import checked_async_lock
+from core.runtime.task_ownership import create_tracked_task
 
 logger = logging.getLogger("Aura.AutonomousResearchOrchestrator")
 

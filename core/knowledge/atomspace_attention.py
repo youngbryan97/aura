@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from core.knowledge.atomspace import HEBBIAN, Atom, Link
+from core.knowledge.atomspace import Atom
 
 if TYPE_CHECKING:
     from core.knowledge.atomspace import AtomSpace
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 __all__ = ["reset_attention", "spread_importance_touches", "neighbours"]
 
 
-def spread_importance_touches(space: "AtomSpace") -> int:
+def spread_importance_touches(space: AtomSpace) -> int:
     """Spread, and say how many atoms it cost to do it.
 
     Attention is only worth comparing against a cheaper policy at equal
@@ -42,7 +42,7 @@ def spread_importance_touches(space: "AtomSpace") -> int:
     return touched
 
 
-def neighbours(space: "AtomSpace", atom: Atom) -> list[Atom]:
+def neighbours(space: AtomSpace, atom: Atom) -> list[Atom]:
     """Everything one hop from ``atom`` through the metagraph.
 
     Public because a baseline that walks the graph has to be able to walk
@@ -53,7 +53,7 @@ def neighbours(space: "AtomSpace", atom: Atom) -> list[Atom]:
         return sorted(space._neighbors_locked(atom), key=str)
 
 
-def reset_attention(space: "AtomSpace") -> float:
+def reset_attention(space: AtomSpace) -> float:
     """Return every atom's STI to the fund, keeping truth and structure.
 
     A second task that starts on the first task's salience is not a second

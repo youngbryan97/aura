@@ -14,14 +14,14 @@ where f_θ is the learned flow field (approximated via small MLP) and η(t) is
 noise from the FHN metabolic state.
 """
 
-from core.runtime.errors import record_degradation
 import logging
-import time
 import threading
+import time
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
 
 import numpy as np
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("PNEUMA.NeuralODEFlow")
 
@@ -105,7 +105,7 @@ class NeuralODEFlow:
             source="init",
         )
         self._t = 0.0
-        self._history: List[BeliefState] = []
+        self._history: list[BeliefState] = []
         self._max_history = 200
         self._lock = threading.Lock()
         self._step_count = 0
@@ -125,7 +125,7 @@ class NeuralODEFlow:
         k4 = self.flow_net.forward(b + dt * k3, t + dt)
         return b + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
 
-    def step(self, dt: Optional[float] = None) -> BeliefState:
+    def step(self, dt: float | None = None) -> BeliefState:
         """Advance belief state by dt seconds."""
         with self._lock:
             if dt is None:

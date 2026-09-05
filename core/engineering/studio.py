@@ -14,7 +14,7 @@ its own checks.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 __all__ = ["DesignStudioResult", "design_from", "SHEET_ORDER"]

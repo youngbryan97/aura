@@ -8,10 +8,8 @@ claim.  It is intentionally conservative because optimistic memory math is how
 """
 from __future__ import annotations
 
-
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Iterable
-
 
 _GIB = 1024**3
 

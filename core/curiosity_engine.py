@@ -4,17 +4,17 @@ Aura can explore, learn, and satisfy her curiosity in the background.
 import asyncio
 import logging
 import random
+import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from core.autonomy.research_goal_filter import research_query_for_goal
 from core.autonomy.topic_selection import conversation_topic, select_autonomous_topic
 from core.runtime.background_policy import background_activity_allowed
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
-import re
 
 logger = logging.getLogger("Aura.Curiosity")
 
@@ -49,7 +49,7 @@ class LearningItem:
     source: str
     confidence: float
     timestamp: float = field(default_factory=time.time)
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
 #: Markers a fetched page could use to impersonate an instruction once its
 #: text lands in a context string that reaches code generation.
@@ -112,10 +112,10 @@ class CuriosityEngine:
         self.orchestrator = orchestrator
         self.proactive_comm = proactive_comm or _PassiveProactiveComm()
         self.curiosity_queue: deque[CuriosityTopic] = deque(maxlen=100)
-        self.knowledge_base: List[LearningItem] = []
-        self.explored_topics: Set[str] = set()
-        self.current_topic: Optional[str] = None # Added for UI visibility
-        self._background_tasks: List[asyncio.Task] = []
+        self.knowledge_base: list[LearningItem] = []
+        self.explored_topics: set[str] = set()
+        self.current_topic: str | None = None # Added for UI visibility
+        self._background_tasks: list[asyncio.Task] = []
         self._stop_event = asyncio.Event()
         self._worker_failures = 0
         self._last_worker_error: str | None = None
@@ -123,7 +123,7 @@ class CuriosityEngine:
         self._last_blocker = "not_started"
         self._last_source_url = ""
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Returns curiosity metrics for the HUD."""
         return {
             "curiosity_score": self.get_curiosity_level() * 100,
@@ -241,7 +241,7 @@ class CuriosityEngine:
                 logger.error("Curiosity worker error: %s", e)
                 await asyncio.sleep(60) # Backoff on error
 
-    def _get_next(self) -> Optional[CuriosityTopic]:
+    def _get_next(self) -> CuriosityTopic | None:
         if not self.curiosity_queue:
             state = None
             kernel = getattr(self.orchestrator, "kernel", None)
@@ -270,7 +270,7 @@ class CuriosityEngine:
                 return t
         return None
 
-    async def identify_knowledge_gap(self) -> Optional[str]:
+    async def identify_knowledge_gap(self) -> str | None:
         """Proactively identifies a knowledge gap for the meta-evolution loop."""
         topic = self._get_next()
         if topic:

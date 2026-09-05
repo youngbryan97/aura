@@ -11,7 +11,6 @@ This is both for safety (post-incident review) and transparency
 (showing the user exactly what Aura did and when).
 """
 
-from core.runtime.errors import record_degradation
 import json
 import logging
 import sqlite3
@@ -19,9 +18,10 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.config import config
+from core.runtime.errors import record_degradation
 from core.runtime.sqlite_support import connecting
 
 logger = logging.getLogger("Security.AuditTrail")
@@ -30,7 +30,7 @@ logger = logging.getLogger("Security.AuditTrail")
 class AuditTrail:
     """Immutable, append-only audit log backed by SQLite."""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         self._db_path = db_path or str(config.paths.home_dir / "data/audit_trail.db")
         self._lock = threading.Lock()
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -71,12 +71,12 @@ class AuditTrail:
         category: str,
         action: str,
         actor: str = "aura",
-        target: Optional[str] = None,
-        params: Optional[Dict[str, Any]] = None,
+        target: str | None = None,
+        params: dict[str, Any] | None = None,
         outcome: str = "success",
         outcome_detail: str = "",
         reversible: bool = False,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
     ) -> str:
         """Record an action in the audit trail.
         
@@ -143,7 +143,7 @@ class AuditTrail:
         )
         return entry_id
 
-    def get_recent(self, limit: int = 50, category: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_recent(self, limit: int = 50, category: str | None = None) -> list[dict[str, Any]]:
         """Retrieve recent audit entries."""
         with connecting(self._get_conn()) as conn:
             conn.row_factory = sqlite3.Row
@@ -159,7 +159,7 @@ class AuditTrail:
                 ).fetchall()
             return [dict(r) for r in rows]
 
-    def get_by_target(self, target: str, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_by_target(self, target: str, limit: int = 20) -> list[dict[str, Any]]:
         """Get all audit entries for a specific target (e.g., a file path)."""
         with connecting(self._get_conn()) as conn:
             conn.row_factory = sqlite3.Row
@@ -179,7 +179,7 @@ class AuditTrail:
                 )
                 conn.commit()
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Audit trail statistics."""
         with connecting(self._get_conn()) as conn:
             total = conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0]
@@ -207,7 +207,7 @@ class AuditTrail:
 # ---------------------------------------------------------------------------
 # Singleton
 # ---------------------------------------------------------------------------
-_instance: Optional[AuditTrail] = None
+_instance: AuditTrail | None = None
 
 
 def get_audit_trail() -> AuditTrail:

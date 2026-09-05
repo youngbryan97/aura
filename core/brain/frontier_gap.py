@@ -25,10 +25,10 @@ from typing import Any
 
 from core.brain.frontier_evidence_v5 import (
     MATCHED_BUDGET,
-    actor_independence,
     PROTOCOL_MANIFEST,
     PROTOCOL_MANIFEST_SHA256,
     RUN_ENVELOPE_SCHEMA,
+    actor_independence,
     analyze_gap_trend,
     identity_freeze_sha256,
     make_index_entry,
@@ -926,7 +926,7 @@ def _recomputed_execution_summary(
 
 def _regrade_against_deterministic_grader(
     *,
-    item: "BatteryItem",
+    item: BatteryItem,
     answer: str,
     signed_correct: bool,
     subject: str,
@@ -1818,7 +1818,7 @@ def first_party_import_closure(
                 elif node.module:
                     modules.append(node.module)
             for module in modules:
-                if not module.split(".")[0] in {"core", "interface", "tools"}:
+                if module.split(".")[0] not in {"core", "interface", "tools"}:
                     continue
                 candidate = module.replace(".", "/")
                 for suffix in (f"{candidate}.py", f"{candidate}/__init__.py"):

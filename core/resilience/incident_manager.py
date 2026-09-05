@@ -15,7 +15,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any
 
 from core.memory.retention_policy import working_history_retention_policy
 
@@ -51,7 +51,7 @@ class Incident:
     updated_at: float = field(default_factory=time.time)
     resolved_at: float = 0.0
     occurrence_count: int = 1
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class IncidentManager:
@@ -69,9 +69,9 @@ class IncidentManager:
     ESCALATION_THRESHOLD = 5  # occurrences before severity escalation
 
     def __init__(self) -> None:
-        self._active: Dict[str, Incident] = {}
-        self._history: Deque[Incident] = deque(maxlen=self.MAX_HISTORY)
-        self._alert_callbacks: List[Any] = []
+        self._active: dict[str, Incident] = {}
+        self._history: deque[Incident] = deque(maxlen=self.MAX_HISTORY)
+        self._alert_callbacks: list[Any] = []
         self._incident_counter = 0
         self._total_incidents = 0
 
@@ -86,7 +86,7 @@ class IncidentManager:
         severity: IncidentSeverity | str = IncidentSeverity.WARNING,
         root_cause_hint: str = "",
         mitigation_taken: str = "",
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
         *,
         source: str | None = None,
         title: str | None = None,
@@ -181,7 +181,7 @@ class IncidentManager:
         self._fire_alerts(incident)
         return incident
 
-    def resolve(self, category: str, resolution: str = "") -> Optional[Incident]:
+    def resolve(self, category: str, resolution: str = "") -> Incident | None:
         """Resolve an active incident."""
         if category not in self._active:
             return None
@@ -202,7 +202,7 @@ class IncidentManager:
         )
         return incident
 
-    def get_active(self) -> List[Dict[str, Any]]:
+    def get_active(self) -> list[dict[str, Any]]:
         """Get all active incidents."""
         return [
             {
@@ -219,9 +219,9 @@ class IncidentManager:
             for i in self._active.values()
         ]
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get incident manager summary."""
-        active_by_severity: Dict[str, int] = {}
+        active_by_severity: dict[str, int] = {}
         for i in self._active.values():
             active_by_severity[i.severity.value] = (
                 active_by_severity.get(i.severity.value, 0) + 1
@@ -271,7 +271,7 @@ class IncidentManager:
 
 
 # Singleton
-_incident_manager: Optional[IncidentManager] = None
+_incident_manager: IncidentManager | None = None
 
 
 def get_incident_manager() -> IncidentManager:

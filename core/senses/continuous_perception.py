@@ -9,7 +9,6 @@ constitutional routing once the live runtime is up.
 
 import asyncio
 import logging
-import os
 
 try:
     from PIL import Image, ImageChops

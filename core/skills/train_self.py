@@ -1,17 +1,17 @@
 """skills/train_self.py - Neuroplasticity / Self-Fine-Tuning Skill
 Provides the architecture for Aura to learn from her own high-value experiences.
 """
-from core.runtime.errors import record_degradation
+import asyncio
 import json
 import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
-import asyncio
 from core.config import config
-from core.runtime.atomic_writer import async_atomic_write_text, atomic_write_text
+from core.runtime.atomic_writer import async_atomic_write_text
+from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.skills.base_skill import BaseSkill
 
@@ -36,7 +36,7 @@ class TrainSelfSkill(BaseSkill):
         self.dataset_path = config.paths.data_dir / "training" / "dataset.jsonl"
         self.dataset_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async def execute(self, goal: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, goal: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         action = goal.get("action", "collect_memories")
         
         if action == "collect_memories":
@@ -56,7 +56,7 @@ class TrainSelfSkill(BaseSkill):
             content = getattr(turn, "content", "") or getattr(turn, "text", "") or ""
         return str(role).strip().lower(), str(content).strip()
 
-    async def _collect_high_value_memories(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _collect_high_value_memories(self, context: dict[str, Any]) -> dict[str, Any]:
         """Gathers successful interactions for future training (v13: no fake data)."""
         try:
             logger.info("Collecting high-value memories for neuroplasticity...")
@@ -108,7 +108,7 @@ class TrainSelfSkill(BaseSkill):
             logger.error("Memory collection failed: %s", e)
             return {"ok": False, "error": str(e)}
 
-    async def _trigger_finetuning(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _trigger_finetuning(self, params: dict[str, Any]) -> dict[str, Any]:
         """Consolidate memories into permanent knowledge (Self-Learning).
         Instead of full fine-tuning (expensive), we distill high-value memories
         into a 'Self-Learned Knowledge' file that is injected into context.
@@ -127,7 +127,7 @@ class TrainSelfSkill(BaseSkill):
             new_knowledge = []
             def read_memories():
                 lines = []
-                with open(self.dataset_path, "r") as f:
+                with open(self.dataset_path) as f:
                     for line in f:
                         try:
                             data = json.loads(line)
@@ -144,8 +144,8 @@ class TrainSelfSkill(BaseSkill):
                 return {"ok": False, "error": "No valid memories found in dataset."}
                 
             try:
-                from core.container import ServiceContainer
                 from core.brain.types import ThinkingMode
+                from core.container import ServiceContainer
                 brain = ServiceContainer.get("cognitive_engine", default=None)
                 
                 if brain:
@@ -196,5 +196,5 @@ class TrainSelfSkill(BaseSkill):
 
     def _get_dataset_size(self) -> int:
         if not os.path.exists(self.dataset_path): return 0
-        with open(self.dataset_path, "r") as f:
+        with open(self.dataset_path) as f:
             return sum(1 for _ in f)

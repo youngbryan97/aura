@@ -5,25 +5,25 @@ object state payloads are marshalled cleanly onto mutated schemas, which is what
 prevents in-flight type mismatch drift during AST hot-reloading.
 """
 import logging
-from typing import Dict, Any, Type, Optional
+from typing import Any
 
 logger = logging.getLogger("Aura.Morphogenesis.Migrator")
 
 
 class VersionRegistry:
     """Manages versioned allocations of autopoietic components to prevent in-flight type drift."""
-    _registry: Dict[str, Type] = {}
-    _active_versions: Dict[str, int] = {}
+    _registry: dict[str, type] = {}
+    _active_versions: dict[str, int] = {}
 
     @classmethod
-    def register_cell_version(cls, base_name: str, version: int, class_impl: Type):
+    def register_cell_version(cls, base_name: str, version: int, class_impl: type):
         key = f"{base_name}_v{version}"
         cls._registry[key] = class_impl
         cls._active_versions[base_name] = max(cls._active_versions.get(base_name, 0), version)
         logger.info(f"🧬 Registered morphic variant: {key}")
 
     @classmethod
-    def get_latest(cls, base_name: str) -> Optional[Type]:
+    def get_latest(cls, base_name: str) -> type | None:
         latest_ver = cls._active_versions.get(base_name)
         if latest_ver is None:
             return None
@@ -39,12 +39,12 @@ class VersionRegistry:
 class MorphicStateProxy:
     """Transparent proxy that intercepts active calls and marshals state onto mutated schemas."""
     
-    def __init__(self, base_name: str, initial_state: Dict[str, Any]):
+    def __init__(self, base_name: str, initial_state: dict[str, Any]):
         self._base_name = base_name
         self._underlying_state = initial_state
         self._current_version = 1
 
-    def _sync_state(self) -> tuple[Optional[Type], int]:
+    def _sync_state(self) -> tuple[type | None, int]:
         latest_class = VersionRegistry.get_latest(self._base_name)
         latest_version = VersionRegistry._active_versions.get(self._base_name, 1)
         

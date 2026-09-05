@@ -1,8 +1,8 @@
 import inspect
-from core.runtime.errors import record_degradation
-import asyncio
 import logging
-from typing import Callable, Dict, List
+from collections.abc import Callable
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("aura.reflex_core")
 
@@ -13,15 +13,15 @@ class HardenedReflexCore:
     
     def __init__(self, orchestrator=None):
         self.orchestrator = orchestrator
-        self.reflex_actions: Dict[str, Callable] = {
+        self.reflex_actions: dict[str, Callable] = {
             "THERMAL_CRITICAL": self._halt_heavy_tasks,
             "SECURITY_BREACH": self._isolate_network,
             "DISK_FULL": self._flush_temp_buffers,
             "IDENTITY_COLLAPSE": self._reboot_narrative_shard
         }
-        self.active_reflexes: List[str] = []
+        self.active_reflexes: list[str] = []
 
-    async def trigger_reflex(self, signal_type: str, metadata: Dict = None):
+    async def trigger_reflex(self, signal_type: str, metadata: dict = None):
         """Execute a reflex action with high priority."""
         if signal_type in self.reflex_actions:
             logger.critical("⚡ REFLEX TRIGGERED: %s", signal_type)

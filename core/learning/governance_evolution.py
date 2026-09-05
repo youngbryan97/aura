@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any
 
 
 class GovernanceRewriteStatus(str, Enum):
@@ -22,14 +22,14 @@ class GovernanceRewriteStatus(str, Enum):
 @dataclass(frozen=True)
 class GovernanceRewriteDecision:
     status: GovernanceRewriteStatus
-    reasons: List[str]
-    required_reviews: List[str] = field(default_factory=list)
+    reasons: list[str]
+    required_reviews: list[str] = field(default_factory=list)
 
     @property
     def allowed(self) -> bool:
         return self.status == GovernanceRewriteStatus.ALLOWED_STRENGTHENING
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["status"] = self.status.value
         return payload
@@ -68,7 +68,7 @@ class GovernanceEvolutionPolicy:
 
     def evaluate(self, *, target_path: str, intent: str, diff_text: str) -> GovernanceRewriteDecision:
         haystack = f"{target_path}\n{intent}\n{diff_text}".lower()
-        reasons: List[str] = []
+        reasons: list[str] = []
         if any(anchor.lower() in haystack for anchor in self.IDENTITY_ANCHORS) and any(
             re.search(pattern, haystack) for pattern in self.WEAKENING_PATTERNS
         ):

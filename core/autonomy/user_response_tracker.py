@@ -18,7 +18,7 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger("Aura.Autonomy.UserResponseTracker")
 
@@ -29,7 +29,7 @@ class ProactiveEvent:
     sent_at: float = field(default_factory=time.time)
     source: str = ""
     responded: bool = False
-    response_time_s: Optional[float] = None
+    response_time_s: float | None = None
 
 
 class UserResponseTracker:
@@ -50,8 +50,8 @@ class UserResponseTracker:
     MAX_EVENTS = 50
 
     def __init__(self) -> None:
-        self._events: Deque[ProactiveEvent] = deque(maxlen=self.MAX_EVENTS)
-        self._pending_event: Optional[ProactiveEvent] = None
+        self._events: deque[ProactiveEvent] = deque(maxlen=self.MAX_EVENTS)
+        self._pending_event: ProactiveEvent | None = None
         self._total_sent: int = 0
         self._total_responded: int = 0
         self._backoff_multiplier: float = 1.0
@@ -159,7 +159,7 @@ class UserResponseTracker:
 
         return self._backoff_multiplier
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "total_sent": self._total_sent,
             "total_responded": self._total_responded,
@@ -174,7 +174,7 @@ class UserResponseTracker:
 
 # ── Singleton ─────────────────────────────────────────────────────────────
 
-_instance: Optional[UserResponseTracker] = None
+_instance: UserResponseTracker | None = None
 
 
 def get_user_response_tracker() -> UserResponseTracker:

@@ -1,9 +1,9 @@
 """core/memory/project_timeline.py
 Tracks long-term project milestones and progress timeline records.
 """
-from dataclasses import dataclass, field
 import time
-from typing import List, Dict, Any
+from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -19,7 +19,7 @@ class ProjectTimeline:
     """Manages project milestones and long-horizon timeline progressions."""
 
     def __init__(self):
-        self.milestones: List[Milestone] = []
+        self.milestones: list[Milestone] = []
 
     def add_milestone(self, project_id: str, title: str, due_in_seconds: float) -> None:
         self.milestones.append(Milestone(
@@ -34,7 +34,7 @@ class ProjectTimeline:
                 m.completed = True
                 m.completed_time = time.time()
 
-    def get_active_milestones(self) -> List[Dict[str, Any]]:
+    def get_active_milestones(self) -> list[dict[str, Any]]:
         return [
             {"project_id": m.project_id, "title": m.title, "due": m.due_time, "completed": m.completed}
             for m in self.milestones if not m.completed

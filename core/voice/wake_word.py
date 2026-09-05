@@ -24,8 +24,8 @@ from typing import Any
 
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
-from core.voice.audio_provenance import attribute_wake_audio
 from core.runtime.task_ownership import create_tracked_task
+from core.voice.audio_provenance import attribute_wake_audio
 
 logger = logging.getLogger("Aura.WakeWord")
 

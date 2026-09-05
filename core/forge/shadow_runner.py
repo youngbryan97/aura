@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from core.runtime.action_executor import ActionExecutor
 from core.will import ActionDomain
@@ -14,7 +14,7 @@ class ShadowRunner:
     """Runs patches in shadow/sandboxed execution modes to prove compile safety."""
 
     @staticmethod
-    async def run_shadow_tests(patch_path: str, test_cmd: str, source: str = "shadow_runner") -> Dict[str, Any]:
+    async def run_shadow_tests(patch_path: str, test_cmd: str, source: str = "shadow_runner") -> dict[str, Any]:
         """Executes a sandboxed run of the patch using ActionExecutor.SELF_MODIFICATION."""
         logger.info("Initiating shadow run for patch: %s with test command: %s", patch_path, test_cmd)
         

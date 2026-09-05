@@ -7,8 +7,9 @@ risk, not just appear in prose.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
-from typing import Any, Mapping
+from typing import Any
 
 from core.being.causal_self_state import CausalSelfVector, runtime_field
 from core.being.self_model_attractor import SelfAttractorState

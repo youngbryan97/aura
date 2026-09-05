@@ -1,8 +1,8 @@
 """core/sleep/nightly_report.py
 Compiles offline cycle nightly status reports for user review.
 """
-from typing import Dict, Any
 import time
+from typing import Any
 
 
 class NightlyReportCompiler:

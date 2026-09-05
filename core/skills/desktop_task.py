@@ -37,7 +37,6 @@ from core.runtime.desktop_task_contract import (
 )
 from core.runtime.errors import record_degradation
 from core.runtime.os_automation_effects import (
-    canonical_app_target,
     extract_target_apps,
     extract_target_paths,
 )
@@ -503,7 +502,7 @@ class DesktopTaskSkill(BaseSkill):
         return "*"
 
     @classmethod
-    def _directory_read_step(cls, text: str, *, skip: str) -> "DesktopTaskStep | None":
+    def _directory_read_step(cls, text: str, *, skip: str) -> DesktopTaskStep | None:
         """A read of the directory the request asks about, if it asks about one.
 
         `skip` is the write destination, which must never be mistaken for the

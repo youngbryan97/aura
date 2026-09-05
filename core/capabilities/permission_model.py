@@ -21,7 +21,7 @@ import time
 from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
@@ -171,7 +171,7 @@ class ModalityPermissions:
 # ---------------------------------------------------------------------------
 
 # Action patterns → risk levels
-_RISK_RULES: List[Tuple[str, RiskLevel, str]] = [
+_RISK_RULES: list[tuple[str, RiskLevel, str]] = [
     # BLOCKED — never allowed
     (r"rm\s+-rf\s+/", RiskLevel.BLOCKED, "Recursive root delete"),
     (r"sudo\s+rm", RiskLevel.BLOCKED, "Privileged delete"),
@@ -376,7 +376,7 @@ class PermissionRiskModel:
         *,
         effect_scope: str = "",
         execution_risk: str = "",
-    ) -> Tuple[RiskLevel, str]:
+    ) -> tuple[RiskLevel, str]:
         """Classify the risk level of an action.
 
         Returns (risk_level, reason).
@@ -438,7 +438,7 @@ class PermissionRiskModel:
         self,
         action: str,
         target: str = "",
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
         *,
         effect_scope: str = "",
         execution_risk: str = "",
@@ -777,7 +777,7 @@ class PermissionRiskModel:
     # Audit
     # ------------------------------------------------------------------
 
-    def get_recent_decisions(self, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_recent_decisions(self, limit: int = 20) -> list[dict[str, Any]]:
         return [
             {
                 "action": d.action,
@@ -791,7 +791,7 @@ class PermissionRiskModel:
             for d in self._decision_history[-limit:]
         ]
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         total = len(self._decision_history)
         approved = sum(1 for d in self._decision_history if d.approved)
         blocked = sum(1 for d in self._decision_history if not d.approved)
@@ -811,7 +811,7 @@ class PermissionRiskModel:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_instance: Optional[PermissionRiskModel] = None
+_instance: PermissionRiskModel | None = None
 
 
 def get_permission_model() -> PermissionRiskModel:

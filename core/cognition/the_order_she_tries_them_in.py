@@ -36,12 +36,12 @@ import logging
 from typing import Any
 
 from core.cognition.the_floor_she_stands_on import (
-    Code,
-    L,
-    N,
     OVER,
     PLUS,
     TIMES,
+    Code,
+    L,
+    N,
     V,
     build,
     how_long,

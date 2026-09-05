@@ -5,8 +5,7 @@ Balances goal importance vs. metabolic cost (ergs).
 """
 
 import logging
-import time
-from typing import Any, Dict, Optional
+
 from core.ops.metabolic_monitor import get_cost_tracker
 
 logger = logging.getLogger("Aura.PriorityGator")

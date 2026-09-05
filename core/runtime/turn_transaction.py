@@ -13,19 +13,19 @@ calls with tx.stage_*() and tx.commit().
 """
 from __future__ import annotations
 
-
 import asyncio
 import logging
 import os
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
+from typing import Any
 
 logger = logging.getLogger("Aura.TurnTransaction")
 
 
-EffectFn = Callable[[], Union[None, Awaitable[Any]]]
+EffectFn = Callable[[], None | Awaitable[Any]]
 
 _TURN_EFFECT_ERRORS = (
     AttributeError,
@@ -42,9 +42,9 @@ _TURN_EFFECT_ERRORS = (
 class StagedEffect:
     name: str
     apply: EffectFn
-    rollback: Optional[EffectFn] = None
+    rollback: EffectFn | None = None
     criticality: str = "required"  # required | optional | telemetry
-    payload: Dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict)
 
 
 class EffectCriticality:
@@ -58,12 +58,12 @@ class TurnReceipt:
     turn_id: str
     origin: str
     started_at: float
-    finished_at: Optional[float] = None
-    governance_receipt_id: Optional[str] = None
+    finished_at: float | None = None
+    governance_receipt_id: str | None = None
     approved: bool = False
-    committed_effects: List[str] = field(default_factory=list)
-    failed_effects: List[Dict[str, str]] = field(default_factory=list)
-    rolled_back_effects: List[str] = field(default_factory=list)
+    committed_effects: list[str] = field(default_factory=list)
+    failed_effects: list[dict[str, str]] = field(default_factory=list)
+    rolled_back_effects: list[str] = field(default_factory=list)
     canceled: bool = False
 
 
@@ -80,14 +80,14 @@ class TurnTransaction:
         origin: str,
         message: str,
         will: Any = None,
-        governance_decide: Optional[Callable[..., Any]] = None,
+        governance_decide: Callable[..., Any] | None = None,
     ):
         self.turn_id = f"turn-{uuid.uuid4()}"
         self.origin = origin
         self.message = message
         self._will = will
         self._governance_decide = governance_decide
-        self._effects: List[StagedEffect] = []
+        self._effects: list[StagedEffect] = []
         self.receipt = TurnReceipt(turn_id=self.turn_id, origin=origin, started_at=time.time())
         self._committed = False
         self._closed = False
@@ -99,9 +99,9 @@ class TurnTransaction:
         name: str,
         apply: EffectFn,
         *,
-        rollback: Optional[EffectFn] = None,
+        rollback: EffectFn | None = None,
         criticality: str = EffectCriticality.REQUIRED,
-        payload: Optional[Dict[str, Any]] = None,
+        payload: dict[str, Any] | None = None,
     ) -> None:
         if self._committed:
             raise TurnTransactionError("cannot stage effect after commit")
@@ -173,7 +173,7 @@ class TurnTransaction:
         if callable(approved):
             return bool(approved()), getattr(decision, "receipt_id", None)
         if hasattr(decision, "approved"):
-            return bool(getattr(decision, "approved")), getattr(decision, "receipt_id", None)
+            return bool(decision.approved), getattr(decision, "receipt_id", None)
         return bool(decision), None
 
     # --- commit / rollback ----------------------------------------------
@@ -184,7 +184,7 @@ class TurnTransaction:
         self._committed = True
         if not self.receipt.approved:
             raise TurnTransactionError("cannot commit a denied transaction")
-        applied: List[StagedEffect] = []
+        applied: list[StagedEffect] = []
         for effect in self._effects:
             try:
                 result = effect.apply()
@@ -215,7 +215,7 @@ class TurnTransaction:
         self.receipt.finished_at = time.time()
         return self.receipt
 
-    async def _rollback(self, applied: List[StagedEffect]) -> None:
+    async def _rollback(self, applied: list[StagedEffect]) -> None:
         for effect in reversed(applied):
             if effect.rollback is None:
                 continue
@@ -232,7 +232,7 @@ class TurnTransaction:
 
     # --- context manager sugar ------------------------------------------
 
-    async def __aenter__(self) -> "TurnTransaction":
+    async def __aenter__(self) -> TurnTransaction:
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> bool:

@@ -17,9 +17,6 @@ The class never calls an LLM directly.  It receives an ``llm_fn`` callback
 at construction time, making it backend-agnostic and trivially testable.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
 
 import asyncio
 import hashlib
@@ -27,8 +24,11 @@ import json
 import logging
 import re
 import time
-from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.TreeOfThoughts")
 
@@ -264,7 +264,7 @@ class TreeOfThoughts:
                 self._run_pipeline(objective, context, emotional_state, t0),
                 timeout=self._timeout_s,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "ToT timed out after %.1fs -- returning best draft",
                 self._timeout_s,

@@ -5,12 +5,11 @@ live natively in their primary modules. This entry point remains so older boot
 paths can keep calling it safely; it only starts the loop monitor.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
 
 import logging
 from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ConsciousnessPatches")
 

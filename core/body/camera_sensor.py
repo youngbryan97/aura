@@ -12,7 +12,7 @@ It now reports what `core.perception.camera_authority` actually observes:
 whether a backend exists, whether the owner's switch is on, what macOS says,
 and who is holding the device right now.
 """
-from typing import Any, Dict
+from typing import Any
 
 from core.body.sensor_registry import BaseSensor
 
@@ -24,7 +24,7 @@ class CameraSensor(BaseSensor):
     def name(self) -> str:
         return "camera"
 
-    async def read(self) -> Dict[str, Any]:
+    async def read(self) -> dict[str, Any]:
         try:
             from core.perception.camera_authority import get_camera_authority
 

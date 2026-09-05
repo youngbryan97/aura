@@ -17,11 +17,11 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 from .base import VerificationResult
-
 
 _STEP_RE = re.compile(
     r"(?ms)^\s*(?P<number>\d{1,3})[.)]\s*(?P<body>.*?)(?=^\s*\d{1,3}[.)]\s|\Z)"

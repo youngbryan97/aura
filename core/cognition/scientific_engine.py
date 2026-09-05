@@ -29,7 +29,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.config import config
 from core.runtime.errors import record_degradation
@@ -54,10 +54,10 @@ class Hypothesis:
     supports: int = 0
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
-    receipt_id: Optional[str] = None
-    evidence: List[Dict[str, Any]] = field(default_factory=list)
+    receipt_id: str | None = None
+    evidence: list[dict[str, Any]] = field(default_factory=list)
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "hypothesis_id": self.hypothesis_id,
             "claim": self.claim,
@@ -79,7 +79,7 @@ class ScientificEngine:
 
     def __init__(
         self,
-        db_path: Optional[str] = None,
+        db_path: str | None = None,
         *,
         learning_rate: float = 0.4,
         support_threshold: float = 0.15,
@@ -89,7 +89,7 @@ class ScientificEngine:
         self._lock = threading.RLock()
         self._lr = learning_rate
         self._support_threshold = support_threshold  # |error| below this counts as support
-        self._cache: Dict[str, Hypothesis] = {}
+        self._cache: dict[str, Hypothesis] = {}
         self._init_schema()
         self._load()
 
@@ -181,7 +181,7 @@ class ScientificEngine:
             self._persist(h)
         return h.hypothesis_id
 
-    def run_experiment(self, hypothesis_id: str, *, horizon_s: float = 3600.0) -> Optional[str]:
+    def run_experiment(self, hypothesis_id: str, *, horizon_s: float = 3600.0) -> str | None:
         """Open an Outcome-Ledger receipt carrying the hypothesis's prediction.
 
         The experiment *is* a receipt: the ledger will compute expected-vs-observed and
@@ -211,7 +211,7 @@ class ScientificEngine:
             self._persist(h)
         return receipt_id
 
-    def observe(self, hypothesis_id: str, observed: float, *, note: str = "") -> Optional[Hypothesis]:
+    def observe(self, hypothesis_id: str, observed: float, *, note: str = "") -> Hypothesis | None:
         """Fold an observation into the hypothesis: resolve its receipt + revise the belief.
 
         Confidence moves toward support when |observed - expected| is small and away when it
@@ -280,21 +280,21 @@ class ScientificEngine:
 
     # ── readout ──────────────────────────────────────────────────────────
 
-    def get(self, hypothesis_id: str) -> Optional[Hypothesis]:
+    def get(self, hypothesis_id: str) -> Hypothesis | None:
         with self._lock:
             return self._cache.get(hypothesis_id)
 
-    def belief(self, hypothesis_id: str) -> Optional[float]:
+    def belief(self, hypothesis_id: str) -> float | None:
         h = self.get(hypothesis_id)
         return None if h is None else h.confidence
 
-    def supported(self) -> List[Dict[str, Any]]:
+    def supported(self) -> list[dict[str, Any]]:
         with self._lock:
             return [h.as_dict() for h in self._cache.values() if h.status == "supported"]
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         with self._lock:
-            by_status: Dict[str, int] = {}
+            by_status: dict[str, int] = {}
             for h in self._cache.values():
                 by_status[h.status] = by_status.get(h.status, 0) + 1
             return {
@@ -304,7 +304,7 @@ class ScientificEngine:
             }
 
 
-_engine: Optional[ScientificEngine] = None
+_engine: ScientificEngine | None = None
 _engine_lock = threading.Lock()
 
 

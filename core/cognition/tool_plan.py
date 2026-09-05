@@ -31,13 +31,13 @@ thing".
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
-import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Op",
@@ -84,7 +84,7 @@ class Step:
     fn: Callable[..., Any] | None = None
     message: str = ""
     attempts: int = 1
-    body: tuple["Step", ...] = ()
+    body: tuple[Step, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {

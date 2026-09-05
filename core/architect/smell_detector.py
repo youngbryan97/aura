@@ -5,7 +5,13 @@ from collections import Counter, defaultdict
 
 from core.architect.config import ASAConfig
 from core.architect.duplicate_responsibility import DuplicateResponsibilityDetector
-from core.architect.models import ArchitecturalSmell, ArchitectureGraph, MutationTier, SemanticSurface, SmellSeverity
+from core.architect.models import (
+    ArchitecturalSmell,
+    ArchitectureGraph,
+    MutationTier,
+    SemanticSurface,
+    SmellSeverity,
+)
 
 
 class SmellDetector:

@@ -1,5 +1,5 @@
 import threading
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 
@@ -39,7 +39,7 @@ class LatentCore:
                 if norm > 0 and (abs(norm - 1.0) > 0.05 or self._update_counter % 100 == 0):
                     self._vec = self._vec / norm
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Returns only non-sensitive diagnostics (metadata), NEVER the raw vector.
         This summary is what is allowed to be logged/serialized.
         """

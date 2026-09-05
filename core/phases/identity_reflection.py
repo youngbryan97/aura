@@ -1,10 +1,11 @@
-from core.runtime.errors import record_degradation
-import asyncio
 import logging
 import time
-from typing import Any, Optional
-from . import BasePhase
+from typing import Any
+
+from core.runtime.errors import record_degradation
+
 from ..state.aura_state import AuraState
+from . import BasePhase
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class IdentityReflectionPhase(BasePhase):
             logger.warning("IdentityReflection: UnifiedWill unavailable; identity mutation blocked: %s", exc)
             return None
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         """
         [CLAUDE AUDIT] Identity Guard / Hard Stop.
         Ensures Aura's output hasn't deviated into hallucination or dangerous territory.
@@ -91,7 +92,7 @@ class IdentityReflectionPhase(BasePhase):
                     enforce_supervision=False,
                 )
                 if not ok:
-                    logger.critical(f"🚨 COGNITIVE ROLLBACK: Identity Guard rejected output (%s).", reason)
+                    logger.critical("🚨 COGNITIVE ROLLBACK: Identity Guard rejected output (%s).", reason)
                     return state
 
         # 3. Success: Narrative Drift Update

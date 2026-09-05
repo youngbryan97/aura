@@ -42,15 +42,10 @@ from __future__ import annotations
 import logging
 import statistics
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Sequence
+from typing import Any
 
-from core.cognition.the_record_of_her_own_work import (
-    how_often,
-    note_an_episode,
-    the_record,
-    what_it_has_cost,
-)
 from core.cognition.how_a_change_is_promoted import promote
 from core.cognition.how_sure_she_is import (
     after_the_winners_curse,
@@ -58,25 +53,29 @@ from core.cognition.how_sure_she_is import (
     the_bar_right_now,
     which_to_try,
 )
+from core.cognition.the_record_of_her_own_work import (
+    note_an_episode,
+    the_record,
+    what_it_has_cost,
+)
 from core.cognition.what_it_is_worth_doing import (
     WhatItIsWorth,
-    how_often_a_change_has_paid,
     how_much_it_is_worth,
+    how_often_a_change_has_paid,
     how_often_it_will_come_up,
     the_price_of_finding_out,
     what_each_occasion_would_save,
     what_it_risks,
-    what_the_record_says_is_slow,
-)
-from core.cognition.what_she_expects_of_herself import (
-    what_actually_happened,
-    what_she_expects,
 )
 from core.cognition.what_she_could_do_next import (
     ADevelopmentalAction,
     note_what_it_did,
     the_actions_she_has,
     what_it_has_done,
+)
+from core.cognition.what_she_expects_of_herself import (
+    what_actually_happened,
+    what_she_expects,
 )
 
 __all__ = [

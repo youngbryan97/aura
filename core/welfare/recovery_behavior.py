@@ -1,13 +1,13 @@
 """core/welfare/recovery_behavior.py
 Defines self-maintenance recovery behaviors for low-welfare states.
 """
-from typing import Dict, Any, List
+from typing import Any
 
 
 class RecoveryBehaviorManager:
     """Proposes somatic recovery options (sleep cycles, resource cleanups)."""
 
-    def determine_recovery_actions(self, energy: float, thermal: float) -> List[Dict[str, Any]]:
+    def determine_recovery_actions(self, energy: float, thermal: float) -> list[dict[str, Any]]:
         actions = []
         
         # Low energy triggers sleep cycle proposal

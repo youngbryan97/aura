@@ -28,8 +28,9 @@ thought enters as low-confidence, high-salience — held at arm's length).
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Optional, Sequence
+from typing import Any
 
 # Origin labels
 SELF_GENERATED = "self_generated"
@@ -141,7 +142,7 @@ def classify(signals: ProvenanceSignals) -> ProvenanceVerdict:
 
 def signals_from_recall(
     text: str,
-    hits: Optional[Sequence[dict[str, Any]]] = None,
+    hits: Sequence[dict[str, Any]] | None = None,
     *,
     guard_risk: float = 0.0,
     internally_originated: bool = False,
@@ -197,7 +198,7 @@ def signals_from_recall(
 
 def classify_thought(
     text: str,
-    hits: Optional[Sequence[dict[str, Any]]] = None,
+    hits: Sequence[dict[str, Any]] | None = None,
     *,
     guard_risk: float = 0.0,
     internally_originated: bool = False,

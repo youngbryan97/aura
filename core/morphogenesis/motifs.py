@@ -23,7 +23,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from .graph import EdgeType, MorphGraph
+from .graph import MorphGraph
 from .proposal import MorphProposal, bind, grow
 from .types import clamp01, json_safe, stable_digest
 

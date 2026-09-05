@@ -22,9 +22,9 @@ import asyncio
 import copy
 import hashlib
 import json
-import re
 import logging
 import math
+import re
 import threading
 import time
 from collections import Counter, defaultdict, deque
@@ -38,8 +38,8 @@ import numpy as np
 
 from core.adaptation.spatial_receptor_code import annotate_antigen_like
 from core.cognitive.anomaly_detector import FeatureExtractor
-from core.runtime.lockdep import LockRank, checked_lock
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.lockdep import LockRank, checked_lock
 
 logger = logging.getLogger("Aura.AdaptiveImmunity")
 

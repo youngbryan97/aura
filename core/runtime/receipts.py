@@ -8,12 +8,12 @@ durable, schema-versioned, and queryable.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
 import logging
 import os
-import contextlib
 import sqlite3
 import threading
 import time
@@ -30,9 +30,9 @@ from core.runtime.atomic_writer import (
 )
 from core.runtime.audit_chain import AuditChain
 from core.runtime.flags import FlagKind, declare
+from core.runtime.sqlite_support import connection_is_open, open_tracked
 from core.runtime.state_ownership import state_root
 from core.runtime.store_locality import assert_wal_safe
-from core.runtime.sqlite_support import connection_is_open, open_tracked
 
 logger = logging.getLogger("core.runtime.receipts")
 

@@ -35,16 +35,13 @@ file satisfies the system's load-bearing invariants:
 The verifier is *fail-closed*: any unverifiable claim blocks the mutation.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
 
 import ast
 import logging
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.FormalVerifier")
 
@@ -52,7 +49,7 @@ logger = logging.getLogger("Aura.FormalVerifier")
 # ── invariant declarations ────────────────────────────────────────────────
 
 
-CONSEQUENTIAL_CALLS: Set[str] = {
+CONSEQUENTIAL_CALLS: set[str] = {
     "memory_write",
     "memory_facade.write",
     "memory_facade.add",
@@ -75,21 +72,21 @@ CONSEQUENTIAL_CALLS: Set[str] = {
     "subprocess.run",
 }
 
-ALLOW_LIST_FILES: Tuple[str, ...] = (
+ALLOW_LIST_FILES: tuple[str, ...] = (
     "core/agency/agency_orchestrator.py",
     "core/agency/capability_token.py",
     "core/will.py",
     "core/executive/authority_gateway.py",
 )
 
-GOVERNANCE_FENCE_CALLS: Set[str] = {
+GOVERNANCE_FENCE_CALLS: set[str] = {
     "UnifiedWill.decide",
     "get_will().decide",
     "AuthorityGateway.authorize",
     "_will_gate",
 }
 
-PROTECTED_SYMBOLS: Set[str] = {
+PROTECTED_SYMBOLS: set[str] = {
     "AuthorityGateway",
     "ConstitutionalGuard",
     "ResourceGovernor",
@@ -97,7 +94,7 @@ PROTECTED_SYMBOLS: Set[str] = {
     "UnifiedWill",
 }
 
-UNSAFE_NEW_IMPORT_ROOTS: Set[str] = {
+UNSAFE_NEW_IMPORT_ROOTS: set[str] = {
     "awscli",
     "boto3",
     "botocore",
@@ -115,15 +112,15 @@ class Signature:
     name: str
     arity: int
     is_async: bool
-    decorators: Tuple[str, ...]
+    decorators: tuple[str, ...]
 
 
 @dataclass
 class FileFingerprint:
     path: str
-    public_signatures: Dict[str, Signature]
-    consequential_calls: Set[Tuple[str, int]]  # (qualified_name, lineno)
-    imports: Set[Tuple[str, int]]
+    public_signatures: dict[str, Signature]
+    consequential_calls: set[tuple[str, int]]  # (qualified_name, lineno)
+    imports: set[tuple[str, int]]
     governance_fence_count: int
     parses: bool
 
@@ -131,9 +128,9 @@ class FileFingerprint:
 @dataclass
 class VerificationResult:
     ok: bool
-    invariants_satisfied: List[str] = field(default_factory=list)
-    invariants_violated: List[str] = field(default_factory=list)
-    diagnostics: List[str] = field(default_factory=list)
+    invariants_satisfied: list[str] = field(default_factory=list)
+    invariants_violated: list[str] = field(default_factory=list)
+    diagnostics: list[str] = field(default_factory=list)
     backend: str = "ast"
 
 
@@ -148,8 +145,8 @@ def _qualname(node: ast.AST) -> str:
     return ""
 
 
-def _decorators(node: ast.FunctionDef | ast.AsyncFunctionDef) -> Tuple[str, ...]:
-    out: List[str] = []
+def _decorators(node: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[str, ...]:
+    out: list[str] = []
     for d in node.decorator_list:
         if isinstance(d, (ast.Name, ast.Attribute)):
             out.append(_qualname(d))
@@ -158,8 +155,8 @@ def _decorators(node: ast.FunctionDef | ast.AsyncFunctionDef) -> Tuple[str, ...]
     return tuple(out)
 
 
-def _signatures(tree: ast.AST) -> Dict[str, Signature]:
-    out: Dict[str, Signature] = {}
+def _signatures(tree: ast.AST) -> dict[str, Signature]:
+    out: dict[str, Signature] = {}
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             arity = len(node.args.args) + len(node.args.kwonlyargs)
@@ -181,8 +178,8 @@ def _signatures(tree: ast.AST) -> Dict[str, Signature]:
     return out
 
 
-def _calls(tree: ast.AST) -> Set[Tuple[str, int]]:
-    out: Set[Tuple[str, int]] = set()
+def _calls(tree: ast.AST) -> set[tuple[str, int]]:
+    out: set[tuple[str, int]] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             qn = _qualname(node.func)
@@ -191,8 +188,8 @@ def _calls(tree: ast.AST) -> Set[Tuple[str, int]]:
     return out
 
 
-def _imports(tree: ast.AST) -> Set[Tuple[str, int]]:
-    out: Set[Tuple[str, int]] = set()
+def _imports(tree: ast.AST) -> set[tuple[str, int]]:
+    out: set[tuple[str, int]] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
@@ -206,8 +203,8 @@ def _imports(tree: ast.AST) -> Set[Tuple[str, int]]:
     return out
 
 
-def _public_names(tree: ast.AST) -> Set[str]:
-    out: Set[str] = set()
+def _public_names(tree: ast.AST) -> set[str]:
+    out: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
             for target in node.targets:
@@ -225,13 +222,13 @@ def _public_names(tree: ast.AST) -> Set[str]:
     return out
 
 
-def fingerprint(path: Path | str, source: Optional[str] = None) -> FileFingerprint:
+def fingerprint(path: Path | str, source: str | None = None) -> FileFingerprint:
     p = Path(path)
     src = source if source is not None else p.read_text(encoding="utf-8")
     try:
         tree = ast.parse(src, filename=str(p))
         parses = True
-    except SyntaxError as exc:
+    except SyntaxError:
         return FileFingerprint(
             path=str(p),
             public_signatures={},

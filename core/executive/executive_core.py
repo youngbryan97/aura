@@ -26,7 +26,7 @@ import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from core.container import ServiceContainer
 from core.executive.bounded_sandbox_policy import validate_idle_sandbox_probe_arguments
@@ -241,7 +241,7 @@ class Intent:
     source: IntentSource = IntentSource.USER
     goal: str = ""
     action_type: ActionType = ActionType.RESPOND
-    payload: Dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict)
     priority: float = 0.5  # 0-1
     confidence: float = 0.5  # 0-1
     blocking: bool = False  # does this block other operations?
@@ -258,10 +258,10 @@ class DecisionRecord:
     reason: str
     coherence_at_decision: float = 1.0
     identity_check: bool = True  # did this pass identity assertion?
-    constraints: Dict[str, Any] = field(default_factory=dict)
+    constraints: dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "intent_id": self.intent_id,
             "outcome": self.outcome.value,
@@ -342,16 +342,16 @@ class ExecutiveCore:
     """
 
     def __init__(self) -> None:
-        self._active_intents: Dict[str, Intent] = {}
+        self._active_intents: dict[str, Intent] = {}
         self._decision_history: deque[DecisionRecord] = deque(maxlen=_DECISION_HISTORY_LIMIT)
         self._approval_count: int = 0
         self._rejection_count: int = 0
         self._lock = asyncio.Lock()
         self._initialized = False
-        self._ledger: Optional[ExecutiveLedger] = None
+        self._ledger: ExecutiveLedger | None = None
         #: intent_id -> ontogeny episode, so a completion can grade the
         #: admission that allowed it. Bounded by the active-intent lifetime.
-        self._ontogeny_episodes: Dict[str, str] = {}
+        self._ontogeny_episodes: dict[str, str] = {}
         logger.info("🏛️ ExecutiveCore initialized — sovereign control plane active.")
 
     # ── Core Approval API ────────────────────────────────────────────────
@@ -375,8 +375,8 @@ class ExecutiveCore:
 
     # ── Convenience Methods ──────────────────────────────────────────────
 
-    async def approve_tool(self, tool_name: str, args: Dict[str, Any],
-                           source: str = "unknown") -> Tuple[bool, str, Dict]:
+    async def approve_tool(self, tool_name: str, args: dict[str, Any],
+                           source: str = "unknown") -> tuple[bool, str, dict]:
         """Quick check: should this tool execution proceed?
 
         Returns (approved, reason, constraints).
@@ -390,9 +390,9 @@ class ExecutiveCore:
     async def prepare_tool_intent(
         self,
         tool_name: str,
-        args: Dict[str, Any],
+        args: dict[str, Any],
         source: str = "unknown",
-    ) -> Tuple[Intent, DecisionRecord]:
+    ) -> tuple[Intent, DecisionRecord]:
         """Build and evaluate a tool-call intent while preserving the intent id."""
         intent = Intent(
             source=_coerce_intent_source(source),
@@ -411,7 +411,7 @@ class ExecutiveCore:
         return intent, record
 
     async def approve_emission(self, content: str, source: str = "unknown",
-                               urgency: float = 0.5) -> Tuple[bool, str]:
+                               urgency: float = 0.5) -> tuple[bool, str]:
         """Quick check: should this spontaneous message be emitted?"""
         intent = Intent(
             source=IntentSource.SOCIAL if source == "proactive_presence" else IntentSource.AUTONOMOUS,
@@ -430,7 +430,7 @@ class ExecutiveCore:
 
     async def approve_memory_write(self, memory_type: str, content: str,
                                     importance: float = 0.5,
-                                    source: str = "unknown") -> Tuple[bool, str]:
+                                    source: str = "unknown") -> tuple[bool, str]:
         """Quick check: should this memory be committed?"""
         intent = Intent(
             source=IntentSource.SYSTEM,
@@ -448,7 +448,7 @@ class ExecutiveCore:
             record.reason,
         )
 
-    async def approve_state_mutation(self, origin: str, cause: str) -> Tuple[bool, str]:
+    async def approve_state_mutation(self, origin: str, cause: str) -> tuple[bool, str]:
         """Quick check: should this state mutation proceed?"""
         intent = Intent(
             source=IntentSource.SYSTEM,
@@ -465,7 +465,7 @@ class ExecutiveCore:
         )
 
     async def approve_background_task(self, task_name: str,
-                                       source: str = "unknown") -> Tuple[bool, str]:
+                                       source: str = "unknown") -> tuple[bool, str]:
         """Quick check: should this background task be spawned?"""
         intent = Intent(
             source=IntentSource.BACKGROUND,
@@ -1007,7 +1007,7 @@ class ExecutiveCore:
         return self._commit(intent, DecisionOutcome.DEFERRED, reason, 1.0)
 
     def _degrade(self, intent: Intent, reason: str,
-                 coherence: float, constraints: Dict = None) -> DecisionRecord:
+                 coherence: float, constraints: dict = None) -> DecisionRecord:
         return self._commit(
             intent, DecisionOutcome.DEGRADED, reason, coherence, constraints=constraints or {}
         )
@@ -1018,7 +1018,7 @@ class ExecutiveCore:
         outcome: DecisionOutcome,
         reason: str,
         coherence: float,
-        constraints: Dict | None = None,
+        constraints: dict | None = None,
     ) -> DecisionRecord:
         """The single point where an admission verdict becomes real.
 
@@ -1037,7 +1037,7 @@ class ExecutiveCore:
         context = self._decision_context()
 
         final = outcome
-        verdict: Dict[str, Any] | None = None
+        verdict: dict[str, Any] | None = None
         try:
             from core.ontogeny.wiring import observe_admission
 
@@ -1086,7 +1086,7 @@ class ExecutiveCore:
                         intent.goal[:50], record.constraints)
         return record
 
-    def _decision_context(self) -> Dict[str, Any]:
+    def _decision_context(self) -> dict[str, Any]:
         """Temporal, epistemic and failure state, read once per decision."""
         return {
             "temporal": self._get_temporal_identity_context(),
@@ -1095,8 +1095,8 @@ class ExecutiveCore:
         }
 
     def _ontogeny_features(
-        self, intent: Intent, coherence: float, context: Dict[str, Any]
-    ) -> Dict[str, float]:
+        self, intent: Intent, coherence: float, context: dict[str, Any]
+    ) -> dict[str, float]:
         """The situation as the organ sees it — all of it already computed here."""
         from core.ontogeny.wiring import admission_features
 
@@ -1150,7 +1150,7 @@ class ExecutiveCore:
                 record_degradation('executive_core', exc)
                 logger.debug("Executive ledger completion append failed: %s", exc)
 
-    def get_active_intents(self) -> List[Intent]:
+    def get_active_intents(self) -> list[Intent]:
         return list(self._active_intents.values())
 
     # ── Integration with BindingEngine + CanonicalSelf ───────────────────
@@ -1221,14 +1221,14 @@ class ExecutiveCore:
             logger.debug("Suppressed Exception: %s", _exc)
         return not self._strict_runtime_active()
 
-    def _get_temporal_identity_context(self) -> Dict[str, Any]:
+    def _get_temporal_identity_context(self) -> dict[str, Any]:
         current_objective = ""
         current_origin = ""
-        objective_binding: Dict[str, Any] = {}
+        objective_binding: dict[str, Any] = {}
         pending_count = 0
         active_goal_count = 0
         contradiction_count = 0
-        commitments: List[str] = []
+        commitments: list[str] = []
         anchor = "none"
         pending_anchor = ""
         active_goal_anchor = ""
@@ -1363,7 +1363,7 @@ class ExecutiveCore:
             "anchor": str(anchor or "none")[:80],
         }
 
-    def _get_epistemic_state(self) -> Dict[str, Any]:
+    def _get_epistemic_state(self) -> dict[str, Any]:
         try:
             from core.constitution import get_constitutional_core
 
@@ -1385,7 +1385,7 @@ class ExecutiveCore:
 
     @staticmethod
     def _intent_touches_contested_topic(
-        intent: Intent, epistemic: Dict[str, Any]
+        intent: Intent, epistemic: dict[str, Any]
     ) -> bool:
         """Whether this write is actually ABOUT something contested.
 
@@ -1427,7 +1427,7 @@ class ExecutiveCore:
                     return True
         return False
 
-    def _surface_research_trigger(self, intent: Intent, epistemic: Dict[str, Any]) -> None:
+    def _surface_research_trigger(self, intent: Intent, epistemic: dict[str, Any]) -> None:
         """Best-effort: surface a deferred autonomous belief-update as a
         research trigger so the autonomy pipeline picks the contested topic
         up next cycle. Never throws — Rule 7 deferral must remain idempotent
@@ -1444,7 +1444,7 @@ class ExecutiveCore:
         except (ImportError, AttributeError, RuntimeError):
             pass  # no-op: intentional
 
-    def _get_failure_state(self) -> Dict[str, Any]:
+    def _get_failure_state(self) -> dict[str, Any]:
         try:
             from core.health.degraded_events import get_unified_failure_state
 
@@ -1452,7 +1452,7 @@ class ExecutiveCore:
         except (ImportError, AttributeError, RuntimeError):
             return {"pressure": 0.0, "count": 0, "critical": 0, "errors": 0, "warnings": 0, "top_subsystems": []}
 
-    def _get_internal_state_constraints(self) -> Dict[str, float | bool]:
+    def _get_internal_state_constraints(self) -> dict[str, float | bool]:
         energy = 1.0
         thermal_pressure = 0.0
         load_pressure = 0.0
@@ -1539,7 +1539,7 @@ class ExecutiveCore:
 
     # ── Observability ────────────────────────────────────────────────────
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         return {
             "approved": self._approval_count,
             "rejected": self._rejection_count,
@@ -1547,7 +1547,7 @@ class ExecutiveCore:
             "recent_decisions": [d.to_dict() for d in list(self._decision_history)[-10:]],
         }
 
-    def get_decision_history(self, n: int = 20) -> List[DecisionRecord]:
+    def get_decision_history(self, n: int = 20) -> list[DecisionRecord]:
         return list(self._decision_history)[-n:]
 
     def get_rejection_rate(self) -> float:
@@ -1569,8 +1569,8 @@ class ExecutiveCore:
 
     def _append_decision_event(
         self, intent: Intent, record: DecisionRecord, *,
-        ontogeny: Dict[str, Any] | None = None,
-        context: Dict[str, Any] | None = None,
+        ontogeny: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,
     ) -> None:
         try:
             gathered = context or self._decision_context()
@@ -1619,7 +1619,7 @@ class ExecutiveCore:
 
 # ── Singleton ────────────────────────────────────────────────────────────────
 
-_instance: Optional[ExecutiveCore] = None
+_instance: ExecutiveCore | None = None
 _lock = None
 
 

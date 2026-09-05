@@ -1,9 +1,8 @@
-from core.runtime.errors import record_degradation
 import logging
-import random
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from core.runtime.errors import record_degradation
 from core.runtime.impulse_governance import run_governed_impulse
 from core.utils.task_tracker import get_task_tracker
 
@@ -20,7 +19,7 @@ class DriveController:
         self._last_pulse = time.time()
         self._tasks = set()
         
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Provides status for the HUD / Runtime State."""
         if hasattr(self.orchestrator, 'liquid_state') and self.orchestrator.liquid_state:
             return self.orchestrator.liquid_state.get_status()
@@ -85,7 +84,6 @@ class DriveController:
             from core.senses.entropy_anchor import entropy_anchor
             entropy_val = entropy_anchor.get_entropy_float() # 0.0 to 1.0
         except (ImportError, AttributeError, RuntimeError):
-            import logging
             logger.debug("Exception caught during execution", exc_info=True)
 
         # Use entropy to influence curiosity boost

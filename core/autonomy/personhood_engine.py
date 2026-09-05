@@ -7,9 +7,6 @@ its output is a decision about whether to speak spontaneously. The name is
 historical and asserts a conclusion the module does not reach.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
@@ -20,6 +17,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.runtime import service_access
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Personhood")
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
-import inspect
 
-import asyncio
+import inspect
 import logging
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass

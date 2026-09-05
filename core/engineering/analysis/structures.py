@@ -17,7 +17,7 @@ import math
 from collections.abc import Iterable
 
 from core.engineering.analysis import Finding, register
-from core.engineering.geometry import Capsule, Cylinder, Dome, Prism, Sphere, Tube
+from core.engineering.geometry import Capsule, Cylinder, Dome, Prism, Tube
 from core.engineering.materials import STANDARD_GRAVITY
 from core.engineering.units import Q, Quantity
 

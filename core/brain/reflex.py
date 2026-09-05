@@ -20,7 +20,8 @@ from __future__ import annotations
 import logging
 import re
 import time
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger("Aura.Reflex")
 
@@ -47,7 +48,7 @@ class ReflexiveCore:
     """
 
     def __init__(self) -> None:
-        self._reflex_commands: list[tuple[re.Pattern[str], Callable[[str], Optional[str]]]] = [
+        self._reflex_commands: list[tuple[re.Pattern[str], Callable[[str], str | None]]] = [
             (_whole(r"status", r"status report", r"system status"), self._handle_status),
             (_whole(r"ping"), self._handle_ping),
             (
@@ -63,7 +64,7 @@ class ReflexiveCore:
             ),
         ]
 
-    def process(self, text: str) -> Optional[str]:
+    def process(self, text: str) -> str | None:
         """Check if input triggers a reflexive response.
 
         Returns None when nothing matches OR when the matching reflex cannot
@@ -78,7 +79,7 @@ class ReflexiveCore:
         return None
 
     # -- reflexes ---------------------------------------------------------
-    def _handle_status(self, text: str) -> Optional[str]:
+    def _handle_status(self, text: str) -> str | None:
         """Report health from the live health contract, or decline.
 
         CP126 67d526bf: this asserted that every actor was supervised and the
@@ -113,7 +114,7 @@ class ReflexiveCore:
         """The one claim a reflex can make on its own authority."""
         return "Reflex path active."
 
-    def _handle_identity(self, text: str) -> Optional[str]:
+    def _handle_identity(self, text: str) -> str | None:
         """Answer from the live self-model, or decline.
 
         CP126 d8ac7a5e: identity questions bypassed the self-model entirely and
@@ -144,7 +145,7 @@ class ReflexiveCore:
 
     # -- live sources -----------------------------------------------------
     @staticmethod
-    def _health_report() -> Optional[Dict[str, Any]]:
+    def _health_report() -> dict[str, Any] | None:
         try:
             from core.runtime.health_contract import runtime_health_report
 
@@ -173,7 +174,7 @@ class ReflexiveCore:
 
 
 # Singleton access
-_reflex: Optional[ReflexiveCore] = None
+_reflex: ReflexiveCore | None = None
 
 
 def get_reflex() -> ReflexiveCore:

@@ -21,6 +21,9 @@ include_rules = [
     "+core.service_names",
     "+core.utils",
 
+    # The care floor is checked by an invariant that lives beside it.
+    "+core.verify",
+
     # Everything else.
     "-core",
     "-interface",

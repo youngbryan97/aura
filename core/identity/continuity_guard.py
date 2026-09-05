@@ -1,8 +1,8 @@
 """core/identity/continuity_guard.py
 Protects identity metrics from drift and corruption across reboots.
 """
-from typing import Dict, Any, List
 import logging
+from typing import Any
 
 logger = logging.getLogger("Identity.ContinuityGuard")
 
@@ -10,7 +10,7 @@ logger = logging.getLogger("Identity.ContinuityGuard")
 class ContinuityGuard:
     """Verifies that identity configurations match between active states and historical files."""
 
-    def verify_continuity(self, active_identity: Dict[str, Any], baseline_identity: Dict[str, Any]) -> bool:
+    def verify_continuity(self, active_identity: dict[str, Any], baseline_identity: dict[str, Any]) -> bool:
         """Compares critical identity attributes."""
         critical_fields = ["name", "primary_operator"]
         

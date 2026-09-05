@@ -73,7 +73,6 @@ from core.brain.imagination_text import (  # noqa: E402
     imagination_subject,
 )
 
-
 #: Every quantity this frame emits, and how it was produced. Nothing here is
 #: measured: they are regex hits, keyword counts and fixed coefficients. The
 #: map is the honest version of names like ``causal_effects``, which is a
@@ -964,7 +963,7 @@ class ImaginationEngine:
 
     @staticmethod
     def _frame_summary(
-        frame: "ImaginationFrame | None", subject: str, include_content: bool
+        frame: ImaginationFrame | None, subject: str, include_content: bool
     ) -> dict[str, Any] | None:
         """Shape of the latest frame; its content only for a named subject."""
         if frame is None:

@@ -19,28 +19,25 @@ Usage:
   print(me.identity.name, me.affect.dominant_emotion)
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import copy
 import json
 import logging
 import time
-from dataclasses import asdict, dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
+from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
+from core.runtime.state_ownership import state_root
 from core.state.aura_state import (
     AffectVector,
     AuraState,
     CognitiveMode,
     IdentityKernel,
-    SomaState,
 )
-from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Self")
 
@@ -71,7 +68,7 @@ class SelfModelDelta:
     cause: str
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "field_changed": self.field_changed,
             "old_value": _safe_serialize(self.old_value),
@@ -123,7 +120,7 @@ class CanonicalSelf:
     identity: IdentityKernel = field(default_factory=IdentityKernel)
 
     # ── Values ───────────────────────────────────────────────────────────
-    values: Dict[str, float] = field(default_factory=dict)
+    values: dict[str, float] = field(default_factory=dict)
 
     # ── Affect ───────────────────────────────────────────────────────────
     affect: AffectVector = field(default_factory=AffectVector)
@@ -132,13 +129,13 @@ class CanonicalSelf:
     soma: SomaSnapshot = field(default_factory=SomaSnapshot)
 
     # ── Goals ────────────────────────────────────────────────────────────
-    goals: List[ActiveGoal] = field(default_factory=list)
+    goals: list[ActiveGoal] = field(default_factory=list)
 
     # ── Beliefs ──────────────────────────────────────────────────────────
-    beliefs: List[RankedBelief] = field(default_factory=list)
+    beliefs: list[RankedBelief] = field(default_factory=list)
 
     # ── CRSM (continuous recurrent self-model) ───────────────────────────
-    crsm_state: Dict[str, Any] = field(default_factory=lambda: {
+    crsm_state: dict[str, Any] = field(default_factory=lambda: {
         "continuity_score": 1.0,
         "prediction_error": 0.0,
         "dominant_dim": "energy",
@@ -149,15 +146,15 @@ class CanonicalSelf:
     mode: str = "reactive"
 
     # ── Strengths & Limitations ──────────────────────────────────────────
-    strengths: List[str] = field(default_factory=list)
-    limitations: List[str] = field(default_factory=list)
+    strengths: list[str] = field(default_factory=list)
+    limitations: list[str] = field(default_factory=list)
 
     # ── Change Tracking ──────────────────────────────────────────────────
-    what_changed_recently: List[SelfModelDelta] = field(default_factory=list)
+    what_changed_recently: list[SelfModelDelta] = field(default_factory=list)
 
     # ── Intention & Coherence ────────────────────────────────────────────
     current_intention: str = "idle"
-    coherence_threats: List[str] = field(default_factory=list)
+    coherence_threats: list[str] = field(default_factory=list)
 
     # ── Versioning ───────────────────────────────────────────────────────
     version: int = 0
@@ -179,7 +176,7 @@ class CanonicalSelfEngine:
 
     def __init__(self):
         self._current = CanonicalSelf()
-        self._deltas: List[SelfModelDelta] = []
+        self._deltas: list[SelfModelDelta] = []
         self._last_persist: float = 0.0
         self._tick_count: int = 0
         self._load()
@@ -343,7 +340,7 @@ class CanonicalSelfEngine:
 
         return "\n".join(lines)
 
-    def get_recent_changes(self) -> List[SelfModelDelta]:
+    def get_recent_changes(self) -> list[SelfModelDelta]:
         """Return the rolling window of recent self-model deltas."""
         return list(self._deltas)
 
@@ -416,7 +413,7 @@ class CanonicalSelfEngine:
 
     # ── Subsystem Pulls ──────────────────────────────────────────────────
 
-    def _pull_values(self) -> Dict[str, float]:
+    def _pull_values(self) -> dict[str, float]:
         """Pull evolved Heartstone value weights."""
         try:
             from core.affect.heartstone_values import get_heartstone_values
@@ -468,7 +465,7 @@ class CanonicalSelfEngine:
             snapshot.energy = battery / 100.0
         return snapshot
 
-    def _pull_goals(self, state: AuraState) -> List[ActiveGoal]:
+    def _pull_goals(self, state: AuraState) -> list[ActiveGoal]:
         """Pull active goals from AuraState cognition context."""
         goals = []
         for g in state.cognition.active_goals[:_MAX_GOALS]:
@@ -480,7 +477,7 @@ class CanonicalSelfEngine:
             ))
         return goals
 
-    def _pull_beliefs(self) -> List[RankedBelief]:
+    def _pull_beliefs(self) -> list[RankedBelief]:
         """Pull top beliefs from BeliefRevisionEngine, ranked by confidence."""
         try:
             bre = ServiceContainer.get("belief_revision_engine", default=None)
@@ -503,7 +500,7 @@ class CanonicalSelfEngine:
         except (ImportError, AttributeError, RuntimeError):
             return []
 
-    def _pull_crsm(self) -> Dict[str, Any]:
+    def _pull_crsm(self) -> dict[str, Any]:
         """Pull the current CRSM snapshot."""
         try:
             from core.consciousness.crsm import get_crsm
@@ -529,9 +526,9 @@ class CanonicalSelfEngine:
 
     # ── Derived Properties ───────────────────────────────────────────────
 
-    def _derive_strengths(self, state: AuraState) -> List[str]:
+    def _derive_strengths(self, state: AuraState) -> list[str]:
         """Infer current strengths from live state."""
-        strengths: List[str] = []
+        strengths: list[str] = []
 
         # High curiosity = strong exploration drive
         if state.affect.curiosity > 0.7:
@@ -571,9 +568,9 @@ class CanonicalSelfEngine:
 
         return strengths[:_MAX_STRENGTHS]
 
-    def _derive_limitations(self, state: AuraState) -> List[str]:
+    def _derive_limitations(self, state: AuraState) -> list[str]:
         """Infer current limitations from live state."""
-        limitations: List[str] = []
+        limitations: list[str] = []
 
         # Hardware constraints
         soma = self._pull_soma(state)
@@ -628,9 +625,9 @@ class CanonicalSelfEngine:
 
     def _detect_coherence_threats(
         self, state: AuraState, prev: CanonicalSelf
-    ) -> List[str]:
+    ) -> list[str]:
         """Detect anything threatening identity consistency."""
-        threats: List[str] = []
+        threats: list[str] = []
 
         # Identity stability drop
         if state.identity.stability < 0.4:
@@ -669,9 +666,9 @@ class CanonicalSelfEngine:
 
     def _compute_deltas(
         self, prev: CanonicalSelf, new: CanonicalSelf, state: AuraState
-    ) -> List[SelfModelDelta]:
+    ) -> list[SelfModelDelta]:
         """Compare previous and new self, emit deltas for meaningful changes."""
-        deltas: List[SelfModelDelta] = []
+        deltas: list[SelfModelDelta] = []
         cause = state.transition_cause or "tick"
         now = time.time()
 
@@ -925,7 +922,7 @@ class CanonicalSelfEngine:
         _persist() path. This is detected and scarred.
         """
         try:
-            from core.security.governance_vault import get_governance_vault, TamperDetected
+            from core.security.governance_vault import TamperDetected, get_governance_vault
             vault = get_governance_vault()
             if not vault.has_artifact("canonical_self"):
                 # First run or vault was reset — seal current state
@@ -950,7 +947,7 @@ class CanonicalSelfEngine:
                 )
                 # Form a scar — this is the defense the audit said was missing
                 try:
-                    from core.memory.scar_formation import get_scar_formation, ScarDomain
+                    from core.memory.scar_formation import ScarDomain, get_scar_formation
                     scar_system = get_scar_formation()
                     scar_system.form_scar(
                         domain=ScarDomain.CONSTITUTION_MODIFIED_EXTERNALLY,
@@ -989,7 +986,7 @@ class CanonicalSelfEngine:
 # Singleton & Convenience
 # ─────────────────────────────────────────────────────────────────────────────
 
-_engine: Optional[CanonicalSelfEngine] = None
+_engine: CanonicalSelfEngine | None = None
 
 
 def get_canonical_self_engine() -> CanonicalSelfEngine:

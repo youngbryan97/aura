@@ -31,8 +31,9 @@ import logging
 import os
 import re
 import time
-from dataclasses import dataclass, field, asdict
-from typing import Any, Iterable
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass, field
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
@@ -375,7 +376,7 @@ class ContinuityLedger:
         }
 
     @classmethod
-    def from_dict(cls, payload: Any) -> "ContinuityLedger":
+    def from_dict(cls, payload: Any) -> ContinuityLedger:
         if not isinstance(payload, dict):
             return cls()
         try:

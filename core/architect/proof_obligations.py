@@ -5,8 +5,8 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from core.architect.behavior_oracle import SemanticBehaviorOracle
 from core.architect.behavior_fingerprint import BehaviorFingerprinter
+from core.architect.behavior_oracle import SemanticBehaviorOracle
 from core.architect.code_graph import LiveArchitectureGraphBuilder
 from core.architect.config import ASAConfig
 from core.architect.ghost_boot import GhostBootReport

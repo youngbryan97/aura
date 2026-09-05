@@ -40,6 +40,7 @@ from typing import Any, Protocol
 
 from core.runtime.errors import record_degradation
 
+
 #: Stage failures are reported to the caller as a failed StageResult, which
 #: is the loop's contract. They were NOT reaching the degradation ledger, so
 #: a plugged-in organ that threw on every cycle was invisible to health and
@@ -58,7 +59,7 @@ def _record_stage_degradation(stage: str, exc: BaseException) -> None:
 _StageFailure = Callable[[BaseException], "StageResult"]
 
 
-def _stage_boundary(stage: str, exc: BaseException, on_failure: _StageFailure) -> "StageResult":
+def _stage_boundary(stage: str, exc: BaseException, on_failure: _StageFailure) -> StageResult:
     """Turn a collaborator's failure into this loop's own vocabulary.
 
     Every stage of this loop calls out to an injected, Protocol-typed
@@ -83,7 +84,7 @@ def _run_stage(
     stage: str,
     call: Callable[[], Any],
     on_failure: _StageFailure,
-) -> tuple[Any, "StageResult | None"]:
+) -> tuple[Any, StageResult | None]:
     """Run one stage. Returns (value, None) or (None, failure StageResult)."""
     try:
         return call(), None
@@ -95,7 +96,7 @@ async def _run_stage_async(
     stage: str,
     call: Callable[[], Any],
     on_failure: _StageFailure,
-) -> tuple[Any, "StageResult | None"]:
+) -> tuple[Any, StageResult | None]:
     """Async twin of _run_stage; awaits the collaborator if it returns a coroutine.
 
     The await is INSIDE the boundary on purpose. Awaiting outside it would

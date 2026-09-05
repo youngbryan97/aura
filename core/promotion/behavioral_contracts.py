@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import operator
 import time
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping, Sequence
-
+from typing import Any
 
 Comparator = Callable[[float, float], bool]
 
@@ -34,7 +34,7 @@ class BehavioralContract:
     description: str = ""
     critical: bool = True
 
-    def evaluate(self, metrics: Mapping[str, Any]) -> "ContractResult":
+    def evaluate(self, metrics: Mapping[str, Any]) -> ContractResult:
         raw = metrics.get(self.metric)
         try:
             value = float(raw)
@@ -170,7 +170,7 @@ class BehavioralContractSuite:
         self.contracts = tuple(contracts or DEFAULT_CONTRACTS)
 
     @classmethod
-    def default(cls) -> "BehavioralContractSuite":
+    def default(cls) -> BehavioralContractSuite:
         return cls(DEFAULT_CONTRACTS)
 
     def evaluate(self, metrics: Mapping[str, Any]) -> BehavioralContractReport:

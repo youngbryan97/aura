@@ -12,7 +12,7 @@ ZENITH Protocol compliance:
 import asyncio
 import logging
 import time
-from typing import Dict, Any, Optional
+from typing import Any
 
 logger = logging.getLogger("Aura.SubstrateGovernor")
 
@@ -85,7 +85,7 @@ class SubstrateGovernor:
         self._last_tick_time = time.monotonic()
         self._tick_count += 1
         
-    def get_clock_stats(self) -> Dict[str, Any]:
+    def get_clock_stats(self) -> dict[str, Any]:
         return {
             "target_hz": self._target_hz,
             "total_ticks": self._tick_count,

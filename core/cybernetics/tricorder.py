@@ -1,11 +1,11 @@
 import asyncio
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from core.runtime.disk_budget import state_volume_percent
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
-from core.runtime.disk_budget import state_volume_percent
 
 try:
     from core.runtime import resource_psutil as psutil
@@ -22,18 +22,18 @@ class Tricorder:
     def __init__(self, kernel: Any = None):
         self.kernel = kernel
         self._is_active = False
-        self._last_scan: Dict[str, Any] = {}
-        self._event_bus: Optional[Any] = None
-        self._violation_queue: Optional[asyncio.Queue] = None
-        self._empathy_queue: Optional[asyncio.Queue] = None
+        self._last_scan: dict[str, Any] = {}
+        self._event_bus: Any | None = None
+        self._violation_queue: asyncio.Queue | None = None
+        self._empathy_queue: asyncio.Queue | None = None
         self._tasks: list[asyncio.Task] = []
         # Consolidation: Merged HealthMonitor logic
         self.consecutive_errors = 0
         self.total_errors = 0
         self.healthy = True
-        self.last_error: Optional[str] = None
+        self.last_error: str | None = None
         # Precrime Engine: Anomaly Detection
-        self._latency_buffer: List[float] = []
+        self._latency_buffer: list[float] = []
         self._anomaly_threshold = 2.5
         # Sibyl System: Unified Behavioral Hue
         self._hue_score = 0.0
@@ -181,13 +181,13 @@ class Tricorder:
                 record_degradation('tricorder', e)
                 logger.debug("Tricorder empathy processing error: %s", e)
 
-    async def _on_empathy_update(self, payload: Dict[str, Any]):
+    async def _on_empathy_update(self, payload: dict[str, Any]):
         """Update empathy factor for Hue."""
         drift = payload.get("drift", 0.0)
         self._factors["empathy"] = 1.0 - drift
         self._recalculate_hue()
 
-    def score_user_message(self, text: str) -> Dict[str, Any]:
+    def score_user_message(self, text: str) -> dict[str, Any]:
         """
         [CASIE] Analyze user text for emotional markers and return strategy.
         Implementation: Multi-feature NLP scoring (keyword bags, caps, punctuation).
@@ -240,7 +240,7 @@ class Tricorder:
             
         return result
 
-    async def scan(self, state: Any) -> Dict[str, Any]:
+    async def scan(self, state: Any) -> dict[str, Any]:
         """
         Performs a full system scan across hardware, software, and cognitive dimensions.
         """
@@ -285,7 +285,7 @@ class Tricorder:
 
         return report
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "is_active": self._is_active,
             "last_scan": self._last_scan

@@ -15,14 +15,13 @@ import hmac
 import json
 import re
 import secrets
-import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.security.zenith_secrets import KeychainBackend, require_keychain_backend
 from core.runtime.lockdep import checked_lock
+from core.security.zenith_secrets import KeychainBackend, require_keychain_backend
 
 DEFAULT_MESSAGES_CONTACT_ALIAS = "primary_operator"
 _KEYCHAIN_SERVICE = "AuraMessagesContacts.v1"

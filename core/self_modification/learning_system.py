@@ -1,15 +1,15 @@
 """Self-Improvement Learning System
 Learns from successful and failed modification attempts.
 """
-from core.runtime.errors import record_degradation
 import json
 import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
+from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 
 logger = logging.getLogger("SelfModification.Learning")
@@ -23,7 +23,7 @@ class FixStrategy:
     success_count: int
     failure_count: int
     avg_confidence: float
-    contexts: List[str]  # Contexts where this strategy worked
+    contexts: list[str]  # Contexts where this strategy worked
     
     def success_rate(self) -> float:
         total = self.success_count + self.failure_count
@@ -103,7 +103,7 @@ class SelfImprovementLearning:
     """Learns from modification attempts to improve future fixes.
     """
     
-    def __init__(self, learning_db: Optional[str] = None):
+    def __init__(self, learning_db: str | None = None):
         if learning_db is None:
             from core.config import config
             self.db_path = config.paths.data_dir / "learning.json"
@@ -114,8 +114,8 @@ class SelfImprovementLearning:
         self.classifier = FixStrategyClassifier()
         
         # Learning storage
-        self.strategies: Dict[str, FixStrategy] = {}
-        self.error_type_strategies: Dict[str, List[str]] = defaultdict(list)
+        self.strategies: dict[str, FixStrategy] = {}
+        self.error_type_strategies: dict[str, list[str]] = defaultdict(list)
         
         # Load existing knowledge
         self._load_knowledge()
@@ -127,7 +127,7 @@ class SelfImprovementLearning:
         fix,  # CodeFix object
         error_type: str,
         success: bool,
-        context: Dict[str, Any]
+        context: dict[str, Any]
     ):
         """Record a fix attempt to learn from.
         
@@ -186,8 +186,8 @@ class SelfImprovementLearning:
     def suggest_strategy(
         self,
         error_type: str,
-        context: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        context: dict[str, Any]
+    ) -> dict[str, Any] | None:
         """Suggest the best fix strategy based on learned patterns.
         
         Args:
@@ -242,7 +242,7 @@ class SelfImprovementLearning:
         }
         return guidance.get(strategy_type, "Apply general best practices")
     
-    def get_strategy_report(self) -> List[Dict[str, Any]]:
+    def get_strategy_report(self) -> list[dict[str, Any]]:
         """Get report of all learned strategies"""
         strategies = []
         for strategy in self.strategies.values():
@@ -252,15 +252,15 @@ class SelfImprovementLearning:
         strategies.sort(key=lambda s: s["success_count"], reverse=True)
         return strategies
 
-    def get_recent_lessons(self, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_recent_lessons(self, limit: int = 20) -> list[dict[str, Any]]:
         """Retrieve recent learned lessons/strategies with safe slicing (Issue 66)."""
         report = self.get_strategy_report()
         return report[:limit]
     
     def analyze_failure_pattern(
         self,
-        recent_failures: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        recent_failures: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """Analyze recent failures to identify what's going wrong.
         
         Args:
@@ -321,7 +321,7 @@ class SelfImprovementLearning:
             return
         
         try:
-            with open(self.db_path, 'r') as f:
+            with open(self.db_path) as f:
                 data = json.load(f)
             
             # Reconstruct strategies
@@ -378,7 +378,7 @@ class MetaLearning:
         self,
         attempts: int,
         successes: int,
-        strategies_used: List[str],
+        strategies_used: list[str],
         time_spent: float
     ):
         """Record performance of a learning cycle.
@@ -406,7 +406,7 @@ class MetaLearning:
         if len(self.performance_history) > self._performance_history_max:
             self.performance_history = self.performance_history[-self._performance_history_max:]
     
-    def is_improving(self) -> Tuple[bool, str]:
+    def is_improving(self) -> tuple[bool, str]:
         """Determine if the system is improving over time.
         
         Returns:

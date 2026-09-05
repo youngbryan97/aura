@@ -1,16 +1,16 @@
 """core/security/consent_kernel.py
 Central Security and Consent Kernel managing sandboxes, secrets, and networks.
 """
-from typing import Dict, Any, Optional
 import logging
+from typing import Any
 
-from core.security.secret_guard import SecretGuard
-from core.security.network_policy import NetworkPolicyEngine
-from core.security.sandbox import LocalCommandSandbox
 from core.security.action_risk_classifier import ActionRiskClassifier
 from core.security.approval_required import ApprovalRequiredChecker
 from core.security.audit_log import SecurityAuditLogger
 from core.security.egress_monitor import EgressConnectionMonitor
+from core.security.network_policy import NetworkPolicyEngine
+from core.security.sandbox import LocalCommandSandbox
+from core.security.secret_guard import SecretGuard
 
 logger = logging.getLogger("Security.ConsentKernel")
 
@@ -27,7 +27,7 @@ class ConsentKernel:
         self.audit_logger = SecurityAuditLogger()
         self.egress_monitor = EgressConnectionMonitor()
 
-    def audit_and_verify_action(self, channel: str, params: Dict[str, Any]) -> bool:
+    def audit_and_verify_action(self, channel: str, params: dict[str, Any]) -> bool:
         """Runs the complete safety verification chain. Returns True if approved."""
         # 1. Secret leakage check
         if channel == "file" and params.get("action") == "write":

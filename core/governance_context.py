@@ -36,10 +36,10 @@ Usage:
     require_governance("memory_write")
 """
 from __future__ import annotations
-import inspect
 
 import contextvars
 import functools
+import inspect
 import logging
 import os
 import secrets

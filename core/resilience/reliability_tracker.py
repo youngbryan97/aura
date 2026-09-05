@@ -1,10 +1,10 @@
-from core.runtime.errors import record_degradation
 import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
+from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 
 logger = logging.getLogger("SelfModel.Reliability")
@@ -20,7 +20,7 @@ class ReliabilityTracker:
             self.data_path = config.paths.data_dir / "reliability.json"
         else:
             self.data_path = Path(data_path)
-        self.stats: Dict[str, Dict[str, Any]] = {}
+        self.stats: dict[str, dict[str, Any]] = {}
         self._loaded = False
 
     def _ensure_loaded(self):
@@ -31,7 +31,7 @@ class ReliabilityTracker:
     def _load(self):
         try:
             if self.data_path.exists():
-                with open(self.data_path, 'r') as f:
+                with open(self.data_path) as f:
                     self.stats = json.load(f)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('reliability_tracker', e)
@@ -49,7 +49,7 @@ class ReliabilityTracker:
             record_degradation('reliability_tracker', e)
             logger.error("Failed to save reliability data: %s", e)
 
-    def record_attempt(self, tool_name: str, success: bool, error_msg: Optional[str] = None):
+    def record_attempt(self, tool_name: str, success: bool, error_msg: str | None = None):
         """Record a tool execution result."""
         self._ensure_loaded()
         if tool_name not in self.stats:

@@ -7,12 +7,11 @@ capability providers online in dependency order.
 """
 from __future__ import annotations
 
+import importlib
 import logging
 import time
-from typing import Any
-
-import importlib
 from dataclasses import dataclass
+from typing import Any
 
 from core.runtime.errors import record_degradation
 

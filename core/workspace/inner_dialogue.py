@@ -1,8 +1,8 @@
 """core/workspace/inner_dialogue.py
 Generates internal dialogue thoughts during ticks.
 """
-from typing import Dict, Any
 import time
+from typing import Any
 
 
 class InnerDialogueGenerator:

@@ -218,7 +218,7 @@ class MovesWithinItself:
         }
 
     @classmethod
-    def from_memory(cls, held: Any, trust: float = 1.0) -> "MovesWithinItself":
+    def from_memory(cls, held: Any, trust: float = 1.0) -> MovesWithinItself:
         """What she found last time, discounted. A page can be rebuilt."""
         if not isinstance(held, dict):
             return cls()

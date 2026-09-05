@@ -20,7 +20,6 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger("Aura.RapidAdaptation")
 
@@ -50,7 +49,7 @@ class VoicePreference:
 @dataclass
 class SessionAdaptation:
     """Tracks personality adjustments for the current session."""
-    preferences: Dict[str, VoicePreference] = field(default_factory=dict)
+    preferences: dict[str, VoicePreference] = field(default_factory=dict)
     turn_history: deque = field(default_factory=lambda: deque(maxlen=20))
     total_adaptations: int = 0
 
@@ -66,10 +65,10 @@ class RapidAdaptationEngine:
 
     def __init__(self):
         self._session = SessionAdaptation()
-        self._last_response_cues: Dict[str, float] = {}
+        self._last_response_cues: dict[str, float] = {}
         self._last_user_msg_length: int = 0
 
-    def record_response(self, response: str, active_cues: Dict[str, float]):
+    def record_response(self, response: str, active_cues: dict[str, float]):
         """Record what voice cues were active when this response was generated."""
         self._last_response_cues = dict(active_cues)
         self._session.turn_history.append({
@@ -106,7 +105,7 @@ class RapidAdaptationEngine:
             "timestamp": time.time(),
         })
 
-    def get_adaptation_cues(self) -> Dict[str, float]:
+    def get_adaptation_cues(self) -> dict[str, float]:
         """Get current preference-adjusted cues for system prompt injection."""
         cues = {}
         for dim, pref in self._session.preferences.items():
@@ -175,12 +174,12 @@ class RapidAdaptationEngine:
             score += SIGNAL_WEIGHTS["positive_language"]
 
         # Very short dismissal
-        if n_words <= 2 and not "?" in message:
+        if n_words <= 2 and "?" not in message:
             score += SIGNAL_WEIGHTS["very_short"]
 
         return max(-1.0, min(1.0, score))
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         return {
             "total_adaptations": self._session.total_adaptations,
             "active_preferences": {
@@ -192,7 +191,7 @@ class RapidAdaptationEngine:
         }
 
 
-_instance: Optional[RapidAdaptationEngine] = None
+_instance: RapidAdaptationEngine | None = None
 
 
 def get_rapid_adaptation() -> RapidAdaptationEngine:

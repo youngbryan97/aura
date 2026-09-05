@@ -21,14 +21,16 @@ ZENITH Protocol compliance:
   - All container interactions are read-only during the hot path.
 """
 
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
+from typing import Any
+
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.IntentGate")
@@ -58,10 +60,10 @@ class RouteKind(str, Enum):
 class RouteResult:
     """The resolved destination for a user message."""
     kind: RouteKind
-    skill_name: Optional[str] = None        # Target skill, if applicable
-    params: Dict[str, Any] = field(default_factory=dict)
+    skill_name: str | None = None        # Target skill, if applicable
+    params: dict[str, Any] = field(default_factory=dict)
     confidence: float = 1.0
-    matched_pattern: Optional[str] = None   # For audit logs
+    matched_pattern: str | None = None   # For audit logs
     latency_ms: float = 0.0
 
     @property
@@ -123,9 +125,9 @@ class AdminCommandRegistry:
     _LOCKED_AFTER_BOOT = False   # Set to True after on_start() completes
 
     def __init__(self) -> None:
-        self._commands: Dict[str, Tuple[str, Callable, str]] = {}
+        self._commands: dict[str, tuple[str, Callable, str]] = {}
         # Maps command_key → (skill_name, handler_factory, container_token)
-        self._stats: Dict[str, RouteStats] = {}
+        self._stats: dict[str, RouteStats] = {}
 
     def register(
         self,
@@ -167,7 +169,7 @@ class AdminCommandRegistry:
         AdminCommandRegistry._LOCKED_AFTER_BOOT = True
         logger.info("AdminCommandRegistry LOCKED. %d commands active.", len(self._commands))
 
-    def match(self, message: str) -> Optional[RouteResult]:
+    def match(self, message: str) -> RouteResult | None:
         """
         Exact and prefix match against admin commands.
         Returns None immediately if no match, preserving zero overhead
@@ -203,7 +205,7 @@ class AdminCommandRegistry:
 
         return None
 
-    def get_all_stats(self) -> List[Dict[str, Any]]:
+    def get_all_stats(self) -> list[dict[str, Any]]:
         return [
             {
                 "command": k,
@@ -238,10 +240,10 @@ class ShortcutRoute:
     route_id: str
     pattern: re.Pattern
     skill_name: str
-    param_groups: Dict[str, str] = field(default_factory=dict)
+    param_groups: dict[str, str] = field(default_factory=dict)
     # Maps named capture group → param name for the skill
     priority: float = 1.0
-    direct_response: Optional[str] = None  # Only for truly trivial cases
+    direct_response: str | None = None  # Only for truly trivial cases
     stats: RouteStats = field(default_factory=lambda: RouteStats(route_id=""))
 
     def __post_init__(self) -> None:
@@ -258,16 +260,16 @@ class ShortcutRegistry:
     """
 
     def __init__(self) -> None:
-        self._routes: List[ShortcutRoute] = []
+        self._routes: list[ShortcutRoute] = []
 
     def register(
         self,
         route_id: str,
         pattern: str,
         skill_name: str,
-        param_groups: Optional[Dict[str, str]] = None,
+        param_groups: dict[str, str] | None = None,
         priority: float = 1.0,
-        direct_response: Optional[str] = None,
+        direct_response: str | None = None,
     ) -> None:
         compiled = re.compile(pattern, re.IGNORECASE)
 
@@ -291,13 +293,13 @@ class ShortcutRegistry:
         self._routes.sort(key=lambda r: r.priority, reverse=True)
         logger.debug("ShortcutRoute registered: '%s' → '%s'", route_id, skill_name)
 
-    def match(self, message: str) -> Optional[RouteResult]:
+    def match(self, message: str) -> RouteResult | None:
         """Try each route in priority order. Non-greedy: first match wins."""
         t0 = time.monotonic()
         for route in self._routes:
             m = route.pattern.search(message)
             if m:
-                params: Dict[str, Any] = {}
+                params: dict[str, Any] = {}
                 for group_name, param_name in route.param_groups.items():
                     try:
                         params[param_name] = m.group(group_name)
@@ -327,7 +329,7 @@ class ShortcutRegistry:
                 )
         return None
 
-    def get_all_stats(self) -> List[Dict[str, Any]]:
+    def get_all_stats(self) -> list[dict[str, Any]]:
         return [
             {
                 "route_id": r.route_id,
@@ -360,7 +362,7 @@ class IntentClassifierQueue:
 
     def __init__(self, max_queue: int = 64) -> None:
         self._queue: asyncio.Queue = asyncio.Queue(maxsize=max_queue)
-        self._worker_task: Optional[asyncio.Task] = None
+        self._worker_task: asyncio.Task | None = None
         self._running = False
 
     async def start(self) -> None:
@@ -380,7 +382,7 @@ class IntentClassifierQueue:
                 logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
         logger.info("IntentClassifierQueue stopped.")
 
-    async def classify(self, message: str, context: Optional[Dict] = None) -> RouteResult:
+    async def classify(self, message: str, context: dict | None = None) -> RouteResult:
         """
         Classify a message via LLM. Awaits the result, but does not block
         the event loop — the actual LLM call happens in the worker coroutine.
@@ -394,14 +396,14 @@ class IntentClassifierQueue:
 
         try:
             return await asyncio.wait_for(future, timeout=10.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("LLM intent classification timed out for message: '%s...'", message[:40])
             return RouteResult(kind=RouteKind.PASSTHROUGH)
 
     async def _worker_loop(self) -> None:
         while self._running:
             got_item = False
-            future: Optional[asyncio.Future] = None
+            future: asyncio.Future | None = None
             try:
                 message, context, future = await asyncio.wait_for(
                     self._queue.get(), timeout=1.0
@@ -410,7 +412,7 @@ class IntentClassifierQueue:
                 result = await self._classify_via_llm(message, context)
                 if not future.done():
                     future.set_result(result)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue  # Normal idle timeout, loop continues
             except asyncio.CancelledError:
                 break
@@ -424,7 +426,7 @@ class IntentClassifierQueue:
                     self._queue.task_done()
 
     async def _classify_via_llm(
-        self, message: str, context: Dict
+        self, message: str, context: dict
     ) -> RouteResult:
         """
         Calls the cognitive engine to classify intent. Falls back to
@@ -522,7 +524,7 @@ class IntentGate:
     async def route(
         self,
         message: str,
-        context: Optional[Dict] = None,
+        context: dict | None = None,
         use_llm: bool = True,
     ) -> RouteResult:
         """
@@ -564,7 +566,7 @@ class IntentGate:
         # Stage 4: No match — let the main orchestrator decide
         return RouteResult(kind=RouteKind.PASSTHROUGH)
 
-    def get_diagnostics(self) -> Dict[str, Any]:
+    def get_diagnostics(self) -> dict[str, Any]:
         """Full introspection report for UI / health monitoring."""
         return {
             "admin_commands": self.admin.get_all_stats(),
@@ -578,7 +580,7 @@ class IntentGate:
 # Module-level singleton & ServiceContainer registration helper
 # ---------------------------------------------------------------------------
 
-_intent_gate: Optional[IntentGate] = None
+_intent_gate: IntentGate | None = None
 
 
 def get_intent_gate() -> IntentGate:

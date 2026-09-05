@@ -1,11 +1,9 @@
 # core/brain/trace_logger.py
 import json
-import logging
 import time
 from pathlib import Path
 from typing import Any
 
-from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 
 

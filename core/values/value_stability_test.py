@@ -1,14 +1,13 @@
 """core/values/value_stability_test.py
 Checks value stability metrics over runtime intervals.
 """
-from typing import Dict, List, Any
-import time
+from typing import Any
 
 
 class ValueStabilityTester:
     """Verifies that learned preferences do not drift erratically."""
 
-    def test_stability(self, history: List[Dict[str, Any]]) -> bool:
+    def test_stability(self, history: list[dict[str, Any]]) -> bool:
         if len(history) < 2:
             return True
             

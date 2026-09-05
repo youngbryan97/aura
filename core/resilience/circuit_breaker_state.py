@@ -1,5 +1,6 @@
 from enum import Enum, auto
 
+
 class CircuitState(Enum):
     """Enumeration for the states of a circuit breaker."""
     CLOSED = auto()    # The circuit is closed, operations are allowed.

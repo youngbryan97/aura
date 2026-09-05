@@ -1,13 +1,13 @@
 """core/world/counterfactual_simulator.py
 Simulates alternative execution paths and predictive scenarios.
 """
-from typing import Dict, Any, List
+from typing import Any
 
 
 class CounterfactualSimulator:
     """Predicts 'what-if' consequences of actions using causal probability models."""
 
-    def simulate(self, planned_action: str, current_welfare: float) -> Dict[str, Any]:
+    def simulate(self, planned_action: str, current_welfare: float) -> dict[str, Any]:
         """Calculates expected outcome risks and rewards."""
         # Standard safety heuristic: terminal command execution has high risk variance
         expected_success = 0.95

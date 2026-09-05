@@ -5,9 +5,7 @@ requires conformance + abuse + migration + rollback proof.
 """
 from __future__ import annotations
 
-
 from dataclasses import dataclass, field
-from typing import Dict, FrozenSet, List, Optional
 
 
 @dataclass(frozen=True)
@@ -24,7 +22,7 @@ class ChannelPolicy:
     max_memory_slope_mb_per_hour: float
 
 
-CHANNELS: Dict[str, ChannelPolicy] = {
+CHANNELS: dict[str, ChannelPolicy] = {
     "nightly": ChannelPolicy(
         name="nightly",
         promotion_threshold_days=0,
@@ -103,14 +101,14 @@ class ReleaseSubmission:
 @dataclass
 class ReleaseGateResult:
     accepted: bool
-    failed_gates: List[str] = field(default_factory=list)
+    failed_gates: list[str] = field(default_factory=list)
 
 
 def evaluate_release(submission: ReleaseSubmission) -> ReleaseGateResult:
     policy = CHANNELS.get(submission.target_channel)
     if policy is None:
         return ReleaseGateResult(False, ["unknown_channel"])
-    failures: List[str] = []
+    failures: list[str] = []
     if submission.crash_rate > policy.crash_rate_threshold:
         failures.append("crash_rate_above_threshold")
     if submission.receipt_coverage < policy.receipt_coverage_threshold:

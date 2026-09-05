@@ -44,18 +44,17 @@ Pure numpy.
 """
 
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import asyncio
 import logging
-import math
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.PlasticityMonitor")
 
@@ -89,7 +88,7 @@ class PlasticityReport:
     sustained_breaches: int      # how many recent measurements are below floor
     measurement_count: int
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "nominal_rank": int(self.nominal_rank),
             "stable_rank": round(float(self.stable_rank), 3),
@@ -111,13 +110,13 @@ class PlasticityMonitor:
     ) -> None:
         self._floor = float(floor_ratio)
         self._sustained_for_warn = int(sustained_for_warn)
-        self._ratio_history: Deque[float] = deque(maxlen=int(history))
+        self._ratio_history: deque[float] = deque(maxlen=int(history))
         self._measurement_count: int = 0
         self._last_warning_at: int = -1  # measurement index of most recent warning
 
     # ── Main API ──────────────────────────────────────────────────────────
 
-    def measure(self, W: np.ndarray) -> Optional[PlasticityReport]:
+    def measure(self, W: np.ndarray) -> PlasticityReport | None:
         """Compute a plasticity report for the given weight matrix. Returns
         None on degenerate input (None, wrong shape, oversized).
         """
@@ -197,7 +196,7 @@ class PlasticityMonitor:
         )
 
     @property
-    def history(self) -> List[float]:
+    def history(self) -> list[float]:
         return list(self._ratio_history)
 
     @property
@@ -211,7 +210,7 @@ class PlasticityMonitor:
 
     # ── Async API — event-loop-safe SVD ───────────────────────────────────
 
-    async def measure_async(self, W: np.ndarray) -> Optional[PlasticityReport]:
+    async def measure_async(self, W: np.ndarray) -> PlasticityReport | None:
         """Offload SVD to a bounded thread pool so the event loop stays responsive.
 
         This is the preferred entry point for any caller running inside an
@@ -234,7 +233,7 @@ class PlasticityMonitor:
 
 # ── Singleton ─────────────────────────────────────────────────────────────
 
-_singleton: Optional[PlasticityMonitor] = None
+_singleton: PlasticityMonitor | None = None
 
 
 def get_plasticity_monitor() -> PlasticityMonitor:

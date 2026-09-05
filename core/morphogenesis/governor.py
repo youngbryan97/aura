@@ -37,7 +37,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from .graph import EdgeType, GraphIntegrityError, GraphSnapshot, MorphEdge, MorphGraph
+from .graph import GraphIntegrityError, GraphSnapshot, MorphEdge, MorphGraph
 from .lineage import Lineage, LineageCycleError
 from .proposal import (
     Decision,

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import math
-from typing import List, Sequence
+from collections.abc import Sequence
 
 
 class HashEmbedder:
@@ -26,7 +26,7 @@ class HashEmbedder:
         self.dim = int(dim)
         self.ngram = int(ngram)
 
-    def embed(self, text: str) -> List[float]:
+    def embed(self, text: str) -> list[float]:
         normalized = " ".join(str(text).lower().split())
         vec = [0.0] * self.dim
         if not normalized:

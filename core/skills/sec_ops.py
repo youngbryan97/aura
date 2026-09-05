@@ -12,7 +12,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill
 
-
 _SECURITY_PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ("high", "dynamic_execution", re.compile(r"\b(?:eval|exec)\s*\(", re.IGNORECASE)),
     ("high", "shell_execution", re.compile(r"\b(?:os\.system|subprocess\.(?:Popen|run|call))\b")),

@@ -25,9 +25,9 @@ import asyncio
 import inspect
 import logging
 import time
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from core.runtime.errors import record_degradation
 

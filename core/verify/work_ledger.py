@@ -38,8 +38,9 @@ from __future__ import annotations
 
 import time
 from collections import OrderedDict
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
-from typing import Any, Iterator, Mapping
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import LockRank, checked_lock
@@ -90,7 +91,7 @@ class WorkLedger:
         self._lock = checked_lock("work_ledger", rank=LockRank.LEAF)
         self._max_turns = max(1, int(max_turns))
         # turn_id -> {unit: WorkRecord}. OrderedDict gives oldest-first eviction.
-        self._turns: "OrderedDict[str, dict[str, WorkRecord]]" = OrderedDict()
+        self._turns: OrderedDict[str, dict[str, WorkRecord]] = OrderedDict()
         self._evicted_turns = 0
         self._dropped_units = 0
 

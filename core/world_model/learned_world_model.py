@@ -26,17 +26,13 @@ Design principles:
 """
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import math
-import os
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -107,7 +103,7 @@ class WorldModelPrediction:
     confidence: float               # 1.0 - surprise (how confident the prediction is)
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "surprise": round(self.surprise, 6),
             "kl_divergence": round(self.kl_divergence, 6),
@@ -130,7 +126,7 @@ class LearnedWorldModel:
         trajectory = model.imagine(current_obs, action_sequence)
     """
 
-    def __init__(self, config: Optional[WorldModelConfig] = None) -> None:
+    def __init__(self, config: WorldModelConfig | None = None) -> None:
         self.config = config or WorldModelConfig()
         self._rng = np.random.default_rng(self.config.seed)
 
@@ -171,7 +167,7 @@ class LearnedWorldModel:
         self.h = np.zeros(hid_d, dtype=np.float32)
 
         # Experience replay buffer
-        self._replay: Deque[Tuple[np.ndarray, np.ndarray, np.ndarray]] = deque(
+        self._replay: deque[tuple[np.ndarray, np.ndarray, np.ndarray]] = deque(
             maxlen=self.config.replay_buffer_size
         )
 
@@ -190,8 +186,8 @@ class LearnedWorldModel:
         # Metrics
         self._step_count = 0
         self._total_surprise = 0.0
-        self._last_prediction: Optional[WorldModelPrediction] = None
-        self._surprise_history: Deque[float] = deque(maxlen=100)
+        self._last_prediction: WorldModelPrediction | None = None
+        self._surprise_history: deque[float] = deque(maxlen=100)
 
         # Load persisted state
         _DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -207,7 +203,7 @@ class LearnedWorldModel:
     def observe(
         self,
         observation: np.ndarray,
-        action: Optional[np.ndarray] = None,
+        action: np.ndarray | None = None,
         *,
         learn: bool = True,
     ) -> WorldModelPrediction:
@@ -291,14 +287,14 @@ class LearnedWorldModel:
     def imagine(
         self,
         current_observation: np.ndarray,
-        action_sequence: List[np.ndarray],
-    ) -> List[WorldModelPrediction]:
+        action_sequence: list[np.ndarray],
+    ) -> list[WorldModelPrediction]:
         """Imagine a future trajectory given a sequence of actions.
 
         Uses the prior (not posterior) since future observations
         aren't available. This is the planning pathway.
         """
-        trajectory: List[WorldModelPrediction] = []
+        trajectory: list[WorldModelPrediction] = []
         h = self.h.copy()  # Don't modify actual hidden state
 
         for action in action_sequence[:self.config.max_trajectory_len]:
@@ -734,7 +730,7 @@ class LearnedWorldModel:
             return 0.0
         return float(np.mean(list(self._surprise_history)))
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return model status for observability."""
         return {
             "step_count": self._step_count,
@@ -763,7 +759,7 @@ class LearnedWorldModel:
 
 # ── Singleton ───────────────────────────────────────────────────────────────
 
-_instance: Optional[LearnedWorldModel] = None
+_instance: LearnedWorldModel | None = None
 
 
 def get_learned_world_model() -> LearnedWorldModel:

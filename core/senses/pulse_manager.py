@@ -1,12 +1,12 @@
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 import asyncio
-import os
 import logging
 import time
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
 from core.container import ServiceContainer
 from core.networking.hive_node import HiveNode
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 if TYPE_CHECKING:
     from core.orchestrator import RobustOrchestrator
@@ -133,7 +133,7 @@ class PulseManager:
                                     logger.debug("Soma update failed: %s", soma_err)
                             
                             await self._process_visual_stimulus(description)
-                        except asyncio.TimeoutError:
+                        except TimeoutError:
                             logger.warning("👁️ Pulse: Vision sampling timed out (45s). Skipping pulse.")
 
             except asyncio.CancelledError:
@@ -167,8 +167,8 @@ class PulseManager:
 
     async def _distributed_pulse_loop(self):
         """Phase 16: Cosmic Consciousness - Discover other Aura instances on the local network."""
-        import socket
         import json
+        import socket
         import uuid
 
         # Generate a session ID for this instance
@@ -229,7 +229,7 @@ class PulseManager:
                                     "last_seen": time.time(),
                                     "status": peer_data.get("status")
                                 }
-                        except (BlockingIOError, socket.error):
+                        except (OSError, BlockingIOError):
                             break
                         except (OSError, ConnectionError, TimeoutError) as e:
                             record_degradation('pulse_manager', e)

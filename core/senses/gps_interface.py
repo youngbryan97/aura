@@ -1,9 +1,8 @@
-from core.runtime.errors import record_degradation
 import json
 import logging
 import time
-from typing import Tuple, Optional
 
+from core.runtime.errors import record_degradation
 from core.runtime.network_gateway import get_network_gateway
 
 logger = logging.getLogger("Aura.GpsInterface")
@@ -68,7 +67,7 @@ class GpsInterface:
         self.source = "configured_fallback"
         self.confidence = 0.0
 
-    def get_coords(self) -> Tuple[float, float]:
+    def get_coords(self) -> tuple[float, float]:
         """Returns live coordinates."""
         self._fetch_location()
         return self.latitude, self.longitude

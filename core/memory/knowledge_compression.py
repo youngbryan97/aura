@@ -20,7 +20,7 @@ import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -37,15 +37,15 @@ class KnowledgeAtom:
     readable: str = ""
 
     # Layer 2: Semantic (for retrieval and reasoning)
-    entities: List[str] = field(default_factory=list)
-    topics: List[str] = field(default_factory=list)
+    entities: list[str] = field(default_factory=list)
+    topics: list[str] = field(default_factory=list)
     sentiment: float = 0.0         # -1 to 1
     user_intent: str = ""          # question, statement, request, emotional
     aura_stance: str = ""          # agreed, disagreed, supported, deflected
     turn_count: int = 0
 
     # Layer 3: Machine (compact numeric for fast matching)
-    vector: Optional[np.ndarray] = None  # 32-dim compact representation
+    vector: np.ndarray | None = None  # 32-dim compact representation
 
     def to_prompt_text(self) -> str:
         """Render for system prompt injection (Layer 1 + key Layer 2)."""
@@ -54,7 +54,7 @@ class KnowledgeAtom:
             parts.append(f"(Topics: {', '.join(self.entities[:5])})")
         return " ".join(parts)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "atom_id": self.atom_id,
             "timestamp": self.timestamp,
@@ -72,9 +72,9 @@ class KnowledgeCompressor:
     """Compresses conversation turns into structured knowledge atoms."""
 
     def __init__(self):
-        self._atoms: List[KnowledgeAtom] = []
+        self._atoms: list[KnowledgeAtom] = []
 
-    def compress_turns(self, turns: List[Dict[str, str]], brain=None) -> KnowledgeAtom:
+    def compress_turns(self, turns: list[dict[str, str]], brain=None) -> KnowledgeAtom:
         """Compress a sequence of conversation turns into a knowledge atom.
 
         Args:
@@ -128,7 +128,7 @@ class KnowledgeCompressor:
 
         return " | ".join(parts) if len(parts) <= 3 else "\n".join(f"- {p}" for p in parts)
 
-    def merge_atoms(self, atoms: List[KnowledgeAtom]) -> KnowledgeAtom:
+    def merge_atoms(self, atoms: list[KnowledgeAtom]) -> KnowledgeAtom:
         """Merge multiple atoms into one (for deeper compression)."""
         if not atoms:
             return KnowledgeAtom()
@@ -180,7 +180,7 @@ class KnowledgeCompressor:
 
     # ── Layer 1: Readable summary ──────────────────────────────────────
 
-    def _build_readable(self, user_msgs: List[str], aura_msgs: List[str],
+    def _build_readable(self, user_msgs: list[str], aura_msgs: list[str],
                         brain=None) -> str:
         """Build a human-readable summary of the conversation segment."""
         # Extractive: take first sentence of each significant message
@@ -198,7 +198,7 @@ class KnowledgeCompressor:
 
     # ── Layer 2: Semantic extraction ───────────────────────────────────
 
-    def _extract_entities(self, text: str) -> List[str]:
+    def _extract_entities(self, text: str) -> list[str]:
         """Extract named entities and key nouns."""
         import re
         # Capitalized phrases (likely proper nouns)
@@ -215,7 +215,7 @@ class KnowledgeCompressor:
                 entities.append(e)
         return entities[:10]
 
-    def _extract_topics(self, text: str) -> List[str]:
+    def _extract_topics(self, text: str) -> list[str]:
         """Extract likely discussion topics."""
         import re
         # Simple keyword extraction: words that appear multiple times
@@ -244,7 +244,7 @@ class KnowledgeCompressor:
             return 0.0
         return (pos_count - neg_count) / total
 
-    def _classify_intent(self, user_msgs: List[str]) -> str:
+    def _classify_intent(self, user_msgs: list[str]) -> str:
         """Classify the dominant user intent."""
         all_text = " ".join(user_msgs).lower()
         if "?" in all_text:
@@ -255,7 +255,7 @@ class KnowledgeCompressor:
             return "emotional"
         return "statement"
 
-    def _classify_stance(self, aura_msgs: List[str]) -> str:
+    def _classify_stance(self, aura_msgs: list[str]) -> str:
         """Classify Aura's dominant stance in the exchange."""
         all_text = " ".join(aura_msgs).lower()
         if any(w in all_text for w in ("agree", "right", "exactly", "yes")):
@@ -306,7 +306,7 @@ class KnowledgeCompressor:
 
         return vec
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         return {
             "atom_count": len(self._atoms),
             "total_turns_compressed": sum(a.turn_count for a in self._atoms),
@@ -314,7 +314,7 @@ class KnowledgeCompressor:
         }
 
 
-_instance: Optional[KnowledgeCompressor] = None
+_instance: KnowledgeCompressor | None = None
 
 
 def get_knowledge_compressor() -> KnowledgeCompressor:

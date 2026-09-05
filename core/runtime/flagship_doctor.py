@@ -19,12 +19,12 @@ import sys
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
-from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.runtime.sqlite_support import connecting
+from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 
 @dataclass
@@ -288,8 +288,8 @@ import sqlite3
 import threading
 
 from core.runtime.shutdown_coordinator import is_shutdown_requested
-from core.utils.task_tracker import get_task_tracker
 from core.runtime.state_ownership import state_root
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.FlagshipDoctor")
 
@@ -832,7 +832,7 @@ def get_flagship_doctor_daemon(root_dir: str | Path | None = None) -> FlagshipDo
     return _daemon_instance
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(description="Aura flagship operational doctor")

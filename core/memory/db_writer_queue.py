@@ -15,7 +15,7 @@ import queue
 import sqlite3
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
@@ -64,17 +64,17 @@ class SerializedDBWriter:
         self._queue: queue.Queue = queue.Queue(maxsize=500)
         # ISSUE 27 fix: Use thread-local for writer connection and reader connections
         self._local = threading.local()
-        self._writer_conns: Dict[str, sqlite3.Connection] = {}
+        self._writer_conns: dict[str, sqlite3.Connection] = {}
         # Reader connections are thread-local so two threads never share a
         # cursor, but thread-local also means shutdown — which runs on one
         # thread — cannot see them, and every reader handle survived the writer
         # it belonged to. Mirror them here, keyed by (thread, path), so the
         # owner that opened them is also the owner that can close them.
-        self._reader_conns: Dict[Tuple[int, str], sqlite3.Connection] = {}
+        self._reader_conns: dict[tuple[int, str], sqlite3.Connection] = {}
         self._lock = threading.Lock()
         self._accepting = True
         self._checkpoint_every = 500
-        self._writes_since_checkpoint: Dict[str, int] = {}
+        self._writes_since_checkpoint: dict[str, int] = {}
         self._thread = threading.Thread(target=self._writer_loop, daemon=True, name="db-writer")
         self._thread.start()
         logger.info("📝 SerializedDBWriter started")
@@ -104,8 +104,8 @@ class SerializedDBWriter:
                 self._writes_since_checkpoint[db_path] = 0
             return conn
 
-    def _drain_batch(self, first_item: Any, *, max_items: int = 50, window_s: float = 0.05) -> Tuple[List["_WriteRequest"], bool]:
-        batch: List[_WriteRequest] = []
+    def _drain_batch(self, first_item: Any, *, max_items: int = 50, window_s: float = 0.05) -> tuple[list["_WriteRequest"], bool]:
+        batch: list[_WriteRequest] = []
         stop_requested = False
 
         if first_item is _SENTINEL:
@@ -143,8 +143,8 @@ class SerializedDBWriter:
         self,
         req: "_WriteRequest",
         *,
-        result: Optional[Dict[str, Any]] = None,
-        error: Optional[BaseException] = None,
+        result: dict[str, Any] | None = None,
+        error: BaseException | None = None,
     ) -> None:
         """Resolve request futures on their owning event loop."""
         def _complete() -> None:
@@ -173,13 +173,13 @@ class SerializedDBWriter:
                     break
                 stop_writer = stop_requested
 
-                grouped: Dict[str, List[_WriteRequest]] = {}
+                grouped: dict[str, list[_WriteRequest]] = {}
                 for req in batch:
                     grouped.setdefault(req.db_path, []).append(req)
 
                 for db_path, requests in grouped.items():
                     conn = self._get_writer_conn(db_path)
-                    results: List[Tuple[_WriteRequest, Dict[str, Any]]] = []
+                    results: list[tuple[_WriteRequest, dict[str, Any]]] = []
                     
                     max_retries = 5
                     base_delay = 0.05
@@ -255,7 +255,7 @@ class SerializedDBWriter:
                 record_degradation('db_writer_queue', e)
                 logger.error("DBWriter loop error: %s", e)
 
-    async def execute(self, db_path: str, sql: str, params: tuple = ()) -> Dict[str, Any]:
+    async def execute(self, db_path: str, sql: str, params: tuple = ()) -> dict[str, Any]:
         """Queue a write and await its completion."""
         if not self._accepting or not self._thread.is_alive():
             raise RuntimeError("SerializedDBWriter is not accepting writes")
@@ -278,20 +278,20 @@ class SerializedDBWriter:
             raise TimeoutError("Timed out enqueueing SQLite write") from exc
         return await future
 
-    def execute_sync(self, db_path: str, sql: str, params: tuple = ()) -> Dict[str, Any]:
+    def execute_sync(self, db_path: str, sql: str, params: tuple = ()) -> dict[str, Any]:
         """Synchronous write (for use from non-async contexts)."""
         conn = self._get_conn(str(db_path))
         cursor = conn.execute(sql, params)
         conn.commit()
         return {"rowcount": cursor.rowcount, "lastrowid": cursor.lastrowid}
 
-    def fetchall(self, db_path: str, sql: str, params: tuple = ()) -> List[Any]:
+    def fetchall(self, db_path: str, sql: str, params: tuple = ()) -> list[Any]:
         """Direct read (bypasses queue for speed)."""
         conn = self._get_conn(str(db_path))
         cursor = conn.execute(sql, params)
         return cursor.fetchall()
 
-    def fetchone(self, db_path: str, sql: str, params: tuple = ()) -> Optional[Any]:
+    def fetchone(self, db_path: str, sql: str, params: tuple = ()) -> Any | None:
         """Direct single-row read."""
         conn = self._get_conn(str(db_path))
         cursor = conn.execute(sql, params)
@@ -347,7 +347,7 @@ class SerializedDBWriter:
 
 
 # ── Singleton ──
-_instance: Optional[SerializedDBWriter] = None
+_instance: SerializedDBWriter | None = None
 _instance_lock = threading.Lock()
 
 

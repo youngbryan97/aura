@@ -1,6 +1,4 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import json
 import logging
@@ -12,6 +10,7 @@ from threading import RLock
 from typing import Any
 
 from core.config import config
+from core.runtime.errors import record_degradation
 from core.runtime.turn_analysis import TurnAnalysis, analyze_turn, canonical_turn_text
 from core.utils.file_utils import atomic_write_json
 
@@ -177,7 +176,7 @@ class CodingExchange:
     timestamp: float = field(default_factory=time.time)
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "CodingExchange":
+    def from_dict(cls, payload: dict[str, Any]) -> CodingExchange:
         return cls(
             objective=str(payload.get("objective", "") or ""),
             user_summary=str(payload.get("user_summary", "") or ""),
@@ -197,7 +196,7 @@ class ToolEvent:
     timestamp: float = field(default_factory=time.time)
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "ToolEvent":
+    def from_dict(cls, payload: dict[str, Any]) -> ToolEvent:
         return cls(
             tool_name=str(payload.get("tool_name", "") or ""),
             summary=str(payload.get("summary", "") or ""),
@@ -226,7 +225,7 @@ class ExecutionLoopState:
     updated_at: float = field(default_factory=time.time)
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "ExecutionLoopState":
+    def from_dict(cls, payload: dict[str, Any]) -> ExecutionLoopState:
         return cls(
             plan_id=str(payload.get("plan_id", "") or ""),
             goal=str(payload.get("goal", "") or ""),

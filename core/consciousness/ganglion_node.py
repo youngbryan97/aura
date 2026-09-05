@@ -12,12 +12,14 @@ Safety features:
 - Local activation tracking for telemetry
 """
 
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from typing import Any, Callable, Coroutine, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Consciousness.Ganglion")
 
@@ -28,7 +30,7 @@ class GanglionAction:
 
     source_domain: str          # Which ganglion proposed this
     action_type: str            # e.g. "recall", "affect_shift", "motor_plan"
-    payload: Dict[str, Any]     # Action-specific data
+    payload: dict[str, Any]     # Action-specific data
     priority: float = 0.5       # 0.0-1.0
     is_critical: bool = False   # Critical actions bypass executive inhibition
     timestamp: float = field(default_factory=time.time)
@@ -66,14 +68,14 @@ class GanglionNode:
         self._refractory_period = refractory_seconds
 
         # Handler registry: stimulus_type -> async handler function
-        self._handlers: Dict[str, Callable[..., Coroutine]] = {}
+        self._handlers: dict[str, Callable[..., Coroutine]] = {}
 
         # State
         self._last_fire_time: float = 0.0
         self._activation: float = 0.0      # Current activation level (0.0-1.0)
         self._fire_count: int = 0
         self._suppressed_count: int = 0     # Firings blocked by refractory
-        self._last_stimulus: Optional[str] = None
+        self._last_stimulus: str | None = None
 
         logger.info("Ganglion node [%s] initialized (refractory=%.1fs)", domain, refractory_seconds)
 
@@ -94,8 +96,8 @@ class GanglionNode:
     async def process_stimulus(
         self,
         stimulus_type: str,
-        payload: Dict[str, Any],
-    ) -> Optional[GanglionAction]:
+        payload: dict[str, Any],
+    ) -> GanglionAction | None:
         """Process an incoming stimulus.
 
         If a handler matches and the refractory period has elapsed,
@@ -154,7 +156,7 @@ class GanglionNode:
         """Natural activation decay, called each tick."""
         self._activation = max(0.0, self._activation - rate * dt)
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         """Telemetry snapshot."""
         return {
             "domain": self.domain,

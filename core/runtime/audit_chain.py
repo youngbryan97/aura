@@ -32,7 +32,6 @@ import hashlib
 import json
 import logging
 import os
-import threading
 import weakref
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -624,7 +623,7 @@ class AuditChain:
 #
 # A WeakSet keeps nothing alive and lets teardown ask the question nobody could
 # ask before: which chains are still open right now?
-_LIVE_CHAINS: "weakref.WeakSet[AuditChain]" = weakref.WeakSet()
+_LIVE_CHAINS: weakref.WeakSet[AuditChain] = weakref.WeakSet()
 
 
 def close_all_chains() -> dict[str, int]:

@@ -1,13 +1,13 @@
 """core/security/action_risk_classifier.py
 Classifies risk levels of commands and file write operations.
 """
-from typing import Dict, Any
+from typing import Any
 
 
 class ActionRiskClassifier:
     """Calculates risk levels for planned actions."""
 
-    def classify_risk(self, channel: str, params: Dict[str, Any]) -> int:
+    def classify_risk(self, channel: str, params: dict[str, Any]) -> int:
         """Returns risk coefficient (1 to 10)."""
         if channel == "terminal":
             cmd = params.get("command", "").lower()

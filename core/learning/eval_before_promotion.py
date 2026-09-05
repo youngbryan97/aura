@@ -4,7 +4,7 @@ Evaluates candidate model adapters against benchmark suites before production pr
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
@@ -16,7 +16,7 @@ _ADAPTER_EVAL_ERRORS = (OSError, RuntimeError, TypeError, ValueError, json.JSOND
 class AdapterEvaluator:
     """Runs verification benchmarks on candidate adapters."""
 
-    def evaluate_candidate(self, adapter_path: str) -> Dict[str, Any]:
+    def evaluate_candidate(self, adapter_path: str) -> dict[str, Any]:
         """Read real evaluation evidence and decide whether promotion is allowed."""
         logger.info("Evaluating candidate adapter: %s", adapter_path)
         adapter = Path(adapter_path).expanduser()

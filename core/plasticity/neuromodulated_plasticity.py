@@ -16,7 +16,7 @@ zeroes Hebb + eligibility for episode boundaries.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
@@ -46,8 +46,8 @@ class NeuromodulatedPlasticLayer:
         self.hebb = np.zeros((cfg.out_dim, cfg.in_dim), dtype=np.float32)
         self.eligibility = np.zeros((cfg.out_dim, cfg.in_dim), dtype=np.float32)
 
-        self.last_x: Optional[np.ndarray] = None
-        self.last_y: Optional[np.ndarray] = None
+        self.last_x: np.ndarray | None = None
+        self.last_y: np.ndarray | None = None
         self.total_updates = 0
 
     def forward(self, x: np.ndarray) -> np.ndarray:
@@ -58,7 +58,7 @@ class NeuromodulatedPlasticLayer:
         self.last_y = y
         return y
 
-    def update(self, *, reward: float, modulation: float) -> Dict[str, Any]:
+    def update(self, *, reward: float, modulation: float) -> dict[str, Any]:
         if self.last_x is None or self.last_y is None:
             return {"updated": False, "reason": "no_activity"}
 
@@ -96,7 +96,7 @@ class NeuromodulatedPlasticLayer:
         self.last_x = None
         self.last_y = None
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {
             "shape": [self.cfg.out_dim, self.cfg.in_dim],
             "hebb_norm": float(np.linalg.norm(self.hebb)),

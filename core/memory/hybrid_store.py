@@ -1,13 +1,12 @@
 # core/memory/hybrid_store.py — drop-in safe starter
-from core.runtime.errors import record_degradation
 import asyncio
-import logging
 import json
+import logging
 import time
 from pathlib import Path
-from typing import List, Dict
 
 from core.memory.retention_policy import hybrid_memory_retention_policy
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.MemoryStore")
 
@@ -29,7 +28,7 @@ class HybridMemoryStore:
             self._lock = asyncio.Lock()
         return self._lock
 
-    async def store(self, content: str, metadata: Dict):
+    async def store(self, content: str, metadata: dict):
         """Store an entry in episodic memory with confidence level."""
         entry = {
             "timestamp": time.time(),
@@ -66,7 +65,7 @@ class HybridMemoryStore:
         return await asyncio.to_thread(_count)
 
     @staticmethod
-    def _entry_score(entry: Dict, index: int, total: int) -> float:
+    def _entry_score(entry: dict, index: int, total: int) -> float:
         if entry.get("protected") or entry.get("pinned"):
             return float("inf")
         confidence = float(entry.get("confidence", 0.0) or 0.0)
@@ -122,7 +121,7 @@ class HybridMemoryStore:
                         f.write(json.dumps(entry) + "\n")
             await asyncio.to_thread(_prune)
 
-    async def retrieve(self, query: str, top_k=5, min_confidence=0.6) -> List[Dict]:
+    async def retrieve(self, query: str, top_k=5, min_confidence=0.6) -> list[dict]:
         """
         Simple retrieval with 'Blood-Brain Barrier' filter.
         Prevents retrieving own past errors.

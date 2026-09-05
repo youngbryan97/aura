@@ -39,12 +39,12 @@ is running.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
-import threading
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Species",

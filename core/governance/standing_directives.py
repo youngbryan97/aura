@@ -126,7 +126,7 @@ class StandingDirective:
         }
 
     @staticmethod
-    def from_dict(raw: Any) -> "StandingDirective":
+    def from_dict(raw: Any) -> StandingDirective:
         if not isinstance(raw, dict):
             raise ValueError("directive entry is not an object")
         kind = str(raw.get("kind") or "").strip().lower()

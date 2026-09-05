@@ -1,7 +1,7 @@
-from core.runtime.errors import record_degradation
 import logging
-from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Memory.Pruner")
 
@@ -17,7 +17,7 @@ class ContextPruner:
     def needs_pruning(self, current_tokens: int) -> bool:
         return current_tokens > (self.token_limit * self.prune_threshold)
 
-    async def prune_history(self, history: List[Dict[str, Any]], cognitive_engine) -> List[Dict[str, Any]]:
+    async def prune_history(self, history: list[dict[str, Any]], cognitive_engine) -> list[dict[str, Any]]:
         """Compress conversation history.
         Strategy: Summarize the oldest segments, keep the recent context raw.
         """

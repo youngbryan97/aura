@@ -69,9 +69,10 @@ question.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from statistics import median
-from typing import Any, Mapping
+from typing import Any
 
 from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY
 
@@ -228,7 +229,7 @@ class WhatMakesItGoodHere:
         return {"worth": dict(self.worth), "seen": self.seen}
 
     @classmethod
-    def from_memory(cls, held: Any, trust: float = 1.0) -> "WhatMakesItGoodHere":
+    def from_memory(cls, held: Any, trust: float = 1.0) -> WhatMakesItGoodHere:
         """What mattered here last time, discounted like anything carried over."""
         if not isinstance(held, dict):
             return cls()

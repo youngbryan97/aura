@@ -20,7 +20,7 @@ import statistics
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 import torch
 from torch.utils.data import DataLoader
@@ -45,7 +45,7 @@ class TrainConfig:
         return "cpu"
 
 
-def _atomic_torch_save(obj: Any, path: Union[str, Path]) -> None:
+def _atomic_torch_save(obj: Any, path: str | Path) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
@@ -72,10 +72,10 @@ class LatticeTrainer:
         )
         self.global_step = 0
 
-    def _move_batch(self, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    def _move_batch(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         return {k: v.to(self.device, non_blocking=True) for k, v in batch.items()}
 
-    def train_step(self, batch: Dict[str, torch.Tensor]) -> Dict[str, float]:
+    def train_step(self, batch: dict[str, torch.Tensor]) -> dict[str, float]:
         self.model.train()
         batch = self._move_batch(batch)
         self.optimizer.zero_grad(set_to_none=True)
@@ -122,7 +122,7 @@ class LatticeTrainer:
         return statistics.mean(losses) if losses else float("inf")
 
     def save_checkpoint(
-        self, name: str = "latest.pt", extra: Optional[Dict[str, Any]] = None
+        self, name: str = "latest.pt", extra: dict[str, Any] | None = None
     ) -> Path:
         path = Path(self.cfg.checkpoint_dir) / name
         payload = {
@@ -136,7 +136,7 @@ class LatticeTrainer:
         _atomic_torch_save(payload, path)
         return path
 
-    def load_checkpoint(self, path: Union[str, Path]) -> Dict[str, Any]:
+    def load_checkpoint(self, path: str | Path) -> dict[str, Any]:
         payload = torch.load(str(path), map_location=self.device)
         self.model.load_state_dict(payload["model"])
         self.optimizer.load_state_dict(payload["optimizer"])

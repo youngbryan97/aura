@@ -33,7 +33,8 @@ can cost more than it ever saved.
 from __future__ import annotations
 
 import logging
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 __all__ = [
     "how_long_the_library_is",

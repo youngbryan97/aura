@@ -18,8 +18,8 @@ from __future__ import annotations
 import math
 import re
 import statistics
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 __all__ = [
     "STATISTIC_FORMS",

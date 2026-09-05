@@ -36,8 +36,8 @@ from __future__ import annotations
 import logging
 import math
 import re
-from collections.abc import Mapping
-from typing import Any, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 logger = logging.getLogger("Aura.HowGoodIsThis")
 

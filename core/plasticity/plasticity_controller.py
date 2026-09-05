@@ -5,9 +5,9 @@ Coordinates high-plasticity learning phases with low-plasticity consolidation ph
 
 import logging
 import time
-from typing import List, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 from core.runtime.service_registry import get_runtime_service, register_runtime_factory
 
@@ -31,7 +31,7 @@ class PlasticityController:
     def __init__(self):
         self.state = PlasticityMode.STABLE
         self.plasticity_score = 0.5
-        self._history: List[Dict[str, Any]] = []
+        self._history: list[dict[str, Any]] = []
         self._last_check = 0.0
         logger.info("PlasticityController initialized.")
 

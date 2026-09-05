@@ -26,8 +26,9 @@ Nothing here knows what a board is, or a tile, or a game.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Sequence
+from typing import Any
 
 from core.agency.inventing_a_measure import Measure, every_measure
 

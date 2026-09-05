@@ -1,7 +1,7 @@
 import json
 import logging
 import time
-from typing import Any, Dict
+from typing import Any
 
 from core.container import get_container
 
@@ -15,7 +15,7 @@ class HealthAggregator:
     """
     
     @classmethod
-    async def get_report(cls) -> Dict[str, Any]:
+    async def get_report(cls) -> dict[str, Any]:
         """Collect health data from the ServiceContainer and system state."""
         container = get_container()
         base_report = container.get_health_report()
@@ -32,7 +32,7 @@ class HealthAggregator:
         return report
 
     @classmethod
-    def _get_system_metrics(cls) -> Dict[str, Any]:
+    def _get_system_metrics(cls) -> dict[str, Any]:
         """Low-level resource stats."""
         import os
 

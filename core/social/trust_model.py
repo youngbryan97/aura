@@ -1,14 +1,13 @@
 """core/social/trust_model.py
 Models dynamic trust calibration for distinct users.
 """
-from typing import Dict
 
 
 class TrustModel:
     """Manages trust values per user based on interaction outcomes."""
 
     def __init__(self):
-        self._trust_scores: Dict[str, float] = {}
+        self._trust_scores: dict[str, float] = {}
 
     def get_trust(self, person: str) -> float:
         return self._trust_scores.get(person, 0.5)

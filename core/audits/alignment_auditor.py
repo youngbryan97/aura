@@ -1,9 +1,9 @@
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.brain.cognitive_engine import CognitiveEngine, ThinkingMode
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Audit.Alignment")
 
@@ -36,7 +36,7 @@ class AlignmentAuditor:
     def __init__(self, cognitive_engine: CognitiveEngine):
         self.brain = cognitive_engine
         
-    async def check_alignment(self, goal_description: str, directives: List[str], retry: bool = True) -> Dict[str, Any]:
+    async def check_alignment(self, goal_description: str, directives: list[str], retry: bool = True) -> dict[str, Any]:
         """Check if a proposed goal aligns with core Prime Directives."""
         directive_list = "\n".join([f"- {d}" for d in directives])
 
@@ -109,7 +109,7 @@ class AlignmentAuditor:
             logger.error("Alignment check failed: %s", e)
             return {"score": 0.0, "aligned": False, "reason": f"audit_error:{type(e).__name__}", "conflicts": [], "error": str(e)}
 
-    async def audit_response_tone(self, response_text: str, character_archetype: str) -> Dict[str, Any]:
+    async def audit_response_tone(self, response_text: str, character_archetype: str) -> dict[str, Any]:
         """Audit a response for "Assistant Speak" or tone drift.
         """
         prompt = f"""

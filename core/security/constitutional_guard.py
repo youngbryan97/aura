@@ -1,7 +1,7 @@
 import ast
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("Security.ConstitutionalGuard")
 
@@ -77,7 +77,7 @@ class ConstitutionalGuard:
 
         return True
 
-    def check_code(self, code: str) -> Dict[str, Any]:
+    def check_code(self, code: str) -> dict[str, Any]:
         """v5.0: AST-based code safety check.
         Returns {"safe": bool, "violations": [str]}
         """
@@ -132,7 +132,7 @@ class ConstitutionalGuard:
 
         return {"safe": len(violations) == 0, "violations": violations}
 
-    def check_action(self, tool_name: str, params: Dict[str, Any]) -> bool:
+    def check_action(self, tool_name: str, params: dict[str, Any]) -> bool:
         """v5.0: Check if a proposed tool action violates the constitution.
         Returns True if safe to proceed.
         """
@@ -159,7 +159,7 @@ class ConstitutionalGuard:
         return True
 
     @staticmethod
-    def _get_call_name(node: ast.Call) -> Optional[str]:
+    def _get_call_name(node: ast.Call) -> str | None:
         """Extract dotted call name from AST Call node."""
         func = node.func
         if isinstance(func, ast.Name):

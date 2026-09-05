@@ -24,15 +24,15 @@ Boundaries (deliberate, honest):
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
 import logging
 import os
 import tempfile
 import threading
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from core.brain.reasoning_solved_cache import (
     DEFAULT_CACHEABLE_TASK_TYPES,
@@ -74,7 +74,7 @@ class ReasoningTrace:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ReasoningTrace":
+    def from_dict(cls, data: dict[str, Any]) -> ReasoningTrace:
         return cls(
             objective=str(data.get("objective", "")),
             answer=str(data.get("answer", "")),

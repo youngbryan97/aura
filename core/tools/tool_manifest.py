@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any
 
 
 @dataclass
@@ -14,12 +14,12 @@ class ToolManifest:
     hash_sha256: str
     signature: str
     risk_tier: str  # "low", "medium", "high"
-    allowed_domains: List[str] = field(default_factory=list)
-    allowed_directories: List[str] = field(default_factory=list)
-    permissions: List[str] = field(default_factory=list)
+    allowed_domains: list[str] = field(default_factory=list)
+    allowed_directories: list[str] = field(default_factory=list)
+    permissions: list[str] = field(default_factory=list)
     sandbox_required: bool = True
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "version": self.version,
@@ -34,7 +34,7 @@ class ToolManifest:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> ToolManifest:
+    def from_dict(cls, data: dict[str, Any]) -> ToolManifest:
         return cls(
             name=data["name"],
             version=data["version"],

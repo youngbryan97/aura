@@ -32,8 +32,9 @@ doing when the number says so.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 __all__ = [
     "ADevelopmentalAction",

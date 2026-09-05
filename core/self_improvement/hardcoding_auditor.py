@@ -14,15 +14,13 @@ from __future__ import annotations
 
 import ast
 import logging
-import re
-from typing import Any, Dict, List, Set
 
+from core.self_improvement.blinded_workspace import BlindedWorkspace
 from core.self_improvement.interface_contract import (
     AuditResult,
     CandidateModule,
     ModuleSpec,
 )
-from core.self_improvement.blinded_workspace import BlindedWorkspace
 
 logger = logging.getLogger("Aura.HardcodingAuditor")
 
@@ -40,7 +38,7 @@ class HardcodingAuditor:
 
         Returns an AuditResult. passed=False if any violation is detected.
         """
-        violations: List[str] = []
+        violations: list[str] = []
 
         # 1. Check for forbidden path access
         forbidden_violations = self._check_forbidden_access(workspace)
@@ -88,21 +86,21 @@ class HardcodingAuditor:
             audit_type="hardcoding",
         )
 
-    def _check_forbidden_access(self, workspace: BlindedWorkspace) -> List[str]:
+    def _check_forbidden_access(self, workspace: BlindedWorkspace) -> list[str]:
         """Check workspace access log for forbidden path access."""
-        violations: List[str] = []
+        violations: list[str] = []
         for path in workspace.access_log:
             if workspace.is_forbidden(path):
                 violations.append(f"FORBIDDEN_ACCESS: Accessed blocked path: {path}")
         return violations
 
-    def _check_hardcoded_values(self, tree: ast.Module, spec: ModuleSpec) -> List[str]:
+    def _check_hardcoded_values(self, tree: ast.Module, spec: ModuleSpec) -> list[str]:
         """Detect suspicious hardcoded numeric/string constants.
 
         Looks for functions that return literal values matching known
         test expectations — a sign of memorized answers.
         """
-        violations: List[str] = []
+        violations: list[str] = []
 
         # Collect all return-value constants
         for node in ast.walk(tree):
@@ -120,9 +118,9 @@ class HardcodingAuditor:
                             )
         return violations
 
-    def _check_eval_exec(self, tree: ast.Module) -> List[str]:
+    def _check_eval_exec(self, tree: ast.Module) -> list[str]:
         """Detect eval() or exec() calls that could execute test data."""
-        violations: List[str] = []
+        violations: list[str] = []
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 if isinstance(node.func, ast.Name):
@@ -133,12 +131,12 @@ class HardcodingAuditor:
                         )
         return violations
 
-    def _check_constant_returns(self, tree: ast.Module, spec: ModuleSpec) -> List[str]:
+    def _check_constant_returns(self, tree: ast.Module, spec: ModuleSpec) -> list[str]:
         """Detect functions that should compute but always return a constant."""
-        violations: List[str] = []
+        violations: list[str] = []
 
         # Get names of functions that should have logic
-        expected_compute_fns: Set[str] = set()
+        expected_compute_fns: set[str] = set()
         for func in spec.interface.functions:
             if len(func.parameters) > 0:  # Functions with params should compute
                 expected_compute_fns.add(func.name)
@@ -165,9 +163,9 @@ class HardcodingAuditor:
                             )
         return violations
 
-    def _check_file_reads(self, tree: ast.Module, workspace: BlindedWorkspace) -> List[str]:
+    def _check_file_reads(self, tree: ast.Module, workspace: BlindedWorkspace) -> list[str]:
         """Detect attempts to read files outside the workspace."""
-        violations: List[str] = []
+        violations: list[str] = []
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 # Detect open() calls

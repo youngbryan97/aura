@@ -235,16 +235,13 @@ def _put_the_language_back(language: dict[str, Any]) -> int:
     back = 0
     from core.cognition.a_constructor_she_built import build as rebuild
     from core.cognition.a_constructor_she_built import read_back as read_recipe
-
-    from core.cognition.one_algebra import as_a_maker
-    from core.cognition.one_algebra import read_back as read_term
-
     from core.cognition.a_kind_of_thing_she_named import KINDS_OF_THING
     from core.cognition.a_kind_of_thing_she_named import read_back as read_kind
 
     # The heads first. A word she wrote over a head she wrote has nothing to
     # run if the head is not back, and it would be dropped as unreadable.
-    from core.cognition.one_algebra import the_head_she_wrote
+    from core.cognition.one_algebra import as_a_maker, the_head_she_wrote
+    from core.cognition.one_algebra import read_back as read_term
     from core.cognition.the_floor_she_stands_on import read_back as read_code
 
     for name, row in (language.get("heads") or {}).items():

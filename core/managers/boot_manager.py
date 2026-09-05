@@ -315,7 +315,9 @@ class BootManager:
     async def _integrate_systems(self):
         # Implementation of integration methods from mixin
         try:
-            from core.morality.master_moral_integration import integrate_complete_moral_and_sensory_systems
+            from core.morality.master_moral_integration import (
+                integrate_complete_moral_and_sensory_systems,
+            )
             integrate_complete_moral_and_sensory_systems(self.orchestrator)
         except (ImportError, AttributeError, RuntimeError) as e:
             self._record_degradation(

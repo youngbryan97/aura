@@ -52,7 +52,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Pattern
+from re import Pattern
+from typing import Any
 
 from core.runtime.desktop_task_contract import DESKTOP_TASK_ALLOWED_ACTIONS
 

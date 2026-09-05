@@ -12,7 +12,7 @@ need persistence wrap the archive in their own snapshot rotation.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.verification.embedder import HashEmbedder
 
@@ -20,22 +20,22 @@ from core.verification.embedder import HashEmbedder
 @dataclass
 class NoveltyEntry:
     text: str
-    embedding: List[float]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    embedding: list[float]
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class NoveltyArchive:
     def __init__(
         self,
         *,
-        embedder: Optional[HashEmbedder] = None,
+        embedder: HashEmbedder | None = None,
         novelty_threshold: float = 0.35,
     ):
         if not 0.0 < novelty_threshold <= 1.0:
             raise ValueError("novelty_threshold must be in (0, 1]")
         self.embedder = embedder or HashEmbedder()
         self.novelty_threshold = float(novelty_threshold)
-        self.entries: List[NoveltyEntry] = []
+        self.entries: list[NoveltyEntry] = []
 
     # ------------------------------------------------------------------
     def novelty(self, text: str) -> float:
@@ -52,7 +52,7 @@ class NoveltyArchive:
     def add_if_novel(
         self,
         text: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         if not text:
             return False

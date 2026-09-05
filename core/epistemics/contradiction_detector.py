@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.epistemics.claim_graph import ClaimGraph
@@ -231,7 +231,7 @@ class ContradictionDetector:
         return False
 
     @staticmethod
-    def detect_conflicts(graph: "ClaimGraph") -> List[Tuple[str, str, str]]:
+    def detect_conflicts(graph: ClaimGraph) -> list[tuple[str, str, str]]:
         """Every pair of claims in the graph that assert and deny the same thing.
 
         Returns:

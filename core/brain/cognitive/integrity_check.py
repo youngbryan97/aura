@@ -7,14 +7,15 @@ Audits the belief graph for:
 
 Logs audit results to integrity_audit.log and emits to thought stream.
 """
-from core.runtime.errors import record_degradation
+import asyncio
 import logging
 import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Kernel.IntegrityGuard")
 
@@ -25,7 +26,7 @@ class AuditReport:
     quarantined: int = 0
     contradictions_found: int = 0
     decayed: int = 0
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
     duration_s: float = 0.0
 
     # CP126 (high): "Contradiction scanning silently ignores most large
@@ -83,7 +84,7 @@ class IntegrityGuard:
         belief_graph: Any = None,
         confidence_threshold: float = 0.15,
         staleness_days: int = 30,
-        audit_log_path: Optional[Path] = None,
+        audit_log_path: Path | None = None,
     ):
         self.belief_graph = belief_graph
         self.confidence_threshold = confidence_threshold
@@ -141,7 +142,7 @@ class IntegrityGuard:
         return report
 
     # ------------------------------------------------------------------
-    def _get_beliefs(self) -> List[Dict]:
+    def _get_beliefs(self) -> list[dict]:
         try:
             if hasattr(self.belief_graph, "get_all_beliefs"):
                 return self.belief_graph.get_all_beliefs()
@@ -156,7 +157,7 @@ class IntegrityGuard:
             logger.warning("Failed to retrieve beliefs: %s", exc)
         return []
 
-    async def _quarantine(self, belief: Dict, report: AuditReport) -> None:
+    async def _quarantine(self, belief: dict, report: AuditReport) -> None:
         belief_id = belief.get("id", "unknown")
         logger.info(
             "🚨 Quarantining belief %s (conf=%.3f): %s...",
@@ -177,7 +178,7 @@ class IntegrityGuard:
             record_degradation('integrity_check', exc)
             report.errors.append(f"quarantine {belief_id}: {exc}")
 
-    def _detect_contradictions(self, beliefs: List[Dict], report: AuditReport) -> None:
+    def _detect_contradictions(self, beliefs: list[dict], report: AuditReport) -> None:
         """Detect contradictions with O(n) prefix matching (PERF-02)."""
         MAX_SCAN = 500
         MAX_CONTRADICTIONS = 50
@@ -207,7 +208,7 @@ class IntegrityGuard:
         ]
         
         # Build prefix-indexed lookup for O(n) instead of O(n^2)
-        negated: Dict[str, str] = {}  # stripped_text -> original_id
+        negated: dict[str, str] = {}  # stripped_text -> original_id
         for bid, text in contents:
             for prefix in NEGATION_PREFIXES:
                 if text.startswith(prefix):
@@ -229,13 +230,13 @@ class IntegrityGuard:
                     )
                     break
 
-    async def _decay_stale(self, beliefs: List[Dict], report: AuditReport) -> None:
+    async def _decay_stale(self, beliefs: list[dict], report: AuditReport) -> None:
         """Decay all stale beliefs."""
         cutoff = time.time() - (self.staleness_days * 86400)
         for belief in beliefs:
             await self._decay_stale_single(belief, report, cutoff)
 
-    async def _decay_stale_single(self, belief: Dict, report: AuditReport, cutoff: Optional[float] = None) -> None:
+    async def _decay_stale_single(self, belief: dict, report: AuditReport, cutoff: float | None = None) -> None:
         """Decay a single stale belief."""
         if cutoff is None:
             cutoff = time.time() - (self.staleness_days * 86400)
@@ -328,6 +329,6 @@ class IntegrityGuard:
                     f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {report}\n",
                     source="brain.cognitive.integrity_check.audit_log",
                 )
-        except (OSError, IOError) as exc:
+        except OSError as exc:
             record_degradation('integrity_check', exc)
             logger.warning("Failed to write audit log: %s", exc)

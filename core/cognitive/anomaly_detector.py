@@ -31,15 +31,15 @@ Dependencies: numpy (no external ML libraries required).
 """
 from __future__ import annotations
 
-
 import asyncio
 import logging
 import math
 import time
 import uuid
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Deque, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -133,7 +133,7 @@ class AnomalyScore:
     trajectory_slope: float
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dictionary for logging and event bus."""
         return {
             "event_id": self.event_id,
@@ -182,13 +182,13 @@ class FeatureExtractor:
 
     def __init__(self) -> None:
         self._last_event_time: float = time.time()
-        self.custom_extractors: Dict[str, Callable[[Dict[str, Any]], float]] = {}
+        self.custom_extractors: dict[str, Callable[[dict[str, Any]], float]] = {}
 
-    def register_extractor(self, axis_id: str, fn: Callable[[Dict[str, Any]], float]) -> None:
+    def register_extractor(self, axis_id: str, fn: Callable[[dict[str, Any]], float]) -> None:
         """Register a custom feature extractor for a dynamic dimension axis."""
         self.custom_extractors[axis_id] = fn
 
-    def extract(self, event: Dict[str, Any]) -> np.ndarray:
+    def extract(self, event: dict[str, Any]) -> np.ndarray:
         """Convert an event dict into a feature vector of length FEATURE_DIM.
 
         The event dict can contain any of:
@@ -256,7 +256,7 @@ class FeatureExtractor:
         return vec
 
     @staticmethod
-    def _repetition_score(words: List[str]) -> float:
+    def _repetition_score(words: list[str]) -> float:
         """Fraction of bigrams that appear more than once.
 
         Returns 0.0 for no repetition, approaches 1.0 for highly repetitive
@@ -265,13 +265,13 @@ class FeatureExtractor:
         if len(words) < 4:
             return 0.0
         bigrams = [f"{words[i]} {words[i+1]}" for i in range(len(words) - 1)]
-        seen: Dict[str, int] = {}
+        seen: dict[str, int] = {}
         for bg in bigrams:
             seen[bg] = seen.get(bg, 0) + 1
         repeated = sum(1 for count in seen.values() if count > 1)
         return repeated / len(bigrams)
 
-    def extract_expanded(self, event: Dict[str, Any], expansion_engine: Any) -> np.ndarray:
+    def extract_expanded(self, event: dict[str, Any], expansion_engine: Any) -> np.ndarray:
         """Extract a variable-length vector, appending expanded dimensions from expansion_engine."""
         base_vec = self.extract(event)
         if not expansion_engine:
@@ -378,7 +378,7 @@ class AdaptiveThreshold:
         if self.value > self._initial:
             self.value = max(self._initial, self.value - self._recovery_rate)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Diagnostic snapshot for telemetry."""
         return {
             "current_threshold": round(self.value, 4),
@@ -411,11 +411,11 @@ class _NormalityModel:
         self._decay_lambda: float = math.log(2.0) / max(1, decay_half_life)
 
         # Observation buffer: (timestamp, feature_vector) pairs.
-        self._buffer: Deque[tuple[float, np.ndarray]] = deque(maxlen=window_size)
+        self._buffer: deque[tuple[float, np.ndarray]] = deque(maxlen=window_size)
 
         # Cached statistics — recomputed lazily when dirty.
         self._mean: np.ndarray = np.zeros(dim, dtype=np.float64)
-        self._cov_inv: Optional[np.ndarray] = None
+        self._cov_inv: np.ndarray | None = None
         self._dirty: bool = True
 
     @property
@@ -529,7 +529,7 @@ class _TrajectoryTracker:
     """
 
     def __init__(self, window: int = 30) -> None:
-        self._scores: Deque[float] = deque(maxlen=window)
+        self._scores: deque[float] = deque(maxlen=window)
 
     def push(self, score: float) -> None:
         self._scores.append(score)
@@ -617,10 +617,10 @@ class AnomalyDetector:
         self._trajectory = _TrajectoryTracker()
 
         # Recent scores for the public threat-level API.
-        self._recent_scores: Deque[float] = deque(maxlen=50)
+        self._recent_scores: deque[float] = deque(maxlen=50)
 
         # Map of event_id -> feature_vector for false-positive acknowledgement.
-        self._pending_events: Dict[str, np.ndarray] = {}
+        self._pending_events: dict[str, np.ndarray] = {}
         self._max_pending: int = 200
 
         self._boot_time: float = time.time()
@@ -639,7 +639,7 @@ class AnomalyDetector:
     # Public API
     # ------------------------------------------------------------------
 
-    async def observe(self, event: Dict[str, Any]) -> AnomalyScore:
+    async def observe(self, event: dict[str, Any]) -> AnomalyScore:
         """Observe a system event and return its anomaly assessment.
 
         This is the primary entry point.  Call it for every user input,
@@ -808,7 +808,7 @@ class AnomalyDetector:
     # Diagnostic / telemetry
     # ------------------------------------------------------------------
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Full diagnostic snapshot for telemetry and introspection.
 
         Returns a dictionary with model statistics, threshold state,

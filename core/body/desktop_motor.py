@@ -4,7 +4,7 @@ Desktop motor controller executing UI interactions (focusing apps, resizing wind
 import logging
 import os
 from subprocess import SubprocessError
-from typing import Any, Dict
+from typing import Any
 
 from core.body.motor_controller import BaseMotor
 from core.runtime.errors import record_degradation
@@ -22,7 +22,7 @@ class DesktopMotor(BaseMotor):
     def name(self) -> str:
         return "desktop"
 
-    async def actuate(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def actuate(self, params: dict[str, Any]) -> dict[str, Any]:
         action_type = params.get("type", "focus_app")
         app_name = params.get("target_app", "Terminal")
 

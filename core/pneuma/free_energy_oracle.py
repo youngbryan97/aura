@@ -17,14 +17,13 @@ For Aura's response selection:
   - The response with minimum EFE (most aligned, least uncertain) is selected.
 """
 
-from core.runtime.errors import record_degradation
 import logging
 import math
-import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 import numpy as np
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("PNEUMA.FreeEnergyOracle")
 
@@ -60,7 +59,7 @@ class FreeEnergyOracle:
         self.w_pragmatic = pragmatic_weight
         self.w_structural = structural_weight
         self._last_efe: float = 0.0
-        self._best_candidate: Optional[ResponseCandidate] = None
+        self._best_candidate: ResponseCandidate | None = None
         logger.info(
             "FreeEnergyOracle online (w_e=%.2f w_p=%.2f w_s=%.2f)",
             epistemic_weight, pragmatic_weight, structural_weight,
@@ -68,11 +67,11 @@ class FreeEnergyOracle:
 
     def score_candidates(
         self,
-        candidates: List[ResponseCandidate],
+        candidates: list[ResponseCandidate],
         current_belief: np.ndarray,
         ig_stability: float = 1.0,
         topo_complexity: float = 0.0,
-    ) -> List[ResponseCandidate]:
+    ) -> list[ResponseCandidate]:
         """Score all candidates and sort by EFE (ascending — lower is better)."""
         if not candidates:
             return candidates

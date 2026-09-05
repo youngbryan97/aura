@@ -27,7 +27,8 @@ obligations; this module carries the loss and its telemetry receipt.
 """
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from core.brain.llm.latent_cortex.execution_spec import RLCExecutionSpec
 from core.learning.recurrence_native_objective_v2 import (

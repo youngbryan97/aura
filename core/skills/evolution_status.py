@@ -1,16 +1,18 @@
 """Skill: evolution_status — Aura's self-assessment of her evolutionary progress."""
-from core.runtime.errors import record_degradation
 import logging
-from typing import Any, Dict, Optional
-from core.skills.base_skill import BaseSkill
-from core.container import ServiceContainer
+from typing import Any
+
 from pydantic import BaseModel, Field
+
+from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
+from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.evolution_status")
 
 
 class EvolutionInput(BaseModel):
-    axis: Optional[str] = Field(None, description="Specific axis to detail (e.g. 'learning', 'resilience').")
+    axis: str | None = Field(None, description="Specific axis to detail (e.g. 'learning', 'resilience').")
 
 
 class EvolutionStatusSkill(BaseSkill):
@@ -24,7 +26,7 @@ class EvolutionStatusSkill(BaseSkill):
     def __init__(self):
         self.logger = logger
 
-    async def execute(self, params: EvolutionInput, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: EvolutionInput, context: dict[str, Any]) -> dict[str, Any]:
         if isinstance(params, dict):
             try:
                 params = EvolutionInput(**params)

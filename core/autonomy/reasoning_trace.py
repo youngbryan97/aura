@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional, Tuple
 
 # Match common reasoning-block delimiters used by various models
 _THINK_BLOCK_PATTERNS = [
@@ -44,7 +43,7 @@ _THINK_OPEN_TAILS = [
 @dataclass(frozen=True)
 class ParsedResponse:
     raw: str
-    thinking: Optional[str]   # None if no trace
+    thinking: str | None   # None if no trace
     answer: str
     has_trace: bool
     truncated_trace: bool     # opened but did not close

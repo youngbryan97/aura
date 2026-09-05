@@ -7,27 +7,25 @@ explicitly forbids overclaiming, so each cert carries explicit
 """
 from __future__ import annotations
 
-
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 
 @dataclass
 class CapabilityCertification:
     name: str
     version: str
-    scope: List[str]
-    can: List[str]
-    cannot: List[str]
+    scope: list[str]
+    can: list[str]
+    cannot: list[str]
     median_human_baseline: str
     expert_human_baseline: str
     beyond_human_target: str
-    rubric: Dict[str, str] = field(default_factory=dict)
+    rubric: dict[str, str] = field(default_factory=dict)
     requires_human_eval: bool = False
     requires_abuse_pass: bool = False
 
 
-CERTS: Dict[str, CapabilityCertification] = {
+CERTS: dict[str, CapabilityCertification] = {
     "MovieCompanion": CapabilityCertification(
         name="MovieCompanion",
         version="0.1",

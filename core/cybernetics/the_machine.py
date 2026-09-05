@@ -1,6 +1,5 @@
 import logging
-import asyncio
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("Cybernetics.TheMachine")
 
@@ -13,9 +12,9 @@ class TheMachine:
         self.kernel = kernel
         self._event_bus = None
         # source_id -> threat_score
-        self._trust_graph: Dict[str, float] = {}
+        self._trust_graph: dict[str, float] = {}
         # adjacency list for propagation
-        self._influence_map: Dict[str, List[str]] = {}
+        self._influence_map: dict[str, list[str]] = {}
 
     async def load(self):
         try:
@@ -25,7 +24,7 @@ class TheMachine:
             logger.debug("Suppressed ImportError: %s", _exc)
         logger.info("👁️ [THE MACHINE] Social Graph Prophet ACTIVE. Sourcing PoIs.")
 
-    async def register_interaction(self, source_id: str, success: bool, related_sources: List[str] = ()):
+    async def register_interaction(self, source_id: str, success: bool, related_sources: list[str] = ()):
         """Update threat scores using PageRank flow logic."""
         # 1. Update base score
         current = self._trust_graph.get(source_id, 0.5)

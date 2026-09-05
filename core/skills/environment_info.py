@@ -2,7 +2,7 @@ import os
 import platform
 import socket
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill
@@ -17,12 +17,12 @@ class EnvironmentSkill(BaseSkill):
     }
     output = "Dictionary of system information."
 
-    def match(self, goal: Dict[str, Any]) -> bool:
+    def match(self, goal: dict[str, Any]) -> bool:
         obj = goal.get("objective", "").lower()
         env_keywords = ["environment", "system", "os", "platform", "hostname", "diagnostic", "where am i", "what system"]
         return any(kw in obj for kw in env_keywords)
 
-    async def execute(self, goal: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, goal: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         detail = goal.get("params", {}).get("detail", "basic")
         
         # Issue 63 Fix: Robust user detection with getpass
@@ -54,13 +54,13 @@ class EnvironmentSkill(BaseSkill):
         return {"ok": True, "result": info, "summary": f"Running on {info['hostname']} ({info['environment_type']})"}
 
     @staticmethod
-    def _full_detail() -> Dict[str, Any]:
+    def _full_detail() -> dict[str, Any]:
         """Local-only extended diagnostics: memory, disk, CPU, uptime, battery.
 
         Never makes network calls — an environment self-report must not leak
         the probe itself as an external side effect.
         """
-        detail: Dict[str, Any] = {}
+        detail: dict[str, Any] = {}
         try:
             from core.runtime import resource_psutil as psutil
             from core.runtime.resource_observation import get_resource_observer

@@ -509,8 +509,8 @@ if __name__ == '__main__':
         # on any ungoverned effect. Candidate evaluation runs generated code as a
         # tool, so it governs under the ``tool_execution`` domain and emits a
         # proper receipt instead of bypassing governance.
-        from core.runtime.subprocess_gateway import get_subprocess_gateway
         from core.governance_context import local_internal_governed_scope
+        from core.runtime.subprocess_gateway import get_subprocess_gateway
 
         with local_internal_governed_scope(
             "autonomous_rsi.evaluate_candidate",
@@ -897,8 +897,8 @@ class ExternalLedgerMirror:
             "mirrored_at": time.time(),
         }
         payload["mirror_hash"] = _sha(payload)
-        from core.runtime.file_write_gateway import get_file_write_gateway
         from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
 
         # The lineage mirror is a durable file write; under production governance
         # an ungoverned write fail-closes. Govern the append under the file_write

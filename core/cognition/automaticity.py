@@ -35,12 +35,12 @@ a cost function nobody can see is a cost function nobody can argue with.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
-import threading
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "CostWeights",

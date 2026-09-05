@@ -16,12 +16,12 @@ import asyncio
 import hashlib
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 from core.container import ServiceContainer
-from core.runtime.errors import record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.security.execution_authority import (
     KIND_SHELL,
@@ -36,7 +36,7 @@ logger = logging.getLogger("Aura.PostActionVerifier")
 class VerificationResult:
     """Evidence-backed result of a post-action verification."""
     predicate: str
-    args: Dict[str, Any]
+    args: dict[str, Any]
     success: bool
     evidence: str = ""              # what was observed
     expected: str = ""              # what was expected
@@ -44,7 +44,7 @@ class VerificationResult:
     duration_ms: float = 0.0
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "predicate": self.predicate,
             "success": self.success,
@@ -78,7 +78,7 @@ class PostActionVerifier:
         self._started = True
         logger.info("PostActionVerifier ONLINE")
 
-    async def verify(self, predicate: str, args: Optional[Dict[str, Any]] = None) -> VerificationResult:
+    async def verify(self, predicate: str, args: dict[str, Any] | None = None) -> VerificationResult:
         """Execute a verification predicate and return evidence-backed result."""
         args = args or {}
         start = time.time()
@@ -115,7 +115,7 @@ class PostActionVerifier:
 
         return result
 
-    def _get_handler(self, predicate: str) -> Optional[Callable]:
+    def _get_handler(self, predicate: str) -> Callable | None:
         """Map predicate name to handler function."""
         handlers = {
             "app_is_frontmost": self._verify_app_frontmost,
@@ -141,7 +141,7 @@ class PostActionVerifier:
     # Verification predicates — all concrete, evidence-producing
     # ------------------------------------------------------------------
 
-    async def _verify_app_frontmost(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_app_frontmost(self, args: dict[str, Any]) -> VerificationResult:
         """Check if an app is the currently frontmost application."""
         expected = str(args.get("name", ""))
         try:
@@ -162,7 +162,7 @@ class PostActionVerifier:
                 expected=expected,
             )
 
-    async def _verify_app_running(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_app_running(self, args: dict[str, Any]) -> VerificationResult:
         """Check if an app is currently running."""
         expected = str(args.get("name", ""))
         try:
@@ -182,7 +182,7 @@ class PostActionVerifier:
                 success=False, evidence=f"Check failed: {e}",
             )
 
-    async def _verify_file_exists(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_file_exists(self, args: dict[str, Any]) -> VerificationResult:
         """Check if a file exists and has content."""
         path = Path(str(args.get("path", ""))).expanduser()
         if not path.is_absolute():
@@ -204,7 +204,7 @@ class PostActionVerifier:
             expected=f"File exists at {path}",
         )
 
-    async def _verify_file_has_content(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_file_has_content(self, args: dict[str, Any]) -> VerificationResult:
         """Check if a file contains expected content or matches expected hash."""
         path = Path(str(args.get("path", ""))).expanduser()
         expected_hash = str(args.get("hash", ""))
@@ -255,7 +255,7 @@ class PostActionVerifier:
             evidence=f"File size: {size} bytes",
         )
 
-    async def _verify_folder_exists(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_folder_exists(self, args: dict[str, Any]) -> VerificationResult:
         """Check if a folder exists."""
         path = Path(str(args.get("path", ""))).expanduser()
         exists = path.exists() and path.is_dir()
@@ -265,7 +265,7 @@ class PostActionVerifier:
             evidence=f"{'Exists' if exists else 'NOT FOUND'}: {path}",
         )
 
-    async def _verify_file_is_pdf(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_file_is_pdf(self, args: dict[str, Any]) -> VerificationResult:
         """Check if a file is a valid PDF."""
         path = Path(str(args.get("path", ""))).expanduser()
         if not path.exists():
@@ -291,7 +291,7 @@ class PostActionVerifier:
                 success=False, evidence=f"Read error: {e}",
             )
 
-    async def _verify_file_is_image(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_file_is_image(self, args: dict[str, Any]) -> VerificationResult:
         """Check if a file is a valid image."""
         path = Path(str(args.get("path", ""))).expanduser()
         if not path.exists():
@@ -324,7 +324,7 @@ class PostActionVerifier:
                 success=False, evidence=f"Read error: {e}",
             )
 
-    async def _verify_file_in_folder(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_file_in_folder(self, args: dict[str, Any]) -> VerificationResult:
         """Check if a file exists inside a specific folder."""
         file_name = str(args.get("file", ""))
         folder_path = Path(str(args.get("folder", ""))).expanduser()
@@ -356,7 +356,7 @@ class PostActionVerifier:
             evidence=f"Found: {found_path}" if found else f"'{file_name}' not in {folder_path}",
         )
 
-    async def _verify_window_title(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_window_title(self, args: dict[str, Any]) -> VerificationResult:
         """Check if the current window title contains expected text."""
         expected = str(args.get("text", ""))
         app = str(args.get("app", ""))
@@ -377,7 +377,7 @@ class PostActionVerifier:
                 success=False, evidence=f"Check failed: {e}",
             )
 
-    async def _verify_screen_text(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_screen_text(self, args: dict[str, Any]) -> VerificationResult:
         """Check if the screen contains specific text (via OCR)."""
         expected = str(args.get("text", ""))
         try:
@@ -397,7 +397,7 @@ class PostActionVerifier:
                 success=False, evidence=f"OCR failed: {e}",
             )
 
-    async def _verify_wallpaper(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_wallpaper(self, args: dict[str, Any]) -> VerificationResult:
         """Check if the wallpaper is set to a specific path."""
         expected_path = str(args.get("path", ""))
         try:
@@ -418,13 +418,13 @@ class PostActionVerifier:
                 evidence=f"Current wallpaper: {actual}",
                 expected=f"Expected: {expected_path}",
             )
-        except (OSError, asyncio.TimeoutError) as e:
+        except (TimeoutError, OSError) as e:
             return VerificationResult(
                 predicate="wallpaper_is", args=args,
                 success=False, evidence=f"Check failed: {e}",
             )
 
-    async def _verify_wallpaper_changed(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_wallpaper_changed(self, args: dict[str, Any]) -> VerificationResult:
         """Check if the wallpaper changed from a previous value."""
         previous_path = str(args.get("previous", ""))
         try:
@@ -444,13 +444,13 @@ class PostActionVerifier:
                 success=changed,
                 evidence=f"Current: {actual}, previous: {previous_path}",
             )
-        except (OSError, asyncio.TimeoutError) as e:
+        except (TimeoutError, OSError) as e:
             return VerificationResult(
                 predicate="wallpaper_changed", args=args,
                 success=False, evidence=f"Check failed: {e}",
             )
 
-    async def _verify_browser_tabs(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_browser_tabs(self, args: dict[str, Any]) -> VerificationResult:
         """Check if the browser has a minimum number of tabs."""
         min_count = int(args.get("min_count", 1))
         browser = str(args.get("browser", "Google Chrome"))
@@ -472,13 +472,13 @@ class PostActionVerifier:
                 evidence=f"{browser} has {count} tab(s)",
                 expected=f"At least {min_count} tab(s)",
             )
-        except (OSError, asyncio.TimeoutError, ValueError) as e:
+        except (TimeoutError, OSError, ValueError) as e:
             return VerificationResult(
                 predicate="browser_has_tabs", args=args,
                 success=False, evidence=f"Check failed: {e}",
             )
 
-    async def _verify_clipboard(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_clipboard(self, args: dict[str, Any]) -> VerificationResult:
         """Check if the clipboard contains expected text."""
         expected = str(args.get("text", ""))
         try:
@@ -498,13 +498,13 @@ class PostActionVerifier:
                 success=found,
                 evidence=f"Clipboard length: {len(content)}, contains target: {found}",
             )
-        except (OSError, asyncio.TimeoutError) as e:
+        except (TimeoutError, OSError) as e:
             return VerificationResult(
                 predicate="clipboard_contains", args=args,
                 success=False, evidence=f"Check failed: {e}",
             )
 
-    async def _verify_command(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_command(self, args: dict[str, Any]) -> VerificationResult:
         """Check if a command succeeds (return code 0).
 
         "Verify that this command succeeds" is arbitrary execution wearing a
@@ -547,7 +547,7 @@ class PostActionVerifier:
                 evidence=f"Return code: {proc.returncode}" +
                          (f", stdout: {stdout.decode()[:100]}" if stdout else ""),
             )
-        except (OSError, asyncio.TimeoutError) as e:
+        except (TimeoutError, OSError) as e:
             return VerificationResult(
                 predicate="command_succeeded", args=args,
                 success=False, evidence=f"Command failed: {e}",
@@ -557,7 +557,7 @@ class PostActionVerifier:
                 verdict, source="post_action_verifier.command_succeeded"
             )
 
-    async def _verify_always_true(self, args: Dict[str, Any]) -> VerificationResult:
+    async def _verify_always_true(self, args: dict[str, Any]) -> VerificationResult:
         """Always-true predicate for steps that don't need verification."""
         return VerificationResult(
             predicate="true", args=args, success=True,
@@ -568,7 +568,7 @@ class PostActionVerifier:
     # Composite verification
     # ------------------------------------------------------------------
 
-    async def verify_all(self, predicates: List[Tuple[str, Dict[str, Any]]]) -> List[VerificationResult]:
+    async def verify_all(self, predicates: list[tuple[str, dict[str, Any]]]) -> list[VerificationResult]:
         """Run multiple verification predicates and return all results."""
         results = []
         for pred_name, pred_args in predicates:
@@ -576,7 +576,7 @@ class PostActionVerifier:
             results.append(result)
         return results
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "total_verifications": self._verification_count,
             "successes": self._success_count,
@@ -591,7 +591,7 @@ class PostActionVerifier:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_instance: Optional[PostActionVerifier] = None
+_instance: PostActionVerifier | None = None
 
 
 def get_post_action_verifier() -> PostActionVerifier:

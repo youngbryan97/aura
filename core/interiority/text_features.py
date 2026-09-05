@@ -28,7 +28,6 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
-from typing import Mapping
 
 from core.interiority.evidence import Reading, absent, measured
 

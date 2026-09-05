@@ -299,11 +299,15 @@ def grid_field(
 ) -> VisibilityField:
     """Build a field from a rectangular grid with walls.
 
-    Line of sight is taken along rows and columns and stops at a wall, which
-    is the cheap approximation and the honest one to name: a diagonal sightline
-    is not counted, so an open room scores slightly lower than it should and a
-    corner scores correctly. The adapter exists so the graph code above can be
-    exercised against something with an answer a person can check by looking.
+    Line of sight is the straight segment between two cells, blocked by any
+    wall it crosses. Taking it along rows and columns only is cheaper and
+    wrong in a way that matters here: it gives every cell of an open grid the
+    same count, so prospect comes out uniform and the adapter cannot show the
+    quantity it exists to show.
+
+    An open convex room does give every cell full prospect, and that is
+    correct rather than degenerate — everyone can see everyone. Prospect
+    varies once something blocks a line, which is what walls are for.
     """
     blocked = {tuple(w) for w in walls}
     field_obj = VisibilityField()
@@ -314,23 +318,49 @@ def grid_field(
     def key(cell: tuple[int, int]) -> str:
         return f"{cell[0]},{cell[1]}"
 
+    open_cells = set(cells)
+
+    def clear(a: tuple[int, int], b: tuple[int, int]) -> bool:
+        """Whether the segment from a to b crosses no wall. Bresenham.
+
+        The endpoints are ordered before rasterising. Bresenham walks
+        different cells depending on which end it starts from, so run
+        unordered it makes A see B while B does not see A — a false asymmetry
+        with no geometry behind it, arriving in exactly the quantity this
+        module says can only come from cover.
+        """
+        (x0, y0), (x1, y1) = sorted((a, b))
+        dx, dy = abs(x1 - x0), abs(y1 - y0)
+        sx = 1 if x0 < x1 else -1
+        sy = 1 if y0 < y1 else -1
+        err = dx - dy
+        cx, cy = x0, y0
+        while (cx, cy) != (x1, y1):
+            doubled = 2 * err
+            if doubled > -dy:
+                err -= dy
+                cx += sx
+            if doubled < dx:
+                err += dx
+                cy += sy
+            if (cx, cy) in blocked:
+                return False
+        return True
+
     for cell in cells:
         x, y = cell
         sees: set[str] = set()
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            step = 1
-            while sight is None or step <= sight:
-                nxt = (x + dx * step, y + dy * step)
-                if not (0 <= nxt[0] < width and 0 <= nxt[1] < height):
-                    break
-                if nxt in blocked:
-                    break
-                sees.add(key(nxt))
-                step += 1
+        for other in cells:
+            if other == cell:
+                continue
+            if sight is not None and max(abs(other[0] - x), abs(other[1] - y)) > sight:
+                continue
+            if clear(cell, other):
+                sees.add(key(other))
         neighbours = {
             key((x + dx, y + dy))
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
-            if (x + dx, y + dy) in set(cells)
+            if (x + dx, y + dy) in open_cells
         }
         field_obj.add(
             key(cell), sees=sees, reached_from=neighbours,
@@ -360,3 +390,43 @@ def graph_field(
             concealment=float(cover.get(node, 0.0)) if cover else 0.0,
         )
     return field_obj
+
+
+class PositionRegistry:
+    """Named spaces, so a position can be asked about the same way anywhere.
+
+    A field is per-space rather than global — the desktop, an import graph and
+    a conversation are three different spaces with three different visibility
+    relations — so the singleton holds the spaces rather than the geometry.
+    """
+
+    def __init__(self) -> None:
+        self._fields: dict[str, VisibilityField] = {}
+
+    def declare(self, name: str, field_obj: VisibilityField) -> VisibilityField:
+        self._fields[name] = field_obj
+        return field_obj
+
+    def get(self, name: str) -> VisibilityField | None:
+        return self._fields.get(name)
+
+    def names(self) -> list[str]:
+        return sorted(self._fields)
+
+    def status(self) -> dict[str, Any]:
+        return {name: field_obj.status() for name, field_obj in sorted(self._fields.items())}
+
+
+_REGISTRY: PositionRegistry | None = None
+
+
+def get_position_registry() -> PositionRegistry:
+    global _REGISTRY
+    if _REGISTRY is None:
+        _REGISTRY = PositionRegistry()
+    return _REGISTRY
+
+
+def reset_position_registry_for_test() -> None:
+    global _REGISTRY
+    _REGISTRY = None

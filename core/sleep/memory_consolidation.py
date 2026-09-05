@@ -1,8 +1,8 @@
 """core/sleep/memory_consolidation.py
 Offline memory consolidator compressing raw logs into narrative summaries.
 """
-from typing import List, Dict, Any
 import logging
+from typing import Any
 
 from core.memory.day_summary import DaySummaryManager
 

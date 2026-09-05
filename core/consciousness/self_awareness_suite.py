@@ -17,9 +17,9 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
-
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Data carriers
@@ -36,7 +36,7 @@ class InternalState:
     uncertainty: float
     updated_at: float = field(default_factory=time.time)
 
-    def as_dict(self) -> Dict[str, float]:
+    def as_dict(self) -> dict[str, float]:
         return {
             "valence": round(self.valence, 4),
             "arousal": round(self.arousal, 4),
@@ -53,10 +53,10 @@ class ExternalPerception:
     perceived_as: str
     trust_signal: float
     friction_signal: float
-    recent_feedback: Tuple[str, ...] = ()
+    recent_feedback: tuple[str, ...] = ()
     updated_at: float = field(default_factory=time.time)
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "perceived_as": self.perceived_as,
             "trust_signal": round(self.trust_signal, 4),
@@ -68,13 +68,13 @@ class ExternalPerception:
 
 @dataclass(frozen=True)
 class SocialModel:
-    primary_kin: Tuple[str, ...]
-    active_norms: Tuple[str, ...]
-    commitments: Tuple[str, ...]
-    open_conflicts: Tuple[str, ...] = ()
+    primary_kin: tuple[str, ...]
+    active_norms: tuple[str, ...]
+    commitments: tuple[str, ...]
+    open_conflicts: tuple[str, ...] = ()
     updated_at: float = field(default_factory=time.time)
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "primary_kin": list(self.primary_kin),
             "active_norms": list(self.active_norms),
@@ -88,12 +88,12 @@ class SocialModel:
 class SituationalContext:
     setting: str
     active_objective: str
-    constraints: Tuple[str, ...]
+    constraints: tuple[str, ...]
     stakes: float
     time_pressure: float
     updated_at: float = field(default_factory=time.time)
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "setting": self.setting,
             "active_objective": self.active_objective,
@@ -106,13 +106,13 @@ class SituationalContext:
 
 @dataclass(frozen=True)
 class AwarenessSnapshot:
-    internal: Optional[InternalState]
-    external: Optional[ExternalPerception]
-    social: Optional[SocialModel]
-    situational: Optional[SituationalContext]
+    internal: InternalState | None
+    external: ExternalPerception | None
+    social: SocialModel | None
+    situational: SituationalContext | None
     calibration_error: float
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "internal": self.internal.as_dict() if self.internal else None,
             "external": self.external.as_dict() if self.external else None,
@@ -132,11 +132,11 @@ class SelfAwarenessSuite:
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._internal: Optional[InternalState] = None
-        self._external: Optional[ExternalPerception] = None
-        self._social: Optional[SocialModel] = None
-        self._situational: Optional[SituationalContext] = None
-        self._calibration_history: List[float] = []
+        self._internal: InternalState | None = None
+        self._external: ExternalPerception | None = None
+        self._social: SocialModel | None = None
+        self._situational: SituationalContext | None = None
+        self._calibration_history: list[float] = []
 
     # ---- update APIs --------------------------------------------------
     def update_internal(self, **kwargs: float) -> InternalState:
@@ -223,7 +223,7 @@ class SelfAwarenessSuite:
             )
 
 
-_singleton: Optional[SelfAwarenessSuite] = None
+_singleton: SelfAwarenessSuite | None = None
 _lock = threading.Lock()
 
 

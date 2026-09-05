@@ -19,11 +19,10 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from core.container import ServiceContainer
 from core.governance_context import local_internal_governed_scope
-from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 
@@ -71,9 +70,9 @@ class SandboxedFileBroker:
     TEMP_PREFIX = "aura_"
 
     def __init__(self) -> None:
-        self._operations: List[FileOperation] = []
+        self._operations: list[FileOperation] = []
         self._max_operations = 200
-        self._expanded_roots: List[Path] = []
+        self._expanded_roots: list[Path] = []
         self._started = False
         # Serializes version selection + the rollback journal against
         # concurrent writers/rollbacks.
@@ -96,7 +95,7 @@ class SandboxedFileBroker:
         """Check if a path is within an allowed root."""
         return self._resolve_allowed(path) is not None
 
-    def _resolve_allowed(self, path: Path) -> Optional[Path]:
+    def _resolve_allowed(self, path: Path) -> Path | None:
         """Resolve a path and return it ONLY if it is within an allowed root.
 
         Returning the RESOLVED path (and using it for the subsequent operation)
@@ -147,7 +146,7 @@ class SandboxedFileBroker:
     # Core operations
     # ------------------------------------------------------------------
 
-    async def create_folder(self, path: str) -> Dict[str, Any]:
+    async def create_folder(self, path: str) -> dict[str, Any]:
         """Create a folder, including parent directories."""
         p = self._resolve_allowed(Path(path).expanduser())
         if p is None:
@@ -179,7 +178,7 @@ class SandboxedFileBroker:
         except (OSError, shutil.Error):
             return ""
 
-    async def write_file(self, path: str, content: str, overwrite: bool = False) -> Dict[str, Any]:
+    async def write_file(self, path: str, content: str, overwrite: bool = False) -> dict[str, Any]:
         """Write content to a file atomically."""
         p = self._resolve_allowed(Path(path).expanduser())
         if p is None:
@@ -205,7 +204,7 @@ class SandboxedFileBroker:
         except _FS_ERRORS as e:
             return {"success": False, "error": str(e)}
 
-    async def write_bytes(self, path: str, data: bytes, overwrite: bool = False) -> Dict[str, Any]:
+    async def write_bytes(self, path: str, data: bytes, overwrite: bool = False) -> dict[str, Any]:
         """Write binary data to a file."""
         p = self._resolve_allowed(Path(path).expanduser())
         if p is None:
@@ -230,7 +229,7 @@ class SandboxedFileBroker:
         except _FS_ERRORS as e:
             return {"success": False, "error": str(e)}
 
-    async def move_file(self, source: str, destination: str) -> Dict[str, Any]:
+    async def move_file(self, source: str, destination: str) -> dict[str, Any]:
         """Move a file, with rollback support. BOTH ends must be allowlisted."""
         # The SOURCE must be allowlisted too — validating only the destination
         # let move_file remove arbitrary host files (and copy_file exfiltrate
@@ -256,7 +255,7 @@ class SandboxedFileBroker:
         except _FS_ERRORS as e:
             return {"success": False, "error": str(e)}
 
-    async def copy_file(self, source: str, destination: str) -> Dict[str, Any]:
+    async def copy_file(self, source: str, destination: str) -> dict[str, Any]:
         """Copy a file. BOTH ends must be allowlisted."""
         src = self._resolve_allowed(Path(source).expanduser())
         if src is None:
@@ -279,13 +278,13 @@ class SandboxedFileBroker:
         except _FS_ERRORS as e:
             return {"success": False, "error": str(e)}
 
-    async def read_file(self, path: str) -> Dict[str, Any]:
+    async def read_file(self, path: str) -> dict[str, Any]:
         """Read a text file — allowlist-enforced and size-bounded."""
         p = self._resolve_allowed(Path(path).expanduser())
         if p is None:
             return {"success": False, "error": f"Path not in allowlist: {path}"}
 
-        def _read() -> Dict[str, Any]:
+        def _read() -> dict[str, Any]:
             if not p.exists():
                 return {"success": False, "error": f"File not found: {path}"}
             size = p.stat().st_size
@@ -326,13 +325,13 @@ class SandboxedFileBroker:
         except _FS_ERRORS:
             return ""
 
-    async def list_dir(self, path: str) -> Dict[str, Any]:
+    async def list_dir(self, path: str) -> dict[str, Any]:
         """List directory contents — allowlist-enforced and entry-bounded."""
         p = self._resolve_allowed(Path(path).expanduser())
         if p is None:
             return {"success": False, "error": f"Path not in allowlist: {path}"}
 
-        def _list() -> Dict[str, Any]:
+        def _list() -> dict[str, Any]:
             if not p.exists():
                 return {"success": False, "error": f"Directory not found: {path}"}
             if not p.is_dir():
@@ -376,13 +375,13 @@ class SandboxedFileBroker:
             )
             await asyncio.wait_for(proc.wait(), timeout=5.0)
             return proc.returncode == 0
-        except (OSError, asyncio.TimeoutError):
+        except (TimeoutError, OSError):
             # Terminate + reap the child on timeout so it is not orphaned.
             if proc is not None and proc.returncode is None:
                 try:
                     proc.kill()
                     await asyncio.wait_for(proc.wait(), timeout=2.0)
-                except (OSError, asyncio.TimeoutError, ProcessLookupError):
+                except (TimeoutError, OSError, ProcessLookupError):
                     pass
             return False
 
@@ -390,7 +389,7 @@ class SandboxedFileBroker:
     # Rollback
     # ------------------------------------------------------------------
 
-    async def rollback_last(self) -> Dict[str, Any]:
+    async def rollback_last(self) -> dict[str, Any]:
         """Undo the last file operation."""
         with self._lock:
             if not self._operations:
@@ -410,7 +409,7 @@ class SandboxedFileBroker:
                     self._operations.pop()
         return result
 
-    def _apply_rollback(self, op: FileOperation) -> Dict[str, Any]:
+    def _apply_rollback(self, op: FileOperation) -> dict[str, Any]:
         if op.operation == "move":
             if Path(op.destination).exists() and not Path(op.source).exists():
                 shutil.move(op.destination, op.source)
@@ -458,14 +457,14 @@ class SandboxedFileBroker:
                 return candidate
         return parent / f"{stem}_{int(time.time())}{suffix}"
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "operations": len(self._operations),
             "allowed_roots": [str(r) for r in self._expanded_roots],
         }
 
 
-_instance: Optional[SandboxedFileBroker] = None
+_instance: SandboxedFileBroker | None = None
 
 
 def get_file_broker() -> SandboxedFileBroker:

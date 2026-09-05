@@ -8,7 +8,8 @@ import time
 from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from core.runtime.state_ownership import state_root
 
 
@@ -21,14 +22,14 @@ class Lesson:
     modality: str
     strategy: str
     success: bool
-    brier: Optional[float]
+    brier: float | None
     summary: str
     created_at: float = field(default_factory=time.time)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class LessonStore:
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         self.db_path = (
             Path(db_path)
             if db_path is not None
@@ -90,7 +91,7 @@ class LessonStore:
                 ),
             )
 
-    def for_belief(self, belief: str) -> List[Lesson]:
+    def for_belief(self, belief: str) -> list[Lesson]:
         with self._lock, closing(self._connect()) as conn:
             rows = conn.execute(
                 "SELECT * FROM lessons WHERE belief = ? ORDER BY iteration ASC;",
@@ -98,7 +99,7 @@ class LessonStore:
             ).fetchall()
         return [self._row_to_lesson(r) for r in rows]
 
-    def all(self) -> List[Lesson]:
+    def all(self) -> list[Lesson]:
         with self._lock, closing(self._connect()) as conn:
             rows = conn.execute(
                 "SELECT * FROM lessons ORDER BY iteration ASC, created_at ASC;"

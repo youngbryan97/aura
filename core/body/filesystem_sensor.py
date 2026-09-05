@@ -1,10 +1,10 @@
 """core/body/filesystem_sensor.py
 Filesystem activity sensor tracking changes inside workspace directories.
 """
-from pathlib import Path
-import os
 import time
-from typing import Dict, Any, List
+from pathlib import Path
+from typing import Any
+
 from core.body.sensor_registry import BaseSensor
 from core.config import get_config
 from core.runtime.errors import record_degradation
@@ -17,12 +17,12 @@ class FilesystemSensor(BaseSensor):
     def name(self) -> str:
         return "filesystem"
 
-    async def read(self) -> Dict[str, Any]:
+    async def read(self) -> dict[str, Any]:
         cfg = get_config()
         base_path = Path(cfg.paths.project_root)
         
         # Scan top level files for modifications in the last hour
-        recent_changes: List[str] = []
+        recent_changes: list[str] = []
         now = time.time()
         
         try:

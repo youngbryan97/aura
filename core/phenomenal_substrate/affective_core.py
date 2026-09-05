@@ -1,10 +1,11 @@
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Dict, Optional
 
+from dataclasses import dataclass
+
+from .attachment import AttachmentState
 from .maths import clamp, clamp_signed, tanh
 from .types import Event
-from .attachment import AttachmentState
+
 
 @dataclass
 class AffectivePrimitives:
@@ -31,11 +32,11 @@ class AffectiveCore:
     """
     def compute(
         self,
-        belief: Dict[str, float],
-        error: Dict[str, float],
+        belief: dict[str, float],
+        error: dict[str, float],
         free_energy: float,
         event: Event,
-        attachment: Optional[AttachmentState] = None,
+        attachment: AttachmentState | None = None,
     ) -> AffectivePrimitives:
         safety_loss = 1.0 - belief.get("safety", 0.8)
         agency = belief.get("agency", 0.5)

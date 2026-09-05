@@ -4,19 +4,19 @@ Includes homeostatic health indicators, resource scaling policies, and diagnosti
 """
 import logging
 import os
-from typing import Dict, Any, Optional
+from typing import Any
 
-from core.body.sensor_registry import get_sensor_registry
-from core.body.screen_sensor import ScreenSensor
-from core.body.microphone_sensor import MicrophoneSensor
-from core.body.camera_sensor import CameraSensor
-from core.body.keyboard_mouse_state import KeyboardMouseSensor
 from core.body.app_focus_sensor import AppFocusSensor
-from core.body.clipboard_sensor import ClipboardSensor
-from core.body.filesystem_sensor import FilesystemSensor
 from core.body.browser_state_sensor import BrowserStateSensor
-from core.body.ui_accessibility_sensor import UiAccessibilitySensor
+from core.body.camera_sensor import CameraSensor
+from core.body.clipboard_sensor import ClipboardSensor
 from core.body.environment_snapshot import EnvironmentSnapshotSensor
+from core.body.filesystem_sensor import FilesystemSensor
+from core.body.keyboard_mouse_state import KeyboardMouseSensor
+from core.body.microphone_sensor import MicrophoneSensor
+from core.body.screen_sensor import ScreenSensor
+from core.body.sensor_registry import get_sensor_registry
+from core.body.ui_accessibility_sensor import UiAccessibilitySensor
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Body.BodyRuntime")
@@ -48,7 +48,7 @@ class BodyRuntime:
         self._initialized = True
         logger.info("Perceptual body sensors initialized successfully.")
 
-    async def perceive_all(self, state: Optional[Any] = None) -> Dict[str, Any]:
+    async def perceive_all(self, state: Any | None = None) -> dict[str, Any]:
         """Poll all sensors and consolidate results."""
         self.initialize_sensors()
         world_model = getattr(state, "world_model", {}) if state is not None else {}
@@ -65,7 +65,7 @@ class BodyRuntime:
             }
         return await self.registry.read_all()
 
-    async def get_system_status(self) -> Dict[str, Any]:
+    async def get_system_status(self) -> dict[str, Any]:
         """Utility extracting vital body stats to feed LifeState directly."""
         self.initialize_sensors()
         
@@ -91,7 +91,7 @@ class BodyRuntime:
 
         return status
 
-    def calculate_resource_scaling(self, status: Dict[str, Any]) -> Dict[str, Any]:
+    def calculate_resource_scaling(self, status: dict[str, Any]) -> dict[str, Any]:
         """Enforces homeostatic regulation recommendations based on resource load."""
         memory_usage = self._bounded_float(status.get("memory", 50.0), default=50.0)
         cpu_usage = self._bounded_float(status.get("cpu", 10.0), default=10.0)
@@ -126,9 +126,9 @@ class BodyRuntime:
         return scaling
 
     @staticmethod
-    def summarize_sensor_health(observations: Dict[str, Any]) -> Dict[str, bool]:
+    def summarize_sensor_health(observations: dict[str, Any]) -> dict[str, bool]:
         """Summarize sensor liveness from actual read outcomes."""
-        health: Dict[str, bool] = {}
+        health: dict[str, bool] = {}
         for name, reading in observations.items():
             if not isinstance(reading, dict):
                 health[str(name)] = False
@@ -144,7 +144,7 @@ class BodyRuntime:
         return health
 
     @staticmethod
-    def summarize_actuator_health() -> Dict[str, bool]:
+    def summarize_actuator_health() -> dict[str, bool]:
         """Summarize available motor channels from the canonical action body."""
         try:
             from core.body.action_body import get_action_body
@@ -172,7 +172,7 @@ class BodyRuntime:
 
 
 # Singleton Access
-_body_runtime: Optional[BodyRuntime] = None
+_body_runtime: BodyRuntime | None = None
 
 
 def get_body_runtime() -> BodyRuntime:

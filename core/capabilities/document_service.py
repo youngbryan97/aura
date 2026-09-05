@@ -15,7 +15,7 @@ import logging
 import time
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
@@ -67,7 +67,7 @@ class DocumentService:
             return False
 
     async def create_markdown(self, path: str, content: str, title: str = "",
-                               metadata: Optional[Dict[str, str]] = None) -> bool:
+                               metadata: dict[str, str] | None = None) -> bool:
         """Create a Markdown file with optional YAML frontmatter."""
         try:
             parts = []
@@ -92,7 +92,7 @@ class DocumentService:
             return False
 
     async def create_pdf(self, path: str, title: str, body: str,
-                          sources: Optional[List[Dict[str, str]]] = None) -> bool:
+                          sources: list[dict[str, str]] | None = None) -> bool:
         """Create a PDF document.
 
         Tries (in order):
@@ -187,7 +187,7 @@ class DocumentService:
         try:
             from reportlab.lib.pagesizes import letter
             from reportlab.lib.styles import getSampleStyleSheet
-            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+            from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
             buffer = BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=letter)
@@ -275,7 +275,7 @@ class DocumentService:
             record_degradation("document_service.pdf_fallback", e)
             return False
 
-    async def verify(self, path: str) -> Dict[str, Any]:
+    async def verify(self, path: str) -> dict[str, Any]:
         """Verify a document file exists and is valid."""
         p = Path(path)
         if not p.exists():
@@ -312,14 +312,14 @@ class DocumentService:
             )
             await asyncio.wait_for(proc.wait(), timeout=5.0)
             return proc.returncode == 0
-        except (OSError, asyncio.TimeoutError):
+        except (TimeoutError, OSError):
             return False
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {"created_count": self._created_count}
 
 
-_instance: Optional[DocumentService] = None
+_instance: DocumentService | None = None
 
 
 def get_document_service() -> DocumentService:

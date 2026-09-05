@@ -1,16 +1,17 @@
-from core.runtime.errors import record_degradation
 import hashlib
 import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import unquote, urlsplit
+
 from pydantic import BaseModel, Field
 
-from core.skills.base_skill import BaseSkill
+from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.network_gateway import get_network_gateway
+from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.ManifestToDevice")
 
@@ -68,7 +69,7 @@ def _default_filename(url: str, content_type: str) -> str:
 
 class ManifestInput(BaseModel):
     url: str = Field(..., description="The remote URL of the asset to manifest/save.")
-    filename: Optional[str] = Field(None, description="Optional custom filename for the saved asset.")
+    filename: str | None = Field(None, description="Optional custom filename for the saved asset.")
 
 class ManifestToDeviceSkill(BaseSkill):
     """Downloads remote assets to the host's Desktop for permanent storage."""
@@ -83,7 +84,7 @@ class ManifestToDeviceSkill(BaseSkill):
         # exists. Keep it side-effect free; execute() owns all host mutation.
         self.desktop_path = Path(os.path.expanduser("~/Desktop")) / "Aura_Manifests"
 
-    async def execute(self, params: ManifestInput, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: ManifestInput, context: dict[str, Any]) -> dict[str, Any]:
         """Execute the manifest action."""
         if isinstance(params, dict):
             try:

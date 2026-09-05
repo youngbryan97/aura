@@ -7,7 +7,7 @@ Implements pruning, consolidation, and retrieval-confidence gating.
 import asyncio
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.health.degraded_events import record_degraded_event
 from core.runtime.errors import record_degradation
@@ -59,7 +59,7 @@ class MemoryManager:
                 record_degradation('memory_manager', e)
                 capture_and_log(e, {'module': __name__})
 
-    async def _approve_memory_write(self, content: str, importance: float, tags: Optional[List[str]] = None) -> bool:
+    async def _approve_memory_write(self, content: str, importance: float, tags: list[str] | None = None) -> bool:
         constitutional_runtime_live = (
             has_runtime_service("executive_core")
             or has_runtime_service("aura_kernel")
@@ -102,7 +102,7 @@ class MemoryManager:
             logger.debug("MemoryManager constitutional gate unavailable: %s", exc)
             return True
 
-    async def store(self, content: Any, importance: float = 0.5, tags: List[str] = None):
+    async def store(self, content: Any, importance: float = 0.5, tags: list[str] = None):
         """Stores content across appropriate memory layers."""
         # Heartbeat pulse — proves the memory subsystem is alive even if storage fails
         audit = get_runtime_service("subsystem_audit", default=None)
@@ -133,7 +133,7 @@ class MemoryManager:
             if audit:
                 audit.report_failure("memory", str(e))
 
-    async def retrieve(self, query: str, limit: int = 5, min_confidence: float = 0.6) -> List[Any]:
+    async def retrieve(self, query: str, limit: int = 5, min_confidence: float = 0.6) -> list[Any]:
         """Retrieves and filters memories based on confidence/relevance."""
         results = []
         try:
@@ -150,7 +150,7 @@ class MemoryManager:
             self._pulse_hypha("cognition", "memory", success=False)
         return results
 
-    def search_similar(self, query: str, limit: int = 5, **kwargs) -> List[Dict]:
+    def search_similar(self, query: str, limit: int = 5, **kwargs) -> list[dict]:
         """Sync delegation for legacy components (Theory of Mind, Context Manager)."""
         try:
             vector = get_runtime_service("vector_memory", default=None)
@@ -185,7 +185,7 @@ class MemoryManager:
             record_degradation('memory_manager', e)
             logger.error("Memory consolidation failed: %s", e)
 
-    async def log_event(self, event_type: str, content: Any, metadata: Dict[str, Any] = None):
+    async def log_event(self, event_type: str, content: Any, metadata: dict[str, Any] = None):
         """Log a significant event to memory storage (used by orchestrator consolidation). - v29 Hardening"""
         if self._is_pressure_high():
             logger.warning("Memory pressure high: Dropping event '%s'.", event_type)
@@ -202,7 +202,7 @@ class MemoryManager:
             record_degradation('memory_manager', e)
             logger.error("Failed to log event '%s': %s", event_type, e)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "last_consolidation": self.last_consolidation,
             "next_consolidation": self.last_consolidation + self.consolidation_interval,

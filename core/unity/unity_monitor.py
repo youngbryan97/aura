@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from .co_presence_graph import CoPresenceGraphSnapshot
 from .unity_state import (
@@ -124,7 +125,7 @@ class UnityMonitor:
         self_world_boundary_score = float(self_world.boundary_integrity or 0.0)
         draft_consensus_score = float(draft_set.consensus_score or 0.0)
 
-        causes: Dict[str, float] = {
+        causes: dict[str, float] = {
             "temporal_discontinuity": round(max(0.0, 1.0 - temporal_score), 4),
             "phase_lag": round(min(1.0, max(temporal.phase_lag.values(), default=0.0) / max(temporal.duration_s or 1.0, 1.0)), 4),
             "draft_conflict": round(float(draft_set.contradiction_score or 0.0), 4),

@@ -69,8 +69,9 @@ that could would decide its own halting problem.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable, Sequence
+from typing import Any
 
 __all__ = [
     "BOUNDED",

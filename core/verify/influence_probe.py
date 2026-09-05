@@ -27,8 +27,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Iterable, Sequence
+from typing import Any
 
 from core.verify.causal_influence import (
     ChannelVerdict,
@@ -84,7 +85,7 @@ async def _generate_once(
 
     try:
         return (await asyncio.wait_for(generate(), timeout=timeout_s), "")
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return (None, "timeout")
     except asyncio.CancelledError:
         raise

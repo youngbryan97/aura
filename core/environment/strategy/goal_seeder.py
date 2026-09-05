@@ -6,6 +6,7 @@ then maps environment-specific milestones to those intrinsic drives.
 from __future__ import annotations
 
 import logging
+
 from .htn_planner import HTNPlanner
 
 logger = logging.getLogger("Aura.HTN.GoalSeeder")

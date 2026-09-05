@@ -1,7 +1,6 @@
 """core/morality/self_modification_consent.py
 Validates user consent for self-modification pipelines.
 """
-from typing import Dict, Any
 from core.morality.consent_model import ConsentModel
 
 

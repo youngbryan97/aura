@@ -1,15 +1,14 @@
 # core/brain/planner.py
-from typing import Callable, List, Any, Dict, Optional
 import asyncio
-import heapq
-import math
+from collections.abc import Callable
 
 from core.brain.llm_interface import LLMInterface
 from core.brain.trace_logger import TraceLogger
 from core.runtime.errors import record_degradation
 
+
 class Plan:
-    def __init__(self, steps: List[str], score: float = 0.0, metadata: Optional[Dict] = None):
+    def __init__(self, steps: list[str], score: float = 0.0, metadata: dict | None = None):
         self.steps = steps
         self.score = score
         self.metadata = metadata or {}
@@ -24,7 +23,7 @@ class Planner:
     - score_fn(plan: Plan) -> float : uses LLMInterface to score a plan (higher better)
     """
 
-    def __init__(self, llm: LLMInterface, trace: Optional[TraceLogger] = None):
+    def __init__(self, llm: LLMInterface, trace: TraceLogger | None = None):
         self.llm = llm
         self.trace = trace
 
@@ -51,7 +50,7 @@ class Planner:
             self.trace.log({"type": "plan_score", "plan": plan.steps, "score": s, "raw": raw})
         return s
 
-    async def generate(self, context: str, action_generator: Callable[[str], List[str]], beam: int = 4, depth: int = 3, max_candidates: int = 16) -> List[Plan]:
+    async def generate(self, context: str, action_generator: Callable[[str], list[str]], beam: int = 4, depth: int = 3, max_candidates: int = 16) -> list[Plan]:
         """
         Simple breadth-beam expansion:
         - Start with empty plan
@@ -83,7 +82,7 @@ class Planner:
             candidates = nxt[:beam]
         return candidates
 
-    async def _native_system2_rescore(self, context: str, plans: List[Plan]) -> None:
+    async def _native_system2_rescore(self, context: str, plans: list[Plan]) -> None:
         """Let Aura's native System 2 substrate arbitrate plan candidates.
 
         This does not execute plans. It only adds a governed deliberate-search

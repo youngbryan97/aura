@@ -1411,6 +1411,27 @@ async def _activate_conation(*, foreground_only: bool) -> ActivationResult:
     )
 
 
+async def _activate_phenomena(*, foreground_only: bool) -> ActivationResult:
+    """Bring up the fourteen dispositions homed across nine packages.
+
+    Same reason conation comes up at boot rather than lazily: the telemetry
+    channels have to exist before the first sample, and the invariants have to
+    be registered before the first state they would have caught. The organs
+    themselves stay lazy — they are container singletons and cost nothing
+    until something asks.
+    """
+    from core.phenomena_wiring import boot
+
+    result = boot()
+    return ActivationResult(
+        name="phenomena", ok=True,
+        detail={
+            "channels": len(result.get("telemetry") or []),
+            "invariants": len(result.get("invariants") or []),
+        },
+    )
+
+
 _ACTIVATORS: list[tuple[str, Callable[..., Any]]] = [
     ("kernel_discipline", _activate_kernel_discipline),
     ("verification", _activate_verification),
@@ -1421,6 +1442,7 @@ _ACTIVATORS: list[tuple[str, Callable[..., Any]]] = [
     ("cognition", _activate_cognition),
     ("ontogeny", _activate_ontogeny),
     ("conation", _activate_conation),
+    ("phenomena", _activate_phenomena),
 ]
 
 

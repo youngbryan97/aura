@@ -50,16 +50,16 @@ No model loads.
 """
 
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import logging
 import math
 from collections import deque
-from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.EntropyFluency")
 
@@ -94,7 +94,7 @@ class EntropyFluencyReport:
     phase_dwell_ticks: int         # how many ticks we've been in this phase
     transition_just_happened: bool
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "entropy": round(float(self.entropy), 4),
             "fluency": round(float(self.fluency), 4),
@@ -121,12 +121,12 @@ class EntropyFluencyTracker:
         self._innovation_window = max(2, int(innovation_window))
         self._alpha = float(ewma_alpha)
 
-        self._states: Deque[np.ndarray] = deque(maxlen=self._history_window)
-        self._innovations: Deque[float] = deque(maxlen=self._innovation_window)
+        self._states: deque[np.ndarray] = deque(maxlen=self._history_window)
+        self._innovations: deque[float] = deque(maxlen=self._innovation_window)
 
         self._smoothed_entropy: float = 0.0
         self._smoothed_fluency: float = 1.0
-        self._last_state: Optional[np.ndarray] = None
+        self._last_state: np.ndarray | None = None
         self._phase: str = PHASE_STABLE
         self._phase_dwell: int = 0
         self._tick_count: int = 0
@@ -178,7 +178,7 @@ class EntropyFluencyTracker:
         )
 
     @property
-    def last_report(self) -> Optional[EntropyFluencyReport]:
+    def last_report(self) -> EntropyFluencyReport | None:
         if self._tick_count == 0:
             return None
         return EntropyFluencyReport(
@@ -280,7 +280,7 @@ class EntropyFluencyTracker:
 
 # ── Singleton accessor ────────────────────────────────────────────────────
 
-_singleton: Optional[EntropyFluencyTracker] = None
+_singleton: EntropyFluencyTracker | None = None
 
 
 def get_entropy_fluency_tracker() -> EntropyFluencyTracker:

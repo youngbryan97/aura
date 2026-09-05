@@ -13,7 +13,6 @@ from dataclasses import dataclass, field
 
 from .prediction_error import PredictionError
 
-
 # Death message patterns
 _DEATH_PATTERNS = (
     "You die",

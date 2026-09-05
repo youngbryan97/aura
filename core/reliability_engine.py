@@ -3,21 +3,20 @@ The single source of truth for zero-break runtime.
 Watches every service, enforces circuit breakers, graceful degradation,
 and guarantees cognitive_stability never drops below 0.85.
 """
-from core.runtime.numeric_guards import unit_float
-
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Dict, Callable
 
+from core.runtime.errors import record_degradation
+from core.runtime.numeric_guards import unit_float
 from core.runtime.service_registry import (
     SERVICE_LIFETIME_SINGLETON,
     get_runtime_service,
     register_runtime_factory,
 )
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Reliability")
 
@@ -33,7 +32,7 @@ class ReliabilityEngine:
     name = "reliability_engine"
 
     def __init__(self):
-        self.services: Dict[str, ServiceHealth] = {}
+        self.services: dict[str, ServiceHealth] = {}
         self.heartbeat_interval = 15.0
         self.global_stability_threshold = 0.85
         self.circuit_timeout = 300.0  # 5 min cooldown
@@ -121,7 +120,7 @@ class ReliabilityEngine:
     async def _trigger_graceful_degradation(self):
         """Universal safe mode: drop low-priority tasks, pause non-critical shards."""
         try:
-            from core.brain.reasoning_queue import get_reasoning_queue, ReasoningPriority
+            from core.brain.reasoning_queue import ReasoningPriority, get_reasoning_queue
             rq = get_reasoning_queue()
             dropped = await rq.prune_low_priority(threshold_priority=ReasoningPriority.HIGH.value)
             logger.info("🛡️ Degradation: dropped %s low-priority tasks", dropped)

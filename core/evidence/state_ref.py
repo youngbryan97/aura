@@ -34,15 +34,13 @@ contract is real rather than declared.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
 import hashlib
-import threading
 import time
-from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
 from core.evidence.packet import EvidencePacket
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -71,7 +69,7 @@ def _identity(payload: Any, kind: str) -> str:
         # itself is part of what distinguishes it. Named rather than bare, so
         # a genuinely unexpected error still surfaces.
         material = f"<unreprable {type(payload).__name__}: {type(exc).__name__}>"
-    return hashlib.blake2s(f"{kind}\x00{material}".encode("utf-8"), digest_size=12).hexdigest()
+    return hashlib.blake2s(f"{kind}\x00{material}".encode(), digest_size=12).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,7 +108,7 @@ class CognitiveStateRef:
         owner: str = "",
         evidence: EvidencePacket | None = None,
         note: str = "",
-    ) -> "CognitiveStateRef":
+    ) -> CognitiveStateRef:
         """A new ref computed from this one, carrying the causal link."""
         return CognitiveStateRef(
             kind=kind or self.kind,
@@ -123,7 +121,7 @@ class CognitiveStateRef:
             note=note,
         )
 
-    def mutated_by(self, organ: str, payload: Any) -> "CognitiveStateRef":
+    def mutated_by(self, organ: str, payload: Any) -> CognitiveStateRef:
         """Replace the payload, refusing when ``organ`` does not own the state."""
         if organ != self.owner:
             raise StateOwnershipError(

@@ -2,16 +2,11 @@
 Force-disables networking and restricts resources.
 """
 
-from core.runtime.errors import record_degradation
-import io
 import logging
-import os
-import shutil
-import tarfile
-from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import docker
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.SecureSandbox")
 
@@ -28,7 +23,7 @@ class SecureDockerSandbox:
             logger.error("Docker initialization failed: %s", e)
             self.client = None
 
-    def execute_code(self, code: str, workspace_path: str, timeout: int = 30) -> Dict[str, Any]:
+    def execute_code(self, code: str, workspace_path: str, timeout: int = 30) -> dict[str, Any]:
         """Run code in the isolated container.
         """
         if not self.client:

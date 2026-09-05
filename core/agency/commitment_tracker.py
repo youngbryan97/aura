@@ -1,8 +1,8 @@
 """core/agency/commitment_tracker.py
 Verifies that social commitments are tracked, processed, and satisfied.
 """
-from typing import List, Dict, Any
 import logging
+from typing import Any
 
 logger = logging.getLogger("Agency.CommitmentTracker")
 
@@ -10,7 +10,7 @@ logger = logging.getLogger("Agency.CommitmentTracker")
 class CommitmentTracker:
     """Checks social commitments against operational achievements."""
 
-    def reconcile_commitments(self, commitments: List[Dict[str, Any]], completed_tasks: List[str]) -> List[str]:
+    def reconcile_commitments(self, commitments: list[dict[str, Any]], completed_tasks: list[str]) -> list[str]:
         """Returns list of commitment IDs that can be marked as satisfied."""
         satisfied = []
         for c in commitments:

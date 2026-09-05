@@ -23,12 +23,13 @@ import sqlite3
 import threading
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field
+from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
-from core.runtime.state_ownership import state_root
-from core.runtime.sqlite_support import connecting
+from typing import Any
 
+from core.runtime.sqlite_support import connecting
+from core.runtime.state_ownership import state_root
 
 EVENT_TYPES = (
     "initiative_proposed",
@@ -52,20 +53,20 @@ class LifeTraceEvent:
     event_type: str
     origin: str
     user_requested: bool
-    drive_state_before: Dict[str, Any]
-    drive_state_after: Dict[str, Any]
-    memory_context: List[Any]
-    counterfactuals_considered: List[Any]
-    will_decision: Dict[str, Any]
-    action_taken: Dict[str, Any]
-    result: Dict[str, Any]
-    memory_update: Dict[str, Any]
-    future_policy_change: Dict[str, Any]
+    drive_state_before: dict[str, Any]
+    drive_state_after: dict[str, Any]
+    memory_context: list[Any]
+    counterfactuals_considered: list[Any]
+    will_decision: dict[str, Any]
+    action_taken: dict[str, Any]
+    result: dict[str, Any]
+    memory_update: dict[str, Any]
+    future_policy_change: dict[str, Any]
     timestamp: float
     prev_hash: str
     hash: str
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "event_id": self.event_id,
             "event_type": self.event_type,
@@ -89,7 +90,7 @@ class LifeTraceEvent:
 class LifeTraceLedger:
     """Hash-chained append-only ledger with daily summaries."""
 
-    def __init__(self, db_path: Optional[str | Path] = None) -> None:
+    def __init__(self, db_path: str | Path | None = None) -> None:
         self._lock = threading.RLock()
         if db_path is None:
             try:
@@ -129,15 +130,15 @@ class LifeTraceLedger:
         *,
         origin: str,
         user_requested: bool = False,
-        drive_state_before: Optional[Dict[str, Any]] = None,
-        drive_state_after: Optional[Dict[str, Any]] = None,
-        memory_context: Optional[Iterable[Any]] = None,
-        counterfactuals_considered: Optional[Iterable[Any]] = None,
-        will_decision: Optional[Dict[str, Any]] = None,
-        action_taken: Optional[Dict[str, Any]] = None,
-        result: Optional[Dict[str, Any]] = None,
-        memory_update: Optional[Dict[str, Any]] = None,
-        future_policy_change: Optional[Dict[str, Any]] = None,
+        drive_state_before: dict[str, Any] | None = None,
+        drive_state_after: dict[str, Any] | None = None,
+        memory_context: Iterable[Any] | None = None,
+        counterfactuals_considered: Iterable[Any] | None = None,
+        will_decision: dict[str, Any] | None = None,
+        action_taken: dict[str, Any] | None = None,
+        result: dict[str, Any] | None = None,
+        memory_update: dict[str, Any] | None = None,
+        future_policy_change: dict[str, Any] | None = None,
     ) -> LifeTraceEvent:
         if event_type not in EVENT_TYPES:
             # Allow new types but keep the set visible to reviewers
@@ -159,7 +160,7 @@ class LifeTraceLedger:
             "timestamp": ts,
         }
         event_id = hashlib.sha256(
-            f"{ts}|{event_type}|{origin}|{json.dumps(payload['action_taken'], sort_keys=True, default=str)}".encode("utf-8")
+            f"{ts}|{event_type}|{origin}|{json.dumps(payload['action_taken'], sort_keys=True, default=str)}".encode()
         ).hexdigest()[:16]
         with self._lock:
             prev_hash = self._tail_hash()
@@ -206,7 +207,7 @@ class LifeTraceLedger:
     # ------------------------------------------------------------------
     # Query
     # ------------------------------------------------------------------
-    def recent(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def recent(self, limit: int = 50) -> list[dict[str, Any]]:
         with connecting(sqlite3.connect(self._db_path)) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
@@ -215,7 +216,7 @@ class LifeTraceLedger:
             ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
-    def since(self, since_ts: float) -> List[Dict[str, Any]]:
+    def since(self, since_ts: float) -> list[dict[str, Any]]:
         with connecting(sqlite3.connect(self._db_path)) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
@@ -224,7 +225,7 @@ class LifeTraceLedger:
             ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
-    def _row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
+    def _row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
         try:
             payload = json.loads(row["payload"])
         except (json.JSONDecodeError, TypeError, ValueError):
@@ -267,13 +268,13 @@ class LifeTraceLedger:
     # ------------------------------------------------------------------
     # Daily summary
     # ------------------------------------------------------------------
-    def daily_summary(self, *, window_hours: float = 24.0) -> Dict[str, Any]:
+    def daily_summary(self, *, window_hours: float = 24.0) -> dict[str, Any]:
         cutoff = time.time() - float(window_hours) * 3600.0
         events = self.since(cutoff)
         total = len(events)
         user_requested = sum(1 for e in events if e.get("user_requested"))
         self_generated = total - user_requested
-        by_type: Dict[str, int] = defaultdict(int)
+        by_type: dict[str, int] = defaultdict(int)
         for e in events:
             by_type[str(e.get("event_type") or "")] += 1
         deferred = int(by_type.get("initiative_deferred", 0))
@@ -296,7 +297,7 @@ class LifeTraceLedger:
         }
 
 
-_singleton: Optional[LifeTraceLedger] = None
+_singleton: LifeTraceLedger | None = None
 _lock = threading.Lock()
 
 

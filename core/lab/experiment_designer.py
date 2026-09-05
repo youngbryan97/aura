@@ -8,7 +8,7 @@ explicitly it is used verbatim; otherwise the hypothesis statement is the claim.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.lab.hypothesis_engine import Hypothesis
 
@@ -21,10 +21,10 @@ class ExperimentDesigner:
     def design_experiment(
         self,
         hypothesis: Hypothesis,
-        mined_facts: List[Dict[str, Any]],
+        mined_facts: list[dict[str, Any]],
         *,
-        claim: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        claim: str | None = None,
+    ) -> dict[str, Any]:
         # The experiment's substance is the exact claim to falsify — prefer an explicit
         # checkable claim, then the hypothesis's own claim attr, then its statement.
         falsifiable_claim = str(

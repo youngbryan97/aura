@@ -9,13 +9,14 @@ contexts.
 from __future__ import annotations
 
 import logging
+
 logger = logging.getLogger("core.runtime.persistence_ownership")
 
 import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 def _fsync_parent(path: Path) -> None:
@@ -75,7 +76,7 @@ def atomic_write_json_owned(
     *,
     schema_name: str,
     schema_version: int = 1,
-    indent: Optional[int] = 2,
+    indent: int | None = 2,
     sort_keys: bool = True,
 ) -> None:
     """Durably write JSON with Aura's AtomicWriter when available."""
@@ -113,9 +114,9 @@ def emit_persistence_receipt(
     cause: str,
     family: str = "runtime",
     record_id: str = "",
-    bytes_written: Optional[int] = None,
+    bytes_written: int | None = None,
     schema_version: int = 1,
-    metadata: Optional[dict[str, Any]] = None,
+    metadata: dict[str, Any] | None = None,
 ) -> bool:
     """Emit a MemoryWriteReceipt if Aura's receipt store is live.
 
@@ -123,8 +124,9 @@ def emit_persistence_receipt(
     """
     path = Path(path)
     try:
-        from core.runtime.receipts import MemoryWriteReceipt, get_receipt_store
         import uuid
+
+        from core.runtime.receipts import MemoryWriteReceipt, get_receipt_store
 
         if bytes_written is None:
             try:
@@ -157,7 +159,7 @@ def write_json_with_receipt(
     family: str = "runtime",
     record_id: str = "",
     schema_version: int = 1,
-    metadata: Optional[dict[str, Any]] = None,
+    metadata: dict[str, Any] | None = None,
 ) -> None:
     """Atomic JSON write + optional MemoryWriteReceipt."""
     path = Path(path)

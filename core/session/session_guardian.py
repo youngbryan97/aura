@@ -16,19 +16,18 @@ Install: instantiate in orchestrator_boot.py after the orchestrator is created,
 call guardian.attach(orchestrator). Then call guardian.start() in the run loop.
 """
 from __future__ import annotations
-import inspect
-from core.runtime.errors import record_degradation
-
-
 
 import asyncio
+import inspect
 import logging
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.SessionGuardian")
@@ -82,7 +81,7 @@ class SessionMetrics:
             return 0.0
         return time.time() - max(self.last_message_at, self.last_successful_response_at)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "session_id": self.session_id,
             "uptime_s": round(time.time() - self.started_at),
@@ -131,10 +130,10 @@ class SessionGuardian:
         self.safe_mode = safe_mode
         self.metrics = SessionMetrics()
         self._orchestrator = None
-        self._gated_ops: List[GatedOperation] = []
+        self._gated_ops: list[GatedOperation] = []
         self._running = False
-        self._monitor_task: Optional[asyncio.Task] = None
-        self._recovery_callbacks: List[Callable] = []
+        self._monitor_task: asyncio.Task | None = None
+        self._recovery_callbacks: list[Callable] = []
 
         # Register default gated operations
         self._register_defaults()
@@ -181,7 +180,7 @@ class SessionGuardian:
         name: str,
         min_health: HealthLevel = HealthLevel.NOMINAL,
         cooldown_seconds: float = 0.0,
-        fn: Optional[Callable] = None,
+        fn: Callable | None = None,
     ):
         self._gated_ops.append(GatedOperation(
             name=name,
@@ -190,7 +189,7 @@ class SessionGuardian:
             cooldown_seconds=cooldown_seconds,
         ))
 
-    def attach(self, orchestrator) -> "SessionGuardian":
+    def attach(self, orchestrator) -> SessionGuardian:
         """Attach to an orchestrator instance."""
         self._orchestrator = orchestrator
         logger.info("SessionGuardian attached to orchestrator")
@@ -376,7 +375,7 @@ class SessionGuardian:
         if self._monitor_task and not self._monitor_task.done():
             self._monitor_task.cancel()
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "guardian": self.metrics.to_dict(),
             "gated_ops": [
@@ -393,7 +392,7 @@ class SessionGuardian:
 
 # ── Global Instance ───────────────────────────────────────────────────────────
 
-_guardian: Optional[SessionGuardian] = None
+_guardian: SessionGuardian | None = None
 
 
 def get_guardian(safe_mode: bool = False) -> SessionGuardian:

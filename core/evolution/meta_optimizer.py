@@ -1,6 +1,5 @@
-import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -13,11 +12,11 @@ class MetaOptimizer:
     
     def __init__(self, history_manager: Any):
         self.history = history_manager  # Usually access to memory_nexus or log files
-        self.strategy_scores: Dict[str, List[float]] = {}
+        self.strategy_scores: dict[str, list[float]] = {}
 
     async def evaluate_strategies(self) -> None:
         """Fetch recent memory from history manager and evaluate strategy scores."""
-        recent_memory: List[Dict[str, Any]] = await self.history.get_recent(limit=100)
+        recent_memory: list[dict[str, Any]] = await self.history.get_recent(limit=100)
         for entry in recent_memory:
             # Look for entries with action + outcome
             action = entry.get("action")
@@ -35,7 +34,7 @@ class MetaOptimizer:
 
         logger.info("Evaluated %d entries. Strategy scores updated.", len(recent_memory))
 
-    def get_best_strategy(self, available_strategies: List[str]) -> str:
+    def get_best_strategy(self, available_strategies: list[str]) -> str:
         """Returns the strategy with the highest mean score."""
         if not available_strategies:
             return "default"
@@ -69,7 +68,7 @@ class MetaOptimizer:
 
         return optimized
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         return {
             "top_strategies": {
                 k: float(np.mean(v)) for k, v in self.strategy_scores.items() if v

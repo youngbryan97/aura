@@ -45,7 +45,7 @@ class PlatformRoot:
     def __new__(cls, *args, **kwargs):
         with cls._lock:
             if cls._instance is None:
-                cls._instance = super(PlatformRoot, cls).__new__(cls)
+                cls._instance = super().__new__(cls)
             return cls._instance
 
     def __init__(self):
@@ -54,7 +54,7 @@ class PlatformRoot:
             
         self._initialized = True
         self.running = False
-        self._monitor_task: Optional[asyncio.Task] = None
+        self._monitor_task: asyncio.Task | None = None
         self._last_pulse = 0.0
         self.device_active = False
         self._pulse_interval = 15.0

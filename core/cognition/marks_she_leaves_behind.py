@@ -123,7 +123,7 @@ class MarksOnTheGround:
         }
 
     @classmethod
-    def from_memory(cls, held: Any) -> "MarksOnTheGround":
+    def from_memory(cls, held: Any) -> MarksOnTheGround:
         if not isinstance(held, dict):
             return cls()
         trail: list[tuple[str, str]] = []

@@ -36,15 +36,19 @@ import time
 from typing import Any
 
 from core.actuators.code_execution_actuator import (
-    code_is_ast_safe,
     why_code_is_not_ast_safe,
 )
 from core.runtime.constrained_exec import (  # noqa: F401 - _RLIMIT_OPEN_FILES is re-exported for tests
     ISOLATION_LEVEL,
-    RLIMIT_OPEN_FILES as _RLIMIT_OPEN_FILES,
-    child_preexec as _child_preexec,
     isolation_receipt,
+)
+from core.runtime.constrained_exec import (
+    child_preexec as _child_preexec,
+)
+from core.runtime.constrained_exec import (
     reap_process_group as _reap_process_group,
+)
+from core.runtime.constrained_exec import (
     scrubbed_env as _scrubbed_env,
 )
 from core.runtime.service_registry import get_runtime_service

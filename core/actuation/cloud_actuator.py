@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from typing import Any, Dict
+from typing import Any
 
 from core.actuation.world_actuator import get_world_actuator
 
@@ -52,7 +52,7 @@ KNOWN_INFRA_STATES = frozenset({
 })
 
 
-def classify_sql(query: str) -> Dict[str, Any]:
+def classify_sql(query: str) -> dict[str, Any]:
     """Describe what a SQL body actually does.
 
     Returns the read/write verdict plus the reasons, so a caller — and the
@@ -100,7 +100,7 @@ class CloudActuator:
         read_only: bool = True,
         capability_token: str = "",
         deadline_s: float | None = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Run a query against a named database.
 
         CP126 fa7129ae: a DELETE, a DDL statement or a GRANT arrived here as an
@@ -134,7 +134,7 @@ class CloudActuator:
                 "operation_id": operation_id,
             }
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "db_name": str(db_name).strip(),
             "query": query,
             "read_only": bool(read_only),
@@ -144,7 +144,7 @@ class CloudActuator:
         if capability_token:
             params["capability_token"] = capability_token
 
-        kwargs: Dict[str, Any] = {}
+        kwargs: dict[str, Any] = {}
         if deadline_s is not None:
             kwargs["deadline_s"] = deadline_s
 
@@ -170,7 +170,7 @@ class CloudActuator:
         rollback_state: str = "",
         capability_token: str = "",
         deadline_s: float | None = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Change cloud infrastructure state.
 
         CP126 8aa639aa: arbitrary service and state strings were accepted with
@@ -221,7 +221,7 @@ class CloudActuator:
                 "operation_id": operation_id,
             }
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "service": str(service).strip(),
             "desired_state": desired,
             # The plan, so the domain can verify it before acting.
@@ -238,7 +238,7 @@ class CloudActuator:
         if capability_token:
             params["capability_token"] = capability_token
 
-        kwargs: Dict[str, Any] = {}
+        kwargs: dict[str, Any] = {}
         if deadline_s is not None:
             kwargs["deadline_s"] = deadline_s
 

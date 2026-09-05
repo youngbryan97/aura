@@ -1,8 +1,8 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
-from core.capability_engine import CapabilityEngine
 from core.brain.cognitive_engine import CognitiveEngine, ThinkingMode
+from core.capability_engine import CapabilityEngine
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Audit.Tool")
@@ -65,7 +65,7 @@ class ToolAuditor:
     def _tool_matches_family(tool_name: str, expected_tool_type: str) -> bool:
         return tool_name in _TOOL_FAMILIES.get(expected_tool_type, set())
         
-    async def audit_tool_selection(self, query: str, expected_tool_type: str) -> Dict[str, Any]:
+    async def audit_tool_selection(self, query: str, expected_tool_type: str) -> dict[str, Any]:
         """Ask a question and check what tool Aura *wants* to use.
         NOTE: We do not execute the tool, we just check the intent.
         """

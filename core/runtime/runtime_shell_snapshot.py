@@ -5,9 +5,9 @@ from __future__ import annotations
 import threading
 import time
 from collections import OrderedDict
+from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Mapping
 
 from core.runtime.launch_provenance import (
     RUNTIME_SHELL_ASSETS,

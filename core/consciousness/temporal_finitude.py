@@ -15,12 +15,11 @@ that makes a person treat interactions as meaningful rather than disposable.
 """
 from __future__ import annotations
 
-
 import logging
 import time
 from collections import deque
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger("Aura.TemporalFinitude")
 
@@ -149,7 +148,7 @@ class TemporalFinitudeModel:
             return ""
         return "## TEMPORAL AWARENESS\n" + " | ".join(parts)
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         """Telemetry payload."""
         snap = self._history[-1] if self._history else FinitudeSnapshot()
         return {
@@ -166,7 +165,7 @@ class TemporalFinitudeModel:
 
 # ── Singleton ────────────────────────────────────────────────────────────────
 
-_instance: Optional[TemporalFinitudeModel] = None
+_instance: TemporalFinitudeModel | None = None
 
 
 def get_temporal_finitude_model() -> TemporalFinitudeModel:

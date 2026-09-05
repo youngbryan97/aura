@@ -7,10 +7,11 @@ plugs raw terminal text and a key action space into this general loop.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import logging
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 from core.container import ServiceContainer
 
@@ -35,10 +36,10 @@ class EmbodiedCognitiveFrame:
     goal: EmbodiedGoal
     skill: SkillOption
     affordance_summary: str = ""
-    reflex_percepts: List[str] = field(default_factory=list)
-    due_intentions: List[str] = field(default_factory=list)
+    reflex_percepts: list[str] = field(default_factory=list)
+    due_intentions: list[str] = field(default_factory=list)
 
-    def to_prompt(self, *, include_raw: Optional[str] = None, max_raw_chars: int = 4000) -> str:
+    def to_prompt(self, *, include_raw: str | None = None, max_raw_chars: int = 4000) -> str:
         blocks = [
             self.state.to_structured_prompt(),
             "[BELIEF STATE]\n" + self.belief.get_strategic_summary(),
@@ -81,9 +82,9 @@ class EmbodiedCognitionRuntime:
         *,
         domain: str,
         parser: EnvironmentParser,
-        legal_actions: Optional[Iterable[str]] = None,
-        prompt_actions: Optional[Dict[str, str]] = None,
-        storage_root: Optional[Path] = None,
+        legal_actions: Iterable[str] | None = None,
+        prompt_actions: dict[str, str] | None = None,
+        storage_root: Path | None = None,
     ) -> None:
         self.domain = domain
         self.parser = parser
@@ -107,9 +108,9 @@ class EmbodiedCognitionRuntime:
         self.affordances = AffordanceKnowledgeBase(domain=domain, storage_path=affordance_path)
         self.trace = EmbodiedTraceLogger(path=trace_path)
         self.evaluation = EmbodiedEvaluationHarness(domain=domain)
-        self.last_frame: Optional[EmbodiedCognitiveFrame] = None
+        self.last_frame: EmbodiedCognitiveFrame | None = None
 
-    def observe(self, raw_input: Any, *, context_id: Optional[str] = None) -> EmbodiedCognitiveFrame:
+    def observe(self, raw_input: Any, *, context_id: str | None = None) -> EmbodiedCognitiveFrame:
         state = self.parser.parse(raw_input)
         state.domain = state.domain or self.domain
         if state.domain == "generic":
@@ -137,8 +138,8 @@ class EmbodiedCognitionRuntime:
             reflex_percepts=reflex_percepts,
             due_intentions=due,
         )
-        setattr(frame, "_goal_manager", self.goal_manager)
-        setattr(frame, "_skill_graph", self.skill_graph)
+        frame._goal_manager = self.goal_manager
+        frame._skill_graph = self.skill_graph
         self.last_frame = frame
         self.trace.record_observation(
             domain=self.domain,
@@ -160,7 +161,7 @@ class EmbodiedCognitionRuntime:
         *,
         source: str = "policy",
         reason: str = "",
-        tags: Optional[List[str]] = None,
+        tags: list[str] | None = None,
         expected_effect: str = "",
     ) -> ActionDecision:
         if self.last_frame is None:
@@ -209,7 +210,7 @@ class EmbodiedCognitionRuntime:
         *,
         action_marker: str,
         valid_actions: Iterable[str],
-        extra_rules: Optional[Iterable[str]] = None,
+        extra_rules: Iterable[str] | None = None,
     ) -> str:
         actions = ", ".join(str(action) for action in valid_actions)
         rules = [

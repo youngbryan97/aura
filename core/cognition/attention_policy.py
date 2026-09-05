@@ -31,11 +31,10 @@ get the same answer.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
-import threading
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = ["Channel", "AttentionPolicy", "get_attention_policy", "reset_attention_policy_for_test"]
 

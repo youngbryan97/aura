@@ -1,10 +1,9 @@
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import sqlite3
-import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Tuple
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.DatabaseCoordinator")
 
@@ -18,7 +17,7 @@ class DatabaseCoordinator:
     def __init__(self):
         self._write_queue = asyncio.Queue()
         self._worker_task = None
-        self._connections: Dict[str, sqlite3.Connection] = {}
+        self._connections: dict[str, sqlite3.Connection] = {}
         self._running = False
         logger.info("🗄️ DatabaseCoordinator initialized.")
 
@@ -63,7 +62,7 @@ class DatabaseCoordinator:
             and isinstance(self._write_queue, asyncio.Queue)
         )
 
-    async def execute_write(self, db_path: str, query: str, params: Tuple = ()) -> asyncio.Future:
+    async def execute_write(self, db_path: str, query: str, params: tuple = ()) -> asyncio.Future:
         """Enqueue a write operation and return a future for the result."""
         result_future = asyncio.get_running_loop().create_future()
         await self._write_queue.put((db_path, query, params, result_future))

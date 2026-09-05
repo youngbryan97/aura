@@ -1,9 +1,9 @@
-from core.utils.task_tracker import get_task_tracker
-import asyncio
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any
+
 from core.state.aura_state import AuraState
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Brain.VoightKampff")
 
@@ -26,7 +26,7 @@ class EmpathyProber:
             self._event_bus = None
         logger.info("👁️ [VK] Voight-Kampff Prober ONLINE. Empathy baselines established.")
 
-    def audit(self, state: AuraState) -> Dict[str, Any]:
+    def audit(self, state: AuraState) -> dict[str, Any]:
         """
         Performs a biometric alignment check.
         
@@ -73,7 +73,7 @@ class EmpathyProber:
             "timestamp": time.time()
         }
 
-    def get_correction_payload(self) -> Dict[str, float]:
+    def get_correction_payload(self) -> dict[str, float]:
         """Returns a corrective surge to stabilize affect."""
         return {
             "joy": 0.2,
@@ -83,7 +83,7 @@ class EmpathyProber:
             "sadness": -0.2
         }
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "last_audit": self._last_audit_result,
             "threshold": self._drift_threshold

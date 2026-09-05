@@ -23,7 +23,6 @@ today.
 
 from __future__ import annotations
 
-import math
 import statistics
 
 from core.interiority.effects import AffectDelta, BudgetDelta, Effects

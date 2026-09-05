@@ -7,13 +7,14 @@ or reinforced/disconfirmed by experience.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import json
 import logging
 import os
 import time
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+
 from core.config import config
 from core.runtime.file_write_gateway import get_file_write_gateway
 
@@ -23,16 +24,16 @@ logger = logging.getLogger("Aura.AffordanceSchema")
 class Affordance:
     entity: str                   # e.g., "floating eye", "potion", "altar"
     action: str                   # e.g., "melee", "quaff", "pray"
-    preconditions: List[str]      # e.g., ["adjacent", "can see"]
-    effects: List[str]            # e.g., ["paralyzes player", "identifies BUC"]
+    preconditions: list[str]      # e.g., ["adjacent", "can see"]
+    effects: list[str]            # e.g., ["paralyzes player", "identifies BUC"]
     risk_level: float             # 0.0 (safe) to 1.0 (deadly)
     confidence: float             # 0.0 (guess) to 1.0 (verified by experience)
     source: str                   # "experience", "inference"
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     observations: int = 1
     last_tested: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "entity": self.entity,
             "action": self.action,
@@ -47,7 +48,7 @@ class Affordance:
         }
 
     @classmethod
-    def from_dict(cls, d: Dict) -> 'Affordance':
+    def from_dict(cls, d: dict) -> Affordance:
         return cls(**d)
 
 
@@ -56,10 +57,10 @@ class AffordanceKnowledgeBase:
     Persistent store for learned affordances.
     """
 
-    def __init__(self, domain: str = "generic", storage_path: Optional[Path] = None):
+    def __init__(self, domain: str = "generic", storage_path: Path | None = None):
         self.domain = domain
         self.storage_path = Path(storage_path) if storage_path else config.paths.data_dir / f"knowledge/{domain}_affordances.json"
-        self.affordances: Dict[str, List[Affordance]] = {}
+        self.affordances: dict[str, list[Affordance]] = {}
         self._load()
         if not self.affordances:
             self.seed_general_doctrine()
@@ -67,12 +68,12 @@ class AffordanceKnowledgeBase:
     def _load(self):
         try:
             if os.path.exists(self.storage_path):
-                with open(self.storage_path, 'r') as f:
+                with open(self.storage_path) as f:
                     data = json.load(f)
                     for entity, aff_list in data.items():
                         self.affordances[entity] = [Affordance.from_dict(a) for a in aff_list]
                 logger.info("Loaded %s affordances for %s.", sum(len(v) for v in self.affordances.values()), self.domain)
-        except (OSError, IOError) as e:
+        except OSError as e:
             logger.error("Failed to load affordances: %s", e)
 
     def _save(self):
@@ -84,7 +85,7 @@ class AffordanceKnowledgeBase:
                 json.dumps(data, indent=2),
                 source="perception.affordance_schema.knowledge",
             )
-        except (OSError, IOError) as e:
+        except OSError as e:
             logger.error("Failed to save affordances: %s", e)
 
     def add_learned_affordance(self, affordance: Affordance):
@@ -114,20 +115,20 @@ class AffordanceKnowledgeBase:
 
         self._save()
 
-    def get_affordances(self, entity: str) -> List[Affordance]:
+    def get_affordances(self, entity: str) -> list[Affordance]:
         return self.affordances.get(entity.lower(), [])
 
     def query(
         self,
         *,
         entities: Iterable[str] = (),
-        action: Optional[str] = None,
+        action: str | None = None,
         tags: Iterable[str] = (),
         min_confidence: float = 0.0,
-    ) -> List[Affordance]:
+    ) -> list[Affordance]:
         requested_entities = {str(entity).lower() for entity in entities if str(entity)}
         requested_tags = {str(tag).lower() for tag in tags if str(tag)}
-        results: List[Affordance] = []
+        results: list[Affordance] = []
         for entity, affordances in self.affordances.items():
             if requested_entities and entity not in requested_entities:
                 continue
@@ -196,7 +197,7 @@ class AffordanceKnowledgeBase:
             self.affordances.setdefault(seed.entity, []).append(seed)
         self._save()
 
-    def get_summary_for_prompt(self, visible_entities: List[str]) -> str:
+    def get_summary_for_prompt(self, visible_entities: list[str]) -> str:
         """Returns a string summarizing known affordances for visible entities."""
         lines = []
         visible = {ent.lower() for ent in visible_entities if ent}

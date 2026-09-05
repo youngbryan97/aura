@@ -4,15 +4,16 @@ Proactive analyzer for the CognitiveKernel.
 Hunts for bottlenecks, redundant logic, and regex ulcers.
 """
 
-from core.runtime.errors import record_degradation
-from core.runtime.service_registry import get_runtime_service
 import ast
+import asyncio
 import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-import asyncio
+from typing import Any
+
+from core.runtime.errors import record_degradation
+from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("SelfModification.KernelRefiner")
 
@@ -27,7 +28,7 @@ class KernelRefiner:
         self._content_cache = None
         self._cache_hash = None
         
-    async def analyze_kernel_health(self) -> List[Dict[str, Any]]:
+    async def analyze_kernel_health(self) -> list[dict[str, Any]]:
         """Hunts for optimization opportunities in the CognitiveKernel.
         
         Returns:
@@ -55,7 +56,7 @@ class KernelRefiner:
             
         return ops
 
-    async def _get_kernel_content(self) -> Optional[str]:
+    async def _get_kernel_content(self) -> str | None:
         """Read kernel content with basic caching (Async)."""
         try:
             mtime = self.kernel_path.stat().st_mtime
@@ -71,7 +72,7 @@ class KernelRefiner:
             logger.error("Failed to read kernel: %s", e)
             return None
 
-    def _perform_static_audit(self, content: str) -> List[Dict[str, Any]]:
+    def _perform_static_audit(self, content: str) -> list[dict[str, Any]]:
         """Static pattern matching for known 'code ulcers'."""
         issues = []
 
@@ -104,7 +105,7 @@ class KernelRefiner:
         
         return issues
 
-    async def _perform_deep_brain_audit(self, content: str) -> List[Dict[str, Any]]:
+    async def _perform_deep_brain_audit(self, content: str) -> list[dict[str, Any]]:
         """uses LLM to look for 'cognitive ulcers' in the reasoning flow."""
         use_llm = str(os.environ.get("AURA_KERNEL_REFINER_LLM_AUDIT", "0")).strip().lower() in {
             "1",
@@ -188,7 +189,7 @@ If no refinement is needed, return {{"found": false}}.
             
         return []
 
-    async def refine_kernel(self, proposal: Dict[str, Any]) -> bool:
+    async def refine_kernel(self, proposal: dict[str, Any]) -> bool:
         """Executes the proposed refinement using the logic transplantation protocol."""
         logger.info("🧬 Refiner: Initiating Logic Transplantation for: %s", proposal['message'])
         

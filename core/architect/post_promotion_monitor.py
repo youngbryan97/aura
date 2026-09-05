@@ -9,7 +9,13 @@ from typing import Any
 
 from core.architect.behavior_fingerprint import BehaviorFingerprinter
 from core.architect.config import ASAConfig
-from core.architect.models import BehaviorFingerprint, PostPromotionObservation, PromotionStatus, RefactorPlan, RollbackPacket
+from core.architect.models import (
+    BehaviorFingerprint,
+    PostPromotionObservation,
+    PromotionStatus,
+    RefactorPlan,
+    RollbackPacket,
+)
 from core.architect.rollback_manager import RollbackManager
 from core.runtime.atomic_writer import atomic_write_text
 

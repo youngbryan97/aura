@@ -7,7 +7,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import deque
-from typing import Any, Deque, Dict, Optional
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import register_runtime_service
@@ -20,7 +20,7 @@ class ClipboardManager:
     """Clipboard operations with history and undo."""
 
     def __init__(self, max_history: int = 20) -> None:
-        self._history: Deque[str] = deque(maxlen=max_history)
+        self._history: deque[str] = deque(maxlen=max_history)
         self._started = False
 
     async def start(self) -> None:
@@ -43,7 +43,7 @@ class ClipboardManager:
             )
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=2.0)
             return stdout.decode("utf-8", errors="replace") if stdout else ""
-        except (OSError, asyncio.TimeoutError, RuntimeError) as exc:
+        except (TimeoutError, OSError, RuntimeError) as exc:
             record_degradation("clipboard.get", exc)
             return ""
 
@@ -68,7 +68,7 @@ class ClipboardManager:
                 timeout=2.0,
             )
             return proc.returncode == 0
-        except (OSError, asyncio.TimeoutError, RuntimeError) as e:
+        except (TimeoutError, OSError, RuntimeError) as e:
             record_degradation("clipboard.set", e)
             return False
 
@@ -99,13 +99,13 @@ class ClipboardManager:
         previous = self._history.pop()
         return await self.set(previous)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "history_size": len(self._history),
         }
 
 
-_instance: Optional[ClipboardManager] = None
+_instance: ClipboardManager | None = None
 
 
 def get_clipboard_manager() -> ClipboardManager:

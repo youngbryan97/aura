@@ -37,15 +37,14 @@ and it is measured against the thing it replaced rather than against nothing.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
 import math
 import random
-import threading
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import Any
 
-from core.cognition.library_compression import Abstraction, LibraryCompressor, size
+from core.cognition.library_compression import Abstraction, LibraryCompressor
+from core.runtime.lockdep import checked_lock
 
 __all__ = ["Task", "Recogniser", "Dream", "WakeSleep"]
 

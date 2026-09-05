@@ -44,7 +44,7 @@ class DomainMeasurement:
     reference_score: float | None  # matched frontier reference; None ⇒ unknown
     n: int  # measurements behind aura_score
 
-    def validated(self) -> "DomainMeasurement":
+    def validated(self) -> DomainMeasurement:
         if not self.domain.strip():
             raise ValueError("domain measurement requires a domain name")
         if (

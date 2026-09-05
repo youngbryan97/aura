@@ -3,13 +3,12 @@
 Re-exports the core AuditLog and coordinates adversarial self-audits.
 """
 from __future__ import annotations
-from core.runtime.lockdep import checked_lock
 
 import hashlib
 import json
 import logging
-import threading
 import sqlite3
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -17,8 +16,9 @@ from typing import Any, Dict, List, Optional
 
 from core.config import config
 from core.runtime.errors import record_degradation
-from core.security.structural_redaction import redact_structure
+from core.runtime.lockdep import checked_lock
 from core.runtime.sqlite_support import connection_is_open, open_tracked
+from core.security.structural_redaction import redact_structure
 
 logger = logging.getLogger("Aura.Audit")
 
@@ -107,9 +107,9 @@ class AuditLog:
     Append-only audit log. Once written, records are never modified.
     """
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         self._db_path = str(db_path or _DB_PATH)
-        self._con: Optional[sqlite3.Connection] = None
+        self._con: sqlite3.Connection | None = None
         # CP126 48b8237f: check_same_thread=False permitted concurrent
         # callers while connection creation, execute, commit, heal, close
         # and query were all unsynchronised.
@@ -146,7 +146,7 @@ class AuditLog:
             self._con.close()
             self._con = None
 
-    def __enter__(self) -> "AuditLog":
+    def __enter__(self) -> AuditLog:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -279,11 +279,11 @@ class AuditLog:
         action_type: str,
         description: str,
         actor: str = "autonomous",
-        skill_name: Optional[str] = None,
-        params: Optional[Dict[str, Any]] = None,
-        result_ok: Optional[bool] = None,
-        cid: Optional[str] = None,
-        session_id: Optional[str] = None,
+        skill_name: str | None = None,
+        params: dict[str, Any] | None = None,
+        result_ok: bool | None = None,
+        cid: str | None = None,
+        session_id: str | None = None,
     ) -> str:
         """Append one entry. Returns its id, or "" if it was NOT persisted.
 
@@ -390,7 +390,7 @@ class AuditLog:
         con.commit()
         return entry_id
 
-    def verify_chain(self) -> Dict[str, Any]:
+    def verify_chain(self) -> dict[str, Any]:
         """Recompute the chain and report the first place it breaks.
 
         A deleted row breaks the sequence; an edited row breaks its own
@@ -449,9 +449,9 @@ class AuditLog:
     def get_recent(
         self,
         limit: int = 100,
-        action_type: Optional[str] = None,
-        actor: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        action_type: str | None = None,
+        actor: str | None = None,
+    ) -> list[dict[str, Any]]:
         # CP126 5194bf9d: `limit` went to SQLite unvalidated, and a NEGATIVE
         # LIMIT means NO limit — a caller passing -1 pulled the entire audit
         # history into memory.
@@ -487,7 +487,7 @@ class AuditLog:
                 raise
         return [dict(r) for r in rows]
 
-    def get_autonomous_summary(self, since_hours: float = 24.0) -> Dict[str, Any]:
+    def get_autonomous_summary(self, since_hours: float = 24.0) -> dict[str, Any]:
         """Summary of autonomous actions in the last N hours."""
         cutoff = time.time() - (since_hours * 3600)
         try:
@@ -499,7 +499,7 @@ class AuditLog:
                 return self._get_autonomous_summary_internal(cutoff, since_hours)
             raise
 
-    def _get_autonomous_summary_internal(self, cutoff: float, since_hours: float) -> Dict[str, Any]:
+    def _get_autonomous_summary_internal(self, cutoff: float, since_hours: float) -> dict[str, Any]:
         con = self._connect()
         total = con.execute(
             "SELECT COUNT(*) FROM audit_log WHERE actor != 'user' AND created_at > ?",
@@ -522,7 +522,7 @@ class AuditLog:
             "by_type": {r["action_type"]: r["c"] for r in by_type},
         }
 
-    def get_skill_performance_stats(self, since_hours: float = 24.0) -> List[Dict[str, Any]]:
+    def get_skill_performance_stats(self, since_hours: float = 24.0) -> list[dict[str, Any]]:
         """Calculates performance statistics for each skill in the last N hours."""
         cutoff = time.time() - (since_hours * 3600)
         try:
@@ -534,7 +534,7 @@ class AuditLog:
                 return self._get_skill_performance_stats_internal(cutoff)
             raise
 
-    def _get_skill_performance_stats_internal(self, cutoff: float) -> List[Dict[str, Any]]:
+    def _get_skill_performance_stats_internal(self, cutoff: float) -> list[dict[str, Any]]:
         query = """
             SELECT 
                 skill_name,
@@ -563,7 +563,7 @@ class AuditLog:
         return sorted(stats, key=lambda x: x["success_rate"])
 
 
-_audit: Optional[AuditLog] = None
+_audit: AuditLog | None = None
 _audit_lock = checked_lock("audit.module")
 
 
@@ -577,8 +577,8 @@ def get_audit() -> AuditLog:
 
 
 # Re-exports from adversarial modules
-from core.audit.adversarial_auditor import AdversarialAuditor, get_adversarial_auditor
-from core.audit.red_team_agent import RedTeamAgent
-from core.audit.failure_injector import FailureInjector
-from core.audit.claim_challenger import ClaimChallenger
 from core.audit.action_challenger import ActionChallenger
+from core.audit.adversarial_auditor import AdversarialAuditor, get_adversarial_auditor
+from core.audit.claim_challenger import ClaimChallenger
+from core.audit.failure_injector import FailureInjector
+from core.audit.red_team_agent import RedTeamAgent

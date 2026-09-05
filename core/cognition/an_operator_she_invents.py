@@ -22,7 +22,8 @@ from __future__ import annotations
 
 import itertools
 import logging
-from typing import Any, Callable, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 from core.cognition.operator_invention import Candidate, OperatorKernel
 

@@ -1,11 +1,10 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 from typing import Any
 
 from core.container import ServiceContainer
 from core.exceptions import ServiceNotFoundError
+from core.runtime.errors import record_degradation
 
 
 def optional_service(*names: Any, default: Any = None) -> Any:

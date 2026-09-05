@@ -31,14 +31,13 @@ DESIGN INVARIANTS:
   memory growth.
 """
 
-from core.runtime.errors import record_degradation
 import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Consciousness.PhenomenalNow")
 
@@ -81,7 +80,7 @@ class WorkspaceSummary:
     winner_source: str = ""
     winner_content: str = ""
     winner_priority: float = 0.0
-    losers: Tuple[str, ...] = ()
+    losers: tuple[str, ...] = ()
     tick: int = 0
 
 
@@ -231,7 +230,7 @@ class PhenomenalNowEngine:
 
     def __init__(self) -> None:
         self._session_start: float = time.time()
-        self._recent: Deque[PhenomenalNow] = deque(maxlen=CONTINUITY_WINDOW_SIZE)
+        self._recent: deque[PhenomenalNow] = deque(maxlen=CONTINUITY_WINDOW_SIZE)
         self._last_tick_time: float = 0.0
         self._tick_count: int = 0
         logger.info("PhenomenalNowEngine initialized.")
@@ -301,7 +300,7 @@ class PhenomenalNowEngine:
 
         return phenomenal_now
 
-    def get_recent(self, n: int = 5) -> List[PhenomenalNow]:
+    def get_recent(self, n: int = 5) -> list[PhenomenalNow]:
         """Return the last N canonical moments (most recent last)."""
         return list(self._recent)[-n:]
 
@@ -309,7 +308,7 @@ class PhenomenalNowEngine:
     # Source Pullers — each returns (summary, success_bool)
     # ------------------------------------------------------------------
 
-    def _pull_workspace(self) -> Tuple[WorkspaceSummary, bool]:
+    def _pull_workspace(self) -> tuple[WorkspaceSummary, bool]:
         """Pull current state from GlobalWorkspace."""
         try:
             ws = ServiceContainer.get("global_workspace", default=None)
@@ -333,7 +332,7 @@ class PhenomenalNowEngine:
                 winner_priority = float(getattr(last_winner, "effective_priority", 0.0))
 
             # Losers from most recent history record
-            losers: Tuple[str, ...] = ()
+            losers: tuple[str, ...] = ()
             history = getattr(ws, "_history", [])
             if history:
                 last_record = history[-1]
@@ -354,7 +353,7 @@ class PhenomenalNowEngine:
             logger.debug("Workspace pull failed: %s", e)
             return WorkspaceSummary(), False
 
-    def _pull_attention(self) -> Tuple[AttentionSummary, bool]:
+    def _pull_attention(self) -> tuple[AttentionSummary, bool]:
         """Pull current attention state from PhenomenologicalExperiencer."""
         try:
             experiencer = ServiceContainer.get("phenomenological_experiencer", default=None)
@@ -385,7 +384,7 @@ class PhenomenalNowEngine:
             logger.debug("Attention pull failed: %s", e)
             return AttentionSummary(), False
 
-    def _pull_substrate(self) -> Tuple[SubstrateSummary, bool]:
+    def _pull_substrate(self) -> tuple[SubstrateSummary, bool]:
         """
         Pull substrate state from StreamOfBeing's ExperienceIntegrator sources.
 
@@ -722,7 +721,7 @@ class PhenomenalNowEngine:
         location, using the same phenomenological vocabulary as
         StreamOfBeing's _generate_interior_text.
         """
-        parts: List[str] = []
+        parts: list[str] = []
 
         # ── Substrate texture ─────────────────────────────────────────
         _substrate_phrases = {
@@ -841,7 +840,7 @@ class PhenomenalNowEngine:
 
 # ── Module-level convenience accessor ─────────────────────────────────────────
 
-def get_now() -> Optional[PhenomenalNow]:
+def get_now() -> PhenomenalNow | None:
     """
     Get the current canonical PhenomenalNow.
 

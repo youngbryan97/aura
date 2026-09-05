@@ -1,15 +1,14 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from core.consciousness.executive_closure import ExecutiveClosureEngine
+from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
 
-from . import BasePhase
 from ..state.aura_state import AuraState
+from . import BasePhase
 
 logger = logging.getLogger("Aura.ExecutiveClosurePhase")
 
@@ -19,7 +18,7 @@ class ExecutiveClosurePhase(BasePhase):
 
     def __init__(self, container: Any = None):
         super().__init__(container=container)
-        self._engine: Optional[ExecutiveClosureEngine] = None
+        self._engine: ExecutiveClosureEngine | None = None
 
     def _get_engine(self) -> ExecutiveClosureEngine:
         if self._engine is not None:
@@ -36,7 +35,7 @@ class ExecutiveClosurePhase(BasePhase):
         self._engine = engine
         return engine
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         engine = self._get_engine()
         new_state = state.derive("executive_closure", origin="system")
         return await engine.integrate(new_state)

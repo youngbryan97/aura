@@ -22,18 +22,14 @@ Design principles:
 """
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import math
-import os
-import time
 from collections import deque
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
+
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.HierarchicalBrain")
@@ -84,18 +80,18 @@ class BrainRegion:
         self.bias = np.zeros(n, dtype=np.float32)
 
         # Input projection (will be resized when connections are made)
-        self._input_proj: Optional[np.ndarray] = None
-        self._output_proj: Optional[np.ndarray] = None
+        self._input_proj: np.ndarray | None = None
+        self._output_proj: np.ndarray | None = None
 
         # Metrics
         self._step_count = 0
-        self._activation_history: Deque[float] = deque(maxlen=50)
+        self._activation_history: deque[float] = deque(maxlen=50)
 
     @property
     def neuron_count(self) -> int:
         return self.state.size
 
-    def step(self, external_input: Optional[np.ndarray] = None, dt: float = 0.05) -> np.ndarray:
+    def step(self, external_input: np.ndarray | None = None, dt: float = 0.05) -> np.ndarray:
         """Run one integration step."""
         # Compute drive
         drive = self.W @ self.state + self.bias
@@ -210,8 +206,8 @@ class HierarchicalBrain:
     ]
 
     def __init__(self) -> None:
-        self._regions: Dict[str, BrainRegion] = {}
-        self._connections: List[Tuple[str, str, np.ndarray]] = []  # (from, to, weight_matrix)
+        self._regions: dict[str, BrainRegion] = {}
+        self._connections: list[tuple[str, str, np.ndarray]] = []  # (from, to, weight_matrix)
         self._step_count: int = 0
         self._birth_count: int = 0
         self._prune_count: int = 0
@@ -257,9 +253,9 @@ class HierarchicalBrain:
 
     def step(
         self,
-        substrate_state: Optional[np.ndarray] = None,
+        substrate_state: np.ndarray | None = None,
         dt: float = 0.05,
-    ) -> Dict[str, np.ndarray]:
+    ) -> dict[str, np.ndarray]:
         """Run one step of the hierarchical brain.
 
         Args:
@@ -269,10 +265,10 @@ class HierarchicalBrain:
         Returns:
             Dict mapping region name to output vector
         """
-        outputs: Dict[str, np.ndarray] = {}
+        outputs: dict[str, np.ndarray] = {}
 
         # First: compute inter-region inputs
-        region_inputs: Dict[str, np.ndarray] = {}
+        region_inputs: dict[str, np.ndarray] = {}
         for from_name, to_name, W in self._connections:
             from_region = self._regions.get(from_name)
             to_region = self._regions.get(to_name)
@@ -367,8 +363,8 @@ class HierarchicalBrain:
 
     def _check_topology(self) -> None:
         """Check if any regions should be split or pruned."""
-        births: List[str] = []
-        prunes: List[str] = []
+        births: list[str] = []
+        prunes: list[str] = []
 
         for name, region in self._regions.items():
             metrics = region.get_metrics()
@@ -468,7 +464,7 @@ class HierarchicalBrain:
 
     # ── Public API ──────────────────────────────────────────────────────
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return brain status for observability."""
         region_metrics = {}
         for name, region in self._regions.items():
@@ -493,7 +489,7 @@ class HierarchicalBrain:
 
 # ── Singleton ───────────────────────────────────────────────────────────────
 
-_instance: Optional[HierarchicalBrain] = None
+_instance: HierarchicalBrain | None = None
 
 
 def get_hierarchical_brain() -> HierarchicalBrain:

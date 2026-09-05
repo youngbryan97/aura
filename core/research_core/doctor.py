@@ -8,10 +8,10 @@ isn't registered or is in a degraded state.
 """
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 
-def collect_research_core_status() -> Dict[str, Any]:
+def collect_research_core_status() -> dict[str, Any]:
     try:
         from core.container import ServiceContainer
 

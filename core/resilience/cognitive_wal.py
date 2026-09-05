@@ -4,20 +4,20 @@ core/resilience/cognitive_wal.py
 Ensures Aura never loses her train of thought during a power loss or system crash.
 Implements a Write-Ahead Log (WAL) for cognitive intents.
 """
-from core.runtime.errors import record_degradation
-from core.runtime.file_write_gateway import get_file_write_gateway
-from core.utils.exceptions import capture_and_log
-from pathlib import Path
 import json
 import logging
 import os
 import time
-from typing import Dict, List, Optional
+from pathlib import Path
+
+from core.runtime.errors import record_degradation
+from core.runtime.file_write_gateway import get_file_write_gateway
+from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Aura.Resilience.WAL")
 
 class CognitiveWAL:
-    def __init__(self, filepath: Optional[str] = None):
+    def __init__(self, filepath: str | None = None):
         if filepath:
             self.filepath = Path(filepath)
         else:
@@ -25,9 +25,9 @@ class CognitiveWAL:
             self.filepath = config.paths.data_dir / "memory" / "wal.jsonl"
             
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
-        self._pending_intents: Dict[str, Dict] = {}
+        self._pending_intents: dict[str, dict] = {}
 
-    def log_intent(self, turn_id: str, action: str, target: str, context: Optional[Dict] = None, blocking: bool = False):
+    def log_intent(self, turn_id: str, action: str, target: str, context: dict | None = None, blocking: bool = False):
         """Write the thought to disk BEFORE executing it."""
         entry = {
             "time": time.time(),
@@ -67,7 +67,7 @@ class CognitiveWAL:
                 record_degradation('cognitive_wal', e)
                 logger.error("Failed to commit WAL entry: %s", e)
 
-    def recover_state(self) -> List[Dict]:
+    def recover_state(self) -> list[dict]:
         """
         Run at boot. Identifies intents that were logged but not committed.
         """
@@ -76,7 +76,7 @@ class CognitiveWAL:
 
         intents = {}
         try:
-            with open(self.filepath, "r") as f:
+            with open(self.filepath) as f:
                 for line in f:
                     try:
                         entry = json.loads(line)
@@ -114,7 +114,7 @@ class CognitiveWAL:
             # Collect only pending entries from file + in-memory
             pending_entries = []
             try:
-                with open(self.filepath, "r") as f:
+                with open(self.filepath) as f:
                     for line in f:
                         try:
                             entry = json.loads(line)
@@ -145,7 +145,7 @@ class CognitiveWAL:
 cognitive_wal = CognitiveWAL()
 
 
-def log_intent(turn_id: str, action: str, target: str, context: Optional[Dict] = None, blocking: bool = False):
+def log_intent(turn_id: str, action: str, target: str, context: dict | None = None, blocking: bool = False):
     return cognitive_wal.log_intent(turn_id, action, target, context, blocking=blocking)
 
 
@@ -153,7 +153,7 @@ def mark_complete(turn_id: str):
     return cognitive_wal.mark_complete(turn_id)
 
 
-def recover_state() -> List[Dict]:
+def recover_state() -> list[dict]:
     return cognitive_wal.recover_state()
 
 

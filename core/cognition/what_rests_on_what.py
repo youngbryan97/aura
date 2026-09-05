@@ -37,8 +37,9 @@ graph that cascaded through it would be destroying things that still work.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 __all__ = [
     "QUARANTINED",

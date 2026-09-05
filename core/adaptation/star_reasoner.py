@@ -63,7 +63,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.container import ServiceContainer
 from core.governance.durable_learning import LearningScope, admit_learning_update
@@ -141,10 +141,10 @@ class TraceEvidence:
 
     status: OutcomeStatus
     grade: VerificationGrade
-    verifier: Optional[str] = None
-    evidence_id: Optional[str] = None
-    reference_answer: Optional[str] = None
-    turn_id: Optional[str] = None
+    verifier: str | None = None
+    evidence_id: str | None = None
+    reference_answer: str | None = None
+    turn_id: str | None = None
 
     @property
     def is_success(self) -> bool:
@@ -159,10 +159,10 @@ class TraceEvidence:
         cls,
         receipt: Any,
         *,
-        verifier: Optional[str] = None,
-        evidence_id: Optional[str] = None,
-        reference_answer: Optional[str] = None,
-    ) -> "TraceEvidence":
+        verifier: str | None = None,
+        evidence_id: str | None = None,
+        reference_answer: str | None = None,
+    ) -> TraceEvidence:
         """Build evidence from a finalized :class:`TurnReceipt`.
 
         The receipt computed its own status from its ledger, which is
@@ -188,14 +188,14 @@ class TaskTrace:
 
     trace_id: str
     task_description: str
-    reasoning_steps: List[str]
+    reasoning_steps: list[str]
     final_answer: str
     evidence: TraceEvidence
     form_ok: bool = True
     rationalization: str = ""
     constitutional_pass: bool = True
     timestamp: float = field(default_factory=time.time)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.task_description = _clip(self.task_description)
@@ -232,7 +232,7 @@ class TaskTrace:
             self.task_description, self.training_reasoning, self.training_target
         )
 
-    def to_training_sample(self) -> Dict[str, Any]:
+    def to_training_sample(self) -> dict[str, Any]:
         """The durable record.
 
         Reasoning and answer are SEPARATE fields. The previous shape
@@ -271,7 +271,7 @@ class TaskTrace:
             },
         }
 
-    def to_gate_view(self) -> Dict[str, Any]:
+    def to_gate_view(self) -> dict[str, Any]:
         """The flat view the ConstitutionalGate inspects.
 
         The gate reads ``text``. This exists so that giving it everything
@@ -390,11 +390,11 @@ class STaRReasoner:
         removes the reason to do it.
         """
         self._lock = checked_lock("star_reasoner", reentrant=True)
-        self._pending_traces: List[TaskTrace] = []
-        self._failed_traces: List[TaskTrace] = []
-        self._quarantine_records: List[Dict[str, Any]] = []
-        self._refusal_reasons: Dict[str, int] = {}
-        self._written_sample_ids: List[str] = []
+        self._pending_traces: list[TaskTrace] = []
+        self._failed_traces: list[TaskTrace] = []
+        self._quarantine_records: list[dict[str, Any]] = []
+        self._refusal_reasons: dict[str, int] = {}
+        self._written_sample_ids: list[str] = []
         self._written_sample_index: set[str] = set()
         self._accepted_count = 0
         self._rejected_count = 0
@@ -407,7 +407,7 @@ class STaRReasoner:
         self._corpus_lines = 0
         self._lora_ready_announced = False
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._form_filter = TraceFormFilter()
 
         if data_dir is not None:
@@ -484,7 +484,7 @@ class STaRReasoner:
     def record_trace(
         self,
         task_description: str,
-        reasoning_steps: List[str],
+        reasoning_steps: list[str],
         final_answer: str,
         evidence: TraceEvidence,
         **metadata: Any,
@@ -545,7 +545,7 @@ class STaRReasoner:
         return trace.trace_id
 
     @staticmethod
-    def _bounded_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    def _bounded_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
         """Redact and bound caller metadata before it becomes a disk record."""
         try:
             serialized = json.dumps(metadata, default=str)
@@ -823,7 +823,7 @@ class STaRReasoner:
             batch = self._failed_traces[: self.RATIONALIZATION_BATCH]
             self._failed_traces = self._failed_traces[self.RATIONALIZATION_BATCH :]
 
-        requeue: List[TaskTrace] = []
+        requeue: list[TaskTrace] = []
         for trace in batch:
             try:
                 accepted = await self._rationalize_one(llm, trace)
@@ -834,7 +834,7 @@ class STaRReasoner:
                 with self._lock:
                     self._failed_traces = requeue + self._failed_traces
                 raise
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Recoverable: the model was busy, the trace is intact.
                 requeue.append(trace)
             except self._BOUNDARY_ERRORS as e:
@@ -963,7 +963,7 @@ class STaRReasoner:
                     action="archived STaR samples; the finetune pipe was unavailable",
                 )
 
-        confirmed: List[TaskTrace] = []
+        confirmed: list[TaskTrace] = []
         for trace in batch:
             sample_id = trace.sample_id()
             if sample_id in self._written_sample_index:
@@ -1051,7 +1051,7 @@ class STaRReasoner:
         except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as e:
             record_degradation('star_reasoner', e)
 
-    def _stats_payload(self) -> Dict[str, Any]:
+    def _stats_payload(self) -> dict[str, Any]:
         return {
             "schema": "aura.adaptation.star_stats.v2",
             "accepted_count": self._accepted_count,
@@ -1149,7 +1149,7 @@ class STaRReasoner:
                 action="started without a corpus index; duplicate samples become possible",
             )
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return current STaR status for telemetry.
 
         ``producers_seen`` is here because the loop can be ONLINE, turn
@@ -1165,7 +1165,7 @@ class STaRReasoner:
 
 # ── Singleton ──────────────────────────────────────────────────────────────
 
-_instance: Optional[STaRReasoner] = None
+_instance: STaRReasoner | None = None
 
 
 def get_star_reasoner() -> STaRReasoner:

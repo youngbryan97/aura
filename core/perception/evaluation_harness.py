@@ -10,7 +10,7 @@ from __future__ import annotations
 import statistics
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -18,12 +18,12 @@ class EmbodiedRunMetrics:
     run_id: str
     domain: str
     started_at: float = field(default_factory=time.time)
-    finished_at: Optional[float] = None
-    progress: Dict[str, float] = field(default_factory=dict)
-    counters: Dict[str, int] = field(default_factory=dict)
+    finished_at: float | None = None
+    progress: dict[str, float] = field(default_factory=dict)
+    counters: dict[str, int] = field(default_factory=dict)
     death_or_failure_cause: str = ""
     held_out: bool = False
-    seed: Optional[str] = None
+    seed: str | None = None
 
     def increment(self, key: str, amount: int = 1) -> None:
         self.counters[key] = self.counters.get(key, 0) + int(amount)
@@ -46,19 +46,19 @@ class EmbodiedEvaluationHarness:
 
     def __init__(self, domain: str) -> None:
         self.domain = domain
-        self.runs: List[EmbodiedRunMetrics] = []
+        self.runs: list[EmbodiedRunMetrics] = []
 
-    def start_run(self, run_id: str, *, held_out: bool = False, seed: Optional[str] = None) -> EmbodiedRunMetrics:
+    def start_run(self, run_id: str, *, held_out: bool = False, seed: str | None = None) -> EmbodiedRunMetrics:
         run = EmbodiedRunMetrics(run_id=run_id, domain=self.domain, held_out=held_out, seed=seed)
         self.runs.append(run)
         return run
 
-    def summarize(self, progress_key: str = "progress") -> Dict[str, Any]:
+    def summarize(self, progress_key: str = "progress") -> dict[str, Any]:
         values = [run.progress.get(progress_key, 0.0) for run in self.runs]
         held_out_values = [
             run.progress.get(progress_key, 0.0) for run in self.runs if run.held_out
         ]
-        causes: Dict[str, int] = {}
+        causes: dict[str, int] = {}
         for run in self.runs:
             if run.death_or_failure_cause:
                 causes[run.death_or_failure_cause] = causes.get(run.death_or_failure_cause, 0) + 1

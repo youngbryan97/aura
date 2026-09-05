@@ -7,7 +7,6 @@ Chunks retrieved content and writes it into semantic memory.
 import asyncio
 import inspect
 import logging
-from typing import List
 
 from core.actuators.actuator_registry import get_actuator_registry
 from core.container import ServiceContainer
@@ -195,7 +194,7 @@ class IngestionLoop:
         text: str,
         chunk_size: int | None = None,
         overlap: int | None = None,
-    ) -> List[str]:
+    ) -> list[str]:
         """Split ingested text for embedding.
 
         With no explicit size, the split is DERIVED from the encoder's
@@ -219,7 +218,7 @@ class IngestionLoop:
             overlap = chunk_size - 1
 
         words = text.split()
-        chunks: List[str] = []
+        chunks: list[str] = []
         step = chunk_size - overlap
         for i in range(0, len(words), step):
             chunks.append(" ".join(words[i:i + chunk_size]))

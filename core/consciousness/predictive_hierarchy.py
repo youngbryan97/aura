@@ -26,19 +26,17 @@ References:
   - Hohwy, J. (2013). The Predictive Mind.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
 
 import logging
 import math
 import threading
-import time
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Consciousness.PredictiveHierarchy")
 
@@ -54,7 +52,7 @@ class HierarchyLevel(IntEnum):
     META = 4
 
 
-_LEVEL_NAMES: Dict[int, str] = {
+_LEVEL_NAMES: dict[int, str] = {
     HierarchyLevel.SENSORY: "sensory",
     HierarchyLevel.ASSOCIATION: "association",
     HierarchyLevel.EXECUTIVE: "executive",
@@ -173,7 +171,7 @@ class PredictiveLevel:
         """
         return float(self.precision * np.mean(self.error_vector ** 2))
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "precision": round(self.precision, 4),
@@ -208,7 +206,7 @@ class PredictiveHierarchy:
 
     def __init__(self, dim: int = _DEFAULT_DIM):
         self.dim = dim
-        self.levels: List[PredictiveLevel] = [
+        self.levels: list[PredictiveLevel] = [
             PredictiveLevel(name=_LEVEL_NAMES[lvl], index=int(lvl), dim=dim)
             for lvl in HierarchyLevel
         ]
@@ -218,7 +216,7 @@ class PredictiveHierarchy:
         self._smoothed_fe: float = 0.0
         self._highest_error_level: str = "sensory"
         self._tick_count: int = 0
-        self._fe_history: List[float] = []
+        self._fe_history: list[float] = []
 
         # Lock for thread-safety (heartbeat + cognitive_loop may call concurrently)
         self._lock = threading.Lock()
@@ -234,10 +232,10 @@ class PredictiveHierarchy:
 
     def tick(
         self,
-        sensory_input: Optional[np.ndarray] = None,
-        association_input: Optional[np.ndarray] = None,
-        executive_state: Optional[np.ndarray] = None,
-        narrative_state: Optional[np.ndarray] = None,
+        sensory_input: np.ndarray | None = None,
+        association_input: np.ndarray | None = None,
+        executive_state: np.ndarray | None = None,
+        narrative_state: np.ndarray | None = None,
     ) -> float:
         """Run one full predictive-coding cycle.
 
@@ -264,7 +262,7 @@ class PredictiveHierarchy:
             self._tick_count += 1
 
             # ── Resolve inputs (zero-vector defaults) ──────────────────
-            def _ensure(v: Optional[np.ndarray]) -> np.ndarray:
+            def _ensure(v: np.ndarray | None) -> np.ndarray:
                 if v is None:
                     return np.zeros(self.dim, dtype=np.float32)
                 return np.asarray(v, dtype=np.float32)
@@ -358,7 +356,7 @@ class PredictiveHierarchy:
     # Input helpers (pull from real Aura subsystems)
     # ------------------------------------------------------------------
 
-    def gather_inputs_from_services(self) -> Dict[str, Optional[np.ndarray]]:
+    def gather_inputs_from_services(self) -> dict[str, np.ndarray | None]:
         """Convenience: pull current tier activations from the live system.
         Returns kwargs suitable for passing to tick().
 
@@ -367,7 +365,7 @@ class PredictiveHierarchy:
         """
         from core.container import ServiceContainer
 
-        result: Dict[str, Optional[np.ndarray]] = {
+        result: dict[str, np.ndarray | None] = {
             "sensory_input": None,
             "association_input": None,
             "executive_state": None,
@@ -473,7 +471,7 @@ class PredictiveHierarchy:
     # Telemetry
     # ------------------------------------------------------------------
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         """Full telemetry payload."""
         with self._lock:
             return {
@@ -489,7 +487,7 @@ class PredictiveHierarchy:
         """Which level of the hierarchy is most surprised right now."""
         return self._highest_error_level
 
-    def get_level_precisions(self) -> Dict[str, float]:
+    def get_level_precisions(self) -> dict[str, float]:
         """Per-level precision map (useful for attention schema)."""
         return {lv.name: round(lv.precision, 4) for lv in self.levels}
 
@@ -498,7 +496,7 @@ class PredictiveHierarchy:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_instance: Optional[PredictiveHierarchy] = None
+_instance: PredictiveHierarchy | None = None
 _instance_lock = threading.Lock()
 
 

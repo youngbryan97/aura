@@ -1,11 +1,12 @@
-from core.runtime.errors import record_degradation
-from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
+from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Consciousness.SelfPrediction")
 
@@ -56,7 +57,7 @@ class SelfPredictionLoop:
 
     def __init__(self, orchestrator):
         self.orch = orchestrator
-        self._lock: Optional[asyncio.Lock] = None  # CS-01: Lazy-initialized
+        self._lock: asyncio.Lock | None = None  # CS-01: Lazy-initialized
 
         # State history for extrapolation
         self._valence_history: deque = deque(maxlen=self._HISTORY_SIZE)
@@ -64,7 +65,7 @@ class SelfPredictionLoop:
         self._focus_history: deque = deque(maxlen=self._HISTORY_SIZE)
 
         # Current prediction
-        self._current_prediction: Optional[InternalStatePrediction] = None
+        self._current_prediction: InternalStatePrediction | None = None
 
         # Prediction error tracking
         self._error_history: deque = deque(maxlen=self._HISTORY_SIZE)
@@ -121,7 +122,7 @@ class SelfPredictionLoop:
             self._current_prediction = None  # Clear before generating new
             self._current_prediction = self._predict_next()
 
-    def get_current_prediction(self) -> Optional[InternalStatePrediction]:
+    def get_current_prediction(self) -> InternalStatePrediction | None:
         return self._current_prediction
 
     def get_surprise_signal(self) -> float:
@@ -140,7 +141,7 @@ class SelfPredictionLoop:
         }
         return max(errors, key=errors.get)
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         pred = self._current_prediction
         return {
             "smoothed_error": round(self._smoothed_error, 3),

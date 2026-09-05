@@ -1,7 +1,6 @@
 """core/world/social_graph.py
 Social graph tracking user relationship models and trust matrices.
 """
-from typing import Dict, Any
 
 
 class SocialGraph:
@@ -9,7 +8,7 @@ class SocialGraph:
 
     def __init__(self):
         # Maps person -> trust_index (0.0 to 1.0)
-        self._trust_matrix: Dict[str, float] = {
+        self._trust_matrix: dict[str, float] = {
             "Bryan": 1.0  # Canonical operator begins with absolute trust
         }
 

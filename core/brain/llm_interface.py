@@ -1,9 +1,11 @@
 # core/brain/llm_interface.py
-import inspect
-from core.runtime.errors import record_degradation
-from typing import Any, Dict, Optional
 import asyncio
+import inspect
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
+
+from core.runtime.errors import record_degradation
+
 
 class LLMInterface:
     """
@@ -13,7 +15,7 @@ class LLMInterface:
 
     def __init__(self):
         # optional configuration
-        self.default_opts: Dict[str, Any] = {}
+        self.default_opts: dict[str, Any] = {}
         # SAFE-01: Bound thread pool to prevent system-wide exhaustion
         self._executor = ThreadPoolExecutor(max_workers=10)
 
@@ -45,7 +47,7 @@ async def call_llm_with_timeout(llm_call_coro, timeout: float = 10.0, fallback_f
     
     try:
         return await asyncio.wait_for(llm_call_coro, timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("LLM call timed out after %.1fs", timeout)
     except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
         record_degradation('llm_interface', e)

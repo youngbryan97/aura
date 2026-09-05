@@ -10,17 +10,16 @@ This keeps long conversations stable by preventing context overflow while
 preserving critical information through intelligent summarization.
 """
 
-from core.runtime.errors import record_degradation
 import asyncio
-import hashlib
 import json
 import logging
 import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ChatCompression")
 
@@ -103,7 +102,7 @@ def estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-def estimate_tokens_for_messages(messages: List[Dict[str, str]]) -> int:
+def estimate_tokens_for_messages(messages: list[dict[str, str]]) -> int:
     """Estimate total tokens across a list of messages."""
     total = 0
     for msg in messages:
@@ -134,7 +133,7 @@ def _save_truncated_output(content: str, tool_name: str, truncation_id: str, tem
             source="chat_compression.save_truncated_output",
         )
         return filepath
-    except (OSError, IOError) as e:
+    except OSError as e:
         record_degradation('chat_compression', e)
         logger.warning("Failed to save truncated output: %s", e)
         return "(save failed)"
@@ -155,10 +154,10 @@ def _format_truncated_output(content: str, saved_path: str, tail_lines: int = TR
 
 
 def truncate_history_to_budget(
-    history: List[Dict[str, str]],
+    history: list[dict[str, str]],
     temp_dir: str,
     budget: int = FUNCTION_RESPONSE_TOKEN_BUDGET,
-) -> List[Dict[str, str]]:
+) -> list[dict[str, str]]:
     """Truncate old tool/function response outputs using a reverse token budget.
 
     Iterates newest-first. Recent tool outputs are preserved in full.
@@ -203,7 +202,7 @@ def truncate_history_to_budget(
 # ── Split Point Calculation ──────────────────────────────────────────────────
 
 def preserve_voice_split(
-    history: List[Dict[str, str]],
+    history: list[dict[str, str]],
     split_point: int,
     *,
     anchors: int = VOICE_ANCHOR_TURNS,
@@ -245,7 +244,7 @@ def preserve_voice_split(
     return index
 
 
-def find_compress_split_point(history: List[Dict[str, str]], fraction: float) -> int:
+def find_compress_split_point(history: list[dict[str, str]], fraction: float) -> int:
     """Find the index of the oldest message to KEEP after compression.
 
     Everything before this index gets summarized; everything from this index
@@ -426,13 +425,13 @@ class ChatCompressionService:
 
     async def compress(
         self,
-        history: List[Dict[str, str]],
+        history: list[dict[str, str]],
         model_token_limit: int,
         current_token_count: int,
         brain: Any = None,
         force: bool = False,
         threshold: float = DEFAULT_COMPRESSION_THRESHOLD,
-    ) -> Tuple[Optional[List[Dict[str, str]]], CompressionInfo]:
+    ) -> tuple[list[dict[str, str]] | None, CompressionInfo]:
         """Compress conversation history if it exceeds the threshold.
 
         Args:

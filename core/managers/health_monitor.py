@@ -1,6 +1,5 @@
 import logging
 import time
-from typing import Optional
 
 logger = logging.getLogger("Aura.HealthMonitor")
 
@@ -11,7 +10,7 @@ class HealthMonitor:
     def __init__(self, max_consecutive_errors: int = 5):
         self.max_consecutive_errors = max_consecutive_errors
         self.consecutive_errors = 0
-        self.last_error: Optional[str] = None
+        self.last_error: str | None = None
         self.healthy = True
         self.start_time = time.time()
         self.total_errors = 0

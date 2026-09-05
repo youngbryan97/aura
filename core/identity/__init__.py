@@ -4,18 +4,19 @@ A central source of truth for Aura's identity, personality, and directives.
 Consolidates legacy fragments from identity_core.py, core_identity.py, and biography.py.
 """
 
-from core.runtime.errors import record_degradation
-from core.runtime.atomic_writer import atomic_write_text
 import logging
 from typing import Any, Dict, List, Optional
 
-# Re-export key components
-from .identity_guard import PersonaEnforcementGate
-from .identity_content_guard import inspect_identity_text
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
+from core.utils.paths import CORE_DIR, DATA_DIR
 
 from .biography import get_legacy_context
-from core.utils.paths import CORE_DIR, DATA_DIR
 from .heartstone import AURA_HEARTSTONE
+from .identity_content_guard import inspect_identity_text
+
+# Re-export key components
+from .identity_guard import PersonaEnforcementGate
 
 logger = logging.getLogger("Aura.Identity")
 

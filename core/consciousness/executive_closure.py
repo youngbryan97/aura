@@ -11,11 +11,11 @@ import numpy as np
 from core.container import ServiceContainer
 from core.continuity import is_evaluation_contamination
 from core.goals.goal_text import is_actionable_goal_text, is_intrinsic_goal_text
-from core.goals.standing_objective import is_valid_standing_objective
 from core.goals.objective_lifecycle import (
     is_actionable_foreground_objective,
     is_transient_foreground_projection,
 )
+from core.goals.standing_objective import is_valid_standing_objective
 from core.predictive.predictive_self_model import PredictiveSelfModel
 from core.runtime.errors import record_degradation
 from core.runtime.proposal_governance import propose_governed_initiative_to_state

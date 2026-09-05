@@ -27,8 +27,9 @@ from __future__ import annotations
 import hashlib
 import logging
 from collections import Counter
-from dataclasses import dataclass, field
-from typing import Any, Iterable, Sequence
+from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import Any
 
 __all__ = [
     "WHAT_HELPED_WHERE",

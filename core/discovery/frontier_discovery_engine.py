@@ -50,10 +50,11 @@ import sqlite3
 import threading
 import time
 import uuid
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional, Sequence
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.sqlite_support import connecting
@@ -84,7 +85,7 @@ class FalsificationOutcome:
     status: EpistemicStatus
     trials: int
     exhaustive: bool
-    counterexample: Optional[int] = None
+    counterexample: int | None = None
     detail: str = ""
 
 
@@ -97,12 +98,12 @@ class Conjecture:
     confidence: float
     trials: int = 0
     exhaustive: bool = False
-    counterexample: Optional[int] = None
+    counterexample: int | None = None
     novelty: float = 1.0
     provenance: str = "structured"
     falsification_plan: str = ""
     committed: bool = False
-    receipt_id: Optional[str] = None
+    receipt_id: str | None = None
     created_at: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict[str, Any]:
@@ -313,9 +314,9 @@ class FrontierDiscoveryEngine:
     def __init__(
         self,
         *,
-        db_path: Optional[str] = None,
-        generate_fn: Optional[Callable[[str, float], Any]] = None,
-        will_decide_fn: Optional[Callable[[dict[str, Any]], dict[str, Any]]] = None,
+        db_path: str | None = None,
+        generate_fn: Callable[[str, float], Any] | None = None,
+        will_decide_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
         scientific_engine: Any = None,
         novelty: Any = None,
         seed: int = 0xF20D,
@@ -525,7 +526,7 @@ class FrontierDiscoveryEngine:
             falsification_plan=falsification_plan,
         )
 
-    def run_discovery_cycle(self, *, max_time_s: Optional[float] = None) -> DiscoveryReport:
+    def run_discovery_cycle(self, *, max_time_s: float | None = None) -> DiscoveryReport:
         """One bounded discovery pass over the sound generators. Idle-loop entrypoint.
 
         Wall-clock and candidate-count bounded (no unbounded runs). Survivors that are
@@ -662,7 +663,7 @@ class FrontierDiscoveryEngine:
         c.receipt_id = self._emit_discovery_receipt(c) or c.receipt_id
         return committed or c.receipt_id is not None
 
-    def _emit_discovery_receipt(self, c: Conjecture) -> Optional[str]:
+    def _emit_discovery_receipt(self, c: Conjecture) -> str | None:
         try:
             from core.runtime.receipts import StateMutationReceipt, get_receipt_store
 
@@ -695,7 +696,7 @@ class FrontierDiscoveryEngine:
             pass
 
     # ── integer-sequence law discovery (GA, SUPPORTED-only) ─────────────────
-    def discover_sequence_law(self, sequence: Sequence[int]) -> Optional[Conjecture]:
+    def discover_sequence_law(self, sequence: Sequence[int]) -> Conjecture | None:
         """Search for a closed form a_n = f(n) reproducing every given term.
 
         Uses the bounded GA over :class:`SafeExpression`, framing examples as
@@ -786,7 +787,7 @@ class FrontierDiscoveryEngine:
                     c.committed = True
         return {"verdict": c.to_dict(), "rendered": self.render(c)}
 
-    def _parse_claim(self, text: str) -> Optional[tuple[str, int, str, str]]:
+    def _parse_claim(self, text: str) -> tuple[str, int, str, str] | None:
         for kind, pattern in _CLAIM_PATTERNS:
             match = pattern.search(text)
             if not match:
@@ -853,7 +854,7 @@ class FrontierDiscoveryEngine:
 # ---------------------------------------------------------------------------
 # Module singleton + best-effort container registration (matches the other engines).
 # ---------------------------------------------------------------------------
-_engine: Optional[FrontierDiscoveryEngine] = None
+_engine: FrontierDiscoveryEngine | None = None
 _engine_lock = threading.Lock()
 
 

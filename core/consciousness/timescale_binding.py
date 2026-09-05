@@ -25,13 +25,11 @@ determine how much each timescale influences the other.
 """
 from __future__ import annotations
 
-
 import logging
-import math
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -88,12 +86,12 @@ class CrossTimescaleBinding:
     _MAX_COMMITMENT_PRESSURE = 0.5  # Prevents slow layers from dominating
 
     def __init__(self):
-        self._layers: List[TimescaleLayer] = [
+        self._layers: list[TimescaleLayer] = [
             TimescaleLayer(name=name, resolution_hz=hz)
             for name, hz in self._LAYER_SPECS
         ]
         self._cross_timescale_fe: float = 0.0
-        self._violation_log: deque[Dict[str, Any]] = deque(maxlen=30)
+        self._violation_log: deque[dict[str, Any]] = deque(maxlen=30)
         self._tick_count: int = 0
         logger.info("CrossTimescaleBinding initialized with %d layers.", len(self._layers))
 
@@ -196,7 +194,7 @@ class CrossTimescaleBinding:
         """Current mismatch between timescale layers."""
         return self._cross_timescale_fe
 
-    def get_recent_violations(self, limit: int = 5) -> List[Dict[str, Any]]:
+    def get_recent_violations(self, limit: int = 5) -> list[dict[str, Any]]:
         """Get recent cases where fast behavior violated slow commitments."""
         return list(self._violation_log)[-limit:]
 
@@ -216,7 +214,7 @@ class CrossTimescaleBinding:
             )
         return "## TEMPORAL COHERENCE\n" + " | ".join(parts)
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         """Telemetry payload."""
         return {
             "cross_timescale_fe": round(self._cross_timescale_fe, 4),
@@ -238,7 +236,7 @@ class CrossTimescaleBinding:
 
 # ── Singleton ────────────────────────────────────────────────────────────────
 
-_instance: Optional[CrossTimescaleBinding] = None
+_instance: CrossTimescaleBinding | None = None
 
 
 def get_cross_timescale_binding() -> CrossTimescaleBinding:

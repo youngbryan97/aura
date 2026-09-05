@@ -1,8 +1,8 @@
-from core.runtime.errors import record_degradation
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.runtime.errors import record_degradation
 from core.skills.web_search import EnhancedWebSearchSkill
 
 
@@ -19,7 +19,7 @@ class WebSearchSkill(EnhancedWebSearchSkill):
     description = "Search the open web for information. Use this to find facts, news, or deep dive on topics."
     input_model = SearchInput
 
-    async def execute(self, params: SearchInput, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: SearchInput, context: dict[str, Any]) -> dict[str, Any]:
         """Execute a web search through the shared modern implementation."""
         if isinstance(params, dict):
             try:

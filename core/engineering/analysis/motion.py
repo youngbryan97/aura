@@ -12,7 +12,6 @@ import math
 from collections.abc import Iterable
 
 from core.engineering.analysis import Finding, register
-from core.engineering.materials import STANDARD_GRAVITY
 from core.engineering.units import Q
 
 

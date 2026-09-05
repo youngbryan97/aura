@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, List
+from collections.abc import Callable
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
@@ -69,7 +70,7 @@ class RayBackend:
     def is_available(self) -> bool:
         return self.active
 
-    async def execute_parallel(self, tasks: List[Callable[[], Any]]) -> List[Any]:
+    async def execute_parallel(self, tasks: list[Callable[[], Any]]) -> list[Any]:
         """Dispatches tasks in parallel across Ray actors."""
         if not self.active:
             # Fallback local execute

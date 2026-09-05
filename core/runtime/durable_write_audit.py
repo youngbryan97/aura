@@ -32,9 +32,10 @@ matter.
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 #: Direct write calls that bypass the gateway.
 _DIRECT_WRITE_METHODS = frozenset({"write_text", "write_bytes"})

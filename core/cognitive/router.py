@@ -3,16 +3,16 @@ Deterministic classification gateway for all user inputs.
 Replaces the open-ended "Cognitive Engine" ReAct loop.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
 import logging
 import re
 from enum import Enum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
 
 from core.config import config
 from core.health.degraded_events import record_degraded_event
+from core.runtime.errors import record_degradation
 from core.runtime.governance_policy import allow_intent_hint_bypass
 from core.runtime.service_access import optional_service
 from core.runtime.turn_analysis import analyze_turn
@@ -35,7 +35,7 @@ class IntentRouter:
 
     def __init__(self) -> None:
         # H-28 FIX: Explicit type hint for the protocol
-        self.llm: Optional[LLMClient] = optional_service("llm_router", default=None)
+        self.llm: LLMClient | None = optional_service("llm_router", default=None)
         
         if not self.llm:
             logger.warning("IntentRouter: No valid LLM generator found in container.")
@@ -48,7 +48,7 @@ class IntentRouter:
             )
 
     @lru_cache(maxsize=100)
-    def _check_heuristics(self, lower_input: str) -> Optional[Intent]:
+    def _check_heuristics(self, lower_input: str) -> Intent | None:
         """Fast Regex/Heuristic bypasses (Zero Token Cost)."""
         
         # SYSTEM bypass
@@ -68,7 +68,7 @@ class IntentRouter:
             
         return None
 
-    async def classify(self, user_input: str, context: Optional[dict[str, Any]] = None) -> Intent:
+    async def classify(self, user_input: str, context: dict[str, Any] | None = None) -> Intent:
         """Determines the intent of the user input deterministically."""
         
         # Phase 37 v2: Sovereign Scanner & Agency Bypass
@@ -114,11 +114,11 @@ class IntentRouter:
     async def route_execution(
         self,
         skill_name: str,
-        params: Optional[Dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
         engine: Any = None,
         *,
-        context: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Execute a concrete skill through the governed capability engine.
 
         The UI skill button path is already past intent classification: the

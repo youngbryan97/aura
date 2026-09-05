@@ -5,8 +5,9 @@ Caches recent spatial observations and status frames in a Collections Deque ring
 """
 import collections
 import threading
+from typing import Any
+
 import numpy as np
-from typing import Dict, Any, Optional, List
 
 
 class SpatialReflexBuffer:
@@ -17,7 +18,7 @@ class SpatialReflexBuffer:
         self._latest_turn = -1
         self._lock = threading.Lock()
 
-    def push_state_frame(self, glyph_matrix: np.ndarray, stats: Dict[str, Any]):
+    def push_state_frame(self, glyph_matrix: np.ndarray, stats: dict[str, Any]):
         """Pushes a new environment state frame to the ring buffer in a thread-safe manner."""
         with self._lock:
             self._latest_turn += 1
@@ -28,14 +29,14 @@ class SpatialReflexBuffer:
             }
             self.buffer.append(frame)
 
-    def get_working_frame(self) -> Optional[Dict[str, Any]]:
+    def get_working_frame(self) -> dict[str, Any] | None:
         """Returns the most recent spatial state frame, or None if the buffer is empty."""
         with self._lock:
             if not self.buffer:
                 return None
             return self.buffer[-1]
 
-    def get_history(self) -> List[Dict[str, Any]]:
+    def get_history(self) -> list[dict[str, Any]]:
         """Returns a list of all current frames in the buffer."""
         with self._lock:
             return list(self.buffer)

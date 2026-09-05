@@ -26,6 +26,9 @@ include_rules = [
     "+core.thought_stream",
     "+core.utils",
 
+    # The reversibility premium is checked by an invariant beside it.
+    "+core.verify",
+
     # Everything else.
     "-core",
     "-interface",

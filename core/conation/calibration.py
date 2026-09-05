@@ -44,7 +44,6 @@ from typing import Any
 
 from core.conation.salience import SalienceCalibration
 from core.conation.state import VECTOR_FIELDS
-from core.runtime.errors import record_degradation
 
 #: Ontogeny control point this package would use. Named here so the absence is
 #: greppable: a search for it finds this constant and this docstring rather

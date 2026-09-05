@@ -8,15 +8,15 @@ name.
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from core.research_core.core import ResearchCoreConfig, SelfImprovingResearchCore
 
 
 def register_research_core(
     *,
-    cfg: Optional[ResearchCoreConfig] = None,
-    container: Optional[Any] = None,
+    cfg: ResearchCoreConfig | None = None,
+    container: Any | None = None,
 ) -> SelfImprovingResearchCore:
     """Construct + register the research core in the ServiceContainer.
 

@@ -2,16 +2,16 @@
 ==================================================================
 Standardizes error handling across the entire engine.
 """
-import inspect
-from core.runtime.errors import record_degradation
-import logging
 import functools
-from typing import Any, Optional
+import inspect
+import logging
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Exceptions")
 
 
-def _record_exception_degraded_event(error: Exception, context: Optional[dict] = None) -> None:
+def _record_exception_degraded_event(error: Exception, context: dict | None = None) -> None:
     try:
         from core.health.degraded_events import record_degraded_event
 

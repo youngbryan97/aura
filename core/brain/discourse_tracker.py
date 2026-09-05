@@ -16,10 +16,10 @@ Register in the runtime registry as "discourse_tracker".
 Call update(state, user_message) after each incoming message.
 """
 
+import logging
+
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
-import logging
-from typing import Optional
 
 logger = logging.getLogger("Aura.DiscourseTracker")
 
@@ -39,7 +39,7 @@ class DiscourseTracker:
     def __init__(self, cognitive_engine=None):
         self._brain = cognitive_engine
         self._turn_count = 0
-        self._last_topic: Optional[str] = None
+        self._last_topic: str | None = None
         self._topic_turn_start: int = 0
         self._positive_streak: int = 0
         self._negative_streak: int = 0

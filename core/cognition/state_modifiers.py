@@ -27,7 +27,8 @@ social_tension to 0.9" now has an answer.
 from __future__ import annotations
 
 import time
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from core.runtime.errors import record_degradation
 

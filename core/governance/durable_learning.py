@@ -41,16 +41,16 @@ from __future__ import annotations
 import enum
 import json
 import os
-import threading
 import time
 import uuid
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from core.runtime.errors import record_degradation
-from core.runtime.turn_outcome import VerificationGrade
 from core.runtime.lockdep import checked_lock
+from core.runtime.turn_outcome import VerificationGrade
 
 __all__ = [
     "LearningScope",

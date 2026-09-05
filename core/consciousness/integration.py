@@ -17,11 +17,11 @@ INTEGRATION FLOW:
    - Integration provides `phenomenal_context_string` to LLM routers
 """
 
-from core.runtime.errors import record_degradation
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from core.consciousness.phenomenological_experiencer import get_experiencer
+from core.runtime.errors import record_degradation
 from core.runtime.service_registry import register_runtime_service
 
 logger = logging.getLogger("Aura.ConsciousnessIntegration")
@@ -33,8 +33,8 @@ class ConsciousnessAugmentor:
     def __init__(self, consciousness_core: Any):
         self.consciousness_core = consciousness_core
 
-    def get_augmentation(self, objective: str) -> Dict[str, Any]:
-        status: Dict[str, Any] = {}
+    def get_augmentation(self, objective: str) -> dict[str, Any]:
+        status: dict[str, Any] = {}
         core = self.consciousness_core
         try:
             if hasattr(core, "get_status"):
@@ -42,14 +42,14 @@ class ConsciousnessAugmentor:
                 if isinstance(raw_status, dict):
                     status.update(raw_status)
             if hasattr(core, "global_workspace"):
-                workspace = getattr(core, "global_workspace")
+                workspace = core.global_workspace
                 status["workspace"] = {
                     "ignition": getattr(workspace, "ignition_level", None),
                     "ignited": getattr(workspace, "ignited", None),
                     "current_phi": getattr(workspace, "current_phi", None),
                 }
             if hasattr(core, "qualia"):
-                qualia = getattr(core, "qualia")
+                qualia = core.qualia
                 if hasattr(qualia, "get_state"):
                     status["qualia"] = qualia.get_state()
             status["objective_hint"] = str(objective or "")[:240]
@@ -58,12 +58,12 @@ class ConsciousnessAugmentor:
             status["error"] = str(exc)
         return {k: v for k, v in status.items() if v is not None}
 
-    def prepare_context(self, objective: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    def prepare_context(self, objective: str, context: dict[str, Any]) -> dict[str, Any]:
         enriched = dict(context or {})
         enriched["consciousness"] = self.get_augmentation(objective)
         return enriched
 
-    def enrich_prompt(self, system_prompt: str, context: Dict[str, Any]) -> str:
+    def enrich_prompt(self, system_prompt: str, context: dict[str, Any]) -> str:
         consciousness = (context or {}).get("consciousness")
         if not consciousness:
             return system_prompt
@@ -143,7 +143,7 @@ class ConsciousnessIntegration:
         """
         return self.experiencer.phenomenal_context_string
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get status of integrated layers."""
         return {
             "integration_active": self._running,
@@ -168,8 +168,8 @@ class ConsciousnessIntegration:
 # which then stayed under-wired for the rest of the process. Strict mode now
 # refuses get() before init() and refuses double-init with a different
 # orchestrator instance.
-_integration_instance: Optional[ConsciousnessIntegration] = None
-_integration_orchestrator: Optional[object] = None
+_integration_instance: ConsciousnessIntegration | None = None
+_integration_orchestrator: object | None = None
 
 
 def init_consciousness_integration(orchestrator) -> ConsciousnessIntegration:

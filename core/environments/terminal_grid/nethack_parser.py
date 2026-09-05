@@ -1,12 +1,11 @@
 """NetHack terminal-grid parser that emits generic ParsedState."""
 from __future__ import annotations
 
-from typing import Any
-
 from core.environment.observation import Observation
 from core.environment.parsed_state import ParsedState
 from core.environment.state_compiler import StateCompiler
 from core.perception.nethack_parser import NetHackParser
+
 from .state_compiler import TerminalGridStateCompiler
 
 

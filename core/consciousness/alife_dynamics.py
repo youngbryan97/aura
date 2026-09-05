@@ -46,7 +46,6 @@ Integration between the three systems:
 """
 from __future__ import annotations
 
-
 __all__ = [
     "ALifeDynamics",
     "ALifeState",
@@ -61,7 +60,6 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -112,7 +110,7 @@ class LeniaKernelParams:
         return np.concatenate([header, self.beta.astype(np.float32)])
 
     @classmethod
-    def from_flat(cls, vec: np.ndarray) -> "LeniaKernelParams":
+    def from_flat(cls, vec: np.ndarray) -> LeniaKernelParams:
         """Reconstruct from flat vector, clamping to valid ranges."""
         vec = np.asarray(vec, dtype=np.float32)
         if len(vec) < 4 + _N_COLUMNS:
@@ -280,7 +278,7 @@ class EntropyTracker:
     """
 
     # Default entropy costs for different operation types.
-    COSTS: Dict[str, float] = {
+    COSTS: dict[str, float] = {
         "llm_inference": 5.0,
         "tool_execution": 2.0,
         "background_processing": 0.5,
@@ -288,7 +286,7 @@ class EntropyTracker:
     }
 
     # Default entropy dissipation amounts.
-    DISSIPATION: Dict[str, float] = {
+    DISSIPATION: dict[str, float] = {
         "memory_consolidation": 3.0,
         "self_repair": 2.0,
         "goal_completion": 4.0,
@@ -326,7 +324,7 @@ class EntropyTracker:
         self._allostatic_resets: int = 0
         self._last_allostatic_reset_at: float = 0.0
 
-        self._history: Deque[EntropyEvent] = deque(maxlen=history_size)
+        self._history: deque[EntropyEvent] = deque(maxlen=history_size)
         self._total_generated: float = 0.0
         self._total_dissipated: float = 0.0
 
@@ -423,11 +421,11 @@ class EntropyTracker:
         """True if entropy exceeds the crisis threshold."""
         return self._in_crisis
 
-    def get_history(self, n: int = 50) -> List[EntropyEvent]:
+    def get_history(self, n: int = 50) -> list[EntropyEvent]:
         """Return the most recent n entropy events."""
         return list(self._history)[-n:]
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Summary statistics for dashboards and telemetry."""
         return {
             "entropy": round(self._entropy, 2),
@@ -511,8 +509,8 @@ class ComputeCreditAllocator:
         self._contributions: np.ndarray = np.zeros(n_columns, dtype=np.float32)
 
         # History for analysis.
-        self._gini_history: Deque[float] = deque(maxlen=history_size)
-        self._credit_history: Deque[np.ndarray] = deque(maxlen=history_size)
+        self._gini_history: deque[float] = deque(maxlen=history_size)
+        self._credit_history: deque[np.ndarray] = deque(maxlen=history_size)
         self._tick_count: int = 0
 
     # ── Public API ───────────────────────────────────────────────────
@@ -606,7 +604,7 @@ class ComputeCreditAllocator:
         """
         return self._compute_gini(self._credits)
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Dashboard-ready summary of credit allocation state."""
         credits = self._credits
         gini = self.get_gini_coefficient()
@@ -717,7 +715,7 @@ class ALifeDynamics:
         self._credits = ComputeCreditAllocator(temperature=credit_temperature)
         self._dt = dt
         self._tick_count: int = 0
-        self._last_state: Optional[ALifeState] = None
+        self._last_state: ALifeState | None = None
         # Allostatic consolidation: minimum wall-clock seconds between autonomous
         # "rest" cleanups, so consolidation is a deliberate periodic act rather
         # than thrashing every tick once the threshold is crossed.
@@ -894,7 +892,7 @@ class ALifeDynamics:
 
     # ── Status / telemetry ───────────────────────────────────────────
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         """Dashboard-ready summary of the full ALife layer."""
         kernel_p = self._kernel.params
         return {

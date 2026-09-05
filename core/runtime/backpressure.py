@@ -26,7 +26,8 @@ import contextlib
 import logging
 import threading
 import time
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 from core.runtime.errors import record_degradation
 

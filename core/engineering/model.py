@@ -24,9 +24,11 @@ from collections import defaultdict
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from core.engineering.domains import Domain, domain as get_domain
+from core.engineering.domains import Domain
+from core.engineering.domains import domain as get_domain
 from core.engineering.geometry import Placement, Solid, solid_from_spec
-from core.engineering.materials import Material, material as get_material
+from core.engineering.materials import Material
+from core.engineering.materials import material as get_material
 from core.engineering.units import Q, Quantity
 
 __all__ = [

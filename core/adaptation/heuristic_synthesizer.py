@@ -13,7 +13,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
@@ -28,10 +28,10 @@ MAX_ACTIVE_HEURISTICS = 20
 class HeuristicSynthesizer:
     """Extracts and manages generalized heuristic rules from telemetry."""
 
-    def __init__(self, heuristics_path: Optional[str] = None):
+    def __init__(self, heuristics_path: str | None = None):
         from core.brain.llm.model_registry import BASE_DIR
         self.heuristics_path = Path(heuristics_path) if heuristics_path else BASE_DIR / "data" / "heuristics.json"
-        self._active_heuristics: List[Dict[str, Any]] = []
+        self._active_heuristics: list[dict[str, Any]] = []
         self._load()
 
     def _load(self):
@@ -77,7 +77,7 @@ class HeuristicSynthesizer:
         if len(self._active_heuristics) <= MAX_ACTIVE_HEURISTICS:
             return
 
-        def _priority(record: Dict[str, Any]) -> tuple[int, int, float]:
+        def _priority(record: dict[str, Any]) -> tuple[int, int, float]:
             survival = int(record.get("survival_count", 0) or 0)
             hits = int(record.get("hits", 0) or 0)
             created_at = float(record.get("created_at", 0) or 0.0)
@@ -89,7 +89,7 @@ class HeuristicSynthesizer:
             reverse=True,
         )[:MAX_ACTIVE_HEURISTICS]
 
-    async def synthesize_from_telemetry(self) -> Dict[str, Any]:
+    async def synthesize_from_telemetry(self) -> dict[str, Any]:
         """Run a synthesis cycle: analyze errors/retries and extract new rules.
         
         This should run during sleep cycles (dreamer_v2).
@@ -238,7 +238,7 @@ class HeuristicSynthesizer:
         return "\n\n[LEARNED HEURISTICS]\n" + "\n".join(f"• {r}" for r in rules)
 
     @property
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         return {
             "active_heuristics": len(self._active_heuristics),
             "newest": self._active_heuristics[0]["rule"][:60] if self._active_heuristics else None
@@ -246,7 +246,7 @@ class HeuristicSynthesizer:
 
 
 # ── Singleton ──
-_instance: Optional[HeuristicSynthesizer] = None
+_instance: HeuristicSynthesizer | None = None
 
 def get_heuristic_synthesizer() -> HeuristicSynthesizer:
     global _instance

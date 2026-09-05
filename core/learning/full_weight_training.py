@@ -11,16 +11,16 @@ import json
 import math
 import random
 import time
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any
 
 from core.promotion.gate import PromotionGate, ScoreEstimate
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.hot_swap import HotSwapRegistry
 
-
-Example = Tuple[Tuple[float, float], int]
+Example = tuple[tuple[float, float], int]
 
 
 @dataclass(frozen=True)
@@ -41,9 +41,9 @@ class FullWeightArtifact:
     hidden_accuracy: float
     baseline_hidden_accuracy: float
     promoted: bool
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -58,12 +58,12 @@ class TinyMLP:
         self.w2 = [rng.uniform(-0.7, 0.7) for _ in range(self.hidden_units)]
         self.b2 = rng.uniform(-0.1, 0.1)
 
-    def predict_proba(self, x: Tuple[float, float]) -> float:
+    def predict_proba(self, x: tuple[float, float]) -> float:
         hidden = [math.tanh(self.w1[i][0] * x[0] + self.w1[i][1] * x[1] + self.b1[i]) for i in range(self.hidden_units)]
         z = sum(self.w2[i] * hidden[i] for i in range(self.hidden_units)) + self.b2
         return 1.0 / (1.0 + math.exp(-max(-50.0, min(50.0, z))))
 
-    def predict(self, x: Tuple[float, float]) -> int:
+    def predict(self, x: tuple[float, float]) -> int:
         return int(self.predict_proba(x) >= 0.5)
 
     def train(self, examples: Sequence[Example], *, epochs: int, learning_rate: float) -> None:
@@ -89,11 +89,11 @@ class TinyMLP:
             return 0.0
         return sum(1 for x, y in examples if self.predict(x) == y) / len(examples)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"hidden_units": self.hidden_units, "w1": self.w1, "b1": self.b1, "w2": self.w2, "b2": self.b2}
 
     @classmethod
-    def from_dict(cls, payload: Dict[str, Any]) -> "TinyMLP":
+    def from_dict(cls, payload: dict[str, Any]) -> TinyMLP:
         obj = cls(seed=0, hidden_units=int(payload["hidden_units"]))
         obj.w1 = [[float(v) for v in row] for row in payload["w1"]]
         obj.b1 = [float(v) for v in payload["b1"]]
@@ -109,7 +109,7 @@ class FullWeightTrainingEngine:
         self.artifact_dir = Path(artifact_dir)
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    def run(self, config: Optional[TrainingConfig] = None, *, promote: bool = True) -> FullWeightArtifact:
+    def run(self, config: TrainingConfig | None = None, *, promote: bool = True) -> FullWeightArtifact:
         cfg = config or TrainingConfig()
         train = make_xor_dataset(cfg.seed, cfg.train_size)
         hidden = make_xor_dataset(cfg.seed + 10_000, cfg.hidden_eval_size)
@@ -159,7 +159,7 @@ class FullWeightTrainingEngine:
 
 
 class LinearThresholdBaseline:
-    def predict(self, x: Tuple[float, float]) -> int:
+    def predict(self, x: tuple[float, float]) -> int:
         return int((x[0] + x[1]) >= 1.0)
 
     def accuracy(self, examples: Sequence[Example]) -> float:
@@ -168,9 +168,9 @@ class LinearThresholdBaseline:
         return sum(1 for x, y in examples if self.predict(x) == y) / len(examples)
 
 
-def make_xor_dataset(seed: int, n: int) -> List[Example]:
+def make_xor_dataset(seed: int, n: int) -> list[Example]:
     rng = random.Random(seed)
-    out: List[Example] = []
+    out: list[Example] = []
     for _ in range(max(1, int(n))):
         x0 = rng.random()
         x1 = rng.random()

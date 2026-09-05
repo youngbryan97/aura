@@ -1,8 +1,8 @@
 import asyncio
 import hashlib
+import json
 import logging
 import random
-import json
 import re
 import time
 import urllib.parse
@@ -24,16 +24,18 @@ from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
-from core.conversation.word_markers import names_any
 from core.capabilities.browser_authority import (
     BrowserAction as AuthorityAction,
+)
+from core.capabilities.browser_authority import (
     issue_browser_lease,
     origin_of,
     revoke_browser_lease,
 )
 from core.capabilities.phantom_browser import PhantomBrowser
-from core.governance_context import get_active_governance
+from core.conversation.word_markers import names_any
 from core.governance.will import ActionDomain
+from core.governance_context import get_active_governance
 from core.runtime.action_executor import ActionExecutor
 from core.runtime.errors import record_degradation
 from core.runtime.skill_contract import ActionExpectation

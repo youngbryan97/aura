@@ -39,8 +39,8 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Iterable, Mapping, Sequence
 
 from core.interiority.cleft import SynapticCleft, get_cleft
 from core.interiority.effects import (
@@ -49,7 +49,6 @@ from core.interiority.effects import (
     AttentionBias,
     BudgetDelta,
     ConstraintForce,
-    Effects,
     GoalDelta,
     LedgerWrite,
     RetentionClaim,

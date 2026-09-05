@@ -19,10 +19,9 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from core.runtime.errors import record_degradation
-from pathlib import Path
-from typing import List, Optional
 
 
 def _default_corpus_path() -> Path:
@@ -47,8 +46,8 @@ _URL = re.compile(r"https?://\S+")
 class ContentItem:
     category: str
     title: str
-    creator: Optional[str]
-    url: Optional[str]
+    creator: str | None
+    url: str | None
     description: str
 
     def has_direct_url(self) -> bool:
@@ -111,7 +110,7 @@ class CorpusParseReport:
 
 def load_corpus_with_report(
     path: Path | None = None,
-) -> tuple[List[ContentItem], CorpusParseReport]:
+) -> tuple[list[ContentItem], CorpusParseReport]:
     """Parse the curated-media markdown, reporting what was skipped.
 
     Skipping a malformed bullet is deliberate — one typo must not empty the
@@ -123,14 +122,14 @@ def load_corpus_with_report(
     if not path.exists():
         return [], CorpusParseReport()
 
-    items: List[ContentItem] = []
-    current_category: Optional[str] = None
+    items: list[ContentItem] = []
+    current_category: str | None = None
     in_library = False
     total_bullets = 0
     unmatched = 0
     before_heading = 0
     uncategorised = 0
-    samples: List[str] = []
+    samples: list[str] = []
 
     def _sample(line: str) -> None:
         """Only real losses are sampled; preamble is not a loss."""
@@ -218,7 +217,7 @@ def load_corpus_with_report(
     return items, report
 
 
-def load_corpus(path: Path | None = None) -> List[ContentItem]:
+def load_corpus(path: Path | None = None) -> list[ContentItem]:
     """Parse the curated-media markdown into ContentItem records.
 
     Returns an empty list if the file is missing, and never raises on a
@@ -229,9 +228,9 @@ def load_corpus(path: Path | None = None) -> List[ContentItem]:
     return items
 
 
-def categories(items: List[ContentItem]) -> List[str]:
+def categories(items: list[ContentItem]) -> list[str]:
     """Distinct categories in corpus order."""
-    seen: List[str] = []
+    seen: list[str] = []
     for item in items:
         if item.category not in seen:
             seen.append(item.category)

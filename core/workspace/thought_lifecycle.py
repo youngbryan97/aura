@@ -1,15 +1,15 @@
 """core/workspace/thought_lifecycle.py
 Thought Lifecycle tracker managing compilation, update, and eviction of thought nodes.
 """
-from typing import Dict, Any, List
 import time
+from typing import Any
 
 
 class ThoughtLifecycle:
     """Manages active thought nodes inside the workspace."""
 
     def __init__(self):
-        self._thoughts: List[Dict[str, Any]] = []
+        self._thoughts: list[dict[str, Any]] = []
 
     def spawn_thought(self, node_id: str, content: str) -> None:
         self._thoughts.append({
@@ -29,5 +29,5 @@ class ThoughtLifecycle:
         cutoff = time.time() - max_age_s
         self._thoughts = [t for t in self._thoughts if t["last_updated"] > cutoff]
 
-    def list_active_thoughts(self) -> List[Dict[str, Any]]:
+    def list_active_thoughts(self) -> list[dict[str, Any]]:
         return self._thoughts

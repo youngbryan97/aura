@@ -89,7 +89,7 @@ class RobustTaskSpec:
     numeric_keys: tuple[str, ...] = ()
     required_keys: tuple[str, ...] = ()
 
-    def validated(self) -> "RobustTaskSpec":
+    def validated(self) -> RobustTaskSpec:
         if not self.family.replace("_", "").isalnum():
             raise ValueError("family must be an identifier")
         if len(self.templates) < 2:

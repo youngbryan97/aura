@@ -30,17 +30,16 @@ which is what an agent looks like when it has no model of what it just did.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
 import ast
 import hashlib
 import math
-import re
-import threading
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Family",
@@ -116,7 +115,7 @@ class RecoveryScore:
         }
 
 
-def _docstring_lines(tree: "ast.Module") -> set[int]:
+def _docstring_lines(tree: ast.Module) -> set[int]:
     """Line numbers belonging to docstrings, which are documentation not code."""
     lines: set[int] = set()
     for node in ast.walk(tree):
@@ -133,7 +132,7 @@ def _docstring_lines(tree: "ast.Module") -> set[int]:
     return lines
 
 
-def _enclosing_functions(tree: "ast.Module") -> dict[int, str]:
+def _enclosing_functions(tree: ast.Module) -> dict[int, str]:
     """Line number to the innermost function it belongs to."""
     out: dict[int, str] = {}
     for node in ast.walk(tree):

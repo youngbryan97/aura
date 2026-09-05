@@ -22,21 +22,20 @@ The old CognitiveWAL (wal.jsonl) is preserved as a lightweight fallback;
 this ledger is the canonical record.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import hashlib
 import json
 import logging
-import os
 import sqlite3
 import threading
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 from core.runtime.sqlite_support import open_tracked
 
 logger = logging.getLogger("Aura.CognitiveLedger")
@@ -88,18 +87,18 @@ class TransitionType(str, Enum):
 class Transition:
     """One atomic state change in the organism's history."""
     id: str
-    parent_id: Optional[str]
+    parent_id: str | None
     ts: float
     ttype: TransitionType
     subsystem: str
     cause: str
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     prior_state_hash: str
     next_state_hash: str = ""
     confidence: float = 0.5
     uncertainty: float = 0.5
-    side_effects: List[Dict[str, Any]] = field(default_factory=list)
-    memory_writes: List[Dict[str, Any]] = field(default_factory=list)
+    side_effects: list[dict[str, Any]] = field(default_factory=list)
+    memory_writes: list[dict[str, Any]] = field(default_factory=list)
     rollback_eligible: bool = True
 
     @staticmethod
@@ -107,12 +106,12 @@ class Transition:
         ttype: TransitionType,
         subsystem: str,
         cause: str,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         prior_hash: str,
-        parent_id: Optional[str] = None,
+        parent_id: str | None = None,
         confidence: float = 0.5,
         uncertainty: float = 0.5,
-    ) -> "Transition":
+    ) -> Transition:
         return Transition(
             id=uuid.uuid4().hex[:12],
             parent_id=parent_id,
@@ -126,7 +125,7 @@ class Transition:
             uncertainty=uncertainty,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["ttype"] = self.ttype.value
         return d
@@ -173,7 +172,7 @@ class CognitiveLedger:
 
     MAX_PAYLOAD_SIZE = 32_000  # Truncate oversized payloads
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         if db_path:
             self._db_path = Path(db_path)
         else:
@@ -181,9 +180,9 @@ class CognitiveLedger:
             self._db_path = config.paths.data_dir / "memory" / "cognitive_ledger.db"
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn: sqlite3.Connection | None = None
         self._transition_count = 0
-        self._last_transition_id: Optional[str] = None
+        self._last_transition_id: str | None = None
         self._initialize()
 
     def _initialize(self):
@@ -319,7 +318,7 @@ class CognitiveLedger:
                 logger.error("CognitiveLedger append failed: %s", e)
                 return False
 
-    def get_recent(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_recent(self, limit: int = 50) -> list[dict[str, Any]]:
         """Return the most recent transitions as dicts."""
         if self._conn is None:
             return []
@@ -335,7 +334,7 @@ class CognitiveLedger:
                 logger.error("CognitiveLedger get_recent failed: %s", e)
                 return []
 
-    def get_by_subsystem(self, subsystem: str, limit: int = 50) -> List[Dict]:
+    def get_by_subsystem(self, subsystem: str, limit: int = 50) -> list[dict]:
         """Filter transitions by originating subsystem."""
         if self._conn is None:
             return []
@@ -352,7 +351,7 @@ class CognitiveLedger:
                 logger.error("CognitiveLedger get_by_subsystem failed: %s", e)
                 return []
 
-    def get_since(self, since_ts: float) -> List[Dict]:
+    def get_since(self, since_ts: float) -> list[dict]:
         """Return all transitions since a given timestamp."""
         if self._conn is None:
             return []
@@ -391,7 +390,7 @@ class CognitiveLedger:
                 logger.error("CognitiveLedger snapshot failed: %s", e)
                 return False
 
-    def get_latest_snapshot(self) -> Optional[Dict]:
+    def get_latest_snapshot(self) -> dict | None:
         """Return the most recent snapshot."""
         if self._conn is None:
             return None
@@ -408,7 +407,7 @@ class CognitiveLedger:
 
     # ── Replay support ───────────────────────────────────────────────────
 
-    def replay_since_snapshot(self, snapshot_ts: float) -> List[Dict]:
+    def replay_since_snapshot(self, snapshot_ts: float) -> list[dict]:
         """Return all transitions after a snapshot for replay."""
         return self.get_since(snapshot_ts)
 
@@ -458,7 +457,7 @@ class CognitiveLedger:
 
     # ── SDOR Chain Queries ────────────────────────────────────────────────
 
-    def get_intention_chain(self, intention_id: str) -> List[Dict]:
+    def get_intention_chain(self, intention_id: str) -> list[dict]:
         """Get all transitions in an intention's SDOR chain (linked by parent_id or payload.intention_id)."""
         if self._conn is None:
             return []
@@ -481,7 +480,7 @@ class CognitiveLedger:
                 logger.error("CognitiveLedger get_intention_chain failed: %s", e)
                 return []
 
-    def get_belief_revisions(self, since_ts: float = 0, limit: int = 50) -> List[Dict]:
+    def get_belief_revisions(self, since_ts: float = 0, limit: int = 50) -> list[dict]:
         """Get all belief revision transitions since a timestamp."""
         if self._conn is None:
             return []
@@ -498,7 +497,7 @@ class CognitiveLedger:
                 logger.error("CognitiveLedger get_belief_revisions failed: %s", e)
                 return []
 
-    def get_autobiographical_summary(self, hours: float = 24, limit: int = 200) -> Dict[str, Any]:
+    def get_autobiographical_summary(self, hours: float = 24, limit: int = 200) -> dict[str, Any]:
         """Generate an autobiographical summary of the last N hours.
 
         Returns counts by type, key events, self-model changes, and
@@ -553,7 +552,7 @@ class CognitiveLedger:
                 logger.error("CognitiveLedger autobiographical summary failed: %s", e)
                 return {}
 
-    def get_coherence_history(self, limit: int = 50) -> List[Dict]:
+    def get_coherence_history(self, limit: int = 50) -> list[dict]:
         """Get recent coherence reports from the ledger."""
         if self._conn is None:
             return []
@@ -584,10 +583,10 @@ class CognitiveLedger:
         return self._transition_count
 
     @property
-    def last_id(self) -> Optional[str]:
+    def last_id(self) -> str | None:
         return self._last_transition_id
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Return ledger statistics."""
         stats = {
             "total_transitions": self._transition_count,
@@ -632,7 +631,7 @@ def compute_state_hash(state: Any) -> str:
 
 # ── Singleton ────────────────────────────────────────────────────────────
 
-_ledger: Optional[CognitiveLedger] = None
+_ledger: CognitiveLedger | None = None
 
 
 def get_cognitive_ledger() -> CognitiveLedger:

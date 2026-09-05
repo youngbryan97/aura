@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -65,6 +65,6 @@ class ContractedLLMProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def generate(self, prompt: str, system_prompt: Optional[str] = None, **kwargs: Any) -> str:
+    async def generate(self, prompt: str, system_prompt: str | None = None, **kwargs: Any) -> str:
         """Execute text generation conforming to contract constraints."""
         raise NotImplementedError

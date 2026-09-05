@@ -6,7 +6,6 @@ resource estimates, and evidence requirements.
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
 
 from core.mission.objective_graph import Milestone, ObjectiveGraph
 
@@ -20,15 +19,15 @@ class CampaignPlanner:
     def plan_campaign(
         objective: str,
         graph: ObjectiveGraph,
-        plan_steps: Optional[List[str]] = None,
-    ) -> List[str]:
+        plan_steps: list[str] | None = None,
+    ) -> list[str]:
         """Generate milestones from plan steps or decompose the objective automatically."""
         logger.info("🎯 Planning campaign for: '%s'", objective[:60])
 
         if plan_steps and len(plan_steps) > 1:
             # Build milestones from explicit plan steps
             milestone_ids = []
-            prev_id: Optional[str] = None
+            prev_id: str | None = None
             for i, step in enumerate(plan_steps):
                 ms_id = f"ms_{i}_{step[:20].replace(' ', '_').lower()}"
                 deps = [prev_id] if prev_id else []

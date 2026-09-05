@@ -1,12 +1,11 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from core.constitution import get_constitutional_core
 from core.health.degraded_events import record_degraded_event
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ImpulseGovernance")
 
@@ -18,8 +17,8 @@ async def run_governed_impulse(
     summary: str,
     message: Any,
     urgency: float = 0.3,
-    state_cause: Optional[str] = None,
-    state_update: Optional[Dict[str, Any]] = None,
+    state_cause: str | None = None,
+    state_update: dict[str, Any] | None = None,
     enqueue_priority: int = 20,
 ) -> bool:
     """Apply one constitutional path for autonomous impulse release and affect shifts."""

@@ -86,8 +86,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.runtime.errors import record_degradation
-
 EPS = 1e-12
 
 

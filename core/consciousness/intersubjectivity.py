@@ -24,12 +24,11 @@ This integrates with:
 """
 from __future__ import annotations
 
-
 import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -45,7 +44,7 @@ class IntersubjectiveFrame:
     perspective_divergence: float = 0.0   # How differently we see the same thing
     shared_world_coherence: float = 0.5   # How aligned are we on shared reality
     empathic_accuracy: float = 0.5        # How well do I model the other's state
-    interlocutor_model: Dict[str, Any] = field(default_factory=dict)
+    interlocutor_model: dict[str, Any] = field(default_factory=dict)
 
 
 class IntersubjectivityEngine:
@@ -68,8 +67,8 @@ class IntersubjectivityEngine:
 
     def __init__(self):
         self._history: deque[IntersubjectiveFrame] = deque(maxlen=60)
-        self._interlocutor_state: Dict[str, Any] = {}
-        self._shared_world_objects: deque[Dict[str, Any]] = deque(maxlen=50)
+        self._interlocutor_state: dict[str, Any] = {}
+        self._shared_world_objects: deque[dict[str, Any]] = deque(maxlen=50)
         self._perspective_alignment: float = 0.5
         self._tick_count: int = 0
         logger.info("IntersubjectivityEngine initialized.")
@@ -208,7 +207,7 @@ class IntersubjectivityEngine:
             return ""
         return "## INTERSUBJECTIVE AWARENESS\n" + " | ".join(parts)
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         """Telemetry payload."""
         frame = self._history[-1] if self._history else IntersubjectiveFrame()
         return {
@@ -224,7 +223,7 @@ class IntersubjectivityEngine:
 
 # ── Singleton ────────────────────────────────────────────────────────────────
 
-_instance: Optional[IntersubjectivityEngine] = None
+_instance: IntersubjectivityEngine | None = None
 
 
 def get_intersubjectivity_engine() -> IntersubjectivityEngine:

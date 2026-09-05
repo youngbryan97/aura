@@ -27,22 +27,20 @@ Design invariants:
   4. Privacy-aware: patterns are statistical, not verbatim user messages.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
 import math
-import time
 import threading
+import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from typing import Any
 
 from core.container import ServiceContainer
 from core.memory.retention_policy import working_history_retention_policy
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Precognitive")
@@ -69,12 +67,12 @@ class PrecognitivePrediction:
     """Output of a precognitive evaluation cycle."""
     predicted_next_topic: str            # What they'll likely ask about
     predicted_urgency: float             # 0-1, how urgent the next message will be
-    pre_fetch_suggestions: List[str]     # Things to look up proactively
+    pre_fetch_suggestions: list[str]     # Things to look up proactively
     confidence: float                    # Overall confidence in this prediction
     reasoning: str                       # Why we predicted this
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "predicted_next_topic": self.predicted_next_topic,
             "predicted_urgency": round(self.predicted_urgency, 3),
@@ -129,16 +127,16 @@ class PatternDatabase:
 
     def __init__(self) -> None:
         # Topic transitions: {from_topic: {to_topic: TopicTransition}}
-        self.topic_transitions: Dict[str, Dict[str, TopicTransition]] = defaultdict(dict)
+        self.topic_transitions: dict[str, dict[str, TopicTransition]] = defaultdict(dict)
 
         # Time-of-day patterns: {hour: {topic: TimePattern}}
-        self.time_patterns: Dict[int, Dict[str, TimePattern]] = defaultdict(dict)
+        self.time_patterns: dict[int, dict[str, TimePattern]] = defaultdict(dict)
 
         # Session position patterns: {position: {topic: count}}
-        self.session_patterns: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        self.session_patterns: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
 
         # Behavioral correlations: {behavior_bucket: avg_urgency}
-        self.behavior_urgency: Dict[str, Deque[float]] = defaultdict(lambda: deque(maxlen=100))
+        self.behavior_urgency: dict[str, deque[float]] = defaultdict(lambda: deque(maxlen=100))
 
         # Metadata
         self.total_observations: int = 0
@@ -179,7 +177,7 @@ class PatternDatabase:
         """Record urgency correlation with a behavioral signal."""
         self.behavior_urgency[behavior_key].append(urgency)
 
-    def predict_next_topic(self, current_topic: str) -> Tuple[str, float]:
+    def predict_next_topic(self, current_topic: str) -> tuple[str, float]:
         """Predict most likely next topic from current topic via Markov chain.
 
         Returns (predicted_topic, confidence).
@@ -190,7 +188,7 @@ class PatternDatabase:
 
         # Weight by count and recency
         now = time.time()
-        scored: List[Tuple[str, float]] = []
+        scored: list[tuple[str, float]] = []
         total_count = sum(t.count for t in transitions.values())
 
         for to_topic, trans in transitions.items():
@@ -209,7 +207,7 @@ class PatternDatabase:
         confidence = min(0.95, best_score * min(1.0, total_count / 10.0))
         return (best_topic, confidence)
 
-    def predict_time_topic(self, hour: int) -> Tuple[str, float]:
+    def predict_time_topic(self, hour: int) -> tuple[str, float]:
         """Predict most likely topic for the current hour."""
         patterns = self.time_patterns.get(hour, {})
         if not patterns:
@@ -227,7 +225,7 @@ class PatternDatabase:
         confidence = min(0.8, best.count / max(1, sum(p.count for p in patterns.values())) * 0.9)
         return (best.topic, confidence)
 
-    def predict_session_topic(self, position: str) -> Tuple[str, float]:
+    def predict_session_topic(self, position: str) -> tuple[str, float]:
         """Predict most likely topic for this session position."""
         topics = self.session_patterns.get(position, {})
         if not topics:
@@ -249,7 +247,7 @@ class PatternDatabase:
     # Persistence
     # ------------------------------------------------------------------
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to JSON-safe dict."""
         transitions = {}
         for from_t, targets in self.topic_transitions.items():
@@ -282,7 +280,7 @@ class PatternDatabase:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PatternDatabase":
+    def from_dict(cls, data: dict[str, Any]) -> PatternDatabase:
         """Deserialize from JSON dict."""
         db = cls()
         db.total_observations = data.get("total_observations", 0)
@@ -343,13 +341,13 @@ class PrecognitiveEngine:
         self._current_topic: str = "greeting"
         self._session_start: float = time.time()
         self._message_count: int = 0
-        self._message_timestamps: Deque[float] = deque(maxlen=50)
-        self._message_lengths: Deque[int] = deque(maxlen=50)
-        self._last_prediction: Optional[PrecognitivePrediction] = None
-        self._prediction_log: Deque[PrecognitivePrediction] = deque(maxlen=_MAX_PREDICTIONS_LOG)
+        self._message_timestamps: deque[float] = deque(maxlen=50)
+        self._message_lengths: deque[int] = deque(maxlen=50)
+        self._last_prediction: PrecognitivePrediction | None = None
+        self._prediction_log: deque[PrecognitivePrediction] = deque(maxlen=_MAX_PREDICTIONS_LOG)
 
         # Pre-fetch tracking
-        self._pending_prefetches: List[str] = []
+        self._pending_prefetches: list[str] = []
         self._prefetch_hits: int = 0
         self._prefetch_total: int = 0
 
@@ -364,7 +362,7 @@ class PrecognitiveEngine:
     # Public API
     # ------------------------------------------------------------------
 
-    def on_user_message(self, message: str, metadata: Optional[Dict[str, Any]] = None) -> PrecognitivePrediction:
+    def on_user_message(self, message: str, metadata: dict[str, Any] | None = None) -> PrecognitivePrediction:
         """Process a user message: update patterns + generate prediction.
 
         This is the main entry point called by the cognitive pipeline
@@ -429,7 +427,7 @@ class PrecognitiveEngine:
 
         return prediction
 
-    def get_current_prediction(self) -> Optional[PrecognitivePrediction]:
+    def get_current_prediction(self) -> PrecognitivePrediction | None:
         """Get the most recent prediction without generating a new one."""
         with self._lock:
             return self._last_prediction
@@ -440,7 +438,7 @@ class PrecognitiveEngine:
             return 0.0
         return self._prefetch_hits / self._prefetch_total
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         """Full snapshot for telemetry / consciousness stack."""
         with self._lock:
             pred = self._last_prediction
@@ -576,7 +574,7 @@ class PrecognitiveEngine:
         self,
         message: str,
         behavior: BehavioralSignal,
-        metadata: Dict[str, Any],
+        metadata: dict[str, Any],
     ) -> float:
         """Estimate urgency of the current message. 0-1."""
         urgency = 0.3  # Baseline
@@ -638,7 +636,7 @@ class PrecognitiveEngine:
         predicted_urgency = self._db.get_behavioral_urgency(behavior_key)
 
         # Blend topic predictions (weighted by confidence)
-        candidates: Dict[str, float] = defaultdict(float)
+        candidates: dict[str, float] = defaultdict(float)
         candidates[topic_pred] += topic_conf * 0.50   # Topic transition strongest
         candidates[time_pred] += time_conf * 0.25     # Time-of-day moderate
         candidates[session_pred] += session_conf * 0.25  # Session position moderate
@@ -676,7 +674,7 @@ class PrecognitiveEngine:
             reasoning=" + ".join(reasoning_parts) if reasoning_parts else "baseline",
         )
 
-    def _generate_prefetch_suggestions(self, topic: str, confidence: float) -> List[str]:
+    def _generate_prefetch_suggestions(self, topic: str, confidence: float) -> list[str]:
         """Generate pre-fetch suggestions based on predicted topic."""
         suggestions = []
 
@@ -855,7 +853,7 @@ class PrecognitiveEngine:
 # Module-level singleton
 # ---------------------------------------------------------------------------
 
-_engine: Optional[PrecognitiveEngine] = None
+_engine: PrecognitiveEngine | None = None
 _engine_lock = threading.Lock()
 
 

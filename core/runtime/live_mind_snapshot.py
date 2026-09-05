@@ -247,6 +247,32 @@ def _conation_snapshot() -> dict[str, Any]:
         return {"present": False, "reason": "conation unavailable"}
 
 
+def _phenomena_snapshot() -> dict[str, Any]:
+    """The fourteen dispositions, as a count and a short list of concerns.
+
+    Read through the container rather than by importing them. Three of the
+    nine packages they live in are ones this foundation may not depend on, and
+    routing through the container means an organ that failed to load is
+    reported absent instead of taking the turn with it.
+    """
+    try:
+        from core.phenomena_wiring import snapshot as phenomena
+
+        full = phenomena()
+        return {
+            "running": full.get("running"),
+            "of": full.get("of"),
+            "absent": [k for k, v in (full.get("present") or {}).items() if not v],
+            "concerns": full.get("concerns") or [],
+        }
+    except _SNAPSHOT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "live_mind_snapshot", exc, severity="debug",
+            action="phenomena section omitted from this turn",
+        )
+        return {"present": False, "reason": "phenomena unavailable"}
+
+
 def collect_live_mind_snapshot(*, lane: dict[str, Any] | None = None) -> dict[str, Any]:
     """Collect compact runtime state for one live desktop conversation turn."""
     services = {name: _service(name) for name in LIVE_MIND_SERVICE_NAMES}
@@ -271,5 +297,6 @@ def collect_live_mind_snapshot(*, lane: dict[str, Any] | None = None) -> dict[st
     snapshot["screen_perception"] = _compact(_call(services["screen_perception"], "get_status"))
     snapshot["perceptual_pump"] = _compact(_call(services["perceptual_pump"], "get_status"))
     snapshot["conation"] = _compact(_conation_snapshot())
+    snapshot["phenomena"] = _compact(_phenomena_snapshot())
     snapshot["frontmost_app_fast"] = _frontmost_app_fast()
     return snapshot

@@ -7,12 +7,11 @@ import json
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any, Final
 
-from core.runtime.errors import record_degradation
-
 from core.brain.llm.unified_recurrent_shadow_probe_contract import (
     seal_shadow_probe_request,
     shadow_probe_receipt_errors,
 )
+from core.runtime.errors import record_degradation
 
 PLAN_SCHEMA: Final = "aura.unified_intrinsic.shadow_canary_plan.v1"
 VERDICT_SCHEMA: Final = "aura.unified_intrinsic.shadow_canary_verdict.v1"

@@ -1,15 +1,15 @@
 """core/agency/mission_manager.py
 Unified Mission Manager coordinating scheduler, project checklists, and initiative selection.
 """
-from typing import Dict, List, Any, Optional
 import logging
+from typing import Any
 
+from core.agency.autonomous_followup import AutonomousFollowupCoordinator
+from core.agency.blocked_task_manager import BlockedTaskManager
+from core.agency.commitment_tracker import CommitmentTracker
+from core.agency.initiative_selector import InitiativeSelector
 from core.agency.project_manager import ProjectManager
 from core.agency.scheduler import Scheduler
-from core.agency.commitment_tracker import CommitmentTracker
-from core.agency.blocked_task_manager import BlockedTaskManager
-from core.agency.initiative_selector import InitiativeSelector
-from core.agency.autonomous_followup import AutonomousFollowupCoordinator
 from core.agency.task_resumption import TaskResumptionManager
 
 logger = logging.getLogger("Agency.MissionManager")
@@ -71,7 +71,7 @@ class MissionManager:
 
 
 # Singleton Access
-_mission_manager: Optional[MissionManager] = None
+_mission_manager: MissionManager | None = None
 
 
 def get_mission_manager() -> MissionManager:

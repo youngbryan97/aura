@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("Aura.ClaimStore")
 
@@ -23,17 +23,17 @@ class WorldClaim:
     confidence: float = 0.5
     freshness: float = 1.0  # 1.0 is fresh, decaying to 0.0 over time
     uncertainty: float = 0.5
-    contradiction_links: List[str] = field(default_factory=list)
-    affected_missions: List[str] = field(default_factory=list)
-    possible_actions: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    contradiction_links: list[str] = field(default_factory=list)
+    affected_missions: list[str] = field(default_factory=list)
+    possible_actions: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class ClaimStore:
     """Stores and indexes all claims ingested from external sources."""
 
     def __init__(self) -> None:
-        self.claims: Dict[str, WorldClaim] = {}
+        self.claims: dict[str, WorldClaim] = {}
 
     def add_claim(
         self,
@@ -42,9 +42,9 @@ class ClaimStore:
         *,
         confidence: float = 0.5,
         uncertainty: float = 0.5,
-        affected_missions: Optional[List[str]] = None,
-        possible_actions: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        affected_missions: list[str] | None = None,
+        possible_actions: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> WorldClaim:
         claim_id = f"claim_{int(time.time())}_{hash(content) % 100000}"
         claim = WorldClaim(
@@ -62,7 +62,7 @@ class ClaimStore:
         logger.info("📋 Claim Ingested: '%s' from %s", content[:60], source)
         return claim
 
-    def get_claim(self, claim_id: str) -> Optional[WorldClaim]:
+    def get_claim(self, claim_id: str) -> WorldClaim | None:
         return self.claims.get(claim_id)
 
     def link_contradiction(self, cid1: str, cid2: str) -> None:
@@ -82,9 +82,9 @@ class ClaimStore:
             age_hours = (now - claim.timestamp) / 3600.0
             claim.freshness = max(0.0, 1.0 - (age_hours * decay_rate_per_hour))
 
-    def get_fresh_claims(self, threshold: float = 0.5) -> List[WorldClaim]:
+    def get_fresh_claims(self, threshold: float = 0.5) -> list[WorldClaim]:
         self.decay_freshness()
         return [c for c in self.claims.values() if c.freshness >= threshold]
 
-    def query_by_mission(self, mission_id: str) -> List[WorldClaim]:
+    def query_by_mission(self, mission_id: str) -> list[WorldClaim]:
         return [c for c in self.claims.values() if mission_id in c.affected_missions]

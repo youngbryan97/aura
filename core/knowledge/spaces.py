@@ -32,11 +32,12 @@ reason this is here rather than in the invention module.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
 import threading
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Alternatives",

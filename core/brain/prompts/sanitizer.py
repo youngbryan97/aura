@@ -26,8 +26,9 @@ import hashlib
 import logging
 import re
 import unicodedata
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Sequence
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ class Detection:
     pattern: str
     excerpt: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"category": self.category, "pattern": self.pattern, "excerpt": self.excerpt}
 
 
@@ -90,8 +91,8 @@ class GuardReceipt:
     role: str
     content_sha256: str
     output_sha256: str
-    detections: List[Detection] = field(default_factory=list)
-    transformations: List[str] = field(default_factory=list)
+    detections: list[Detection] = field(default_factory=list)
+    transformations: list[str] = field(default_factory=list)
     quarantined: bool = False
     trusted: bool = False
     fail_closed: bool = False
@@ -108,7 +109,7 @@ class GuardReceipt:
             return "flagged"
         return "none"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "policy_version": self.policy_version,
             "role": self.role,
@@ -130,11 +131,11 @@ class ContextReport:
     """Role-aware verdict over a whole message list."""
 
     ok: bool
-    receipts: List[GuardReceipt] = field(default_factory=list)
-    refusals: List[str] = field(default_factory=list)
-    messages: List[Dict[str, Any]] = field(default_factory=list)
+    receipts: list[GuardReceipt] = field(default_factory=list)
+    refusals: list[str] = field(default_factory=list)
+    messages: list[dict[str, Any]] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "ok": self.ok,
             "refusals": list(self.refusals),
@@ -229,7 +230,7 @@ class ContextGuard:
 
     # -- detection ------------------------------------------------------
     @staticmethod
-    def detect(text: Any) -> List[Detection]:
+    def detect(text: Any) -> list[Detection]:
         """Every injection signal in ``text``. Never raises."""
         try:
             body = str(text or "")[:MAX_SCAN_CHARS]
@@ -238,7 +239,7 @@ class ContextGuard:
         if not body:
             return []
         normalized = normalize_for_detection(body)
-        detections: List[Detection] = []
+        detections: list[Detection] = []
         for category, pattern in DETECTION_RULES:
             match = pattern.search(normalized)
             if match:
@@ -254,7 +255,7 @@ class ContextGuard:
         return ContextGuard.guard(text).text
 
     @staticmethod
-    def guard(text: Any, *, role: str = "user", request_id: str = "") -> "GuardedText":
+    def guard(text: Any, *, role: str = "user", request_id: str = "") -> GuardedText:
         """Neutralize a span and return it with a receipt.
 
         CP126 92dba8bf: replacing only the matched phrase left the attacker's
@@ -336,7 +337,7 @@ class ContextGuard:
             receipt.transformations.append("decoded_bytes")
             return bytes(value).decode("utf-8", errors="replace")
         if isinstance(value, (list, tuple)):
-            parts: List[str] = []
+            parts: list[str] = []
             for item in value:
                 if isinstance(item, str):
                     parts.append(item)

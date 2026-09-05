@@ -19,8 +19,9 @@ worked, and the next stall reads that.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 from core.agency.deliberate_action import (
     ActionOption,

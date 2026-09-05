@@ -97,6 +97,6 @@ def describe_window(seconds: float | None) -> str:
         return f"the last {int(round(seconds / _MINUTE))} minutes"
     if seconds < _DAY:
         hours = seconds / _HOUR
-        return f"the last hour" if abs(hours - 1) < 0.01 else f"the last {int(round(hours))} hours"
+        return "the last hour" if abs(hours - 1) < 0.01 else f"the last {int(round(hours))} hours"
     days = seconds / _DAY
     return "the last day" if abs(days - 1) < 0.01 else f"the last {int(round(days))} days"

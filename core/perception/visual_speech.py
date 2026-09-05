@@ -24,7 +24,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from core.container import ServiceContainer
-from core.runtime.service_access import optional_service
 from core.perception.multimodal_sync import (
     Calibration,
     MissingReason,
@@ -35,6 +34,7 @@ from core.perception.multimodal_sync import (
     PrivacyClass,
     PrivacyPolicy,
 )
+from core.runtime.service_access import optional_service
 
 
 def _clamp01(value: float) -> float:

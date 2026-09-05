@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
 
 
 class Continuant(str, Enum):
@@ -46,10 +45,10 @@ class OntologyEntry:
     name: str
     kind: str  # "continuant" | "occurrent"
     realised_in: str
-    invariants: List[str] = field(default_factory=list)
+    invariants: list[str] = field(default_factory=list)
 
 
-CONTINUANT_REGISTRY: Dict[str, OntologyEntry] = {
+CONTINUANT_REGISTRY: dict[str, OntologyEntry] = {
     Continuant.SELF.value: OntologyEntry(
         name="Self",
         kind="continuant",
@@ -114,7 +113,7 @@ CONTINUANT_REGISTRY: Dict[str, OntologyEntry] = {
 }
 
 
-OCCURRENT_REGISTRY: Dict[str, OntologyEntry] = {
+OCCURRENT_REGISTRY: dict[str, OntologyEntry] = {
     Occurrent.ACTION_RECEIPT.value: OntologyEntry(
         name="ActionReceipt",
         kind="occurrent",

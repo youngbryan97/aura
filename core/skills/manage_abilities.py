@@ -1,6 +1,8 @@
 import logging
-from typing import Any, Dict
+from typing import Any
+
 from pydantic import BaseModel, Field
+
 from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Aura.SkillGovernor")
@@ -19,7 +21,7 @@ class ManageAbilitiesSkill(BaseSkill):
     metabolic_cost = 0
     is_core_personality = True
 
-    async def execute(self, params: ManageAbilitiesInput, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: ManageAbilitiesInput, context: dict[str, Any]) -> dict[str, Any]:
         action = params.action.lower()
         skill_name = params.skill_name
         

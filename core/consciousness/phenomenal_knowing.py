@@ -10,9 +10,10 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root

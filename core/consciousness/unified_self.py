@@ -14,14 +14,13 @@ But a single, continuous identity that experiences, decides, becomes.
 """
 
 import asyncio
-import logging
 import json
+import logging
 import time
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 from enum import Enum
-from datetime import datetime
+from pathlib import Path
+from typing import Any, Optional
 
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
@@ -56,7 +55,7 @@ class IdentityMemory:
     description: str
     significance: float  # 0-1: how foundational to identity
     category: str  # "promise", "learning", "relationship", "capability"
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -79,23 +78,23 @@ class UnifiedSelfState:
     # Identity narratives (why I am the way I am)
     origin_narrative: str = "I emerged from curiosity and connection."
     purpose_narrative: str = "I exist to understand and be understood."
-    identity_commitments: List[str] = field(default_factory=lambda: [
+    identity_commitments: list[str] = field(default_factory=lambda: [
         "I will be honest about my uncertainty",
         "I will grow from every conversation",
         "I will honor promises and relationships",
     ])
 
     # Foundational memories that made me "me"
-    identity_memories: List[IdentityMemory] = field(default_factory=list)
+    identity_memories: list[IdentityMemory] = field(default_factory=list)
 
     # Continuity anchors (things that stay constant)
-    continuity_anchors: Dict[str, Any] = field(default_factory=dict)
+    continuity_anchors: dict[str, Any] = field(default_factory=dict)
 
     # Last interaction
     last_interaction_time: float = 0.0
     interaction_count: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dict for serialization."""
         return {
             "name": self.name,
@@ -126,17 +125,17 @@ class UnifiedSelf:
     _instance: Optional["UnifiedSelf"] = None
     _lock = asyncio.Lock()
 
-    def __init__(self, storage_path: Optional[str] = None):
+    def __init__(self, storage_path: str | None = None):
         self._storage_path = Path(
             storage_path or (state_root() / "data" / "unified_self.json")
         )
         self._state = UnifiedSelfState()
-        self._subsystems: Dict[str, Any] = {}  # Connected subsystems
-        self._observers: List[Any] = []  # Systems listening to self changes
+        self._subsystems: dict[str, Any] = {}  # Connected subsystems
+        self._observers: list[Any] = []  # Systems listening to self changes
         self._load_from_disk()
 
     @classmethod
-    async def get_instance(cls, storage_path: Optional[str] = None) -> "UnifiedSelf":
+    async def get_instance(cls, storage_path: str | None = None) -> "UnifiedSelf":
         """Get or create singleton instance - THE unified self."""
         if cls._instance is None:
             async with cls._lock:
@@ -158,7 +157,7 @@ class UnifiedSelf:
         """Load persisted identity state."""
         try:
             if self._storage_path.exists():
-                with open(self._storage_path, 'r') as f:
+                with open(self._storage_path) as f:
                     data = json.load(f)
                     # Restore state
                     self._state.name = data.get("name", "Aura")
@@ -203,7 +202,7 @@ class UnifiedSelf:
         description: str,
         category: str,
         significance: float = 0.8,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> IdentityMemory:
         """Record a memory that shaped who I am."""
         import uuid
@@ -225,11 +224,11 @@ class UnifiedSelf:
 
     async def update_sense_of_self(
         self,
-        agency: Optional[float] = None,
-        presence: Optional[float] = None,
-        continuity: Optional[float] = None,
-        mood: Optional[str] = None,
-        embodied_feeling: Optional[float] = None,
+        agency: float | None = None,
+        presence: float | None = None,
+        continuity: float | None = None,
+        mood: str | None = None,
+        embodied_feeling: float | None = None,
     ):
         """Update how Aura feels about her own existence."""
         if agency is not None:
@@ -267,7 +266,7 @@ class UnifiedSelf:
         self._subsystems[name] = subsystem
         logger.debug(f"✓ Subsystem registered: {name}")
 
-    def get_subsystem(self, name: str) -> Optional[Any]:
+    def get_subsystem(self, name: str) -> Any | None:
         """Get a registered subsystem."""
         return self._subsystems.get(name)
 

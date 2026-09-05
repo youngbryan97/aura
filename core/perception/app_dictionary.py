@@ -39,14 +39,14 @@ import plistlib
 import re
 import shutil
 import subprocess
-import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree
-from core.runtime.subprocess_gateway import get_subprocess_gateway
+
 from core.runtime.lockdep import checked_lock
+from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 logger = logging.getLogger("Aura.AppDictionary")
 
@@ -111,7 +111,7 @@ _NEVER_A_DOCUMENT: frozenset[str] = frozenset(
 _DICTIONARY_TTL_S = 900.0
 _APP_LIST_TTL_S = 120.0
 _CACHE_LOCK = checked_lock("app_dictionary")
-_DICTIONARY_CACHE: dict[str, tuple[float, "AppFacts"]] = {}
+_DICTIONARY_CACHE: dict[str, tuple[float, AppFacts]] = {}
 _APP_LIST_CACHE: tuple[float, tuple[str, ...]] | None = None
 
 _SDEF_TIMEOUT_S = 8.0

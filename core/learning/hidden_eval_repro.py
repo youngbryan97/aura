@@ -11,9 +11,10 @@ import json
 import math
 import random
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any
 
 from core.promotion.dynamic_benchmark import Task
 from core.runtime.atomic_writer import atomic_write_text
@@ -33,11 +34,11 @@ class HiddenEvalManifest:
     seed_hash: str
     answer_salt_hash: str
     task_count: int
-    answer_hashes: Dict[str, str]
-    public_tasks: List[Dict[str, Any]]
+    answer_hashes: dict[str, str]
+    public_tasks: list[dict[str, Any]]
     created_at: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -50,9 +51,9 @@ class HiddenEvalResult:
     answer_hash_ok: bool
     manifest_hash: str
     runtime_s: float
-    failures: List[str] = field(default_factory=list)
+    failures: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -102,7 +103,7 @@ class HiddenEvalPack:
 
     def evaluate(self, solver: Callable[[Task], Any]) -> HiddenEvalResult:
         start = time.time()
-        failures: List[str] = []
+        failures: list[str] = []
         passed = 0
         manifest = self.manifest()
         for task in self.tasks:
@@ -143,9 +144,9 @@ class HiddenEvalPack:
         )
         return manifest_path
 
-    def _generate_tasks(self) -> List[Task]:
+    def _generate_tasks(self) -> list[Task]:
         rng = random.Random(self.seed)
-        tasks: List[Task] = []
+        tasks: list[Task] = []
         for idx in range(self.task_count):
             kind = rng.choice(["gcd", "mod", "sort", "palindrome", "compose"])
             if kind == "gcd":

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List
 
 logger = logging.getLogger("Aura.CausalLinks")
 
@@ -21,17 +20,17 @@ class CausalEngine:
     """Stores and reasons over predictive cause-and-effect relationships."""
 
     def __init__(self) -> None:
-        self.links: List[CausalLink] = []
+        self.links: list[CausalLink] = []
 
     def record_link(self, link: CausalLink) -> None:
         self.links.append(link)
         logger.info("🔗 Causal link recorded: %s -> %s (conf: %.2f)", 
                     link.cause_event_id, link.effect_event_id, link.confidence)
 
-    def get_effects(self, cause_event_id: str) -> List[CausalLink]:
+    def get_effects(self, cause_event_id: str) -> list[CausalLink]:
         return [lnk for lnk in self.links if lnk.cause_event_id == cause_event_id]
 
-    def get_causes(self, effect_event_id: str) -> List[CausalLink]:
+    def get_causes(self, effect_event_id: str) -> list[CausalLink]:
         return [lnk for lnk in self.links if lnk.effect_event_id == effect_event_id]
 
 

@@ -29,22 +29,20 @@ Public API:
 """
 
 from __future__ import annotations
+
 import inspect
-from core.runtime.errors import record_degradation
-
-
-import asyncio
 import json
 import logging
-import re
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 
 from core.autonomy.reasoning_trace import (
     parse_reasoning_response,
     reasoning_aware_prompt_prefix,
 )
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ComprehensionLoop")
 
@@ -92,17 +90,17 @@ class CheckpointSummary:
     method_source: str
     priority_level: int
     summary: str = ""
-    extracted_facts: List[str] = field(default_factory=list)
-    named_entities: List[str] = field(default_factory=list)
-    quotes: List[str] = field(default_factory=list)
-    open_questions: List[str] = field(default_factory=list)
+    extracted_facts: list[str] = field(default_factory=list)
+    named_entities: list[str] = field(default_factory=list)
+    quotes: list[str] = field(default_factory=list)
+    open_questions: list[str] = field(default_factory=list)
     affective_response: str = ""
     shallow_read: bool = False
-    thinking_trace: Optional[str] = None
+    thinking_trace: str | None = None
     raw_excerpt: str = ""
     elapsed_seconds: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "chunk_index": self.chunk_index,
             "method_source": self.method_source,
@@ -122,22 +120,22 @@ class CheckpointSummary:
 @dataclass
 class ComprehensionRecord:
     item_title: str
-    checkpoints: List[CheckpointSummary] = field(default_factory=list)
+    checkpoints: list[CheckpointSummary] = field(default_factory=list)
     unified_summary: str = ""
-    cross_source_contradictions: List[str] = field(default_factory=list)
-    open_threads: List[str] = field(default_factory=list)
+    cross_source_contradictions: list[str] = field(default_factory=list)
+    open_threads: list[str] = field(default_factory=list)
     shallow_read_flag: bool = False
-    sources_engaged: List[str] = field(default_factory=list)
-    priority_levels_engaged: List[int] = field(default_factory=list)
+    sources_engaged: list[str] = field(default_factory=list)
+    priority_levels_engaged: list[int] = field(default_factory=list)
     started_at: float = field(default_factory=time.time)
-    completed_at: Optional[float] = None
+    completed_at: float | None = None
     inference_failures: int = 0
 
 
 class ComprehensionLoop:
     def __init__(
         self,
-        inference: Optional[Any] = None,
+        inference: Any | None = None,
         max_chunks_per_source: int = DEFAULT_MAX_CHUNKS,
         chunk_tokens: int = DEFAULT_CHUNK_TOKENS,
         retries_per_chunk: int = DEFAULT_RETRIES_PER_CHUNK,
@@ -214,7 +212,7 @@ class ComprehensionLoop:
             raw_excerpt=excerpt,
         )
 
-        last_extraction: Optional[Dict[str, Any]] = None
+        last_extraction: dict[str, Any] | None = None
         for attempt in range(self._retries + 1):
             try:
                 extraction, thinking = await self._llm_extract(chunk_text, item_title)
@@ -248,7 +246,7 @@ class ComprehensionLoop:
         cp.elapsed_seconds = time.time() - t0
         return cp
 
-    async def _llm_extract(self, chunk: str, item_title: str) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
+    async def _llm_extract(self, chunk: str, item_title: str) -> tuple[dict[str, Any] | None, str | None]:
         prompt = (
             reasoning_aware_prompt_prefix(self._reasoning)
             + SKIM_PROMPT.format(chunk=chunk)
@@ -263,9 +261,9 @@ class ComprehensionLoop:
 
     async def _self_critique(
         self,
-        extraction: Dict[str, Any],
+        extraction: dict[str, Any],
         chunk_excerpt: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         prompt = CRITIQUE_PROMPT.format(
             extraction=json.dumps(extraction, ensure_ascii=False),
             chunk_excerpt=chunk_excerpt,
@@ -279,13 +277,13 @@ class ComprehensionLoop:
     async def _integrate_across_sources(
         self,
         checkpoints: Sequence[CheckpointSummary],
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         # Group by source
-        by_source: Dict[str, List[CheckpointSummary]] = {}
+        by_source: dict[str, list[CheckpointSummary]] = {}
         for cp in checkpoints:
             by_source.setdefault(f"{cp.method_source}@p{cp.priority_level}", []).append(cp)
 
-        sources_text_parts: List[str] = []
+        sources_text_parts: list[str] = []
         for src, cps in by_source.items():
             joined = " ".join(cp.summary for cp in cps if cp.summary)
             sources_text_parts.append(f"### {src}\n{joined[:2000]}")
@@ -338,12 +336,12 @@ class ComprehensionLoop:
 
     # ── Chunking ─────────────────────────────────────────────────────────
 
-    def _chunk_text(self, text: str, target_tokens: int) -> List[str]:
+    def _chunk_text(self, text: str, target_tokens: int) -> list[str]:
         if not text:
             return []
         words = text.split()
         words_per_chunk = max(1, int(target_tokens / TOKENS_PER_WORD))
-        chunks: List[str] = []
+        chunks: list[str] = []
         for i in range(0, len(words), words_per_chunk):
             chunk = " ".join(words[i : i + words_per_chunk])
             if chunk.strip():
@@ -354,7 +352,7 @@ class ComprehensionLoop:
 # ── Helpers ───────────────────────────────────────────────────────────────
 
 
-def _safe_json_object(text: str) -> Optional[Dict[str, Any]]:
+def _safe_json_object(text: str) -> dict[str, Any] | None:
     if not text:
         return None
     candidate = text.strip()
@@ -373,7 +371,7 @@ def _safe_json_object(text: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _to_str_list(v: Any) -> List[str]:
+def _to_str_list(v: Any) -> list[str]:
     if v is None:
         return []
     if isinstance(v, str):

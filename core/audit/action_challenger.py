@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger("Aura.ActionChallenger")
 
@@ -11,7 +11,7 @@ class ActionChallenger:
     """Interrogates proposed action parameters to identify dangerous side effects."""
 
     @staticmethod
-    def challenge_action(action_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    def challenge_action(action_name: str, params: dict[str, Any]) -> dict[str, Any]:
         """Runs a heuristics check to see if proposed actions exceed safety boundaries."""
         logger.info("Challenging action parameters for action: %s", action_name)
         

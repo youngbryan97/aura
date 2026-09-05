@@ -908,7 +908,7 @@ class PostTrainingValidator:
     def _promotion_is_authorized(
         self,
         adapter_path: Path,
-        validation: "ValidationResult | None",
+        validation: ValidationResult | None,
     ) -> bool:
         """Promotion requires a PASSING result for THIS adapter.
 
@@ -1092,7 +1092,7 @@ class PostTrainingValidator:
         self,
         adapter_path: str,
         *,
-        validation: "ValidationResult | None" = None,
+        validation: ValidationResult | None = None,
     ) -> bool:
         """
         Promote a validated adapter as the active adapter.

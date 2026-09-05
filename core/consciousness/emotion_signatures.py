@@ -80,11 +80,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, Literal
+from typing import Literal
 
 import numpy as np
-
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Consciousness.EmotionSignatures")
 
@@ -124,7 +122,7 @@ class NeurochemicalRecipe:
 
 # ─── Emotion Signature Library ─────────────────────────────────────────────
 
-_EMOTION_SIGNATURES: Dict[EmotionName, NeurochemicalRecipe] = {
+_EMOTION_SIGNATURES: dict[EmotionName, NeurochemicalRecipe] = {
     
     # ─── POSITIVE EMOTIONS ───
     
@@ -280,7 +278,7 @@ class EmotionSignatureEngine:
         """Get the active emotion's neurochemical signature."""
         return _EMOTION_SIGNATURES.get(self.current_emotion, _EMOTION_SIGNATURES["joy"])
     
-    def get_neurochemical_modulation(self) -> Dict[str, float]:
+    def get_neurochemical_modulation(self) -> dict[str, float]:
         """
         Return neurochemical production rate modifiers for this emotion.
         Applied ON TOP of the base neurochemical system dynamics.
@@ -298,7 +296,7 @@ class EmotionSignatureEngine:
             "oxytocin": sig.oxytocin * intensity,
         }
     
-    def get_substrate_modulation(self) -> Dict[str, float]:
+    def get_substrate_modulation(self) -> dict[str, float]:
         """
         Return substrate state vector modulation factors.
         These scale the importance of certain dimensions in IIT calculations.

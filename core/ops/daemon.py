@@ -11,7 +11,6 @@ import os
 import signal
 from collections import OrderedDict
 from functools import partial
-from pathlib import Path
 from typing import Any, cast
 
 from core.runtime.atomic_writer import async_atomic_write_text
@@ -23,8 +22,8 @@ from core.runtime.shutdown_coordinator import (
     publish_shutdown_verdict,
     request_shutdown,
 )
-from core.utils.task_tracker import get_task_tracker
 from core.runtime.state_ownership import state_root
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Daemon")
 

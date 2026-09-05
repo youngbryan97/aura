@@ -1,9 +1,10 @@
 import inspect
-from core.runtime.errors import record_degradation
-import asyncio
 import logging
 import threading
-from typing import Any, Callable, Dict, List
+from collections.abc import Callable
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.HookManager")
 
@@ -11,7 +12,7 @@ class HookManager:
     """Manages system hooks for extending Aura without monkey-patching."""
     
     def __init__(self):
-        self.hooks: Dict[str, List[Callable]] = {
+        self.hooks: dict[str, list[Callable]] = {
             "pre_think": [],
             "post_think": [],
             "pre_action": [],
@@ -30,7 +31,7 @@ class HookManager:
             else:
                 logger.warning("Attempted to register unknown hook event: %s", event)
 
-    async def trigger(self, event: str, *args, **kwargs) -> List[Any]:
+    async def trigger(self, event: str, *args, **kwargs) -> list[Any]:
         """Trigger all callbacks for a specific event and return results."""
         callbacks = list(self.hooks.get(event, []))
         

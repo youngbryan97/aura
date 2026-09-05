@@ -42,9 +42,8 @@ class that settles it.
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 

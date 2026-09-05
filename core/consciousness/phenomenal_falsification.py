@@ -47,7 +47,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
@@ -323,7 +323,7 @@ class PhenomenalFalsifier:
             }
 
 
-_engine: Optional[PhenomenalFalsifier] = None
+_engine: PhenomenalFalsifier | None = None
 _engine_lock = threading.Lock()
 
 

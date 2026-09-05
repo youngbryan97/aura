@@ -19,13 +19,12 @@ scientifically serious rather than infinitely accommodating.
 """
 from __future__ import annotations
 
-
 import logging
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("Consciousness.TheoryArbitration")
 
@@ -60,7 +59,7 @@ class PredictionRecord:
     prediction: str                    # What the theory predicts
     confidence: float = 0.5
     actual_outcome: str = ""           # What actually happened
-    correct: Optional[bool] = None
+    correct: bool | None = None
     timestamp: float = 0.0
 
 
@@ -76,9 +75,9 @@ class TheoryArbitrationFramework:
     """
 
     def __init__(self):
-        self._theories: Dict[str, TheoryRegistration] = {}
+        self._theories: dict[str, TheoryRegistration] = {}
         self._predictions: deque[PredictionRecord] = deque(maxlen=200)
-        self._divergences: deque[Dict[str, Any]] = deque(maxlen=50)
+        self._divergences: deque[dict[str, Any]] = deque(maxlen=50)
         self._register_default_theories()
         logger.info("TheoryArbitrationFramework initialized with %d theories.", len(self._theories))
 
@@ -231,7 +230,7 @@ class TheoryArbitrationFramework:
             theory_a, theory_b, event_id,
         )
 
-    def get_theory_rankings(self) -> List[Dict[str, Any]]:
+    def get_theory_rankings(self) -> list[dict[str, Any]]:
         """Return theories ranked by prediction accuracy."""
         rankings = []
         for name, theory in self._theories.items():
@@ -261,7 +260,7 @@ class TheoryArbitrationFramework:
             f"Predictions differ — behavior will provide evidence for one side."
         )
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         """Telemetry payload."""
         return {
             "theories": {
@@ -281,7 +280,7 @@ class TheoryArbitrationFramework:
 
 # ── Singleton ────────────────────────────────────────────────────────────────
 
-_instance: Optional[TheoryArbitrationFramework] = None
+_instance: TheoryArbitrationFramework | None = None
 
 
 def get_theory_arbitration() -> TheoryArbitrationFramework:

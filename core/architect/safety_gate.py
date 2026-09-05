@@ -20,10 +20,9 @@ from core.architect.models import (
     MutationTier,
     RefactorPlan,
 )
+from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.subprocess_gateway import get_subprocess_gateway
-from core.runtime.errors import record_degradation
-
 
 # ---------------------------------------------------------------------------
 # Freeze autopsy record — structured for future LoRA / self-repair traces

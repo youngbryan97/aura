@@ -12,9 +12,9 @@ logger = logging.getLogger("Aura.BrainIntegration")
 def setup_intelligence_layer(container) -> None:
     """Register all new intelligence layer services."""
     from core.adapters.api_adapter import get_api_adapter
+    from core.brain.language_center import get_language_center
     from core.cognition.cognitive_kernel import get_cognitive_kernel
     from core.introspection.inner_monologue import get_inner_monologue
-    from core.brain.language_center import get_language_center
     from core.memory_synthesizer import get_memory_synthesizer
 
     container.register_factory("api_adapter", get_api_adapter)

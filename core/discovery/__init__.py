@@ -18,12 +18,12 @@ The discovery loop:
 This is "discovery in bounded domains," not "discover novel
 mathematics on its own."  The bounded search is the honest version.
 """
-from core.discovery.expression import SafeExpression
-from core.discovery.evolver import EvolverResult, ExpressionEvolver
 from core.discovery.code_eval import (
     DiscoveryEvaluation,
     SafeCodeEvaluator,
 )
+from core.discovery.evolver import EvolverResult, ExpressionEvolver
+from core.discovery.expression import SafeExpression
 
 __all__ = [
     "DiscoveryEvaluation",

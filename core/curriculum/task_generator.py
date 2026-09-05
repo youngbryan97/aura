@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.curriculum.gap_detector import GapReport
 
@@ -25,7 +25,7 @@ class LearningTask:
     strategy: str = "default"
     iteration: int = 0
     created_at: float = field(default_factory=time.time)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class TaskGenerator:
@@ -42,8 +42,8 @@ class TaskGenerator:
         *,
         gap: GapReport,
         strategy: str,
-        seed_prompt: Optional[str] = None,
-        seed_expected: Optional[Any] = None,
+        seed_prompt: str | None = None,
+        seed_expected: Any | None = None,
         iteration: int = 0,
     ) -> LearningTask:
         if not gap.has_gap and seed_prompt is None:

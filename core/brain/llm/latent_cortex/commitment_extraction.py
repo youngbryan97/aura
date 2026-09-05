@@ -35,7 +35,7 @@ checked, and an unchecked commitment is a sentence in a prompt.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from typing import Any
 
 from core.brain.llm.latent_cortex.commitment_ratchet import (

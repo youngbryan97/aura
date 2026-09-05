@@ -1,11 +1,11 @@
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
-import time
-from typing import Dict, Any, List, Optional
-from core.state.aura_state import AuraState
+from typing import Any
+
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
+from core.state.aura_state import AuraState
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.CellularSubstrate")
 
@@ -21,7 +21,7 @@ class CellularSubstrate:
         self._patch_queue: asyncio.Queue = asyncio.Queue()
         self._commit_interval = commit_interval
         self._is_active = False
-        self._substrate_task: Optional[asyncio.Task] = None
+        self._substrate_task: asyncio.Task | None = None
         
     async def initialize(self):
         self._is_active = True
@@ -33,7 +33,7 @@ class CellularSubstrate:
         if self._substrate_task:
             self._substrate_task.cancel()
 
-    def submit_patch(self, patch: Dict[str, Any]):
+    def submit_patch(self, patch: dict[str, Any]):
         """Submit a granular state delta (e.g., {'motivation': {'energy': {'level': 90}}})."""
         self._patch_queue.put_nowait(patch)
 
@@ -71,7 +71,7 @@ class CellularSubstrate:
                 logger.error("🛑 [CELLULAR] Substrate crash: %s", e)
                 await asyncio.sleep(1.0)
 
-    def _apply_patch_recursive(self, target: Any, patch: Dict[str, Any]):
+    def _apply_patch_recursive(self, target: Any, patch: dict[str, Any]):
         """Deeply apply a dictionary patch to a dataclass or dict."""
         for key, value in patch.items():
             if isinstance(value, dict) and hasattr(target, key):
@@ -90,7 +90,7 @@ class CellularSubstrate:
                 else:
                     target[key] = value
 
-    def three_way_merge(self, base: Dict, ours: Dict, theirs: Dict) -> Dict:
+    def three_way_merge(self, base: dict, ours: dict, theirs: dict) -> dict:
         """
         Cooperative state merging. 
         Note: Currently used for manual conflict resolution if sequential patches 

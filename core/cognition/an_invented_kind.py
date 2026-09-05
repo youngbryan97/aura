@@ -29,9 +29,10 @@ a rule fitted to everything has been tested against nothing.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from collections.abc import Callable, Iterator, Sequence
+from dataclasses import dataclass
 from itertools import product
-from typing import Any, Callable, Iterator, Sequence
+from typing import Any
 
 __all__ = [
     "ENOUGH_HELD_BACK",
@@ -367,7 +368,7 @@ def _every_telling_state(size: int) -> Iterator[tuple[int, ...]]:
     doings that treat a pair differently — including the ties a set of distinct
     values can never produce.
     """
-    from itertools import permutations, product
+    from itertools import permutations
 
     yield from permutations(range(1, size + 1))
     yield from product((1, 2), repeat=size)

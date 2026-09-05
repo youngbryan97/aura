@@ -88,7 +88,7 @@ NON_EFFECT_VERBS: frozenset[str] = frozenset(
         "interpreted", "interpret", "judged", "judge", "assessed", "assess",
         "recognised", "recognized", "gathered", "sensed", "pondered",
         "appreciated", "enjoyed", "loved", "hated", "missed", "cared",
-        "meant", "aimed", "tried", "attempted", "struggled", "hesitated",
+        "aimed", "tried", "attempted", "struggled", "hesitated",
         # Speech acts — what a reply does BY being a reply
         "said", "say", "told", "tell", "asked", "ask", "answered", "answer",
         "replied", "reply", "responded", "respond", "mentioned", "mention",
@@ -100,14 +100,14 @@ NON_EFFECT_VERBS: frozenset[str] = frozenset(
         "summarised", "summarized", "outlined", "outline", "quoted", "quote",
         "listed", "clarified", "clarify", "emphasised", "emphasized",
         "repeated", "repeat", "phrased", "worded", "called", "referred",
-        "meant", "spoke", "wrote",  # "I wrote above that ..." — see below
+        "spoke", "wrote",  # "I wrote above that ..." — see below
         "discussed", "discuss", "covered", "cover", "addressed", "address",
         "raised", "raise", "framed", "frame", "restated", "paraphrased",
         # Stative / relational
         "was", "were", "am", "is", "had", "have", "has", "been", "became",
         "seemed", "appeared", "remained", "stayed", "existed", "belonged",
         "needed", "need", "required", "deserved", "owed", "lacked",
-        "kept", "keep", "held", "hold", "left", "meant",
+        "kept", "keep", "held", "hold", "left",
     }
 )
 

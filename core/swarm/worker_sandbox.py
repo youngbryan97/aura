@@ -8,7 +8,7 @@ import ast
 import json
 import logging
 import os
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger("Aura.WorkerSandbox")
 
@@ -23,7 +23,7 @@ class WorkerSandbox:
         abs_target = os.path.abspath(target_path)
         return abs_target.startswith(self.allowed_directory)
 
-    def execute_code_sandboxed(self, code_str: str, globals_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_code_sandboxed(self, code_str: str, globals_dict: dict[str, Any]) -> dict[str, Any]:
         """Execute Python snippets in a child interpreter, not the live process."""
         logger.warning("Executing sandboxed python payload in isolated child process")
         try:

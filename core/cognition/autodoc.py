@@ -27,13 +27,12 @@ assertion rather than the code.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
-import threading
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from core.cognition.library_compression import Abstraction
+from core.runtime.lockdep import checked_lock
 
 __all__ = ["Naming", "NamingTrial", "AutoDoc", "describe"]
 

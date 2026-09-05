@@ -2,12 +2,13 @@
 Safe dynamic loading mechanism for agent skills.
 Replaces insecure 'Genetic Mutation' self-modification.
 """
-from core.runtime.errors import record_degradation
 import importlib.util
 import logging
 import os
 import sys
-from typing import Any, Dict
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.PluginLoader")
 
@@ -32,7 +33,7 @@ class PluginManager:
             self.plugin_dir = os.path.abspath(f"autonomy_engine/{plugin_dir}")
             
         os.makedirs(self.plugin_dir, exist_ok=True)
-        self.loaded_plugins: Dict[str, Any] = {}
+        self.loaded_plugins: dict[str, Any] = {}
 
     def validate_plugin(self, file_path: str) -> bool:
         """Static analysis of plugin code before loading using AST.
@@ -40,7 +41,7 @@ class PluginManager:
         """
         import ast
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path) as f:
                 content = f.read()
                 tree = ast.parse(content)
             

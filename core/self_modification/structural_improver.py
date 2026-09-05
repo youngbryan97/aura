@@ -13,15 +13,13 @@ from __future__ import annotations
 import ast
 import json
 import logging
-import os
 import re
-import shutil
-import subprocess
 import sys
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
@@ -38,7 +36,7 @@ class StructuralIssue:
     message: str
     severity: float = 0.5
     repairable: bool = False
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -47,7 +45,7 @@ class StructuralRepairResult:
     changed: bool
     success: bool
     message: str
-    validation: Dict[str, Any] = field(default_factory=dict)
+    validation: dict[str, Any] = field(default_factory=dict)
 
 
 class StructuralImprover:
@@ -68,7 +66,7 @@ class StructuralImprover:
         self,
         root: Path | str,
         *,
-        ledger_path: Optional[Path] = None,
+        ledger_path: Path | None = None,
         validation_timeout_s: int = 60,
     ):
         self.root = Path(root).resolve()
@@ -76,8 +74,8 @@ class StructuralImprover:
         self.ledger_path = ledger_path or (self.root / "data" / "structural_improvements.jsonl")
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
 
-    def scan(self, *, max_files: int = 2000) -> List[StructuralIssue]:
-        issues: List[StructuralIssue] = []
+    def scan(self, *, max_files: int = 2000) -> list[StructuralIssue]:
+        issues: list[StructuralIssue] = []
         scanned = 0
         for path in self._iter_python_files():
             if scanned >= max_files:
@@ -94,14 +92,14 @@ class StructuralImprover:
         self,
         *,
         max_repairs: int = 3,
-        kinds: Optional[Iterable[str]] = None,
-    ) -> Dict[str, Any]:
+        kinds: Iterable[str] | None = None,
+    ) -> dict[str, Any]:
         allowed = set(kinds or [])
         issues = [
             issue for issue in self.scan()
             if issue.repairable and (not allowed or issue.kind in allowed)
         ]
-        results: List[StructuralRepairResult] = []
+        results: list[StructuralRepairResult] = []
         for issue in issues[:max(0, int(max_repairs))]:
             results.append(self.apply_known_repair(issue))
 
@@ -157,7 +155,7 @@ class StructuralImprover:
             return StructuralRepairResult(issue, True, True, "repair applied", validation)
         except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation("structural_improver", exc)
-            validation: Dict[str, Any] = {}
+            validation: dict[str, Any] = {}
             self._restore_original(path, original, validation=validation)
             return StructuralRepairResult(
                 issue,
@@ -206,7 +204,7 @@ class StructuralImprover:
         path: Path,
         original: str,
         *,
-        validation: Optional[Dict[str, Any]] = None,
+        validation: dict[str, Any] | None = None,
     ) -> bool:
         try:
             self._write_source(path, original, reason="rollback")
@@ -232,10 +230,10 @@ class StructuralImprover:
                 continue
             yield path
 
-    def _scan_file(self, path: Path) -> List[StructuralIssue]:
+    def _scan_file(self, path: Path) -> list[StructuralIssue]:
         rel = str(path.relative_to(self.root))
         text = path.read_text(encoding="utf-8")
-        issues: List[StructuralIssue] = []
+        issues: list[StructuralIssue] = []
 
         try:
             ast.parse(text, filename=str(path))
@@ -394,7 +392,7 @@ class StructuralImprover:
             text = text.replace(old, new)
         return text
 
-    def _validate_files(self, files: List[Path]) -> Dict[str, Any]:
+    def _validate_files(self, files: list[Path]) -> dict[str, Any]:
         try:
             result = get_subprocess_gateway().run(
                 [sys.executable, "-m", "py_compile", *[str(path) for path in files]],
@@ -415,7 +413,7 @@ class StructuralImprover:
             record_degradation("structural_improver", exc)
             return {"ok": False, "stderr": str(exc)}
 
-    def _append_ledger(self, summary: Dict[str, Any]) -> None:
+    def _append_ledger(self, summary: dict[str, Any]) -> None:
         payload = {"timestamp": time.time(), **summary}
         get_file_write_gateway().append_text(
             self.ledger_path,
@@ -431,7 +429,7 @@ class StructuralImprover:
             return False
 
 
-def get_structural_improver(root: Optional[Path | str] = None) -> StructuralImprover:
+def get_structural_improver(root: Path | str | None = None) -> StructuralImprover:
     if root is None:
         try:
             from core.config import config

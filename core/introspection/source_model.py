@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import ast
 import hashlib
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
-
+from typing import Any
 
 ARCHITECTURE_SUFFIXES = {
     ".py",
@@ -79,7 +79,7 @@ class SourceSymbol:
     end_line: int
     qualname: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -89,11 +89,11 @@ class SourceFile:
     sha256: str
     size_bytes: int
     language: str
-    imports: List[str] = field(default_factory=list)
-    symbols: List[SourceSymbol] = field(default_factory=list)
-    syntax_error: Optional[str] = None
+    imports: list[str] = field(default_factory=list)
+    symbols: list[SourceSymbol] = field(default_factory=list)
+    syntax_error: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["symbols"] = [symbol.to_dict() for symbol in self.symbols]
         return payload
@@ -102,7 +102,7 @@ class SourceFile:
 @dataclass(frozen=True)
 class SourceModel:
     root: str
-    files: List[SourceFile]
+    files: list[SourceFile]
 
     @property
     def file_count(self) -> int:
@@ -113,11 +113,11 @@ class SourceModel:
         return sum(len(file.symbols) for file in self.files)
 
     @property
-    def protected_symbols_present(self) -> Dict[str, bool]:
+    def protected_symbols_present(self) -> dict[str, bool]:
         names = {symbol.name for file in self.files for symbol in file.symbols}
         return {name: name in names for name in sorted(PROTECTED_SYMBOLS)}
 
-    def find_symbol(self, name: str) -> List[SourceSymbol]:
+    def find_symbol(self, name: str) -> list[SourceSymbol]:
         return [
             symbol
             for file in self.files
@@ -125,7 +125,7 @@ class SourceModel:
             if symbol.name == name or symbol.qualname.endswith(f".{name}")
         ]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "root": self.root,
             "file_count": self.file_count,
@@ -142,7 +142,7 @@ class SourceIntrospector:
         self.root = Path(root).resolve()
 
     def iter_architecture_files(self, *, max_files: int = 5000) -> Iterable[Path]:
-        candidates: List[Path] = []
+        candidates: list[Path] = []
         for path in self.root.rglob("*"):
             if not path.is_file():
                 continue
@@ -204,8 +204,8 @@ class SourceIntrospector:
                 syntax_error=f"{exc.msg}:line{exc.lineno or 0}",
             )
 
-        imports: List[str] = []
-        symbols: List[SourceSymbol] = []
+        imports: list[str] = []
+        symbols: list[SourceSymbol] = []
         module = rel[:-3].replace("/", ".")
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):

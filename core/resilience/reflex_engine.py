@@ -2,7 +2,6 @@ import logging
 import random
 import re
 import time
-from typing import Dict, List, Optional, Tuple
 
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
@@ -16,10 +15,10 @@ class NgramVoiceGenerator:
     
     def __init__(self, n: int = 2):
         self.n = n
-        self.ngrams: Dict[Tuple[str, ...], List[str]] = {}
+        self.ngrams: dict[tuple[str, ...], list[str]] = {}
         self.is_trained = False
         
-    def train_on_memories(self, memories: List[str]):
+    def train_on_memories(self, memories: list[str]):
         """Train the n-gram model on a list of strings."""
         if not memories:
             return
@@ -68,10 +67,10 @@ class NgramVoiceGenerator:
                     
         return self._detokenize(result)
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         return re.findall(r"[\w']+|[.,!?;]", text.lower())
 
-    def _detokenize(self, tokens: List[str]) -> str:
+    def _detokenize(self, tokens: list[str]) -> str:
         if not tokens: return ""
         tokens[0] = tokens[0].capitalize()
         text = tokens[0]
@@ -115,7 +114,7 @@ class ReflexEngine:
         self.tiny_brain.train_on_memories(base_samples)
         logger.info("🍄 [REFLEX] Tiny Brain voice primed (N-gram Engine)")
 
-    def check(self, message: str) -> Optional[str]:
+    def check(self, message: str) -> str | None:
         """Fast-path check for reflex triggers."""
         msg = message.lower().strip()
         if msg == "ping": return "Pong."
@@ -140,7 +139,7 @@ class ReflexEngine:
                 
         return self.tiny_brain.generate(prompt)
 
-    async def process_emergency_interrupt(self, signal: str, context: Optional[str] = None) -> bool:
+    async def process_emergency_interrupt(self, signal: str, context: str | None = None) -> bool:
         """Zero-latency handler for critical survival instincts and hardware/audio interrupts."""
         signal = signal.upper().strip()
         logger.warning("⚡ [SPINAL CORD] Emergency Interrupt Received: %s (Context: %s)", signal, context)

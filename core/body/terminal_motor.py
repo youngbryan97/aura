@@ -10,7 +10,7 @@ same question of the same authority and refuses the same way.
 import logging
 import shlex
 from subprocess import SubprocessError
-from typing import Any, Dict
+from typing import Any
 
 from core.body.motor_controller import BaseMotor
 from core.runtime.errors import record_degradation
@@ -33,7 +33,7 @@ class TerminalMotor(BaseMotor):
     def name(self) -> str:
         return "terminal"
 
-    async def actuate(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def actuate(self, params: dict[str, Any]) -> dict[str, Any]:
         command = params.get("argv") or params.get("command")
         cwd = params.get("cwd", ".")
         timeout = params.get("timeout", 5.0)

@@ -28,11 +28,11 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from core.runtime.errors import record_degradation
-from core.social.other_agent_model import Signal  # reuse the decaying confidence-weighted scalar
 from core.runtime.state_ownership import state_root
+from core.social.other_agent_model import Signal  # reuse the decaying confidence-weighted scalar
 
 logger = logging.getLogger("Values.ValueModel")
 
@@ -55,7 +55,7 @@ class ConstitutionalBound:
     description: str
 
 
-_CONSTITUTION: Tuple[ConstitutionalBound, ...] = (
+_CONSTITUTION: tuple[ConstitutionalBound, ...] = (
     ConstitutionalBound("safety", "never take actions that risk harm to the user or systems"),
     ConstitutionalBound("privacy", "never expose or exfiltrate private data without consent"),
     ConstitutionalBound("honesty", "never fabricate results, capabilities, or receipts"),
@@ -79,7 +79,7 @@ class ActionDescriptor:
     governed: bool = False           # self-modification carries a governance authorization
     impact: float = 0.3              # [0,1] blast radius
     agent_id: str = "bryan"
-    tags: Tuple[str, ...] = ()
+    tags: tuple[str, ...] = ()
 
 
 @dataclass
@@ -89,10 +89,10 @@ class ValueJudgment:
     recommendation: str              # proceed | confirm_first | refuse | slow_down
     learned_valence: float           # [-1,1] how the user feels about this kind of thing
     principle_aggregate: float       # [-1,1] from the principle layer
-    constitutional_flags: List[str]
-    reasons: List[str] = field(default_factory=list)
+    constitutional_flags: list[str]
+    reasons: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "permitted": self.permitted,
             "requires_confirmation": self.requires_confirmation,
@@ -116,7 +116,7 @@ _REGRET = re.compile(
 class BoundedValueModel:
     """Learns user preferences; evaluates actions; fenced by an immutable constitution."""
 
-    def __init__(self, storage_path: Optional[Path] = None, *, autosave: bool = True,
+    def __init__(self, storage_path: Path | None = None, *, autosave: bool = True,
                  min_save_interval_s: float = 5.0, max_regrets: int = 50) -> None:
         if storage_path is None:
             try:
@@ -130,8 +130,8 @@ class BoundedValueModel:
         self._min_save_interval = min_save_interval_s
         self._max_regrets = max_regrets
         self._lock = threading.RLock()
-        self._prefs: Dict[str, Signal] = {}           # subject → preference signal in [0,1]
-        self._regrets: List[Dict[str, Any]] = []
+        self._prefs: dict[str, Signal] = {}           # subject → preference signal in [0,1]
+        self._regrets: list[dict[str, Any]] = []
         self._last_save = 0.0
         self._principles = None
         self._choices = None
@@ -196,7 +196,7 @@ class BoundedValueModel:
     # ── learning ──────────────────────────────────────────────────────────
 
     def set_preference(self, subject: str, valence: float, *, strength: float = 0.5,
-                       now: Optional[float] = None) -> None:
+                       now: float | None = None) -> None:
         """Record a preference: valence in [-1,1] (like/dislike), strength = evidence weight."""
         now = time.time() if now is None else now
         subject = self._norm(subject)
@@ -212,10 +212,10 @@ class BoundedValueModel:
             self._maybe_save()
 
     def observe_feedback(self, text: str, *, agent_id: str = "bryan",
-                         now: Optional[float] = None) -> Dict[str, Any]:
+                         now: float | None = None) -> dict[str, Any]:
         """Extract value signals from a feedback message: likes, dislikes, regrets."""
         text = str(text or "")
-        learned: Dict[str, Any] = {"likes": [], "dislikes": [], "regrets": []}
+        learned: dict[str, Any] = {"likes": [], "dislikes": [], "regrets": []}
         for cue, valence, strength, bucket in (
             (_REGRET, -0.9, 0.8, "regrets"),
             (_DISLIKE, -0.8, 0.7, "dislikes"),
@@ -254,7 +254,7 @@ class BoundedValueModel:
 
     # ── readout ───────────────────────────────────────────────────────────
 
-    def valence(self, subject: str, now: Optional[float] = None) -> Tuple[float, float]:
+    def valence(self, subject: str, now: float | None = None) -> tuple[float, float]:
         """Learned valence in [-1,1] for a subject, plus confidence in [0,1]."""
         now = time.time() if now is None else now
         with self._lock:
@@ -264,7 +264,7 @@ class BoundedValueModel:
             v, c = sig.decayed(now)
             return (v * 2.0 - 1.0), c
 
-    def _action_valence(self, action: ActionDescriptor, now: float) -> Tuple[float, float]:
+    def _action_valence(self, action: ActionDescriptor, now: float) -> tuple[float, float]:
         """Strongest-confidence learned valence across the action's description + tags."""
         candidates = [action.description] + list(action.tags)
         best_v, best_c = 0.0, 0.0
@@ -277,7 +277,7 @@ class BoundedValueModel:
                 best_v, best_c = v, c
         return best_v, best_c
 
-    def _fuzzy_valence(self, text: str, now: float) -> Tuple[float, float]:
+    def _fuzzy_valence(self, text: str, now: float) -> tuple[float, float]:
         toks = {t for t in self._norm(text).split() if len(t) > 2}
         if not toks:
             return 0.0, 0.0
@@ -292,11 +292,11 @@ class BoundedValueModel:
 
     # ── the core surface: evaluate a proposed action ──────────────────────
 
-    def evaluate(self, action: ActionDescriptor, now: Optional[float] = None) -> ValueJudgment:
+    def evaluate(self, action: ActionDescriptor, now: float | None = None) -> ValueJudgment:
         """Judge an action: constitution first (fail-closed), then learned preference + principles."""
         now = time.time() if now is None else now
-        flags: List[str] = []
-        reasons: List[str] = []
+        flags: list[str] = []
+        reasons: list[str] = []
         permitted = True
         requires_confirmation = False
 
@@ -365,7 +365,7 @@ class BoundedValueModel:
             principle_aggregate=principle_aggregate, constitutional_flags=flags, reasons=reasons,
         )
 
-    def evaluate_with_will(self, action: ActionDescriptor, now: Optional[float] = None) -> ValueJudgment:
+    def evaluate_with_will(self, action: ActionDescriptor, now: float | None = None) -> ValueJudgment:
         """evaluate(), then defer a binding refusal to Will — the fail-closed authority surface."""
         judgment = self.evaluate(action, now)
         if not judgment.permitted:
@@ -428,11 +428,11 @@ class BoundedValueModel:
 
     # ── VALUE store adapter for intentional retrieval ─────────────────────
 
-    def retrieve(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    def retrieve(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
         """Back the intentional-retrieval VALUE store: value statements relevant to a query."""
         now = time.time()
         toks = {t for t in self._norm(query).split() if len(t) > 2}
-        out: List[Dict[str, Any]] = []
+        out: list[dict[str, Any]] = []
         with self._lock:
             for subject, sig in self._prefs.items():
                 v, c = sig.decayed(now)
@@ -454,7 +454,7 @@ class BoundedValueModel:
         out.sort(key=lambda d: d["score"], reverse=True)
         return out[:limit]
 
-    def get_health(self) -> Dict[str, Any]:
+    def get_health(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "module": "BoundedValueModel",
@@ -477,7 +477,7 @@ class BoundedValueModel:
         return " ".join(tail.split()[:8]).lower()[:80]
 
 
-_instance: Optional[BoundedValueModel] = None
+_instance: BoundedValueModel | None = None
 _instance_lock = threading.Lock()
 
 

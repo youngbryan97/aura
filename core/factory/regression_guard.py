@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("Aura.RegressionGuard")
 
@@ -16,13 +16,13 @@ class RegressionGuard:
     """Checks patches for potential quality, performance, or security regressions."""
 
     async def run_checks(
-        self, repo_path: str, patches: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        self, repo_path: str, patches: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """Scans patches for common regressions (e.g. infinite loops, unclosed file descriptors, print statements)."""
         logger.info("🛡️ RegressionGuard checking %d patches...", len(patches))
 
         regressions_found = 0
-        issues: List[Dict[str, Any]] = []
+        issues: list[dict[str, Any]] = []
 
         # High-risk patterns in code changes
         unsafe_patterns = [

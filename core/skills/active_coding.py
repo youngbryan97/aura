@@ -2,14 +2,14 @@
 Allows Aura to write and execute code in a sandbox to solve problems, 
 analyze data, or test hypotheses.
 """
-from core.runtime.errors import record_degradation
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
-from core.config import config
 from pydantic import BaseModel, Field
 
+from core.config import config
+from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill
 
 from ..sovereign.local_sandbox import LocalSandbox
@@ -38,7 +38,7 @@ def get_sandbox():
 logger = logging.getLogger("Skills.RunCode")
 
 
-def _diagnostic_failure_is_expected(context: Dict[str, Any] | None) -> bool:
+def _diagnostic_failure_is_expected(context: dict[str, Any] | None) -> bool:
     text = " ".join(
         str((context or {}).get(key) or "")
         for key in ("objective", "message", "prompt")
@@ -71,7 +71,7 @@ class RunCodeSkill(BaseSkill):
         super().__init__()
 
         
-    async def execute(self, params: RunCodeParams, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: RunCodeParams, context: dict[str, Any]) -> dict[str, Any]:
         """Execute python code.
         """
         # Legacy support

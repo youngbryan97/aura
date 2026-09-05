@@ -4,7 +4,7 @@ import contextlib
 import json
 import sqlite3
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -95,7 +95,7 @@ class SQLitePersistentState:
                 """,
                 (
                     str(skill_name),
-                    datetime.now(timezone.utc).isoformat(),
+                    datetime.now(UTC).isoformat(),
                     self._json_or_none(params),
                     str(status),
                     float(duration_ms or 0.0),

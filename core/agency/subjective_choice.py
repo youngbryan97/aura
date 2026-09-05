@@ -219,7 +219,7 @@ class ItemPreference:
         return payload
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ItemPreference":
+    def from_dict(cls, data: dict[str, Any]) -> ItemPreference:
         aliases = data.get("aliases", ())
         if isinstance(aliases, list):
             aliases = tuple(str(item) for item in aliases)

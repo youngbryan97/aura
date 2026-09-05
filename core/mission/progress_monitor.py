@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("Aura.ProgressMonitor")
 
@@ -26,15 +26,15 @@ class MissionProgressMonitor:
     """Records and analyzes mission progress across campaigns."""
 
     def __init__(self) -> None:
-        self.entries: List[ProgressEntry] = []
-        self._forecasts: Dict[str, Dict[str, Any]] = {}
+        self.entries: list[ProgressEntry] = []
+        self._forecasts: dict[str, dict[str, Any]] = {}
 
     def record_progress(self, campaign_id: str, milestone_id: str, event: str) -> None:
         entry = ProgressEntry(campaign_id=campaign_id, milestone_id=milestone_id, event=event)
         self.entries.append(entry)
         logger.debug("📈 Progress [%s] %s: %s", campaign_id, milestone_id, event)
 
-    def get_campaign_progress(self, campaign_id: str) -> List[ProgressEntry]:
+    def get_campaign_progress(self, campaign_id: str) -> list[ProgressEntry]:
         return [e for e in self.entries if e.campaign_id == campaign_id]
 
     def compute_velocity(self, campaign_id: str) -> float:
@@ -48,7 +48,7 @@ class MissionProgressMonitor:
             return 0.0
         return len(completed) / (duration / 60.0)
 
-    def forecast_completion(self, campaign_id: str, remaining_milestones: int) -> Dict[str, Any]:
+    def forecast_completion(self, campaign_id: str, remaining_milestones: int) -> dict[str, Any]:
         """Estimate time to completion based on current velocity."""
         velocity = self.compute_velocity(campaign_id)
         if velocity <= 0:
@@ -71,7 +71,7 @@ class MissionProgressMonitor:
         last_event_time = max(e.timestamp for e in events)
         return (time.time() - last_event_time) > stall_threshold_s
 
-    def summary(self, campaign_id: str) -> Dict[str, Any]:
+    def summary(self, campaign_id: str) -> dict[str, Any]:
         events = self.get_campaign_progress(campaign_id)
         return {
             "campaign_id": campaign_id,

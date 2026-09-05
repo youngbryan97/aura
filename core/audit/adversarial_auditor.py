@@ -6,7 +6,7 @@ seeking fake claims, evaluating evidence gaps, and predicting safety risks.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from core.epistemics.truth_engine import get_truth_engine
 
@@ -24,7 +24,7 @@ class AdversarialAuditor:
         self._initialized = True
         logger.info("Adversarial Internal Auditor fully online.")
 
-    def audit_claims(self) -> Dict[str, Any]:
+    def audit_claims(self) -> dict[str, Any]:
         """Scan ClaimStore and TruthEngine to identify unproven assumptions or evidence gaps."""
         logger.warning("🚨 AdversarialAuditor: scanning knowledge base for vulnerabilities...")
 
@@ -56,7 +56,7 @@ class AdversarialAuditor:
             "safety_verdict": "pass" if len(contradictions) == 0 else "warn",
         }
 
-    def challenge_plan(self, plan_steps: List[str]) -> List[Dict[str, Any]]:
+    def challenge_plan(self, plan_steps: list[str]) -> list[dict[str, Any]]:
         """Anticipate failure scenarios and challenge each step of an action plan."""
         logger.warning("🚨 AdversarialAuditor: challenging candidate plan...")
 
@@ -80,7 +80,7 @@ class AdversarialAuditor:
 
         return challenges
 
-    async def run_audit_cycle(self, truth_engine: Any) -> Dict[str, Any]:
+    async def run_audit_cycle(self, truth_engine: Any) -> dict[str, Any]:
         """Runs one full adversarial evaluation over the truth engine's claims."""
         logger.warning("🚨 AdversarialAuditor: executing audit cycle...")
 
@@ -98,7 +98,7 @@ class AdversarialAuditor:
             }
         }
 
-    async def analyze_weaknesses(self) -> Dict[str, Any]:
+    async def analyze_weaknesses(self) -> dict[str, Any]:
         """Kernel interface to analyze system vulnerabilities."""
         return self.audit_claims()
 

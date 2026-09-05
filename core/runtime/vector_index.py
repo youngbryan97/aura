@@ -5,21 +5,19 @@ This module rebuilds an index from the canonical memory write log so a
 corrupt/missing index can always be recovered.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from core.runtime.atomic_writer import read_json_envelope
+from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.VectorIndex")
 
 
-def rebuild_vector_index(*, source: Optional[Path] = None) -> Dict[str, Any]:
+def rebuild_vector_index(*, source: Path | None = None) -> dict[str, Any]:
     root = source or (state_root() / "memory")
     if not root.exists():
         return {"command": "rebuild-index", "ok": False, "error": "memory_root_missing"}

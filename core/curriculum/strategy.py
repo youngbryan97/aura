@@ -13,9 +13,8 @@ controller escalates to the next.  A success resets back to default.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Dict
 
 
 class Strategy(str, Enum):
@@ -46,7 +45,7 @@ class StrategyController:
         if patience < 1:
             raise ValueError("patience must be >= 1")
         self.patience = int(patience)
-        self._states: Dict[str, _BeliefState] = {}
+        self._states: dict[str, _BeliefState] = {}
 
     def _state(self, belief: str) -> _BeliefState:
         return self._states.setdefault(belief, _BeliefState())

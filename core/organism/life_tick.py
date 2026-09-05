@@ -7,28 +7,28 @@ kernel. This processor is retained for isolated scenario/evaluation worlds.
 import logging
 import time
 import uuid
-from typing import Dict, Any, Optional
+from typing import Any
 
-from core.organism.life_state import LifeState
-from core.runtime.errors import record_degradation
 from core.organism.life_events import (
-    PerceptionEvent,
-    BodyStateChanged,
-    BeliefUpdated,
-    GoalCreated,
-    AttentionSelected,
-    PlanProposed,
-    ActionRequested,
     ActionApproved,
     ActionExecuted,
+    ActionRequested,
+    AttentionSelected,
+    BeliefUpdated,
+    BodyStateChanged,
     ConsequenceVerified,
-    MemoryWritten,
-    WelfareUpdated,
-    ValueUpdated,
+    GoalCreated,
     IdentityUpdated,
-    RepairProposed,
+    MemoryWritten,
+    PerceptionEvent,
+    PlanProposed,
     PrivacyClass,
+    RepairProposed,
+    ValueUpdated,
+    WelfareUpdated,
 )
+from core.organism.life_state import LifeState
+from core.runtime.errors import record_degradation
 from core.runtime.version import VERSION
 
 logger = logging.getLogger("Organism.LifeTick")
@@ -48,12 +48,12 @@ _LIFE_TICK_RECOVERABLE_ERRORS = (
 class LifeTickProcessor:
     """Coordinates the exact chronological transitions of a single life tick."""
 
-    def __init__(self, container: Optional[Any] = None):
+    def __init__(self, container: Any | None = None):
         self.container = container
 
     async def _publish_event(self, topic: str, event: Any) -> None:
         try:
-            from core.event_bus import get_event_bus, EventPriority
+            from core.event_bus import EventPriority, get_event_bus
 
             eb = get_event_bus()
             if hasattr(event, "model_dump"):
@@ -71,7 +71,7 @@ class LifeTickProcessor:
         return f"{prefix}-{uuid.uuid4()}"
 
     @staticmethod
-    def _event_content(value: Any) -> Dict[str, Any]:
+    def _event_content(value: Any) -> dict[str, Any]:
         return value if isinstance(value, dict) else {"value": value}
 
     @staticmethod
@@ -324,12 +324,12 @@ class LifeTickProcessor:
         except _LIFE_TICK_RECOVERABLE_ERRORS as exc:
             record_degradation("organism.deliberate", exc)
 
-    async def _determine_action(self, state: LifeState) -> Optional[Dict[str, Any]]:
+    async def _determine_action(self, state: LifeState) -> dict[str, Any] | None:
         if not state.cognition.pending_actions:
             return None
         return state.cognition.pending_actions.pop(0)
 
-    async def _act_or_inhibit(self, state: LifeState, intent: Dict[str, Any]) -> Dict[str, Any]:
+    async def _act_or_inhibit(self, state: LifeState, intent: dict[str, Any]) -> dict[str, Any]:
         try:
             from core.executive.inhibition_system import ActionInhibitor
 
@@ -421,7 +421,7 @@ class LifeTickProcessor:
             record_degradation("organism.act", exc)
             return {"status": "failed", "error": str(exc), "intent": intent}
 
-    async def _verify_consequence(self, state: LifeState, receipt: Dict[str, Any]) -> None:
+    async def _verify_consequence(self, state: LifeState, receipt: dict[str, Any]) -> None:
         try:
             from core.body.action_postcondition import ActionPostconditionVerifier
 
@@ -475,7 +475,7 @@ class LifeTickProcessor:
         except _LIFE_TICK_RECOVERABLE_ERRORS as exc:
             record_degradation("organism.verify", exc)
 
-    async def _update_memory(self, state: LifeState, receipt: Optional[Dict[str, Any]]) -> None:
+    async def _update_memory(self, state: LifeState, receipt: dict[str, Any] | None) -> None:
         try:
             from core.memory.autobiography import AutobiographyEngine
 

@@ -1,6 +1,7 @@
-import time
 import logging
-from typing import List, Dict, Any, Optional
+import time
+from typing import Any
+
 from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("Aura.MetaCognition")
@@ -12,11 +13,11 @@ class MetaCognition:
     """
 
     def __init__(self):
-        self.error_history: List[Dict[str, Any]] = []
+        self.error_history: list[dict[str, Any]] = []
         self._last_review_at = 0.0
         logger.info("MetaCognition Loop initialized.")
 
-    async def review_decision(self, decision: str, outcome: str, context: Optional[Dict[str, Any]] = None):
+    async def review_decision(self, decision: str, outcome: str, context: dict[str, Any] | None = None):
         """
         Record and analyze a cognitive decision.
         """
@@ -37,7 +38,7 @@ class MetaCognition:
         else:
             logger.info("Cognitive success recorded: %s", decision)
 
-    async def detect_patterns(self) -> Dict[str, Any]:
+    async def detect_patterns(self) -> dict[str, Any]:
         """
         Analyze error history for recurring failure modes.
         """
@@ -71,7 +72,7 @@ class MetaCognition:
             # Clear error history after queuing to avoid rapid re-triggering
             self.error_history = self.error_history[-2:]
 
-    def get_health(self) -> Dict[str, Any]:
+    def get_health(self) -> dict[str, Any]:
         return {
             "errors": len(self.error_history),
             "last_review": self._last_review_at,

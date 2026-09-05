@@ -8,10 +8,11 @@ deterministic scoring: accuracy/F1 proxy, latency, token load, and duplication.
 from __future__ import annotations
 
 import time
-from collections import Counter, defaultdict, deque
+from collections import defaultdict, deque
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 
 class MemoryScope(str, Enum):
@@ -25,16 +26,16 @@ class MemoryScope(str, Enum):
 class VectorClock:
     counters: Mapping[str, int] = field(default_factory=dict)
 
-    def tick(self, actor: str) -> "VectorClock":
+    def tick(self, actor: str) -> VectorClock:
         data = dict(self.counters)
         data[actor] = data.get(actor, 0) + 1
         return VectorClock(data)
 
-    def merge(self, other: "VectorClock") -> "VectorClock":
+    def merge(self, other: VectorClock) -> VectorClock:
         keys = set(self.counters) | set(other.counters)
         return VectorClock({key: max(self.counters.get(key, 0), other.counters.get(key, 0)) for key in keys})
 
-    def happens_before(self, other: "VectorClock") -> bool:
+    def happens_before(self, other: VectorClock) -> bool:
         keys = set(self.counters) | set(other.counters)
         return all(self.counters.get(key, 0) <= other.counters.get(key, 0) for key in keys) and any(
             self.counters.get(key, 0) < other.counters.get(key, 0) for key in keys

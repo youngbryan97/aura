@@ -15,25 +15,22 @@ the numbers by a rule stated per scenario, not chosen after seeing them.
 
 from __future__ import annotations
 
-import json
-import time
 from collections import deque
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 from .governor import MorphBounds, MorphGovernor
 from .graph import EdgeType, MorphEdge, MorphGraph
 from .lineage import Lineage
-from .motifs import MotifLibrary, demand_fingerprint
+from .motifs import MotifLibrary
 from .policy import MorphPolicy, PolicyContext, build_policy
-from .proposal import Decision, TransitionKind
-from .substrate import PHYSICAL_LIKE, SimulationSubstrate, SubstratePhysics
-from .types import json_safe, stable_digest
+from .proposal import TransitionKind
+from .substrate import SimulationSubstrate, SubstratePhysics
+from .types import json_safe
 from .workload import (
     RoutedWorkload,
     WorkerProfile,
-    WorkloadMetrics,
     task_families,
 )
 

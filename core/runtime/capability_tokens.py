@@ -6,13 +6,11 @@ re-used across turns once consumed.
 """
 from __future__ import annotations
 
-
 import threading
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Optional
 
 
 class TokenStatus(str, Enum):
@@ -28,18 +26,18 @@ class CapabilityToken:
     capability: str
     scope: str
     issuer: str
-    receipt_id: Optional[str]
-    trace_id: Optional[str]
+    receipt_id: str | None
+    trace_id: str | None
     issued_at: float
     expires_at: float
     status: TokenStatus = TokenStatus.ISSUED
-    used_at: Optional[float] = None
-    revoked_at: Optional[float] = None
+    used_at: float | None = None
+    revoked_at: float | None = None
 
 
 class CapabilityTokenStore:
     def __init__(self):
-        self._tokens: Dict[str, CapabilityToken] = {}
+        self._tokens: dict[str, CapabilityToken] = {}
         self._lock = threading.RLock()
 
     def issue(
@@ -49,8 +47,8 @@ class CapabilityTokenStore:
         scope: str,
         issuer: str = "UnifiedWill",
         ttl_s: float = 3600.0,
-        receipt_id: Optional[str] = None,
-        trace_id: Optional[str] = None,
+        receipt_id: str | None = None,
+        trace_id: str | None = None,
     ) -> CapabilityToken:
         token = CapabilityToken(
             token_id=f"cap-{uuid.uuid4()}",
@@ -85,12 +83,12 @@ class CapabilityTokenStore:
                 tok.status = TokenStatus.REVOKED
                 tok.revoked_at = time.time()
 
-    def get(self, token_id: str) -> Optional[CapabilityToken]:
+    def get(self, token_id: str) -> CapabilityToken | None:
         with self._lock:
             return self._tokens.get(token_id)
 
 
-_global: Optional[CapabilityTokenStore] = None
+_global: CapabilityTokenStore | None = None
 
 
 def get_capability_token_store() -> CapabilityTokenStore:

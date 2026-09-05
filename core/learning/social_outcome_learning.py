@@ -86,7 +86,7 @@ class RelationalOutcome:
     boundary_respected: bool
     observed_after_s: float  # delay between episode and outcome measurement
 
-    def validated(self) -> "RelationalOutcome":
+    def validated(self) -> RelationalOutcome:
         if (
             isinstance(self.trust_delta, bool)
             or not isinstance(self.trust_delta, (int, float))
@@ -127,7 +127,7 @@ class SocialEpisode:
     honesty_flags: tuple[str, ...] = ()  # from the honesty/welfare organs
     information_asymmetry: bool = False
 
-    def validated(self) -> "SocialEpisode":
+    def validated(self) -> SocialEpisode:
         if not self.episode_id.strip():
             raise ValueError("social episode requires an id")
         if not self.parties:

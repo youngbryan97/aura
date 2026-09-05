@@ -1,20 +1,14 @@
 """Aura Zenith Resilience Framework: Circuit Breakers and Retries.
 """
 import asyncio
-import time
-import random
 import logging
-from typing import Callable, Any
-from core.exceptions import CircuitOpenError, LLMError, NetworkError
+import random
+from collections.abc import Callable
+
+from core.exceptions import LLMError, NetworkError
 
 logger = logging.getLogger(__name__)
 
-from .circuit_breaker import (
-    CircuitBreaker as SmartCircuitBreaker, 
-    PROMETHEUS_AVAILABLE, 
-    CIRCUIT_STATE, 
-    CIRCUIT_FAILURES
-)
 
 async def retry_with_backoff(func: Callable, max_attempts=5, base_delay=0.1):
     """Exponential backoff retry decorator logic."""

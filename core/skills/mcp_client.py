@@ -34,7 +34,7 @@ question is skipped for discovery, since listing tools invokes none of them.
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -65,20 +65,20 @@ class MCPInput(BaseModel):
             "server's tools, 'execute' to run one"
         ),
     )
-    connector: Optional[str] = Field(
+    connector: str | None = Field(
         None,
         description=(
             "Name of a configured connector (preferred). Resolves to the "
             "command the owner configured; use 'list_connectors' to see them."
         ),
     )
-    server_command: Optional[str] = Field(
+    server_command: str | None = Field(
         None,
         description="Explicit command to start a server, when no connector is configured.",
     )
-    server_args: List[str] = Field(default_factory=list, description="Arguments for the server command")
-    tool_name: Optional[str] = Field(None, description="The name of the tool to execute")
-    tool_args: Optional[Dict[str, Any]] = Field(None, description="Arguments for the tool")
+    server_args: list[str] = Field(default_factory=list, description="Arguments for the server command")
+    tool_name: str | None = Field(None, description="The name of the tool to execute")
+    tool_args: dict[str, Any] | None = Field(None, description="Arguments for the tool")
 
 
 class MCPClientSkill(BaseSkill):
@@ -92,7 +92,7 @@ class MCPClientSkill(BaseSkill):
     # flag is the declaration that matches it.
     requires_approval = True
 
-    async def execute(self, params: MCPInput, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: MCPInput, context: dict[str, Any]) -> dict[str, Any]:
         if isinstance(params, dict):
             try:
                 params = MCPInput(**params)
@@ -126,7 +126,7 @@ class MCPClientSkill(BaseSkill):
         # Resolve the connector by name before anything else. Requiring a
         # correct command line was what made this skill unreachable: the
         # model had to guess `npx -y @scope/server` and be exactly right.
-        env: Dict[str, str] = {}
+        env: dict[str, str] = {}
         if params.connector:
             connector = resolve_connector(params.connector)
             if connector is None:

@@ -1,11 +1,11 @@
 """core/memory/memory_court.py
 Vets candidate memory updates through truth validation and conflict resolution.
 """
-from typing import Dict, Any, List, Optional
 import logging
+from typing import Any
 
-from core.memory.source_provenance import SourceProvenanceResolver
 from core.memory.conflict_resolution import MemoryConflictResolver
+from core.memory.source_provenance import SourceProvenanceResolver
 
 logger = logging.getLogger("Memory.MemoryCourt")
 
@@ -17,7 +17,7 @@ class MemoryCourt:
         self.provenance = SourceProvenanceResolver()
         self.resolver = MemoryConflictResolver()
 
-    async def vet_fact(self, key: str, value: Any, origin: str, existing_facts: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def vet_fact(self, key: str, value: Any, origin: str, existing_facts: dict[str, Any]) -> dict[str, Any] | None:
         """Validates a new fact statement. Returns resolved fact if passed, or None to reject."""
         confidence = self.provenance.resolve_confidence(origin)
         

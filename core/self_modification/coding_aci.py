@@ -33,14 +33,14 @@ a second way to run a command is how a bypass gets built.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
 import ast
 import re
-import threading
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Definition",

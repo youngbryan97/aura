@@ -22,21 +22,21 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
-from core.self_improvement.interface_contract import (
-    LabResult,
-    PromotionVerdict,
-)
-from core.self_improvement.spec_extractor import SpecExtractor
+from core.runtime.service_registry import get_runtime_service, register_runtime_service
 from core.self_improvement.blinded_workspace import BlindedWorkspaceFactory
 from core.self_improvement.candidate_builder import CandidateBuilder, CodeGenerator
 from core.self_improvement.deterministic_comparator import DeterministicComparator
 from core.self_improvement.discrepancy_attributor import DiscrepancyAttributor
-from core.self_improvement.hardcoding_auditor import HardcodingAuditor
 from core.self_improvement.guardrail_auditor import GuardrailAuditor
+from core.self_improvement.hardcoding_auditor import HardcodingAuditor
+from core.self_improvement.interface_contract import (
+    LabResult,
+    PromotionVerdict,
+)
 from core.self_improvement.promotion_gate import LabPromotionGate
-from core.runtime.service_registry import get_runtime_service, register_runtime_service
+from core.self_improvement.spec_extractor import SpecExtractor
 from core.service_names import ServiceNames
 
 logger = logging.getLogger("Aura.ReimplementationLab")
@@ -51,8 +51,8 @@ class ReimplementationLab:
 
     def __init__(
         self,
-        project_root: Optional[str] = None,
-        generator: Optional[CodeGenerator] = None,
+        project_root: str | None = None,
+        generator: CodeGenerator | None = None,
         max_attempts: int = 3,
         test_timeout: int = 30,
         min_pass_rate: float = 0.95,
@@ -73,8 +73,8 @@ class ReimplementationLab:
     async def run_reconstruction(
         self,
         module_path: str,
-        max_attempts: Optional[int] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        max_attempts: int | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> LabResult:
         """Run the full reimplementation pipeline.
 
@@ -235,8 +235,8 @@ _INSTANCE: ReimplementationLab | None = None
 
 def get_reimplementation_lab(
     *,
-    project_root: Optional[str] = None,
-    generator: Optional[CodeGenerator] = None,
+    project_root: str | None = None,
+    generator: CodeGenerator | None = None,
     max_attempts: int = 3,
     test_timeout: int = 30,
     min_pass_rate: float = 0.95,
@@ -263,8 +263,8 @@ def get_reimplementation_lab(
 
 def register_reimplementation_lab(
     *,
-    project_root: Optional[str] = None,
-    generator: Optional[CodeGenerator] = None,
+    project_root: str | None = None,
+    generator: CodeGenerator | None = None,
     max_attempts: int = 3,
     test_timeout: int = 30,
     min_pass_rate: float = 1.0,

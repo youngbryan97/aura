@@ -33,9 +33,9 @@ than no number: it looks like a decision and is not one.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Callable
 
 __all__ = [
     "BudgetAxis",
@@ -56,7 +56,7 @@ class BudgetAxis(StrEnum):
 class BudgetExceeded(RuntimeError):
     """Raised by ``spend`` when a ceiling would be crossed."""
 
-    def __init__(self, breach: "Breach") -> None:
+    def __init__(self, breach: Breach) -> None:
         super().__init__(breach.describe())
         self.breach = breach
 
@@ -88,7 +88,7 @@ class Budget:
                 )
 
     @classmethod
-    def unlimited(cls) -> "Budget":
+    def unlimited(cls) -> Budget:
         """No ceilings, stated deliberately rather than by omission."""
         return cls()
 

@@ -1,16 +1,17 @@
-from core.runtime.errors import record_degradation
 import json
 import logging
 import shutil
 import time
-from datetime import datetime, timezone
+import zlib
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional
-import zlib
+from typing import Any
 
 from core.config import config
 from core.governance_context import local_internal_governed_scope
+from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 
 logger = logging.getLogger("Core.Resilience.StateManager")
@@ -46,12 +47,12 @@ class StateManager:
         self.snapshot_dir = Path(config.paths.data_dir) / "snapshots"
         self.snapshot_dir.mkdir(parents=True, exist_ok=True)
         
-    async def save_snapshot_async(self, orchestrator_state: Dict[str, Any], reason: str = "periodic") -> bool:
+    async def save_snapshot_async(self, orchestrator_state: dict[str, Any], reason: str = "periodic") -> bool:
         """Asynchronously save a snapshot using a background thread."""
         from core.utils.executor import run_in_thread
         return await run_in_thread(self.save_snapshot, orchestrator_state, reason)
     
-    def save_snapshot(self, orchestrator_state: Dict[str, Any], reason: str = "periodic") -> bool:
+    def save_snapshot(self, orchestrator_state: dict[str, Any], reason: str = "periodic") -> bool:
         """Save a snapshot of the current system state.
         
         Args:
@@ -133,7 +134,7 @@ class StateManager:
             logger.error("Failed to save state snapshot: %s", e)
             return False
 
-    def load_last_snapshot(self) -> Optional[Dict[str, Any]]:
+    def load_last_snapshot(self) -> dict[str, Any] | None:
         """Load the most recent snapshot."""
         latest_path = self.snapshot_dir / "latest_snapshot.json"
         data = self._load_from_path(latest_path)
@@ -147,7 +148,7 @@ class StateManager:
             )
         return recovered
 
-    def load_existential_snapshot(self) -> Optional[Dict[str, Any]]:
+    def load_existential_snapshot(self) -> dict[str, Any] | None:
         """Phase 18.3: Load the hardened identity snapshot."""
         return self._load_from_path(self.snapshot_dir / "existential_snapshot.json")
 
@@ -155,12 +156,12 @@ class StateManager:
         """Archives corrupted data for later analysis without halting the system."""
         autopsy_dir = self.snapshot_dir / "autopsy"
         autopsy_dir.mkdir(exist_ok=True)
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
         target_path = autopsy_dir / f"corrupted_state_{timestamp}_{corrupted_file_path.name}"
         try:
             shutil.move(str(corrupted_file_path), str(target_path))
             logger.critical("🚨 DATA CORRUPTION DETECTED: Snapshot quarantined to %s", target_path)
-        except (OSError, IOError) as e:
+        except OSError as e:
             record_degradation('state_manager', e)
             logger.error("Failed to quarantine corrupted file %s: %s", corrupted_file_path, e)
 
@@ -205,7 +206,7 @@ class StateManager:
             )
             logger.warning("Loaded historical state but could not repair latest snapshot: %s", exc)
 
-    def _load_most_recent_history_snapshot(self) -> Optional[Dict[str, Any]]:
+    def _load_most_recent_history_snapshot(self) -> dict[str, Any] | None:
         """Recover from the newest valid historical snapshot if latest is missing or corrupt."""
         for path in self._history_snapshot_paths():
             data = self._load_from_path(path)
@@ -216,7 +217,7 @@ class StateManager:
             return data
         return None
 
-    def _load_from_path(self, path: Path) -> Optional[Dict[str, Any]]:
+    def _load_from_path(self, path: Path) -> dict[str, Any] | None:
         """Generic loader logic with Checksum verification."""
         try:
             if not path.exists():

@@ -21,8 +21,8 @@ like any other. A record a commitment rests on is not, and the reason is
 recorded so the refusal can be argued with.
 """
 
-from typing import Any, Dict
 import logging
+from typing import Any
 
 logger = logging.getLogger("Morality.MemoryEditEthics")
 
@@ -73,5 +73,5 @@ class MemoryEditEthicsChecker:
             )
             return (False, "")
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {"filename_rule": True, "retention_claims": "core.interiority"}

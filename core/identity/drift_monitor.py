@@ -48,8 +48,8 @@ from __future__ import annotations
 import logging
 import re
 import time
-from dataclasses import dataclass, field
-from typing import Any, List, Tuple
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger("Aura.DriftMonitor")
 
@@ -172,11 +172,11 @@ class IdentityDriftMonitor:
 
     def __init__(self, window_size: int = 10):
         self.window_size = max(1, int(window_size))
-        self._drift_history: List[DriftSignal] = []
+        self._drift_history: list[DriftSignal] = []
         # Two windows deep, so a trend exists without a database.
-        self._response_history: List[str] = []
-        self._hits_per_response: List[int] = []
-        self._category_hits: List[dict[str, int]] = []
+        self._response_history: list[str] = []
+        self._hits_per_response: list[int] = []
+        self._category_hits: list[dict[str, int]] = []
         self._compiled = {
             name: [re.compile(p) for p in patterns]
             for name, patterns in self.DRIFT_PATTERNS.items()
@@ -197,7 +197,7 @@ class IdentityDriftMonitor:
                 counts[name] = 1
         return counts
 
-    def analyze_response(self, content: str) -> Tuple[float, List[DriftSignal]]:
+    def analyze_response(self, content: str) -> tuple[float, list[DriftSignal]]:
         """Record one response and return ``(density, signals)``.
 
         The float is the CURRENT WINDOW's density, not a per-response score

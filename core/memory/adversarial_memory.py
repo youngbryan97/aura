@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import hashlib
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -15,8 +16,8 @@ class MemoryProvenance:
     created_at: float = field(default_factory=time.time)
 
     @classmethod
-    def sign(cls, *, source: str, content: str, trust_score: float = 0.5) -> "MemoryProvenance":
-        digest = hashlib.sha256(f"{source}|{content}".encode("utf-8")).hexdigest()
+    def sign(cls, *, source: str, content: str, trust_score: float = 0.5) -> MemoryProvenance:
+        digest = hashlib.sha256(f"{source}|{content}".encode()).hexdigest()
         return cls(source=source, trust_score=max(0.0, min(1.0, trust_score)), signature=digest)
 
     def to_dict(self) -> dict[str, Any]:

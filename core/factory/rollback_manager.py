@@ -7,10 +7,10 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Any
 
-from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.runtime.errors import record_degradation
+from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 logger = logging.getLogger("Aura.RollbackManager")
 
@@ -19,7 +19,7 @@ class RollbackManager:
     """Safely manages isolated git workspaces, checkout, and rollback operations."""
 
     def __init__(self) -> None:
-        self._checkpoints: Dict[str, Dict[str, Any]] = {}
+        self._checkpoints: dict[str, dict[str, Any]] = {}
 
     async def create_workspace(self, repo_path: str, branch_name: str) -> bool:
         """Create a new branch in the target repo to isolate changes."""
@@ -92,5 +92,5 @@ class RollbackManager:
             )
             return False
 
-    def get_checkpoints(self) -> List[Dict[str, Any]]:
+    def get_checkpoints(self) -> list[dict[str, Any]]:
         return [{"id": k, **v} for k, v in self._checkpoints.items()]

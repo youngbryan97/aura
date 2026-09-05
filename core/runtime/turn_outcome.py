@@ -44,16 +44,16 @@ import contextlib
 import contextvars
 import enum
 import hashlib
-import threading
 import time
 import uuid
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Iterator, Mapping, Sequence
+from typing import Any
 
 from core.runtime.errors import record_degradation
-from core.security.structural_redaction import redact_structure, redact_text
 from core.runtime.lockdep import checked_lock
 from core.runtime.turn_progress import TurnProgress
+from core.security.structural_redaction import redact_structure, redact_text
 
 __all__ = [
     "OutcomeStatus",
@@ -667,7 +667,7 @@ class TurnOutcome:
 
     # ------------------------------------------------------------------ finalizer
 
-    def finalize(self, *, subsystem: str = "turn_outcome") -> "TurnReceipt":
+    def finalize(self, *, subsystem: str = "turn_outcome") -> TurnReceipt:
         """THE terminal finalizer. Computes status from evidence. Runs once.
 
         Not "asks the caller how it went". The whole failure this module
@@ -744,7 +744,7 @@ class TurnOutcome:
             return self._finalized
 
     @property
-    def receipt(self) -> "TurnReceipt | None":
+    def receipt(self) -> TurnReceipt | None:
         with self._lock:
             return self._receipt
 

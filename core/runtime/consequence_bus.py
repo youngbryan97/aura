@@ -16,8 +16,8 @@ import logging
 import threading
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
 
 from core.runtime.errors import record_degradation
 
@@ -133,8 +133,9 @@ class ConsequenceBus:
 
         # Automatically route to the central AuraEventBus
         try:
-            from core.event_bus import get_event_bus, EventPriority
             import dataclasses
+
+            from core.event_bus import EventPriority, get_event_bus
             event_dict = dataclasses.asdict(event)
             get_event_bus().publish_threadsafe(
                 topic="aura/events/consequences",

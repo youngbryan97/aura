@@ -28,9 +28,10 @@ import logging
 import math
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 
@@ -62,7 +63,7 @@ class MouthRegion:
     width: int
     height: int
 
-    def clamp(self, frame_height: int, frame_width: int) -> "MouthRegion":
+    def clamp(self, frame_height: int, frame_width: int) -> MouthRegion:
         x = max(0, min(self.x, frame_width - 2))
         y = max(0, min(self.y, frame_height - 2))
         return MouthRegion(

@@ -1,5 +1,6 @@
-from core.runtime.errors import record_degradation
 import logging
+
+from core.runtime.errors import record_degradation
 
 from ..brain.cognitive_engine import CognitiveEngine
 

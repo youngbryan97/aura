@@ -22,8 +22,9 @@ from __future__ import annotations
 
 import functools
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
@@ -53,9 +54,9 @@ class PersonalityIntegrationReceipt:
     anything — a caller ignoring the boolean simply ran unfiltered.
     """
 
-    installed: List[str] = field(default_factory=list)
-    skipped: List[str] = field(default_factory=list)
-    errors: List[str] = field(default_factory=list)
+    installed: list[str] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
     engine_available: bool = False
 
     @property
@@ -66,7 +67,7 @@ class PersonalityIntegrationReceipt:
     def __bool__(self) -> bool:
         return self.ok
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "ok": self.ok,
             "installed": list(self.installed),
@@ -225,14 +226,14 @@ def _patch_proactive_comm(comm, engine) -> bool:
     return True
 
 
-def uninstall_personality_systems(orchestrator) -> List[str]:
+def uninstall_personality_systems(orchestrator) -> list[str]:
     """Remove installed filters and restore the original callables.
 
     CP126 4504ac11: there was no uninstall path at all, so a re-integration
     stacked another closure over the previous one and retained stale engine
     and communication objects for the process lifetime.
     """
-    removed: List[str] = []
+    removed: list[str] = []
     queue = getattr(orchestrator, "reply_queue", None)
     put = getattr(queue, "put_nowait", None)
     original = getattr(put, _ORIGINAL, None)
@@ -249,7 +250,7 @@ def uninstall_personality_systems(orchestrator) -> List[str]:
     return removed
 
 
-def personality_integration_status(orchestrator) -> Dict[str, Any]:
+def personality_integration_status(orchestrator) -> dict[str, Any]:
     """Which filters are installed right now, by inspection."""
     queue = getattr(orchestrator, "reply_queue", None)
     comm = getattr(orchestrator, "proactive_comm", None)

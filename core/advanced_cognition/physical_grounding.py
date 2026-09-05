@@ -41,9 +41,10 @@ import math
 import re
 import time
 from collections import defaultdict, deque
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation

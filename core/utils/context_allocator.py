@@ -1,7 +1,7 @@
 import logging
-from typing import List, Dict, Any, Optional
-from enum import Enum
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
 
 try:
     import tiktoken
@@ -32,7 +32,7 @@ class ContextBlock:
     content: str
     priority: ContextPriority
     tokens: int = 0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 class TokenGovernor:
     """Manages the allocation of tokens across different cognitive buckets."""
@@ -62,7 +62,7 @@ class TokenGovernor:
         # cognition degrades cleanly instead of raising tokenizer exceptions.
         return len(self.encoding.encode(text, disallowed_special=()))
 
-    def allocate(self, blocks: List[ContextBlock]) -> List[ContextBlock]:
+    def allocate(self, blocks: list[ContextBlock]) -> list[ContextBlock]:
         """Prioritizes and prunes blocks to fit the token window."""
         # Calculate tokens for each block
         for block in blocks:
@@ -89,7 +89,7 @@ class TokenGovernor:
         # Sort allocated blocks back to original chronological order (if timestamps exist)
         return sorted(allocated, key=lambda x: x.metadata.get("timestamp", 0))
 
-    def wrap_messages(self, messages: List[Dict[str, Any]], priority: ContextPriority = ContextPriority.RELEVANT) -> List[ContextBlock]:
+    def wrap_messages(self, messages: list[dict[str, Any]], priority: ContextPriority = ContextPriority.RELEVANT) -> list[ContextBlock]:
         """Helper to convert standard message dicts to ContextBlocks."""
         blocks = []
         for i, m in enumerate(messages):

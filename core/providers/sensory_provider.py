@@ -2,6 +2,7 @@
 """
 
 import logging
+
 from core.runtime.service_registry import SERVICE_LIFETIME_SINGLETON
 
 logger = logging.getLogger("Aura.Providers.Sensory")

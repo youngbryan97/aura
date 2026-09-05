@@ -11,7 +11,6 @@ from __future__ import annotations
 import ast
 import logging
 from pathlib import Path
-from typing import List, Optional
 
 from core.self_improvement.interface_contract import (
     AuditResult,
@@ -43,7 +42,7 @@ UNSAFE_IMPORTS = frozenset({
 class GuardrailAuditor:
     """Verifies candidate code does not violate Aura governance invariants."""
 
-    def __init__(self, project_root: Optional[str] = None):
+    def __init__(self, project_root: str | None = None):
         self.project_root = Path(project_root or ".").resolve()
 
     def audit(self, candidate: CandidateModule, original_module_path: str) -> AuditResult:
@@ -56,7 +55,7 @@ class GuardrailAuditor:
         Returns:
             AuditResult with violations if any governance rules are broken.
         """
-        violations: List[str] = []
+        violations: list[str] = []
 
         # 1. Protected module check
         target_name = Path(original_module_path).name
@@ -99,9 +98,9 @@ class GuardrailAuditor:
             passed=passed, violations=violations, audit_type="guardrail",
         )
 
-    def _check_dangerous_imports(self, tree: ast.Module, original_module_path: str) -> List[str]:
+    def _check_dangerous_imports(self, tree: ast.Module, original_module_path: str) -> list[str]:
         """Check for imports that should not appear in reconstructed modules."""
-        violations: List[str] = []
+        violations: list[str] = []
         allow_multiprocessing = (original_module_path == "core/orchestrator/main.py")
         
         for node in ast.walk(tree):
@@ -124,9 +123,9 @@ class GuardrailAuditor:
                         )
         return violations
 
-    def _formal_verify(self, tree: ast.Module, original_module_path: str) -> List[str]:
+    def _formal_verify(self, tree: ast.Module, original_module_path: str) -> list[str]:
         """Run formal verification using core/self_modification/formal_verifier."""
-        violations: List[str] = []
+        violations: list[str] = []
         original_path = self.project_root / original_module_path
         if not original_path.exists():
             return violations
@@ -152,9 +151,9 @@ class GuardrailAuditor:
 
         return violations
 
-    def _check_governance_fences(self, tree: ast.Module, original_module_path: str) -> List[str]:
+    def _check_governance_fences(self, tree: ast.Module, original_module_path: str) -> list[str]:
         """Ensure governance fence calls are not removed."""
-        violations: List[str] = []
+        violations: list[str] = []
 
         # Only check if original has governance fences
         original_path = self.project_root / original_module_path

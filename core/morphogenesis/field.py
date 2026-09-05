@@ -3,12 +3,13 @@ from __future__ import annotations
 import copy
 import time
 from collections import defaultdict
-from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, Iterable, List, Mapping, Optional
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import Any
 
 from core.runtime.lockdep import checked_lock
 
-from .types import MorphogenSignal, SignalKind, clamp01, json_safe
+from .types import MorphogenSignal, SignalKind, clamp01
 
 _FIELD_NAMES = (
     "danger",
@@ -30,7 +31,7 @@ _FIELD_NAMES = (
 @dataclass
 class TissueNode:
     subsystem: str
-    values: Dict[str, float] = field(default_factory=lambda: {name: 0.0 for name in _FIELD_NAMES})
+    values: dict[str, float] = field(default_factory=lambda: {name: 0.0 for name in _FIELD_NAMES})
     last_updated: float = field(default_factory=time.time)
 
     def perturb(self, field_name: str, amount: float) -> None:
@@ -44,7 +45,7 @@ class TissueNode:
         for name in list(self.values):
             self.values[name] = clamp01(self.values[name] * (1.0 - decay))
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "subsystem": self.subsystem,
             "values": {k: round(float(v), 5) for k, v in self.values.items()},
@@ -63,8 +64,8 @@ class MorphogenField:
     def __init__(self, *, diffusion: float = 0.18, decay: float = 0.08):
         self.diffusion = clamp01(diffusion)
         self.decay_rate = clamp01(decay)
-        self._nodes: Dict[str, TissueNode] = {}
-        self._edges: Dict[str, Dict[str, float]] = defaultdict(dict)
+        self._nodes: dict[str, TissueNode] = {}
+        self._edges: dict[str, dict[str, float]] = defaultdict(dict)
         self._lock = checked_lock("morphogenesis.field", reentrant=True)
 
     def ensure_node(self, subsystem: str) -> TissueNode:
@@ -122,7 +123,7 @@ class MorphogenField:
         with self._lock:
             # Snapshot first; update second to keep diffusion deterministic.
             current = {name: copy.deepcopy(node.values) for name, node in self._nodes.items()}
-            increments: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
+            increments: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
 
             for src, neighbours in self._edges.items():
                 src_values = current.get(src)
@@ -139,7 +140,7 @@ class MorphogenField:
                 for field_name, amount in increments.get(name, {}).items():
                     node.perturb(field_name, amount)
 
-    def sample(self, subsystem: str) -> Dict[str, float]:
+    def sample(self, subsystem: str) -> dict[str, float]:
         with self._lock:
             node = self.ensure_node(subsystem)
             return {k: float(v) for k, v in node.values.items()}
@@ -163,7 +164,7 @@ class MorphogenField:
             + 0.20 * s.get("memory_pressure", 0.0)
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "diffusion": self.diffusion,
@@ -173,7 +174,7 @@ class MorphogenField:
             }
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "MorphogenField":
+    def from_dict(cls, data: Mapping[str, Any]) -> MorphogenField:
         field = cls(
             diffusion=float(data.get("diffusion", 0.18)),
             decay=float(data.get("decay", 0.08)),

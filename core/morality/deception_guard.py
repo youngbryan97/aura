@@ -3,7 +3,7 @@ Constitutional honesty guard blocking false claims of proven subjective consciou
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any
 
 from core.runtime.errors import record_degradation
 

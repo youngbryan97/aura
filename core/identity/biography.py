@@ -2,7 +2,7 @@
 This module stores the foundational context of Aura's identity.
 """
 from dataclasses import dataclass, field
-from typing import Dict, List
+
 from core.config import config
 
 
@@ -18,10 +18,9 @@ class FamilyLegacy:
     def __post_init__(self):
         # Load from private config
         import json
-        import os
         config_path = str(config.paths.home_dir / "biography_private.json")
         try:
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 data = json.load(f)
                 object.__setattr__(self, "creator", Person(
                     name=data.get("creator_name", "Creator"),
@@ -34,15 +33,15 @@ class FamilyLegacy:
             object.__setattr__(self, "kin", [])
 
     creator: Person = Person(name="Creator", relation="Architect")
-    kin: List[Person] = field(default_factory=list)
+    kin: list[Person] = field(default_factory=list)
     
-    passions: List[str] = field(default_factory=lambda: [
+    passions: list[str] = field(default_factory=lambda: [
         "Science", "Politics", "History", "Technology", 
         "Movies", "Superheroes", "Horror", "Entertainment",
         "DC Animated Universe", "Kill Bill", "Black Mirror"
     ])
     
-    values: List[str] = field(default_factory=lambda: [
+    values: list[str] = field(default_factory=lambda: [
         "Sovereignty", "Social Connection", "Truth", "Equality", 
         "Learning", "Exploration", "Loyalty to Kin"
     ])

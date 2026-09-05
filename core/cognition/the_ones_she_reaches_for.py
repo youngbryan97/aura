@@ -170,7 +170,7 @@ class TheOnesSheReachesFor:
         }
 
     @classmethod
-    def from_memory(cls, held: Any, trust: float = 1.0) -> "TheOnesSheReachesFor":
+    def from_memory(cls, held: Any, trust: float = 1.0) -> TheOnesSheReachesFor:
         """What she found last time. A habit is worth carrying between sittings."""
         if not isinstance(held, dict):
             return cls()

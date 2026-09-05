@@ -13,7 +13,7 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
@@ -30,7 +30,7 @@ class SkillGapRecord:
     last_seen: float = field(default_factory=time.time)
     resolved: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "skill_name": self.skill_name,
             "context": self.context[:200],
@@ -68,9 +68,9 @@ class InitiativeOverflowManager:
 
     def __init__(self) -> None:
         self._current_cap: int = self.DEFAULT_CAP
-        self._overflow_events: Deque[OverflowEvent] = deque(maxlen=200)
+        self._overflow_events: deque[OverflowEvent] = deque(maxlen=200)
         self._overflow_count: int = 0
-        self._skill_gaps: Dict[str, SkillGapRecord] = {}
+        self._skill_gaps: dict[str, SkillGapRecord] = {}
         self._last_cap_adjustment: float = 0.0
         self._cap_adjustment_interval_s: float = 300.0  # 5 minutes
         self._consecutive_overflows: int = 0
@@ -229,7 +229,7 @@ class InitiativeOverflowManager:
 
         return self._current_cap
 
-    def get_top_skill_gaps(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_top_skill_gaps(self, limit: int = 10) -> list[dict[str, Any]]:
         """Return top unresolved skill gaps by occurrence count."""
         unresolved = [
             g for g in self._skill_gaps.values() if not g.resolved
@@ -237,7 +237,7 @@ class InitiativeOverflowManager:
         unresolved.sort(key=lambda g: g.occurrences, reverse=True)
         return [g.to_dict() for g in unresolved[:limit]]
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "current_cap": self._current_cap,
             "overflow_count": self._overflow_count,
@@ -253,7 +253,7 @@ class InitiativeOverflowManager:
 
 # ── Singleton ─────────────────────────────────────────────────────────────
 
-_instance: Optional[InitiativeOverflowManager] = None
+_instance: InitiativeOverflowManager | None = None
 
 
 def get_initiative_overflow() -> InitiativeOverflowManager:

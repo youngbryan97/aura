@@ -31,7 +31,7 @@ import logging
 import os
 import re
 import time
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger("Body.ActionPostcondition")
 
@@ -51,7 +51,7 @@ _SECRET_RE = re.compile(
 )
 
 
-def redact_telemetry(receipt: Any) -> Dict[str, Any]:
+def redact_telemetry(receipt: Any) -> dict[str, Any]:
     """A bounded, redacted view of an actuator receipt.
 
     CP126 ebc0d1eb: the FULL receipt was embedded in world state, so command
@@ -60,7 +60,7 @@ def redact_telemetry(receipt: Any) -> Dict[str, Any]:
     """
     if not isinstance(receipt, dict):
         return {"_shape": type(receipt).__name__}
-    safe: Dict[str, Any] = {}
+    safe: dict[str, Any] = {}
     for index, (key, value) in enumerate(receipt.items()):
         if index >= MAX_TELEMETRY_KEYS:
             safe["_truncated_keys"] = len(receipt) - MAX_TELEMETRY_KEYS
@@ -84,7 +84,7 @@ def redact_telemetry(receipt: Any) -> Dict[str, Any]:
     return safe
 
 
-def snapshot_path(path: Any) -> Dict[str, Any]:
+def snapshot_path(path: Any) -> dict[str, Any]:
     """Pre-action state of a filesystem target.
 
     CP126 92b64654: there was no pre-action snapshot at all, so no
@@ -107,7 +107,7 @@ def snapshot_path(path: Any) -> Dict[str, Any]:
     }
 
 
-async def snapshot_path_async(path: Any) -> Dict[str, Any]:
+async def snapshot_path_async(path: Any) -> dict[str, Any]:
     """:func:`snapshot_path` off the event loop.
 
     Stat plus a content digest is blocking I/O, and this verifier runs inside
@@ -131,12 +131,12 @@ class ActionPostconditionVerifier:
 
     async def verify(
         self,
-        receipt: Dict[str, Any],
+        receipt: dict[str, Any],
         state: Any,
         *,
-        before: Dict[str, Any] | None = None,
-        expected_effect: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        before: dict[str, Any] | None = None,
+        expected_effect: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Check an action's outcome against evidence outside the actuator.
 
         ``before`` is a :func:`snapshot_path` taken before the action;
@@ -151,12 +151,12 @@ class ActionPostconditionVerifier:
         # a claim to be corroborated, never as the finding.
         claimed_success = status == "success"
 
-        checks: list[Dict[str, Any]] = []
+        checks: list[dict[str, Any]] = []
         side_effects: list[str] = []
         path = receipt.get("path")
 
         # Every filesystem read happens here, once, off the event loop.
-        observed: Dict[str, Dict[str, Any]] = {}
+        observed: dict[str, dict[str, Any]] = {}
         for candidate in (path, (expected_effect or {}).get("path")):
             target = str(candidate or "").strip()
             if target and target not in observed:
@@ -224,10 +224,10 @@ class ActionPostconditionVerifier:
     @staticmethod
     def _verify_file(
         path: Any,
-        before: Dict[str, Any] | None,
-        observed: Dict[str, Dict[str, Any]],
+        before: dict[str, Any] | None,
+        observed: dict[str, dict[str, Any]],
         side_effects: list[str],
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Confirm a file effect against the filesystem.
 
         CP126 2468cc73: a write was labelled ``modified_file`` from the request
@@ -275,7 +275,7 @@ class ActionPostconditionVerifier:
         }
 
     @staticmethod
-    def _verify_terminal(receipt: Dict[str, Any], side_effects: list[str]) -> Dict[str, Any]:
+    def _verify_terminal(receipt: dict[str, Any], side_effects: list[str]) -> dict[str, Any]:
         """Read the process outcome from the receipt's exit code.
 
         CP126 4bf25067 (already closed): a missing exit_code defaulted to 0 —
@@ -311,11 +311,11 @@ class ActionPostconditionVerifier:
 
     @staticmethod
     def _verify_expectation(
-        expected: Dict[str, Any],
-        receipt: Dict[str, Any],
-        before: Dict[str, Any] | None,
-        observed: Dict[str, Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        expected: dict[str, Any],
+        receipt: dict[str, Any],
+        before: dict[str, Any] | None,
+        observed: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
         """Check a caller-declared expected effect (CP126 92b64654)."""
         target = str(expected.get("path") or receipt.get("path") or "").strip()
         if not target:
@@ -355,7 +355,7 @@ class ActionPostconditionVerifier:
 
     # -- ledger -----------------------------------------------------------
     @staticmethod
-    def _record(state: Any, verification: Dict[str, Any]) -> bool:
+    def _record(state: Any, verification: dict[str, Any]) -> bool:
         """Write the verification into the world model, guarded.
 
         CP126 36ae11a1: this wrote straight into ``state.world_model`` with no

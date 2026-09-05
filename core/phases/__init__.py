@@ -1,8 +1,8 @@
 # ruff: noqa: N999
-from collections.abc import Awaitable, Callable
 import importlib
 import importlib.util
 import sys
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

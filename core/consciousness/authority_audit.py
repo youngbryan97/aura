@@ -12,14 +12,12 @@ Queryable at any time via get_audit().verify() or the /audit endpoint.
 """
 from __future__ import annotations
 
-
 import hashlib
 import logging
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, Dict, List, Optional, Set
 
 from core.memory.retention_policy import working_history_retention_policy
 
@@ -48,7 +46,7 @@ class EffectRecord:
     effect_type: str          # response | memory_write | tool_execution | belief_update | expression | state_mutation
     source: str               # who produced this effect
     content_hash: str         # first 80 chars
-    receipt_id: Optional[str] # must match a receipt — None = unmatched
+    receipt_id: str | None # must match a receipt — None = unmatched
     matched: bool = False
 
 
@@ -68,10 +66,10 @@ class AuthorityAudit:
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._receipts: Deque[AuthorityReceipt] = deque(maxlen=_MAX_ENTRIES)
-        self._effects: Deque[EffectRecord] = deque(maxlen=_MAX_ENTRIES)
-        self._receipt_ids: Set[str] = set()  # fast lookup for matching
-        self._allow_ids: Set[str] = set()    # only ALLOW/CONSTRAIN/CRITICAL_PASS
+        self._receipts: deque[AuthorityReceipt] = deque(maxlen=_MAX_ENTRIES)
+        self._effects: deque[EffectRecord] = deque(maxlen=_MAX_ENTRIES)
+        self._receipt_ids: set[str] = set()  # fast lookup for matching
+        self._allow_ids: set[str] = set()    # only ALLOW/CONSTRAIN/CRITICAL_PASS
         self._total_receipts: int = 0
         self._total_effects: int = 0
         self._matched_count: int = 0
@@ -119,7 +117,7 @@ class AuthorityAudit:
         effect_type: str,
         source: str,
         content: str = "",
-        receipt_id: Optional[str] = None,
+        receipt_id: str | None = None,
     ) -> None:
         """Record an outward effect.
 
@@ -151,7 +149,7 @@ class AuthorityAudit:
 
     # ── Verification ─────────────────────────────────────────────────
 
-    def verify(self) -> Dict:
+    def verify(self) -> dict:
         """Return full audit report with exact provenance matching."""
         with self._lock:
             unmatched = [
@@ -178,7 +176,7 @@ class AuthorityAudit:
                 "verdict": "CLEAN" if self._unmatched_count == 0 else "UNMATCHED_EFFECTS_FOUND",
             }
 
-    def get_recent_receipts(self, n: int = 20) -> List[Dict]:
+    def get_recent_receipts(self, n: int = 20) -> list[dict]:
         with self._lock:
             return [
                 {
@@ -192,7 +190,7 @@ class AuthorityAudit:
                 for r in list(self._receipts)[-n:]
             ]
 
-    def get_recent_effects(self, n: int = 20) -> List[Dict]:
+    def get_recent_effects(self, n: int = 20) -> list[dict]:
         with self._lock:
             return [
                 {
@@ -206,13 +204,13 @@ class AuthorityAudit:
                 for e in list(self._effects)[-n:]
             ]
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         return self.verify()
 
 
 # ── Singleton ────────────────────────────────────────────────────────
 
-_instance: Optional[AuthorityAudit] = None
+_instance: AuthorityAudit | None = None
 _instance_lock = threading.Lock()
 
 

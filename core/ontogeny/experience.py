@@ -51,8 +51,8 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import LockRank, checked_lock
-from core.runtime.state_ownership import state_root
 from core.runtime.sqlite_support import connecting
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Ontogeny.Experience")
 

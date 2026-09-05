@@ -10,7 +10,6 @@ voltage is current times resistance.
 
 from __future__ import annotations
 
-import math
 from collections.abc import Iterable
 
 from core.engineering.analysis import Finding, register

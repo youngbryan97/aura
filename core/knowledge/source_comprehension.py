@@ -178,7 +178,7 @@ class SourceComprehension:
         }
 
     @classmethod
-    def from_dict(cls, payload: Any) -> "SourceComprehension":
+    def from_dict(cls, payload: Any) -> SourceComprehension:
         """Rebuild from :meth:`to_dict`, ignoring anything foreign.
 
         The read paths pass comprehension around as a plain dict because that

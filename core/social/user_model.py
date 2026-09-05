@@ -1,9 +1,10 @@
-from core.runtime.errors import record_degradation
 import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Social.UserModel")
 
@@ -12,7 +13,7 @@ class UserModel:
     Allows Aura to adapt her behavior to better serve the specific user.
     """
 
-    def __init__(self, storage_path: Optional[str] = None):
+    def __init__(self, storage_path: str | None = None):
         if storage_path is None:
             from core.config import config
             self.storage_path = Path(config.paths.data_dir) / "user_model.json"
@@ -31,7 +32,7 @@ class UserModel:
     def _load(self):
         if self.storage_path.exists():
             try:
-                with open(self.storage_path, 'r') as f:
+                with open(self.storage_path) as f:
                     self.data.update(json.load(f))
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('user_model', e)
@@ -52,7 +53,7 @@ class UserModel:
             record_degradation('user_model', e)
             logger.error("Failed to save user model: %s", e)
 
-    def update_from_interaction(self, input_text: str, response_text: str, metadata: Dict[str, Any] = None):
+    def update_from_interaction(self, input_text: str, response_text: str, metadata: dict[str, Any] = None):
         """Update the model based on a new interaction."""
         self.data["interaction_history_count"] += 1
         self.data["last_updated"] = time.time()

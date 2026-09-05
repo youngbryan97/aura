@@ -4,14 +4,14 @@ from __future__ import annotations
 import json
 import math
 from collections import Counter, defaultdict
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
 
 from .schemas import ActionCandidate, Episode, Observation, Outcome, clamp, jaccard, stable_hash
-
 
 #: Effects that cannot be undone, keyed by the action kind or capability the
 #: contract reports — NOT by a tag the caller chose to attach. CP126 aa324783:

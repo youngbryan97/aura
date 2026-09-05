@@ -33,12 +33,13 @@ import sqlite3
 import threading
 import time
 import uuid
+from collections.abc import Iterable
 from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
-from core.runtime.state_ownership import state_root
+from typing import Any
 
+from core.runtime.state_ownership import state_root
 
 SCHEMA_VERSION = 1
 
@@ -47,24 +48,24 @@ SCHEMA_VERSION = 1
 class PredictionRecord:
     prediction_id: str
     created_at: float
-    resolved_at: Optional[float]
+    resolved_at: float | None
     belief: str
     modality: str
     action: str
     expected: Any
     observed: Any
-    prior_prob: Optional[float]
-    posterior_prob: Optional[float]
-    prior_dist: Optional[Dict[str, float]]
-    posterior_dist: Optional[Dict[str, float]]
-    brier: Optional[float]
-    error: Optional[float]
-    intervention_id: Optional[str]
-    agent_state: Dict[str, Any] = field(default_factory=dict)
-    policy_change: Optional[str] = None
+    prior_prob: float | None
+    posterior_prob: float | None
+    prior_dist: dict[str, float] | None
+    posterior_dist: dict[str, float] | None
+    brier: float | None
+    error: float | None
+    intervention_id: str | None
+    agent_state: dict[str, Any] = field(default_factory=dict)
+    policy_change: str | None = None
     resolved: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "prediction_id": self.prediction_id,
             "created_at": self.created_at,
@@ -100,7 +101,7 @@ def _binary_brier(prior_prob: float, observed_truth: bool) -> float:
     return (float(prior_prob) - o) ** 2
 
 
-def _categorical_brier(prior_dist: Dict[str, float], observed_class: str) -> float:
+def _categorical_brier(prior_dist: dict[str, float], observed_class: str) -> float:
     """Multi-class Brier score in the standard formulation:
 
         BS = sum_c (p_c - o_c)^2
@@ -124,7 +125,7 @@ def _categorical_brier(prior_dist: Dict[str, float], observed_class: str) -> flo
 class PredictionLedger:
     """SQLite-backed durable ledger for predictions and outcomes."""
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         self.db_path = (
             Path(db_path)
             if db_path is not None
@@ -203,12 +204,12 @@ class PredictionLedger:
         modality: str,
         action: str,
         expected: Any,
-        prior_prob: Optional[float] = None,
-        prior_dist: Optional[Dict[str, float]] = None,
-        intervention_id: Optional[str] = None,
-        agent_state: Optional[Dict[str, Any]] = None,
-        prediction_id: Optional[str] = None,
-        created_at: Optional[float] = None,
+        prior_prob: float | None = None,
+        prior_dist: dict[str, float] | None = None,
+        intervention_id: str | None = None,
+        agent_state: dict[str, Any] | None = None,
+        prediction_id: str | None = None,
+        created_at: float | None = None,
     ) -> str:
         """Record a prediction before its outcome is known.
 
@@ -261,12 +262,12 @@ class PredictionLedger:
         prediction_id: str,
         *,
         observed: Any,
-        observed_truth: Optional[bool] = None,
-        observed_class: Optional[str] = None,
-        posterior_prob: Optional[float] = None,
-        posterior_dist: Optional[Dict[str, float]] = None,
-        policy_change: Optional[str] = None,
-        resolved_at: Optional[float] = None,
+        observed_truth: bool | None = None,
+        observed_class: str | None = None,
+        posterior_prob: float | None = None,
+        posterior_dist: dict[str, float] | None = None,
+        policy_change: str | None = None,
+        resolved_at: float | None = None,
     ) -> PredictionRecord:
         """Attach the observed outcome and compute Brier error.
 
@@ -345,7 +346,7 @@ class PredictionLedger:
     # ------------------------------------------------------------------
     # read path
     # ------------------------------------------------------------------
-    def get(self, prediction_id: str) -> Optional[PredictionRecord]:
+    def get(self, prediction_id: str) -> PredictionRecord | None:
         with self._lock, closing(self._connect()) as conn:
             row = conn.execute(
                 "SELECT * FROM predictions WHERE prediction_id = ?",
@@ -353,11 +354,11 @@ class PredictionLedger:
             ).fetchone()
         return self._row_to_record(row) if row is not None else None
 
-    def recent(self, limit: int = 50, *, resolved: Optional[bool] = None) -> List[PredictionRecord]:
+    def recent(self, limit: int = 50, *, resolved: bool | None = None) -> list[PredictionRecord]:
         if limit <= 0:
             return []
         clause = ""
-        params: Tuple[Any, ...] = ()
+        params: tuple[Any, ...] = ()
         if resolved is True:
             clause = " WHERE resolved = 1"
         elif resolved is False:
@@ -401,17 +402,17 @@ class PredictionLedger:
     def score_brier(
         self,
         *,
-        since: Optional[float] = None,
-        until: Optional[float] = None,
-        modality: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        since: float | None = None,
+        until: float | None = None,
+        modality: str | None = None,
+    ) -> dict[str, Any]:
         """Mean Brier loss over resolved predictions in a window.
 
         Returns a dict with ``count`` and ``mean_brier``.  When no rows
         match, ``mean_brier`` is None.
         """
         clauses = ["resolved = 1", "brier IS NOT NULL"]
-        params: List[Any] = []
+        params: list[Any] = []
         if since is not None:
             clauses.append("resolved_at >= ?")
             params.append(float(since))
@@ -435,9 +436,9 @@ class PredictionLedger:
         self,
         *,
         bins: int = 10,
-        since: Optional[float] = None,
-        until: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        since: float | None = None,
+        until: float | None = None,
+    ) -> dict[str, Any]:
         """Reliability diagram for *binary* predictions (prior_prob set).
 
         Returns a dict with ``bins`` (list of {lower, upper, count,
@@ -447,7 +448,7 @@ class PredictionLedger:
         if bins <= 0:
             raise PredictionLedgerError("bins must be positive")
         clauses = ["resolved = 1", "prior_prob IS NOT NULL"]
-        params: List[Any] = []
+        params: list[Any] = []
         if since is not None:
             clauses.append("resolved_at >= ?")
             params.append(float(since))
@@ -465,7 +466,7 @@ class PredictionLedger:
                 params,
             ).fetchall()
 
-        bin_data: List[Dict[str, Any]] = []
+        bin_data: list[dict[str, Any]] = []
         for i in range(bins):
             lo = i / bins
             hi = (i + 1) / bins
@@ -516,7 +517,7 @@ class PredictionLedger:
         return {"bins": bin_data, "ece": ece, "total": total}
 
     @staticmethod
-    def _coerce_truth(observed: Any) -> Optional[bool]:
+    def _coerce_truth(observed: Any) -> bool | None:
         """Best-effort extraction of a boolean truth value from the observed payload."""
         if isinstance(observed, bool):
             return observed
@@ -554,11 +555,11 @@ class PredictionLedger:
             yield self._row_to_record(r)
 
 
-_global_ledger: Optional[PredictionLedger] = None
+_global_ledger: PredictionLedger | None = None
 _singleton_lock = threading.RLock()
 
 
-def get_prediction_ledger(db_path: Optional[Path] = None) -> PredictionLedger:
+def get_prediction_ledger(db_path: Path | None = None) -> PredictionLedger:
     global _global_ledger
     with _singleton_lock:
         if _global_ledger is None:

@@ -16,8 +16,9 @@ module is built to catch.
 from __future__ import annotations
 
 import statistics
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 from core.discovery.code_eval import DiscoveryEvaluation, SafeCodeEvaluator
 from core.verification.embedder import HashEmbedder
@@ -29,17 +30,17 @@ class SelfConsistencyResult:
     mean_cosine: float
     pairs: int
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"ok": self.ok, "mean_cosine": self.mean_cosine, "pairs": self.pairs}
 
 
 @dataclass
 class InvarianceResult:
     ok: bool
-    similarities: List[float]
+    similarities: list[float]
     threshold: float
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "ok": self.ok,
             "similarities": list(self.similarities),
@@ -53,7 +54,7 @@ class ProofCarryingResult:
     has_assertion: bool
     sandbox: DiscoveryEvaluation
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "ok": self.ok,
             "has_assertion": self.has_assertion,
@@ -64,12 +65,12 @@ class ProofCarryingResult:
 @dataclass
 class SemanticVerificationReport:
     accepted: bool
-    self_consistency: Optional[SelfConsistencyResult] = None
-    invariance: Optional[InvarianceResult] = None
-    proof: Optional[ProofCarryingResult] = None
-    reasons: List[str] = field(default_factory=list)
+    self_consistency: SelfConsistencyResult | None = None
+    invariance: InvarianceResult | None = None
+    proof: ProofCarryingResult | None = None
+    reasons: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "accepted": self.accepted,
             "self_consistency": self.self_consistency.to_dict() if self.self_consistency else None,
@@ -83,8 +84,8 @@ class SemanticVerifier:
     def __init__(
         self,
         *,
-        embedder: Optional[HashEmbedder] = None,
-        code_evaluator: Optional[SafeCodeEvaluator] = None,
+        embedder: HashEmbedder | None = None,
+        code_evaluator: SafeCodeEvaluator | None = None,
         consistency_threshold: float = 0.72,
         invariance_threshold: float = 0.72,
     ):
@@ -98,13 +99,13 @@ class SemanticVerifier:
         self,
         outputs: Sequence[str],
         *,
-        threshold: Optional[float] = None,
+        threshold: float | None = None,
     ) -> SelfConsistencyResult:
         thr = self.consistency_threshold if threshold is None else float(threshold)
         if len(outputs) < 2:
             return SelfConsistencyResult(ok=True, mean_cosine=1.0, pairs=0)
         embeddings = [self.embedder.embed(o) for o in outputs]
-        sims: List[float] = []
+        sims: list[float] = []
         for i in range(len(embeddings)):
             for j in range(i + 1, len(embeddings)):
                 sims.append(self.embedder.cosine(embeddings[i], embeddings[j]))
@@ -116,7 +117,7 @@ class SemanticVerifier:
         original_answer: str,
         paraphrase_answers: Sequence[str],
         *,
-        threshold: Optional[float] = None,
+        threshold: float | None = None,
     ) -> InvarianceResult:
         thr = self.invariance_threshold if threshold is None else float(threshold)
         if not paraphrase_answers:
@@ -129,7 +130,7 @@ class SemanticVerifier:
         self,
         code: str,
         fn_name: str,
-        tests: Sequence[Tuple[Tuple[Any, ...], Any]],
+        tests: Sequence[tuple[tuple[Any, ...], Any]],
     ) -> ProofCarryingResult:
         has_assertion = "assert " in code or "assert(" in code
         sandbox = self.code_evaluator.evaluate(code, fn_name, tests)
@@ -140,9 +141,9 @@ class SemanticVerifier:
     def verify(
         self,
         *,
-        consistency_outputs: Optional[Sequence[str]] = None,
-        invariance: Optional[Tuple[str, Sequence[str]]] = None,
-        proof: Optional[Tuple[str, str, Sequence[Tuple[Tuple[Any, ...], Any]]]] = None,
+        consistency_outputs: Sequence[str] | None = None,
+        invariance: tuple[str, Sequence[str]] | None = None,
+        proof: tuple[str, str, Sequence[tuple[tuple[Any, ...], Any]]] | None = None,
         require: Sequence[str] = ("consistency", "invariance", "proof"),
     ) -> SemanticVerificationReport:
         """Run any subset of channels and combine.

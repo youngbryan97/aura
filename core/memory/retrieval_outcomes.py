@@ -42,9 +42,10 @@ counted it as such would drift confidently upward forever.
 from __future__ import annotations
 
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Iterable
+from typing import Any
 
 from core.runtime.lockdep import LockRank, checked_lock
 

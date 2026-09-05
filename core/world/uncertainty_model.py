@@ -1,7 +1,7 @@
 """core/world/uncertainty_model.py
 Models confidence thresholds, prediction surprise, and data uncertainty.
 """
-from typing import Dict, Any
+from typing import Any
 
 
 class UncertaintyModel:

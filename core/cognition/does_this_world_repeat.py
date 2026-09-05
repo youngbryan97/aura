@@ -106,7 +106,7 @@ class DoesItRepeat:
         }
 
     @classmethod
-    def from_memory(cls, held: Any) -> "DoesItRepeat":
+    def from_memory(cls, held: Any) -> DoesItRepeat:
         if not isinstance(held, dict):
             return cls()
         after: dict[tuple[str, str], dict[str, int]] = {}

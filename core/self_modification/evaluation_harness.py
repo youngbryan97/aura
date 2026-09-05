@@ -1,14 +1,14 @@
 """Evaluation Harness for Autonomous Self-Modification.
 Ensures that fixes actually solve the problem they claim to solve.
 """
-from core.runtime.errors import record_degradation
-import logging
-import asyncio
-from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List
 import ast
-import re
+import asyncio
 import hashlib
+import logging
+from pathlib import Path
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("SelfModification.EvaluationHarness")
 
@@ -25,7 +25,7 @@ class EvaluationHarness:
         logger.info("EvaluationHarness initialized")
 
     @staticmethod
-    def preflight_security_check(code: str) -> Tuple[bool, str]:
+    def preflight_security_check(code: str) -> tuple[bool, str]:
         """The 'Digital Metabolism' filter: 10-line high-speed security check.
         Rejects obviously dangerous or invalid code before it reaches the sandbox.
         """
@@ -72,7 +72,7 @@ class EvaluationHarness:
             record_degradation('evaluation_harness', e)
             return False, f"Preflight error: {e}"
 
-    async def create_weakness_probe(self, file_path: str, diagnosis: Dict[str, Any]) -> Optional[str]:
+    async def create_weakness_probe(self, file_path: str, diagnosis: dict[str, Any]) -> str | None:
         """Generate a Python script that reproduces the reported weakness.
         
         Args:
@@ -115,7 +115,7 @@ Return ONLY the Python code, no explanation, no markdown blocks.
             logger.error("Failed to generate weakness probe: %s", e)
             return None
 
-    async def evaluate_fix(self, fix: Any, diagnosis: Dict[str, Any]) -> Tuple[bool, str]:
+    async def evaluate_fix(self, fix: Any, diagnosis: dict[str, Any]) -> tuple[bool, str]:
         """Run the full Evaluation Harness loop."""
         
         # --- FAIL-FIRST: Preflight Check ---
@@ -160,7 +160,7 @@ Return ONLY the Python code, no explanation, no markdown blocks.
         else:
             return False, f"Fix failed to resolve the weakness. Probe still fails. Error: {success_results.get('error')}"
 
-    async def _run_probe_on_code(self, file_path: str, code_patch: str, probe_code: str, expect_pass: bool = False) -> Tuple[bool, Dict[str, Any]]:
+    async def _run_probe_on_code(self, file_path: str, code_patch: str, probe_code: str, expect_pass: bool = False) -> tuple[bool, dict[str, Any]]:
         """Helper to run a probe against a specific version of the code in the sandbox."""
         # This mirrors SandboxTester.test_fix but injected with our probe
         try:

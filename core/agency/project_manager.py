@@ -1,7 +1,7 @@
 """core/agency/project_manager.py
 Manages multi-day task scopes, hierarchies, and completion checklists.
 """
-from typing import Dict, List, Any
+from typing import Any
 
 
 class ProjectManager:
@@ -9,7 +9,7 @@ class ProjectManager:
 
     def __init__(self):
         # Maps project_id -> list of tasks
-        self._projects: Dict[str, List[Dict[str, Any]]] = {}
+        self._projects: dict[str, list[dict[str, Any]]] = {}
 
     def create_project(self, project_id: str) -> None:
         self._projects[project_id] = []

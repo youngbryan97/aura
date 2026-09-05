@@ -207,6 +207,10 @@ def gini(values: Sequence[float]) -> float:
     Reported next to every allocation because the total says nothing about the
     shape, and two allocations that spend the same budget can differ between
     everyone getting a little and one person getting everything.
+
+    Callers pass one entry per claimant including the ones who received
+    nothing. Dropping the zeros measures inequality among the funded, which
+    falls as the budget is concentrated on fewer people.
     """
     xs = sorted(max(0.0, float(v)) for v in values)
     n = len(xs)
@@ -311,7 +315,11 @@ class CareAllocator:
             reserved=float(budget) - spent,
             unmet=unmet,
             refused_for_floor=refused,
-            gini=gini(list(given.values())) if given else 0.0,
+            # Over every claimant, not only the funded ones. Excluding the
+            # people who got nothing makes concentrating the budget on fewer
+            # of them read as a fall in inequality, which is the opposite of
+            # what happened.
+            gini=gini([given.get(p.key, 0.0) for p in people]) if people else 0.0,
             priority=self.priority,
             at=moment,
         )

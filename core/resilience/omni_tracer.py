@@ -21,8 +21,7 @@ import sys
 import threading
 import time
 import traceback
-from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from core.governance_context import local_internal_governed_scope
 from core.runtime import resource_psutil as psutil
@@ -125,7 +124,7 @@ _HOOKED = False
 def _ensure_trace_dir():
     _TRACE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-def _get_system_context() -> Dict[str, Any]:
+def _get_system_context() -> dict[str, Any]:
     try:
         vm = psutil.virtual_memory()
         proc = psutil.Process(os.getpid())
@@ -168,10 +167,10 @@ def _omni_writer_loop():
                     source="resilience.omni_tracer.trace",
                 )
             del batch
-        except (OSError, IOError):
+        except OSError:
             time.sleep(1)
 
-def write_trace(source: str, error_type: str, message: str, trace: str = "", severity: Optional[str] = None):
+def write_trace(source: str, error_type: str, message: str, trace: str = "", severity: str | None = None):
     global _OMNI_THREAD
     if _OMNI_THREAD is None:
         with _OMNI_LOCK:
@@ -275,7 +274,7 @@ def _install_loop_handler(loop: asyncio.AbstractEventLoop) -> None:
     loop.set_exception_handler(_asyncio_exception_handler)
 
 
-def install_asyncio_exception_handler(loop: Optional[asyncio.AbstractEventLoop] = None) -> bool:
+def install_asyncio_exception_handler(loop: asyncio.AbstractEventLoop | None = None) -> bool:
     """Attach the Omni async exception sink to the active loop when available."""
     try:
         _install_loop_handler(loop or asyncio.get_running_loop())

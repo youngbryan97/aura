@@ -12,10 +12,11 @@ import hashlib
 import ipaddress
 import json
 import time
+from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -45,7 +46,7 @@ class SubstrateNodeSpec:
     consent_receipt: str = ""
     command: Sequence[str] = field(default_factory=tuple)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["mode"] = ExpansionMode(self.mode).value
         payload["command"] = list(self.command)
@@ -56,13 +57,13 @@ class SubstrateNodeSpec:
 class SubstrateExpansionPlan:
     objective: str
     proposer: str
-    nodes: List[SubstrateNodeSpec]
+    nodes: list[SubstrateNodeSpec]
     max_cpu_percent: float = 70.0
     max_memory_mb: int = 4096
-    aura_decision_trace: List[str] = field(default_factory=list)
+    aura_decision_trace: list[str] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["nodes"] = [node.to_dict() for node in self.nodes]
         payload["plan_hash"] = self.plan_hash
@@ -85,7 +86,7 @@ class NodeDecision:
     endpoint: str = ""
     worker_count: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -94,12 +95,12 @@ class SubstrateExpansionDecision:
     allowed: bool
     reason: str
     plan_hash: str
-    approved_nodes: List[NodeDecision]
-    blocked_nodes: List[NodeDecision]
-    runtime_manifest: Dict[str, Any]
+    approved_nodes: list[NodeDecision]
+    blocked_nodes: list[NodeDecision]
+    runtime_manifest: dict[str, Any]
     created_at: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "allowed": self.allowed,
             "reason": self.reason,
@@ -117,8 +118,8 @@ class SubstrateExpansionController:
     def __init__(
         self,
         *,
-        allowlisted_endpoints: Optional[Iterable[str]] = None,
-        capability_tokens: Optional[Iterable[str]] = None,
+        allowlisted_endpoints: Iterable[str] | None = None,
+        capability_tokens: Iterable[str] | None = None,
         max_total_workers: int = 4,
         max_cpu_percent: float = 75.0,
         max_memory_mb: int = 8192,
@@ -130,8 +131,8 @@ class SubstrateExpansionController:
         self.max_memory_mb = int(max_memory_mb)
 
     def evaluate(self, plan: SubstrateExpansionPlan) -> SubstrateExpansionDecision:
-        approved: List[NodeDecision] = []
-        blocked: List[NodeDecision] = []
+        approved: list[NodeDecision] = []
+        blocked: list[NodeDecision] = []
         remaining_workers = self.max_total_workers
 
         resource_reason = self._resource_reason(plan)
@@ -222,7 +223,7 @@ class SubstrateExpansionController:
             return "blocked:memory_budget_exceeded"
         return ""
 
-    def _manifest(self, plan: SubstrateExpansionPlan, approved: List[NodeDecision]) -> Dict[str, Any]:
+    def _manifest(self, plan: SubstrateExpansionPlan, approved: list[NodeDecision]) -> dict[str, Any]:
         return {
             "objective": plan.objective,
             "proposer": plan.proposer,

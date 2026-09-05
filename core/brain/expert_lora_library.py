@@ -101,7 +101,7 @@ def _applier_attaches_weights(applier: Any) -> bool:
     return bool(getattr(applier, "attaches_weights", True))
 
 
-def _attest_adapter_artifact(adapter: "LoRAAdapter") -> tuple[bool, str]:
+def _attest_adapter_artifact(adapter: LoRAAdapter) -> tuple[bool, str]:
     """Prove an adapter artifact exists and looks like an adapter.
 
     CP126 70c50967: registration accepted any nonempty name/path, so the
@@ -171,7 +171,7 @@ class LoRAAdapter:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "LoRAAdapter":
+    def from_dict(cls, data: dict[str, Any]) -> LoRAAdapter:
         """Build an adapter from untrusted manifest data.
 
         CP126 079e8448: deserialization validated nothing — a STRING supplied
@@ -192,7 +192,7 @@ class LoRAAdapter:
             created_at=_finite(data.get("created_at"), time.time(), minimum=0.0),
         )
 
-    def copy(self) -> "LoRAAdapter":
+    def copy(self) -> LoRAAdapter:
         """A detached snapshot.
 
         CP126 37e18573: registry reads handed out the INTERNAL instances, so a
@@ -290,7 +290,7 @@ class ExpertLoRALibrary:
         # say WHICH applier holds the weights, so a second worker saw the name
         # and returned True without loading anything there, and evictions were
         # sent through whichever applier happened to be calling.
-        self._resident: "OrderedDict[str, _Residency]" = OrderedDict()
+        self._resident: OrderedDict[str, _Residency] = OrderedDict()
         # In-flight async activations holding a reserved slot (CP126 be41d7a1).
         self._pending: dict[str, str] = {}
         self._load_manifest()
@@ -538,7 +538,7 @@ class ExpertLoRALibrary:
 
     def _restore_evicted(
         self,
-        restore: list[tuple[str, "_Residency"]],
+        restore: list[tuple[str, _Residency]],
         applier: Any,
     ) -> None:
         """Reload adapters evicted for an activation that then failed."""
@@ -636,7 +636,7 @@ class ExpertLoRALibrary:
         return adapter if self.activate(adapter.name) else None
 
     # ── async residency (live worker seam) ────────────────────────────────────
-    async def activate_async(self, name: str, applier: "AsyncAdapterApplier") -> bool:
+    async def activate_async(self, name: str, applier: AsyncAdapterApplier) -> bool:
         """Make an adapter resident through an ASYNC applier (worker IPC).
 
         Same residency contract as ``activate`` but the attach/detach I/O is
@@ -754,7 +754,7 @@ class ExpertLoRALibrary:
 
     async def _restore_evicted_async(
         self,
-        restore: list[tuple[str, "_Residency"]],
+        restore: list[tuple[str, _Residency]],
         applier: Any,
     ) -> None:
         for lru_name, entry in restore:
@@ -787,7 +787,7 @@ class ExpertLoRALibrary:
         self,
         objective: str,
         task_type: str,
-        applier: "AsyncAdapterApplier",
+        applier: AsyncAdapterApplier,
         *,
         base_model: str = "",
     ) -> LoRAAdapter | None:

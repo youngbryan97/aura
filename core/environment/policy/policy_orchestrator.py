@@ -5,19 +5,18 @@ CandidateGenerator → TacticalSimulator → ActionRanker → StrategicPolicy/HT
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
+from core.environment.belief_graph import EnvironmentBeliefGraph
 from core.environment.command import ActionIntent
-from core.environment.policy.candidate_generator import CandidateGenerator
+from core.environment.episode_manager import EpisodeManager
+from core.environment.homeostasis import Homeostasis
+from core.environment.parsed_state import ParsedState
 from core.environment.policy.action_ranker import ActionRanker
+from core.environment.policy.candidate_generator import CandidateGenerator
 from core.environment.policy.strategic_policy import StrategicPolicy
 from core.environment.policy.tactical_policy import TacticalPolicy
 from core.environment.simulation import TacticalSimulator
-from core.environment.parsed_state import ParsedState
-from core.environment.belief_graph import EnvironmentBeliefGraph
-from core.environment.homeostasis import Homeostasis
-from core.environment.episode_manager import EpisodeManager
 
 
 class PolicyOrchestrator:

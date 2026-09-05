@@ -11,7 +11,6 @@ Implements a LangGraph-inspired iterative research graph:
 Replaces single-shot web search for complex research queries.
 """
 
-from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -20,7 +19,9 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.DeepResearch")
 
@@ -32,21 +33,21 @@ class SearchResult:
     """Single search result with source metadata."""
     query: str
     content: str
-    sources: List[Dict[str, str]] = field(default_factory=list)
+    sources: list[dict[str, str]] = field(default_factory=list)
 
 
 @dataclass
 class ResearchState:
     """Full research pipeline state."""
     original_question: str
-    search_queries: List[str] = field(default_factory=list)
-    search_results: List[SearchResult] = field(default_factory=list)
-    knowledge_gaps: List[str] = field(default_factory=list)
-    follow_up_queries: List[str] = field(default_factory=list)
+    search_queries: list[str] = field(default_factory=list)
+    search_results: list[SearchResult] = field(default_factory=list)
+    knowledge_gaps: list[str] = field(default_factory=list)
+    follow_up_queries: list[str] = field(default_factory=list)
     loop_count: int = 0
     is_sufficient: bool = False
     final_answer: str = ""
-    all_sources: List[Dict[str, str]] = field(default_factory=list)
+    all_sources: list[dict[str, str]] = field(default_factory=list)
     synthesis_status: str = "pending"
     synthesis_detail: str = ""
     #: Did a PERSON ask for this research, or did curiosity start it?
@@ -163,7 +164,7 @@ async def generate_queries(
 async def web_research(
     state: ResearchState,
     search_fn: Any,
-    queries: List[str] = None,
+    queries: list[str] = None,
 ) -> ResearchState:
     """Node 2: Execute web searches in parallel for all queries.
 
@@ -351,7 +352,7 @@ async def run_deep_research(
     max_loops: int = MAX_RESEARCH_LOOPS,
     on_phase: Any = None,
     requested_by_user: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run the full deep research pipeline.
 
     Args:

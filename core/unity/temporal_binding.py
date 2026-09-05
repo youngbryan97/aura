@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
 import time
-from typing import Iterable, Optional
+from collections.abc import Iterable
+from dataclasses import dataclass
 
 from .unity_state import BoundContent, TemporalWindow
 
@@ -50,7 +50,7 @@ class TemporalBindingField:
             )
 
     @staticmethod
-    def _weighted_overlap(current_ids: list[str], previous_ids: Optional[list[str]]) -> float:
+    def _weighted_overlap(current_ids: list[str], previous_ids: list[str] | None) -> float:
         if not current_ids or not previous_ids:
             return 0.0
         current = set(current_ids)
@@ -65,8 +65,8 @@ class TemporalBindingField:
         contents: list[BoundContent],
         *,
         previous_temporal: TemporalWindow | None = None,
-        previous_content_ids: Optional[list[str]] = None,
-        now_ts: Optional[float] = None,
+        previous_content_ids: list[str] | None = None,
+        now_ts: float | None = None,
     ) -> TemporalWindow:
         now_ts = float(now_ts or time.time())
         self._ingest_contents(contents)

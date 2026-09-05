@@ -8,8 +8,9 @@ replace, or veto without pretending the action happened.
 from __future__ import annotations
 
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional, Set
+from typing import Any
 
 from .belief_state import EnvironmentBeliefState
 from .environment_parser import EnvironmentState
@@ -23,19 +24,19 @@ class ActionRequest:
     action: str
     source: str = "policy"
     reason: str = ""
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     expected_effect: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class ActionDecision:
     approved: bool
-    action: Optional[str]
+    action: str | None
     original_action: str
     reason: str
-    vetoes: List[str] = field(default_factory=list)
-    replacements: List[str] = field(default_factory=list)
+    vetoes: list[str] = field(default_factory=list)
+    replacements: list[str] = field(default_factory=list)
     risk_level: str = "safe"
     receipt_id: str = ""
 
@@ -50,14 +51,14 @@ class EnvironmentActionGateway:
     def __init__(
         self,
         *,
-        legal_actions: Optional[Iterable[str]] = None,
-        prompt_actions: Optional[Dict[str, str]] = None,
-        reversible_tags: Optional[Iterable[str]] = None,
+        legal_actions: Iterable[str] | None = None,
+        prompt_actions: dict[str, str] | None = None,
+        reversible_tags: Iterable[str] | None = None,
     ) -> None:
-        self.legal_actions: Optional[Set[str]] = set(legal_actions) if legal_actions else None
+        self.legal_actions: set[str] | None = set(legal_actions) if legal_actions else None
         self.prompt_actions = dict(prompt_actions or {})
         self.reversible_tags = {str(tag) for tag in (reversible_tags or {"inspect", "wait", "cancel", "retreat"})}
-        self.decisions: List[ActionDecision] = []
+        self.decisions: list[ActionDecision] = []
 
     def approve(
         self,
@@ -70,8 +71,8 @@ class EnvironmentActionGateway:
         belief: EnvironmentBeliefState,
     ) -> ActionDecision:
         action = str(request.action or "").strip()
-        vetoes: List[str] = []
-        replacements: List[str] = []
+        vetoes: list[str] = []
+        replacements: list[str] = []
 
         if not action:
             vetoes.append("empty_action")
@@ -142,7 +143,7 @@ class EnvironmentActionGateway:
         self.decisions = self.decisions[-1000:]
         return decision
 
-    def _prompt_replacement(self, state: EnvironmentState) -> Optional[str]:
+    def _prompt_replacement(self, state: EnvironmentState) -> str | None:
         prompt_text = " ".join(state.active_prompts).lower()
         for marker, action in self.prompt_actions.items():
             if marker.lower() in prompt_text:
@@ -157,8 +158,8 @@ class EnvironmentActionGateway:
     def _reason(
         approved: bool,
         action: str,
-        vetoes: List[str],
-        replacements: List[str],
+        vetoes: list[str],
+        replacements: list[str],
         risk: RiskProfile,
         goal: EmbodiedGoal,
         skill: SkillOption,

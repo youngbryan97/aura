@@ -1,7 +1,6 @@
 """core/welfare/distress_regulation.py
 Regulates and regulates homeostatic distress states.
 """
-from typing import Dict, Any
 
 
 class DistressRegulator:

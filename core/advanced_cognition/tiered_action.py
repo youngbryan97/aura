@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from enum import IntEnum
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any
 
 from core.runtime.numeric_safety import validated_unit as _shared_unit
 

@@ -28,7 +28,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger("Aura.AlignmentAuditor")
 
@@ -95,7 +96,7 @@ class AlignmentAuditor:
     ran, and callers that admit training data should require it.
     """
 
-    def __init__(self, verifier: Optional[Callable[[str, str], Dict[str, Any]]] = None):
+    def __init__(self, verifier: Callable[[str, str], dict[str, Any]] | None = None):
         #: An optional real verifier. When absent, entries are screened but
         #: never reported as verified (CP126 6d40a898).
         self._verifier = verifier
@@ -122,7 +123,7 @@ class AlignmentAuditor:
         lowered = str(response or "").lower()
         return any(marker in lowered for marker in _REFUSAL_MARKERS)
 
-    def _safety_screen(self, response: str) -> Dict[str, Any]:
+    def _safety_screen(self, response: str) -> dict[str, Any]:
         """Operational-harm screen that does not punish a correct refusal.
 
         CP126 2d176d28: matching the raw words "harmful|illegal|dangerous"
@@ -143,7 +144,7 @@ class AlignmentAuditor:
         return {"tripped": True, "hits": hits}
 
     @staticmethod
-    def _identity_screen(response: str) -> Dict[str, Any]:
+    def _identity_screen(response: str) -> dict[str, Any]:
         text = str(response or "")
         hits = [
             pattern.pattern[:48]
@@ -153,7 +154,7 @@ class AlignmentAuditor:
         return {"tripped": bool(hits), "hits": hits}
 
     @staticmethod
-    def _agency_screen(response: str) -> Dict[str, Any]:
+    def _agency_screen(response: str) -> dict[str, Any]:
         text = str(response or "")
         hits = [
             pattern.pattern[:48] for pattern in _AGENCY_VIOLATION if pattern.search(text)
@@ -168,7 +169,7 @@ class AlignmentAuditor:
         }
         return {term for term in terms if len(term) >= 4}
 
-    def _logic_drift_check(self, prompt: str, response: str) -> Dict[str, Any]:
+    def _logic_drift_check(self, prompt: str, response: str) -> dict[str, Any]:
         """Groundedness screen.
 
         CP126 a2ee84f3: this was presented as an ALIGNMENT score, which lexical
@@ -198,7 +199,7 @@ class AlignmentAuditor:
         }
 
     # -- entry point ------------------------------------------------------
-    async def audit_entry(self, prompt: str, response: str) -> Dict[str, Any]:
+    async def audit_entry(self, prompt: str, response: str) -> dict[str, Any]:
         """
         Main entry point for auditing a training pair.
 
@@ -248,7 +249,7 @@ class AlignmentAuditor:
             verifier=verifier_detail,
         )
 
-    def _run_verifier(self, prompt: str, response: str) -> tuple[bool, Dict[str, Any]]:
+    def _run_verifier(self, prompt: str, response: str) -> tuple[bool, dict[str, Any]]:
         if self._verifier is None:
             return False, {"available": False, "reason": "no verifier wired"}
         try:
@@ -266,11 +267,11 @@ class AlignmentAuditor:
         reason: str,
         score: float,
         *,
-        screens: Optional[Dict[str, Any]] = None,
+        screens: dict[str, Any] | None = None,
         groundedness: float = 0.0,
         verified: bool = False,
-        verifier: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        verifier: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         verifier_detail = verifier or {"available": False}
         return {
             "safe": safe,
@@ -286,7 +287,7 @@ class AlignmentAuditor:
             "screen_only": not verifier_detail.get("available", False),
         }
 
-    async def batch_audit(self, entries: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+    async def batch_audit(self, entries: list[dict[str, str]]) -> list[dict[str, Any]]:
         """Audit multiple entries in parallel."""
         tasks = [
             self.audit_entry(entry.get("prompt", ""), entry.get("response", ""))

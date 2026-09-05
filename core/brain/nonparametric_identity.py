@@ -102,7 +102,7 @@ class StoreIdentity:
         """Filesystem-safe name, width first so a human can read it."""
         return f"{self.dim}_{self.fingerprint()}"
 
-    def compatible_with(self, other: "StoreIdentity") -> tuple[bool, str]:
+    def compatible_with(self, other: StoreIdentity) -> tuple[bool, str]:
         """Whether vectors under ``other`` may be read under this identity."""
         if self.dim != other.dim:
             return False, f"dim {other.dim} != {self.dim}"

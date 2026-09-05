@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-import math
 import re
-from typing import Dict, Iterable, Optional
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 
 from .unity_state import BoundContent
 
@@ -53,7 +52,7 @@ class CoPresenceGraphSnapshot:
     edges: list[CoPresenceEdge]
     focus_id: str | None
     peripheral_ids: list[str]
-    metrics: Dict[str, float] = field(default_factory=dict)
+    metrics: dict[str, float] = field(default_factory=dict)
 
 
 class CoPresenceGraphBuilder:

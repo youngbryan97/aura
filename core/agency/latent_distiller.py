@@ -9,11 +9,12 @@ running them through a distillation process to extract permanent
 insights, beliefs, and vector memories.
 """
 
-from core.runtime.errors import record_degradation
-from core.runtime.service_registry import get_runtime_service
 import logging
 import time
-from typing import List, Dict, Any
+from typing import Any
+
+from core.runtime.errors import record_degradation
+from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("Aura.LatentDistiller")
 
@@ -27,7 +28,7 @@ class LatentSpaceDistiller:
         self._is_distilling = False
         logger.info("🌫️ LatentSpaceDistiller initialized (MIST/Pantheon pattern)")
 
-    async def distill_session(self, session_history: List[Dict[str, Any]]):
+    async def distill_session(self, session_history: list[dict[str, Any]]):
         """Asynchronously distills a session into core insights."""
         if self._is_distilling: return
         self._is_distilling = True
@@ -68,7 +69,7 @@ class LatentSpaceDistiller:
         finally:
             self._is_distilling = False
 
-    async def find_associative_leaps(self, query: str) -> List[str]:
+    async def find_associative_leaps(self, query: str) -> list[str]:
         """Identifies non-obvious links across different memory domains."""
         # This would use the vector DB's similarity search with high diversity
         return ["Potential link between [Topic A] and [Topic B] identified."]

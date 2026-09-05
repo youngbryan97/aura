@@ -14,7 +14,8 @@ Priority order (highest → lowest):
 import asyncio
 import logging
 import time
-from typing import Any, Callable, Coroutine, Dict, Optional
+from collections.abc import Callable, Coroutine
+from typing import Any, Optional
 
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
@@ -36,10 +37,10 @@ class DreamCoordinator:
 
     def __init__(self) -> None:
         self._lock: asyncio.Lock = asyncio.Lock()
-        self._last_run: Dict[str, float] = {}
-        self._running: Dict[str, bool] = {}
-        self._run_count: Dict[str, int] = {}
-        self._pending: Dict[str, Dict[str, Any]] = {}
+        self._last_run: dict[str, float] = {}
+        self._running: dict[str, bool] = {}
+        self._run_count: dict[str, int] = {}
+        self._pending: dict[str, dict[str, Any]] = {}
 
     async def run_if_due(
         self,
@@ -130,7 +131,7 @@ class DreamCoordinator:
             finally:
                 self._running[name] = False
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         return {
             "last_run_monotonic": {k: round(v, 1) for k, v in self._last_run.items()},
             "currently_running": {k: v for k, v in self._running.items() if v},

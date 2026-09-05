@@ -3,13 +3,13 @@
 Monitoring system health, technical debt, and recursive stability.
 """
 
+import logging
+import time
+from dataclasses import dataclass, field
+
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service, register_runtime_factory
 from core.utils.task_tracker import get_task_tracker
-import logging
-import time
-from typing import List
-from dataclasses import dataclass, field
 
 logger = logging.getLogger("Aura.SystemMonitor")
 
@@ -28,7 +28,7 @@ class SystemStateMonitor:
 
     def __init__(self):
         self.start_time = time.time()
-        self.health_history: List[SystemHealthState] = []
+        self.health_history: list[SystemHealthState] = []
 
     async def audit_stability(self) -> SystemHealthState:
         """Perform a deep audit of current system state."""
@@ -49,7 +49,7 @@ class SystemStateMonitor:
         
         OVERWHELM_THRESHOLD = 20
         if queue_size > OVERWHELM_THRESHOLD:
-            from core.brain.reasoning_queue import get_reasoning_queue, ReasoningPriority
+            from core.brain.reasoning_queue import ReasoningPriority, get_reasoning_queue
             logger.warning("🚨 [COGNITIVE OVERWHELM] Queue size %d exceeds threshold %d. Triggering reflex.", queue_size, OVERWHELM_THRESHOLD)
             rq = get_reasoning_queue()
             # Drop everything below HIGH (i.e. keep CRITICAL and HIGH)
@@ -75,9 +75,8 @@ class SystemStateMonitor:
         if stability < 0.6:
             logger.warning("Cognitive stability low: %s. Triggering dream cycle.", f"{stability:.2f}")
             try:
-                from core.scheduler import scheduler, TaskSpec
-                
                 from core.coordinators.dream_coordinator import get_dream_coordinator
+                from core.scheduler import TaskSpec, scheduler
                 coord = get_dream_coordinator()
                 
                 if not any(t.name == "dream_cycle" for t in scheduler.tasks):

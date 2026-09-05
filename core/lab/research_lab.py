@@ -11,14 +11,14 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from core.lab.hypothesis_engine import HypothesisEngine, Hypothesis
-from core.lab.literature_miner import LiteratureMiner
 from core.lab.experiment_designer import ExperimentDesigner
-from core.lab.simulation_runner import SimulationRunner
-from core.lab.result_interpreter import ResultInterpreter
+from core.lab.hypothesis_engine import Hypothesis, HypothesisEngine
+from core.lab.literature_miner import LiteratureMiner
 from core.lab.research_memory import ResearchMemory
+from core.lab.result_interpreter import ResultInterpreter
+from core.lab.simulation_runner import SimulationRunner
 
 logger = logging.getLogger("Aura.ResearchLab")
 
@@ -40,13 +40,13 @@ class ResearchCycle:
     topic: str
     stage: ResearchStage = ResearchStage.HYPOTHESIS
     started_at: float = field(default_factory=time.time)
-    hypothesis: Optional[Hypothesis] = None
-    mined_facts: List[Dict[str, Any]] = field(default_factory=list)
-    experiment_spec: Optional[Dict[str, Any]] = None
-    simulation_result: Optional[Dict[str, Any]] = None
-    conclusion: Optional[Dict[str, Any]] = None
-    next_step: Optional[str] = None
-    error: Optional[str] = None
+    hypothesis: Hypothesis | None = None
+    mined_facts: list[dict[str, Any]] = field(default_factory=list)
+    experiment_spec: dict[str, Any] | None = None
+    simulation_result: dict[str, Any] | None = None
+    conclusion: dict[str, Any] | None = None
+    next_step: str | None = None
+    error: str | None = None
 
 
 class ResearchLab:
@@ -59,10 +59,10 @@ class ResearchLab:
         self.simulator = SimulationRunner()
         self.interpreter = ResultInterpreter()
         self.memory = ResearchMemory()
-        self.cycles: Dict[str, ResearchCycle] = {}
+        self.cycles: dict[str, ResearchCycle] = {}
         self._cycle_counter = 0
 
-    async def execute_cycle(self, topic: str) -> Dict[str, Any]:
+    async def execute_cycle(self, topic: str) -> dict[str, Any]:
         """Execute a full scientific research loop on a topic."""
         self._cycle_counter += 1
         cycle = ResearchCycle(

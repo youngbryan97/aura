@@ -9,7 +9,7 @@ future grounded behaviour."
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 
@@ -26,7 +26,7 @@ class GroundingPlasticAdapter:
             seed=seed,
         )
 
-    def adapt_features(self, features: List[float]) -> List[float]:
+    def adapt_features(self, features: list[float]) -> list[float]:
         x = np.asarray(features, dtype=np.float32)
         y = self.layer.forward(x)
         norm = np.linalg.norm(y)
@@ -34,11 +34,11 @@ class GroundingPlasticAdapter:
             y = y / norm
         return y.tolist()
 
-    def update_from_reward(self, *, reward: float, modulation: float) -> Dict[str, Any]:
+    def update_from_reward(self, *, reward: float, modulation: float) -> dict[str, Any]:
         return self.layer.update(reward=reward, modulation=modulation)
 
     def reset(self) -> None:
         self.layer.reset_plastic_state()
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return self.layer.snapshot()

@@ -35,17 +35,16 @@ import json
 import logging
 import math
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any
 
-from core.runtime.errors import record_degradation
-from core.security.prompt_fencing import fence
-
+from core.autonomy.memory_persister import BeliefUpdate, FactRecord
 from core.autonomy.reasoning_trace import (
     parse_reasoning_response,
     reasoning_aware_prompt_prefix,
 )
-from core.autonomy.memory_persister import BeliefUpdate, FactRecord
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ReflectionLoop")
 
@@ -113,27 +112,27 @@ _NO_PRIORS_BLOCK = (
 @dataclass
 class ReflectionRecord:
     item_title: str
-    verification_answers: Dict[str, str] = field(default_factory=dict)
-    own_opinion: Optional[str] = None
-    critical_view_engaged: Optional[str] = None
+    verification_answers: dict[str, str] = field(default_factory=dict)
+    own_opinion: str | None = None
+    critical_view_engaged: str | None = None
     opinion_disagrees: bool = False
-    disagreement_locus: Optional[str] = None
-    resolved_threads: List[Dict[str, str]] = field(default_factory=list)
-    parked_threads: List[Dict[str, str]] = field(default_factory=list)
-    belief_updates: List[BeliefUpdate] = field(default_factory=list)
-    new_facts: List[FactRecord] = field(default_factory=list)
-    substrate_before: Dict[str, Any] = field(default_factory=dict)
-    substrate_after: Dict[str, Any] = field(default_factory=dict)
+    disagreement_locus: str | None = None
+    resolved_threads: list[dict[str, str]] = field(default_factory=list)
+    parked_threads: list[dict[str, str]] = field(default_factory=list)
+    belief_updates: list[BeliefUpdate] = field(default_factory=list)
+    new_facts: list[FactRecord] = field(default_factory=list)
+    substrate_before: dict[str, Any] = field(default_factory=dict)
+    substrate_after: dict[str, Any] = field(default_factory=dict)
     started_at: float = field(default_factory=time.time)
-    completed_at: Optional[float] = None
+    completed_at: float | None = None
     inference_failures: int = 0
     #: How much of the comprehension actually reached the prompts, and how
     #: much was cut. Long works could drive identity and belief changes from
     #: a prefix with nothing saying so.
-    digest_coverage: Dict[str, Any] = field(default_factory=dict)
+    digest_coverage: dict[str, Any] = field(default_factory=dict)
     #: Threads that arrived and came back in neither list. The module
     #: documents "nothing should remain dangling" and nothing enforced it.
-    unreconciled_threads: List[str] = field(default_factory=list)
+    unreconciled_threads: list[str] = field(default_factory=list)
     #: Prior beliefs actually retrieved before asking what changed.
     priors_consulted: int = 0
 
@@ -143,7 +142,7 @@ class ReflectionRecord:
     #: content moved her — only that something did.
     substrate_delta_attribution = "uncontrolled_before_after"
 
-    def substrate_delta(self) -> Dict[str, float]:
+    def substrate_delta(self) -> dict[str, float]:
         """The difference, which is NOT evidence that reflection caused it.
 
         See ``substrate_delta_attribution``. The exception list here used to
@@ -151,7 +150,7 @@ class ReflectionRecord:
         transport errors guarding an arithmetic conversion — so a malformed
         snapshot value raised straight out of report generation.
         """
-        out: Dict[str, float] = {}
+        out: dict[str, float] = {}
         for key in ("valence", "arousal", "dominance", "phi", "curiosity"):
             # Both sides must have been READ. `.get(key, 0.0)` on both meant a
             # channel nobody measured produced a delta of exactly 0.0 — "no
@@ -169,7 +168,7 @@ class ReflectionRecord:
             out[key] = a - b
         return out
 
-    def substrate_delta_report(self) -> Dict[str, Any]:
+    def substrate_delta_report(self) -> dict[str, Any]:
         """The delta with the caveat attached to it, for anything that stores it."""
         return {
             "delta": self.substrate_delta(),
@@ -192,12 +191,12 @@ class ReflectionLoop:
 
     def __init__(
         self,
-        inference: Optional[Any] = None,
-        substrate_reader: Optional[Callable[[], Dict[str, Any]]] = None,
+        inference: Any | None = None,
+        substrate_reader: Callable[[], dict[str, Any]] | None = None,
         enable_reasoning_trace: bool = True,
         *,
-        belief_reader: Optional[Callable[[str], Sequence[Any]]] = None,
-        episode_budget_s: Optional[float] = None,
+        belief_reader: Callable[[str], Sequence[Any]] | None = None,
+        episode_budget_s: float | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._infer = inference
@@ -285,7 +284,7 @@ class ReflectionLoop:
 
     # ── prior beliefs ────────────────────────────────────────────────────
 
-    def _prior_beliefs(self, title: str, comprehension: Any) -> List[str]:
+    def _prior_beliefs(self, title: str, comprehension: Any) -> list[str]:
         if self._belief_reader is None:
             return []
         try:
@@ -296,7 +295,7 @@ class ReflectionLoop:
                 action="belief-delta phase ran with no priors and cannot report a change",
             )
             return []
-        priors: List[str] = []
+        priors: list[str] = []
         for entry in raw:
             if isinstance(entry, str):
                 text = entry.strip()
@@ -321,8 +320,8 @@ class ReflectionLoop:
 
     @staticmethod
     def _reconcile_threads(
-        threads: Sequence[str], obj: Optional[Dict[str, Any]]
-    ) -> tuple[List[Dict[str, str]], List[Dict[str, str]], List[str]]:
+        threads: Sequence[str], obj: dict[str, Any] | None
+    ) -> tuple[list[dict[str, str]], list[dict[str, str]], list[str]]:
         """Every input thread ends in exactly one list.
 
         The prompt says "nothing should remain dangling" and nothing checked:
@@ -334,10 +333,10 @@ class ReflectionLoop:
         parked_raw = _list_of_dicts((obj or {}).get("parked"))
 
         remaining = list(threads)
-        resolved: List[Dict[str, str]] = []
-        parked: List[Dict[str, str]] = []
+        resolved: list[dict[str, str]] = []
+        parked: list[dict[str, str]] = []
 
-        def _take(entry: Dict[str, str]) -> Optional[str]:
+        def _take(entry: dict[str, str]) -> str | None:
             named = str(entry.get("thread", "")).strip()
             for candidate in remaining:
                 if candidate == named or (named and named in candidate) or (
@@ -382,10 +381,10 @@ class ReflectionLoop:
     async def _call_for_object(
         self,
         prompt: str,
-        on_failure: Optional[Callable[[], None]] = None,
+        on_failure: Callable[[], None] | None = None,
         *,
-        deadline: Optional[float] = None,
-    ) -> Optional[Dict[str, Any]]:
+        deadline: float | None = None,
+    ) -> dict[str, Any] | None:
         full_prompt = reasoning_aware_prompt_prefix(self._reasoning) + prompt
         raw = await self._call_llm(full_prompt, deadline=deadline)
         if not raw:
@@ -405,14 +404,14 @@ class ReflectionLoop:
         self,
         prompt: str,
         keys: Sequence[str],
-        on_failure: Optional[Callable[[], None]] = None,
+        on_failure: Callable[[], None] | None = None,
         *,
-        deadline: Optional[float] = None,
-    ) -> Dict[str, str]:
+        deadline: float | None = None,
+    ) -> dict[str, str]:
         obj = await self._call_for_object(prompt, on_failure, deadline=deadline)
         if not obj:
             return {k: "" for k in keys}
-        out: Dict[str, str] = {}
+        out: dict[str, str] = {}
         for k in keys:
             v = obj.get(k)
             if v is None:
@@ -421,10 +420,10 @@ class ReflectionLoop:
                 out[k] = str(v).strip()
         return out
 
-    async def _call_llm(self, prompt: str, *, deadline: Optional[float] = None) -> str:
+    async def _call_llm(self, prompt: str, *, deadline: float | None = None) -> str:
         if self._infer is None:
             return ""
-        allowance: Optional[float] = None
+        allowance: float | None = None
         if deadline is not None:
             allowance = deadline - self._clock()
             if allowance < self.MIN_PHASE_S:
@@ -469,7 +468,7 @@ class ReflectionLoop:
 
     # ── Substrate snapshot ───────────────────────────────────────────────
 
-    def _snapshot_substrate(self) -> Dict[str, Any]:
+    def _snapshot_substrate(self) -> dict[str, Any]:
         if self._substrate is None:
             return {}
         try:
@@ -486,7 +485,7 @@ class ReflectionLoop:
     MAX_CHECKPOINT_CHARS = 800
     MAX_UNIFIED_CHARS = 6000
 
-    def _build_digest(self, comprehension: Any) -> tuple[str, Dict[str, Any]]:
+    def _build_digest(self, comprehension: Any) -> tuple[str, dict[str, Any]]:
         """The digest, and an account of what did not fit.
 
         Eight checkpoints at 300 characters each and a 1500-character unified
@@ -495,7 +494,7 @@ class ReflectionLoop:
         checkpoints are sampled ACROSS the work rather than taken from the
         front, and the coverage is reported.
         """
-        parts: List[str] = []
+        parts: list[str] = []
         unified = str(getattr(comprehension, "unified_summary", "") or "")
         if unified:
             parts.append(f"Unified summary: {unified[: self.MAX_UNIFIED_CHARS]}")
@@ -539,14 +538,14 @@ class ReflectionLoop:
 
     def _parse_belief_updates(
         self, raw: Any, source_title: str, priors: Sequence[str] = ()
-    ) -> List[BeliefUpdate]:
+    ) -> list[BeliefUpdate]:
         """Belief revisions, with contradictions bound to real priors.
 
         ``contradicts_prior`` was accepted verbatim from the model, which had
         never been shown a prior belief. A claimed contradiction of something
         nobody retrieved is a new position, and is recorded as one.
         """
-        out: List[BeliefUpdate] = []
+        out: list[BeliefUpdate] = []
         if not isinstance(raw, list):
             return out
         prior_index = {p.strip().lower(): p for p in priors}
@@ -558,7 +557,7 @@ class ReflectionLoop:
             if not topic or not position:
                 continue
             claimed = r.get("contradicts_prior")
-            contradicts: List[str] = []
+            contradicts: list[str] = []
             if claimed and priors:
                 for candidate in [claimed] if isinstance(claimed, str) else list(claimed or []):
                     text = str(candidate).strip()
@@ -576,7 +575,7 @@ class ReflectionLoop:
             ))
         return out
 
-    def _parse_facts(self, raw: Any, source_title: str) -> List[FactRecord]:
+    def _parse_facts(self, raw: Any, source_title: str) -> list[FactRecord]:
         """Facts the model produced, recorded as what they are.
 
         These became FactRecords with the CONTENT TITLE as their domain and
@@ -586,7 +585,7 @@ class ReflectionLoop:
         came out of and an explicit statement that nothing verified it, and a
         fact with no evidence at all is not recorded.
         """
-        out: List[FactRecord] = []
+        out: list[FactRecord] = []
         if not isinstance(raw, list):
             return out
         for r in raw:
@@ -630,7 +629,7 @@ class ReflectionLoop:
 # ── Helpers ───────────────────────────────────────────────────────────────
 
 
-def _safe_json_object(text: str) -> Optional[Dict[str, Any]]:
+def _safe_json_object(text: str) -> dict[str, Any] | None:
     if not text:
         return None
     candidate = text.strip()
@@ -647,7 +646,7 @@ def _safe_json_object(text: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _evenly_sampled(items: Sequence[Any], limit: int) -> List[Any]:
+def _evenly_sampled(items: Sequence[Any], limit: int) -> list[Any]:
     """Up to `limit` items spread ACROSS the sequence, not taken off the front.
 
     The first eight checkpoints of a long work are its opening; identity and
@@ -692,17 +691,17 @@ def _confidence(value: Any, default: float = 0.5) -> float:
     return max(0.0, min(1.0, number))
 
 
-def _str_or_none(v: Any) -> Optional[str]:
+def _str_or_none(v: Any) -> str | None:
     if v is None:
         return None
     s = str(v).strip()
     return s if s else None
 
 
-def _list_of_dicts(v: Any) -> List[Dict[str, str]]:
+def _list_of_dicts(v: Any) -> list[dict[str, str]]:
     if not isinstance(v, list):
         return []
-    out: List[Dict[str, str]] = []
+    out: list[dict[str, str]] = []
     for item in v:
         if isinstance(item, dict):
             out.append({k: str(item.get(k, "")) for k in item})

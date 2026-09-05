@@ -19,15 +19,14 @@ a system that knows what it doesn't know is more trustworthy than one
 that confidently answers everything.
 """
 
-import asyncio
-import json
 import logging
 import sqlite3
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
 from core.runtime.sqlite_support import connecting
 
 logger = logging.getLogger("Core.Uncertainty")
@@ -69,10 +68,10 @@ class UncertaintyProfile:
 
     domain: str                                 # What topic is this about
     confidence: float                           # 0.0-1.0
-    uncertainty_types: List[UncertaintyType]    # Why it's uncertain
-    known_knowns: List[str] = field(default_factory=list)   # What IS known
-    known_unknowns: List[str] = field(default_factory=list) # What is known to be unknown
-    assumptions_made: List[str] = field(default_factory=list) # Implicit assumptions
+    uncertainty_types: list[UncertaintyType]    # Why it's uncertain
+    known_knowns: list[str] = field(default_factory=list)   # What IS known
+    known_unknowns: list[str] = field(default_factory=list) # What is known to be unknown
+    assumptions_made: list[str] = field(default_factory=list) # Implicit assumptions
     recommended_action: str = "respond_with_caveats"
     
     @property
@@ -139,9 +138,9 @@ class GenuineFailureState:
     question: str
     failure_reason: UncertaintyType
     confidence_in_failure: float    # How sure are we that we don't know? (meta-uncertainty)
-    what_is_known: List[str]        # Partial knowledge that IS available
-    what_would_help: List[str]      # What information would resolve the uncertainty
-    suggested_alternatives: List[str] # Related questions that CAN be answered
+    what_is_known: list[str]        # Partial knowledge that IS available
+    what_would_help: list[str]      # What information would resolve the uncertainty
+    suggested_alternatives: list[str] # Related questions that CAN be answered
     timestamp: float = field(default_factory=time.time)
     
     def to_response(self) -> str:
@@ -208,7 +207,7 @@ class ConfidenceEstimator:
     }
     
     def estimate(self, query: str, response_draft: str = "",
-                  context: Dict[str, Any] = None) -> UncertaintyProfile:
+                  context: dict[str, Any] = None) -> UncertaintyProfile:
         """Estimate confidence for a query/response pair.
         Returns a full UncertaintyProfile.
         """
@@ -341,7 +340,7 @@ class CalibrationTracker:
                 UPDATE predictions SET was_correct=?, verified_at=? WHERE id=?
             """, (1 if was_correct else 0, time.time(), pred_id))
     
-    def get_calibration_report(self) -> Dict[str, Any]:
+    def get_calibration_report(self) -> dict[str, Any]:
         """How well-calibrated is Aura's confidence?
         Returns calibration by confidence bucket.
         """
@@ -456,7 +455,7 @@ class EpistemicHumilityEngine:
         logger.info("EpistemicHumilityEngine initialized")
     
     def assess(self, query: str, response_draft: str = "",
-               context: Dict[str, Any] = None) -> UncertaintyProfile:
+               context: dict[str, Any] = None) -> UncertaintyProfile:
         """Full uncertainty assessment for a query/response pair.
         Applies calibration adjustment based on historical accuracy.
         """
@@ -511,7 +510,7 @@ class EpistemicHumilityEngine:
             # Append caveat for moderate uncertainty
             return f"{response}\n\n({caveat})"
     
-    def should_ask_for_clarification(self, query: str) -> Tuple[bool, str]:
+    def should_ask_for_clarification(self, query: str) -> tuple[bool, str]:
         """Determine if uncertainty is due to ambiguity that clarification would resolve.
         Returns (should_ask, clarifying_question).
         """
@@ -527,7 +526,7 @@ class EpistemicHumilityEngine:
         profile = self.assess(query, response)
         return self.wrap_response(response, profile)
 
-    def introspect(self) -> Dict[str, Any]:
+    def introspect(self) -> dict[str, Any]:
         """Return calibration report and current uncertainty patterns."""
         return {
             "calibration": self.calibration.get_calibration_report(),

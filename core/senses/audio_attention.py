@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import re
-import threading
 import time
 from collections import deque
 from dataclasses import asdict, dataclass
 from typing import Any
+
 from core.runtime.lockdep import LockRank, checked_lock
 
 #: How far above the room's own noise floor speech has to sit before it counts

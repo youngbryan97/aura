@@ -28,15 +28,14 @@ keeps it from growing opinions of its own.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
 import math
-import threading
 import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 from core.canonical.channels import CHANNELS, Domain, channel
+from core.runtime.lockdep import checked_lock
 
 #: How long an estimate keeps full weight, and how long until it has none. An
 #: estimator that has gone quiet should stop steering the answer, but a

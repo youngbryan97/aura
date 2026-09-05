@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Dict, List
 
 from core.self_improvement.interface_contract import (
     ComparisonReport,
@@ -69,7 +68,7 @@ class DiscrepancyAttributor:
         Returns a DiscrepancyReport with per-failure classification
         and an aggregate summary.
         """
-        items: List[DiscrepancyItem] = []
+        items: list[DiscrepancyItem] = []
 
         for verdict in comparison.verdicts:
             if verdict.passed:
@@ -100,7 +99,7 @@ class DiscrepancyAttributor:
             ))
 
         # Build summary
-        summary: Dict[str, int] = {}
+        summary: dict[str, int] = {}
         for item in items:
             key = item.category.value
             summary[key] = summary.get(key, 0) + 1

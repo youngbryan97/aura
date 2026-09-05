@@ -1,15 +1,15 @@
 """core/identity/identity_history.py
 Tracks historical modifications and logs for self-identity parameters.
 """
-from typing import List, Dict, Any
 import time
+from typing import Any
 
 
 class IdentityHistoryTracker:
     """Audit log compiler for tracking modifications of Aura's identity."""
 
     def __init__(self):
-        self._history: List[Dict[str, Any]] = []
+        self._history: list[dict[str, Any]] = []
 
     def record_revision(self, parameter: str, old_value: Any, new_value: Any, reason: str) -> None:
         self._history.append({
@@ -20,5 +20,5 @@ class IdentityHistoryTracker:
             "reason": reason
         })
 
-    def get_history(self) -> List[Dict[str, Any]]:
+    def get_history(self) -> list[dict[str, Any]]:
         return self._history

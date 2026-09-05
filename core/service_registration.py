@@ -527,6 +527,62 @@ def _register_all_services_body(container, is_proxy: bool):
         lifetime=ServiceLifetime.SINGLETON,
         required=False,
     )
+    # Fourteen dispositions, each homed where it belongs rather than in one
+    # bucket. Registered here for the same reason everything else is: an organ
+    # nothing can look up is a file, and the point of building these as
+    # mechanisms was that something could reach them.
+    for name, module, factory in (
+        # An identity that exists as the coherence of the practices enacting
+        # it, with the label kept out of the arithmetic.
+        ('constitutive_identity', 'core.identity.constitutive_identity',
+         'get_constitutive_registry'),
+        # Actions with no completion state, accounted for separately from
+        # actions with one.
+        ('expressive_dynamics', 'core.embodiment.expressive_dynamics',
+         'get_expressive_ledger'),
+        # Finite attention across people who need it, under a floor that is a
+        # constraint rather than a term.
+        ('care_allocation', 'core.ethics.care_allocation', 'get_care_allocator'),
+        # Accepting what is offered, priced for what accepting would settle.
+        ('receptivity', 'core.social.receptivity', 'get_receptivity'),
+        # Markers that mean something only because a population agrees.
+        ('conventions', 'core.social.conventions', 'get_convention_registry'),
+        # A feeling and an argument, weighted by which has been right here.
+        ('dual_process_arbiter', 'core.affect.dual_process_arbiter',
+         'get_dual_process_arbiter'),
+        # Getting better at something that pushes back, scheduled by what is
+        # improving rather than by what a task needs.
+        ('craft_practice', 'core.learning.craft_practice', 'get_craft_practice'),
+        # New and still legible, measured against a corpus that the making
+        # of it changes.
+        ('novelty_value', 'core.creativity.novelty_value', 'get_novelty_valuer'),
+        # What it is worth paying to keep an option open.
+        ('reversibility_ledger', 'core.morality.reversible_alternative',
+         'get_reversibility_ledger'),
+        # Effort that is informative because it is wasted.
+        ('signal_channel', 'core.social.costly_signaling', 'get_signal_channel'),
+        # Whether returning in kind pays with this person, from the record.
+        ('reciprocity', 'core.social.reciprocity_engine', 'get_reciprocity_engine'),
+        # Being moved by someone while keeping a way back to yourself.
+        ('empathic_coupling', 'core.affect.empathic_coupling', 'get_empathic_field'),
+        # What things look like to an observer with this history.
+        ('aesthetic_response', 'core.perception.aesthetic_response',
+         'get_aesthetic_observer'),
+        # Where to be: seeing against being seen, over any space with a
+        # visibility relation.
+        ('prospect_refuge', 'core.environment.prospect_refuge',
+         'get_position_registry'),
+    ):
+        container.register(
+            name,
+            # Bound as defaults: a closure over the loop variables would give
+            # every one of these the last pair in the tuple.
+            lambda module=module, factory=factory: getattr(
+                __import__(module, fromlist=[factory]), factory
+            )(),
+            lifetime=ServiceLifetime.SINGLETON,
+            required=False,
+        )
     # Concept formation — abstracts new conceptual primitives from repeated prediction errors
     # (complements AbstractionEngine, which distills from successes).
     container.register(

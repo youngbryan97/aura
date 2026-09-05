@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, Mapping
+from typing import Any
 
 from .schemas import stable_hash
 

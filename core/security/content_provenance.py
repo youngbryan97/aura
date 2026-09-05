@@ -46,7 +46,7 @@ from __future__ import annotations
 import contextvars
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, Iterator
+from typing import Any
 
 
 class ProvenanceClass(IntEnum):
@@ -165,7 +165,7 @@ def record_ingest(origin: ProvenanceClass, detail: str = "") -> None:
     current_provenance().record(origin, detail)
 
 
-def turn_scope() -> "_TurnScope":
+def turn_scope() -> _TurnScope:
     """Open a fresh provenance record for one turn."""
     return _TurnScope()
 

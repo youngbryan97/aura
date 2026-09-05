@@ -30,13 +30,14 @@ import enum
 import json
 import subprocess
 import time
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 
-from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import runtime_identity, state_root
+from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 __all__ = [
     "Requirement",

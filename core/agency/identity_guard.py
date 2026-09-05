@@ -26,14 +26,13 @@ Human approval is required for:
   - Any change that touches the safety registry
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import ast
 import logging
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.IdentityGuard")
 
@@ -75,10 +74,10 @@ HEARTSTONE_DRIVES = ["curiosity", "empathy", "self_preservation", "obedience"]
 @dataclass
 class ValidationResult:
     approved: bool
-    violations: List[str]
+    violations: list[str]
     requires_human: bool
     confidence: float    # how certain we are this is safe
-    notes: List[str]
+    notes: list[str]
 
     @property
     def is_safe(self) -> bool:
@@ -254,7 +253,7 @@ class IdentityGuard:
         )
 
     @property
-    def stats(self) -> Dict:
+    def stats(self) -> dict:
         return {
             "total_validations": self._validation_count,
             "rejected": self._rejected_count,
@@ -267,7 +266,7 @@ class IdentityGuard:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_guard: Optional[IdentityGuard] = None
+_guard: IdentityGuard | None = None
 
 
 def get_identity_guard() -> IdentityGuard:

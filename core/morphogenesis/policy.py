@@ -21,22 +21,20 @@ until a topology that changes arbitrarily fails to.
 from __future__ import annotations
 
 import random
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from .graph import EdgeType, MorphEdge, MorphGraph
+from .graph import MorphGraph
 from .proposal import (
     MorphProposal,
     bind,
     despecialize,
     grow,
     retire,
-    route,
     specialize,
     unbind,
 )
-from .workload import CAPABILITIES, RoutedWorkload, WorkerProfile
+from .workload import CAPABILITIES, RoutedWorkload
 
 
 @dataclass

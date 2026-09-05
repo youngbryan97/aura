@@ -5,7 +5,7 @@ Provides numeric uncertainty calibration for decision endpoints.
 """
 
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from core.middleware.capability_guard import CapabilityGuard
 
@@ -17,7 +17,7 @@ class DecisionVerifier:
     def __init__(self, guard: CapabilityGuard = None):
         self.guard = guard or CapabilityGuard()
 
-    def verify_plan(self, plan: Dict[str, Any]) -> Tuple[bool, float, str]:
+    def verify_plan(self, plan: dict[str, Any]) -> tuple[bool, float, str]:
         """Verifies a multi-step plan.
         Returns: (is_safe, confidence_score, explanation)
         """
@@ -44,7 +44,7 @@ class DecisionVerifier:
 
         return True, total_confidence, "Plan verified against manifest and confidence thresholds."
 
-    def calibrate_uncertainty(self, logits: List[float]) -> float:
+    def calibrate_uncertainty(self, logits: list[float]) -> float:
         """Simple softmax-based uncertainty calibration for LLM outputs."""
         if not logits:
             return 0.0

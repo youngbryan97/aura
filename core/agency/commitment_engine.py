@@ -25,17 +25,15 @@ Commitments are distinct from HierarchicalPlanner goals:
   Commitments = promises, often interpersonal, with accountability
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
-from typing import Dict, List, Optional
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.CommitmentEngine")
@@ -69,7 +67,7 @@ class Commitment:
     created_at: float = field(default_factory=time.time)
     last_checkin: float = field(default_factory=time.time)
     checkin_count: int = 0
-    notes: List[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
     def is_overdue(self) -> bool:
         return (self.status == CommitmentStatus.ACTIVE
@@ -98,7 +96,7 @@ class CommitmentEngine:
     """
 
     def __init__(self):
-        self._commitments: Dict[str, Commitment] = {}
+        self._commitments: dict[str, Commitment] = {}
         self._last_check: float = 0.0
         # Lifetime tallies, persisted for operator forensics only. NOT a
         # reliability source.
@@ -151,7 +149,7 @@ class CommitmentEngine:
                     description[:60], deadline_hours)
         return commitment
 
-    def fulfill(self, commitment_id: str, note: str = "") -> Optional[Commitment]:
+    def fulfill(self, commitment_id: str, note: str = "") -> Commitment | None:
         """Mark a commitment as fulfilled."""
         c = self._commitments.get(commitment_id)
         if not c:
@@ -171,9 +169,9 @@ class CommitmentEngine:
         commitment_id: str,
         note: str = "",
         *,
-        progress: Optional[float] = None,
+        progress: float | None = None,
         orchestrator=None,
-    ) -> Optional[Commitment]:
+    ) -> Commitment | None:
         """Mark a commitment as broken so failed work stops lingering as active."""
         c = self._commitments.get(commitment_id)
         if not c or c.status == CommitmentStatus.FULFILLED:
@@ -193,7 +191,7 @@ class CommitmentEngine:
         return c
 
     def update_progress(self, commitment_id: str, progress: float,
-                        note: str = "") -> Optional[Commitment]:
+                        note: str = "") -> Commitment | None:
         c = self._commitments.get(commitment_id)
         if not c:
             return None
@@ -232,7 +230,7 @@ class CommitmentEngine:
 
         self._save()
 
-    def get_active_commitments(self) -> List[Commitment]:
+    def get_active_commitments(self) -> list[Commitment]:
         return [
             c
             for c in self._commitments.values()
@@ -351,8 +349,9 @@ class CommitmentEngine:
 
     def _on_fulfilled(self, c: Commitment):
         try:
-            from core.adaptation.finetune_pipe import get_finetune_pipe
             import asyncio
+
+            from core.adaptation.finetune_pipe import get_finetune_pipe
 
             pipe = get_finetune_pipe()
             coro = pipe.register_success(
@@ -473,7 +472,7 @@ class CommitmentEngine:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_engine: Optional[CommitmentEngine] = None
+_engine: CommitmentEngine | None = None
 
 
 def get_commitment_engine() -> CommitmentEngine:

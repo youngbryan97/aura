@@ -4,16 +4,15 @@ This module hooks into the event bus to listen for successful task executions,
 extracts the reasoning trajectory, and writes it to a JSONL dataset in Alpaca/ShareGPT format.
 This allows Aura to generate her own active-learning data for future fine-tuning.
 """
-from core.runtime.numeric_guards import is_finite_number, unit_float
+import asyncio
+import json
+import logging
+from pathlib import Path
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
-import os
-import json
-import logging
-import asyncio
-from typing import Dict, Any, List
-from pathlib import Path
+from core.runtime.numeric_guards import is_finite_number, unit_float
 
 logger = logging.getLogger("Aura.FinetunePipe")
 
@@ -24,11 +23,11 @@ class FinetunePipe:
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.dataset_path = self.data_dir / "lora_dataset.jsonl"
-        self._batch: List[Dict[str, Any]] = []
+        self._batch: list[dict[str, Any]] = []
         self._flush_lock = asyncio.Lock()
         # AUDIT-FIX: each entry carries a quality_score for priority rotation
         
-    def _format_text_prompt(self, instruction: str, input_context: str, output: str) -> Dict[str, str]:
+    def _format_text_prompt(self, instruction: str, input_context: str, output: str) -> dict[str, str]:
         """Formats the trace into the standard 'text' field format for MLX-LM."""
         prompt = f"User: {instruction}\n"
         if input_context:
@@ -62,7 +61,7 @@ class FinetunePipe:
         reasoning: str,
         final_action: str,
         quality_score: float = -1.0,
-        metadata: Dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         """Records a successful trace for future fine-tuning."""
         try:

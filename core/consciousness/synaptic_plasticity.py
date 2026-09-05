@@ -45,10 +45,8 @@ import json
 import logging
 import threading
 import time
-from collections import deque
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Deque, Dict, Optional
+from typing import Any
 
 import numpy as np
 
@@ -81,7 +79,7 @@ class PlasticitySnapshot:
     locked_fraction: float
     reward_baseline: float
     last_reward: float
-    last_modulation: Dict[str, float]
+    last_modulation: dict[str, float]
     effective_lr: float
 
 
@@ -112,11 +110,11 @@ class SynapticPlasticityEngine:
         self._total_updates = 0
 
         # Pre-inference capture state
-        self._pre_substrate: Optional[np.ndarray] = None
+        self._pre_substrate: np.ndarray | None = None
         self._pre_hedonic: float = 0.0
 
         # Last modulation output (for telemetry)
-        self._last_modulation: Dict[str, float] = {}
+        self._last_modulation: dict[str, float] = {}
         self._last_reward: float = 0.0
         self._effective_lr: float = LEARNING_RATE
 
@@ -246,7 +244,7 @@ class SynapticPlasticityEngine:
 
     # ── Generation Modulation ─────────────────────────────────────────────
 
-    def compute_modulation(self, substrate_state: np.ndarray) -> Dict[str, float]:
+    def compute_modulation(self, substrate_state: np.ndarray) -> dict[str, float]:
         """Compute generation parameter modulations from current substrate state.
 
         This is the causal output: the learned projection matrix transforms the
@@ -335,7 +333,7 @@ class SynapticPlasticityEngine:
                 effective_lr=round(self._effective_lr, 6),
             )
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         snap = self.get_snapshot()
         return {
             "total_updates": snap.total_updates,
@@ -439,7 +437,7 @@ class SynapticPlasticityEngine:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_ENGINE: Optional[SynapticPlasticityEngine] = None
+_ENGINE: SynapticPlasticityEngine | None = None
 
 
 def get_synaptic_plasticity() -> SynapticPlasticityEngine:

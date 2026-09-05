@@ -21,8 +21,9 @@ them recovers in silence. Testing the endpoint would pass either.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Sequence
+from typing import Any
 
 
 @dataclass

@@ -17,13 +17,14 @@ import asyncio
 import json
 import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
-COMMAND_HANDLERS: Dict[str, Callable[[argparse.Namespace], Dict[str, Any]]] = {}
+COMMAND_HANDLERS: dict[str, Callable[[argparse.Namespace], dict[str, Any]]] = {}
 
 
 def register(name: str):
@@ -38,7 +39,7 @@ def register(name: str):
 
 
 @register("doctor")
-def cmd_doctor(args: argparse.Namespace) -> Dict[str, Any]:
+def cmd_doctor(args: argparse.Namespace) -> dict[str, Any]:
     """Pre-boot environment audit, with optional --bundle for a tarball."""
     if getattr(args, "bundle", False):
         from core.runtime.diagnostics_bundle import build_bundle
@@ -48,7 +49,7 @@ def cmd_doctor(args: argparse.Namespace) -> Dict[str, Any]:
         info["command"] = "doctor"
         return info
 
-    checks: Dict[str, Dict[str, Any]] = {}
+    checks: dict[str, dict[str, Any]] = {}
 
     checks["python_version"] = {
         "ok": sys.version_info >= (3, 11),
@@ -106,7 +107,7 @@ def _is_writable(p: Path) -> bool:
 
 
 @register("conformance")
-def cmd_conformance(args: argparse.Namespace) -> Dict[str, Any]:
+def cmd_conformance(args: argparse.Namespace) -> dict[str, Any]:
     """Run static invariant proofs against a complete contract fixture.
 
     This command validates conformance logic and launch-source contracts. It
@@ -161,7 +162,7 @@ def cmd_conformance(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 @register("backup")
-def cmd_backup(args: argparse.Namespace) -> Dict[str, Any]:
+def cmd_backup(args: argparse.Namespace) -> dict[str, Any]:
     from core.runtime.backup_restore import perform_backup
 
     target = Path(args.target) if args.target else (state_root() / "backups")
@@ -169,7 +170,7 @@ def cmd_backup(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 @register("restore")
-def cmd_restore(args: argparse.Namespace) -> Dict[str, Any]:
+def cmd_restore(args: argparse.Namespace) -> dict[str, Any]:
     from core.runtime.backup_restore import perform_restore
 
     return perform_restore(snapshot=Path(args.snapshot))
@@ -179,7 +180,7 @@ def cmd_restore(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 @register("migrate")
-def cmd_migrate(args: argparse.Namespace) -> Dict[str, Any]:
+def cmd_migrate(args: argparse.Namespace) -> dict[str, Any]:
     from core.runtime.migrations import run_migrations
 
     return run_migrations(target_version=args.target_version, dry_run=args.dry_run)
@@ -189,7 +190,7 @@ def cmd_migrate(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 @register("verify-state")
-def cmd_verify_state(args: argparse.Namespace) -> Dict[str, Any]:
+def cmd_verify_state(args: argparse.Namespace) -> dict[str, Any]:
     from core.state.state_gateway import get_state_gateway
 
     gateway = get_state_gateway()
@@ -198,7 +199,7 @@ def cmd_verify_state(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 @register("verify-memory")
-def cmd_verify_memory(args: argparse.Namespace) -> Dict[str, Any]:
+def cmd_verify_memory(args: argparse.Namespace) -> dict[str, Any]:
     from core.runtime.receipts import get_receipt_store
 
     store = get_receipt_store()
@@ -207,7 +208,7 @@ def cmd_verify_memory(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 @register("control-plane")
-def cmd_control_plane(args: argparse.Namespace) -> Dict[str, Any]:
+def cmd_control_plane(args: argparse.Namespace) -> dict[str, Any]:
     """Inspect desired state, resource leases, blockers, and open circuits."""
 
     del args
@@ -224,7 +225,7 @@ def cmd_control_plane(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 @register("rebuild-index")
-def cmd_rebuild_index(args: argparse.Namespace) -> Dict[str, Any]:
+def cmd_rebuild_index(args: argparse.Namespace) -> dict[str, Any]:
     from core.runtime.vector_index import rebuild_vector_index
 
     return rebuild_vector_index(source=Path(args.source) if args.source else None)
@@ -234,7 +235,7 @@ def cmd_rebuild_index(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 @register("chaos")
-def cmd_chaos(args: argparse.Namespace) -> Dict[str, Any]:
+def cmd_chaos(args: argparse.Namespace) -> dict[str, Any]:
     """Run a tiny abuse-stage smoke (deterministic, fast)."""
     from core.runtime.fault_injection import (
         FaultInjector,
@@ -312,7 +313,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 @register("plugin")
-def cmd_plugin(args: argparse.Namespace) -> Dict[str, Any]:
+def cmd_plugin(args: argparse.Namespace) -> dict[str, Any]:
     from core.security.plugin_allowlist import PluginAllowlist, PluginPolicyError
     allowlist = PluginAllowlist()
 
@@ -411,7 +412,7 @@ def cmd_plugin(args: argparse.Namespace) -> Dict[str, Any]:
     return {"command": "plugin", "ok": False, "error": "unknown_subcommand"}
 
 
-def run_command(argv: Optional[List[str]] = None) -> Dict[str, Any]:
+def run_command(argv: list[str] | None = None) -> dict[str, Any]:
     parser = build_parser()
     args = parser.parse_args(argv)
     handler = COMMAND_HANDLERS.get(args.command)
@@ -420,7 +421,7 @@ def run_command(argv: Optional[List[str]] = None) -> Dict[str, Any]:
     return handler(args)
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     result = run_command(argv)
     print(json.dumps(result, indent=2, default=str))
     return 0 if result.get("ok") else 1

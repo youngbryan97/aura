@@ -22,8 +22,8 @@ import os
 import re
 import threading as _threading
 import time
-import weakref
 import uuid
+import weakref
 from collections import deque
 from collections.abc import Mapping
 from contextlib import asynccontextmanager
@@ -221,6 +221,8 @@ _FLAG_SAFE_BOOT_BACKGROUND_GUARD_SECS = _declare_flag(
 
 from core.brain.llm.context_budget import (
     CRITICAL_FOREGROUND_HEADERS as _CRITICAL_FOREGROUND_HEADERS,
+)
+from core.brain.llm.context_budget import (
     FOREGROUND_SECTION_VOLATILITY,
 )
 
@@ -503,6 +505,8 @@ _MESH_PRE_TRUST_RATIONALES = frozenset({"acknowledgement", "resource_hold"})
 try:  # pragma: no cover - import shape only
     from core.phases.response_contract import (
         _REQUESTED_ARTIFACT_CEILING as _REQUESTED_ARTIFACT_EFFECT_CEILING,
+    )
+    from core.phases.response_contract import (
         _SELF_SERVICE_CEILING as _SELF_SERVICE_EFFECT_CEILING,
     )
 except ImportError:  # pragma: no cover - the gate still runs without them
@@ -6129,7 +6133,6 @@ class InferenceGate:
         """
         try:
             from core.runtime.model_lane_control import (
-                ProcessIdentity,
                 get_model_lane_controller,
             )
 

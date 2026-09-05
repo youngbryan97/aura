@@ -10,9 +10,9 @@ from __future__ import annotations
 from core.memory.memory_compaction_patch import (
     COMPACTION_THRESHOLD,
     MAX_RAW_TURNS,
+    _patched_memory_consolidation_execute,
     compact_if_needed,
     patch_memory_compaction,
-    _patched_memory_consolidation_execute,
 )
 
 __all__ = [

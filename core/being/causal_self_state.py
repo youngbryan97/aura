@@ -11,10 +11,11 @@ Non-shallow rule:
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from typing import Any, Mapping
 import math
 import time
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass, field
+from typing import Any
 
 try:
     from core.being.aura_now import AuraNow

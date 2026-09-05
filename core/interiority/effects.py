@@ -59,12 +59,12 @@ class AffectDelta:
         object.__setattr__(self, "arousal", _f(self.arousal, -1.0, 1.0))
         object.__setattr__(self, "engagement", _f(self.engagement, -1.0, 1.0))
 
-    def scaled(self, factor: float) -> "AffectDelta":
+    def scaled(self, factor: float) -> AffectDelta:
         return AffectDelta(
             self.valence * factor, self.arousal * factor, self.engagement * factor
         )
 
-    def __add__(self, other: "AffectDelta") -> "AffectDelta":
+    def __add__(self, other: AffectDelta) -> AffectDelta:
         return AffectDelta(
             self.valence + other.valence,
             self.arousal + other.arousal,
@@ -145,7 +145,7 @@ class BudgetDelta:
             and self.irreversibility_ceiling == 1.0
         )
 
-    def compose(self, other: "BudgetDelta") -> "BudgetDelta":
+    def compose(self, other: BudgetDelta) -> BudgetDelta:
         return BudgetDelta(
             depth=self.depth * other.depth,
             deadline=self.deadline * other.deadline,
@@ -274,7 +274,7 @@ class Effects:
             and not self.retention
         )
 
-    def scaled(self, factor: float) -> "Effects":
+    def scaled(self, factor: float) -> Effects:
         """Scale the graded effects by intensity. Constraints do not scale.
 
         A constraint at half intensity is not half a constraint. If a

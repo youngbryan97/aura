@@ -22,9 +22,10 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from core.learning.heldout_battery import BatterySpec, generate_battery, text_collides_with_battery
 from core.runtime.atomic_writer import atomic_write_text

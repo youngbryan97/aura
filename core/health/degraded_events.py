@@ -6,9 +6,10 @@ import logging
 import threading
 import time
 from collections import deque
+from collections.abc import Iterator
 from contextlib import contextmanager
 from threading import Lock
-from typing import Any, Iterator
+from typing import Any
 
 from core.memory.retention_policy import working_history_retention_policy
 from core.runtime.errors import FallbackClassification, Severity, record_degradation

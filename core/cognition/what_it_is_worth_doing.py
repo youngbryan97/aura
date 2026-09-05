@@ -50,15 +50,15 @@ and replaces a head.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any
 
 from core.cognition.the_floor_she_stands_on import (
+    MINUS,
+    TIMES,
     Code,
     L,
-    MINUS,
-    N,
-    TIMES,
     V,
     build,
     how_long,

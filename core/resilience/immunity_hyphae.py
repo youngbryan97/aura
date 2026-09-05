@@ -4,15 +4,16 @@ Part of Aura's Immune System 2.0. Hardwired exception matching
 and repair for known common failure signatures.
 """
 
-from core.runtime.errors import record_degradation
-from core.runtime.subprocess_gateway import get_subprocess_gateway
 import logging
 import sys
-import os
-import traceback
-from typing import Dict, Callable, Any, List, Optional, Set
-from pathlib import Path
 import time
+import traceback
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+from core.runtime.errors import record_degradation
+from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 logger = logging.getLogger("Aura.Resilience.Immunity")
 
@@ -22,9 +23,9 @@ class CircuitBreaker:
     def __init__(self, threshold: int = 3, recovery_time: int = 300):
         self.threshold = threshold
         self.recovery_time = recovery_time
-        self.failure_counts: Dict[str, int] = {}
-        self.quarantined_until: Dict[str, float] = {}
-        self.blacklisted: Set[str] = set()
+        self.failure_counts: dict[str, int] = {}
+        self.quarantined_until: dict[str, float] = {}
+        self.blacklisted: set[str] = set()
 
     def report_failure(self, component: str):
         """Register a failure for a component."""
@@ -55,7 +56,7 @@ class SignatureRepairRegistry:
     """Registry of known error signatures and their deterministic Python-based repairs."""
     
     def __init__(self):
-        self.signatures: List[Dict[str, Any]] = []
+        self.signatures: list[dict[str, Any]] = []
         self._load_default_signatures()
 
     def _load_default_signatures(self):
@@ -105,7 +106,7 @@ class SignatureRepairRegistry:
             repair_fn=self._repair_lock_cleanup
         )
 
-    def register(self, name: str, error_patterns: List[str], repair_fn: Callable):
+    def register(self, name: str, error_patterns: list[str], repair_fn: Callable):
         self.signatures.append({
             "name": name,
             "patterns": error_patterns,
@@ -214,7 +215,7 @@ class SignatureRepairRegistry:
             record_degradation('immunity_hyphae', e)
             logger.error("💉 Lock cleanup failed: %s", e)
 
-    def log_sieve(self, log_files: List[Path]) -> List[str]:
+    def log_sieve(self, log_files: list[Path]) -> list[str]:
         """Scan logs for common 'hidden' errors that often get masked by '0 bugs' reports."""
         hidden_bugs = []
         # Patterns that indicate real issues but might not trigger a crash immediately
@@ -231,7 +232,7 @@ class SignatureRepairRegistry:
             if not log_path.exists(): continue
             try:
                 # Read last 100 lines
-                with open(log_path, 'r') as f:
+                with open(log_path) as f:
                     all_lines = f.readlines()
                     lines = all_lines[max(0, len(all_lines)-100):]
                     for line in lines:
@@ -260,7 +261,7 @@ class ImmunityHyphae:
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(ImmunityHyphae, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     @property
@@ -286,7 +287,7 @@ class ImmunityHyphae:
         self._hooked = True
         logger.info("💉 ImmunityHyphae: Global exception hook installed.")
 
-    def audit_error(self, error: Exception, context: Optional[Dict[str, Any]] = None):
+    def audit_error(self, error: Exception, context: dict[str, Any] | None = None):
         """Manual entry point for caught exceptions to be matched against signatures."""
         error_msg = f"{type(error).__name__}: {str(error)}"
         component = context.get("component", "unknown") if context else "unknown"

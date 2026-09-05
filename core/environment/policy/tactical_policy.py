@@ -1,14 +1,14 @@
 """Tactical policy for short-horizon action selection."""
 from __future__ import annotations
 
-from core.environment.command import ActionIntent
-from core.environment.simulation import TacticalSimulator
-from core.environment.parsed_state import ParsedState
 from core.environment.belief_graph import EnvironmentBeliefGraph
+from core.environment.command import ActionIntent
 from core.environment.homeostasis import Homeostasis
+from core.environment.parsed_state import ParsedState
+from core.environment.simulation import TacticalSimulator
 
-from .candidate_generator import CandidateGenerator
 from .action_ranker import ActionRanker
+from .candidate_generator import CandidateGenerator
 
 
 class TacticalPolicy:

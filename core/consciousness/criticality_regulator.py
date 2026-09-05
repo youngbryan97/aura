@@ -38,13 +38,11 @@ system: modulatory gain, noise level, and excitation/inhibition balance.
 """
 from __future__ import annotations
 
-
 import logging
 import math
 import threading
 from collections import deque
-from dataclasses import dataclass, field
-from typing import Deque, Dict, List, Optional, Tuple
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -90,9 +88,9 @@ class CriticalityConfig:
 
     # Output clamps -- prevent the PID from pushing the system into
     # dangerous regimes.  The range is symmetric around 1.0.
-    gain_clamp: Tuple[float, float] = (0.5, 2.0)
-    noise_clamp: Tuple[float, float] = (0.5, 2.0)
-    ei_ratio_clamp: Tuple[float, float] = (0.7, 1.3)
+    gain_clamp: tuple[float, float] = (0.5, 2.0)
+    noise_clamp: tuple[float, float] = (0.5, 2.0)
+    ei_ratio_clamp: tuple[float, float] = (0.7, 1.3)
 
     # Activation threshold: a column is considered "active" when its
     # mean absolute activation exceeds this value.
@@ -166,7 +164,7 @@ class _PIDController:
         self.ki = ki
         self.kd = kd
         self._integral = 0.0
-        self._prev_error: Optional[float] = None
+        self._prev_error: float | None = None
         self._output_min = output_min
         self._output_max = output_max
 
@@ -229,13 +227,13 @@ class CriticalityRegulator:
 
         # --- State history ---
         # Previous tick's column activations (for computing deltas).
-        self._prev_activations: Optional[np.ndarray] = None
+        self._prev_activations: np.ndarray | None = None
         # Previous tick's "active" mask (for branching ratio).
-        self._prev_active: Optional[np.ndarray] = None
+        self._prev_active: np.ndarray | None = None
 
         # --- Branching ratio ---
         # Rolling buffer of per-tick branching ratios, averaged every interval.
-        self._branching_samples: Deque[float] = deque(
+        self._branching_samples: deque[float] = deque(
             maxlen=self.cfg.branching_measurement_interval
         )
         self._branching_ratio: float = 1.0  # assume critical at startup
@@ -246,7 +244,7 @@ class CriticalityRegulator:
         # current avalanche ends.
         self._current_avalanche_size: int = 0
         self._in_avalanche: bool = False
-        self._avalanche_sizes: Deque[int] = deque(
+        self._avalanche_sizes: deque[int] = deque(
             maxlen=self.cfg.avalanche_window
         )
         self._avalanche_exponent: float = -1.5  # neutral until measured
@@ -340,7 +338,7 @@ class CriticalityRegulator:
         with self._lock:
             return self._cached_state.criticality_score
 
-    def get_adjustments(self) -> Dict[str, float]:
+    def get_adjustments(self) -> dict[str, float]:
         """Return the current PID-computed adjustment factors.
 
         These are multiplicative factors meant to be applied to the neural
@@ -666,7 +664,7 @@ class CriticalityRegulator:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_instance: Optional[CriticalityRegulator] = None
+_instance: CriticalityRegulator | None = None
 
 
 def get_criticality_regulator() -> CriticalityRegulator:

@@ -38,8 +38,9 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any
 
 __all__ = [
     "DERIVED_HEADS",
@@ -68,7 +69,7 @@ class Term:
     """A piece of the algebra. The same shape at every level, which is the point."""
 
     head: str
-    parts: tuple["Term", ...] = ()
+    parts: tuple[Term, ...] = ()
     value: Any = None
 
     @property
@@ -284,7 +285,6 @@ def _a_head_she_wrote(
     written: Head, term: Term, index: int, size: int, words: Sequence[Any], depth: int
 ) -> int:
     """Run a head she wrote, on the floor, under its own meter."""
-    from core.cognition.the_floor_she_stands_on import Code as FloorCode
     from core.cognition.the_floor_she_stands_on import OutOfFuel, Stuck
     from core.cognition.the_floor_she_stands_on import run as run_on_the_floor
 
@@ -727,7 +727,6 @@ def a_maker_she_wrote(
     # Shortest first, and bounded: the search is quadratic in the number of
     # words, and a language that has grown holds hundreds. The bound is a
     # budget on this search rather than a claim about how much she may know.
-    from core.cognition.an_invented_kind import addressings
     from core.cognition.how_she_learns_to_look import (
         in_the_order_worth_trying,
         remember_what_worked,

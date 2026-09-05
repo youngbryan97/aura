@@ -1,6 +1,7 @@
-from core.runtime.errors import record_degradation
 import logging
 import random
+
+from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("Aura.Lazarus")

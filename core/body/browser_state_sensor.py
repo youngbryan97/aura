@@ -4,7 +4,7 @@ Browser state and active URL query sensor.
 import logging
 import os
 from subprocess import SubprocessError
-from typing import Any, Dict
+from typing import Any
 
 from core.body.sensor_registry import BaseSensor
 from core.runtime.errors import record_degradation
@@ -22,7 +22,7 @@ class BrowserStateSensor(BaseSensor):
     def name(self) -> str:
         return "browser_state"
 
-    async def read(self) -> Dict[str, Any]:
+    async def read(self) -> dict[str, Any]:
         """Query Chrome/Safari on macOS via AppleScript to get the current tab URL."""
         try:
             if os.path.exists("/usr/bin/osascript"):

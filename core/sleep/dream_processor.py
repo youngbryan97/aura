@@ -1,11 +1,12 @@
-from core.runtime.errors import record_degradation
 import asyncio
 import inspect
 import logging
 import os
 import time
-from typing import List, Optional, Dict, Any
+from typing import Any
+
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Kernel.Dream")
 
@@ -77,7 +78,7 @@ class DreamProcessor:
             record_degradation('dream_processor', e)
             logger.error("Nightmare error: %s", e)
 
-    async def _load_recent_episodes(self, limit: int) -> List[Any]:
+    async def _load_recent_episodes(self, limit: int) -> list[Any]:
         """Load recent episodes from the current persistent memory stack."""
         try:
             if hasattr(self.memory, "_refresh_subsystems"):
@@ -138,7 +139,7 @@ class DreamProcessor:
             return f"Context: {context} | Action: {action} | Outcome: {outcome}".strip()
         return str(episode)
 
-    def _compose_reflection(self, episodes: List[Any]) -> str:
+    def _compose_reflection(self, episodes: list[Any]) -> str:
         lines = [self._episode_text(ep) for ep in episodes]
         compact = []
         seen = set()

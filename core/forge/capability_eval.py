@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger("Aura.CapabilityEval")
 
@@ -11,7 +11,7 @@ class CapabilityEval:
     """Assesses capability levels and guarantees zero regression before patching."""
 
     @staticmethod
-    def evaluate(baseline: Dict[str, Any], test_results: Dict[str, Any]) -> Dict[str, Any]:
+    def evaluate(baseline: dict[str, Any], test_results: dict[str, Any]) -> dict[str, Any]:
         """Compares baseline vs test stats. Zero-regression policy is enforced."""
         base_pass = float(baseline.get("pass_rate", 1.0))
         test_pass = float(test_results.get("pass_rate", 0.0))

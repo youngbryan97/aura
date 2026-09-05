@@ -91,7 +91,7 @@ class IndexProgram:
 
     kind: str
     args: tuple[int, ...] = ()
-    parts: tuple["IndexProgram", ...] = ()
+    parts: tuple[IndexProgram, ...] = ()
 
     def __call__(self, index: int, size: int) -> int:
         kind = self.kind
@@ -196,7 +196,7 @@ class IndexProgram:
         }
 
     @classmethod
-    def from_json(cls, raw: Any) -> "IndexProgram | None":
+    def from_json(cls, raw: Any) -> IndexProgram | None:
         if not isinstance(raw, dict):
             return None
         kind = str(raw.get("kind") or "").strip()

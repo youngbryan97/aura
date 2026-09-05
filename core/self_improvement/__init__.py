@@ -16,6 +16,17 @@ Usage:
     lab = ReimplementationLab(project_root=".")
     result = await lab.run_reconstruction("core/promotion/behavioral_contracts.py")
 """
+from core.self_improvement.blinded_workspace import BlindedWorkspace, BlindedWorkspaceFactory
+from core.self_improvement.candidate_builder import (
+    CandidateBuilder,
+    CodeGenerator,
+    PromptBuilder,
+    StubGenerator,
+)
+from core.self_improvement.deterministic_comparator import DeterministicComparator
+from core.self_improvement.discrepancy_attributor import DiscrepancyAttributor
+from core.self_improvement.guardrail_auditor import GuardrailAuditor
+from core.self_improvement.hardcoding_auditor import HardcodingAuditor
 from core.self_improvement.interface_contract import (
     AuditResult,
     BehavioralInvariant,
@@ -34,24 +45,13 @@ from core.self_improvement.interface_contract import (
     TestVerdict,
     TraceExample,
 )
-from core.self_improvement.spec_extractor import SpecExtractor
-from core.self_improvement.blinded_workspace import BlindedWorkspace, BlindedWorkspaceFactory
-from core.self_improvement.candidate_builder import (
-    CandidateBuilder,
-    CodeGenerator,
-    PromptBuilder,
-    StubGenerator,
-)
-from core.self_improvement.deterministic_comparator import DeterministicComparator
-from core.self_improvement.discrepancy_attributor import DiscrepancyAttributor
-from core.self_improvement.hardcoding_auditor import HardcodingAuditor
-from core.self_improvement.guardrail_auditor import GuardrailAuditor
 from core.self_improvement.promotion_gate import LabPromotionGate
 from core.self_improvement.reimplementation_lab import (
     ReimplementationLab,
     get_reimplementation_lab,
     register_reimplementation_lab,
 )
+from core.self_improvement.spec_extractor import SpecExtractor
 
 __all__ = [
     # Pipeline

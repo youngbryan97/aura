@@ -40,8 +40,9 @@ that was not shown was not in it.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 __all__ = ["Composed", "Ordering", "solve_ordering", "solve_ordering_then_move"]
 
@@ -119,7 +120,7 @@ class Ordering:
         }
 
     @classmethod
-    def from_json(cls, raw: Any) -> "Ordering | None":
+    def from_json(cls, raw: Any) -> Ordering | None:
         if not isinstance(raw, dict):
             return None
         level = raw.get("level")
@@ -145,7 +146,7 @@ class Ordering:
         except (TypeError, ValueError):
             return None
 
-    def keyed_by_repr(self) -> "Ordering":
+    def keyed_by_repr(self) -> Ordering:
         """The same ordering with cells named the way the written form names them.
 
         A restored ordering has repr'd keys and the cells it is asked about do
@@ -551,7 +552,7 @@ class Composed:
         }
 
     @classmethod
-    def from_json(cls, raw: Any) -> "Composed | None":
+    def from_json(cls, raw: Any) -> Composed | None:
         if not isinstance(raw, dict) or raw.get("kind") != "ordering_then_move":
             return None
         ordering = Ordering.from_json(raw.get("ordering"))

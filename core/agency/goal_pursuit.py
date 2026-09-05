@@ -20,8 +20,9 @@ from __future__ import annotations
 
 import inspect
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from core.agency.parallel_executor import ParallelExecutor, ParallelTask, SwarmReceipt
 from core.runtime.errors import record_degradation

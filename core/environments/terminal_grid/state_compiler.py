@@ -5,7 +5,7 @@ import hashlib
 import re
 
 from core.environment.observation import Observation
-from core.environment.ontology import EntityState, HazardState, ObjectState, SemanticEvent
+from core.environment.ontology import HazardState, ObjectState, SemanticEvent
 from core.environment.parsed_state import ParsedState
 from core.environment.state_compiler import StateCompiler
 

@@ -54,7 +54,6 @@ from __future__ import annotations
 import enum
 import logging
 import re
-import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any

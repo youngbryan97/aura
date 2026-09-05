@@ -19,7 +19,7 @@ import threading
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from typing import Any, Deque, Dict, Optional
+from typing import Any
 
 from core.security.immune_system import ThreatClass, ThreatEvent, get_immune_system
 
@@ -33,7 +33,7 @@ class _Windowed:
 
     def __init__(self, window_s: float) -> None:
         self._window = window_s
-        self._events: Dict[str, Deque[float]] = defaultdict(deque)
+        self._events: dict[str, deque[float]] = defaultdict(deque)
         self._lock = threading.RLock()
 
     def hit(self, key: str, now: float, weight: float = 1.0) -> int:
@@ -69,7 +69,7 @@ class RateAnomalyDetector(_DetectorBase):
         self._w = _Windowed(window_s)
         self._threshold = threshold
 
-    def observe(self, source: str, *, kind: str = "request", now: Optional[float] = None) -> Optional[ThreatEvent]:
+    def observe(self, source: str, *, kind: str = "request", now: float | None = None) -> ThreatEvent | None:
         now = time.time() if now is None else now
         n = self._w.hit(source, now)
         if n >= self._threshold:
@@ -90,7 +90,7 @@ class BruteForceDetector(_DetectorBase):
         self._w = _Windowed(window_s)
         self._threshold = threshold
 
-    def observe_auth(self, source: str, *, success: bool, now: Optional[float] = None) -> Optional[ThreatEvent]:
+    def observe_auth(self, source: str, *, success: bool, now: float | None = None) -> ThreatEvent | None:
         if success:
             return None
         now = time.time() if now is None else now
@@ -111,10 +111,10 @@ class ExfilDetector(_DetectorBase):
     def __init__(self, *, window_s: float = 30.0, byte_threshold: int = 50 * 1024 * 1024) -> None:
         self._window = window_s
         self._threshold = byte_threshold
-        self._bytes: Dict[str, Deque[tuple]] = defaultdict(deque)
+        self._bytes: dict[str, deque[tuple]] = defaultdict(deque)
         self._lock = threading.RLock()
 
-    def observe_egress(self, dest: str, n_bytes: int, *, now: Optional[float] = None) -> Optional[ThreatEvent]:
+    def observe_egress(self, dest: str, n_bytes: int, *, now: float | None = None) -> ThreatEvent | None:
         now = time.time() if now is None else now
         with self._lock:
             dq = self._bytes[dest]
@@ -144,7 +144,7 @@ _INJECTION = re.compile(
 class InjectionDetector(_DetectorBase):
     """SQL / prompt / code injection markers in untrusted input."""
 
-    def scan(self, text: str, *, origin: str = "user_input") -> Optional[ThreatEvent]:
+    def scan(self, text: str, *, origin: str = "user_input") -> ThreatEvent | None:
         m = _INJECTION.search(str(text or ""))
         if not m:
             return None
@@ -168,7 +168,7 @@ class ThreatDetectorSuite:
         self.injection = InjectionDetector()
 
 
-_suite: Optional[ThreatDetectorSuite] = None
+_suite: ThreatDetectorSuite | None = None
 _lock = threading.Lock()
 
 

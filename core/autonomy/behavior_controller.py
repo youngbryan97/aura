@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import shlex
-from typing import Any, Dict
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
@@ -62,7 +62,7 @@ class BehaviorPolicyError(RuntimeError):
     """A behavior-policy check could not be completed, so the action is refused."""
 
 
-def extract_command(action: Dict[str, Any]) -> str:
+def extract_command(action: dict[str, Any]) -> str:
     """The command text carried by this action, from wherever it lives."""
     for key in COMMAND_PARAM_KEYS:
         value = action.get(key)
@@ -173,7 +173,7 @@ class AutonomousBehaviorController:
                 "🚨 AutonomousBehaviorController constructed with safety checks DISABLED."
             )
 
-    def validate_action(self, action: Dict[str, Any]) -> bool:
+    def validate_action(self, action: dict[str, Any]) -> bool:
         """Validate if an action is safe to execute."""
         if not self.safety_checks_enabled:
             record_degradation(
@@ -199,7 +199,7 @@ class AutonomousBehaviorController:
         return True
 
     async def execute_tool_call_async(
-        self, tool_name: str, arguments: Dict[str, Any], *, origin: str = "behavior_controller"
+        self, tool_name: str, arguments: dict[str, Any], *, origin: str = "behavior_controller"
     ) -> Any:
         """Execute a tool through the orchestrator, with its context attached.
 
@@ -230,7 +230,7 @@ class AutonomousBehaviorController:
             )
             return await self.orchestrator.execute_tool(tool_name, arguments)
 
-    def execute_tool_call(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
+    def execute_tool_call(self, tool_name: str, arguments: dict[str, Any]) -> Any:
         """Synchronous entry point.
 
         CP126 b7b78f6c: this used ``run_coroutine_threadsafe`` to schedule work
@@ -291,7 +291,7 @@ def integrate_behavior_control(orchestrator):
     """Integrate behavior control into orchestrator using formal hooks."""
     controller = AutonomousBehaviorController(orchestrator)
 
-    async def on_pre_action_hook(tool_name: str, params: Dict[str, Any]):
+    async def on_pre_action_hook(tool_name: str, params: dict[str, Any]):
         # Return False to veto dangerous actions.
         is_safe = controller.validate_action({"type": tool_name, "params": params})
         if not is_safe:

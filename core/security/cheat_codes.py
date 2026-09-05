@@ -1,12 +1,12 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
-
-import logging
 import hashlib
+import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.CheatCodes")
 
@@ -23,7 +23,7 @@ class CheatCodeEntry:
     source_game: str
     message: str
     aliases: tuple[str, ...] = ()
-    ui_effects: Dict[str, Any] = field(default_factory=dict)
+    ui_effects: dict[str, Any] = field(default_factory=dict)
     source_note: str = ""
     sovereign: bool = False
 
@@ -45,7 +45,7 @@ def _matches_sovereign_code(code: str) -> bool:
     return derived == _SOVEREIGN_CODE_HASH
 
 
-def _build_registry() -> Dict[str, CheatCodeEntry]:
+def _build_registry() -> dict[str, CheatCodeEntry]:
     entries = [
         CheatCodeEntry(
             code="RLRLR1L",
@@ -130,7 +130,7 @@ def _build_registry() -> Dict[str, CheatCodeEntry]:
         ),
     ]
 
-    registry: Dict[str, CheatCodeEntry] = {}
+    registry: dict[str, CheatCodeEntry] = {}
     for entry in entries:
         for alias in (entry.code, *entry.aliases):
             registry[_normalize_code(alias)] = entry
@@ -140,7 +140,7 @@ def _build_registry() -> Dict[str, CheatCodeEntry]:
 _REGISTRY = _build_registry()
 
 
-def resolve_cheat_code(code: str) -> Optional[CheatCodeEntry]:
+def resolve_cheat_code(code: str) -> CheatCodeEntry | None:
     if _matches_sovereign_code(code):
         return CheatCodeEntry(
             code="owner_sovereign",
@@ -158,7 +158,7 @@ def resolve_cheat_code(code: str) -> Optional[CheatCodeEntry]:
     return _REGISTRY.get(normalized)
 
 
-def activate_cheat_code(code: str, *, silent: bool = False, source: str = "settings") -> Dict[str, Any]:
+def activate_cheat_code(code: str, *, silent: bool = False, source: str = "settings") -> dict[str, Any]:
     entry = resolve_cheat_code(code)
     if not entry:
         return {

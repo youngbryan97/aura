@@ -30,7 +30,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.container import ServiceContainer
 from core.runtime import resource_psutil as psutil
@@ -66,7 +66,7 @@ class Limb:
     error_count: int = 0
     success_count: int = 0
     source: str = ""  # e.g. "skills/web_search.py" or "psutil"
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     # ---- health helpers ---------------------------------------------------
 
@@ -97,7 +97,7 @@ class Limb:
         recent_penalty = min(self.error_count, 5) * 0.05
         self.health = max(0.0, min(1.0, success_ratio - recent_penalty))
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["limb_type"] = self.limb_type.value
         return d
@@ -115,7 +115,7 @@ class BodySchema(AuraBaseModule):
 
     def __init__(self) -> None:
         super().__init__("BodySchema")
-        self._limbs: Dict[str, Limb] = {}
+        self._limbs: dict[str, Limb] = {}
         self._lock = threading.Lock()
         self._aura_root = Path(__file__).resolve().parents[2]  # ~/Desktop/aura
 
@@ -390,9 +390,9 @@ class BodySchema(AuraBaseModule):
         self,
         name: str,
         *,
-        available: Optional[bool] = None,
-        health: Optional[float] = None,
-        metadata_patch: Optional[Dict[str, Any]] = None,
+        available: bool | None = None,
+        health: float | None = None,
+        metadata_patch: dict[str, Any] | None = None,
     ) -> None:
         """Patch an existing limb's state (used by CapabilityDiscoveryDaemon)."""
         with self._lock:
@@ -426,7 +426,7 @@ class BodySchema(AuraBaseModule):
     # Query API
     # ------------------------------------------------------------------
 
-    def get_body_map(self) -> Dict[str, Dict[str, Any]]:
+    def get_body_map(self) -> dict[str, dict[str, Any]]:
         """Return the full body map as a serialisable dict."""
         with self._lock:
             return {name: limb.to_dict() for name, limb in self._limbs.items()}
@@ -437,7 +437,7 @@ class BodySchema(AuraBaseModule):
             limb = self._limbs.get(name)
             return limb is not None and limb.available and limb.health > 0.1
 
-    def get_best_limb_for(self, task_description: str) -> Optional[str]:
+    def get_best_limb_for(self, task_description: str) -> str | None:
         """Heuristic selection of the best capability for a described task.
 
         Scores each available limb by keyword overlap with the task
@@ -447,7 +447,7 @@ class BodySchema(AuraBaseModule):
         task_lower = task_description.lower()
         task_tokens = set(task_lower.split())
 
-        best_name: Optional[str] = None
+        best_name: str | None = None
         best_score: float = -1.0
 
         with self._lock:
@@ -475,7 +475,7 @@ class BodySchema(AuraBaseModule):
 
         return best_name
 
-    def get_available_limbs(self, limb_type: Optional[LimbType] = None) -> List[str]:
+    def get_available_limbs(self, limb_type: LimbType | None = None) -> list[str]:
         """Return names of all available limbs, optionally filtered by type."""
         with self._lock:
             return [
@@ -486,7 +486,7 @@ class BodySchema(AuraBaseModule):
                 and (limb_type is None or limb.limb_type == limb_type)
             ]
 
-    def get_limb(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_limb(self, name: str) -> dict[str, Any] | None:
         """Return a single limb's state as a dict, or None."""
         with self._lock:
             limb = self._limbs.get(name)
@@ -519,7 +519,7 @@ class BodySchema(AuraBaseModule):
     # Summary / Health
     # ------------------------------------------------------------------
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Quick summary for cognitive introspection."""
         with self._lock:
             total = len(self._limbs)
@@ -543,7 +543,7 @@ class BodySchema(AuraBaseModule):
 # Module-level accessor and ServiceContainer wiring
 # ---------------------------------------------------------------------------
 
-_body_schema: Optional[BodySchema] = None
+_body_schema: BodySchema | None = None
 _init_lock = threading.Lock()
 
 

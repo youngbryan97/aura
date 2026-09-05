@@ -4,7 +4,7 @@ Clipboard polling sensor reading macOS pbpaste.
 import logging
 import os
 from subprocess import SubprocessError
-from typing import Any, Dict
+from typing import Any
 
 from core.body.sensor_registry import BaseSensor
 from core.runtime.errors import record_degradation
@@ -22,7 +22,7 @@ class ClipboardSensor(BaseSensor):
     def name(self) -> str:
         return "clipboard"
 
-    async def read(self) -> Dict[str, Any]:
+    async def read(self) -> dict[str, Any]:
         try:
             if os.path.exists("/usr/bin/pbpaste"):
                 res = await get_subprocess_gateway().run_async(

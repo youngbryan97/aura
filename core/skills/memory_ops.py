@@ -1,15 +1,16 @@
-from core.runtime.errors import record_degradation
-from core.runtime.atomic_writer import atomic_write_text
-from core.runtime.action_executor import ActionExecutor
-from core.governance.will import ActionDomain
 import hashlib
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
+
 from core.config import config
 from core.container import ServiceContainer
+from core.governance.will import ActionDomain
+from core.runtime.action_executor import ActionExecutor
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.MemoryOps")
@@ -24,10 +25,10 @@ class MemoryOpsInput(BaseModel):
             "plus runtime aliases like 'remember' and 'recall'."
         ),
     )
-    block: Optional[str] = Field(None, description="The Core Memory block name (e.g., 'persona', 'user') for core_* ops.")
-    content: Optional[str] = Field(None, description="Data to append, insert, or replace.")
-    old_content: Optional[str] = Field(None, description="Exact prior string to replace. Used only in 'core_replace'.")
-    query: Optional[str] = Field(None, description="Search term for 'archival_search'.")
+    block: str | None = Field(None, description="The Core Memory block name (e.g., 'persona', 'user') for core_* ops.")
+    content: str | None = Field(None, description="Data to append, insert, or replace.")
+    old_content: str | None = Field(None, description="Exact prior string to replace. Used only in 'core_replace'.")
+    query: str | None = Field(None, description="Search term for 'archival_search'.")
 
 
 class MemoryOpsSkill(BaseSkill):
@@ -58,7 +59,7 @@ class MemoryOpsSkill(BaseSkill):
             if not path.exists():
                 atomic_write_text(path, f"// Core Memory Block: {block}\n", encoding="utf-8")
 
-    async def execute(self, params: Any, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: Any, context: dict[str, Any]) -> dict[str, Any]:
         if isinstance(params, dict):
             try:
                 params = MemoryOpsInput(**params)
@@ -90,7 +91,7 @@ class MemoryOpsSkill(BaseSkill):
         return cls._ACTION_ALIASES.get(lowered, lowered)
 
     @staticmethod
-    def _resolve_memory_facade(context: Dict[str, Any]) -> Any:
+    def _resolve_memory_facade(context: dict[str, Any]) -> Any:
         return context.get("memory_facade") or ServiceContainer.get("memory_facade", default=None)
 
     @staticmethod
@@ -131,7 +132,7 @@ class MemoryOpsSkill(BaseSkill):
         return effect
 
     @staticmethod
-    def _archival_write_metadata(context: Dict[str, Any]) -> dict[str, Any]:
+    def _archival_write_metadata(context: dict[str, Any]) -> dict[str, Any]:
         origin = str(context.get("origin") or context.get("source") or "").strip()
         explicit_request = bool(
             context.get("user_requested_action")
@@ -159,7 +160,7 @@ class MemoryOpsSkill(BaseSkill):
         status = getattr(memory_facade, "_last_add_memory_status", None)
         return dict(status) if isinstance(status, dict) else {}
 
-    async def _execute_core_memory(self, params: MemoryOpsInput, context: Dict[str, Any], action: str) -> Dict[str, Any]:
+    async def _execute_core_memory(self, params: MemoryOpsInput, context: dict[str, Any], action: str) -> dict[str, Any]:
         """RAM: Immediate context window blocks."""
         block = params.block or "user"
         if not block.isalnum() and "_" not in block:
@@ -172,7 +173,7 @@ class MemoryOpsSkill(BaseSkill):
                 return {"ok": False, "error": "Missing 'content' to append."}
             current_content = ""
             if block_path.exists():
-                with open(block_path, "r", encoding="utf-8") as f:
+                with open(block_path, encoding="utf-8") as f:
                     current_content = f.read()
             new_content = current_content + params.content + "\n"
             result = await ActionExecutor.execute(
@@ -203,7 +204,7 @@ class MemoryOpsSkill(BaseSkill):
             if not params.content or not params.old_content:
                 return {"ok": False, "error": "Missing 'content' or 'old_content' for replacing."}
             
-            with open(block_path, "r", encoding="utf-8") as f:
+            with open(block_path, encoding="utf-8") as f:
                 data = f.read()
                 
             if params.old_content not in data:
@@ -236,7 +237,7 @@ class MemoryOpsSkill(BaseSkill):
             
         return {"ok": False, "error": f"Unknown core action: {action}"}
 
-    async def _execute_archival_memory(self, params: MemoryOpsInput, context: Dict[str, Any], action: str) -> Dict[str, Any]:
+    async def _execute_archival_memory(self, params: MemoryOpsInput, context: dict[str, Any], action: str) -> dict[str, Any]:
         """Disk: Long-term archival Vector / DB storage."""
         memory_facade = self._resolve_memory_facade(context)
         if not memory_facade:

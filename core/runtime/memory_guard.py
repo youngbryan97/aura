@@ -11,10 +11,8 @@ the contract + the in-process tracker.
 """
 from __future__ import annotations
 
-
 import time
 from dataclasses import dataclass, field
-from typing import Dict, Optional
 
 
 @dataclass
@@ -29,7 +27,7 @@ class ActorQuota:
     max_cpu_seconds_per_minute: float
 
 
-DEFAULT_QUOTAS: Dict[str, ActorQuota] = {
+DEFAULT_QUOTAS: dict[str, ActorQuota] = {
     "model_runtime": ActorQuota(
         actor="model_runtime",
         max_memory_mb=24_000,
@@ -107,7 +105,7 @@ class GuardViolation:
 def evaluate_actor_usage(
     usage: ActorUsage,
     *,
-    quotas: Optional[Dict[str, ActorQuota]] = None,
+    quotas: dict[str, ActorQuota] | None = None,
 ) -> list:
     """Return a list of GuardViolation describing every field that is
     exceeding its quota. Empty list means the actor is within bounds."""

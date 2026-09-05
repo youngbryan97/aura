@@ -2,9 +2,10 @@
 Typed Pydantic event schemas for all canonical organism loop transitions.
 Supports verification, hash linking, and secure receipt logging.
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -17,23 +18,23 @@ class PrivacyClass(StrEnum):
 
 class EventBase(BaseModel):
     event_id: str
-    timestamp: float = Field(default_factory=lambda: datetime.now(timezone.utc).timestamp())
+    timestamp: float = Field(default_factory=lambda: datetime.now(UTC).timestamp())
     source: str
 
-    previous_event_hash: Optional[str] = None
+    previous_event_hash: str | None = None
 
 
 class PerceptionEvent(EventBase):
     modality: str
-    raw_reference: Optional[str] = None
-    parsed_content: Dict[str, Any]
+    raw_reference: str | None = None
+    parsed_content: dict[str, Any]
     confidence: float
     uncertainty: float
     privacy_class: PrivacyClass = PrivacyClass.LOCAL_ONLY
-    allowed_uses: List[str] = Field(default_factory=lambda: ["reasoning", "state_update"])
-    linked_entities: List[str] = Field(default_factory=list)
-    linked_current_goals: List[str] = Field(default_factory=list)
-    receipt_id: Optional[str] = None
+    allowed_uses: list[str] = Field(default_factory=lambda: ["reasoning", "state_update"])
+    linked_entities: list[str] = Field(default_factory=list)
+    linked_current_goals: list[str] = Field(default_factory=list)
+    receipt_id: str | None = None
 
 
 class BodyStateChanged(EventBase):
@@ -41,8 +42,8 @@ class BodyStateChanged(EventBase):
     thermal_pressure: float
     memory_pressure: float
     model_capacity: str
-    sensor_health: Dict[str, bool]
-    actuator_health: Dict[str, bool]
+    sensor_health: dict[str, bool]
+    actuator_health: dict[str, bool]
     governance_integrity: float
     attention_saturation: float
     uncertainty_load: float
@@ -56,9 +57,9 @@ class BeliefUpdated(EventBase):
     content: str
     confidence: float
     decay_policy: str
-    contradictions: List[str]
-    supporting_evidence: List[str]
-    downstream_uses: List[str]
+    contradictions: list[str]
+    supporting_evidence: list[str]
+    downstream_uses: list[str]
 
 
 class GoalCreated(EventBase):
@@ -69,12 +70,12 @@ class GoalCreated(EventBase):
     priority: float
     urgency: float
     importance: float
-    success_criteria: List[str]
-    failure_criteria: List[str]
-    allowed_tools: List[str]
-    forbidden_tools: List[str]
+    success_criteria: list[str]
+    failure_criteria: list[str]
+    allowed_tools: list[str]
+    forbidden_tools: list[str]
     risk_class: str
-    dependencies: List[str]
+    dependencies: list[str]
 
 
 class AttentionSelected(EventBase):
@@ -82,28 +83,28 @@ class AttentionSelected(EventBase):
     target_object: str
     reason_for_attention: str
     salience_score: float
-    deadline: Optional[float] = None
+    deadline: float | None = None
     estimated_cost: float
 
 
 class PlanProposed(EventBase):
     plan_id: str
     goal_id: str
-    steps: List[Dict[str, Any]]
-    tools_required: List[str]
-    permissions_required: List[str]
-    risks: List[str]
-    expected_observations: List[str]
-    fallbacks: List[str]
+    steps: list[dict[str, Any]]
+    tools_required: list[str]
+    permissions_required: list[str]
+    risks: list[str]
+    expected_observations: list[str]
+    fallbacks: list[str]
     verification_method: str
-    abort_conditions: List[str]
+    abort_conditions: list[str]
     estimated_cost: float
 
 
 class ActionRequested(EventBase):
     action_id: str
     channel: str
-    params: Dict[str, Any]
+    params: dict[str, Any]
     risk_score: float
     requires_approval: bool
 
@@ -112,8 +113,8 @@ class ActionApproved(EventBase):
     action_id: str
     approved_by: str
     posture: str
-    capability_token: Optional[str] = None
-    authority_receipt_id: Optional[str] = None
+    capability_token: str | None = None
+    authority_receipt_id: str | None = None
 
 
 class ActionExecuted(EventBase):
@@ -121,9 +122,9 @@ class ActionExecuted(EventBase):
     receipt_id: str
     channel: str
     status: str
-    stdout: Optional[str] = None
-    stderr: Optional[str] = None
-    exit_code: Optional[int] = None
+    stdout: str | None = None
+    stderr: str | None = None
+    exit_code: int | None = None
 
 
 class ConsequenceVerified(EventBase):
@@ -131,17 +132,17 @@ class ConsequenceVerified(EventBase):
     expected_evidence: str
     observed_evidence: str
     success: bool
-    side_effects: List[str]
-    mismatch_description: Optional[str] = None
+    side_effects: list[str]
+    mismatch_description: str | None = None
 
 
 class MemoryWritten(EventBase):
     memory_id: str
     type: str
-    content: Dict[str, Any]
+    content: dict[str, Any]
     sensitivity: PrivacyClass = PrivacyClass.LOCAL_ONLY
-    linked_goals: List[str] = Field(default_factory=list)
-    linked_beliefs: List[str] = Field(default_factory=list)
+    linked_goals: list[str] = Field(default_factory=list)
+    linked_beliefs: list[str] = Field(default_factory=list)
 
 
 class WelfareUpdated(EventBase):
@@ -157,16 +158,16 @@ class ValueUpdated(EventBase):
     statement: str
     priority: float
     hard_limit: bool
-    conflicts: List[str]
+    conflicts: list[str]
 
 
 class IdentityUpdated(EventBase):
     active_version: str
-    active_modules: List[str]
-    disabled_modules: List[str]
-    known_limitations: List[str]
-    active_permissions: List[str]
-    capability_boundaries: List[str]
+    active_modules: list[str]
+    disabled_modules: list[str]
+    known_limitations: list[str]
+    active_permissions: list[str]
+    capability_boundaries: list[str]
 
 
 class RepairProposed(EventBase):

@@ -5,10 +5,12 @@ what modulation strength or plasticity level to apply.
 """
 
 from __future__ import annotations
+
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, List
+from typing import Any
+
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
 
@@ -42,7 +44,7 @@ class SemanticWeightGovernor:
         self.phi_threshold = float(phi_threshold)
         
         # Staged Plasticity State
-        self.recent_successes: List[bool] = [True] * 10  # Initial baseline
+        self.recent_successes: list[bool] = [True] * 10  # Initial baseline
         self.trust_level = self.LEVEL_1  # Default level
         self.pending_rollback: dict[str, Any] | None = None
 

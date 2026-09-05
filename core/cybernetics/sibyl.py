@@ -1,6 +1,5 @@
 import logging
-import asyncio
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("Cybernetics.Sibyl")
 
@@ -30,12 +29,12 @@ class SibylSystem:
             logger.debug("Suppressed ImportError: %s", _exc)
         logger.info("🧠 [SIBYL] Behavioral Scoring System ONLINE. Hue is CLEAR.")
 
-    async def _on_scan(self, payload: Dict[str, Any]):
+    async def _on_scan(self, payload: dict[str, Any]):
         # Update volatility based on latency anomalies
         self._factors["volatility"] = min(1.0, payload.get("latency", 0) / 1000.0)
         await self._recalculate_hue()
 
-    async def _on_violation(self, payload: Dict[str, Any]):
+    async def _on_violation(self, payload: dict[str, Any]):
         # Drastic increase in deviation on identity breach
         self._factors["deviation"] = min(1.0, self._factors["deviation"] + 0.2)
         await self._recalculate_hue()
@@ -64,7 +63,7 @@ class SibylSystem:
         if self._hue_score > 200:
             logger.critical("🌫️ [SIBYL] HUE IS %s (%s). Judgment imminent.", hue_label, f"{self._hue_score:.0f}")
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "hue_score": self._hue_score,
             "factors": self._factors

@@ -34,9 +34,9 @@ from pathlib import Path
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.utils.task_tracker import get_task_tracker
-from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.IntegrityGuardian")
 _INTEGRITY_GUARDIAN_ERRORS = (

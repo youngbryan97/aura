@@ -1,17 +1,15 @@
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
-import json
+import asyncio
 import logging
 import time
-import uuid
-import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-import numpy as np
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Meta.Learning")
 
 from core.adaptation.finetune_pipe import get_finetune_pipe
+
 
 class MetaLearningEngine:
     """Enables Aura to learn from past experiences by identifying structural similarities
@@ -24,7 +22,7 @@ class MetaLearningEngine:
         self.vectors = vector_memory
         self.brain = cognitive_engine
         
-    async def fingerprint_task(self, task_description: str) -> Optional[List[float]]:
+    async def fingerprint_task(self, task_description: str) -> list[float] | None:
         """Generate a semantic embedding of the task structure using the brain's client.
         """
         if not task_description:
@@ -42,7 +40,7 @@ class MetaLearningEngine:
             logger.error("Failed to fingerprint task: %s", e)
             return None
 
-    async def recall_strategy(self, task_description: str) -> Optional[Dict[str, Any]]:
+    async def recall_strategy(self, task_description: str) -> dict[str, Any] | None:
         """Retrieve relevant past strategies for a new task using semantic search.
         """
         if not self.vectors:
@@ -65,7 +63,7 @@ class MetaLearningEngine:
         
         return None
 
-    async def index_experience(self, task: str, outcome: str, successful_tools: List[str], strategy_note: str = ""):
+    async def index_experience(self, task: str, outcome: str, successful_tools: list[str], strategy_note: str = ""):
         """Save a completed task and its outcome as a learning experience.
         """
         if not self.vectors:

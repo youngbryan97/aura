@@ -4,16 +4,15 @@ Manages core values, ethical weights, and persistent identity.
 Hardened implementation replacing earlier stubs.
 """
 
-from core.runtime.errors import record_degradation
-from core.utils.exceptions import capture_and_log
 import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict
 
+from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.service_registry import get_runtime_service
+from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Aura.Values")
 
@@ -40,14 +39,14 @@ class ValueSystem:
     """Manages the weighting and application of core values."""
 
     def __init__(self):
-        self.values: Dict[str, CoreValue] = {v.name: v for v in DEFAULT_VALUES}
-        self.active_modifiers: Dict[str, float] = {}
+        self.values: dict[str, CoreValue] = {v.name: v for v in DEFAULT_VALUES}
+        self.active_modifiers: dict[str, float] = {}
         #: Shifts a mood proposed and did not have the authority to make.
         #: Kept rather than logged: a refusal nobody can read is a policy
         #: nobody can check.
         self.refused_shifts: list = []
 
-    def get_active_weights(self) -> Dict[str, float]:
+    def get_active_weights(self) -> dict[str, float]:
         """Returns current weights including temporary emotional modifiers.
 
         Pulls mood from the substrate (sync-safe) to modulate values in real time.
@@ -96,7 +95,7 @@ class ValueSystem:
         # Canonicalize
         m = mood.lower()
 
-        proposed: Dict[str, float] = {}
+        proposed: dict[str, float] = {}
         if m in ["curious", "anticipation"]:
             proposed["Curiosity"] = 0.15
             proposed["Safety"] = -0.05
@@ -181,7 +180,7 @@ class IdentityModel:
     def _load(self):
         if self.storage_path.exists():
             try:
-                with open(self.storage_path, "r") as f:
+                with open(self.storage_path) as f:
                     self.identity.update(json.load(f))
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('values_engine', e)

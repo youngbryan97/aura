@@ -38,8 +38,8 @@ from core.memory.horcrux import HorcruxManager
 from core.memory.physics import PhysicsEngine
 from core.memory.rag import compute_term_freq, tokenize
 from core.runtime.errors import record_degradation
-from core.utils.concurrency import RobustLock
 from core.runtime.sqlite_support import connecting
+from core.utils.concurrency import RobustLock
 
 logger = logging.getLogger("Core.DualMemory")
 _BLACK_HOLE_PREFIX = "bh:v1:"

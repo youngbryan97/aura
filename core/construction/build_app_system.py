@@ -18,12 +18,13 @@ import json
 import logging
 import re
 import time
-from dataclasses import dataclass, field
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from core.construction.app_compiler import compile_app
-from core.construction.app_planner import PlannedApp, plan_from_json, plan_schema, spec_from_plan
+from core.construction.app_planner import PlannedApp, plan_from_json, plan_schema
 from core.construction.app_verifier import verify_app
 from core.runtime.errors import record_degradation
 

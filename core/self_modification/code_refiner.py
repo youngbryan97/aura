@@ -1,11 +1,10 @@
-from core.runtime.errors import record_degradation
+import ast
 import asyncio
 import logging
-import ast
-from pathlib import Path
-from typing import List, Optional
 from dataclasses import dataclass
+from pathlib import Path
 
+from core.runtime.errors import record_degradation
 from core.runtime.service_registry import register_runtime_factory
 
 logger = logging.getLogger("Aura.CodeRefiner")
@@ -19,8 +18,8 @@ class RefinementProposal:
     description: str
     category: str  # 'performance', 'complexity', 'consistency', 'security'
     impact_score: float = 0.5  # 0.0 to 1.0
-    original_code: Optional[str] = None
-    suggested_code: Optional[str] = None
+    original_code: str | None = None
+    suggested_code: str | None = None
 
 class CodeRefinerService:
     """Analyzing and refining Aura's own architecture."""
@@ -31,10 +30,10 @@ class CodeRefinerService:
         if project_root is None:
             project_root = Path(__file__).resolve().parents[1]
         self.root_dir = Path(project_root) / "core"
-        self.proposals: List[RefinementProposal] = []
+        self.proposals: list[RefinementProposal] = []
         logger.info("CodeRefinerService initialized.")
 
-    async def analyze_file(self, file_path: Path) -> List[RefinementProposal]:
+    async def analyze_file(self, file_path: Path) -> list[RefinementProposal]:
         """Analyze a specific file for code smells."""
         if not file_path.exists() or file_path.suffix != ".py":
             return []
@@ -101,7 +100,7 @@ class CodeRefinerService:
             
         return proposals
 
-    async def audit_core(self) -> List[RefinementProposal]:
+    async def audit_core(self) -> list[RefinementProposal]:
         """Audit all core files."""
         all_proposals = []
         files = await asyncio.to_thread(list, self.root_dir.glob("**/*.py"))
@@ -113,11 +112,11 @@ class CodeRefinerService:
         logger.info("Audit complete. Found %s refinement targets.", len(all_proposals))
         return all_proposals
 
-    async def audit_all_core_files(self) -> List[RefinementProposal]:
+    async def audit_all_core_files(self) -> list[RefinementProposal]:
         """Compatibility alias for callers that need explicit naming."""
         return await self.audit_core()
 
-    def get_highest_impact_proposals(self, limit: int = 5) -> List[RefinementProposal]:
+    def get_highest_impact_proposals(self, limit: int = 5) -> list[RefinementProposal]:
         """Fetch priority targets."""
         sorted_proposals = sorted(self.proposals, key=lambda x: x.impact_score, reverse=True)
         return sorted_proposals[:limit]

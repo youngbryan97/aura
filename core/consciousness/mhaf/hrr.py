@@ -13,7 +13,6 @@ Reference: Plate, T.A. (1995). "Holographic reduced representations."
 """
 
 import logging
-from typing import Dict, Optional, Tuple
 
 import numpy as np
 
@@ -33,7 +32,7 @@ class HRREncoder:
     def __init__(self, dim: int = 512, seed: int = 0):
         self.dim = dim
         self._rng = np.random.default_rng(seed)
-        self._codebook: Dict[str, np.ndarray] = {}
+        self._codebook: dict[str, np.ndarray] = {}
         logger.info("HRREncoder online (dim=%d)", dim)
 
     def encode(self, key: str) -> np.ndarray:
@@ -77,7 +76,7 @@ class HRREncoder:
             return 0.0
         return float(np.dot(a, b) / (norm_a * norm_b))
 
-    def query_codebook(self, query: np.ndarray, top_k: int = 5) -> list[Tuple[str, float]]:
+    def query_codebook(self, query: np.ndarray, top_k: int = 5) -> list[tuple[str, float]]:
         """Find the top-k most similar keys to a query vector."""
         results = []
         for key, vec in self._codebook.items():
@@ -90,7 +89,7 @@ class HRREncoder:
         """Encode a role-filler pair: bind(encode(role), encode(filler))."""
         return self.bind(self.encode(role), self.encode(filler))
 
-    def decode_filler(self, composite: np.ndarray, role: str, top_k: int = 3) -> list[Tuple[str, float]]:
+    def decode_filler(self, composite: np.ndarray, role: str, top_k: int = 3) -> list[tuple[str, float]]:
         """Decode the filler for a known role from a composite vector."""
         role_vec = self.encode(role)
         candidate_filler = self.unbind(composite, role_vec)

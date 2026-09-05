@@ -92,8 +92,9 @@ class BootAutonomyMixin:
         if existing is not None and not existing.done():
             return
 
-        from ....capability_engine import CapabilityEngine
         from core.utils.task_tracker import get_task_tracker
+
+        from ....capability_engine import CapabilityEngine
 
         engine = CapabilityEngine(orchestrator=self)
         self._skill_catalog_warmup_engine = engine

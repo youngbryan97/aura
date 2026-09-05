@@ -38,13 +38,12 @@ Stability criterion (Lyapunov):
 """
 from __future__ import annotations
 
-
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
-from numpy.linalg import eig, eigvals
+from numpy.linalg import eigvals
 
 logger = logging.getLogger("Research.TimescaleStability")
 
@@ -81,7 +80,7 @@ class StabilityResult:
     max_safe_alpha: float            # Maximum top-down coupling before instability
     max_safe_beta: float             # Maximum bottom-up coupling before instability
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def summary(self) -> str:
         status = "STABLE" if self.is_stable else "UNSTABLE"
@@ -102,7 +101,7 @@ class PhasePortrait:
     oscillatory: bool                # Whether the system oscillates on approach
     damping_ratio: float             # 0 = undamped, 1 = critically damped, >1 = overdamped
     natural_frequencies: np.ndarray  # Oscillation frequencies of dominant modes
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +177,7 @@ def build_jacobian(
     dim: int,
     alpha: float,
     beta: float,
-    decay_rates: Optional[np.ndarray] = None,
+    decay_rates: np.ndarray | None = None,
 ) -> np.ndarray:
     """Build the full Jacobian of the coupled timescale system.
 
@@ -241,12 +240,12 @@ class TimescaleStabilityAnalyzer:
         self,
         n_layers: int = DEFAULT_N_LAYERS,
         dim_per_layer: int = DEFAULT_DIM_PER_LAYER,
-        decay_rates: Optional[np.ndarray] = None,
+        decay_rates: np.ndarray | None = None,
     ):
         self._n_layers = n_layers
         self._dim = dim_per_layer
         self._decay_rates = decay_rates if decay_rates is not None else self.DEFAULT_DECAY_RATES[:n_layers]
-        self._results: List[StabilityResult] = []
+        self._results: list[StabilityResult] = []
 
     def analyze(
         self,
@@ -420,10 +419,10 @@ class TimescaleStabilityAnalyzer:
 
     def stability_map(
         self,
-        alpha_range: Tuple[float, float] = (0.0, 1.0),
-        beta_range: Tuple[float, float] = (0.0, 1.0),
+        alpha_range: tuple[float, float] = (0.0, 1.0),
+        beta_range: tuple[float, float] = (0.0, 1.0),
         resolution: int = 20,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Compute a 2D stability map over coupling parameter space.
 
         For each (alpha, beta) pair, computes whether the system is stable
@@ -476,7 +475,7 @@ class TimescaleStabilityAnalyzer:
         fixed_param: str,
         fixed_value: float,
         search_param: str,
-        search_range: Tuple[float, float],
+        search_range: tuple[float, float],
         tolerance: float = 0.001,
     ) -> float:
         """Binary search for maximum coupling strength that maintains stability.
@@ -528,7 +527,7 @@ class TimescaleStabilityAnalyzer:
         alpha: float,
         beta: float,
         perturbation: float = 0.01,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """How sensitive is stability to small changes in coupling?
 
         Computes the gradient of the stability margin with respect to
@@ -566,6 +565,6 @@ class TimescaleStabilityAnalyzer:
             "margin_at_beta_minus": result_b_minus.stability_margin,
         }
 
-    def get_results_history(self) -> List[StabilityResult]:
+    def get_results_history(self) -> list[StabilityResult]:
         """Return all analysis results computed so far."""
         return list(self._results)

@@ -9,13 +9,14 @@ Multi-tier output handling:
 Replaces all hard-coded [:2000] / [:5000] truncation across Aura's skills.
 """
 
-from core.runtime.errors import record_degradation
 import asyncio
 import hashlib
 import logging
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ToolDistillation")
 
@@ -83,7 +84,7 @@ class ToolOutputDistillationService:
                 source="tool_distillation.save_raw_output",
             )
             return filepath
-        except (OSError, IOError) as e:
+        except OSError as e:
             record_degradation('tool_distillation', e)
             logger.warning("Failed to save tool output: %s", e)
             return "(save failed)"
@@ -244,7 +245,7 @@ class ToolOutputDistillationService:
 
 
 # Global singleton for easy access
-_default_service: Optional[ToolOutputDistillationService] = None
+_default_service: ToolOutputDistillationService | None = None
 
 
 def get_distillation_service() -> ToolOutputDistillationService:

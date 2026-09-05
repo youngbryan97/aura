@@ -26,7 +26,6 @@ from __future__ import annotations
 import hashlib
 import random
 from dataclasses import dataclass
-from typing import Any
 
 INTEGRATED_TASKS_SCHEMA = "aura.integrated_eval_tasks.v1"
 INTEGRATED_TASKS_VERSION = "2026.07.20.1"

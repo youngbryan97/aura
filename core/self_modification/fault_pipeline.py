@@ -15,9 +15,10 @@ import ast
 import hashlib
 import re
 import traceback
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any
 
 from core.runtime.causal_trace import current_trace_id
 from core.self_modification.mutation_tiers import classify_mutation_path
@@ -123,7 +124,7 @@ class PatchCandidate:
 @dataclass(frozen=True)
 class FaultPipelineResult:
     packet: BugPacket
-    candidate: Optional[PatchCandidate]
+    candidate: PatchCandidate | None
     promotion_allowed: bool
     lineage_patch_id: str
     calibration_probability: float
@@ -238,7 +239,7 @@ class DeterministicPatchGenerator:
     def __init__(self, codebase_root: str | Path = ".") -> None:
         self.codebase_root = Path(codebase_root).resolve()
 
-    def generate(self, packet: BugPacket) -> Optional[PatchCandidate]:
+    def generate(self, packet: BugPacket) -> PatchCandidate | None:
         if packet.error_type == "NameError":
             missing = self._missing_name(packet.message)
             if missing:
@@ -250,7 +251,7 @@ class DeterministicPatchGenerator:
         match = re.search(r"name ['\"]([^'\"]+)['\"] is not defined", message)
         return match.group(1) if match else ""
 
-    def _inject_import(self, packet: BugPacket, missing: str) -> Optional[PatchCandidate]:
+    def _inject_import(self, packet: BugPacket, missing: str) -> PatchCandidate | None:
         import_line = self.SAFE_NAME_IMPORTS.get(missing)
         if not import_line:
             return None
@@ -317,7 +318,7 @@ class FaultToPatchPipeline:
         message = str(exc)
         normalized = re.sub(r"0x[0-9a-fA-F]+", "0xADDR", message)
         digest = hashlib.sha256(
-            f"{type(exc).__name__}|{normalized}|{localized.file}|{localized.function}".encode("utf-8")
+            f"{type(exc).__name__}|{normalized}|{localized.file}|{localized.function}".encode()
         ).hexdigest()[:16]
         fingerprint = BugFingerprint(
             error_type=type(exc).__name__,

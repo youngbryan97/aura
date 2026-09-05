@@ -29,11 +29,7 @@ local instance simply continues as before. Only after VERIFY succeeds is
 the local instance asked to step down.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
-
-
-import asyncio
 import hashlib
 import json
 import logging
@@ -45,10 +41,10 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.archive_gateway import get_archive_gateway
+from core.runtime.errors import record_degradation
+from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Migration")
@@ -78,13 +74,13 @@ class MigrationProposal:
     estimated_cost_native_units: float
     proposed_at: float = field(default_factory=time.time)
     phase: Phase = Phase.PROPOSE
-    will_receipt_id: Optional[str] = None
-    archive_path: Optional[str] = None
-    remote_host: Optional[str] = None
-    continuity_hash_before: Optional[str] = None
-    continuity_hash_after: Optional[str] = None
-    completed_at: Optional[float] = None
-    failure_reason: Optional[str] = None
+    will_receipt_id: str | None = None
+    archive_path: str | None = None
+    remote_host: str | None = None
+    continuity_hash_before: str | None = None
+    continuity_hash_after: str | None = None
+    completed_at: float | None = None
+    failure_reason: str | None = None
 
 
 # ─── providers ─────────────────────────────────────────────────────────────
@@ -142,7 +138,7 @@ class LocalArchiveProvider(CloudProvider):
 # ─── archiver ──────────────────────────────────────────────────────────────
 
 
-_ARCHIVE_PATHS: List[Path] = [
+_ARCHIVE_PATHS: list[Path] = [
     state_root() / "data" / "scars",
     state_root() / "data" / "agency_receipts",
     state_root() / "data" / "stem_cells",
@@ -179,7 +175,7 @@ def _continuity_hash() -> str:
 
 class MigrationOrchestrator:
     def __init__(self) -> None:
-        self._providers: Dict[str, CloudProvider] = {"local_archive": LocalArchiveProvider()}
+        self._providers: dict[str, CloudProvider] = {"local_archive": LocalArchiveProvider()}
 
     def register_provider(self, provider: CloudProvider) -> None:
         self._providers[provider.name] = provider
@@ -198,7 +194,7 @@ class MigrationOrchestrator:
         self._record(proposal, "proposed")
 
         # Conscience + Will + fresh-user-auth before any compression.
-        from core.ethics.conscience import get_conscience, Verdict
+        from core.ethics.conscience import Verdict, get_conscience
         c = get_conscience().evaluate(
             action="sovereign_migration",
             domain="state_mutation",
@@ -303,7 +299,7 @@ class MigrationOrchestrator:
         proposal.phase = Phase.CUTOVER
         self._record(proposal, "cutover")
         try:
-            from core.organism.viability import get_viability, ViabilityState
+            from core.organism.viability import ViabilityState, get_viability
             get_viability().transition_to(ViabilityState.ASLEEP, reason="cutover")
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation(
@@ -343,7 +339,7 @@ class MigrationOrchestrator:
             logger.warning("migration ledger append failed: %s", exc)
 
 
-_MIG: Optional[MigrationOrchestrator] = None
+_MIG: MigrationOrchestrator | None = None
 
 
 def get_migration() -> MigrationOrchestrator:

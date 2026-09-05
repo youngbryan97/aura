@@ -1,6 +1,6 @@
+import logging
 import socket
 import time
-import logging
 
 from core.runtime.network_gateway import get_network_gateway
 

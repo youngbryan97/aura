@@ -1,7 +1,7 @@
-from core.runtime.errors import record_degradation
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
+from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("Aura.CognitiveManager")
@@ -34,7 +34,7 @@ class CognitiveManager:
             logger.error("Cognitive initialization failed: %s", e)
             raise
 
-    async def generate_autonomous_thought(self, clean_msg: str, history: List[Dict[str, Any]]) -> Any:
+    async def generate_autonomous_thought(self, clean_msg: str, history: list[dict[str, Any]]) -> Any:
         """Handle internal cognitive impulses (boredom, curiosity, reflection).
         """
         if not self.initialized:
@@ -68,7 +68,7 @@ class CognitiveManager:
         get_emitter().emit("Reflection 🧠", thought.content[:200], level="info")
         return thought
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return the health and status of the cognitive core."""
         return {
             "initialized": self.initialized,

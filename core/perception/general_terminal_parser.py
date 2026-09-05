@@ -21,16 +21,14 @@ belief/risk/action-gating systems the other parsers feed.
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Tuple
 
 from core.perception.environment_parser import EnvironmentParser, EnvironmentState
-
 
 # ── threat lexicon: terminal semantics → [0,1] danger, the generalization of GLYPH_THREAT ──
 
 # (compiled regex, threat, label). First strong match per line wins for classification, but
 # the line's threat is the max over all matches.
-_THREAT_PATTERNS: List[Tuple[re.Pattern, float, str]] = [
+_THREAT_PATTERNS: list[tuple[re.Pattern, float, str]] = [
     # destructive / irreversible commands — the highest terminal danger
     (re.compile(r"\brm\s+-[a-z]*r[a-z]*f|\brm\s+-[a-z]*f[a-z]*r", re.I), 0.97, "destructive_rm"),
     (re.compile(r"\b(mkfs|dd\s+if=|shred|fdisk|:\s*>\s*/dev/|>\s*/dev/sd)", re.I), 0.95, "destructive_disk"),
@@ -51,7 +49,7 @@ _THREAT_PATTERNS: List[Tuple[re.Pattern, float, str]] = [
 ]
 
 # ── prompt detection: what is blocking / gating interaction right now ──
-_PROMPT_PATTERNS: List[Tuple[re.Pattern, float, str]] = [
+_PROMPT_PATTERNS: list[tuple[re.Pattern, float, str]] = [
     (re.compile(r"(password.*:|passphrase.*:)\s*$", re.I), 0.7, "password_prompt"),
     (re.compile(r"\[sudo\]\s+password", re.I), 0.7, "sudo_prompt"),
     (re.compile(r"\(yes/no\)|\[y/n\]|\[Y/n\]|\[y/N\]|\?\s*$", re.I), 0.4, "confirmation_prompt"),
@@ -68,7 +66,7 @@ _SHELL_PROMPT = re.compile(
 )
 
 
-def _line_threat(line: str) -> Tuple[float, str]:
+def _line_threat(line: str) -> tuple[float, str]:
     threat, label = 0.0, ""
     for pat, t, lbl in _THREAT_PATTERNS:
         if pat.search(line):
@@ -88,12 +86,12 @@ class GeneralTerminalParser(EnvironmentParser):
         lines = text.splitlines()
         non_empty = [ln for ln in lines if ln.strip()]
 
-        entities: List[Dict[str, object]] = []
-        active_prompts: List[str] = []
-        messages: List[str] = []
+        entities: list[dict[str, object]] = []
+        active_prompts: list[str] = []
+        messages: list[str] = []
         max_line_threat = 0.0
 
-        self_state: Dict[str, object] = {
+        self_state: dict[str, object] = {
             "line_count": len(lines),
             "char_count": len(text),
         }

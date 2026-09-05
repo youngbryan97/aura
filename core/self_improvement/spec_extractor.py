@@ -9,11 +9,13 @@ from __future__ import annotations
 import ast
 import logging
 from pathlib import Path
-from typing import List, Optional, Set
 
 from core.self_improvement.interface_contract import (
-    ClassSignature, FunctionSignature, InterfaceContract,
-    ModuleSpec, TestCase,
+    ClassSignature,
+    FunctionSignature,
+    InterfaceContract,
+    ModuleSpec,
+    TestCase,
 )
 
 logger = logging.getLogger("Aura.SpecExtractor")
@@ -22,7 +24,7 @@ logger = logging.getLogger("Aura.SpecExtractor")
 class SpecExtractor:
     """Extracts ModuleSpec from a live module using AST analysis. Purely deterministic."""
 
-    def __init__(self, project_root: Optional[str] = None):
+    def __init__(self, project_root: str | None = None):
         self.project_root = Path(project_root or ".").resolve()
 
     def extract(self, module_path: str) -> ModuleSpec:
@@ -51,8 +53,8 @@ class SpecExtractor:
             dependencies=dependencies,
         )
 
-    def _extract_all_names(self, tree: ast.Module) -> Set[str]:
-        names: Set[str] = set()
+    def _extract_all_names(self, tree: ast.Module) -> set[str]:
+        names: set[str] = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign):
                 for target in node.targets:
@@ -63,8 +65,8 @@ class SpecExtractor:
                                     names.add(elt.value)
         return names
 
-    def _extract_functions(self, tree: ast.Module, all_names: Set[str]) -> List[FunctionSignature]:
-        functions: List[FunctionSignature] = []
+    def _extract_functions(self, tree: ast.Module, all_names: set[str]) -> list[FunctionSignature]:
+        functions: list[FunctionSignature] = []
         for node in tree.body:
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
@@ -91,8 +93,8 @@ class SpecExtractor:
             ))
         return functions
 
-    def _extract_classes(self, tree: ast.Module, all_names: Set[str]) -> List[ClassSignature]:
-        classes: List[ClassSignature] = []
+    def _extract_classes(self, tree: ast.Module, all_names: set[str]) -> list[ClassSignature]:
+        classes: list[ClassSignature] = []
         for node in tree.body:
             if not isinstance(node, ast.ClassDef):
                 continue
@@ -106,7 +108,7 @@ class SpecExtractor:
                     bases.append(ast.unparse(base))
                 except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
                     logger.debug("Suppressed %s in core.self_improvement.spec_extractor: %s", type(_exc).__name__, _exc)
-            methods: List[FunctionSignature] = []
+            methods: list[FunctionSignature] = []
             for item in node.body:
                 if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     if item.name.startswith("_") and item.name != "__init__":
@@ -135,7 +137,7 @@ class SpecExtractor:
             ))
         return classes
 
-    def _extract_constants(self, tree: ast.Module, all_names: Set[str]) -> dict[str, str]:
+    def _extract_constants(self, tree: ast.Module, all_names: set[str]) -> dict[str, str]:
         constants: dict[str, str] = {}
         for node in tree.body:
             if isinstance(node, ast.Assign):
@@ -156,8 +158,8 @@ class SpecExtractor:
                         constants[name] = type_str
         return constants
 
-    def _extract_imports(self, tree: ast.Module) -> List[str]:
-        imports: List[str] = []
+    def _extract_imports(self, tree: ast.Module) -> list[str]:
+        imports: list[str] = []
         for node in tree.body:
             if isinstance(node, ast.Import):
                 for alias in node.names:
@@ -168,8 +170,8 @@ class SpecExtractor:
                 imports.append(f"from {module} import {names}")
         return imports
 
-    def _extract_dependencies(self, tree: ast.Module) -> List[str]:
-        deps: Set[str] = set()
+    def _extract_dependencies(self, tree: ast.Module) -> list[str]:
+        deps: set[str] = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
@@ -179,8 +181,8 @@ class SpecExtractor:
                     deps.add(node.module.split(".")[0])
         return sorted(deps)
 
-    def _extract_params(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> List[str]:
-        params: List[str] = []
+    def _extract_params(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
+        params: list[str] = []
         for arg in node.args.args:
             name = arg.arg
             if arg.annotation:
@@ -199,8 +201,8 @@ class SpecExtractor:
             params.append(name)
         return params
 
-    def _extract_decorators(self, node) -> List[str]:
-        decorators: List[str] = []
+    def _extract_decorators(self, node) -> list[str]:
+        decorators: list[str] = []
         for dec in node.decorator_list:
             try:
                 decorators.append(ast.unparse(dec))
@@ -209,8 +211,8 @@ class SpecExtractor:
                     decorators.append(dec.id)
         return decorators
 
-    def _find_test_cases(self, module_path: str) -> List[TestCase]:
-        test_cases: List[TestCase] = []
+    def _find_test_cases(self, module_path: str) -> list[TestCase]:
+        test_cases: list[TestCase] = []
         module_name = Path(module_path).stem
         tests_dir = self.project_root / "tests"
         if not tests_dir.exists():

@@ -104,7 +104,7 @@ def open_stable_readonly_binary(
             os.close(fd)
 
 
-def _mark_file_provenance(path: "PathLike") -> None:
+def _mark_file_provenance(path: PathLike) -> None:
     """Record that this turn read a file whose contents Aura did not write.
 
     Never raises: provenance is a note about the turn, and failing to take the

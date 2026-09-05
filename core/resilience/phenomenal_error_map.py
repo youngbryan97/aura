@@ -25,20 +25,20 @@ maps the envelope to a structured non-2xx response so the UI can recover
 gracefully without pretending the failed request was healthy.
 """
 from __future__ import annotations
-import inspect
-from core.runtime.errors import record_degradation
-from core.runtime.service_registry import get_runtime_service
-
-
 
 import asyncio
 import functools
+import inspect
 import logging
 import time
 import traceback
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass, field
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+from typing import Any
+
+from core.runtime.errors import record_degradation
+from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("Aura.PhenomenalErrorMap")
 
@@ -67,12 +67,12 @@ _PHENOMENAL_RECOVERABLE_ERRORS = (
 class PhenomenalState:
     name: str
     user_message: str
-    substrate_signal: Dict[str, float]  # mapping → affect engine update
+    substrate_signal: dict[str, float]  # mapping → affect engine update
     recovery_action: str  # retry | reconnect | restart_cortex | release_pressure | wait
     severity: float  # 0.0 = mild, 1.0 = critical
 
 
-PHENOMENAL_STATES: Dict[str, PhenomenalState] = {
+PHENOMENAL_STATES: dict[str, PhenomenalState] = {
     "cognitive_fog": PhenomenalState(
         name="cognitive_fog",
         user_message="My cognitive bus is stalling. Give me a few seconds to reset my context.",
@@ -156,7 +156,7 @@ PHENOMENAL_STATES: Dict[str, PhenomenalState] = {
 # Mapping rules: each rule is (predicate, phenomenal_state_name).
 # Order matters — first matching rule wins.
 
-_PHENOMENAL_RULES: List[Tuple[Callable[[BaseException], bool], str]] = [
+_PHENOMENAL_RULES: list[tuple[Callable[[BaseException], bool], str]] = [
     (lambda e: isinstance(e, asyncio.TimeoutError), "cognitive_fog"),
     (lambda e: isinstance(e, ConnectionRefusedError), "network_offline"),
     (lambda e: isinstance(e, ConnectionError), "network_offline"),
@@ -201,21 +201,21 @@ class ErrorEnvelope:
     user_message: str
     technical_summary: str  # short — no traceback
     suggested_action: str
-    recovery_buttons: List[Dict[str, str]]  # [{label, action_id}]
+    recovery_buttons: list[dict[str, str]]  # [{label, action_id}]
     severity: float
     occurred_at: float = field(default_factory=time.time)
-    diagnostic_link: Optional[str] = None
-    correlation_id: Optional[str] = None
+    diagnostic_link: str | None = None
+    correlation_id: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 def build_envelope(
     exc: BaseException,
     *,
-    correlation_id: Optional[str] = None,
-    diagnostic_link: Optional[str] = None,
+    correlation_id: str | None = None,
+    diagnostic_link: str | None = None,
 ) -> ErrorEnvelope:
     state = classify(exc)
     technical = f"{type(exc).__name__}: {str(exc)[:160]}"
@@ -272,7 +272,7 @@ class PhenomenalRaise(Exception):
     instead of a stack trace. ``original`` is preserved for logging.
     """
 
-    def __init__(self, envelope: ErrorEnvelope, original: Optional[BaseException] = None) -> None:
+    def __init__(self, envelope: ErrorEnvelope, original: BaseException | None = None) -> None:
         super().__init__(envelope.user_message)
         self.envelope = envelope
         self.original = original
@@ -328,9 +328,9 @@ class PhenomenalContext:
     def __init__(self, *, scope: str, log_traceback: bool = True) -> None:
         self.scope = scope
         self.log_traceback = log_traceback
-        self.envelope: Optional[ErrorEnvelope] = None
+        self.envelope: ErrorEnvelope | None = None
 
-    def __enter__(self) -> "PhenomenalContext":
+    def __enter__(self) -> PhenomenalContext:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
@@ -343,7 +343,7 @@ class PhenomenalContext:
         _notify_substrate(PHENOMENAL_STATES[envelope.phenomenal_state], source=self.scope)
         raise PhenomenalRaise(envelope, original=exc) from exc
 
-    async def __aenter__(self) -> "PhenomenalContext":
+    async def __aenter__(self) -> PhenomenalContext:
         return self.__enter__()
 
     async def __aexit__(self, exc_type, exc, tb) -> bool:

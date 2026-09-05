@@ -40,7 +40,8 @@ import logging
 import math
 import random
 import statistics
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 __all__ = [
     "after_the_winners_curse",

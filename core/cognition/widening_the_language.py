@@ -41,8 +41,9 @@ convenient for it to be.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Sequence
+from typing import Any
 
 __all__ = [
     "CONSTRUCTORS",

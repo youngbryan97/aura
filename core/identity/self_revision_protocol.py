@@ -1,9 +1,8 @@
 """core/identity/self_revision_protocol.py
 Gated validation protocol for self-modification operations on identity elements.
 """
-from typing import Dict, Any, List
 import logging
-from core.config import get_config
+from typing import Any
 
 logger = logging.getLogger("Identity.SelfRevisionProtocol")
 

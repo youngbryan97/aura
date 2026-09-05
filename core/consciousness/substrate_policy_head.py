@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import math
 import time
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Sequence
-
+from typing import Any
 
 POLICY_KEYS = (
     "goal_priority",

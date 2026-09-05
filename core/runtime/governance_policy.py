@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from core.runtime.background_policy import is_user_facing_origin
 

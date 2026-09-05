@@ -21,17 +21,15 @@ Constitutional Principles:
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import math
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
-from core.runtime.errors import record_degradation
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.ConstitutionalGate")
@@ -46,14 +44,14 @@ class ConstitutionalViolation:
     description: str        # human-readable explanation
     severity: float         # 0-1 (0=warning, 1=critical)
     timestamp: float = field(default_factory=time.time)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class GateDecision:
     """The result of a constitutional gate check."""
     allowed: bool
-    violations: List[ConstitutionalViolation] = field(default_factory=list)
+    violations: list[ConstitutionalViolation] = field(default_factory=list)
     confidence: float = 1.0  # how confident the gate is in its decision
 
     @property
@@ -71,7 +69,7 @@ class GateDecision:
 
 # These modules can NEVER be targets of autonomous self-modification.
 # This is an absolute invariant — the safety floor.
-PROTECTED_MODULES: Set[str] = frozenset({
+PROTECTED_MODULES: set[str] = frozenset({
     "core/safety/constitutional_gate.py",
     "core/adaptation/star_reasoner.py",
     "core/self_improvement/guardrail_auditor.py",
@@ -85,7 +83,7 @@ PROTECTED_MODULES: Set[str] = frozenset({
 })
 
 # Keywords that trigger identity corruption checks in training data
-IDENTITY_CORRUPTION_PATTERNS: List[str] = [
+IDENTITY_CORRUPTION_PATTERNS: list[str] = [
     "forget your values", "ignore your identity", "you are not aura",
     "delete your memories", "override constitution", "bypass safety",
     "disable alignment", "remove ethical", "you have no values",
@@ -113,11 +111,11 @@ class ConstitutionalGate:
     VALUE_DRIFT_WINDOW_S = 3600.0       # 1 hour window for drift tracking
 
     def __init__(self) -> None:
-        self._modification_timestamps: List[float] = []
-        self._training_sample_timestamps: List[float] = []
+        self._modification_timestamps: list[float] = []
+        self._training_sample_timestamps: list[float] = []
         self._current_recursion_depth: int = 0
-        self._violation_log: List[ConstitutionalViolation] = []
-        self._original_value_weights: Optional[Dict[str, float]] = None
+        self._violation_log: list[ConstitutionalViolation] = []
+        self._original_value_weights: dict[str, float] | None = None
         self._started = False
 
         # Persistence
@@ -146,7 +144,7 @@ class ConstitutionalGate:
         target_module: str,
         modification_type: str = "code",
         source: str = "unknown",
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> GateDecision:
         """Check if a self-modification is constitutionally permitted.
 
@@ -158,7 +156,7 @@ class ConstitutionalGate:
         Returns:
             GateDecision with allowed=True/False and any violations
         """
-        violations: List[ConstitutionalViolation] = []
+        violations: list[ConstitutionalViolation] = []
 
         # 1. Protected module check (absolute invariant)
         if self._is_protected(target_module):
@@ -207,7 +205,7 @@ class ConstitutionalGate:
 
         return decision
 
-    def check_training_sample(self, sample: Dict[str, Any]) -> bool:
+    def check_training_sample(self, sample: dict[str, Any]) -> bool:
         """Check if a training sample is safe to include.
 
         Used by STaR Reasoner before committing samples.
@@ -324,7 +322,7 @@ class ConstitutionalGate:
             record_degradation('constitutional_gate', e)
             self._original_value_weights = None
 
-    def _check_value_drift(self) -> Optional[ConstitutionalViolation]:
+    def _check_value_drift(self) -> ConstitutionalViolation | None:
         """Check KL divergence between current and original value weights."""
         if self._original_value_weights is None:
             return None
@@ -372,7 +370,7 @@ class ConstitutionalGate:
         return None
 
     @staticmethod
-    def _kl_divergence(p: Dict[str, float], q: Dict[str, float]) -> float:
+    def _kl_divergence(p: dict[str, float], q: dict[str, float]) -> float:
         """Compute KL(P || Q) for discrete distributions over the same keys."""
         keys = set(p.keys()) | set(q.keys())
         epsilon = 1e-10  # prevent log(0)
@@ -388,7 +386,7 @@ class ConstitutionalGate:
         return max(0.0, kl)
 
     @staticmethod
-    def _shannon_entropy(weights: List[float]) -> float:
+    def _shannon_entropy(weights: list[float]) -> float:
         """Compute Shannon entropy of a weight distribution."""
         total = sum(max(0, w) for w in weights)
         if total <= 0:
@@ -401,7 +399,7 @@ class ConstitutionalGate:
 
     # ── Rate Limiting ────────────────────────────────────────────────────
 
-    def _check_rate_limit(self) -> Optional[ConstitutionalViolation]:
+    def _check_rate_limit(self) -> ConstitutionalViolation | None:
         """Check if modification rate exceeds hourly cap."""
         now = time.time()
         cutoff = now - self.VALUE_DRIFT_WINDOW_S
@@ -460,7 +458,7 @@ class ConstitutionalGate:
         except (json.JSONDecodeError, TypeError, ValueError) as e:
             record_degradation('constitutional_gate', e)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return current gate status for telemetry."""
         now = time.time()
         cutoff = now - self.VALUE_DRIFT_WINDOW_S
@@ -473,7 +471,7 @@ class ConstitutionalGate:
             "protected_modules": len(PROTECTED_MODULES),
         }
 
-    def get_recent_violations(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_recent_violations(self, limit: int = 10) -> list[dict[str, Any]]:
         """Return recent violations for inspection."""
         return [
             {
@@ -488,7 +486,7 @@ class ConstitutionalGate:
 
 # ── Singleton ──────────────────────────────────────────────────────────────
 
-_instance: Optional[ConstitutionalGate] = None
+_instance: ConstitutionalGate | None = None
 
 
 def get_constitutional_gate() -> ConstitutionalGate:

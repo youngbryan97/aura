@@ -26,9 +26,9 @@ using data generated locally with no license attached.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 import numpy as np
 
@@ -88,7 +88,7 @@ def _build_net(vocab_size: int):
             )
             self.head = nn.Linear(128, num_classes)
 
-        def forward(self, video: "torch.Tensor") -> "torch.Tensor":
+        def forward(self, video: torch.Tensor) -> torch.Tensor:
             # video: (B, 1, T, H, W) → conv (B, 32, T, H', W')
             features = self.frontend(video)
             # Global spatial average (over H', W'), keeping the dynamic

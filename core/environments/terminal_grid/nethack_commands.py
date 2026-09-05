@@ -6,7 +6,13 @@ appropriate risk levels, expected modal states, and preconditions.
 """
 from __future__ import annotations
 
-from core.environment.command import ActionIntent, CommandCompiler, CommandSpec, CommandStep, command_id_for
+from core.environment.command import (
+    ActionIntent,
+    CommandCompiler,
+    CommandSpec,
+    CommandStep,
+    command_id_for,
+)
 from core.environment.modal import ModalState
 
 

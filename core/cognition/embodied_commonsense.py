@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
 
 
 def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -30,7 +29,7 @@ def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
 
 
 # (invariant name, pattern, severity, explanation)
-_RULES: List[Tuple[str, re.Pattern, float, str]] = [
+_RULES: list[tuple[str, re.Pattern, float, str]] = [
     ("permanence", re.compile(r"\b(vanish(?:ed|es)? into nothing|pop(?:ped)? out of existence|"
                               r"appeared? from nothing|materializ(?:ed|es) from thin air|"
                               r"ceased? to exist instantly)\b", re.I), 0.8,
@@ -61,9 +60,9 @@ _RULES: List[Tuple[str, re.Pattern, float, str]] = [
 class CommonSenseVerdict:
     plausible: bool
     plausibility: float                # [0,1]
-    violations: List[str] = field(default_factory=list)
-    spans: List[str] = field(default_factory=list)
-    notes: List[str] = field(default_factory=list)
+    violations: list[str] = field(default_factory=list)
+    spans: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -83,9 +82,9 @@ class EmbodiedCommonSense:
 
     def check(self, text: str) -> CommonSenseVerdict:
         t = str(text or "")
-        violations: List[str] = []
-        spans: List[str] = []
-        notes: List[str] = []
+        violations: list[str] = []
+        spans: list[str] = []
+        notes: list[str] = []
         severity_hit = 0.0
         for name, pat, severity, why in _RULES:
             m = pat.search(t)
@@ -105,7 +104,7 @@ class EmbodiedCommonSense:
         return self.check(text).plausibility
 
 
-_engine: Optional[EmbodiedCommonSense] = None
+_engine: EmbodiedCommonSense | None = None
 
 
 def get_embodied_commonsense() -> EmbodiedCommonSense:

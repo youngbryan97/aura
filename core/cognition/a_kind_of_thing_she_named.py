@@ -33,8 +33,9 @@ distinction nobody can apply.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Sequence
+from typing import Any
 
 __all__ = [
     "AKindOfThing",

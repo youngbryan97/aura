@@ -12,14 +12,13 @@ Uses ripser if available for performance; falls back to a pure-NumPy
 Vietoris-Rips approximation when ripser is not installed.
 """
 
-from core.runtime.errors import record_degradation
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
 
 import numpy as np
 
+from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("PNEUMA.TopologicalMemory")
@@ -28,8 +27,8 @@ logger = logging.getLogger("PNEUMA.TopologicalMemory")
 @dataclass
 class PersistenceDiagram:
     """A persistence diagram: list of (birth, death) pairs per dimension."""
-    dim0: List[Tuple[float, float]] = field(default_factory=list)   # H0: connected components
-    dim1: List[Tuple[float, float]] = field(default_factory=list)   # H1: loops
+    dim0: list[tuple[float, float]] = field(default_factory=list)   # H0: connected components
+    dim1: list[tuple[float, float]] = field(default_factory=list)   # H1: loops
     timestamp: float = field(default_factory=time.time)
 
     def total_persistence(self) -> float:
@@ -60,7 +59,7 @@ def _pairwise_distances(X: np.ndarray) -> np.ndarray:
     return D
 
 
-def _vietoris_rips_h0(D: np.ndarray, n_steps: int = 20) -> List[Tuple[float, float]]:
+def _vietoris_rips_h0(D: np.ndarray, n_steps: int = 20) -> list[tuple[float, float]]:
     """H0 persistence via single-linkage clustering over filtration.
 
     As ε increases from 0 to max_dist, connected components merge.
@@ -158,8 +157,8 @@ class TopologicalMemoryEngine:
         self.dim = dim
         self.window_size = window_size
         self.update_every = update_every  # recompute every N points
-        self._buffer: List[np.ndarray] = []
-        self._diagram: Optional[PersistenceDiagram] = None
+        self._buffer: list[np.ndarray] = []
+        self._diagram: PersistenceDiagram | None = None
         self._n_since_update: int = 0
         self._attractor_count: int = 0
         logger.info("TopologicalMemoryEngine online (dim=%d, window=%d)", dim, window_size)
@@ -208,7 +207,7 @@ class TopologicalMemoryEngine:
             logger.debug("Topology recompute error: %s", e)
 
     @property
-    def diagram(self) -> Optional[PersistenceDiagram]:
+    def diagram(self) -> PersistenceDiagram | None:
         return self._diagram
 
     @property

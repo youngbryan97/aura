@@ -2,6 +2,7 @@
 """
 
 import logging
+
 from core.runtime.service_registry import SERVICE_LIFETIME_SINGLETON
 
 logger = logging.getLogger("Aura.Providers.Ops")
@@ -36,8 +37,8 @@ def register_ops_services(container, is_proxy: bool = False):
     def create_sme():
         if is_proxy:
             return None
-        from core.self_modification.self_modification_engine import AutonomousSelfModificationEngine
         from core.config import config
+        from core.self_modification.self_modification_engine import AutonomousSelfModificationEngine
         brain = container.get("cognitive_engine")
         return AutonomousSelfModificationEngine(
             brain, 

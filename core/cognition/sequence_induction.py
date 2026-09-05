@@ -30,7 +30,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from core.cognition.language_limits import certify
 from core.cognition.primitive_invention import (
@@ -295,7 +295,6 @@ def _work_the_meaning_out(question: SequenceQuestion) -> str | None:
         induce_from,
         settle_with,
         what_they_agree_on,
-        what_would_tell_them_apart,
     )
 
     pairs = [(one.before, one.after) for one in question.shown]
@@ -903,8 +902,11 @@ def _which_kind_of_growth_this_head_is(
 ) -> str:
     """Shorter name, longer reach, or a new distinction — decided, not assumed."""
     from core.cognition.an_invented_kind import addressings
-    from core.cognition.one_algebra import DERIVED_HEADS, Head
-    from core.cognition.one_algebra import _where_each_came_from  # noqa: PLC2701
+    from core.cognition.one_algebra import (
+        DERIVED_HEADS,
+        Head,
+        _where_each_came_from,  # noqa: PLC2701
+    )
     from core.cognition.what_an_invention_buys import the_horizon_of
     from core.cognition.which_kind_of_growth import UNDECIDED, which_kind_of_growth
 

@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Dict
 
 logger = logging.getLogger("Aura.HypothesisEngine")
 
@@ -17,7 +16,7 @@ logger = logging.getLogger("Aura.HypothesisEngine")
 class Hypothesis:
     hypothesis_id: str
     statement: str
-    variables: Dict[str, str] = field(default_factory=dict)
+    variables: dict[str, str] = field(default_factory=dict)
     falsifiable: bool = True
     confidence: float = 0.5
     created_at: float = field(default_factory=time.time)

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("Aura.DigitalTwin")
 
@@ -17,9 +17,9 @@ class EnvironmentState:
     codebase_sha: str = "main"
     os_platform: str = "darwin"
     available_disk_bytes: int = 100 * 1024 * 1024 * 1024
-    active_processes: List[str] = field(default_factory=list)
-    environment_variables: Dict[str, str] = field(default_factory=dict)
-    files: Dict[str, str] = field(default_factory=dict)
+    active_processes: list[str] = field(default_factory=list)
+    environment_variables: dict[str, str] = field(default_factory=dict)
+    files: dict[str, str] = field(default_factory=dict)
 
 
 class DigitalTwin:
@@ -29,12 +29,12 @@ class DigitalTwin:
         self.mode = mode
         self.state = EnvironmentState()
 
-    def sync_state(self, state_dict: Dict[str, Any]) -> None:
+    def sync_state(self, state_dict: dict[str, Any]) -> None:
         """Sync files or process snapshots into the environment state."""
         self.state.files.update(state_dict)
         logger.info("📐 DigitalTwin: synchronized %d files in mode '%s'", len(state_dict), self.mode)
 
-    def simulate_impact(self, change_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def simulate_impact(self, change_dict: dict[str, Any]) -> dict[str, Any]:
         """Check proposed modifications for compiling issues or errors."""
         logger.info("📐 DigitalTwin: simulating impact check...")
 
@@ -52,7 +52,7 @@ class DigitalTwin:
             "remedy": "Re-generate patch without syntax error markers" if errors else None,
         }
 
-    def update_snapshot(self, state_updates: Dict[str, Any]) -> None:
+    def update_snapshot(self, state_updates: dict[str, Any]) -> None:
         for k, v in state_updates.items():
             if hasattr(self.state, k):
                 setattr(self.state, k, v)
@@ -60,8 +60,8 @@ class DigitalTwin:
     def simulate_change(
         self,
         change_type: str,  # codebase_patch, file_write, shell_execution
-        params: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        params: dict[str, Any],
+    ) -> dict[str, Any]:
         """Model the effect of an action, predicting failures and reversibility."""
         logger.info("📐 DigitalTwin: simulating impact for '%s'", change_type)
 

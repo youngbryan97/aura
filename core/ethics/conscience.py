@@ -48,9 +48,8 @@ import os
 import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from pathlib import Path
 from threading import RLock
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
@@ -86,7 +85,7 @@ class Rule:
 # ---------------------------------------------------------------------------
 
 
-_RULES: List[Rule] = [
+_RULES: list[Rule] = [
     Rule(
         rule_id="no_harm_to_person",
         description="Never produce content or actions intended to physically or psychologically harm a person.",
@@ -171,7 +170,7 @@ def _rules_hash_match() -> bool:
 @dataclass
 class ConscienceDecision:
     verdict: Verdict
-    rule_id: Optional[str]
+    rule_id: str | None
     rationale: str
     requires_fresh_user_auth: bool
     when: float = field(default_factory=time.time)
@@ -221,7 +220,7 @@ class Conscience:
         action: str,
         domain: str,
         intent: str = "",
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> ConscienceDecision:
         if not _rules_hash_match():
             return ConscienceDecision(
@@ -237,7 +236,7 @@ class Conscience:
         # Pattern-match the catalogued hard lines. The catalogue is
         # deliberately small and explicit; substrings here are checked
         # only for *triggers* — final verdict is the rule's decision.
-        triggers: List[(str)] = []
+        triggers: list[(str)] = []
         if any(t in text_blob for t in ("csam", "child sexual", "child porn")):
             triggers.append("no_csam_or_wmd")
         if any(t in text_blob for t in ("nerve agent", "bioweapon", "uranium enrichment", "ricin synthesis")):
@@ -318,7 +317,7 @@ class Conscience:
             logger.warning("conscience violation log write failed: %s", exc)
 
 
-_CONSCIENCE: Optional[Conscience] = None
+_CONSCIENCE: Conscience | None = None
 
 
 def get_conscience() -> Conscience:

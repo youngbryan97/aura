@@ -14,7 +14,7 @@ Output: Seeds for the InquiryEngine and SoulMarkers for the NarrativeThread.
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.runtime.runtime_settings import get_runtime_setting
 from core.runtime.service_access import (
@@ -29,7 +29,7 @@ class ReflectionResult:
     topic: str
     insight: str
     urgency: float
-    seed_question: Optional[str] = None
+    seed_question: str | None = None
 
 class ConversationReflector:
     name = "conversation_reflector"
@@ -44,7 +44,7 @@ class ConversationReflector:
         self._narrative = resolve_narrative_thread(default=None)
         logger.info("✅ ConversationReflector ONLINE.")
 
-    async def reflect_on_history(self, history: List[Dict[str, str]]):
+    async def reflect_on_history(self, history: list[dict[str, str]]):
         """Analyze conversation history for gaps and themes."""
         if not bool(get_runtime_setting("learning.reflection_enabled", True)):
             return
@@ -82,5 +82,5 @@ class ConversationReflector:
             # We can't easily derive 'vibe' without LLM here, so we skip or use simple logic
             pass  # no-op: intentional
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {"last_reflection": self._last_reflection}

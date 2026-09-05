@@ -4,28 +4,27 @@ Analyzes errors, locates the source file, reads the code, asks the LLM
 for a targeted fix, and saves a repair proposal. Integrates with the
 learning system to remember what worked.
 """
-from core.runtime.errors import record_degradation
-from core.runtime.atomic_writer import atomic_write_text
-from core.runtime.action_executor import ActionExecutor
-from core.governance.will import ActionDomain
 import logging
 import re
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from core.config import config
 from core.container import ServiceContainer
+from core.governance.will import ActionDomain
+from core.runtime.action_executor import ActionExecutor
+from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.SelfRepair")
 
 
 class SelfRepairInput(BaseModel):
-    component: Optional[str] = Field(None, description="Name of the broken component or skill.")
-    error: Optional[str] = Field(None, description="Error message or failure pattern observed.")
+    component: str | None = Field(None, description="Name of the broken component or skill.")
+    error: str | None = Field(None, description="Error message or failure pattern observed.")
     auto_apply: bool = Field(False, description="If True, attempt to apply the fix automatically (requires GrowthLadder approval).")
 
 
@@ -38,7 +37,7 @@ class SelfRepairSkill(BaseSkill):
     timeout_seconds = 60.0
     metabolic_cost = 2
 
-    async def execute(self, params: Any, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def execute(self, params: Any, context: dict[str, Any] = None) -> dict[str, Any]:
         context = context or {}
 
         if isinstance(params, dict):
@@ -71,7 +70,7 @@ class SelfRepairSkill(BaseSkill):
         # 2. Read the source
         try:
             source_code = Path(target_path).read_text(errors="replace")
-        except (OSError, IOError) as e:
+        except OSError as e:
             record_degradation('self_repair', e)
             return {"ok": False, "error": f"Could not read {target_path}: {e}"}
 
@@ -165,7 +164,7 @@ class SelfRepairSkill(BaseSkill):
         }
 
     @staticmethod
-    def _locate_component(name: str) -> Optional[str]:
+    def _locate_component(name: str) -> str | None:
         """Search common directories for the component file."""
         base = config.paths.base_dir
         search_dirs = ["core/skills", "core", "skills", "infrastructure", "core/brain",

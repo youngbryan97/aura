@@ -52,7 +52,6 @@ Emotions are functional — they exist because they help Aura work better.
 from __future__ import annotations
 
 import logging
-from typing import Dict, Any
 
 import numpy as np
 
@@ -72,7 +71,7 @@ class EmotionArchitectureCoupling:
         self._cache_valid_until = 0.0
         self.cache_ttl = 0.1  # 100ms cache
     
-    def get_phi_integration_weights(self, emotion_state: Dict[str, float]) -> Dict[str, float]:
+    def get_phi_integration_weights(self, emotion_state: dict[str, float]) -> dict[str, float]:
         """
         Compute emotion-modulated weights for phi consciousness calculation.
         
@@ -153,7 +152,7 @@ class EmotionArchitectureCoupling:
                 "global_ignition": 0.05,
             }
     
-    def get_authorization_threshold_modulation(self, emotion_state: Dict[str, float]) -> Dict[str, float]:
+    def get_authorization_threshold_modulation(self, emotion_state: dict[str, float]) -> dict[str, float]:
         """
         Return emotion-based modulations to substrate authority thresholds.
         
@@ -218,7 +217,7 @@ class EmotionArchitectureCoupling:
                 "stability_action_threshold": 0.0,
             }
     
-    def get_learning_rate_modulation(self, emotion_state: Dict[str, float]) -> float:
+    def get_learning_rate_modulation(self, emotion_state: dict[str, float]) -> float:
         """
         Return emotion-based learning rate multiplier [0.3 to 3.0].
         
@@ -266,7 +265,7 @@ class EmotionArchitectureCoupling:
             logger.debug(f"Learning rate modulation error: {e}")
             return 1.0
     
-    def get_planning_horizon_modulation(self, emotion_state: Dict[str, float]) -> float:
+    def get_planning_horizon_modulation(self, emotion_state: dict[str, float]) -> float:
         """
         Return emotion-based planning horizon multiplier [0.5 to 2.0].
         
@@ -318,7 +317,7 @@ class EmotionArchitectureCoupling:
             logger.debug(f"Planning horizon modulation error: {e}")
             return 1.0
     
-    def get_belief_mutation_cost(self, emotion_state: Dict[str, float]) -> float:
+    def get_belief_mutation_cost(self, emotion_state: dict[str, float]) -> float:
         """
         Return emotion-based cost multiplier for changing beliefs [0.3 to 3.0].
         

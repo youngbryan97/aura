@@ -1,14 +1,14 @@
 """core/memory/day_summary.py
 Periodic offline day summary consolidator.
 """
-from typing import List, Dict, Any
 import time
+from typing import Any
 
 
 class DaySummaryManager:
     """Consolidates day activities into narrative summaries."""
 
-    def generate_day_summary(self, events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def generate_day_summary(self, events: list[dict[str, Any]]) -> dict[str, Any]:
         """Summarizes structural activities over a 24-hour cycle."""
         if not events:
             return {"summary": "No active events recorded today.", "timestamp": time.time()}

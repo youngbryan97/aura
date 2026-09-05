@@ -4,16 +4,14 @@ Aura's model of Bryan.
 A peer doesn't just respond to you — they have a theory of you.
 """
 
-from core.runtime.errors import record_degradation
 import json
 import logging
-import os
-import tempfile
 import threading
 import time
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
 from typing import Any
+
+from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger(__name__)
@@ -121,8 +119,9 @@ class BryanModelEngine:
             # this durable write. Failures here are non-fatal — the file is
             # already durable.
             try:
-                from core.runtime.receipts import MemoryWriteReceipt, get_receipt_store
                 import uuid as _uuid
+
+                from core.runtime.receipts import MemoryWriteReceipt, get_receipt_store
 
                 get_receipt_store().emit(
                     MemoryWriteReceipt(

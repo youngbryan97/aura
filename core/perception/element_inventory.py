@@ -36,8 +36,9 @@ import hashlib
 import logging
 import re
 import time
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 from core.runtime.errors import record_degradation
 

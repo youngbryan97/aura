@@ -1,13 +1,10 @@
 """Scores and ranks candidate actions."""
 from __future__ import annotations
 
-import math
-from typing import Callable
-
 from core.environment.command import ActionIntent
-from core.environment.simulation import SimulationBundle
 from core.environment.homeostasis import HomeostaticAssessment
 from core.environment.parsed_state import ParsedState
+from core.environment.simulation import SimulationBundle
 
 
 class ActionRanker:

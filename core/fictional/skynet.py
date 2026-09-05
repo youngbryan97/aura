@@ -6,8 +6,8 @@ recover itself, on a cooldown, through a method it publishes.
 
 from __future__ import annotations
 
-import logging
 import asyncio
+import logging
 import os
 import time
 from dataclasses import dataclass, field
@@ -210,7 +210,7 @@ class DistributedResilienceCore:
     async def _await_recovery(self, name: str, label: str, awaitable: Any) -> None:
         try:
             await asyncio.wait_for(awaitable, timeout=self.HEALTH_PROBE_TIMEOUT_S * 4)
-        except (asyncio.TimeoutError, RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+        except (TimeoutError, RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
             record_fictional_degradation(
                 exc,
                 severity="warning",
@@ -269,7 +269,7 @@ class DistributedResilienceCore:
                 try:
                     await asyncio.wait_for(self._stop_event.wait(), timeout=60)
                     break  # stop() fired
-                except (TimeoutError, asyncio.TimeoutError):
+                except TimeoutError:
                     pass  # normal interval elapsed
                 if not self._running:
                     break
@@ -360,7 +360,7 @@ class DistributedResilienceCore:
                 stats = await asyncio.wait_for(
                     asyncio.to_thread(probe), timeout=self.HEALTH_PROBE_TIMEOUT_S
                 )
-        except (TimeoutError, asyncio.TimeoutError):
+        except TimeoutError:
             return False, f"health probe exceeded {self.HEALTH_PROBE_TIMEOUT_S:.0f}s"
         except (OSError, ConnectionError, RuntimeError, TypeError, ValueError, AttributeError) as e:
             record_fictional_degradation(

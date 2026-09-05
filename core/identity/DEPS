@@ -25,6 +25,11 @@ include_rules = [
     "+core.organism",
     "+core.runtime",
     "+core.utils",
+
+    # Structural invariants live next to what they protect, and reaching the
+    # verifier is how they register. One way: nothing in core.verify may
+    # reach back.
+    "+core.verify",
     "+core.will",
 
     # Everything else.

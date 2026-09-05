@@ -18,7 +18,7 @@ simulation, same discipline as the statevector cap.
 from __future__ import annotations
 
 import math
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -47,7 +47,7 @@ class DensityMatrix:
         self.rho[0, 0] = 1.0
 
     @classmethod
-    def from_statevector(cls, state: Statevector) -> "DensityMatrix":
+    def from_statevector(cls, state: Statevector) -> DensityMatrix:
         if state.num_qubits > MAX_DENSITY_QUBITS:
             raise QuantumCircuitError("statevector too wide for density form")
         density = cls(state.num_qubits)
@@ -65,7 +65,7 @@ class DensityMatrix:
             op = np.kron(op, matrix if index == qubit else np.eye(2))
         return op
 
-    def apply_gate(self, name: str, qubit: int) -> "DensityMatrix":
+    def apply_gate(self, name: str, qubit: int) -> DensityMatrix:
         gate = _GATES_1Q.get(name.upper())
         if gate is None:
             raise QuantumCircuitError(f"unknown gate '{name}'")
@@ -73,11 +73,11 @@ class DensityMatrix:
         self.rho = operator @ self.rho @ operator.conj().T
         return self
 
-    def apply_unitary_full(self, unitary: np.ndarray) -> "DensityMatrix":
+    def apply_unitary_full(self, unitary: np.ndarray) -> DensityMatrix:
         self.rho = unitary @ self.rho @ unitary.conj().T
         return self
 
-    def apply_kraus(self, operators: Sequence[np.ndarray], qubit: int) -> "DensityMatrix":
+    def apply_kraus(self, operators: Sequence[np.ndarray], qubit: int) -> DensityMatrix:
         """Apply a single-qubit channel {K_i}: ρ → Σ K ρ K†. Completeness
         Σ K†K = I is verified — malformed channels are refused."""
         completeness = sum(
@@ -93,7 +93,7 @@ class DensityMatrix:
 
     # ── canonical noise channels ───────────────────────────────
 
-    def amplitude_damping(self, gamma: float, qubit: int) -> "DensityMatrix":
+    def amplitude_damping(self, gamma: float, qubit: int) -> DensityMatrix:
         """T1 relaxation: |1⟩ decays to |0⟩ with probability γ."""
         if not 0.0 <= gamma <= 1.0:
             raise QuantumCircuitError("gamma must be in [0, 1]")
@@ -101,7 +101,7 @@ class DensityMatrix:
         k1 = np.array([[0, math.sqrt(gamma)], [0, 0]])
         return self.apply_kraus([k0, k1], qubit)
 
-    def phase_damping(self, lam: float, qubit: int) -> "DensityMatrix":
+    def phase_damping(self, lam: float, qubit: int) -> DensityMatrix:
         """Pure dephasing: coherences decay, populations untouched."""
         if not 0.0 <= lam <= 1.0:
             raise QuantumCircuitError("lambda must be in [0, 1]")
@@ -109,7 +109,7 @@ class DensityMatrix:
         k1 = np.array([[0, 0], [0, math.sqrt(lam)]])
         return self.apply_kraus([k0, k1], qubit)
 
-    def depolarizing(self, probability: float, qubit: int) -> "DensityMatrix":
+    def depolarizing(self, probability: float, qubit: int) -> DensityMatrix:
         """ρ → (1-p)ρ + (p/3)(XρX + YρY + ZρZ)."""
         if not 0.0 <= probability <= 1.0:
             raise QuantumCircuitError("probability must be in [0, 1]")

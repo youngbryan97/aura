@@ -1,18 +1,19 @@
 """core/utils/json_utils.py
 Robust JSON utilities for Sovereign local models.
 """
-from core.runtime.errors import record_degradation
 import ast
-from core.utils.exceptions import capture_and_log
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
+from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Aura.Utils.JSON")
 
 
-def extract_json(text: Optional[str], brain: Any = None) -> Dict[str, Any]:
+def extract_json(text: str | None, brain: Any = None) -> dict[str, Any]:
     """Unified JSON extraction and repair."""
     repairer = SelfHealingJSON(brain=brain)
     import asyncio
@@ -23,7 +24,7 @@ def extract_json(text: Optional[str], brain: Any = None) -> Dict[str, Any]:
         return repairer.parse_sync(text)
 
 
-def extract_json_list(text: Optional[str]) -> List[Any]:
+def extract_json_list(text: str | None) -> list[Any]:
     """The list a model meant to write, or an empty one.
 
     ``extract_json`` returns an object, and some answers are a list: a plan is
@@ -82,7 +83,7 @@ class SelfHealingJSON:
         self.brain = brain
 
     @staticmethod
-    def _coerce_text(raw_text: Optional[str]) -> str:
+    def _coerce_text(raw_text: str | None) -> str:
         if raw_text is None:
             return ""
         if isinstance(raw_text, str):
@@ -91,7 +92,7 @@ class SelfHealingJSON:
             raw_text = getattr(raw_text, "content", "")
         return str(raw_text or "")
 
-    def parse_sync(self, raw_text: Optional[str]) -> Dict[str, Any]:
+    def parse_sync(self, raw_text: str | None) -> dict[str, Any]:
         """Synchronous version of the repair pipeline."""
         clean_text = self._strip_markdown(raw_text)
         if not clean_text:
@@ -126,7 +127,7 @@ class SelfHealingJSON:
 
         return {}
 
-    async def parse(self, raw_text: Optional[str]) -> Dict[str, Any]:
+    async def parse(self, raw_text: str | None) -> dict[str, Any]:
         """Full async repair pipeline including LLM reflection."""
         result = self.parse_sync(raw_text)
         if result:
@@ -141,7 +142,7 @@ class SelfHealingJSON:
 
         return {}
 
-    def _strip_markdown(self, text: Optional[str]) -> str:
+    def _strip_markdown(self, text: str | None) -> str:
         normalized = self._coerce_text(text).strip()
         if not normalized:
             return ""
@@ -153,7 +154,7 @@ class SelfHealingJSON:
             normalized = re.sub(r"```$", "", normalized)
         return normalized.strip()
 
-    def _heuristic_repair(self, text: Optional[str]) -> str:
+    def _heuristic_repair(self, text: str | None) -> str:
         normalized = self._coerce_text(text)
         normalized = normalized.replace("“", '"').replace("”", '"')
         normalized = normalized.replace("‘", "'").replace("’", "'")
@@ -162,7 +163,7 @@ class SelfHealingJSON:
         normalized = re.sub(r",\s*]", "]", normalized)
         return normalized
 
-    def _parse_pythonish_dict(self, text: Optional[str]) -> Dict[str, Any]:
+    def _parse_pythonish_dict(self, text: str | None) -> dict[str, Any]:
         normalized = self._heuristic_repair(text)
         if not normalized:
             return {}
@@ -172,12 +173,12 @@ class SelfHealingJSON:
             return {}
         return parsed if isinstance(parsed, dict) else {}
 
-    def _find_json_candidates(self, text: Optional[str]) -> List[str]:
+    def _find_json_candidates(self, text: str | None) -> list[str]:
         normalized = self._coerce_text(text)
         if not normalized:
             return []
-        results: List[str] = []
-        stack: List[str] = []
+        results: list[str] = []
+        stack: list[str] = []
         start = -1
         in_string = False
         escape = False
@@ -204,7 +205,7 @@ class SelfHealingJSON:
                         stack = []
         return results
 
-    async def _llm_repair(self, broken_json: Optional[str]) -> Dict[str, Any]:
+    async def _llm_repair(self, broken_json: str | None) -> dict[str, Any]:
         normalized = self._strip_markdown(broken_json)
         if not normalized or not self.brain:
             return {}

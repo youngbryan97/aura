@@ -10,7 +10,7 @@ import random
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.container import ServiceContainer
 from core.motivation.constants import MOTIVATION_BUDGET_DEFAULTS
@@ -74,7 +74,7 @@ class MotivationEngine:
 
     def __init__(self, orchestrator=None):
         # 1. Resource Budgets (The "Body")
-        self.budgets: Dict[str, ResourceBudget] = {
+        self.budgets: dict[str, ResourceBudget] = {
             name: ResourceBudget(
                 name,
                 float(values["capacity"]),
@@ -86,7 +86,7 @@ class MotivationEngine:
         
         # 2. State
         self.running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
         self._last_activity_time = time.time()
         self._recent_growth_goals: deque[str] = deque(maxlen=4)
@@ -179,7 +179,7 @@ class MotivationEngine:
                     logger.debug("Self-modification on_error failed in motivation loop: %s", exc)
                 await asyncio.sleep(10)
 
-    async def _assess_needs(self) -> Optional[Intention]:
+    async def _assess_needs(self) -> Intention | None:
         """Examines budgets and affective state to produce the strongest need."""
         async with self._lock:
             policy_reason = _background_autonomy_block_reason(self.orchestrator)
@@ -364,7 +364,7 @@ class MotivationEngine:
             
         self._last_activity_time = time.time()
 
-    async def update(self, drive_updates: Dict[str, float]):
+    async def update(self, drive_updates: dict[str, float]):
         """Adjust multiple drives at once."""
         async with self._lock:
             for drive, amount in drive_updates.items():
@@ -395,10 +395,10 @@ class MotivationEngine:
                 b.level = max(0.0, b.level - amount)
                 logger.debug("💔 Damaged %s (-%.1f)", drive, amount)
 
-    def get_drive_vector(self) -> Dict[str, float]:
+    def get_drive_vector(self) -> dict[str, float]:
         """Return normalized budget levels for synchronous cognition loops."""
         now = time.time()
-        vector: Dict[str, float] = {}
+        vector: dict[str, float] = {}
         for name, b in self.budgets.items():
             dt = min(300.0, max(0.0, now - b.last_tick))
             current = max(0.0, min(b.capacity, b.level - (b.decay_rate_per_sec * dt)))
@@ -416,7 +416,7 @@ class MotivationEngine:
             return "at_rest"
         return str(name)
 
-    async def get_imperative(self) -> Optional[str]:
+    async def get_imperative(self) -> str | None:
         """DriveEngine-compatible imperative generation.
 
         Returns a high-level goal directive string when any drive is critically
@@ -445,7 +445,7 @@ class MotivationEngine:
             return "Find something productive to work on — a task, a fix, or an improvement"
         return f"Address low {dominant} drive (at {level_pct:.0f}%)"
 
-    async def get_status(self) -> Dict[str, Any]:
+    async def get_status(self) -> dict[str, Any]:
         """Snapshot for telemetry."""
         async with self._lock:
             status = {}
@@ -484,7 +484,7 @@ class MotivationEngine:
             "Forming a small self-model update from the latest successful episode.",
             "Testing a low-risk coding or diagnostic skill against the current worktree.",
         ]
-        weighted: List[str]
+        weighted: list[str]
         if "Alita" in resonance:
             weighted = [themes[4], themes[0], themes[5]]
         elif "Lucy" in resonance:

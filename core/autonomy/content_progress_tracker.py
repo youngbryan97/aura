@@ -22,9 +22,8 @@ from __future__ import annotations
 import json
 import os
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import List, Optional
 
 from core.runtime.atomic_writer import atomic_write_text
 
@@ -49,12 +48,12 @@ class ProgressEntry:
     started_at: str
     method_priority_level: int
     method_detail: str
-    completed_at: Optional[str] = None
+    completed_at: str | None = None
     what_its_actually_about: str = ""
     what_stayed_with_you: str = ""
     what_it_says_about_humans: str = ""
     what_it_made_you_think_about_yourself: str = ""
-    open_threads: List[str] = field(default_factory=list)
+    open_threads: list[str] = field(default_factory=list)
     would_recommend_to_bryan: str = ""
 
     def validate(self) -> None:
@@ -71,8 +70,8 @@ class ProgressEntry:
 
 @dataclass
 class ProgressLog:
-    entries: List[ProgressEntry] = field(default_factory=list)
-    last_updated: Optional[str] = None
+    entries: list[ProgressEntry] = field(default_factory=list)
+    last_updated: str | None = None
     schema_version: int = SCHEMA_VERSION
 
     def add_entry(self, entry: ProgressEntry) -> None:
@@ -80,13 +79,13 @@ class ProgressLog:
         self.entries.append(entry)
         self.last_updated = _iso_now()
 
-    def find(self, title: str) -> Optional[ProgressEntry]:
+    def find(self, title: str) -> ProgressEntry | None:
         for entry in self.entries:
             if entry.title == title:
                 return entry
         return None
 
-    def days_since_last_engagement(self) -> Optional[float]:
+    def days_since_last_engagement(self) -> float | None:
         """Returns days since the most recent ``started_at``, or None if empty."""
         if not self.entries:
             return None
@@ -121,7 +120,7 @@ def load(path: Path | None = None) -> ProgressLog:
         return ProgressLog()
     raw = json.loads(path.read_text(encoding="utf-8"))
     entries_raw = raw.get("entries", []) or []
-    entries: List[ProgressEntry] = []
+    entries: list[ProgressEntry] = []
     for r in entries_raw:
         if not isinstance(r, dict):
             continue

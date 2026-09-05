@@ -8,9 +8,8 @@ this is what they actually had in common.
 from __future__ import annotations
 
 import re
-from typing import Any
-
 from pathlib import Path
+from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation

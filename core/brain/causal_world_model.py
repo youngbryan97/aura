@@ -36,16 +36,16 @@ from __future__ import annotations
 import json
 import logging
 import math
+import os
 import re
 import threading
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.numeric_safety import validated_int, validated_scalar, validated_unit
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
-import os
 
 logger = logging.getLogger("Aura.CausalWorldModel")
 
@@ -134,7 +134,7 @@ class InterventionReceipt:
         """The treatment effect: treated minus control, not the raw level."""
         return self.treated_outcome - self.control_outcome
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "source_value": self.source_value,
             "treated_outcome": self.treated_outcome,
@@ -161,10 +161,10 @@ class CausalEdge:
     intervention_count: int = 0   # Number of times do(source) was tested
     disconfirmations: int = 0
     #: Distinct reporters seen, so N duplicate calls are not N confirmations.
-    sources_seen: List[str] = field(default_factory=list)
-    interventions: List[Dict[str, Any]] = field(default_factory=list)
+    sources_seen: list[str] = field(default_factory=list)
+    interventions: list[dict[str, Any]] = field(default_factory=list)
     last_confirmed: float = field(default_factory=time.time)
-    last_disconfirmed: Optional[float] = None
+    last_disconfirmed: float | None = None
 
     @property
     def is_causal(self) -> bool:
@@ -227,8 +227,8 @@ class CausalWorldModel:
         else:
             self.data_path = self._default_data_path()
 
-        self.nodes: Dict[str, CausalNode] = {}
-        self.edges: List[CausalEdge] = []
+        self.nodes: dict[str, CausalNode] = {}
+        self.edges: list[CausalEdge] = []
         # CP126 2fc62124: nodes and the edge list were searched and mutated
         # with no lock while each caller serialized the whole state to one
         # file, so concurrent writers lost increments and overwrote snapshots.
@@ -462,7 +462,7 @@ class CausalWorldModel:
         *,
         min_confidence: float = 0.3,
         causal_only: bool = False,
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """Effects predicted for a cause, filtered by evidence.
 
         CP126 751bc489: this selected any positive weight above 0.3 and
@@ -482,7 +482,7 @@ class CausalWorldModel:
             ]
         return sorted(predictions, key=lambda item: abs(item[1]), reverse=True)
 
-    def predict_effects_detailed(self, source_id: str) -> List[Dict[str, Any]]:
+    def predict_effects_detailed(self, source_id: str) -> list[dict[str, Any]]:
         """The same query with the evidence attached, for callers that judge."""
         source_id = sanitize_node_name(source_id)
         with self._lock:
@@ -505,8 +505,8 @@ class CausalWorldModel:
             )
 
     def simulate_counterfactual(
-        self, do_interventions: Dict[str, float], steps: int = 3
-    ) -> Dict[str, float]:
+        self, do_interventions: dict[str, float], steps: int = 3
+    ) -> dict[str, float]:
         """Run a counterfactual SCM simulation using do-calculus.
 
         CP126 04afeae8: each step ADDED the same source influence to the prior
@@ -523,14 +523,14 @@ class CausalWorldModel:
             baselines = dict(state)
             edges = list(self.edges)
 
-        intervened: Dict[str, float] = {}
+        intervened: dict[str, float] = {}
         for key, value in (do_interventions or {}).items():
             clean = sanitize_node_name(key)
             if clean:
                 intervened[clean] = float(validated_unit(value, name=f"do({clean})"))
         state.update(intervened)
 
-        parents: Dict[str, List[CausalEdge]] = {}
+        parents: dict[str, list[CausalEdge]] = {}
         for edge in edges:
             if edge.is_causal and edge.target not in intervened:
                 parents.setdefault(edge.target, []).append(edge)
@@ -556,7 +556,7 @@ class CausalWorldModel:
             state = next_state
         return state
 
-    def analyze_preventative_actions(self, undesirable_node: str) -> List[Tuple[str, float]]:
+    def analyze_preventative_actions(self, undesirable_node: str) -> list[tuple[str, float]]:
         """Nodes that negatively influence the undesirable node."""
         undesirable_node = sanitize_node_name(undesirable_node)
         with self._lock:
@@ -607,7 +607,7 @@ class CausalWorldModel:
         )
 
     # -- housekeeping ----------------------------------------------------
-    def _find(self, source: str, target: str) -> Optional[CausalEdge]:
+    def _find(self, source: str, target: str) -> CausalEdge | None:
         return next(
             (e for e in self.edges if e.source == source and e.target == target), None
         )
@@ -629,7 +629,7 @@ class CausalWorldModel:
                 break
             del self.nodes[name]
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         with self._lock:
             causal = sum(1 for e in self.edges if e.is_causal)
             return {
@@ -722,13 +722,13 @@ class CausalWorldModel:
             self._seed()
             return
 
-        nodes: Dict[str, CausalNode] = {}
+        nodes: dict[str, CausalNode] = {}
         for key, value in (data.get("nodes") or {}).items():
             node = self._node_from(key, value)
             if node is not None:
                 nodes[node.name] = node
 
-        edges: List[CausalEdge] = []
+        edges: list[CausalEdge] = []
         seen: set[tuple[str, str]] = set()
         for value in (data.get("edges") or []):
             edge = self._edge_from(value)
@@ -762,7 +762,7 @@ class CausalWorldModel:
             logger.error("Could not quarantine the causal graph: %s", exc)
 
     @staticmethod
-    def _node_from(key: Any, value: Any) -> Optional[CausalNode]:
+    def _node_from(key: Any, value: Any) -> CausalNode | None:
         if not isinstance(value, dict):
             return None
         name = sanitize_node_name(value.get("name", key))
@@ -775,7 +775,7 @@ class CausalWorldModel:
         )
 
     @staticmethod
-    def _edge_from(value: Any) -> Optional[CausalEdge]:
+    def _edge_from(value: Any) -> CausalEdge | None:
         """Construct an edge from persisted data without trusting it.
 
         CP126 7a646f7b: loading expanded dictionaries through the dataclass

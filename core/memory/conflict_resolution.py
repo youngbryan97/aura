@@ -1,13 +1,13 @@
 """core/memory/conflict_resolution.py
 Resolves logical and temporal memory contradictions.
 """
-from typing import Dict, Any
+from typing import Any
 
 
 class MemoryConflictResolver:
     """Selects canonical facts under conflicting memory reports."""
 
-    def resolve_conflict(self, fact_a: Dict[str, Any], fact_b: Dict[str, Any]) -> Dict[str, Any]:
+    def resolve_conflict(self, fact_a: dict[str, Any], fact_b: dict[str, Any]) -> dict[str, Any]:
         """Resolves conflict between two conflicting facts.
 
         Prefers higher trust score, then newer timestamp if trust scores are identical.

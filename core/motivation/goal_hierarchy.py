@@ -1,13 +1,13 @@
-from core.runtime.errors import record_degradation
 import json
 import logging
 import os
 import time
 import uuid
 from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
+
 from core.config import config
+from core.runtime.errors import record_degradation
 
 if TYPE_CHECKING:
     from core.brain.cognitive_engine import CognitiveEngine
@@ -19,20 +19,20 @@ logger = logging.getLogger("Motivation.Hierarchy")
 class Goal:
     id: str
     description: str
-    parent_id: Optional[str]
+    parent_id: str | None
     status: str  # "pending", "active", "completed", "failed"
     priority: float
     created_at: float
-    subgoals: List[str]  # List of IDs
+    subgoals: list[str]  # List of IDs
 
 class GoalHierarchy:
     """Manages the hierarchy of goals from Abstract Values to Concrete Tasks.
     """
     
     def __init__(self, cognitive_engine: Optional['CognitiveEngine'] = None, persist_path: str = None):
-        self.brain: Optional['CognitiveEngine'] = cognitive_engine
+        self.brain: CognitiveEngine | None = cognitive_engine
 
-        self.goals: Dict[str, Goal] = {}
+        self.goals: dict[str, Goal] = {}
         self._persist_path = persist_path or str(config.paths.home_dir / "goals.json")
         # Root Values (The "Why")
         self.root_values = [
@@ -57,7 +57,7 @@ class GoalHierarchy:
             if not exists:
                 self.add_goal(description=value, parent_id=None, priority=1.0)
 
-    def add_goal(self, description: str, parent_id: Optional[str] = None, priority: float = 0.5) -> str:
+    def add_goal(self, description: str, parent_id: str | None = None, priority: float = 0.5) -> str:
         # vZenith: Duplicate Prevention (BUG-052)
         # Don't add if an identical pending goal already exists to prevent loops
         for g in self.goals.values():
@@ -67,8 +67,8 @@ class GoalHierarchy:
 
         constitutional_runtime_live = False
         try:
-            from core.container import ServiceContainer
             from core.constitution import get_constitutional_core
+            from core.container import ServiceContainer
 
             constitutional_runtime_live = (
                 ServiceContainer.has("executive_core")
@@ -151,7 +151,7 @@ class GoalHierarchy:
         self._save()
         return goal_id
 
-    async def propose_subgoals(self, goal_id: str) -> List[str]:
+    async def propose_subgoals(self, goal_id: str) -> list[str]:
         """Use Cognitive Engine to decompose a goal into subgoals.
         """
         if not self.brain:
@@ -218,7 +218,7 @@ class GoalHierarchy:
             
         return []
 
-    def get_next_goal(self) -> Optional[Goal]:
+    def get_next_goal(self) -> Goal | None:
         """Get the highest priority pending goal that is a leaf node.
         Also applies dynamic re-prioritization and conflict resolution.
         """
@@ -294,7 +294,7 @@ class GoalHierarchy:
         if changed:
             self._save()
 
-    async def detect_conflicts(self) -> List[Dict[str, Any]]:
+    async def detect_conflicts(self) -> list[dict[str, Any]]:
         """Detect conflicting goals and resolve them.
         
         Two goals conflict when pursuing one prevents or undermines the other.
@@ -416,7 +416,7 @@ class GoalHierarchy:
                 logger.debug("Suppressed Exception: %s", _exc)
             self._save()
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Introspection summary."""
         total = len(self.goals)
         by_status = {}
@@ -446,7 +446,7 @@ class GoalHierarchy:
     def _load(self):
         try:
             if os.path.exists(self._persist_path):
-                with open(self._persist_path, "r") as f:
+                with open(self._persist_path) as f:
                     data = json.load(f)
                 for gid, gdata in data.items():
                     self.goals[gid] = Goal(

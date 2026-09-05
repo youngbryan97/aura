@@ -32,15 +32,14 @@ looks for.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
 import hashlib
 import json
-import threading
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+from core.runtime.lockdep import checked_lock
 from core.science.baseline_portfolio import PARITY_TOLERANCE, BaselineKind
 
 __all__ = ["Capability", "Score", "Board", "BoardVerdict"]

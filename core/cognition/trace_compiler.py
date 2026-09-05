@@ -34,9 +34,7 @@ saving will always find that it saved something.
 
 from __future__ import annotations
 
-import threading
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from core.cognition.cognitive_event import CognitiveEvent, EventGraph, ReadDependency
@@ -45,8 +43,8 @@ from core.cognition.procedure import (
     Effect,
     Origin,
     Precondition,
-    Procedure,
     ProceduralValue,
+    Procedure,
     ProcedureRegistry,
     Signature,
 )

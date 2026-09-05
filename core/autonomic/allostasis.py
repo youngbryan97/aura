@@ -52,12 +52,6 @@ into her control state, not a phenomenal one. The report boundary of
 """
 from __future__ import annotations
 
-from core.runtime.disk_budget import (
-    DISK_AMBER_PERCENT,
-    DISK_RED_PERCENT,
-    DISK_SETPOINT_PERCENT,
-)
-
 import asyncio
 import enum
 import json
@@ -68,10 +62,16 @@ import threading
 import time
 import uuid
 from collections import deque
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
+from core.runtime.disk_budget import (
+    DISK_AMBER_PERCENT,
+    DISK_RED_PERCENT,
+    DISK_SETPOINT_PERCENT,
+)
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
@@ -312,7 +312,7 @@ def sen_slope(
     values: list[float],
     *,
     confidence: float = 0.90,
-) -> Optional[SenSlopeEstimate]:
+) -> SenSlopeEstimate | None:
     """Sen's slope estimator over (t, v) pairs, CI via Gilbert (1987).
 
     Rank positions M₁=(N−C)/2 and M₂=(N+C)/2 with C = z₍₁₋α/₂₎·√Var(S) select the
@@ -647,7 +647,7 @@ class _VitalCalibration:
         return self.hits + self.miss_early + self.miss_late + self.false_alarms
 
     @property
-    def coverage(self) -> Optional[float]:
+    def coverage(self) -> float | None:
         return (self.hits / self.scored) if self.scored else None
 
     @property
@@ -656,7 +656,7 @@ class _VitalCalibration:
         return self.intervened + self.superseded
 
     @property
-    def censored_fraction(self) -> Optional[float]:
+    def censored_fraction(self) -> float | None:
         """Share of resolved forecasts that never reached the denominator.
 
         Excluding intervened forecasts is right in principle — regulation
@@ -703,7 +703,7 @@ class _VitalCalibration:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "_VitalCalibration":
+    def from_dict(cls, data: dict[str, Any]) -> _VitalCalibration:
         out = cls()
         for key in ("hits", "miss_early", "miss_late", "false_alarms", "intervened", "superseded"):
             try:
@@ -724,7 +724,7 @@ class AllostasisReading:
     at_unix: float
     tier: AllostasisTier
     tier_reason: str
-    nearest_crisis_eta_s: Optional[float]
+    nearest_crisis_eta_s: float | None
     anticipatory_pressure: float
     allostatic_load: float
     new_forecasts: tuple[str, ...]
@@ -854,7 +854,7 @@ class AllostasisEngine:
         self._calibration: dict[str, _VitalCalibration] = {}
         self._load_raw: dict[str, float] = {key: 0.0 for key in self._specs}
         self._load_tau_s = _env_float("AURA_ALLOSTASIS_LOAD_TAU_S", 3600.0)
-        self._last_ingest_at: Optional[float] = None
+        self._last_ingest_at: float | None = None
         self._ingest_count = 0
         self._created_at = self._now()
         # Vitals whose stale red-line reading has already been reported, so a
@@ -864,11 +864,11 @@ class AllostasisEngine:
         self._tier = AllostasisTier.SETTLED
         self._tier_reason = "no samples yet"
         self._tier_changed_at = 0.0
-        self._tier_release_eligible_since: Optional[float] = None
+        self._tier_release_eligible_since: float | None = None
         self._interventions: deque[dict[str, Any]] = deque(maxlen=64)
         # Vital that drove the most recent tier evaluation, or None when the
         # driver is the composite allostatic load (no single vital).
-        self._tier_driver_vital: Optional[str] = None
+        self._tier_driver_vital: str | None = None
 
         self._felt: dict[str, Any] = {
             "anticipatory_pressure": 0.0,
@@ -1248,7 +1248,7 @@ class AllostasisEngine:
         state.samples_since_anchor = 0
         return True
 
-    def _cusum_update(self, key: str, spec: VitalSpec, value: float, now: float) -> Optional[RegimeEvent]:
+    def _cusum_update(self, key: str, spec: VitalSpec, value: float, now: float) -> RegimeEvent | None:
         state = self._cusum[key]
         if not state.anchored:
             self._anchor_cusum(key, spec)
@@ -1309,7 +1309,7 @@ class AllostasisEngine:
         value: float,
         dt: float,
         *,
-        previous: Optional[float] = None,
+        previous: float | None = None,
     ) -> None:
         """Integrate strain over the interval this sample actually covers.
 
@@ -1628,7 +1628,7 @@ class AllostasisEngine:
 
     def _intervention_since(
         self, since_unix: float, *, vital: str | None = None
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Most recent intervention after ``since_unix``, optionally for VITAL.
 
         This returned the newest GLOBAL tier change after issue with no
@@ -1652,9 +1652,9 @@ class AllostasisEngine:
         return None
 
     # ── tier policy ─────────────────────────────────────────────────────────
-    def _nearest_crisis(self, now: float) -> tuple[Optional[Forecast], Optional[float]]:
-        nearest: Optional[Forecast] = None
-        nearest_eta: Optional[float] = None
+    def _nearest_crisis(self, now: float) -> tuple[Forecast | None, float | None]:
+        nearest: Forecast | None = None
+        nearest_eta: float | None = None
         for fc in self._open_forecasts.values():
             if fc.threshold_name != "red":
                 continue
@@ -1676,9 +1676,9 @@ class AllostasisEngine:
             return False
         return (now - series[-1][0]) <= _INGEST_STALE_AFTER_S
 
-    def _current_breach(self, now: Optional[float] = None) -> Optional[str]:
+    def _current_breach(self, now: float | None = None) -> str | None:
         at = self._now() if now is None else now
-        stale_breach: Optional[str] = None
+        stale_breach: str | None = None
         for key, spec in self._specs.items():
             series = self._series[key]
             if not series or series[-1][1] < spec.red:
@@ -1828,7 +1828,7 @@ class AllostasisEngine:
             return False, f"allostasis {self._tier.name.lower()}"
 
     # ── the pulse: one sample + side effects ────────────────────────────────
-    async def sample_and_regulate(self) -> Optional[AllostasisReading]:
+    async def sample_and_regulate(self) -> AllostasisReading | None:
         """One allostatic pulse: sample vitals, update forecasts, act.
 
         Side effects (all fail-soft, each recorded on failure): ledger writes
@@ -1850,7 +1850,7 @@ class AllostasisEngine:
                 ),
                 timeout=_SNAPSHOT_TIMEOUT_S,
             )
-        except asyncio.TimeoutError as exc:
+        except TimeoutError as exc:
             record_degradation(
                 _SUBSYSTEM, exc,
                 action=f"vitals snapshot exceeded {_SNAPSHOT_TIMEOUT_S:.0f}s; pulse skipped",
@@ -2172,7 +2172,7 @@ def _fmt_eta(seconds: float) -> str:
 # Singleton + container registration (house pattern)
 # ─────────────────────────────────────────────────────────────────────────────
 
-_engine: Optional[AllostasisEngine] = None
+_engine: AllostasisEngine | None = None
 _engine_lock = threading.Lock()
 # Set when a test retires the process engine: the container still holds the
 # retired instance, so the next engine built here must take the slot over
@@ -2204,7 +2204,7 @@ def get_allostasis_engine() -> AllostasisEngine:
     return _engine
 
 
-def _engine_from_container() -> Optional[AllostasisEngine]:
+def _engine_from_container() -> AllostasisEngine | None:
     """The container's engine, if it already owns one."""
     try:
         from core.container import ServiceContainer

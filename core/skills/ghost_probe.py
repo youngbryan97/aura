@@ -2,12 +2,14 @@
 Phase 16.4: Ghost Deployment Skill.
 Allows Aura to spawn external monitoring probes.
 """
-from core.skills.base_skill import BaseSkill
-from core.container import ServiceContainer
-from typing import Any, Dict
-from pydantic import BaseModel, Field
 import logging
 import time
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+from core.container import ServiceContainer
+from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Aura.Skills.GhostProbe")
 
@@ -27,7 +29,7 @@ class GhostProbeSkill(BaseSkill):
     def __init__(self, orchestrator=None):
         self.orchestrator = orchestrator
 
-    async def execute(self, params: GhostProbeParams, context: dict = None) -> Dict[str, Any]:
+    async def execute(self, params: GhostProbeParams, context: dict = None) -> dict[str, Any]:
         manager = ServiceContainer.get("probe_manager", default=None)
         if not manager:
             return {"ok": False, "error": "ProbeManager service not available."}
@@ -44,7 +46,7 @@ class GhostProbeSkill(BaseSkill):
         else:
             return {"ok": False, "error": f"Failed to deploy Ghost Probe '{params.probe_id}'. It might already exist or there was a system error."}
 
-    async def list_probes(self) -> Dict[str, Any]:
+    async def list_probes(self) -> dict[str, Any]:
         """List all active ghost probes."""
         manager = ServiceContainer.get("probe_manager", default=None)
         if not manager: 

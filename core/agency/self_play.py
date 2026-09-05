@@ -4,18 +4,19 @@ Asynchronous Adversarial Self-Play.
 Spawns competing cognitive shards during system idle time to generate novel 
 problems and solve them, pushing failures to the DistillationPipe for nightly learning.
 """
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 import logging
 import random
 import re
 import time
-from core.runtime.service_registry import get_runtime_service
+
 from core.brain.cognitive_engine import ThinkingMode
 from core.runtime.background_policy import (
     RESEARCH_BACKGROUND_POLICY,
     background_activity_reason,
 )
+from core.runtime.errors import record_degradation
+from core.runtime.service_registry import get_runtime_service
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.SelfPlay")
 

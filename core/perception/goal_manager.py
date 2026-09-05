@@ -7,9 +7,10 @@ and exposes a compact goal stack to slower reasoning layers.
 from __future__ import annotations
 
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 from .belief_state import EnvironmentBeliefState
 from .environment_parser import EnvironmentState
@@ -32,12 +33,12 @@ class EmbodiedGoal:
     invariant: bool = False
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
-    constraints: List[str] = field(default_factory=list)
-    success_conditions: List[str] = field(default_factory=list)
-    abort_conditions: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    constraints: list[str] = field(default_factory=list)
+    success_conditions: list[str] = field(default_factory=list)
+    abort_conditions: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def refresh(self, *, priority: Optional[float] = None, reason: Optional[str] = None) -> None:
+    def refresh(self, *, priority: float | None = None, reason: str | None = None) -> None:
         if priority is not None:
             self.priority = max(0.0, min(1.0, priority))
         if reason is not None:
@@ -50,8 +51,8 @@ class EnvironmentGoalManager:
     """Maintains an interruptible hierarchical goal stack."""
 
     def __init__(self) -> None:
-        self.goals: Dict[str, EmbodiedGoal] = {}
-        self.interrupt_log: List[Dict[str, Any]] = []
+        self.goals: dict[str, EmbodiedGoal] = {}
+        self.interrupt_log: list[dict[str, Any]] = []
         self.push(
             "SURVIVE_AND_MAINTAIN_CONTROL",
             priority=1.0,
@@ -71,10 +72,10 @@ class EnvironmentGoalManager:
         priority: float,
         reason: str = "",
         invariant: bool = False,
-        constraints: Optional[Iterable[str]] = None,
-        success_conditions: Optional[Iterable[str]] = None,
-        abort_conditions: Optional[Iterable[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        constraints: Iterable[str] | None = None,
+        success_conditions: Iterable[str] | None = None,
+        abort_conditions: Iterable[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> EmbodiedGoal:
         key = self._key(name)
         if key in self.goals:
@@ -188,7 +189,7 @@ class EnvironmentGoalManager:
         *,
         reason: str,
         priority: float,
-        constraints: Optional[Iterable[str]] = None,
+        constraints: Iterable[str] | None = None,
     ) -> EmbodiedGoal:
         for goal in self.goals.values():
             if not goal.invariant and goal.status == GoalStatus.ACTIVE:
@@ -209,7 +210,7 @@ class EnvironmentGoalManager:
             return max(operational, key=lambda goal: (goal.priority, goal.updated_at))
         return max(active, key=lambda goal: (goal.priority, goal.updated_at))
 
-    def active_goals(self) -> List[EmbodiedGoal]:
+    def active_goals(self) -> list[EmbodiedGoal]:
         return sorted(
             [goal for goal in self.goals.values() if goal.status == GoalStatus.ACTIVE],
             key=lambda goal: (goal.priority, goal.updated_at),

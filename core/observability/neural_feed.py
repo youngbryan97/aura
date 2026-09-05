@@ -3,8 +3,9 @@ Phase 17.1: Neural Feed for Strategic progress.
 Provides a unified interface for emitting strategic and sensory updates.
 """
 import logging
-from core.thought_stream import get_emitter
+
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
+from core.thought_stream import get_emitter
 
 logger = logging.getLogger("Aura.NeuralFeed")
 _local_feed = None

@@ -4,7 +4,7 @@ Episode store driving autobiographical disk persistence.
 import json
 import logging
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
 
 from core.config import get_config
 from core.memory.life_event import LifeEvent
@@ -36,7 +36,7 @@ class EpisodeStore:
             record_degradation("memory.episode_store.save", e)
             logger.error("Failed to persist life event: %s", e)
 
-    async def load_recent_events(self, limit: int = 50) -> List[Dict[str, Any]]:
+    async def load_recent_events(self, limit: int = 50) -> list[dict[str, Any]]:
         """Loads the most recent N events from disk storage."""
         if not self.db_path.exists():
             return []

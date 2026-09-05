@@ -25,9 +25,10 @@ reporting a rollback it did not perform.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Iterator
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

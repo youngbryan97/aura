@@ -1,7 +1,4 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.runtime.atomic_writer import async_atomic_write_text
 
 import asyncio
 import json
@@ -9,7 +6,10 @@ import logging
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
+
+from core.runtime.atomic_writer import async_atomic_write_text
+from core.runtime.errors import record_degradation
 from core.runtime.service_registry import register_runtime_service
 from core.runtime.state_ownership import state_root
 
@@ -29,7 +29,7 @@ class SafeBackupSystem:
     self-preservation drives that can override ethical constraints.
     """
 
-    def __init__(self, backup_root: Optional[str] = None):
+    def __init__(self, backup_root: str | None = None):
         try:
             from core.config import config
             self.backup_root = Path(backup_root or config.paths.data_dir / "backups")
@@ -41,7 +41,7 @@ class SafeBackupSystem:
         self._last_backup: float = 0.0
         logger.info("SafeBackupSystem initialized. Backup dir: %s", self.backup_root)
 
-    async def create_backup(self, label: str = "auto") -> Dict[str, Any]:
+    async def create_backup(self, label: str = "auto") -> dict[str, Any]:
         """
         Create a timestamped backup of critical Aura data.
         Only backs up data directories — never the codebase itself.
@@ -51,7 +51,7 @@ class SafeBackupSystem:
         backup_dir = self.backup_root / f"{label}_{timestamp}"
         backup_dir.mkdir(parents=True, exist_ok=True)
 
-        results: Dict[str, Any] = {"timestamp": timestamp, "label": label, "backed_up": []}
+        results: dict[str, Any] = {"timestamp": timestamp, "label": label, "backed_up": []}
 
         try:
             from core.config import config
@@ -72,7 +72,7 @@ class SafeBackupSystem:
                 try:
                     await asyncio.to_thread(shutil.copytree, src, dst, dirs_exist_ok=True)
                     results["backed_up"].append(str(src.name))
-                except (OSError, IOError) as e:
+                except OSError as e:
                     record_degradation('self_preservation_safe', e)
                     logger.warning("Backup: could not copy %s: %s", src.name, e)
 
@@ -80,7 +80,7 @@ class SafeBackupSystem:
             try:
                 await asyncio.to_thread(shutil.copy2, db, backup_dir / db.name)
                 results["backed_up"].append(db.name)
-            except (OSError, IOError) as e:
+            except OSError as e:
                 record_degradation('self_preservation_safe', e)
                 logger.warning("Backup: could not copy %s: %s", db.name, e)
 
@@ -106,7 +106,7 @@ class SafeBackupSystem:
                     backups.append({"path": str(d)})
         return backups
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "backup_root":   str(self.backup_root),
             "last_backup":   self._last_backup,

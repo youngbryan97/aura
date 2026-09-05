@@ -376,9 +376,9 @@ class ConceptCompiler:
                 brain = resolve_brain(None)
                 if brain is None or not hasattr(brain, "think"):
                     return None
-                from core.brain.types import ThinkingMode
-
                 import asyncio
+
+                from core.brain.types import ThinkingMode
 
                 out = coerce_text(
                     await asyncio.wait_for(

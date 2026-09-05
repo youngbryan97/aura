@@ -2,11 +2,11 @@
 
 Applies mathematical decay and seasonal weighting to vector similarity scores.
 """
-import time
-import math
 import asyncio
 import logging
-from typing import List, Dict, Any
+import math
+import time
+from typing import Any
 
 logger = logging.getLogger("Aura.TemporalRAG")
 
@@ -40,7 +40,7 @@ class TimeWeightedRetriever:
             years = round(days_old / 365, 1)
             return f"[{years} years ago] {text}"
 
-    async def rerank_and_format(self, raw_results: List[Dict[Any, Any]], limit: int = 4) -> str:
+    async def rerank_and_format(self, raw_results: list[dict[Any, Any]], limit: int = 4) -> str:
         """Asynchronously recalculates FAISS scores and formats the subconscious prompt."""
         if not raw_results:
             return ""

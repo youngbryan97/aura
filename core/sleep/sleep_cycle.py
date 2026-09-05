@@ -1,16 +1,16 @@
 """core/sleep/sleep_cycle.py
 Coordinates offline sleep consolidation states and offline processing routines.
 """
-from typing import Any
 import logging
+from typing import Any
 
+from core.runtime.errors import record_degradation
 from core.sleep.dream_simulator import DreamSimulator
+from core.sleep.identity_consolidation import IdentityConsolidator
 from core.sleep.memory_consolidation import MemoryConsolidator
+from core.sleep.nightly_report import NightlyReportCompiler
 from core.sleep.value_consolidation import ValueConsolidator
 from core.sleep.world_model_training import WorldModelTrainer
-from core.sleep.identity_consolidation import IdentityConsolidator
-from core.sleep.nightly_report import NightlyReportCompiler
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Sleep.SleepCycle")
 

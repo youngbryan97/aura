@@ -6,17 +6,15 @@ Runs every cognitive tick. Orchestrates all convergence systems and computes
 a unified CoherenceReport that tells the rest of the organism how unified it is.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
-
-import asyncio
 import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Coherence")
 
@@ -40,11 +38,11 @@ class CoherenceReport:
     overall_coherence: float = 1.0
 
     # Diagnostics
-    threats: List[str] = field(default_factory=list)
-    recommended_action: Optional[str] = None  # "persist" | "consolidate" | "refocus" | "rest"
+    threats: list[str] = field(default_factory=list)
+    recommended_action: str | None = None  # "persist" | "consolidate" | "refocus" | "rest"
 
     # What the convergence engines reported
-    selected_initiative: Optional[str] = None
+    selected_initiative: str | None = None
     active_tensions: int = 0
     open_intentions: int = 0
     self_version: int = 0
@@ -82,7 +80,7 @@ class BindingEngine:
     """The nervous system binding all convergence pieces into one coherent organism."""
 
     def __init__(self) -> None:
-        self._last_report: Optional[CoherenceReport] = None
+        self._last_report: CoherenceReport | None = None
         self._report_history: deque[CoherenceReport] = deque(maxlen=100)
         self._tick_count: int = 0
         self._engines_initialized: bool = False
@@ -359,15 +357,15 @@ class BindingEngine:
             return self._last_report.overall_coherence
         return 1.0  # optimistic default before first tick
 
-    def get_report(self) -> Optional[CoherenceReport]:
+    def get_report(self) -> CoherenceReport | None:
         """Last coherence report."""
         return self._last_report
 
-    def get_history(self, n: int = 10) -> List[CoherenceReport]:
+    def get_history(self, n: int = 10) -> list[CoherenceReport]:
         """Recent coherence reports."""
         return list(self._report_history)[-n:]
 
-    def veto_action(self, action_description: str) -> Tuple[bool, str]:
+    def veto_action(self, action_description: str) -> tuple[bool, str]:
         """Check if an action is coherent with current self + intentions.
         Returns (allowed, reason).
         """
@@ -400,7 +398,7 @@ class BindingEngine:
 
 # ── Singleton ────────────────────────────────────────────────────────────────
 
-_instance: Optional[BindingEngine] = None
+_instance: BindingEngine | None = None
 
 def get_binding_engine() -> BindingEngine:
     """Get or create the global BindingEngine."""

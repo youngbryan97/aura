@@ -9,10 +9,11 @@ Handles:
 - Question extraction from responses
 - LLM-based fact/preference extraction
 """
-from core.runtime.errors import record_degradation
 import logging
 import time
 from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger(__name__)
 

@@ -26,20 +26,18 @@ without artifacts and acceptance-criteria checks is rejected by
 ``mark_completed()``.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
 
 import json
 import logging
-import os
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from threading import RLock
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Projects")
@@ -63,15 +61,15 @@ class Lifecycle(str, Enum):
 class Milestone:
     id: str
     description: str
-    completed_at: Optional[float] = None
-    artifacts: List[str] = field(default_factory=list)
+    completed_at: float | None = None
+    artifacts: list[str] = field(default_factory=list)
 
 
 @dataclass
 class Revision:
     when: float
     reason: str
-    diff: Dict[str, Any]
+    diff: dict[str, Any]
 
 
 @dataclass
@@ -80,7 +78,7 @@ class PermissionRequest:
     action: str
     domain: str
     decision: str  # approved | denied | deferred
-    receipt_id: Optional[str]
+    receipt_id: str | None
     rationale: str
 
 
@@ -89,15 +87,15 @@ class Project:
     project_id: str
     origin_drive: str
     thesis: str
-    acceptance_criteria: List[str]
+    acceptance_criteria: list[str]
     started_at: float = field(default_factory=time.time)
     lifecycle: Lifecycle = Lifecycle.PROPOSED
-    milestones: List[Milestone] = field(default_factory=list)
-    revisions: List[Revision] = field(default_factory=list)
-    related_actions: List[str] = field(default_factory=list)
-    permission_requests: List[PermissionRequest] = field(default_factory=list)
-    artifacts: List[str] = field(default_factory=list)
-    reflections: List[str] = field(default_factory=list)
+    milestones: list[Milestone] = field(default_factory=list)
+    revisions: list[Revision] = field(default_factory=list)
+    related_actions: list[str] = field(default_factory=list)
+    permission_requests: list[PermissionRequest] = field(default_factory=list)
+    artifacts: list[str] = field(default_factory=list)
+    reflections: list[str] = field(default_factory=list)
     last_touched_at: float = field(default_factory=time.time)
 
     def is_completable(self) -> bool:
@@ -105,7 +103,7 @@ class Project:
             return False
         return all(m.completed_at is not None for m in self.milestones) and bool(self.artifacts)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["lifecycle"] = self.lifecycle.value
         return d
@@ -123,7 +121,7 @@ class ProjectLedger:
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = RLock()
-        self._cache: Dict[str, Project] = {}
+        self._cache: dict[str, Project] = {}
         self._load()
 
     # -------- mutation --------
@@ -133,8 +131,8 @@ class ProjectLedger:
         *,
         origin_drive: str,
         thesis: str,
-        acceptance_criteria: List[str],
-        milestones: Optional[List[str]] = None,
+        acceptance_criteria: list[str],
+        milestones: list[str] | None = None,
     ) -> Project:
         project_id = f"PRJ-{uuid.uuid4().hex[:10]}"
         proj = Project(
@@ -155,7 +153,7 @@ class ProjectLedger:
             self._record_event(proj, "transition", {"to": lifecycle.value, "reason": reason})
             return proj
 
-    def revise(self, project_id: str, *, reason: str, diff: Dict[str, Any]) -> Project:
+    def revise(self, project_id: str, *, reason: str, diff: dict[str, Any]) -> Project:
         with self._lock:
             proj = self._cache[project_id]
             proj.revisions.append(Revision(when=time.time(), reason=reason, diff=diff))
@@ -180,7 +178,7 @@ class ProjectLedger:
             proj.last_touched_at = time.time()
             self._record_event(proj, "attach_artifact", {"artifact": artifact_id})
 
-    def complete_milestone(self, project_id: str, milestone_id: str, *, artifacts: Optional[List[str]] = None) -> None:
+    def complete_milestone(self, project_id: str, milestone_id: str, *, artifacts: list[str] | None = None) -> None:
         with self._lock:
             proj = self._cache[project_id]
             for m in proj.milestones:
@@ -193,7 +191,7 @@ class ProjectLedger:
             proj.last_touched_at = time.time()
             self._record_event(proj, "complete_milestone", {"milestone": milestone_id})
 
-    def record_permission(self, project_id: str, *, action: str, domain: str, decision: str, receipt_id: Optional[str], rationale: str) -> None:
+    def record_permission(self, project_id: str, *, action: str, domain: str, decision: str, receipt_id: str | None, rationale: str) -> None:
         with self._lock:
             proj = self._cache[project_id]
             proj.permission_requests.append(PermissionRequest(
@@ -218,21 +216,21 @@ class ProjectLedger:
 
     # -------- query --------
 
-    def get(self, project_id: str) -> Optional[Project]:
+    def get(self, project_id: str) -> Project | None:
         with self._lock:
             return self._cache.get(project_id)
 
-    def active(self) -> List[Project]:
+    def active(self) -> list[Project]:
         with self._lock:
             return [p for p in self._cache.values() if p.lifecycle in (Lifecycle.APPROVED, Lifecycle.ACTIVE)]
 
-    def all(self) -> List[Project]:
+    def all(self) -> list[Project]:
         with self._lock:
             return list(self._cache.values())
 
     # -------- persistence --------
 
-    def _record_event(self, proj: Project, event: str, payload: Dict[str, Any]) -> None:
+    def _record_event(self, proj: Project, event: str, payload: dict[str, Any]) -> None:
         with self._lock:
             self._cache[proj.project_id] = proj
             line = json.dumps({
@@ -255,7 +253,7 @@ class ProjectLedger:
         if not self.path.exists():
             return
         try:
-            with open(self.path, "r", encoding="utf-8") as fh:
+            with open(self.path, encoding="utf-8") as fh:
                 for raw in fh:
                     raw = raw.strip()
                     if not raw:
@@ -273,7 +271,7 @@ class ProjectLedger:
             logger.warning("project ledger load failed: %s", exc)
 
     @staticmethod
-    def _project_from_snap(snap: Dict[str, Any]) -> Project:
+    def _project_from_snap(snap: dict[str, Any]) -> Project:
         ms = [Milestone(**m) for m in snap.get("milestones", []) if isinstance(m, dict)]
         revs = [Revision(**r) for r in snap.get("revisions", []) if isinstance(r, dict)]
         perms = [PermissionRequest(**pr) for pr in snap.get("permission_requests", []) if isinstance(pr, dict)]
@@ -294,7 +292,7 @@ class ProjectLedger:
         )
 
 
-_LEDGER: Optional[ProjectLedger] = None
+_LEDGER: ProjectLedger | None = None
 
 
 def get_ledger() -> ProjectLedger:

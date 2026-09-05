@@ -51,9 +51,8 @@ motivates the design; it is not evidence for it, and this file measures the
 statistics, not the thesis.
 """
 from __future__ import annotations
+
 from core.runtime.errors import record_degradation
-
-
 
 __all__ = [
     "StrangeLoop",
@@ -61,7 +60,6 @@ __all__ = [
     "get_strange_loop",
 ]
 
-import asyncio
 import json
 import logging
 import os
@@ -69,9 +67,10 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
+
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Cognitive.StrangeLoop")
@@ -82,7 +81,7 @@ logger = logging.getLogger("Cognitive.StrangeLoop")
 
 # The 10 internal-state variables the loop tracks.  Order matters -- it
 # defines the indices into the state vector.
-STATE_KEYS: Tuple[str, ...] = (
+STATE_KEYS: tuple[str, ...] = (
     "phi",           # Integrated information estimate (0-1)
     "free_energy",   # Variational free energy (0-1)
     "valence",       # Emotional valence (-1 to 1)
@@ -100,7 +99,7 @@ STATE_DIM: int = len(STATE_KEYS)
 # Comfort bands: the narrow range where each variable "feels" okay.
 # Outside these bands, prediction error spikes and corrective signals fire.
 # Format: {key: (low, high)}
-COMFORT_BANDS: Dict[str, Tuple[float, float]] = {
+COMFORT_BANDS: dict[str, tuple[float, float]] = {
     "phi":           (0.3,  0.8),
     "free_energy":   (0.1,  0.5),
     "valence":       (-0.3, 0.7),
@@ -115,7 +114,7 @@ COMFORT_BANDS: Dict[str, Tuple[float, float]] = {
 
 # Recursive prediction levels.  Higher levels are weighted more heavily
 # because they represent deeper self-awareness.
-LEVEL_NAMES: Tuple[str, ...] = (
+LEVEL_NAMES: tuple[str, ...] = (
     "external_input",       # Level 0: predict external events
     "emotional_response",   # Level 1: predict own emotional reaction
     "meta_prediction",      # Level 2: predict own prediction accuracy
@@ -155,7 +154,7 @@ class LoopState:
     """
 
     # Per-level prediction errors (level_name -> scalar error magnitude).
-    prediction_errors: Dict[str, float] = field(default_factory=dict)
+    prediction_errors: dict[str, float] = field(default_factory=dict)
 
     # Weighted sum of all level errors.  This single number is the closest
     # thing the system has to a "raw experience intensity" signal.
@@ -171,12 +170,12 @@ class LoopState:
     # Which internal variables are outside their comfort band right now.
     # Maps variable name -> signed deviation (positive = above band,
     # negative = below band, zero = within band).
-    comfort_band_violations: Dict[str, float] = field(default_factory=dict)
+    comfort_band_violations: dict[str, float] = field(default_factory=dict)
 
     # Corrective signals the homeostatic core wants to send.  Maps variable
     # name -> suggested adjustment magnitude (negative = reduce, positive
     # = increase).  Downstream systems can use these as soft nudges.
-    corrective_signals: Dict[str, float] = field(default_factory=dict)
+    corrective_signals: dict[str, float] = field(default_factory=dict)
 
     # Timestamp of this tick.
     timestamp: float = field(default_factory=time.time)
@@ -271,7 +270,7 @@ class _RLSModel:
 
         return error
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize for persistence."""
         return {
             "W": self.W.tolist(),
@@ -279,7 +278,7 @@ class _RLSModel:
             "P": self.P.tolist(),
         }
 
-    def from_dict(self, d: Dict[str, Any]) -> None:
+    def from_dict(self, d: dict[str, Any]) -> None:
         """Restore from persisted state."""
         try:
             W = np.array(d["W"], dtype=np.float64)
@@ -323,20 +322,20 @@ class StrangeLoop:
         self._previous_state = np.zeros(STATE_DIM, dtype=np.float64)
 
         # Full history for temporal coherence computation.
-        self._state_history: List[np.ndarray] = []
+        self._state_history: list[np.ndarray] = []
 
         # -- Per-level RLS models -----------------------------------------
         # Input dimension = 2 * STATE_DIM (current + previous state).
         # Output dimension = STATE_DIM (predicted next state).
         rls_input_dim = 2 * STATE_DIM
-        self._models: Dict[str, _RLSModel] = {
+        self._models: dict[str, _RLSModel] = {
             name: _RLSModel(rls_input_dim, STATE_DIM)
             for name in LEVEL_NAMES
         }
 
         # -- Per-level error tracking ------------------------------------
-        self._level_errors: Dict[str, float] = {name: 0.0 for name in LEVEL_NAMES}
-        self._level_error_ema: Dict[str, float] = {name: 0.0 for name in LEVEL_NAMES}
+        self._level_errors: dict[str, float] = {name: 0.0 for name in LEVEL_NAMES}
+        self._level_error_ema: dict[str, float] = {name: 0.0 for name in LEVEL_NAMES}
         _EMA_ALPHA = 0.2
         self._ema_alpha = _EMA_ALPHA
 
@@ -344,8 +343,8 @@ class StrangeLoop:
         self._phenomenal_weight: float = 0.0
         self._temporal_coherence: float = 1.0
         self._self_narrative: str = ""
-        self._comfort_violations: Dict[str, float] = {}
-        self._corrective_signals: Dict[str, float] = {}
+        self._comfort_violations: dict[str, float] = {}
+        self._corrective_signals: dict[str, float] = {}
 
         # -- Tick counter and persistence --------------------------------
         self._tick_count: int = 0
@@ -363,7 +362,7 @@ class StrangeLoop:
     # Core tick
     # ------------------------------------------------------------------
 
-    async def tick(self, current_state: Dict[str, float]) -> LoopState:
+    async def tick(self, current_state: dict[str, float]) -> LoopState:
         """Run one full strange-loop cycle.
 
         This is the heartbeat of self-awareness.  Called once per system
@@ -406,8 +405,8 @@ class StrangeLoop:
             ar_input = np.concatenate([state_vec, self._previous_state])
 
             # -- 3. Per-level prediction and error computation -----------
-            level_errors: Dict[str, float] = {}
-            level_raw_errors: Dict[str, np.ndarray] = {}
+            level_errors: dict[str, float] = {}
+            level_raw_errors: dict[str, np.ndarray] = {}
 
             for i, level_name in enumerate(LEVEL_NAMES):
                 model = self._models[level_name]
@@ -535,7 +534,7 @@ class StrangeLoop:
         with self._lock:
             return self._temporal_coherence
 
-    def get_prediction_accuracy(self) -> Dict[str, float]:
+    def get_prediction_accuracy(self) -> dict[str, float]:
         """Per-level prediction accuracy (1 - smoothed_error).
 
         Returns a dict like::
@@ -557,7 +556,7 @@ class StrangeLoop:
                 for name in LEVEL_NAMES
             }
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         """Full telemetry payload for debugging and the HUD."""
         with self._lock:
             return {
@@ -596,7 +595,7 @@ class StrangeLoop:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _dict_to_vector(d: Dict[str, float]) -> np.ndarray:
+    def _dict_to_vector(d: dict[str, float]) -> np.ndarray:
         """Convert a {name: value} dict to a numpy state vector.
 
         Missing keys default to 0.0.  This is the only place where the
@@ -687,7 +686,7 @@ class StrangeLoop:
     @staticmethod
     def _check_comfort_bands(
         state_vec: np.ndarray,
-    ) -> Tuple[Dict[str, float], Dict[str, float]]:
+    ) -> tuple[dict[str, float], dict[str, float]]:
         """Check each state variable against its comfort band.
 
         Returns two dicts:
@@ -702,8 +701,8 @@ class StrangeLoop:
         scaled by a gain factor.  Downstream systems can use it as a soft
         nudge, not a hard override.
         """
-        violations: Dict[str, float] = {}
-        corrections: Dict[str, float] = {}
+        violations: dict[str, float] = {}
+        corrections: dict[str, float] = {}
         correction_gain = 0.3  # How aggressively to correct
 
         for i, key in enumerate(STATE_KEYS):
@@ -739,7 +738,7 @@ class StrangeLoop:
         if len(history) < 2:
             return 1.0
 
-        similarities: List[float] = []
+        similarities: list[float] = []
         for j in range(1, len(history)):
             a = history[j - 1]
             b = history[j]
@@ -762,8 +761,8 @@ class StrangeLoop:
 
     def _generate_narrative(
         self,
-        level_errors: Dict[str, float],
-        violations: Dict[str, float],
+        level_errors: dict[str, float],
+        violations: dict[str, float],
         state_vec: np.ndarray,
     ) -> str:
         """Synthesize a first-person narrative of the system's experience.
@@ -778,7 +777,7 @@ class StrangeLoop:
           2. What the comfort bands are experiencing (discomfort)
           3. Overall experiential tone
         """
-        parts: List[str] = []
+        parts: list[str] = []
 
         # -- Part 1: Prediction surprise narrative ----------------------
         # Find the level with the highest error.
@@ -944,7 +943,7 @@ class StrangeLoop:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_instance: Optional[StrangeLoop] = None
+_instance: StrangeLoop | None = None
 _instance_lock = threading.Lock()
 
 

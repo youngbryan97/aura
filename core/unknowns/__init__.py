@@ -17,9 +17,9 @@ Generated tasks feed back into:
   * F18 holdout vault (so today's failures become tomorrow's
     regression tests)
 """
-from core.unknowns.novelty_archive import NoveltyArchive, NoveltyEntry
-from core.unknowns.generator import UnknownUnknownGenerator
 from core.unknowns.entropy_probe import EmbeddingEntropyProbe
+from core.unknowns.generator import UnknownUnknownGenerator
+from core.unknowns.novelty_archive import NoveltyArchive, NoveltyEntry
 
 __all__ = [
     "EmbeddingEntropyProbe",

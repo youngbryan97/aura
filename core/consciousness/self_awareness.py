@@ -11,9 +11,9 @@ This is where:
 
 import asyncio
 import logging
-from typing import Optional, Any
+from typing import Any, Optional
 
-from core.consciousness.unified_self import UnifiedSelf, SelfState
+from core.consciousness.unified_self import UnifiedSelf
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Consciousness.SelfAwareness")
@@ -42,9 +42,9 @@ class SelfAwareness:
     _lock = asyncio.Lock()
     
     def __init__(self):
-        self._unified_self: Optional[UnifiedSelf] = None
-        self._phenomenal_engine: Optional[Any] = None
-        self._qualia_synthesizer: Optional[Any] = None
+        self._unified_self: UnifiedSelf | None = None
+        self._phenomenal_engine: Any | None = None
+        self._qualia_synthesizer: Any | None = None
     
     @classmethod
     async def get_instance(cls) -> "SelfAwareness":

@@ -2,13 +2,12 @@
 Agency Coordinator for the RobustOrchestrator.
 Handles skill dispatch, task execution, and agentic loop management.
 """
-from core.runtime.errors import record_degradation
 import logging
-import asyncio
 import sqlite3
-from typing import Any, Dict, Optional
+from typing import Any
 
 from core.health.degraded_events import record_degraded_event
+from core.runtime.errors import record_degradation
 from core.verification.decision_verifier import DecisionVerifier
 
 logger = logging.getLogger(__name__)
@@ -110,7 +109,7 @@ class AgencyCoordinator:
         self.orchestrator = orchestrator
         self._skill_manager = None
         self._capability_engine = None
-        self._decision_verifier: Optional[DecisionVerifier] = None
+        self._decision_verifier: DecisionVerifier | None = None
 
     @property
     def skill_manager(self):
@@ -131,7 +130,7 @@ class AgencyCoordinator:
         if self.capability_engine is None:
             logger.warning("AgencyCoordinator setup without capability_engine")
 
-    async def execute_skill(self, skill_name: str, params: Dict[str, Any], context: Dict[str, Any] = None) -> Any:
+    async def execute_skill(self, skill_name: str, params: dict[str, Any], context: dict[str, Any] = None) -> Any:
         """Executes a skill via the capability engine.
 
         Every outcome, good or bad, passes through here, which makes it the
@@ -191,7 +190,7 @@ class AgencyCoordinator:
             )
             return {"ok": False, "error": str(e)}
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Returns the current status of the agency system."""
         return {
             "active_tasks": len(getattr(self.orchestrator, '_active_metabolic_tasks', set())),

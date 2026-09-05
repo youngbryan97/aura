@@ -17,7 +17,7 @@ Evaluation dimensions:
 import copy
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.container import ServiceContainer
 from core.identity.self_contract import contains_identity_erasure
@@ -36,7 +36,7 @@ class InternalSimulator:
     def __init__(self):
         logger.info("InternalSimulator initialized.")
 
-    def simulate(self, current_state: Any, variation: Optional[Dict[str, Any]] = None) -> Any:
+    def simulate(self, current_state: Any, variation: dict[str, Any] | None = None) -> Any:
         """Create a hypothetical future state based on current state + variation."""
         try:
             hypothetical = copy.deepcopy(current_state)
@@ -130,7 +130,7 @@ class InternalSimulator:
         return round(score, 4)
 
     def evaluate_candidates(self, state: Any,
-                            candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+                            candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Evaluate multiple candidate actions and return them scored.
 
         Each candidate dict should have at least 'goal' and optionally 'variation'.
@@ -154,7 +154,7 @@ class InternalSimulator:
         results.sort(key=lambda r: r["score"], reverse=True)
         return results
 
-    def plan_next_action(self, state: Any, options: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def plan_next_action(self, state: Any, options: list[dict[str, Any]]) -> dict[str, Any] | None:
         """Simulate options and return the one with the highest evaluation score."""
         if not options:
             return None

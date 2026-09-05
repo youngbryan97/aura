@@ -8,8 +8,8 @@ This module re-exports all elements to ensure complete backward-compatibility.
 from __future__ import annotations
 
 from core.memory.long_term_memory_engine import (
-    TaggedMemory,
     LongTermMemoryEngine,
+    TaggedMemory,
     get_long_term_memory_engine,
 )
 

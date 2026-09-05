@@ -1,5 +1,4 @@
 from __future__ import annotations
-from core.runtime.numeric_safety import is_usable
 
 import asyncio
 import enum
@@ -12,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.runtime.errors import describe_error, record_degradation
+from core.runtime.numeric_safety import is_usable
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.task_tracker import get_task_tracker, mark_task_protected

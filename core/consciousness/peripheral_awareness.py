@@ -22,14 +22,11 @@ Integration:
 """
 from __future__ import annotations
 
-
 import logging
 import time
 from collections import deque
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-
-import numpy as np
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger("Consciousness.PeripheralAwareness")
 
@@ -70,8 +67,8 @@ class PeripheralAwarenessEngine:
     _NEAR_MISS_BONUS = 0.3       # Extra intensity for content that almost won
 
     def __init__(self):
-        self._peripheral_field: List[PeripheralContent] = []
-        self._history: deque[Dict[str, Any]] = deque(maxlen=30)
+        self._peripheral_field: list[PeripheralContent] = []
+        self._history: deque[dict[str, Any]] = deque(maxlen=30)
         self._tick_count: int = 0
         self._total_peripheral_intensity: float = 0.0
         logger.info("PeripheralAwarenessEngine initialized.")
@@ -79,7 +76,7 @@ class PeripheralAwarenessEngine:
     def process_workspace_results(
         self,
         winner_source: str,
-        all_candidates: List[Dict[str, Any]],
+        all_candidates: list[dict[str, Any]],
     ):
         """Called after each Global Workspace competition.
 
@@ -175,7 +172,7 @@ class PeripheralAwarenessEngine:
             return 0.0
         return min(1.0, self._total_peripheral_intensity / 3.0)
 
-    def get_peripheral_topics(self) -> List[str]:
+    def get_peripheral_topics(self) -> list[str]:
         """Return summaries of peripherally present content.
 
         These are topics Aura is "aware of" but not "attending to."
@@ -214,7 +211,7 @@ class PeripheralAwarenessEngine:
             f"Not the focus, but still present: {' | '.join(items)}"
         )
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         """Telemetry payload."""
         return {
             "peripheral_count": len(self._peripheral_field),
@@ -234,7 +231,7 @@ class PeripheralAwarenessEngine:
 
 # ── Singleton ────────────────────────────────────────────────────────────────
 
-_instance: Optional[PeripheralAwarenessEngine] = None
+_instance: PeripheralAwarenessEngine | None = None
 
 
 def get_peripheral_awareness_engine() -> PeripheralAwarenessEngine:

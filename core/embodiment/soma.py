@@ -5,12 +5,12 @@ Maps hardware telemetry (Thermal, RAM, GPU) to affective discomfort.
 """
 
 import time
-from typing import Any, Dict
+from typing import Any
 
 from core.runtime import resource_psutil as psutil
 from core.runtime.base_module import AuraBaseModule
-from core.runtime.errors import record_degradation
 from core.runtime.disk_budget import state_volume_percent, state_volume_usage
+from core.runtime.errors import record_degradation
 
 
 class SystemSoma(AuraBaseModule):
@@ -27,7 +27,7 @@ class SystemSoma(AuraBaseModule):
         }
         self.logger.info("✓ SystemSoma Online — Hardware Telemetry Active")
 
-    async def pulse(self) -> Dict[str, float]:
+    async def pulse(self) -> dict[str, float]:
         """Performs a hardware health check and returns somatic markers."""
         now = time.time()
         if now - self.last_check < self.check_interval:
@@ -64,7 +64,7 @@ class SystemSoma(AuraBaseModule):
             
         return self._somatic_state
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """For HUD / Telemetry bridge."""
         return {
             "soma": self._somatic_state,

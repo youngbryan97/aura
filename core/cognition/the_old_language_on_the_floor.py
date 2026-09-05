@@ -35,24 +35,25 @@ is a different ceiling, and it is named in the record rather than closed here.
 from __future__ import annotations
 
 import logging
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-from core.cognition.one_algebra import HEADS, Term
+from core.cognition.one_algebra import Term
 from core.cognition.the_floor_she_stands_on import (
-    A,
     BELOW,
-    Code,
     FST,
     IF,
-    L,
     LEFTOVER,
     MINUS,
-    N,
     PAIR,
     PLUS,
     SAME,
     SND,
     TIMES,
+    A,
+    Code,
+    L,
+    N,
     V,
     Y,
     build,

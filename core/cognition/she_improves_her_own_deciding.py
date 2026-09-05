@@ -163,19 +163,17 @@ def what_the_record_would_have_cost(worth: Code) -> float:
     Both are handled here now: the replay runs inside a scope that restores
     everything it touches, and the score is the mean over seeded replays.
     """
-    from core.cognition.the_record_of_her_own_work import the_record
-    from core.cognition.what_it_is_worth_doing import (
-        forget_the_worth,
-        the_worth_she_uses,
-        the_worth_she_wrote,
-    )
-    from core.cognition.she_decides_to_develop import what_to_do_next
-    from core.cognition.what_she_could_do_next import the_actions_she_has
-
     from core.cognition.does_improving_compound import (
         HOW_MANY_REPLAYS,
         a_replay_that_changes_nothing,
     )
+    from core.cognition.she_decides_to_develop import what_to_do_next
+    from core.cognition.the_record_of_her_own_work import the_record
+    from core.cognition.what_it_is_worth_doing import (
+        the_worth_she_uses,
+        the_worth_she_wrote,
+    )
+    from core.cognition.what_she_could_do_next import the_actions_she_has
 
     kept = the_record().kept
     if not kept or not the_actions_she_has():
@@ -320,7 +318,6 @@ def offer_what_she_can_do_about_herself(*, within: float = 20.0) -> None:
         Judged the way everything else is: does the record cost less afterwards.
         """
         from core.cognition.what_counts_as_better import (
-            THE_OBJECTIVE,
             forget_the_objective,
             the_objective_she_wrote,
         )

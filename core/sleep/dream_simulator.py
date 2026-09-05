@@ -1,8 +1,8 @@
 """core/sleep/dream_simulator.py
 Simulates future scenario projections and hypothetical actions during sleep.
 """
-from typing import List, Dict, Any
 import logging
+from typing import Any
 
 logger = logging.getLogger("Sleep.DreamSimulator")
 
@@ -10,7 +10,7 @@ logger = logging.getLogger("Sleep.DreamSimulator")
 class DreamSimulator:
     """Rehearses hypothetical situations to prepare the agent for future tasks."""
 
-    def simulate_scenarios(self, active_goals: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def simulate_scenarios(self, active_goals: list[dict[str, Any]]) -> list[dict[str, Any]]:
         logger.info("DreamSimulator starting scenario generation checks...")
         simulations = []
         for g in active_goals:

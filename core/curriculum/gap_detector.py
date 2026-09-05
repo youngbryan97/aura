@@ -14,17 +14,16 @@ recent failures are more relevant than ancient ones.
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
 
 from core.runtime.prediction_ledger import PredictionLedger, PredictionRecord
 
 
 @dataclass
 class GapReport:
-    cluster: Optional[str]
-    belief: Optional[str]
-    modality: Optional[str]
+    cluster: str | None
+    belief: str | None
+    modality: str | None
     n_resolved: int
     mean_brier: float
     accuracy: float
@@ -52,11 +51,11 @@ class GapDetector:
 
     def detect(self, *, window: int = 200) -> GapReport:
         records = self.ledger.recent(limit=window, resolved=True)
-        clusters: Dict[str, List[PredictionRecord]] = defaultdict(list)
+        clusters: dict[str, list[PredictionRecord]] = defaultdict(list)
         for r in records:
             clusters[self._cluster_key(r)].append(r)
 
-        best: Optional[Tuple[str, float, float, int, float]] = None
+        best: tuple[str, float, float, int, float] | None = None
         for cluster_id, items in clusters.items():
             if len(items) < self.min_resolved:
                 continue

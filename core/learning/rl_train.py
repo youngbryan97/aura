@@ -9,8 +9,8 @@ try:
     from stable_baselines3 import PPO
     from stable_baselines3.common.env_checker import check_env
 
-    from core.orchestrator import RobustOrchestrator
     from core.learning.rl_env import AutonomyEnv
+    from core.orchestrator import RobustOrchestrator
 except ImportError as e:
     print(f"RL dependencies missing: {e}")
     sys.exit(1)

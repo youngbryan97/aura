@@ -17,7 +17,7 @@ Key behaviors:
 
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
@@ -64,8 +64,8 @@ class ExecutiveInhibitor:
         self._phi_diagnostic_count: int = 0
 
         # Veto and Audit logs
-        self._veto_log: List[Dict[str, Any]] = []
-        self._audit_trail: List[Dict[str, Any]] = []  # CS-02: Critical bypass tracking
+        self._veto_log: list[dict[str, Any]] = []
+        self._audit_trail: list[dict[str, Any]] = []  # CS-02: Critical bypass tracking
 
         logger.info(
             "Executive Inhibitor online (phi_threshold=%.2f, require_ignition=%s, field_crisis=%.2f)",
@@ -171,7 +171,7 @@ class ExecutiveInhibitor:
         self._authorized_count += 1
         return True
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         """Telemetry snapshot."""
         return {
             "authorized": self._authorized_count,
@@ -183,6 +183,6 @@ class ExecutiveInhibitor:
             "recent_vetoes": len(self._veto_log),
         }
 
-    def get_recent_vetoes(self, n: int = 10) -> List[Dict[str, Any]]:
+    def get_recent_vetoes(self, n: int = 10) -> list[dict[str, Any]]:
         """Return the N most recent veto entries for debugging."""
         return self._veto_log[-n:]

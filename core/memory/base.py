@@ -18,7 +18,6 @@ AFTER: One definition here. Both modules import from here.
 """
 from __future__ import annotations
 
-
 import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum

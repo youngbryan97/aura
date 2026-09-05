@@ -202,7 +202,7 @@ class OriginReading:
     detail: dict[str, float] | None = None
 
     @classmethod
-    def unavailable(cls, origin: ValueOrigin, reason: str) -> "OriginReading":
+    def unavailable(cls, origin: ValueOrigin, reason: str) -> OriginReading:
         """Record that this origin had nothing to measure, and why."""
         return cls(origin=origin, magnitude=0.0, available=False, evidence=reason)
 

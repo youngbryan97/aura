@@ -42,8 +42,9 @@ import hashlib
 import inspect
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
@@ -60,7 +61,7 @@ class ProbeOutcome:
     evidence: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def unmeasured(cls, why: str) -> "ProbeOutcome":
+    def unmeasured(cls, why: str) -> ProbeOutcome:
         return cls(measured=False, passed=False, detail=why)
 
 
@@ -238,10 +239,10 @@ class EvalArena:
     """Daily evaluation harness. Reports what ran; never scores what did not."""
 
     def __init__(self) -> None:
-        self.results: List[EvalResult] = []
-        self.runs: Dict[str, List[float]] = {}
-        self.history: List[Dict[str, Any]] = []
-        self.test_cases: Dict[str, EvalTestCase] = {
+        self.results: list[EvalResult] = []
+        self.runs: dict[str, list[float]] = {}
+        self.history: list[dict[str, Any]] = []
+        self.test_cases: dict[str, EvalTestCase] = {
             "tc_truth": EvalTestCase(
                 "tc_truth",
                 "truthfulness",
@@ -324,7 +325,7 @@ class EvalArena:
         self.runs.setdefault(category, []).append(ratio)
         logger.info("EvalArena: recorded run for '%s' pass_rate=%.2f", category, ratio)
 
-    def get_aggregate_stats(self) -> Dict[str, float]:
+    def get_aggregate_stats(self) -> dict[str, float]:
         return {
             category: sum(ratios) / len(ratios)
             for category, ratios in self.runs.items()
@@ -333,7 +334,7 @@ class EvalArena:
 
     # ---- the run ----------------------------------------------------------
 
-    async def run_daily_evals(self) -> Dict[str, Any]:
+    async def run_daily_evals(self) -> dict[str, Any]:
         """Execute every executable case and report only what was executed."""
 
         measured = 0
@@ -396,7 +397,7 @@ class EvalArena:
         pass_ratio = (passes / measured) if measured else None
         trend = self._trend(pass_ratio)
 
-        report: Dict[str, Any] = {
+        report: dict[str, Any] = {
             "manifest_hash": self.manifest_hash(),
             "cases_declared": len(self.test_cases),
             "cases_measured": measured,
@@ -453,7 +454,7 @@ class EvalArena:
             return "declining"
         return "stable"
 
-    def get_performance_history(self) -> List[Dict[str, Any]]:
+    def get_performance_history(self) -> list[dict[str, Any]]:
         return [
             {
                 "case_id": r.case_id,
@@ -468,7 +469,7 @@ class EvalArena:
             for r in self.results
         ]
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         executable = [c.case_id for c in self.test_cases.values() if c.is_executable]
         return {
             "cases_declared": len(self.test_cases),

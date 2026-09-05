@@ -38,9 +38,10 @@ import queue
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from core.runtime.audit_chain import AuditChain
 from core.runtime.errors import record_degradation
@@ -144,7 +145,7 @@ class ReliabilityCell:
     def brier(self) -> float:
         return self.brier_sum / self.graded if self.graded else 1.0
 
-    def snapshot(self) -> "ReliabilityCell":
+    def snapshot(self) -> ReliabilityCell:
         """A detached copy for callers.
 
         ``reliability()`` used to return the LIVE cell; any caller could then
@@ -217,7 +218,7 @@ class VerifierFoundry:
 
         # durable writes on a dedicated thread — same no-on-loop-fsync
         # discipline as the covenant ledger
-        self._queue: "queue.Queue[dict[str, Any] | None]" = queue.Queue()
+        self._queue: queue.Queue[dict[str, Any] | None] = queue.Queue()
         self._pending_writes = 0
         self._pending_writes_lock = threading.Lock()
         self._writer = threading.Thread(target=self._writer_loop,

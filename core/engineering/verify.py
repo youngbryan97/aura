@@ -30,10 +30,11 @@ imply otherwise.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
-from core.engineering.domains import DomainError, domain as get_domain
+from core.engineering.domains import DomainError
+from core.engineering.domains import domain as get_domain
 from core.engineering.units import Q, Quantity
 
 __all__ = [

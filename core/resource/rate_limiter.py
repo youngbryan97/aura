@@ -1,6 +1,6 @@
 import asyncio
 import time
-from typing import Dict, Optional
+
 
 class TokenBucketRateLimiter:
     """Token Bucket rate limiter for managing API throughput.
@@ -43,7 +43,7 @@ class TokenBucketRateLimiter:
 
 class RateLimitManager:
     """Registry for tiered rate limiters."""
-    _limiters: Dict[str, TokenBucketRateLimiter] = {}
+    _limiters: dict[str, TokenBucketRateLimiter] = {}
 
     @classmethod
     def get_limiter(cls, key: str, rpm: int = 60, burst: int = 5) -> TokenBucketRateLimiter:

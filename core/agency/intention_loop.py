@@ -17,9 +17,6 @@ The loop provides:
   - Registration as ``intention_loop`` in ServiceContainer.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
-
 
 import hashlib
 import json
@@ -32,7 +29,10 @@ from collections import deque
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.IntentionLoop")
 
@@ -77,20 +77,20 @@ class IntentionRecord:
     intention: str                              # "I intend to ..."
     drive: str                                  # Which drive / motivation
     intended_at: float                          # Timestamp
-    plan: Optional[List[str]] = None            # Planned steps (natural language)
-    actions_taken: List[ActionRecord] = field(default_factory=list)
-    observation: Optional[str] = None           # Result summary
-    expected_outcome: Optional[str] = None
-    actual_outcome: Optional[str] = None
+    plan: list[str] | None = None            # Planned steps (natural language)
+    actions_taken: list[ActionRecord] = field(default_factory=list)
+    observation: str | None = None           # Result summary
+    expected_outcome: str | None = None
+    actual_outcome: str | None = None
     surprise: float = 0.0                       # Divergence 0-1
-    belief_updates: List[BeliefUpdate] = field(default_factory=list)
-    self_model_updates: List[str] = field(default_factory=list)
-    tension_created: Optional[str] = None
-    tension_resolved: Optional[str] = None
+    belief_updates: list[BeliefUpdate] = field(default_factory=list)
+    self_model_updates: list[str] = field(default_factory=list)
+    tension_created: str | None = None
+    tension_resolved: str | None = None
     status: IntentionStatus = IntentionStatus.INTENDED
-    completed_at: Optional[float] = None
+    completed_at: float | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["status"] = self.status.value
         return d
@@ -144,7 +144,7 @@ class IntentionLoop:
     # Run the count-bound prune every Nth persist (cheap amortization).
     _PRUNE_EVERY_N_PERSISTS = 200
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         if db_path:
             self._db_path = Path(db_path)
         else:
@@ -153,8 +153,8 @@ class IntentionLoop:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
 
         self._lock = threading.Lock()
-        self._conn: Optional[sqlite3.Connection] = None
-        self._active_intentions: Dict[str, IntentionRecord] = {}
+        self._conn: sqlite3.Connection | None = None
+        self._active_intentions: dict[str, IntentionRecord] = {}
         self._completed_intentions: deque[IntentionRecord] = deque(maxlen=self.COMPLETED_HISTORY)
         self._persist_count: int = 0
 
@@ -245,8 +245,8 @@ class IntentionLoop:
         self,
         intention: str,
         drive: str,
-        expected_outcome: Optional[str] = None,
-        plan: Optional[List[str]] = None,
+        expected_outcome: str | None = None,
+        plan: list[str] | None = None,
     ) -> str:
         """Declare an intention. Returns the intention_id."""
         intention_id = uuid.uuid4().hex[:12]
@@ -430,12 +430,12 @@ class IntentionLoop:
     def revise(
         self,
         intention_id: str,
-        belief_updates: Optional[List[BeliefUpdate]] = None,
-        self_model_updates: Optional[List[str]] = None,
-        tension_created: Optional[str] = None,
-        tension_resolved: Optional[str] = None,
+        belief_updates: list[BeliefUpdate] | None = None,
+        self_model_updates: list[str] | None = None,
+        tension_created: str | None = None,
+        tension_resolved: str | None = None,
         success: bool = True,
-        status: Optional[str | IntentionStatus] = None,
+        status: str | IntentionStatus | None = None,
     ) -> None:
         """Close the loop: record revisions and finalize the intention."""
         with self._lock:
@@ -553,26 +553,26 @@ class IntentionLoop:
 
     # ── Query methods ───────────────────────────────────────────────────
 
-    def get_open_intentions(self) -> List[IntentionRecord]:
+    def get_open_intentions(self) -> list[IntentionRecord]:
         """Return all active (intended or in-progress) intentions."""
         with self._lock:
             return list(self._active_intentions.values())
 
-    def get_recent_surprises(self, threshold: float = 0.5) -> List[IntentionRecord]:
+    def get_recent_surprises(self, threshold: float = 0.5) -> list[IntentionRecord]:
         """Return completed intentions with surprise above threshold."""
         return [
             rec for rec in self._completed_intentions
             if rec.surprise >= threshold
         ]
 
-    def get_revision_history(self) -> List[IntentionRecord]:
+    def get_revision_history(self) -> list[IntentionRecord]:
         """Return completed intentions that produced belief or self-model updates."""
         return [
             rec for rec in self._completed_intentions
             if rec.belief_updates or rec.self_model_updates
         ]
 
-    def get_intention(self, intention_id: str) -> Optional[IntentionRecord]:
+    def get_intention(self, intention_id: str) -> IntentionRecord | None:
         """Look up a specific intention by ID (active or completed)."""
         with self._lock:
             rec = self._active_intentions.get(intention_id)
@@ -583,7 +583,7 @@ class IntentionLoop:
                 return rec
         return None
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Return loop statistics."""
         with self._lock:
             active_count = len(self._active_intentions)
@@ -613,7 +613,7 @@ class IntentionLoop:
 
     def _calculate_surprise(
         self,
-        expected: Optional[str],
+        expected: str | None,
         actual: str,
     ) -> float:
         """Compute surprise as semantic distance between expected and actual.
@@ -702,7 +702,7 @@ class IntentionLoop:
             self.prune_excess()
         return True
 
-    def _row_to_record(self, raw: Dict[str, Any]) -> IntentionRecord:
+    def _row_to_record(self, raw: dict[str, Any]) -> IntentionRecord:
         """Deserialize a database row into an IntentionRecord."""
         actions_data = json.loads(raw.get("actions_json", "[]"))
         actions = [
@@ -847,7 +847,7 @@ def _safe_serialize(obj: Any) -> Any:
 
 # ── Singleton ───────────────────────────────────────────────────────────────
 
-_instance: Optional[IntentionLoop] = None
+_instance: IntentionLoop | None = None
 
 
 def reset_intention_loop_for_test() -> None:

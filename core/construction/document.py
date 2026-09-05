@@ -26,9 +26,9 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass, field
 
 from core.language.asking_clauses import DELIVERABLE_NOUNS as _DELIVERABLE_NOUNS
-from dataclasses import dataclass, field
 
 __all__ = [
     "Section",

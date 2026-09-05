@@ -1,9 +1,8 @@
-from core.runtime.errors import record_degradation
 import logging
-import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.memory.knowledge.curriculum import CurriculumManager
+from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.Curiosity")
@@ -24,11 +23,11 @@ class CuriositySkill(BaseSkill):
         suggestion = self._fetch_suggestion(category)
         return self._format_suggestion_response(suggestion)
 
-    def _fetch_suggestion(self, category: str = None) -> Optional[Dict[str, Any]]:
+    def _fetch_suggestion(self, category: str = None) -> dict[str, Any] | None:
         """Retrieve suggestion from curriculum manager."""
         return self.curriculum.get_suggestion(category)
 
-    def _format_suggestion_response(self, suggestion: Optional[Dict[str, Any]]) -> str:
+    def _format_suggestion_response(self, suggestion: dict[str, Any] | None) -> str:
         """Format the raw suggestion into a readable string."""
         if not suggestion:
             return "No new suggestions found in that category (or the library is empty)."

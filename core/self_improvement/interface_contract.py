@@ -13,9 +13,10 @@ contract replaces the table template.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
+from typing import Any
 
 
 class DiscrepancyCategory(Enum):
@@ -47,14 +48,14 @@ class FunctionSignature:
     """Signature of a single public function or method."""
 
     name: str
-    parameters: Tuple[str, ...] = ()
+    parameters: tuple[str, ...] = ()
     is_async: bool = False
     is_classmethod: bool = False
     is_staticmethod: bool = False
     is_property: bool = False
-    return_annotation: Optional[str] = None
-    docstring: Optional[str] = None
-    decorators: Tuple[str, ...] = ()
+    return_annotation: str | None = None
+    docstring: str | None = None
+    decorators: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -62,10 +63,10 @@ class ClassSignature:
     """Signature of a public class."""
 
     name: str
-    bases: Tuple[str, ...] = ()
-    methods: Tuple[FunctionSignature, ...] = ()
-    docstring: Optional[str] = None
-    decorators: Tuple[str, ...] = ()
+    bases: tuple[str, ...] = ()
+    methods: tuple[FunctionSignature, ...] = ()
+    docstring: str | None = None
+    decorators: tuple[str, ...] = ()
 
 
 @dataclass
@@ -77,14 +78,14 @@ class InterfaceContract:
     """
 
     module_path: str
-    functions: List[FunctionSignature] = field(default_factory=list)
-    classes: List[ClassSignature] = field(default_factory=list)
-    constants: Dict[str, str] = field(default_factory=dict)  # name → type string
-    all_names: FrozenSet[str] = field(default_factory=frozenset)
-    imports: List[str] = field(default_factory=list)
+    functions: list[FunctionSignature] = field(default_factory=list)
+    classes: list[ClassSignature] = field(default_factory=list)
+    constants: dict[str, str] = field(default_factory=dict)  # name → type string
+    all_names: frozenset[str] = field(default_factory=frozenset)
+    imports: list[str] = field(default_factory=list)
 
     @property
-    def public_names(self) -> FrozenSet[str]:
+    def public_names(self) -> frozenset[str]:
         """All public names this module exports."""
         if self.all_names:
             return self.all_names
@@ -107,7 +108,7 @@ class BehavioralInvariant:
 
     name: str
     description: str
-    check_fn: Optional[Callable[[Dict[str, Any]], bool]] = None
+    check_fn: Callable[[dict[str, Any]], bool] | None = None
     check_source: str = ""  # Human-readable source for the check
     critical: bool = True
 
@@ -148,10 +149,10 @@ class ModuleSpec:
     module_name: str
     interface: InterfaceContract
     module_docstring: str = ""
-    invariants: List[BehavioralInvariant] = field(default_factory=list)
-    test_cases: List[TestCase] = field(default_factory=list)
-    trace_examples: List[TraceExample] = field(default_factory=list)
-    dependencies: List[str] = field(default_factory=list)
+    invariants: list[BehavioralInvariant] = field(default_factory=list)
+    test_cases: list[TestCase] = field(default_factory=list)
+    trace_examples: list[TraceExample] = field(default_factory=list)
+    dependencies: list[str] = field(default_factory=list)
     extracted_at: float = field(default_factory=time.time)
 
     def summary(self) -> str:
@@ -175,7 +176,7 @@ class CandidateModule:
 
     source_code: str
     module_path: str
-    generation_metadata: Dict[str, Any] = field(default_factory=dict)
+    generation_metadata: dict[str, Any] = field(default_factory=dict)
     generation_time_s: float = 0.0
     attempt_number: int = 1
 
@@ -202,13 +203,13 @@ class ComparisonReport:
     passed_tests: int = 0
     failed_tests: int = 0
     skipped_tests: int = 0
-    verdicts: List[TestVerdict] = field(default_factory=list)
+    verdicts: list[TestVerdict] = field(default_factory=list)
     aggregate_pass_rate: float = 0.0
     latency_budget_ok: bool = True
     syntax_valid: bool = True
     imports_valid: bool = True
     public_surface_preserved: bool = True
-    metrics: Dict[str, float] = field(default_factory=dict)
+    metrics: dict[str, float] = field(default_factory=dict)
     generated_at: float = field(default_factory=time.time)
 
     @property
@@ -230,8 +231,8 @@ class DiscrepancyItem:
 class DiscrepancyReport:
     """Attributed root-cause report for all failures."""
 
-    items: List[DiscrepancyItem] = field(default_factory=list)
-    summary: Dict[str, int] = field(default_factory=dict)
+    items: list[DiscrepancyItem] = field(default_factory=list)
+    summary: dict[str, int] = field(default_factory=dict)
     generated_at: float = field(default_factory=time.time)
 
     @property
@@ -258,7 +259,7 @@ class AuditResult:
     """Result of hardcoding or guardrail audit."""
 
     passed: bool
-    violations: List[str] = field(default_factory=list)
+    violations: list[str] = field(default_factory=list)
     audit_type: str = ""
     generated_at: float = field(default_factory=time.time)
 
@@ -269,18 +270,18 @@ class LabResult:
 
     success: bool
     module_path: str
-    candidate: Optional[CandidateModule] = None
-    comparison: Optional[ComparisonReport] = None
-    discrepancy: Optional[DiscrepancyReport] = None
-    hardcoding_audit: Optional[AuditResult] = None
-    guardrail_audit: Optional[AuditResult] = None
+    candidate: CandidateModule | None = None
+    comparison: ComparisonReport | None = None
+    discrepancy: DiscrepancyReport | None = None
+    hardcoding_audit: AuditResult | None = None
+    guardrail_audit: AuditResult | None = None
     verdict: PromotionVerdict = PromotionVerdict.REJECT
     attempts: int = 0
     total_time_s: float = 0.0
-    receipt_id: Optional[str] = None
+    receipt_id: str | None = None
     generated_at: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
             "module_path": self.module_path,

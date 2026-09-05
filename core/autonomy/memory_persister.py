@@ -25,20 +25,19 @@ Public API:
 """
 
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import hashlib
 import json
 import logging
 import os
 import time
-import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.MemoryPersister")
 
@@ -65,9 +64,9 @@ DEDUP_TTL_DAYS = 30.0
 @dataclass
 class FactRecord:
     fact: str                       # The claim, in natural language
-    evidence: List[str] = field(default_factory=list)   # Quotes/sources backing it
+    evidence: list[str] = field(default_factory=list)   # Quotes/sources backing it
     confidence: float = 0.5
-    contradicts_belief: Optional[str] = None  # If this conflicts with an existing belief
+    contradicts_belief: str | None = None  # If this conflicts with an existing belief
     domain: str = "general"
     provisional: bool = True
 
@@ -79,7 +78,7 @@ class FactRecord:
 class EpisodicEvent:
     summary: str
     started_at: float
-    completed_at: Optional[float] = None
+    completed_at: float | None = None
     item_title: str = ""
     method_priority_level: int = 6
     notes: str = ""
@@ -95,8 +94,8 @@ class BeliefUpdate:
     position: str
     rationale: str
     confidence: float
-    contradicts: List[str] = field(default_factory=list)
-    supersedes_belief_id: Optional[str] = None
+    contradicts: list[str] = field(default_factory=list)
+    supersedes_belief_id: str | None = None
 
     def hash_key(self) -> str:
         h = f"{self.topic}::{self.position[:80]}"
@@ -114,15 +113,15 @@ class CommitReceipt:
     beliefs_total: int = 0
     queued_for_retry: int = 0
     duplicates_skipped: int = 0
-    failures: List[str] = field(default_factory=list)
-    intent_ids: List[str] = field(default_factory=list)
+    failures: list[str] = field(default_factory=list)
+    intent_ids: list[str] = field(default_factory=list)
 
 
 class MemoryPersister:
     def __init__(
         self,
-        executive: Optional[Any] = None,
-        memory_facade: Optional[Any] = None,
+        executive: Any | None = None,
+        memory_facade: Any | None = None,
         queue_path: Path | None = None,
         dedup_path: Path | None = None,
     ) -> None:
@@ -214,7 +213,7 @@ class MemoryPersister:
 
         successful = 0
         skipped_duplicates = 0
-        remaining: List[str] = []
+        remaining: list[str] = []
         for line in lines:
             line = line.strip()
             if not line:
@@ -316,10 +315,12 @@ class MemoryPersister:
 
     # ── Per-tier commit ───────────────────────────────────────────────────
 
-    def _commit_episodic(self, title: str, ep: EpisodicEvent) -> tuple[bool, str, Optional[str]]:
+    def _commit_episodic(self, title: str, ep: EpisodicEvent) -> tuple[bool, str, str | None]:
         try:
             from core.executive.executive_core import (
-                Intent, IntentSource, ActionType,
+                ActionType,
+                Intent,
+                IntentSource,
             )
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('memory_persister', e)
@@ -369,9 +370,9 @@ class MemoryPersister:
 
         return True, "", intent.intent_id
 
-    def _commit_fact(self, title: str, fact: FactRecord) -> tuple[bool, str, Optional[str]]:
+    def _commit_fact(self, title: str, fact: FactRecord) -> tuple[bool, str, str | None]:
         try:
-            from core.executive.executive_core import Intent, IntentSource, ActionType
+            from core.executive.executive_core import ActionType, Intent, IntentSource
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('memory_persister', e)
             return False, f"executive import: {e}", None
@@ -398,9 +399,9 @@ class MemoryPersister:
         ok, err = self._submit_intent(intent)
         return ok, err, intent.intent_id
 
-    def _commit_belief(self, title: str, belief: BeliefUpdate) -> tuple[bool, str, Optional[str]]:
+    def _commit_belief(self, title: str, belief: BeliefUpdate) -> tuple[bool, str, str | None]:
         try:
-            from core.executive.executive_core import Intent, IntentSource, ActionType
+            from core.executive.executive_core import ActionType, Intent, IntentSource
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('memory_persister', e)
             return False, f"executive import: {e}", None
@@ -477,7 +478,7 @@ class MemoryPersister:
 
     # ── Queue + dedup helpers ────────────────────────────────────────────
 
-    def _enqueue(self, kind: str, item_title: str, payload: Dict[str, Any]) -> None:
+    def _enqueue(self, kind: str, item_title: str, payload: dict[str, Any]) -> None:
         try:
             self._queue_path.parent.mkdir(parents=True, exist_ok=True)
             with self._queue_path.open("a", encoding="utf-8") as f:
@@ -490,7 +491,7 @@ class MemoryPersister:
         except (json.JSONDecodeError, TypeError, ValueError):
             pass  # no-op: intentional
 
-    def _load_dedup(self) -> Dict[str, float]:
+    def _load_dedup(self) -> dict[str, float]:
         if not self._dedup_path.exists():
             return {}
         try:
@@ -550,13 +551,13 @@ def _replay_record(kind: Any, payload: Any) -> Any:
     return cls(**_only_keys(payload or {}, cls))
 
 
-def _dataclass_to_jsonable(obj: Any) -> Dict[str, Any]:
+def _dataclass_to_jsonable(obj: Any) -> dict[str, Any]:
     if hasattr(obj, "__dict__"):
         return dict(obj.__dict__)
     return dict(obj)
 
 
-def _only_keys(payload: Dict[str, Any], cls: type) -> Dict[str, Any]:
+def _only_keys(payload: dict[str, Any], cls: type) -> dict[str, Any]:
     """Filter payload dict down to fields the dataclass accepts."""
     field_names = {f.name for f in __import__("dataclasses").fields(cls)}
     return {k: v for k, v in payload.items() if k in field_names}

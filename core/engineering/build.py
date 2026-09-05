@@ -15,8 +15,7 @@ a set of instructions unusable halfway through.
 
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -486,8 +485,8 @@ def build_plan(design, findings: tuple = ()) -> BuildPlan:
             detail=requirement.plain or requirement.statement,
             tools=("measuring equipment",),
             check=(
-                f"The design predicts this passes; the build has to be measured to "
-                f"confirm it. Analysis is not a test."
+                "The design predicts this passes; the build has to be measured to "
+                "confirm it. Analysis is not a test."
             ),
             minutes=_STEP_MINUTES["test"],
             kind="test",
@@ -508,7 +507,6 @@ def build_plan(design, findings: tuple = ()) -> BuildPlan:
 
 def _connection_steps_for(design, part_id: str, placed: set[str], number: int) -> list[BuildStep]:
     """Connections that become possible now this part is in place."""
-    from core.engineering.domains import domain as get_domain
 
     steps: list[BuildStep] = []
     for link in design.connections:

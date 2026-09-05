@@ -1,27 +1,27 @@
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from core.runtime.errors import record_degradation
-from core.skills.base_skill import BaseSkill
 from core.skills._pyautogui_runtime import get_pyautogui
+from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.Hands")
 
 class OSManipulationInput(BaseModel):
     action: str = Field(..., description="Action to perform: 'type', 'click', 'scroll', 'open_app', 'press', 'hotkey'")
-    text: Optional[str] = Field(None, description="Text to type.")
-    x: Optional[int] = Field(None, description="X coordinate for clicking.")
-    y: Optional[int] = Field(None, description="Y coordinate for clicking.")
-    button: Optional[str] = Field("left", description="Mouse button: 'left', 'right', 'middle'.")
-    clicks: Optional[int] = Field(1, description="Number of clicks.")
-    amount: Optional[int] = Field(0, description="Amount to scroll.")
-    app_name: Optional[str] = Field(None, description="Name of the app to open.")
-    key: Optional[str] = Field(None, description="Key to press.")
-    keys: Optional[List[str]] = Field(None, description="List of keys for a hotkey combination.")
-    speed: Optional[float] = Field(0.05, description="Typing speed (interval between keys).")
+    text: str | None = Field(None, description="Text to type.")
+    x: int | None = Field(None, description="X coordinate for clicking.")
+    y: int | None = Field(None, description="Y coordinate for clicking.")
+    button: str | None = Field("left", description="Mouse button: 'left', 'right', 'middle'.")
+    clicks: int | None = Field(1, description="Number of clicks.")
+    amount: int | None = Field(0, description="Amount to scroll.")
+    app_name: str | None = Field(None, description="Name of the app to open.")
+    key: str | None = Field(None, description="Key to press.")
+    keys: list[str] | None = Field(None, description="List of keys for a hotkey combination.")
+    speed: float | None = Field(0.05, description="Typing speed (interval between keys).")
 
 class DesktopControlSkill(BaseSkill):
     """The 'Hands' of the machine.
@@ -32,7 +32,7 @@ class DesktopControlSkill(BaseSkill):
     description = "Manipulate the mouse and keyboard to interact with the OS using PyAutoGUI."
     input_model = OSManipulationInput
 
-    async def _require_accessibility(self, capability: str) -> Optional[Dict[str, Any]]:
+    async def _require_accessibility(self, capability: str) -> dict[str, Any] | None:
         try:
             from core.container import ServiceContainer
             from core.security.permission_guard import PermissionType
@@ -55,7 +55,7 @@ class DesktopControlSkill(BaseSkill):
             "detail": check.get("detail", ""),
         }
     
-    async def execute(self, params: OSManipulationInput, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: OSManipulationInput, context: dict[str, Any]) -> dict[str, Any]:
         """Router for physical actions."""
         if isinstance(params, dict):
             try:

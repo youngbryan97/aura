@@ -47,14 +47,11 @@ INSTALL:
   patch_memory_compaction()
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
-
-
-import asyncio
 import logging
-import time
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.MemoryCompactionPatch")
 
@@ -67,9 +64,9 @@ MAX_RAW_TURNS        = 6    # turns to keep verbatim after compaction
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def compact_if_needed(
-    working_memory: List[Dict[str, Any]],
+    working_memory: list[dict[str, Any]],
     force: bool = False,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Run compaction if working_memory exceeds COMPACTION_THRESHOLD.
     Returns the (possibly compacted) memory list.
@@ -106,7 +103,7 @@ async def compact_if_needed(
 async def _patched_memory_consolidation_execute(
     self: Any,
     state: Any,
-    objective: Optional[str] = None,
+    objective: str | None = None,
     **kwargs: Any,
 ) -> Any:
     """

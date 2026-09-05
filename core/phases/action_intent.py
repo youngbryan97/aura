@@ -15,10 +15,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Dict, Optional
 
 from core.runtime.skill_task_bridge import strip_negated_action_spans
-
 
 _ACTION_VERBS = (
     "open", "launch", "run", "start", "execute", "click", "type",
@@ -61,8 +59,8 @@ _PERMISSION_PHRASES = (
 class ActionIntent:
     has_action_request: bool
     has_permission_grant: bool
-    verb: Optional[str]
-    target: Optional[str]
+    verb: str | None
+    target: str | None
     raw_excerpt: str
 
     @property
@@ -70,7 +68,7 @@ class ActionIntent:
         """True when we should skip deferral and try the real skill."""
         return self.has_action_request and self.has_permission_grant
 
-    def as_dict(self) -> Dict[str, object]:
+    def as_dict(self) -> dict[str, object]:
         return {
             "has_action_request": self.has_action_request,
             "has_permission_grant": self.has_permission_grant,
@@ -167,7 +165,7 @@ def detect_action_intent(text: str) -> ActionIntent:
     )
 
 
-def apply_intent_to_context(text: str, context: Dict[str, object]) -> ActionIntent:
+def apply_intent_to_context(text: str, context: dict[str, object]) -> ActionIntent:
     """Stamp the detected intent onto a mutable context dict.
 
     Callers that want the Will / skill router / inference gate to

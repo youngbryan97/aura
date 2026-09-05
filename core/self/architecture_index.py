@@ -19,15 +19,15 @@ for injection into the LLM context so Aura can answer questions like:
   "Walk me through how a user message becomes a reply."
 """
 
-from core.runtime.errors import record_degradation
 import ast
 import logging
 import os
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ArchitectureIndex")
 
@@ -60,8 +60,8 @@ class ModuleRecord:
     path: str              # Relative to project root
     subsystem: str         # Top-level label (e.g. "brain/inference", "affect/circumplex")
     module_doc: str        # File-level docstring
-    classes: List[Dict]    # [{name, doc, methods: [str]}]
-    keywords: List[str]    # Extracted for fast matching
+    classes: list[dict]    # [{name, doc, methods: [str]}]
+    keywords: list[str]    # Extracted for fast matching
 
 
 class ArchitectureIndex:
@@ -70,9 +70,9 @@ class ArchitectureIndex:
     Thread-safe for reads; rebuilds are idempotent.
     """
 
-    def __init__(self, project_root: Optional[Path] = None):
+    def __init__(self, project_root: Path | None = None):
         self._root = project_root or self._detect_root()
-        self._index: Dict[str, ModuleRecord] = {}
+        self._index: dict[str, ModuleRecord] = {}
         self._built_at: float = 0.0
         self._building = False
         self._created_at_monotonic = time.monotonic()
@@ -284,7 +284,7 @@ class ArchitectureIndex:
                     logger.debug("Index skip %s: %s", rel, e)
         return count
 
-    def _parse_file(self, path: Path, rel: str) -> Optional[ModuleRecord]:
+    def _parse_file(self, path: Path, rel: str) -> ModuleRecord | None:
         src = path.read_text(encoding="utf-8", errors="ignore")
         if len(src) < 50:
             return None  # Skip near-empty files
@@ -343,7 +343,7 @@ class ArchitectureIndex:
         return Path(parts[0]).stem if parts else rel
 
     @staticmethod
-    def _extract_keywords(module_doc: str, classes: List[Dict], rel: str) -> List[str]:
+    def _extract_keywords(module_doc: str, classes: list[dict], rel: str) -> list[str]:
         words = set()
         # File path components
         words.update(Path(rel).stem.lower().replace("_", " ").split())
@@ -367,7 +367,7 @@ class ArchitectureIndex:
 
     # ─── Search ───────────────────────────────────────────────────────────────
 
-    def _search(self, topic: str, max_results: int) -> List[Tuple["ModuleRecord", float]]:
+    def _search(self, topic: str, max_results: int) -> list[tuple["ModuleRecord", float]]:
         import re
         query_words = set(
             w.lower().strip(".,;:()") for w in re.split(r"\W+", topic)
@@ -376,7 +376,7 @@ class ArchitectureIndex:
         if not query_words:
             return []
 
-        scored: List[Tuple[ModuleRecord, float]] = []
+        scored: list[tuple[ModuleRecord, float]] = []
         for rec in self._index.values():
             score = 0.0
             kw_set = set(rec.keywords)
@@ -418,7 +418,7 @@ class ArchitectureIndex:
 
 
 # ── Singleton ──────────────────────────────────────────────────────────────────
-_index: Optional[ArchitectureIndex] = None
+_index: ArchitectureIndex | None = None
 
 
 def get_architecture_index() -> ArchitectureIndex:

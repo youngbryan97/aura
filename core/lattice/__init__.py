@@ -20,6 +20,7 @@ custom Mamba kernel later for serious throughput; the contract stays
 the same.
 """
 from core.lattice.config import LatticeConfig
+from core.lattice.dataset import RandomTokenDataset
 from core.lattice.model import (
     CausalSparseAttention,
     LatentWorldHead,
@@ -32,7 +33,6 @@ from core.lattice.model import (
     entropy,
 )
 from core.lattice.trainer import LatticeTrainer, TrainConfig
-from core.lattice.dataset import RandomTokenDataset
 
 __all__ = [
     "CausalSparseAttention",

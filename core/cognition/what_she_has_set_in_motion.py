@@ -115,7 +115,7 @@ class WhatIsComing:
         }
 
     @classmethod
-    def from_memory(cls, held: Any) -> "WhatIsComing":
+    def from_memory(cls, held: Any) -> WhatIsComing:
         if not isinstance(held, dict):
             return cls()
         coming: list[OnItsWay] = []

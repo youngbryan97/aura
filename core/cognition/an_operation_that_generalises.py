@@ -28,8 +28,9 @@ chose the range of.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable, Iterator, Sequence
+from typing import Any
 
 __all__ = [
     "Expression",

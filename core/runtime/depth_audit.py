@@ -21,11 +21,9 @@ from boot (``enforce_depth_audit``) and from tests.
 """
 from __future__ import annotations
 
-
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
 
 logger = logging.getLogger("Aura.DepthAudit")
 
@@ -73,8 +71,8 @@ class DepthReport:
 
 @dataclass
 class DepthAuditResult:
-    reports: List[DepthReport] = field(default_factory=list)
-    failures: List[DepthReport] = field(default_factory=list)
+    reports: list[DepthReport] = field(default_factory=list)
+    failures: list[DepthReport] = field(default_factory=list)
 
     @property
     def passed(self) -> bool:
@@ -83,7 +81,7 @@ class DepthAuditResult:
 
 class DepthRegistry:
     def __init__(self):
-        self._reports: Dict[str, DepthReport] = {}
+        self._reports: dict[str, DepthReport] = {}
 
     def register(self, report: DepthReport) -> None:
         if report.module in self._reports:
@@ -98,10 +96,10 @@ class DepthRegistry:
                 return
         self._reports[report.module] = report
 
-    def get(self, module: str) -> Optional[DepthReport]:
+    def get(self, module: str) -> DepthReport | None:
         return self._reports.get(module)
 
-    def all(self) -> List[DepthReport]:
+    def all(self) -> list[DepthReport]:
         return list(self._reports.values())
 
     def clear(self) -> None:
@@ -115,7 +113,7 @@ class DepthRegistry:
         return result
 
 
-_global_registry: Optional[DepthRegistry] = None
+_global_registry: DepthRegistry | None = None
 
 
 def get_depth_registry() -> DepthRegistry:
