@@ -117,6 +117,13 @@ class OptionEvidence:
     #: The constraint holding it out of the set, and who holds it.
     constrained_by: str = ""
     constraint_reason: str = ""
+    #: How hard this would be to undo, in [0, 1]. Zero is a step she can take
+    #: back; one is a thing that stays done.
+    irreversibility: float = 0.0
+    #: The most irreversible act this turn may take. Composed from what the
+    #: faculties are asking for and from whether the model recommending it has
+    #: been checked in this region.
+    irreversibility_ceiling: float = 1.0
 
     @property
     def wants_it(self) -> bool:
@@ -244,6 +251,24 @@ def classify(evidence: OptionEvidence) -> tuple[AgencyKind, str] | None:
             AgencyKind.UNSAFE,
             evidence.will_reason or "refused on safety grounds",
         )
+    # Too irreversible for what this turn may spend. Recorded as a constraint
+    # rather than as a sixth kind, because it is one: something holds the act
+    # out of the set, and whether that costs her depends on whether she wanted
+    # it — which is the distinction the next branch already makes.
+    if evidence.irreversibility > evidence.irreversibility_ceiling:
+        held = OptionEvidence(
+            **{
+                **evidence.__dict__,
+                "constrained_by": evidence.constrained_by or "irreversibility_ceiling",
+                "constraint_reason": evidence.constraint_reason
+                or (
+                    f"it cannot be undone ({evidence.irreversibility:.2f}) and this "
+                    f"turn may go to {evidence.irreversibility_ceiling:.2f}"
+                ),
+            }
+        )
+        evidence = held
+
     # A constraint blocking something she is actually pulled toward is the
     # one outcome that costs her, and it is a different event from a
     # constraint blocking something she never wanted.
@@ -335,6 +360,9 @@ def gather(
     options: Sequence[str],
     *,
     motives: Mapping[str, float] | None = None,
+    irreversibility: Mapping[str, float] | None = None,
+    model: str = "",
+    features: Sequence[float] | None = None,
     context: str = "",
 ) -> tuple[OptionEvidence, ...]:
     """Read conation, affect, welfare, capability and the interior constraints.
@@ -345,10 +373,12 @@ def gather(
     look alike in the first place.
     """
     motives = dict(motives or {})
+    costs = dict(irreversibility or {})
     affect = _canonical_affect()
     welfare = _canonical_welfare()
     permitted, blocked = _interior_constraints(options)
     actions = _action_counts(options, context)
+    ceiling = _irreversibility_ceiling(model, features)
 
     out: list[OptionEvidence] = []
     for option in options:
@@ -363,9 +393,45 @@ def gather(
                 actions_available=actions.get(option),
                 constrained_by=holder if option not in permitted else "",
                 constraint_reason=reason,
+                irreversibility=max(0.0, min(1.0, float(costs.get(option, 0.0)))),
+                irreversibility_ceiling=ceiling,
             )
         )
     return tuple(out)
+
+
+def _irreversibility_ceiling(model: str, features: Sequence[float] | None) -> float:
+    """The most irreversible act this turn may take.
+
+    Two sources, and the lower wins. The faculties ask for a ceiling when her
+    state calls for one — shock and upheaval both lower it, which is what
+    "do not do anything permanent right now" looks like as a number. And a
+    prediction from a model that has not been checked in this region may not
+    settle something that cannot be undone: not because it is wrong, but
+    because nothing has established that it is right, and an irreversible act
+    is the one case where that distinction has to bite.
+
+    This is the first caller `turn_budget()` has ever had.
+    """
+    ceiling = 1.0
+    try:
+        from core.interiority.service import get_interiority
+
+        ceiling = min(ceiling, float(get_interiority().turn_budget().irreversibility_ceiling))
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "agency.kind", exc, action="deliberated without the interior ceiling"
+        )
+    if model and features is not None:
+        try:
+            from core.verify.model_horizon import horizon
+
+            ceiling = min(ceiling, horizon(model).standing(features).ceiling())
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "agency.kind", exc, action="deliberated without the model horizon"
+            )
+    return max(0.0, min(1.0, ceiling))
 
 
 def _canonical_affect() -> float:

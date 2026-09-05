@@ -249,3 +249,76 @@ def test_a_subject_scoped_class_resolves_to_its_stem():
     from core.interiority.vocabulary import is_stance
 
     assert is_stance("repair") is is_stance("repair:bryan")
+
+
+# ── irreversibility ──────────────────────────────────────────────────────
+
+
+def test_an_act_she_cannot_undo_is_held_when_the_ceiling_is_low():
+    """Shock and upheaval lower the ceiling. This is what that does."""
+    assert kind_of(
+        motive=0.9, affect=0.6, actions_available=4,
+        irreversibility=0.8, irreversibility_ceiling=0.3,
+    ) is AgencyKind.WANTED_BUT_REFUSED
+
+
+def test_the_same_act_is_available_when_the_ceiling_is_not_lowered():
+    assert kind_of(
+        motive=0.9, affect=0.6, actions_available=4,
+        irreversibility=0.8, irreversibility_ceiling=1.0,
+    ) is AgencyKind.CHOSEN
+
+
+def test_a_reversible_act_is_unaffected_by_a_low_ceiling():
+    assert kind_of(
+        motive=0.9, affect=0.6, actions_available=4,
+        irreversibility=0.1, irreversibility_ceiling=0.3,
+    ) is AgencyKind.CHOSEN
+
+
+def test_a_ceiling_refusal_says_it_could_not_be_undone():
+    outcome = classify(OptionEvidence(
+        option="delete the branch", motive=0.9, affect=0.5, actions_available=2,
+        irreversibility=0.9, irreversibility_ceiling=0.2,
+    ))
+    assert outcome is not None and "undone" in outcome[1]
+
+
+def test_a_ceiling_refusal_on_something_unwanted_does_not_read_as_a_cost():
+    assert kind_of(
+        motive=0.0, affect=0.1, actions_available=4,
+        irreversibility=0.9, irreversibility_ceiling=0.2,
+    ) is not AgencyKind.WANTED_BUT_REFUSED
+
+
+def test_an_unchecked_model_lowers_the_ceiling_below_an_irreversible_act():
+    """A prediction nothing has validated may not settle what cannot be undone."""
+    import random
+
+    from core.agency.agency_kind import _irreversibility_ceiling
+    from core.verify.model_horizon import horizon, reset_horizons
+
+    reset_horizons()
+    model = horizon("planner")
+    rng = random.Random(5)
+    for _ in range(40):
+        model.observe([rng.uniform(0.0, 0.3), rng.uniform(0.0, 0.3)], 0.5,
+                      0.5 + rng.uniform(-0.05, 0.05))
+    for _ in range(40):
+        model.observe([rng.uniform(0.7, 1.0), rng.uniform(0.7, 1.0)], 0.5,
+                      0.5 + rng.uniform(-0.9, 0.9))
+    checked = _irreversibility_ceiling("planner", [0.15, 0.15])
+    unchecked = _irreversibility_ceiling("planner", [0.5, 0.5])
+    wrong = _irreversibility_ceiling("planner", [0.85, 0.85])
+    assert checked == 1.0
+    assert unchecked < checked and wrong < unchecked
+    reset_horizons()
+
+
+def test_turn_budget_finally_has_a_caller():
+    """It had none anywhere in the runtime."""
+    import inspect
+
+    from core.agency.agency_kind import _irreversibility_ceiling
+
+    assert "turn_budget()" in inspect.getsource(_irreversibility_ceiling)
