@@ -21,7 +21,10 @@ made.
 
 from __future__ import annotations
 
+import os
 import random
+import subprocess
+import sys
 
 import pytest
 
@@ -61,6 +64,32 @@ def _fixed(value: float):
 
 
 UNSURE = {"a": 0.5, "b": 0.5}
+
+
+def test_observation_ranking_is_stable_across_process_hash_seeds():
+    script = """
+import json
+from core.perception.how_she_finds_out import (
+    WayOfFindingOut, clear_the_inventory, register_a_way, what_to_look_at,
+)
+clear_the_inventory()
+for name in ('look', 'ask', 'measure'):
+    register_a_way(WayOfFindingOut(
+        name=name, about=('x',), cost=0.01,
+        outcomes=('a', 'b'), take=lambda _: None,
+    ))
+print(json.dumps([(s.observation, s.expected_bits) for s in
+    what_to_look_at({'a': 0.5, 'b': 0.5}, about='x')]))
+"""
+    results = [
+        subprocess.run(
+            [sys.executable, "-c", script],
+            env={**os.environ, "PYTHONHASHSEED": seed},
+            capture_output=True, text=True, check=True, timeout=30,
+        ).stdout.strip().splitlines()[-1]
+        for seed in ("1", "2", "98765")
+    ]
+    assert len(set(results)) == 1
 
 
 def test_a_way_that_cannot_discriminate_is_worth_nothing():

@@ -52772,3 +52772,24 @@ Contract and tool-protocol tests: 58 passed. Smoke: 163 passed, one skipped.
 Lint, compile and layering passed. The running 1092afbf0 instance has not loaded
 this change. A source-matched replay remains required before claiming the
 observed 2048-to-921-token truncation or the full reply path is repaired live.
+
+## Checkpoint 2026-09-05: Reproduce Observation Ranking Across Restarts
+
+The shared information-seeking controller seeded its posterior draws with
+Python's process-randomized hash. Identical questions and instrument history
+could therefore rank differently after a restart. Its seed now uses a stable
+SHA256 digest of the same question and ordered hypothesis names. The ranking
+policy and measured reliability inputs are unchanged.
+
+Eighteen focused tests passed, including equal ranking and information scores
+under three fresh PYTHONHASHSEED values. Smoke: 163 passed, one skipped;
+lint, compile and layering passed. This repairs reproducibility, not observer
+calibration or source-witness independence.
+
+The live e97f831b7 replay reached the full CognitiveEngine path. Its RLC
+receipt failed with affective_steering_inactive,
+episode_affective_steering_unapplied, unexpected_branch_exchange_trace and
+answer_replacement_unproven. Ordinary generation is still in progress. No
+live RLC success is claimed. The neural stream also exposed repeated field
+saturation, duplicate vitals, Reddit session failures and dropped autonomous
+tool custody receipts; these remain separate open observations.

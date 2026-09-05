@@ -40,6 +40,8 @@ debugged.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import random
 import threading
@@ -331,7 +333,10 @@ def _seed_for(about: str, beliefs: Mapping[str, float]) -> int:
     where one sample never settles whether a failure was yours.
     """
 
-    return hash((str(about), tuple(sorted(beliefs)))) & 0x7FFFFFFF
+    encoded = json.dumps(
+        [str(about), sorted(beliefs)], ensure_ascii=True, separators=(",", ":")
+    ).encode("utf-8")
+    return int.from_bytes(hashlib.sha256(encoded).digest()[:8], "big")
 
 
 def find_out(
