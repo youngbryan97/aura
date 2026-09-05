@@ -1349,6 +1349,13 @@ def outside_the_ontology(freeze: Freeze, options: dict[str, Any]) -> dict[str, A
     expressible = attempted = found = unsettled = right = 0
     too_long = 0
     trajectories = []
+    #: Shapes worked out on earlier tasks, offered to later ones as members of
+    #: the language rather than as a preference over it. This is the question
+    #: the review asks under "effective search": whether yesterday's invention
+    #: compresses tomorrow's search on structure nobody anticipated. Carried
+    #: only when asked for, so the plain number stays comparable.
+    carry = bool(options.get("carry_what_she_learns", True))
+    library: list[Any] = []
     for task in tasks:
         if not task.same_shape:
             continue
@@ -1361,11 +1368,16 @@ def outside_the_ontology(freeze: Freeze, options: dict[str, Any]) -> dict[str, A
             [Transition(before, after) for before, after in task.shown],
             about=(len(task.asked),),
             most_pairs=budget,
+            known_forms=tuple(library),
         )
         if relation is None:
             trajectories.append({"task": task.name, "found": False})
             continue
         found += 1
+        if carry and relation.index_rule is not None:
+            entry = ("learned", relation.form, relation.index_rule)
+            if entry not in library:
+                library.append(entry)
         if not relation.settled:
             unsettled += 1
             trajectories.append(
@@ -1401,5 +1413,86 @@ def outside_the_ontology(freeze: Freeze, options: dict[str, Any]) -> dict[str, A
         "right_of_all": round(right / len(tasks), 4) if tasks else 0.0,
         "pairs_budget": budget,
         "longest_grid": longest,
+        "carried_what_she_learned": carry,
+        "shapes_learned_on_the_way": len(library),
+        "trajectories": trajectories,
+    }
+
+
+# ── 9. acquiring a skill she does not have ───────────────────────────────
+
+
+def acquiring_a_new_skill(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]:
+    """A step from nought, rather than a curve on something she can already do.
+
+    This gate ran gate 3's code, which an external review noticed and was right
+    about: improving at a thing and acquiring a thing are different claims and
+    the second is the one the gate is named for.
+
+    So the families here are outside the base language rather than hard within
+    it. Every positional shape reads ONE cell per position; these read two and
+    combine them, so before she grows the answer is not merely wrong, it is
+    unavailable. What is measured is whether the ladder writes what it needs,
+    whether what it writes is right, and whether it is still there afterwards.
+
+    The control is the one the gate declares: the same families with the
+    developmental actions taken away. A system that scores the same without
+    them was not acquiring anything — it already had it, and the families were
+    not outside the language after all.
+    """
+
+    from core.cognition.sequence_induction import answer_sequence_question
+    from core.cognition.what_she_could_do_next import WHAT_SHE_COULD_DO
+    from tools.agi_gauntlet.environments.unsayable import families_she_cannot_say
+
+    how_many = int(options.get("families", 8))
+    families = families_she_cannot_say(freeze.seed, how_many=how_many)
+
+    def _ask(family: Any) -> bool:
+        try:
+            said = answer_sequence_question(family.as_a_question())
+        except Exception:  # noqa: BLE001 — a family she cannot answer is a nought
+            return False
+        wanted = " ".join(str(one) for one in family.answer)
+        return bool(said) and wanted in said.replace("[", "").replace("]", "").replace(",", "")
+
+    with_growth = 0
+    trajectories = []
+    for family in families:
+        got = _ask(family)
+        with_growth += int(got)
+        trajectories.append({"family": family.name, "answered": got})
+
+    # The same families with nothing to develop with. Emptying the registry is
+    # how the ladder is stopped: the rungs are ranked out of it, so an empty
+    # one leaves the base language and nothing above it.
+    held = dict(WHAT_SHE_COULD_DO)
+    without_growth = 0
+    try:
+        WHAT_SHE_COULD_DO.clear()
+        for family in families:
+            without_growth += int(_ask(family))
+    finally:
+        WHAT_SHE_COULD_DO.clear()
+        WHAT_SHE_COULD_DO.update(held)
+
+    # And whether what she wrote is still there. The registry of what she can
+    # say is the language; a skill acquired and forgotten is not acquired.
+    from core.cognition.sequence_induction import _everything_she_can_say
+
+    kept = sum(len(one) for one in _everything_she_can_say().values())
+    return {
+        "families": how_many,
+        "acquired": round(with_growth / how_many, 4) if how_many else 0.0,
+        "without_anything_to_develop_with": (
+            round(without_growth / how_many, 4) if how_many else 0.0
+        ),
+        "what_growing_was_worth": round((with_growth - without_growth) / max(1, how_many), 4),
+        "things_she_can_say_afterwards": kept,
+        "passed": bool(
+            with_growth > without_growth
+            and with_growth >= how_many * 0.5
+            and kept > 0
+        ),
         "trajectories": trajectories,
     }

@@ -102,6 +102,19 @@ def main() -> int:
         print()
         print(f"{len(passed)} of {len(ran)} runnable gates passed; "
               f"{len(receipts) - len(ran)} need an evaluator this harness is not.")
+        # What that sentence does and does not say.
+        #
+        # An external review read the same number and wrote down what it means:
+        # a count of internal mechanism gates passing on one freeze, not a
+        # count of AGI criteria established. Both readings fit the number, only
+        # one of them fits the evidence, and the difference is large enough
+        # that leaving the reader to work it out is not honest reporting.
+        print(
+            f"    That is {len(passed)} mechanism gates passing on one freeze, "
+            "on environments this repository generated. It is not "
+            f"{len(passed)} independently established criteria: nobody outside "
+            "has run these, and the broadest of them are the six above."
+        )
         if not freeze.trustworthy:
             print(
                 "The freeze is not trustworthy: the tree is dirty, so the commit "

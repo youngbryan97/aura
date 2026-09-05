@@ -198,3 +198,18 @@ reading with is measured from the readings she has, rather than assuming the
 number falls by at most one a step — which is true of a distance to a goal and
 of nothing else, and was a prior about the world supplied on her behalf inside
 the gate whose whole point is that the world says nothing.
+
+## Where the review's items stand
+
+| # | State |
+|---|---|
+| D1 | DONE — gate 1 computes its own control on ARC-AGI and reports it beside its score; the language grew a shaped family it did not have; and objecthood, which this module's own opening named as the missing core-knowledge system, is now a family a rule can be about |
+| D2 | DONE — both signals run every time; the gradient was worth 0.42 of 0.83; the extrapolation prior is measured rather than assumed |
+| D3 | DONE — gate 9 measures a step from nought on families outside the language, with the developmental actions taken away as its control, instead of running gate 3's code |
+| D5 | PARTIAL — the static check stands; a runtime probe is still to build |
+| D6 | DECLARED — inherent |
+| D8 | IN PROGRESS — the outside arm carries what she learns from task to task, so whether yesterday's invention compresses tomorrow's search is measured on structure nobody anticipated |
+| D12 | DONE for what is safe — fan-out 64 to 59, surface 57.38 to 55.28, 260 fewer through-paths |
+| D14 | DONE — two channel placements corrected, the integrity guard fixed, and the tests rewritten around behaviour with the control a bypass could not pass |
+| D15 | DONE — the reachability scan learned about a package that walks its own directory; it was calling the forty-three interiority faculties dead, exactly as the review found |
+| D17 | DONE — the summary line says what the number is and what it is not |

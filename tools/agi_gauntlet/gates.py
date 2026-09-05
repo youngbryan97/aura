@@ -224,13 +224,17 @@ THE_GATES: tuple[Gate, ...] = (
         9,
         "new-skill acquisition",
         "read or explore an unfamiliar system and become competent at it",
-        "a human-comparable apprenticeship curve in sealed environments built "
-        "after the freeze",
-        "the same curve for a learner whose experience is thrown away between "
-        "episodes",
-        "the offline half runs as gate 3; the human-comparable half needs "
-        "people learning the same sealed environments under the same access.",
-        run=_r.learning_from_experience,
+        "a step from nought on families outside the language: she writes what "
+        "she needs, the answer is right, and it is still there afterwards. The "
+        "human-comparable apprenticeship curve needs people",
+        "the same families with the developmental actions taken away. A system "
+        "that scores the same without them already had the skill, and the "
+        "families were not outside its language after all",
+        "the human-comparable half needs people learning the same sealed "
+        "environments under the same access. What runs here is the step from "
+        "nought: families outside the language, and whether she writes what "
+        "she needs and keeps it.",
+        run=_r.acquiring_a_new_skill,
     ),
     Gate(
         10,
