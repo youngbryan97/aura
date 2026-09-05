@@ -284,12 +284,17 @@ def look_ahead(
                 # able to try a move without making it.
                 continue
             here = known.what_it_is_worth(
-                future, toward=toward, approach=approach, weights=weights
+                future,
+                toward=toward,
+                approach=approach,
+                weights=weights,
+                knows=knows,
+                acts=actions,
             )
             onward = _after_the_world(
                 expect, future, actions, how_far - 1,
                 toward=toward, approach=approach, trust=trust, world=world,
-                weights=weights, known=known,
+                weights=weights, known=known, knows=knows,
             )
             found[action] = (
                 here + trust * onward,
@@ -358,6 +363,7 @@ def _after_the_world(
     world: Any = None,
     weights: Any = None,
     known: Any = None,
+    knows: Any = None,
 ) -> float:
     """What this comes to once the world has had its turn, and she has hers.
 
@@ -378,14 +384,14 @@ def _after_the_world(
         return _best_from(
             expect, state, actions, depth,
             toward=toward, approach=approach, trust=trust, world=world, weights=weights,
-            known=known,
+            known=known, knows=knows,
         )
     return sum(
         share
         * _best_from(
             expect, way, actions, depth,
             toward=toward, approach=approach, trust=trust, world=world, weights=weights,
-            known=known,
+            known=known, knows=knows,
         )
         for way, share in ways
     )
@@ -403,6 +409,7 @@ def _best_from(
     world: Any = None,
     weights: Any = None,
     known: Any = None,
+    knows: Any = None,
 ) -> float:
     """The best this could still come to, that many levels on."""
     if depth <= 0:
@@ -426,14 +433,28 @@ def _best_from(
         if future is None or _reading(future) == here_now:
             continue
         here = (
-            known.what_it_is_worth(future, toward=toward, approach=approach, weights=weights)
+            known.what_it_is_worth(
+                future,
+                toward=toward,
+                approach=approach,
+                weights=weights,
+                knows=knows,
+                acts=actions,
+            )
             if known is not None
-            else how_good(future, toward=toward, approach=approach, weights=weights)
+            else how_good(
+                future,
+                toward=toward,
+                approach=approach,
+                weights=weights,
+                knows=knows,
+                acts=actions,
+            )
         )
         onward = _after_the_world(
             expect, future, actions, depth - 1,
             toward=toward, approach=approach, trust=trust, world=world, weights=weights,
-            known=known,
+            known=known, knows=knows,
         )
         best = max(best, here + trust * onward)
     if known is not None:

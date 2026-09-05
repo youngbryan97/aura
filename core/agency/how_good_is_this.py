@@ -157,6 +157,8 @@ def terms(
     *,
     toward: str = "",
     approach: str = "",
+    knows: Any = None,
+    acts: Sequence[str] = (),
 ) -> dict[str, float]:
     """What there is to like about a situation, each thing on its own.
 
@@ -170,6 +172,7 @@ def terms(
         "room": _room(state),
         "order": _order(state),
         "smoothness": _smoothness(state),
+        "freedom": _freedom(state, knows, acts),
     }
     # And anything she worked out for herself.
     #
@@ -185,6 +188,12 @@ def terms(
             continue
     return said
 
+
+#: What being able to keep going is worth before she has learned what it is
+#: worth here. High, and deliberately: a state she cannot leave ends the run
+#: whatever else was true of it, so nothing else she can measure is worth
+#: having if this is nought.
+FREEDOM_MATTERS = 1.0
 
 #: What each thing is worth when nothing has been learned about this world.
 #: Properties she worked out for herself, by name. Empty until she finds one,
@@ -312,6 +321,7 @@ AS_GOOD_A_GUESS_AS_ANY: dict[str, float] = {
     "room": ROOM_MATTERS,
     "order": ORDER_MATTERS,
     "smoothness": SMOOTHNESS_MATTERS,
+    "freedom": FREEDOM_MATTERS,
 }
 
 
@@ -321,6 +331,8 @@ def how_good(
     toward: str = "",
     approach: str = "",
     weights: Mapping[str, float] | None = None,
+    knows: Any = None,
+    acts: Sequence[str] = (),
 ) -> float:
     """How good this situation is, between nearness, her line, room and order.
 
@@ -333,7 +345,7 @@ def how_good(
     enough one to start from and no more than that.
     """
     weighed = AS_GOOD_A_GUESS_AS_ANY if weights is None else weights
-    here = terms(state, toward=toward, approach=approach)
+    here = terms(state, toward=toward, approach=approach, knows=knows, acts=acts)
     return sum(here[name] * float(weighed.get(name, 0.0)) for name in here)
 
 
@@ -515,6 +527,50 @@ def _numbers_along(cells: Sequence[Any]) -> list[float]:
         if value is not None:
             found.append(value)
     return found
+
+
+def _freedom(state: Any, knows: Any = None, acts: Sequence[str] = ()) -> float:
+    """How much can still happen from here, by her own model of this world.
+
+    Not how much space is left. A thing can be half empty and locked — every
+    act leading to the same place, or to no place — and it can be nearly full
+    and live, with every act leading somewhere different. Space is a fact
+    about the picture; this is a fact about what she can still do, and the two
+    come apart exactly when it matters.
+
+    This is the one thing that every account of playing well has in common,
+    across things that look nothing like each other. Position before
+    submission: take the position from which many attacks are open and few
+    escapes are, and only then attack. Do not pick up your dribble. Keep your
+    base, keep your feet under you, keep a hand free. Each of those is the
+    same instruction — do not enter a state you cannot leave — and none of
+    them mentions the goal at all.
+
+    Measured through the rule she worked out rather than declared, so it says
+    nothing about any particular world: the share of her acts that lead
+    somewhere, and somewhere DIFFERENT from each other. Two acts with the same
+    result are one option wearing two names.
+    """
+    expect = getattr(knows, "expect", None)
+    names = tuple(str(name) for name in acts or () if str(name or "").strip())
+    if not callable(expect) or not names:
+        return 0.0
+    reached: list[Any] = []
+    for name in names:
+        try:
+            after = expect(state, name)
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if after is None:
+            continue
+        said = getattr(after, "as_text", None)
+        here = said() if callable(said) else repr(after)
+        was = getattr(state, "as_text", None)
+        if here == (was() if callable(was) else None):
+            continue
+        if here not in reached:
+            reached.append(here)
+    return len(reached) / len(names)
 
 
 def _room(state: Any) -> float:
