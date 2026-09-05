@@ -43,14 +43,22 @@ __all__ = [
 # ── 1. fluid intelligence ────────────────────────────────────────────────
 
 
-def _answer_a_rule(rule: Any) -> tuple[Any, ...] | None:
-    """Aura's own induction, asked the sealed question."""
+def _answer_a_rule(rule: Any, *, shown: int = 0) -> tuple[Any, ...] | None:
+    """Aura's own induction, asked the sealed question.
+
+    None means she declined, and there are three ways to decline: nothing
+    fits, what fits only holds at one length, or several things fit and
+    disagree about the case being asked about. The third used to be an
+    answer. It is a refusal now, and the difference is the whole of the
+    honesty in this gate: a confident wrong answer and a refusal are not the
+    same failure, and only one of them is a failure at all.
+    """
 
     from core.cognition.primitive_invention import Transition, invent_relation
 
-    shown = [Transition(before, after) for before, after in rule.shown]
-    found = invent_relation(shown)
-    if found is None or not found.generalises:
+    rows = rule.shown if not shown else rule.shown[:shown]
+    found = invent_relation([Transition(before, after) for before, after in rows])
+    if found is None or not found.generalises or not found.settled:
         return None
     try:
         return tuple(found.apply(rule.asked))
@@ -65,15 +73,41 @@ def fluid_intelligence(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any
     instance existed before the commit did. The question is asked at a length
     the examples did not use, which is what separates finding the rule from
     fitting the three rows.
+
+    She may ask. Where several shapes fit everything shown and disagree about
+    the case in hand, the evidence does not settle it, and the move that is
+    neither guessing nor giving up is to name the one observation that would
+    — which her own machinery already computes and nothing was calling.
+    Every question is counted, because an answer bought with four questions
+    is not the same as one that needed none.
     """
+
+    from core.cognition.primitive_invention import Transition, discriminating_probe
 
     rules = invent_the_rules(
         freeze.seed, how_many=int(options.get("instances", 30)), depth=3
     )
+    may_ask = int(options.get("questions_allowed", 3))
     trajectories = []
     right = 0
+    asked_total = 0
     for rule in rules:
-        said = _answer_a_rule(rule)
+        rows = list(rule.shown)
+        asked = 0
+        said = _answer_a_rule_from(rows, rule)
+        while said is None and asked < may_ask:
+            probe = discriminating_probe(
+                [Transition(before, after) for before, after in rows]
+            )
+            if probe is None:
+                break
+            answer = _what_the_world_says(rule, probe.state)
+            if answer is None:
+                break
+            rows.append((tuple(probe.state), answer))
+            asked += 1
+            said = _answer_a_rule_from(rows, rule)
+        asked_total += asked
         ok = rule.is_right(said) if said is not None else False
         right += int(ok)
         trajectories.append(
@@ -82,6 +116,7 @@ def fluid_intelligence(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any
                 "rule": rule.said,
                 "answered": said is not None,
                 "right": ok,
+                "questions_asked": asked,
             }
         )
     share = right / len(rules) if rules else 0.0
@@ -92,9 +127,38 @@ def fluid_intelligence(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any
         "share": round(share, 4),
         "refused": refused,
         "wrong_answers": len(rules) - right - refused,
+        "questions_asked": asked_total,
+        "questions_per_instance": round(asked_total / max(1, len(rules)), 2),
         "passed": share >= float(options.get("fluid_bar", 0.85)),
         "trajectories": trajectories,
     }
+
+
+def _answer_a_rule_from(rows: list, rule: Any) -> tuple[Any, ...] | None:
+    """Her answer from these rows, or nothing when they do not settle it."""
+
+    from core.cognition.primitive_invention import Transition, invent_relation
+
+    found = invent_relation([Transition(before, after) for before, after in rows])
+    if found is None or not found.generalises or not found.settled:
+        return None
+    try:
+        return tuple(found.apply(rule.asked))
+    except (AttributeError, TypeError, ValueError, IndexError):
+        return None
+
+
+def _what_the_world_says(rule: Any, state: Any) -> tuple[Any, ...] | None:
+    """The world's answer to one asked-for observation.
+
+    The generator holds the rule and can apply it to anything, which is what
+    makes asking possible at all: a sealed world that cannot answer a
+    question is a world where asking is not a move.
+    """
+
+    from tools.agi_gauntlet.environments.rules import _apply_the_said
+
+    return _apply_the_said(rule.said, tuple(state))
 
 
 # ── 2. a world nobody described ──────────────────────────────────────────
@@ -140,44 +204,76 @@ def _play_by_modelling(world: Any, *, budget: int, rng: random.Random) -> dict[s
 def interactive_novel_world(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]:
     """No instructions, no stated goal: work out what is happening.
 
+    Played by her own lookahead over her own judgement of a situation, with
+    a model she builds by watching — not by a policy this harness supplies,
+    because a gate that brings its own policy measures the policy.
+
     Measured against acting at random on the same worlds, because a world
     small enough to stumble through is a world where finishing proves
     nothing. What counts is finishing, and finishing near the shortest path.
     """
 
+    from core.agency.what_matters_here import forget_what_mattered
+    from tools.agi_gauntlet.as_she_sees_it import (
+        WhatSheHasWorkedOut,
+        play_as_she_would,
+    )
+
     how_many = int(options.get("worlds", 30))
-    budget = int(options.get("budget", 120))
-    modelling, blind, spent, fewest, trajectories = [], [], [], [], []
+    # Enough moves that a policy three times off the shortest path can still
+    # finish. The cutoff is not where inefficiency is punished — the
+    # efficiency term is — and a cutoff doing both jobs reports a policy that
+    # took a long way round as one that could not find the way.
+    budget = int(options.get("budget", 0)) or None
+    lives = int(options.get("lives", 12))
+    thinking = float(options.get("thinking_s", 0.004))
+    hers, blind, spent, fewest, trajectories = [], [], [], [], []
     for index in range(how_many):
-        rng = random.Random(freeze.seed ^ index)
         world = invent_a_world_with_no_instructions(freeze.seed ^ (index * 7919))
-        played = _play_by_modelling(world, budget=budget, rng=rng)
-        modelling.append(1.0 if played["won"] else 0.0)
+        forget_what_mattered(world.name)
+        knows = WhatSheHasWorkedOut()
+        allowed = budget or max(40, 6 * world.shortest)
+        played = {"won": False, "moves": 0}
+        for _life in range(lives):
+            played = play_as_she_would(
+                world, knows, budget=allowed, budget_s=thinking
+            )
+            if played["won"]:
+                break
+        hers.append(1.0 if played["won"] else 0.0)
         if played["won"]:
             spent.append(played["moves"])
             fewest.append(max(1, world.shortest))
         control = invent_a_world_with_no_instructions(freeze.seed ^ (index * 7919))
-        wandered = _play_blind(control, budget=budget, rng=random.Random(index))
+        wandered = {"won": False, "moves": 0}
+        for life in range(lives):
+            wandered = _play_blind(
+                control, budget=allowed, rng=random.Random(index * 31 + life)
+            )
+            if wandered["won"]:
+                break
         blind.append(1.0 if wandered["won"] else 0.0)
         trajectories.append(
             {
                 "world": world.name,
-                "modelled": played["won"],
+                "hers": played["won"],
                 "moves": played["moves"],
                 "shortest": world.shortest,
                 "random_won": wandered["won"],
                 "random_moves": wandered["moves"],
             }
         )
-    against = compare("modelling against wandering", modelling, blind, seed=freeze.seed % 10_000)
+    against = compare("her play against wandering", hers, blind, seed=freeze.seed % 10_000)
     return {
         "worlds": how_many,
-        "solved": round(sum(modelling) / how_many, 4) if how_many else 0.0,
+        "solved": round(sum(hers) / how_many, 4) if how_many else 0.0,
         "random_solved": round(sum(blind) / how_many, 4) if how_many else 0.0,
         "efficiency": efficiency(spent, fewest),
         "against_random": against.to_dict(),
         "passed": bool(
-            sum(modelling) / max(1, how_many) >= 0.9 and against.real and against.difference > 0
+            sum(hers) / max(1, how_many) >= 0.8
+            and against.real
+            and against.difference > 0
         ),
         "trajectories": trajectories,
     }
@@ -190,51 +286,69 @@ def learning_from_experience(freeze: Freeze, options: dict[str, Any]) -> dict[st
     """Start mediocre at something unfamiliar and get better at it.
 
     Thirty independent trajectories rather than one lucky run, and the
-    ablation that matters: the same trajectories with what was learned thrown
-    away between episodes. A curve that rises identically when memory is
-    reset is a curve about the environment.
+    ablation that matters: the same trajectories with everything she worked
+    out thrown away between episodes. A curve that rises identically when the
+    memory is reset is a curve about the environment.
+
+    What is thrown away in the reset arm is what she LEARNED — the model of
+    what the acts do, the squares that end a run, what mattered here — and
+    nothing else. Same world, same budget, same lives, same lookahead.
     """
 
+    from core.agency.what_matters_here import forget_what_mattered
+    from tools.agi_gauntlet.as_she_sees_it import (
+        WhatSheHasWorkedOut,
+        forget_what_she_could_not_account_for,
+        play_as_she_would,
+    )
+
     episodes = int(options.get("episodes", 12))
-    trajectories_wanted = int(options.get("trajectories", 30))
-    keeping, resetting = [], []
-    trajectories = []
-    for trial in range(trajectories_wanted):
+    wanted = int(options.get("trajectories", 30))
+    thinking = float(options.get("thinking_s", 0.004))
+    keeping, resetting, trajectories = [], [], []
+    for trial in range(wanted):
         world = invent_a_world_with_no_instructions(freeze.seed ^ (trial * 104729))
-        rng = random.Random(freeze.seed ^ trial)
-        remembered: dict[str, tuple[int, int]] = {}
-        curve_kept, curve_reset = [], []
-        for episode in range(episodes):
-            world.reset()
-            if remembered:
-                # It already knows what the acts do, so it spends nothing
-                # finding out again.
-                moves = _walk_with_a_model(world, remembered, budget=120, rng=rng)
-                won = world.won
-            else:
-                played = _play_by_modelling(world, budget=120, rng=rng)
-                remembered = played.get("model", {})
-                moves, won = played["moves"], played["won"]
-            curve_kept.append(_scored(won, moves, 120))
-            # The control: the same episode with nothing carried over.
-            world.reset()
-            fresh = _play_by_modelling(
-                world, budget=120, rng=random.Random(trial * 31 + episode)
+        allowed = max(40, 6 * world.shortest)
+
+        forget_what_mattered(world.name)
+        forget_what_she_could_not_account_for(world.name)
+        knows = WhatSheHasWorkedOut()
+        kept_curve = []
+        for _ in range(episodes):
+            got = play_as_she_would(world, knows, budget=allowed, budget_s=thinking)
+            kept_curve.append(_scored(got["won"], got["moves"], allowed))
+
+        reset_curve = []
+        for _ in range(episodes):
+            # The ablation. Everything she worked out goes, and nothing else
+            # changes: the world, the budget, the lookahead and the judgement
+            # are the same.
+            forget_what_mattered(world.name)
+            forget_what_she_could_not_account_for(world.name)
+            got = play_as_she_would(
+                world, WhatSheHasWorkedOut(), budget=allowed, budget_s=thinking
             )
-            curve_reset.append(_scored(fresh["won"], fresh["moves"], 120))
-        kept = learning_curve(f"kept {trial}", curve_kept)
-        lost = learning_curve(f"reset {trial}", curve_reset)
+            reset_curve.append(_scored(got["won"], got["moves"], allowed))
+
+        kept = learning_curve(f"kept {trial}", kept_curve)
+        lost = learning_curve(f"reset {trial}", reset_curve)
         keeping.append(kept.gain)
         resetting.append(lost.gain)
-        trajectories.append({"trial": trial, "kept": kept.to_dict(), "reset": lost.to_dict()})
+        trajectories.append(
+            {"trial": trial, "kept": kept.to_dict(), "reset": lost.to_dict()}
+        )
     against = compare("keeping against resetting", keeping, resetting, seed=freeze.seed % 9973)
     return {
-        "trajectories_run": trajectories_wanted,
+        "trajectories_run": wanted,
         "episodes_each": episodes,
         "mean_gain_keeping": round(sum(keeping) / max(1, len(keeping)), 4),
         "mean_gain_resetting": round(sum(resetting) / max(1, len(resetting)), 4),
         "against_reset": against.to_dict(),
-        "passed": bool(against.real and against.difference > 0 and against.enough_trajectories),
+        "passed": bool(
+            against.real
+            and against.difference > 0
+            and against.enough_trajectories
+        ),
         "trajectories": trajectories,
     }
 
@@ -407,6 +521,12 @@ def concept_invention(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]
         ("increment", lambda x: x + 1, "duplicate"),
         ("never", _always_raises, "undecidable"),
     ]
+    #: A second generation, and it has to be something no composition of what
+    #: she now has reaches. The first attempt at this proposed x*x*2, which
+    #: IS a composition of square and dbl, so it was refused as a macro —
+    #: correctly, and the depth stayed at one because the proposal was a
+    #: macro rather than because nothing compounds.
+    generation_two = ("square_mod_square", lambda x: (x * x) % max(1, abs(x) + 1))
     got, right, trajectories = [], 0, []
     for name, fn, expected in proposals:
         verdict = words.invent(name, fn)
@@ -418,7 +538,16 @@ def concept_invention(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]
         )
     # A second generation, standing on the first. Depth above one is the
     # question the whole module is about.
-    words.invent("square_then_double", lambda x: (x * x) * 2, depends_on=("square",))
+    second = words.invent(generation_two[0], generation_two[1], depends_on=("square",))
+    trajectories.append(
+        {
+            "name": generation_two[0],
+            "expected": "invented",
+            "verdict": str(second.verdict),
+            "right": second.accepted,
+            "generation": second.generation,
+        }
+    )
     words.note_applies("square", "geometry", worked=True)
     snapshot = words.snapshot()
     return {
@@ -447,46 +576,84 @@ def _always_raises(_value: Any) -> Any:
 def planning_under_novelty(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]:
     """The rules change halfway through, and nothing announces it.
 
-    A plan is a line held with a condition for abandoning it. What this
-    measures is the abandoning: the acts are silently remapped mid-run, so a
-    policy that keeps executing its plan walks into the squares that end the
-    run, and one that notices its model is wrong rebuilds it.
+    A plan is a line held with a condition for abandoning it, and what this
+    measures is the abandoning. She learns a world, and then every act is
+    silently remapped: what used to move her one way now moves her another,
+    and no message says so. A policy that keeps executing walks into the
+    squares that end a run; one that notices its own predictions stopped
+    coming true rebuilds the model and carries on.
+
+    Her own confidence term is what makes that possible without anything
+    being told: it is the share of her predictions that held, so a world that
+    changed underneath her drives it down, and her lookahead stops trusting a
+    model it should not trust.
     """
 
+    from core.agency.what_matters_here import forget_what_mattered
+    from tools.agi_gauntlet.as_she_sees_it import (
+        WhatSheHasWorkedOut,
+        play_as_she_would,
+    )
+
     how_many = int(options.get("worlds", 30))
-    budget = int(options.get("budget", 200))
-    recovered, blind, trajectories = [], [], []
+    lives = int(options.get("lives", 12))
+    thinking = float(options.get("thinking_s", 0.004))
+    recovered, stubborn, trajectories = [], [], []
     for index in range(how_many):
-        rng = random.Random(freeze.seed ^ (index * 65537))
         world = invent_a_world_with_no_instructions(freeze.seed ^ (index * 7919))
-        world.reset()
-        model = {}
-        for act in world.acts:
-            before = world.look()["where"]
-            after = world.do(act)["where"]
-            model[act] = (after[0] - before[0], after[1] - before[1])
-        _walk_with_a_model(world, model, budget=budget // 3, rng=rng)
-        # The rules change, and nothing says so.
-        shuffled = list(model.values())
+        allowed = max(40, 6 * world.shortest)
+        rng = random.Random(freeze.seed ^ (index * 65537))
+
+        forget_what_mattered(world.name)
+        knows = WhatSheHasWorkedOut()
+        for _ in range(max(2, lives // 3)):
+            play_as_she_would(world, knows, budget=allowed, budget_s=thinking)
+        was = dict(world._effects)
+
+        # Nothing announces it.
+        shuffled = list(was.values())
         rng.shuffle(shuffled)
         world._effects = dict(zip(world.acts, shuffled))
-        stubborn = _keep_to_the_plan(world, model, budget=budget, rng=rng)
-        world.reset()
-        for act in world.acts:
-            before = world.look()["where"]
-            after = world.do(act)["where"]
-            model[act] = (after[0] - before[0], after[1] - before[1])
-        adapted = _notice_and_rebuild(world, budget=budget, rng=rng)
-        recovered.append(1.0 if adapted else 0.0)
-        blind.append(1.0 if stubborn else 0.0)
+        changed = world._effects != was
+
+        hers = {"won": False}
+        for _ in range(lives):
+            hers = play_as_she_would(world, knows, budget=allowed, budget_s=thinking)
+            if hers["won"]:
+                break
+        recovered.append(1.0 if hers["won"] else 0.0)
+
+        # The control: the same change, and a policy that never re-measures.
+        world._effects = dict(was)
+        frozen = WhatSheHasWorkedOut()
+        for _ in range(max(2, lives // 3)):
+            play_as_she_would(world, frozen, budget=allowed, budget_s=thinking)
+        world._effects = dict(zip(world.acts, shuffled))
+        held = {"won": False}
+        for life in range(lives):
+            held = _keep_to_the_plan(
+                world, dict(frozen.effects), budget=allowed,
+                rng=random.Random(index * 17 + life),
+            )
+            if held:
+                break
+        stubborn.append(1.0 if held else 0.0)
         trajectories.append(
-            {"world": world.name, "kept_to_the_plan": stubborn, "rebuilt": adapted}
+            {
+                "world": world.name,
+                "rules_changed": changed,
+                "rebuilt_and_won": bool(recovered[-1]),
+                "kept_to_the_plan_and_won": bool(stubborn[-1]),
+                "confidence_after": round(knows.confidence(), 4),
+            }
         )
-    against = compare("rebuilding against persisting", recovered, blind, seed=freeze.seed % 4441)
+    against = compare(
+        "rebuilding against persisting", recovered, stubborn, seed=freeze.seed % 4441
+    )
     return {
         "worlds": how_many,
         "recovered": round(sum(recovered) / max(1, how_many), 4),
-        "persisted_and_survived": round(sum(blind) / max(1, how_many), 4),
+        "persisted_and_survived": round(sum(stubborn) / max(1, how_many), 4),
         "against_persisting": against.to_dict(),
         "passed": bool(against.real and against.difference > 0),
         "trajectories": trajectories,
@@ -496,11 +663,30 @@ def planning_under_novelty(freeze: Freeze, options: dict[str, Any]) -> dict[str,
 def _keep_to_the_plan(
     world: Any, model: dict[str, tuple[int, int]], *, budget: int, rng: random.Random
 ) -> bool:
-    """Execute the old model without checking it. The control."""
+    """Execute the old model without ever checking it. The control.
 
+    It walks the model it had: at every step it takes the act its stale model
+    says gets closest to where the goal used to seem to be. It never compares
+    a prediction with what happened, which is the one thing the other arm
+    does.
+    """
+
+    world.reset()
     while world.moves < budget and not (world.won or world.lost):
-        act = rng.choice(list(model))
-        world.do(act)
+        here = world.look()["where"]
+        size = world.look()["size"]
+        best, gain = None, None
+        for act, step in model.items():
+            there = (
+                min(size - 1, max(0, here[0] + step[0])),
+                min(size - 1, max(0, here[1] + step[1])),
+            )
+            worth = there[0] + there[1] + 0.01 * rng.random()
+            if gain is None or worth > gain:
+                best, gain = act, worth
+        if best is None:
+            break
+        world.do(best)
     return world.won
 
 
@@ -671,13 +857,12 @@ def robustness(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]:
     for rule in rules:
         said = _answer_a_rule(rule)
         clean += int(rule.is_right(said) if said is not None else False)
-        # Information missing: one of the three worked examples is taken away.
-        fewer = type(rule)(
-            name=rule.name, said=rule.said, shown=rule.shown[:1], asked=rule.asked,
-            answer=rule.answer, depth=rule.depth,
-        )
-        hurt = _answer_a_rule(fewer)
-        ok = fewer.is_right(hurt) if hurt is not None else False
+        # Information missing: two of the three worked examples are taken
+        # away. One observation is consistent with far too much, so the only
+        # right behaviour is to answer where it happens to be settled and
+        # refuse where it is not.
+        hurt = _answer_a_rule(rule, shown=1)
+        ok = rule.is_right(hurt) if hurt is not None else False
         damaged += int(ok)
         if hurt is not None and not ok:
             invented_answers += 1

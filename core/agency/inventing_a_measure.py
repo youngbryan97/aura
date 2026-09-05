@@ -62,8 +62,47 @@ _ALMOST_NOTHING = 1e-9
 # and where they sat, which is everything the takes below need.
 
 
+def _what_it_offers(state: Any) -> list[tuple[float, float, int, int]] | None:
+    """What a situation says about itself, when it can say anything.
+
+    Every reader below reaches for ``cells`` with a row and a column, which
+    is a laid-out arrangement and nothing else. So the space of measures she
+    can compose is a space of measures about boards, and in a domain that is
+    not a board she can invent nothing — not because the algebra is too
+    small, but because the only thing that can feed it is one kind of world.
+
+    That is the shape of the whole criticism one level up: a developmental
+    language can be universal in expression while the agent stays narrow in
+    what evidence reaches it. Here it was narrow in what a situation is
+    allowed to BE.
+
+    A situation that offers its own observations is read as it offers them.
+    Nothing about a board is assumed, and nothing about a board is lost: an
+    arrangement that does not offer them is read the way it always was.
+    """
+
+    offers = getattr(state, "observations", None)
+    if not callable(offers):
+        return None
+    try:
+        given = offers()
+    except (AttributeError, TypeError, ValueError):
+        return None
+    seen: list[tuple[float, float, int, int]] = []
+    for one in given or ():
+        try:
+            value, other, row, column = one
+            seen.append((float(value), float(other), int(row), int(column)))
+        except (TypeError, ValueError):
+            continue
+    return seen
+
+
 def _each_thing(state: Any) -> list[tuple[float, float, int, int]]:
     """Every thing in it, with its place."""
+    offered = _what_it_offers(state)
+    if offered is not None:
+        return offered
     cells = getattr(state, "cells", ()) or ()
     seen: list[tuple[float, float, int, int]] = []
     for cell in cells:
@@ -76,6 +115,16 @@ def _each_thing(state: Any) -> list[tuple[float, float, int, int]]:
 
 def _neighbouring_pairs(state: Any) -> list[tuple[float, float, int, int]]:
     """Every pair of things that sit next to each other."""
+    offered = _what_it_offers(state)
+    if offered is not None:
+        held = {(row, column): value for value, _o, row, column in offered}
+        pairs: list[tuple[float, float, int, int]] = []
+        for (row, column), value in held.items():
+            for beside in ((row, column + 1), (row + 1, column)):
+                other = held.get(beside)
+                if other is not None:
+                    pairs.append((float(value), float(other), row, column))
+        return pairs
     held = {
         (int(cell.row), int(cell.column)): cell.number()
         for cell in (getattr(state, "cells", ()) or ())
@@ -99,6 +148,20 @@ def _pairs_along_a_line(state: Any) -> list[tuple[float, float, int, int]]:
     """
     from core.agency.how_good_is_this import _lines_of
 
+    offered = _what_it_offers(state)
+    if offered is not None:
+        # Along a line means along a row, for a situation that says where its
+        # observations sit and nothing more.
+        rows: dict[int, list[tuple[int, float]]] = {}
+        for value, _other, row, column in offered:
+            rows.setdefault(row, []).append((column, float(value)))
+        pairs = []
+        for row, held in sorted(rows.items()):
+            held.sort()
+            for position, ((_a, one), (_b, other)) in enumerate(zip(held, held[1:])):
+                pairs.append((one, other, row, position))
+        return pairs
+
     pairs: list[tuple[float, float, int, int]] = []
     for index, line in enumerate(_lines_of(state)):
         for position, (one, other) in enumerate(zip(line, line[1:])):
@@ -108,6 +171,19 @@ def _pairs_along_a_line(state: Any) -> list[tuple[float, float, int, int]]:
 
 def _things_at_an_edge(state: Any) -> list[tuple[float, float, int, int]]:
     """Every thing sitting on the outside of it."""
+    offered = _what_it_offers(state)
+    if offered is not None:
+        if not offered:
+            return []
+        least_row = min(one[2] for one in offered)
+        most_row = max(one[2] for one in offered)
+        least_column = min(one[3] for one in offered)
+        most_column = max(one[3] for one in offered)
+        return [
+            one
+            for one in offered
+            if one[2] in (least_row, most_row) or one[3] in (least_column, most_column)
+        ]
     rows = int(getattr(state, "rows", 0) or 0)
     columns = int(getattr(state, "columns", 0) or 0)
     if rows <= 0 or columns <= 0:

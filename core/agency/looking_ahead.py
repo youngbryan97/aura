@@ -295,6 +295,7 @@ def look_ahead(
                 expect, future, actions, how_far - 1,
                 toward=toward, approach=approach, trust=trust, world=world,
                 weights=weights, known=known, knows=knows,
+                been=frozenset({here_now}),
             )
             found[action] = (
                 here + trust * onward,
@@ -364,6 +365,7 @@ def _after_the_world(
     weights: Any = None,
     known: Any = None,
     knows: Any = None,
+    been: frozenset[str] = frozenset(),
 ) -> float:
     """What this comes to once the world has had its turn, and she has hers.
 
@@ -384,14 +386,14 @@ def _after_the_world(
         return _best_from(
             expect, state, actions, depth,
             toward=toward, approach=approach, trust=trust, world=world, weights=weights,
-            known=known, knows=knows,
+            known=known, knows=knows, been=been,
         )
     return sum(
         share
         * _best_from(
             expect, way, actions, depth,
             toward=toward, approach=approach, trust=trust, world=world, weights=weights,
-            known=known, knows=knows,
+            known=known, knows=knows, been=been,
         )
         for way, share in ways
     )
@@ -410,19 +412,36 @@ def _best_from(
     weights: Any = None,
     known: Any = None,
     knows: Any = None,
+    been: frozenset[str] = frozenset(),
 ) -> float:
-    """The best this could still come to, that many levels on."""
+    """The best this could still come to, that many levels on.
+
+    ``been`` is the line already walked to get here. A future already on it
+    is not reached: going back somewhere is not progress, and a search that
+    scores it as progress prefers pacing to arriving.
+
+    That could not happen in the world this was written for, where every move
+    is irreversible, so it was never exposed there. In a world where a move
+    can be undone it is severe. Measured on a sealed world with a reading
+    that rises towards the goal: she climbed the reading correctly to a
+    ridge, and then stepped back and forth between the same two squares for
+    the rest of the budget, because the line that stepped back could step
+    forward again and collect the higher reading a second time. Two squares,
+    eighty moves, a perfectly correct model of the world, and nought arrivals.
+    """
     if depth <= 0:
         return 0.0
     here_now = _reading(state)
     if known is not None:
         # The same situation, the same distance from the end, is the same
-        # answer. A search folds back on itself constantly and this is most
-        # of what it costs.
-        remembered = known.onward.get((here_now, depth))
+        # answer — for the same line. A search folds back on itself constantly
+        # and this is most of what it costs. The line is part of the key
+        # because the value of a state depends on what is now behind her.
+        remembered = known.onward.get((here_now, depth, been))
         if remembered is not None:
             known.hits += 1
             return remembered
+    walked = been | {here_now}
     best = 0.0
     for action in actions:
         future = (
@@ -431,6 +450,8 @@ def _best_from(
             else expect(state, action)
         )
         if future is None or _reading(future) == here_now:
+            continue
+        if _reading(future) in walked:
             continue
         here = (
             known.what_it_is_worth(
@@ -454,11 +475,11 @@ def _best_from(
         onward = _after_the_world(
             expect, future, actions, depth - 1,
             toward=toward, approach=approach, trust=trust, world=world, weights=weights,
-            known=known, knows=knows,
+            known=known, knows=knows, been=walked,
         )
         best = max(best, here + trust * onward)
     if known is not None:
-        known.onward[(here_now, depth)] = best
+        known.onward[(here_now, depth, been)] = best
     return best
 
 

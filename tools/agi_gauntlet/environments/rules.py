@@ -113,6 +113,45 @@ def _compose(rng: random.Random, depth: int) -> tuple[str, Callable[..., Any]]:
     return ", then ".join(parts), apply
 
 
+def _apply_the_said(said: str, row: tuple[Any, ...]) -> tuple[Any, ...] | None:
+    """Apply a rule from its own description. What lets the world be asked.
+
+    An environment that cannot answer a question about itself is one where
+    asking is not a move, and refusing for want of evidence is then the only
+    thing a system can do with an ambiguous instance. Rebuilt from the
+    description rather than kept as a closure, so the answer comes from the
+    same words the instance was named by.
+    """
+
+    made: Any = tuple(row)
+    for part in str(said).split(", then "):
+        step = _from_its_name(part)
+        if step is None:
+            return None
+        try:
+            made = step(tuple(made))
+        except (TypeError, ValueError, IndexError, ZeroDivisionError):
+            return None
+    return tuple(made)
+
+
+def _from_its_name(said: str) -> Callable[[tuple[Any, ...]], tuple[Any, ...]] | None:
+    """One primitive, from the words that name it."""
+
+    import re
+
+    for pattern, make, _options in _PRIMITIVES:
+        if "{0}" not in pattern:
+            if pattern == said:
+                return make()
+            continue
+        shape = re.escape(pattern).replace(r"\{0\}", r"(-?\d+)")
+        found = re.fullmatch(shape, said)
+        if found:
+            return make(int(found.group(1)))
+    return None
+
+
 def invent_the_rules(
     seed: int, *, how_many: int = 30, depth: int = 3, shown: int = 3
 ) -> tuple[ARuleToFind, ...]:

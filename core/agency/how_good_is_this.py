@@ -173,6 +173,7 @@ def terms(
         "order": _order(state),
         "smoothness": _smoothness(state),
         "freedom": _freedom(state, knows, acts),
+        "newness": _newness(state),
     }
     # And anything she worked out for herself.
     #
@@ -315,8 +316,16 @@ def forget(name: str) -> bool:
     return gone
 
 
+#: What going somewhere she has not been is worth before anything has been
+#: learned about it. Equal to nearness, and deliberately: in a world she has
+#: not mapped, finding out where things are and getting nearer to what she
+#: wants are the same activity, and which of them matters more here is
+#: something `what_matters_here` measures rather than something anybody sets.
+NEWNESS_MATTERS = 1.0
+
 AS_GOOD_A_GUESS_AS_ANY: dict[str, float] = {
     "nearness": 1.0,
+    "newness": NEWNESS_MATTERS,
     "line": LINE_MATTERS,
     "room": ROOM_MATTERS,
     "order": ORDER_MATTERS,
@@ -591,6 +600,34 @@ def _freedom(state: Any, knows: Any = None, acts: Sequence[str] = ()) -> float:
     if not options:
         return 0.0
     return len(reached) / options
+
+
+def _newness(state: Any) -> float:
+    """Whether she has been here before. Nought where that cannot be asked.
+
+    Every term above was written down by somebody, and in a world where the
+    same place can be reached twice they leave out the one thing that
+    separates going somewhere from pacing. Nearness says how well she is
+    doing, room says what is open here, freedom says whether she can leave —
+    and none of them can tell a square she is standing in for the second time
+    from the first, so a line that steps back and forth scores as well as one
+    that arrives. Measured on a world with a reading that rises towards the
+    goal: eighty moves between two squares, a perfectly correct model, and
+    nought arrivals.
+
+    It is nought, not absent, for anything that cannot answer. A situation
+    with no notion of having been visited is not thereby always new, and
+    scoring it as new would make every board in every game look like a
+    discovery.
+    """
+
+    said = getattr(state, "newness", None)
+    if not callable(said):
+        return 0.0
+    try:
+        return max(0.0, min(1.0, float(said())))
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _room(state: Any) -> float:

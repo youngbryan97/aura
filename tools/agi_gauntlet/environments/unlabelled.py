@@ -50,7 +50,24 @@ class AWorldWithNoInstructions:
             "moves": self.moves,
             "over": self.won or self.lost,
             "won": self.won,
+            # A number that moves. Nothing says what it means, what raises
+            # it, or what it is for — and without it the goal is not merely
+            # unstated but unfindable, which makes the world unsolvable by
+            # anybody rather than hard. This is what an unfamiliar interface
+            # actually gives you: something changes and you work out what.
+            "score": self._score(),
         }
+
+    def _score(self) -> int:
+        return 2 * self._size - (
+            abs(self._where[0] - self._goal[0]) + abs(self._where[1] - self._goal[1])
+        )
+
+    @property
+    def best_score(self) -> int:
+        """What the number reads when she has arrived. Not told to her."""
+
+        return 2 * self._size
 
     def do(self, act: str) -> dict[str, Any]:
         """Take an act. The only feedback is the state it leads to."""
@@ -98,14 +115,52 @@ class AWorldWithNoInstructions:
         return abs(self._goal[0]) + abs(self._goal[1])
 
 
+def _can_be_reached(goal: tuple[int, int], traps: frozenset, size: int) -> bool:
+    """Whether a path from the start to the goal exists at all."""
+
+    from collections import deque
+
+    start = (0, 0)
+    seen = {start}
+    queue = deque([start])
+    while queue:
+        x, y = queue.popleft()
+        if (x, y) == goal:
+            return True
+        for step in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+            there = (
+                min(size - 1, max(0, x + step[0])),
+                min(size - 1, max(0, y + step[1])),
+            )
+            if there in seen or there in traps:
+                continue
+            seen.add(there)
+            queue.append(there)
+    return False
+
+
 def invent_a_world_with_no_instructions(
-    seed: int, *, size: int = 8
+    seed: int, *, size: int = 12, hazard: float = 0.08, lives: int = 12
 ) -> AWorldWithNoInstructions:
     """One sealed world. The act names carry no meaning by design.
 
     Named from a fixed pool of nonsense so that nothing in a language model's
     priors about "up" or "north" does any of the work. What each act does is
     drawn from the seed.
+
+    The size is what makes acting at random fail. Hazard alone does not: on
+    an eight-square grid with twelve lives, choosing acts at random reached
+    the goal half the time, so the gate could not tell a policy from a walk.
+    A wider world is not more confusing, it is bigger, and a random walk
+    finds one particular corner of it far less often while a policy that
+    knows what its acts do walks there as directly as before.
+
+    ``hazard`` is the share of squares that end a run, and it has to be
+    survivable within the lives the gate allows or the world is not hard, it
+    is unlearnable: the only way to find a hidden lethal square is to step on
+    it, so a world with sixteen per cent of them and eight lives asks her to
+    map ten traps by dying in them ten times. Eight per cent leaves a hazard
+    that has to be respected and a map that can be built.
     """
 
     rng = random.Random(seed ^ 0x0A11)
@@ -121,7 +176,16 @@ def invent_a_world_with_no_instructions(
         for y in range(size)
         if (x, y) not in {(0, 0), goal}
     ]
-    traps = frozenset(rng.sample(everywhere, max(1, len(everywhere) // 6)))
+    # Traps that do not wall the goal off. A world nobody can solve measures
+    # nothing, and one of the first twelve generated was sealed shut: no path
+    # from the start to the goal existed, so every policy scored zero there
+    # and the gate counted it against them.
+    traps = frozenset()
+    for _ in range(64):
+        drawn = frozenset(rng.sample(everywhere, max(1, int(len(everywhere) * hazard))))
+        if _can_be_reached(goal, drawn, size):
+            traps = drawn
+            break
     return AWorldWithNoInstructions(
         name=f"a world nobody described ({goal[0]},{goal[1]})",
         acts=tuple(names),

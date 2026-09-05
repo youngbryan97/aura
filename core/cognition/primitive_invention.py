@@ -223,6 +223,27 @@ class InventedRelation:
     components: tuple[str, ...] = ()
     learned_from: int = 0
     held_out_checked: int = 0
+    #: Whether the observations pick this out, or merely admit it.
+    #:
+    #: Two things make an answer unsettled. Several shapes fit everything
+    #: shown and disagree about the case in hand — the search returned the
+    #: first of them in preference order and said nothing about the rest. And
+    #: too few observations to separate anything: one worked example almost
+    #: never pins a rule down, and the module's own opening says so — a world
+    #: exchanging its first and last cells produced {0<->3} at length four,
+    #: which is false at length eight, and one observation cannot tell those
+    #: apart.
+    #:
+    #: Several shapes can fit everything shown and disagree about the case in
+    #: hand, and the search returned the first of them in preference order
+    #: and said nothing. Shown one worked example, it answered — and was
+    #: wrong five times in twelve, confidently, on evidence that settled
+    #: nothing. That is not a wrong answer, it is an answer where a refusal
+    #: was the correct one, and the caller had no way to tell the two apart.
+    settled: bool = True
+    #: The other shapes that fit everything shown and disagree with this one.
+    #: What a question would have to separate.
+    also_fits: tuple[str, ...] = ()
     detail: dict[str, Any] = field(default_factory=dict)
 
     def __str__(self) -> str:
@@ -371,7 +392,16 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
     # Grouping by residue is the smallest form of it: positions belong to a
     # class by where they fall in a repeating count, and the classes are laid
     # out one after another. At k=2 that is "the odd ones, then the even ones".
-    for span in range(2, max(3, (size // 2) + 1)):
+    # Every span the state is long enough to have, rather than half of them.
+    #
+    # The range stopped at half the length, so "grouped every three" existed
+    # at length six and did not exist at length five — and a shape has to be
+    # in the basis at EVERY length shown before it can be shared across the
+    # observations. A world that groups every three, shown at lengths five,
+    # seven and nine, was therefore unreachable because of the five: the
+    # shape was fine, one of the examples was short, and the answer was a
+    # refusal. Twelve of forty sealed rules refused for exactly this.
+    for span in range(2, max(3, size)):
         for first in range(span):
             forms.append(
                 (
@@ -535,8 +565,34 @@ def _forms_that_fit(
     ]
     if not compose or (fitting and not force_compose):
         return fitting
+    two: list[tuple[str, str, IndexProgram]] = []
     for _fa, first_text, first in singles:
         for _fb, second_text, second in singles:
+            composed = IndexProgram("compose", (), (first, second))
+            two.append(("composition", f"{second_text}, then {first_text}", composed))
+            if _fits(composed, options, size):
+                fitting.append(
+                    (
+                        "composition",
+                        f"{second_text}, then {first_text}",
+                        composed,
+                    )
+                )
+    if fitting:
+        return fitting
+    # Three deep, and only where two found nothing.
+    #
+    # Two was the whole of it, so a world that is three shapes one after
+    # another was unreachable however many observations were offered — and
+    # composed worlds are the ordinary case, not the exotic one: on sealed
+    # rules composed from three primitives she refused a quarter of them for
+    # this reason alone. Bounded, because this is cubic in the basis: the
+    # third level is built from the two-deep terms that at least land inside
+    # the possibilities somewhere, which is a far smaller set than all of
+    # them.
+    landing = [entry for entry in two if _lands_anywhere(entry[2], options, size)]
+    for _fa, first_text, first in singles:
+        for _fb, second_text, second in landing[:MOST_TWO_DEEP_TO_EXTEND]:
             composed = IndexProgram("compose", (), (first, second))
             if _fits(composed, options, size):
                 fitting.append(
@@ -547,6 +603,30 @@ def _forms_that_fit(
                     )
                 )
     return fitting
+
+
+#: How many two-deep shapes the three-deep search will extend. Bounded
+#: because the search is cubic in the basis, and ordered by whether the
+#: two-deep shape lands inside the possibilities anywhere, so the ones kept
+#: are the ones with any chance of being half of the answer.
+MOST_TWO_DEEP_TO_EXTEND = 400
+
+
+def _lands_anywhere(
+    rule: Callable[[int, int], int],
+    options: Sequence[Sequence[int]],
+    size: int,
+) -> bool:
+    """Whether this shape is right about at least one position.
+
+    The filter on what is worth extending. A shape wrong everywhere is not
+    half of an answer, and a shape right somewhere might be.
+    """
+
+    try:
+        return any(rule(index, size) in options[index] for index in range(size))
+    except (IndexError, TypeError, ZeroDivisionError):
+        return False
 
 
 def _fits(
@@ -712,6 +792,37 @@ def rule_for_description(description: str) -> IndexProgram | None:
     return None
 
 
+def _which_others_disagree(
+    chosen: str,
+    shared: Mapping[str, tuple[str, Any]] | dict[str, tuple[str, Any]],
+    observed: Sequence[Transition],
+) -> tuple[str, ...]:
+    """Other shapes that fit everything shown and act differently anyway.
+
+    Checked on lengths outside the observations as well as on them, because
+    two shapes agreeing on the three rows shown is exactly the situation
+    where they can differ on the fourth — which is the case being asked about.
+    """
+
+    lengths = sorted({len(one.before) for one in observed})
+    trying = sorted({*lengths, *(one + 1 for one in lengths), *(one + 2 for one in lengths)})
+    mine = _permutation_operator(shared[chosen][1])
+    others: list[str] = []
+    for description, (_family, rule) in shared.items():
+        if description == chosen:
+            continue
+        theirs = _permutation_operator(rule)
+        for size in trying:
+            row = tuple(range(size))
+            try:
+                if tuple(mine(row)) != tuple(theirs(row)):
+                    others.append(description)
+                    break
+            except (TypeError, ValueError, IndexError, ZeroDivisionError):
+                continue
+    return tuple(sorted(others))
+
+
 def _components_of(description: str, known: Sequence[Any]) -> tuple[str, ...]:
     """The parts of this shape, innermost first, resolving learned ones.
 
@@ -821,6 +932,12 @@ def _note_a_step() -> None:
         note_a_step()
     except ImportError:  # no-op: counting is not what this module is for
         pass
+
+
+#: Observations below which nothing is settled, whatever fits. One worked
+#: example is consistent with too much; it takes a second, at a different
+#: length, before agreement between two shapes means they are the same shape.
+ENOUGH_TO_SETTLE = 2
 
 
 def invent_relation(
@@ -940,6 +1057,7 @@ def invent_relation(
                 continue
             if held_out and not explains(operator, held_out):
                 continue
+            disagreeing = _which_others_disagree(description, shared, observed)
             return InventedRelation(
                 kind="rearrangement",
                 form=description,
@@ -950,6 +1068,8 @@ def invent_relation(
                 held_out_checked=len(held_out),
                 index_rule=rule,
                 components=_components_of(description, known_forms or ()),
+                settled=not disagreeing and len(observed) >= ENOUGH_TO_SETTLE,
+                also_fits=disagreeing,
                 detail={"fitting_shapes": sorted(shared)},
             )
         if shared:
@@ -963,7 +1083,26 @@ def invent_relation(
             if fixed is not None and all(
                 _a_consistent_source(item) == fixed for item in possibilities if item
             ):
-                operator = _permutation_operator(lambda i, _n, _f=fixed: _f[i])
+                def _only_at_its_own_length(
+                    i: int, n: int, _f: tuple[int, ...] = fixed
+                ) -> int:
+                    """A fixed correspondence has no answer at another length.
+
+                    Read out of range it raised IndexError from inside the
+                    lambda, which reaches a caller as a crash rather than as
+                    a refusal. ``generalises`` already says this only fits one
+                    length; saying it again where it is used is what makes it
+                    safe for anything that did not check.
+                    """
+
+                    if n != len(_f):
+                        raise ValueError(
+                            f"this correspondence was learned at length "
+                            f"{len(_f)} and says nothing at length {n}"
+                        )
+                    return _f[i]
+
+                operator = _permutation_operator(_only_at_its_own_length)
                 if explains(operator, observed) and (
                     not held_out or explains(operator, held_out)
                 ):
@@ -975,6 +1114,7 @@ def invent_relation(
                         family="fixed correspondence",
                         learned_from=len(observed),
                         held_out_checked=len(held_out),
+                        settled=len(observed) >= ENOUGH_TO_SETTLE,
                         detail={"length": next(iter(one_length))},
                     )
 
@@ -994,6 +1134,7 @@ def invent_relation(
                 apply=operator,
                 learned_from=len(observed),
                 held_out_checked=len(held_out),
+                settled=len(observed) >= ENOUGH_TO_SETTLE,
             )
 
     # A move AND a map, where neither alone accounts for it.
@@ -1082,6 +1223,9 @@ def _map_then_move(
             learned_from=len(observed),
             held_out_checked=len(held_out),
             index_rule=rule,
+            # Two rules at once, fitted together. If one observation cannot
+            # settle a move, it certainly cannot settle a move and a map.
+            settled=len(observed) >= ENOUGH_TO_SETTLE and moved.settled,
         )
     return None
 
