@@ -3181,6 +3181,12 @@ _AN_EXPERIMENT_NOT_AN_INSTRUMENT = frozenset({
     # arrive at a constructor, rather than reading what a previous run
     # arrived at. 1.9 seconds, which is why nobody had looked at it.
     "test_what_she_built_is_not_in_the_source_registry",
+    # Named by the budget again once the discipline test could finish at all.
+    # It writes a way of computing, keeps it, and runs it back — an experiment
+    # by the same reading, owned by tests/test_a_way_of_computing_she_wrote.py.
+    # 2.2 seconds, invisible for as long as the test that measures it could
+    # not reach its own assertion.
+    "test_a_way_of_computing_she_wrote_is_kept_and_still_runs",
 })
 
 
@@ -3642,7 +3648,12 @@ def _install_morphogenesis_claims(suite: Any) -> None:
             ValidationTest(
                 name=name,
                 description=description,
-                required_capability="morphogenetic_topology",
+                # No required capability. The runtime model declares none this
+                # layer could match, so naming one made all four report
+                # NOT_APPLICABLE in 0.0s — four claims bound to tests that
+                # never ran, which reads from the registry exactly like four
+                # claims that passed.
+                required_capability="",
                 observation=Observation(
                     name=f"{name}_violations",
                     value=0,
@@ -3653,6 +3664,10 @@ def _install_morphogenesis_claims(suite: Any) -> None:
                 score=lambda p, o: threshold_score(
                     float(p), float(o.value), units=" violations"
                 ),
+                # Each runs a population for tens of rounds. That belongs to
+                # the tests that own it, not to a boot: NOT_MEASURED at boot
+                # names the gap instead of paying for it on the way up.
+                expensive=True,
                 owner=owner,
             )
         )

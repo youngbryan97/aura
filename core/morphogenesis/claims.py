@@ -79,17 +79,42 @@ def ablation_arms_that_do_not_separate() -> int:
     Two violations are possible and they say different things. Adaptive failing
     to beat fixed means the morphology bought nothing. Random beating fixed
     means changing was the whole effect and the local rules were passengers.
-    """
-    from core.morphogenesis.scenarios import run_ablation_matrix
 
-    matrix = run_ablation_matrix(seed=42, steps=16, seeds=2)
-    rows = matrix["rows"]
+    Runs the three arms the claim actually names rather than the full matrix.
+    The complete eight-arm version lives in
+    ``tests/test_morphogenesis_scenarios.py``; at nearly forty seconds it does
+    not belong in a validation suite that otherwise totals six, and a claim
+    checked so rarely that nobody runs it is a claim with no test.
+    """
+    from core.morphogenesis.governor import MorphBounds
+    from core.morphogenesis.sandbox import _harness_for
+    from core.morphogenesis.workload import task_families
+
+    family = task_families()["reason_heavy"]
+    goal = {stage: float(family.count(stage)) for stage in set(family)}
+    bounds = MorphBounds(
+        max_cells=20, cooldown_s=1.5, max_transitions_per_window=10,
+        window_s=8.0, min_shadow_gain=0.01, max_replicas_per_capability=6,
+        max_spawn_depth=4,
+    )
+
+    scores: dict[str, float] = {}
+    for label, ablation in (
+        ("adaptive", "none"),
+        ("fixed", "topology_fixed"),
+        ("random", "random_mutation"),
+    ):
+        harness = _harness_for(ablation, seed=42, bounds=bounds, deadline_steps=22)
+        harness.set_goal(goal)
+        for _ in range(30):
+            harness.admit_family(family, 5)
+            harness.round()
+        scores[label] = harness.result(label).score
+
     violations = 0
-    if rows["none"]["score"] <= rows["morphology_off"]["score"]:
+    if scores["adaptive"] <= scores["fixed"]:
         violations += 1
-    if rows["random_mutation"]["score"] >= rows["none"]["score"]:
-        violations += 1
-    if not matrix["discriminating"]:
+    if scores["random"] >= scores["adaptive"]:
         violations += 1
     return violations
 

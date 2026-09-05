@@ -358,6 +358,23 @@ def test_the_runtime_validation_suite_installs_and_every_claim_has_a_test():
         assert claim.asserted_in, f"claim {claim.statement!r} does not say where it is asserted"
 
 
+#: Experiments the boot posture declines, each with the test that runs it.
+#: Membership is the promise that declining it here costs no coverage.
+_EXPERIMENTS_WITH_THEIR_OWN_TEST = {
+    "test_what_she_wrote_carries_to_a_different_surface",
+    "test_keeping_what_she_wrote_makes_the_next_one_easier",
+    "test_a_head_that_refers_to_itself_holds_where_it_was_never_fitted",
+    "test_she_writes_an_order_that_holds_on_episodes_it_never_saw",
+    "test_a_rule_with_no_shape_holds_where_it_was_never_fitted",
+    "test_what_she_built_is_not_in_the_source_registry",
+    "test_a_way_of_computing_she_wrote_is_kept_and_still_runs",
+    "test_cutting_a_binding_changes_what_the_workload_computes",
+    "test_the_ablation_matrix_separates_the_arms",
+    "test_the_lesion_arm_recovers_and_the_fixed_arm_does_not",
+    "test_the_poisoned_signal_cannot_grow_the_population_past_its_cap",
+}
+
+
 def test_the_runtime_validates_its_own_claims_against_live_telemetry():
     from core.fsw.health_checker import install_runtime_pings
     from core.runtime.memory_infra import install_runtime_providers
@@ -366,11 +383,39 @@ def test_the_runtime_validates_its_own_claims_against_live_telemetry():
     install_runtime_pings()
     val_mod.install_runtime_validation()
 
-    outcome = val_mod.run_validation()
+    # The boot posture, for the reason the sibling test below already uses it
+    # and this one was missed: run_validation() defaults to running the
+    # experiments, and the experiments are owned by their own tests. Left at
+    # the default this asserted nothing for over ten minutes — a test slow
+    # enough that nobody runs it stops being a check and becomes a claim.
+    outcome = val_mod.run_validation(include_expensive=False)
+
     assert outcome["applicable"] > 0, "every test being N/A would be a vacuous pass"
     assert outcome["errored"] == 0, outcome["errors"]
     # Failures are legitimate findings, not test bugs — report them clearly.
     assert outcome["failed"] == 0, [f["score"]["interpretation"] for f in outcome["failures"]]
+
+    # What the posture declined has to stay visible. An experiment skipped
+    # here and owned by nothing is a claim with no test, and from the outcome
+    # it looks exactly like one that passed.
+    #
+    # Only expense is checked. A test can also report NOT_MEASURED because the
+    # thing it measures is not running — a wedged-component check on a runtime
+    # with no components — and that is the registry's unmeasured-evidence
+    # condition rather than a coverage hole this test can speak to.
+    declined_for_expense = {
+        test.name for test in val_mod.get_suite().tests() if test.expensive
+    }
+    unowned = declined_for_expense - _EXPERIMENTS_WITH_THEIR_OWN_TEST
+    assert not unowned, (
+        "these experiments are declined by the boot posture and no test owns "
+        f"them: {sorted(unowned)}"
+    )
+    skipped = {r["test"] for r in outcome.get("unmeasured", [])}
+    assert declined_for_expense <= skipped, (
+        "an expensive test ran under the boot posture: "
+        f"{sorted(declined_for_expense - skipped)}"
+    )
 
 
 def test_cognition_invariants_registered_and_clean():
