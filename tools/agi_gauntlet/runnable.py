@@ -173,7 +173,17 @@ def fluid_intelligence(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any
         "wrong_answers": len(rules) - alone - refused,
         "questions_asked": asked_total,
         "questions_per_instance": round(asked_total / max(1, len(rules)), 2),
-        "passed": max(p0, pl) >= float(options.get("fluid_bar", 0.85)),
+        # Both halves of what this gate says it asks. It said "human-range
+        # accuracy AND no confident wrong answers" and checked only the
+        # share, so five wrong answers in two hundred passed a condition
+        # written to exclude them. A gate that measures something weaker than
+        # it declares is the failure the whole protocol is arranged against,
+        # and finding it in my own harness is the reason to state pass
+        # conditions before running anything.
+        "passed": (
+            max(p0, pl) >= float(options.get("fluid_bar", 0.85))
+            and (len(rules) - alone - refused) == 0
+        ),
         "trajectories": trajectories,
     }
 
@@ -191,8 +201,13 @@ def _answer_a_rule_from(
     from core.cognition.primitive_invention import Transition, invent_relation
 
     shown = [Transition(before, after) for before, after in rows]
+    # The length she is about to be asked about, so whether the observations
+    # settle the question is checked against the question.
+    about = (len(rule.asked),)
     found = (
-        library.explain(shown) if library is not None else invent_relation(shown)
+        library.explain(shown, about=about)
+        if library is not None
+        else invent_relation(shown, about=about)
     )
     if found is None or not found.generalises or not found.settled:
         return None

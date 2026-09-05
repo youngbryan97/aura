@@ -110,6 +110,24 @@ world solved five times in six by acting at random; a second world showing
 enough examples to be solved from itself, so transfer measured zero for a
 system that had learned everything and one that had learned nothing alike.
 
+## Where it stands
+
+Twelve of twelve runnable gates pass. Six print what they need.
+
+Two numbers are worth repeating because of how they were arrived at. Gate one
+measures two hundred sealed rules rather than forty, because the standard
+error at forty is about 0.056 and the same solver measured 0.65, 0.77, 0.80,
+0.825, 0.85 and 0.925 across six freezes — any one of those read as a verdict
+is a coin landing. At two hundred: 0.825 answering each on its own, interval
+[0.775, 0.875]; 0.965 carrying what the earlier ones taught; one wrong answer.
+
+And the ablations. On gate two the newness term is worth 0.05 and the weight
+learning, the developmental record and the library are worth zero. That
+corrects an attribution made while building this: the jump from one world
+solved in twelve to ten was read as the cold-start rule and it was the term.
+A gap of zero is the only way to tell a component that matters from one that
+is present.
+
 ## What would make the result convincing
 
 An outside team constructs task families after this freeze, never sees the

@@ -841,16 +841,32 @@ def _which_others_disagree(
     chosen: str,
     shared: dict[str, tuple[str, Any]],
     observed: Sequence[Transition],
+    about: Sequence[int] = (),
 ) -> tuple[str, ...]:
     """Other shapes that fit everything shown and act differently anyway.
 
     Checked on lengths outside the observations as well as on them, because
     two shapes agreeing on the three rows shown is exactly the situation
     where they can differ on the fourth — which is the case being asked about.
+
+    ``about`` is that case, when the caller knows it. Settledness is about
+    the question being asked, and a window of plus two around the
+    observations is a guess at where the question will be: on two hundred
+    sealed rules, five answers came back settled and wrong because the length
+    asked about sat outside it. A caller that knows what it is going to apply
+    this to can say so, and then the check covers the actual case rather than
+    a neighbourhood of it.
     """
 
     lengths = sorted({len(one.before) for one in observed})
-    trying = sorted({*lengths, *(one + 1 for one in lengths), *(one + 2 for one in lengths)})
+    trying = sorted(
+        {
+            *lengths,
+            *(one + 1 for one in lengths),
+            *(one + 2 for one in lengths),
+            *(int(one) for one in about if int(one) > 0),
+        }
+    )
     mine = _permutation_operator(shared[chosen][1])
     others: list[str] = []
     for description, (_family, rule) in shared.items():
@@ -992,6 +1008,7 @@ def invent_relation(
     prefer: dict[str, int] | None = None,
     known_forms: Sequence[tuple[str, str, Callable[[int, int], int]]] = (),
     without: frozenset[str] = frozenset(),
+    about: Sequence[int] = (),
 ) -> InventedRelation | None:
     """Work out the relation these transitions need, or return None.
 
@@ -1008,6 +1025,11 @@ def invent_relation(
     of the language rather than as a preference over it. A shape reachable only
     as a composition involving one of them was not expressible before that
     world was seen, so what can be learned grows with what has been.
+
+    ``about`` is the length or lengths the answer will be applied to, when the
+    caller knows. Whether the observations settle a question depends on the
+    question, and without it settledness is checked over a neighbourhood of
+    the lengths shown rather than over the case in hand.
     """
 
     observed = [
@@ -1112,7 +1134,9 @@ def invent_relation(
                 continue
             if held_out and not explains(operator, held_out):
                 continue
-            disagreeing = _which_others_disagree(description, shared, observed)
+            disagreeing = _which_others_disagree(
+                description, shared, observed, about=about
+            )
             return InventedRelation(
                 kind="rearrangement",
                 form=description,

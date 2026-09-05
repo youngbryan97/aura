@@ -203,6 +203,7 @@ class RelationLanguage:
         *,
         held_out: Sequence[Transition] = (),
         without: frozenset[str] = frozenset(),
+        about: Sequence[int] = (),
     ) -> InventedRelation | None:
         """The relation these transitions need, preferring a shape seen before.
 
@@ -224,6 +225,7 @@ class RelationLanguage:
             prefer={} if "prior" in without else prior,
             known_forms=known,
             without=without,
+            about=about,
         )
 
     def refactor(self) -> str:
