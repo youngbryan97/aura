@@ -15,14 +15,14 @@ Where:
     I_ext = external stimulus (derived from heartstone Curiosity + somatic stress)
 """
 
+from core.runtime.errors import record_degradation
+from core.runtime.service_registry import get_runtime_service
 import logging
 import time
 from dataclasses import dataclass, field
+from typing import Dict, Optional
 
 import numpy as np
-
-from core.runtime.errors import record_degradation
-from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("PNEUMA.PrecisionEngine")
 
@@ -130,7 +130,7 @@ class PrecisionEngine:
         get_state_dict()      — full diagnostic dict
     """
 
-    def __init__(self, config: PrecisionConfig | None = None):
+    def __init__(self, config: Optional[PrecisionConfig] = None):
         import threading
         self._lock = threading.Lock()
         self.config = config or PrecisionConfig()
@@ -147,7 +147,7 @@ class PrecisionEngine:
         self._last_step = 0.0
         logger.info("PrecisionEngine online (n_heads=%d)", self.config.n_heads)
 
-    def step(self, i_ext: float | None = None) -> FHNState:
+    def step(self, i_ext: Optional[float] = None) -> FHNState:
         """Advance the FHN oscillator by one step.
 
         i_ext is derived from live somatic + heartstone state if not supplied.
@@ -223,7 +223,7 @@ class PrecisionEngine:
         with self._lock:
             return 0.95 - 0.40 * self.fhn.arousal
 
-    def get_state_dict(self) -> dict:
+    def get_state_dict(self) -> Dict:
         with self._lock:
             return {
                 "fhn_v": round(self.fhn.state.v, 4),

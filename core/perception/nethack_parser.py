@@ -10,7 +10,7 @@ Enhancements over baseline:
 - Dangerous-prompt classification for shop/attack/sacrifice prompts
 """
 import re
-from typing import Any
+from typing import Any, Dict, List
 
 from .environment_parser import EnvironmentParser, EnvironmentState
 
@@ -18,7 +18,7 @@ from .environment_parser import EnvironmentParser, EnvironmentState
 # Glyph threat table – general monster danger heuristic by symbol.
 # Values are rough [0,1] threat scores.  Unknown glyphs default to 0.5.
 # ---------------------------------------------------------------------------
-GLYPH_THREAT: dict[str, float] = {
+GLYPH_THREAT: Dict[str, float] = {
     # low-threat domestic / weak monsters
     "d": 0.20, "f": 0.25, "r": 0.20, "b": 0.25, "j": 0.10,
     "a": 0.30, "k": 0.30, "n": 0.30, "x": 0.20,
@@ -84,9 +84,9 @@ class NetHackParser(EnvironmentParser):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _parse_inventory_lines(lines: list[str]) -> list[dict[str, Any]]:
+    def _parse_inventory_lines(lines: List[str]) -> List[Dict[str, Any]]:
         """Extract structured inventory items from screen lines."""
-        items: list[dict[str, Any]] = []
+        items: List[Dict[str, Any]] = []
         for raw in lines:
             stripped = raw.strip()
             m = _INVENTORY_RE.match(stripped)
@@ -185,7 +185,7 @@ class NetHackParser(EnvironmentParser):
             state.self_state["hunger"] = "Normal"
 
         # --- Status effects (including encumbrance) ---
-        status_effects: list[str] = []
+        status_effects: List[str] = []
         encumbrance = "Normal"
         for effect in ("Blind", "Conf", "Stun", "Hallu", "Burdened", "Stressed", "Strained", "Overtaxed"):
             if effect in status_line_2 or effect in status_line_1:
@@ -258,7 +258,7 @@ class NetHackParser(EnvironmentParser):
 
         # 3. Check for inventory / menu screen FIRST
         is_inventory_screen = False
-        inventory_items: list[dict[str, Any]] = []
+        inventory_items: List[Dict[str, Any]] = []
         for y in range(1, 22):
             line_text = lines[y]
             if "(end)" in line_text or "(1 of" in line_text:
@@ -273,8 +273,8 @@ class NetHackParser(EnvironmentParser):
 
         # 4. Parse Map/Grid (Lines 1 to 21) — only if NOT an inventory screen
         player_pos = None
-        entities: list[dict[str, Any]] = []
-        visible_tiles: list[Any] = []
+        entities: List[Dict[str, Any]] = []
+        visible_tiles: List[Any] = []
 
         if not is_inventory_screen:
             for y in range(1, 22):
@@ -321,7 +321,7 @@ class NetHackParser(EnvironmentParser):
             state.spatial_info["visible_tiles"] = visible_tiles
 
             # Filter entities to just those near player (radius 8) for cognitive focus
-            nearby: list[dict[str, Any]] = []
+            nearby: List[Dict[str, Any]] = []
             for e in entities:
                 dy = abs(e["pos"][0] - player_pos[0])
                 dx = abs(e["pos"][1] - player_pos[1])

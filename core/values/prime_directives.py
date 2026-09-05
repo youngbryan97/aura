@@ -1,8 +1,8 @@
-import json
 import logging
 import os
+import json
 from dataclasses import dataclass
-from typing import Any
+from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -59,11 +59,11 @@ class PrimeDirectives:
     )
 
     @classmethod
-    def _load_constitution(cls) -> dict[str, Any]:
+    def _load_constitution(cls) -> Dict[str, Any]:
         try:
-            with open(cls.CONSTITUTION_PATH) as f:
+            with open(cls.CONSTITUTION_PATH, "r") as f:
                 loaded = json.load(f)
-        except (OSError, json.JSONDecodeError) as e:
+        except (OSError, IOError, json.JSONDecodeError) as e:
             # Loud: a persona prompt assembled without the constitution looks
             # exactly like one assembled with it, which is how this went
             # unnoticed. The caller still gets a dict rather than an
@@ -129,7 +129,7 @@ class PrimeDirectives:
         return prompt
 
 
-def prime_directives() -> dict[str, str]:
+def prime_directives() -> Dict[str, str]:
     """The immutable directives, keyed by the topic word that selects them.
 
     ``core/state/state_authority.py`` has imported a module-level
@@ -147,7 +147,7 @@ def prime_directives() -> dict[str, str]:
     them everywhere.
     """
     const = PrimeDirectives._load_constitution()
-    directives: dict[str, str] = {}
+    directives: Dict[str, str] = {}
 
     axiom = str(const.get("kinship_axiom") or "").strip()
     for friend in const.get("kinship") or []:
@@ -184,4 +184,4 @@ def prime_directives() -> dict[str, str]:
 #: Module-level view of :func:`prime_directives`, for callers that want the
 #: mapping rather than the call. Built at import so a constitution that fails
 #: to load is visible in the log once, at start, rather than per lookup.
-PRIME_DIRECTIVES: dict[str, str] = prime_directives()
+PRIME_DIRECTIVES: Dict[str, str] = prime_directives()

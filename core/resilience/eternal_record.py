@@ -5,13 +5,13 @@ Captures immutable snapshots of the Knowledge Graph and system state,
 archiving them as "Eternal Records" in the persistent brain directory.
 """
 
+from core.runtime.errors import record_degradation
 import json
 import logging
 import shutil
 import time
 from pathlib import Path
-
-from core.runtime.errors import record_degradation
+from core.config import config
 from core.runtime.file_write_gateway import get_file_write_gateway
 
 logger = logging.getLogger("Aura.EternalRecord")
@@ -51,7 +51,7 @@ class EternalRecord:
             )
 
             return snapshot_dir
-        except OSError as e:
+        except (OSError, IOError) as e:
             record_degradation('eternal_record', e)
             logger.error("Failed to create Eternal Record snapshot: %s", e)
             return None

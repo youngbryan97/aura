@@ -18,15 +18,16 @@ F4 quarantine entry exists for every non-passed outcome.
 from __future__ import annotations
 
 import ast
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.self_modification.mutation_safety import (
     MutationOutcome,
     QuarantineStore,
     SafeMutationEvaluator,
 )
+
 
 # Python AST nodes that are safe inside a function-body candidate.
 ALLOWED_AST = {
@@ -60,17 +61,17 @@ class DiscoveryEvaluation:
                   # "assertion" | "timeout" | "oom"
     passed: int = 0
     total: int = 0
-    error: str | None = None
-    quarantine_path: str | None = None
+    error: Optional[str] = None
+    quarantine_path: Optional[str] = None
     stdout: str = ""
     stderr: str = ""
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
         return self.outcome == "passed" and self.total > 0 and self.passed == self.total
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "outcome": self.outcome,
             "passed": self.passed,
@@ -104,7 +105,7 @@ def _audit_ast(code: str) -> None:
                 raise ASTViolation(f"disallowed dunder identifier: {node.id}")
 
 
-def _build_runner(fn_name: str, tests: Sequence[tuple[Any, ...]]) -> str:
+def _build_runner(fn_name: str, tests: Sequence[Tuple[Any, ...]]) -> str:
     """Wrap the candidate so the subprocess loads it, runs every test
     case, and asserts on the expected outcome.  Errors propagate as
     AssertionError or RuntimeError into F4's typed evaluator."""
@@ -128,7 +129,7 @@ class SafeCodeEvaluator:
         *,
         timeout_seconds: float = 5.0,
         memory_mb: int = 256,
-        quarantine: QuarantineStore | None = None,
+        quarantine: Optional[QuarantineStore] = None,
     ):
         self.timeout_seconds = float(timeout_seconds)
         self.memory_mb = int(memory_mb)
@@ -143,7 +144,7 @@ class SafeCodeEvaluator:
         self,
         code: str,
         fn_name: str,
-        tests: Sequence[tuple[tuple[Any, ...], Any]],
+        tests: Sequence[Tuple[Tuple[Any, ...], Any]],
     ) -> DiscoveryEvaluation:
         if not fn_name.isidentifier():
             return DiscoveryEvaluation(

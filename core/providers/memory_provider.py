@@ -5,9 +5,9 @@ import logging
 import os
 
 from core.governance_context import local_internal_governed_scope
-from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.service_registry import SERVICE_LIFETIME_SINGLETON
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Providers.Memory")
 

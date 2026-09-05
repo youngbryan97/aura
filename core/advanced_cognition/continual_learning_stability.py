@@ -41,10 +41,9 @@ import math
 import statistics
 import time
 from collections import Counter, defaultdict, deque
-from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Mapping, Sequence
 
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation

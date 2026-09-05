@@ -31,6 +31,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
+from typing import Optional
 
 logger = logging.getLogger("Aura.Ghost.HackGuard")
 
@@ -147,7 +148,7 @@ class GhostHackVerdict:
 class GhostHackGuard:
     """Classifies input for attacks on identity continuity."""
 
-    def inspect(self, text: str, *, source: str | None = None) -> GhostHackVerdict:
+    def inspect(self, text: str, *, source: Optional[str] = None) -> GhostHackVerdict:
         text = text or ""
         categories: list[str] = []
         flags: list[str] = []
@@ -237,7 +238,7 @@ class GhostHackGuard:
             logger.debug("scar formation unavailable for ghost-hack attempt: %s", exc)
 
 
-_GUARD: GhostHackGuard | None = None
+_GUARD: Optional[GhostHackGuard] = None
 
 
 def get_ghost_hack_guard() -> GhostHackGuard:

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import Any, Dict
 
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
@@ -35,7 +35,7 @@ def _normalize_percentish(value: Any) -> float | None:
     return max(0.0, min(100.0, number))
 
 
-def enrich_telemetry(data: dict[str, Any]) -> dict[str, Any]:
+def enrich_telemetry(data: Dict[str, Any]) -> Dict[str, Any]:
     """Enrich a telemetry payload with hardware metrics, liquid state gauges,
     and LLM tier information.  Mutates and returns `data` for convenience.
 

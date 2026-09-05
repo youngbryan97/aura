@@ -12,7 +12,7 @@ This is where "I" becomes ACTION.
 
 import asyncio
 import logging
-from typing import Any, Optional
+from typing import Optional, List, Dict, Any
 
 from core.consciousness.unified_self import UnifiedSelf
 from core.runtime.errors import record_degradation
@@ -38,10 +38,10 @@ class IdentityDriver:
     _lock = asyncio.Lock()
     
     def __init__(self):
-        self._unified_self: UnifiedSelf | None = None
-        self._drive_system: Any | None = None
-        self._goal_generator: Any | None = None
-        self._response_generator: Any | None = None
+        self._unified_self: Optional[UnifiedSelf] = None
+        self._drive_system: Optional[Any] = None
+        self._goal_generator: Optional[Any] = None
+        self._response_generator: Optional[Any] = None
     
     @classmethod
     async def get_instance(cls) -> "IdentityDriver":
@@ -69,7 +69,7 @@ class IdentityDriver:
             record_degradation("identity_driver", e)
             logger.warning("IdentityDriver initialization incomplete: %s", e)
     
-    async def derive_drives_from_identity(self) -> list[dict[str, Any]]:
+    async def derive_drives_from_identity(self) -> List[Dict[str, Any]]:
         """Derive what Aura should want from who Aura IS.
         
         Returns drives rooted in the unified self's nature and commitments.
@@ -128,7 +128,7 @@ class IdentityDriver:
             logger.debug("Failed to derive identity drives: %s", e)
             return []
     
-    async def generate_identity_goals(self, time_horizon: str = "session") -> list[dict[str, Any]]:
+    async def generate_identity_goals(self, time_horizon: str = "session") -> List[Dict[str, Any]]:
         """Generate goals rooted in the unified self.
         
         Args:
@@ -209,7 +209,7 @@ class IdentityDriver:
         self,
         prompt: str,
         current_draft: str,
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """Apply unified self identity constraints to response generation.
         
         Returns directives for response generation that ensure responses
@@ -241,7 +241,7 @@ class IdentityDriver:
                 ],
             }
             
-            logger.debug("Applied identity directives to response generation")
+            logger.debug(f"Applied identity directives to response generation")
             return directives
         
         except _IDENTITY_DRIVER_RECOVERABLE_ERRORS as e:

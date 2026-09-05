@@ -1,11 +1,10 @@
 """Singularity Monitor — Phase 20.3
 Tracks the rate of self-improvement and enables Accelerated Cognition.
 """
-import logging
-from typing import Any
-
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
+import logging
+from typing import Dict, Any
 
 logger = logging.getLogger("Aura.Singularity")
 
@@ -62,9 +61,9 @@ class SingularityMonitor:
              logger.info("🧠 Injecting Acceleration Factor: %.1fx", factor)
              # We can't directly modify LLM params easily here without a hook,
              # so we'll set a state flag that the CognitiveEngine can check.
-             ce.singularity_factor = factor
+             setattr(ce, "singularity_factor", factor)
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "improvement_rate": round(self.improvement_rate, 4),
             "acceleration": self.acceleration_factor,

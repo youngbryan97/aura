@@ -1,14 +1,13 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import inspect
 import logging
 import time
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
-
-from core.runtime.errors import record_degradation
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from .field import MorphogenField
 from .types import (
@@ -25,7 +24,7 @@ from .types import (
 
 logger = logging.getLogger("Aura.Morphogenesis.Cell")
 
-CellHandler = Callable[["MorphogenCell", list[MorphogenSignal], dict[str, float]], Any]
+CellHandler = Callable[["MorphogenCell", List[MorphogenSignal], Dict[str, float]], Any]
 
 _CELL_HANDLER_RECOVERABLE_ERRORS = (
     AttributeError,
@@ -42,14 +41,14 @@ _CELL_HANDLER_RECOVERABLE_ERRORS = (
 class CellTickResult:
     cell_id: str
     activated: bool
-    actions: list[dict[str, Any]] = field(default_factory=list)
-    emitted_signals: list[MorphogenSignal] = field(default_factory=list)
+    actions: List[Dict[str, Any]] = field(default_factory=list)
+    emitted_signals: List[MorphogenSignal] = field(default_factory=list)
     success: bool = True
     error: str = ""
     latency_ms: float = 0.0
     activation_score: float = 0.0
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "cell_id": self.cell_id,
             "activated": self.activated,
@@ -74,8 +73,8 @@ class MorphogenCell:
         self,
         manifest: CellManifest,
         *,
-        state: CellState | None = None,
-        handler: CellHandler | None = None,
+        state: Optional[CellState] = None,
+        handler: Optional[CellHandler] = None,
     ):
         self.manifest = manifest
         self.cell_id = manifest.canonical_id()
@@ -84,7 +83,7 @@ class MorphogenCell:
             lineage_id=f"lineage_{stable_digest(manifest.name, manifest.subsystem)}",
         )
         self.handler = handler
-        self.neighbours: dict[str, float] = {}
+        self.neighbours: Dict[str, float] = {}
         self._running_tasks = 0
 
     @property
@@ -108,12 +107,12 @@ class MorphogenCell:
             self.state.lifecycle = CellLifecycle.DORMANT
         return True
 
-    def perceive(self, signals: Sequence[MorphogenSignal]) -> list[MorphogenSignal]:
+    def perceive(self, signals: Sequence[MorphogenSignal]) -> List[MorphogenSignal]:
         if not self.is_available():
             return []
         consumes = {str(v) for v in self.manifest.consumes}
         caps = {str(v) for v in self.manifest.capabilities}
-        relevant: list[MorphogenSignal] = []
+        relevant: List[MorphogenSignal] = []
         for sig in signals:
             kind = sig.kind.value if isinstance(sig.kind, SignalKind) else str(sig.kind)
             if sig.target_cell_id and sig.target_cell_id != self.cell_id:
@@ -126,7 +125,7 @@ class MorphogenCell:
                 relevant.append(sig)
         return relevant
 
-    def activation_score(self, signals: Sequence[MorphogenSignal], field_state: dict[str, float]) -> float:
+    def activation_score(self, signals: Sequence[MorphogenSignal], field_state: Dict[str, float]) -> float:
         if not signals:
             gradient = max(
                 float(field_state.get("danger", 0.0)),
@@ -208,8 +207,8 @@ class MorphogenCell:
         energy_cost = min(0.18, 0.04 + score * 0.12)
         self.state.energy = clamp01(self.state.energy - energy_cost)
 
-        actions: list[dict[str, Any]] = []
-        emitted: list[MorphogenSignal] = []
+        actions: List[Dict[str, Any]] = []
+        emitted: List[MorphogenSignal] = []
 
         # Built-in local rules.
         if field_state.get("danger", 0.0) > 0.55 or any(str(s.kind) in {"SignalKind.ERROR", "SignalKind.EXCEPTION", "error", "exception"} for s in relevant):
@@ -251,7 +250,7 @@ class MorphogenCell:
                             emitted.append(raw_signal)
                 elif isinstance(result, list):
                     actions.extend([{"kind": "handler_result", "value": item} for item in result[:8]])
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 success = False
                 error = "handler_timeout"
                 self.state.last_error = error
@@ -336,7 +335,7 @@ class MorphogenCell:
         self.state.lifecycle = CellLifecycle.APOPTOTIC
         self.state.last_error = reason
 
-    def clone_manifest(self, *, suffix: str, role: CellRole | None = None) -> CellManifest:
+    def clone_manifest(self, *, suffix: str, role: Optional[CellRole] = None) -> CellManifest:
         data = self.manifest.to_dict()
         data["name"] = f"{self.manifest.name}:{suffix}"
         if role is not None:
@@ -348,7 +347,7 @@ class MorphogenCell:
         }
         return CellManifest.from_dict(data)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "cell_id": self.cell_id,
             "manifest": self.manifest.to_dict(),
@@ -357,7 +356,7 @@ class MorphogenCell:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any], *, handler: CellHandler | None = None) -> MorphogenCell:
+    def from_dict(cls, data: Dict[str, Any], *, handler: Optional[CellHandler] = None) -> "MorphogenCell":
         cell = cls(
             CellManifest.from_dict(data.get("manifest", {})),
             state=CellState.from_dict(data.get("state", {})),

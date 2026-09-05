@@ -1,10 +1,8 @@
-import asyncio
-import logging
-from collections.abc import Callable
-from typing import Any
-
 from core.runtime.errors import describe_error, record_degradation
 from core.utils.task_tracker import get_task_tracker
+import asyncio
+import logging
+from typing import Callable, Any
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +39,7 @@ class CognitiveGovernor:
                 self._record_success()
                 return result
                 
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 logger.error("Task %s timed out.", task_name)
                 await self._record_failure()
                 return {"status": "timeout", "error": "Operation took too long"}

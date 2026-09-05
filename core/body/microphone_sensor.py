@@ -1,7 +1,7 @@
 """core/body/microphone_sensor.py
 Microphone input sensor measuring audio telemetry and wake words.
 """
-from typing import Any
+from typing import Any, Dict
 
 from core.body.sensor_registry import BaseSensor
 
@@ -13,7 +13,7 @@ class MicrophoneSensor(BaseSensor):
     def name(self) -> str:
         return "microphone"
 
-    async def read(self) -> dict[str, Any]:
+    async def read(self) -> Dict[str, Any]:
         # Audio ingestion is owned by the governed voice/perception runtime.
         return {
             "status": "perception_runtime_owned",

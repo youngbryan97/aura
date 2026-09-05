@@ -79,12 +79,14 @@ INSTALL:
   patch_agency_core(agency_core_instance)
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
+
 
 import logging
 import random
-from typing import TYPE_CHECKING, Any
-
-from core.runtime.errors import record_degradation
+import time
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.agency_core import AgencyCore
@@ -103,7 +105,7 @@ _OPACITY_WEAK = 0.40
 # Audit → Initiative mapping
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _derive_initiatives_from_audit() -> list[dict[str, Any]]:
+def _derive_initiatives_from_audit() -> List[Dict[str, Any]]:
     """
     Query the ConsciousnessAuditSuite and return a ranked list of targeted
     self-development initiatives based on what is actually weak.
@@ -130,7 +132,7 @@ def _derive_initiatives_from_audit() -> list[dict[str, Any]]:
     last_report = history[-1]
 
     # Build score map from theory_results
-    scores: dict[str, float] = {}
+    scores: Dict[str, float] = {}
     for r in last_report.theory_results:
         scores[r.short_name] = r.score
 
@@ -140,7 +142,7 @@ def _derive_initiatives_from_audit() -> list[dict[str, Any]]:
     latest_index     = float(trend.get("latest_index", 1.0))
     opacity          = float(last_report.structural_opacity)
 
-    initiatives: list[tuple[float, dict[str, Any]]] = []  # (priority, proposal)
+    initiatives: List[Tuple[float, Dict[str, Any]]] = []  # (priority, proposal)
 
     # ── IIT: Phi too low ──────────────────────────────────────────────────────
     if phi < _PHI_WEAK:
@@ -284,10 +286,10 @@ _FALLBACK_HOBBIES = [
 
 
 def _patched_pathway_self_development(
-    self: AgencyCore,
+    self: "AgencyCore",
     now: float,
     idle_seconds: float,
-) -> dict[str, Any] | None:
+) -> Optional[Dict[str, Any]]:
     """
     Audit-aware replacement for AgencyCore._pathway_self_development().
 
@@ -355,7 +357,7 @@ def _patched_pathway_self_development(
 # Public patch function
 # ─────────────────────────────────────────────────────────────────────────────
 
-def patch_agency_core(agency_core: AgencyCore) -> None:
+def patch_agency_core(agency_core: "AgencyCore") -> None:
     """
     Apply the audit-driven self-development patch to a live AgencyCore.
 

@@ -6,10 +6,10 @@ the engine claims to "abstract first principles."
 """
 from __future__ import annotations
 
+
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable, Dict, List, Optional
 
 
 @dataclass
@@ -41,8 +41,8 @@ class PrincipleRecord:
     success_count: int = 0
     failure_count: int = 0
     retired: bool = False
-    retired_reason: str | None = None
-    last_used_at: float | None = None
+    retired_reason: Optional[str] = None
+    last_used_at: Optional[float] = None
 
 
 PrincipleApplicator = Callable[[PrincipleCandidate, HeldOutEpisode], bool]
@@ -50,20 +50,20 @@ PrincipleApplicator = Callable[[PrincipleCandidate, HeldOutEpisode], bool]
 
 class PrincipleStore:
     def __init__(self):
-        self._records: dict[str, PrincipleRecord] = {}
+        self._records: Dict[str, PrincipleRecord] = {}
 
     def register(self, candidate: PrincipleCandidate) -> PrincipleRecord:
         rec = PrincipleRecord(candidate=candidate)
         self._records[candidate.principle_id] = rec
         return rec
 
-    def get(self, principle_id: str) -> PrincipleRecord | None:
+    def get(self, principle_id: str) -> Optional[PrincipleRecord]:
         return self._records.get(principle_id)
 
-    def all(self) -> list[PrincipleRecord]:
+    def all(self) -> List[PrincipleRecord]:
         return list(self._records.values())
 
-    def active(self) -> list[PrincipleRecord]:
+    def active(self) -> List[PrincipleRecord]:
         return [r for r in self._records.values() if not r.retired]
 
 
@@ -74,7 +74,7 @@ class PrincipleValidator:
     def validate(
         self,
         candidate: PrincipleCandidate,
-        episodes: list[HeldOutEpisode],
+        episodes: List[HeldOutEpisode],
         applicator: PrincipleApplicator,
     ) -> ValidationResult:
         result = ValidationResult(principle_id=candidate.principle_id)
@@ -104,8 +104,8 @@ class RetirementPolicy:
         self.min_applications = min_applications
         self.max_failure_ratio = max_failure_ratio
 
-    def review(self) -> list[PrincipleRecord]:
-        retired: list[PrincipleRecord] = []
+    def review(self) -> List[PrincipleRecord]:
+        retired: List[PrincipleRecord] = []
         for rec in self.store.all():
             total = rec.application_count
             if total < self.min_applications or rec.retired:
@@ -124,8 +124,8 @@ class ContradictionDetector:
     def __init__(self, store: PrincipleStore):
         self.store = store
 
-    def detect(self) -> list[dict[str, str]]:
-        contradictions: list[dict[str, str]] = []
+    def detect(self) -> List[Dict[str, str]]:
+        contradictions: List[Dict[str, str]] = []
         active = self.store.active()
         # Simple textual contradiction sniff: a principle saying "X" and
         # another saying "not X" or "never X". Real impl would semantic.

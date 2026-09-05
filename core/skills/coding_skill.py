@@ -3,10 +3,10 @@ Coding Skill — Dedicated interface for code generation with Thought Circulatio
 Ensures complex programming tasks are wrapped with <think> tags for high-accuracy reasoning.
 """
 
-import logging
-from typing import Any
-
 from core.runtime.errors import record_degradation
+import logging
+from typing import Any, Dict
+
 from infrastructure import BaseSkill
 
 logger = logging.getLogger("Skills.Coding")
@@ -18,7 +18,7 @@ class CodingSkill(BaseSkill):
     def __init__(self):
         self.brain = None
 
-    async def execute(self, goal: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    async def execute(self, goal: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         params = goal.get("params", {})
         task = params.get("task", goal.get("objective", ""))
         language = params.get("language", "auto")

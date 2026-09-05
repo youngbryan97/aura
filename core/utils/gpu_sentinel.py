@@ -1,15 +1,13 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import threading
 import time
 from typing import Optional
 
-from core.runtime.errors import record_degradation
-
 logger = logging.getLogger("Aura.GPU.Sentinel")
 
 from enum import IntEnum
-
 
 class GPUPriority(IntEnum):
     REFLECTION = 0  # Background thoughts, deep reasoning
@@ -26,15 +24,15 @@ class GPUSentinel:
     _preempt_flag = threading.Event() # Set when a REFLEX task is waiting
     
     # Lock Holder Tracking
-    _holder_thread: threading.Thread | None = None
-    _holder_task: asyncio.Task | None = None
+    _holder_thread: Optional[threading.Thread] = None
+    _holder_task: Optional[asyncio.Task] = None
     _lock_time_mono: float = 0.0
 
     def __new__(cls):
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+                    cls._instance = super(GPUSentinel, cls).__new__(cls)
         return cls._instance
 
     def acquire(self, priority: GPUPriority = GPUPriority.REFLECTION, timeout: float = 60.0) -> bool:

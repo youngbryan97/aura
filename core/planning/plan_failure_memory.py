@@ -28,11 +28,11 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from core.runtime.errors import record_degradation
-from core.runtime.sqlite_support import connecting
 from core.runtime.state_ownership import state_root
+from core.runtime.sqlite_support import connecting
 
 logger = logging.getLogger("Aura.PlanFailureMemory")
 
@@ -263,7 +263,7 @@ class PlanFailureMemory:
             return {"service": self.SERVICE_NAME, "db_path": str(self._db_path)}
 
 
-_engine: PlanFailureMemory | None = None
+_engine: Optional[PlanFailureMemory] = None
 _engine_lock = threading.Lock()
 
 

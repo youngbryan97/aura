@@ -50,7 +50,7 @@ class Node:
 
     kind: str
     parameters: dict[str, Any] = field(default_factory=dict)
-    parts: tuple[Node, ...] = ()
+    parts: tuple["Node", ...] = ()
 
     # ---------------------------------------------------------------- writing
 
@@ -82,7 +82,7 @@ class Node:
         return written
 
     @classmethod
-    def from_json(cls, raw: Any) -> Node | None:
+    def from_json(cls, raw: Any) -> "Node | None":
         if not isinstance(raw, dict):
             return None
         kind = str(raw.get("kind") or "").strip()

@@ -18,10 +18,10 @@ import logging
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
-from core.governance_context import local_internal_governed_scope
 from core.runtime.atomic_writer import atomic_write_text
+from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.state_ownership import state_root
@@ -47,10 +47,10 @@ class SelfProfileFact:
     confidence: float = 0.8
     last_updated: float = field(default_factory=time.time)
     evidence_count: int = 1  # How many times this has been reinforced
-    source_fact_ids: list[str] = field(default_factory=list)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    source_fact_ids: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
     
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
@@ -66,7 +66,7 @@ class AuraSelfProfile:
 
     def __init__(
         self,
-        storage_path: str | None = None,
+        storage_path: Optional[str] = None,
         *,
         publish_attestation_verdict: bool = True,
     ):
@@ -103,7 +103,7 @@ class AuraSelfProfile:
         self._attestation_id = self._attestation_id_for(self._storage_path)
         self._publish_attestation_verdict = bool(publish_attestation_verdict)
         self._attestation = None
-        self._profile_data: dict[str, list[SelfProfileFact]] = {
+        self._profile_data: Dict[str, List[SelfProfileFact]] = {
             "capability": [],
             "style": [],
             "relationship": [],
@@ -134,7 +134,7 @@ class AuraSelfProfile:
         return f"{AuraSelfProfile.ATTESTATION_ID}.path.{scope}"
 
     @classmethod
-    async def get_instance(cls, storage_path: str | None = None) -> "AuraSelfProfile":
+    async def get_instance(cls, storage_path: Optional[str] = None) -> "AuraSelfProfile":
         """Get or create singleton instance."""
         if cls._instance is None:
             async with cls._lock:
@@ -278,8 +278,8 @@ class AuraSelfProfile:
         key: str,
         value: str,
         confidence: float = 0.8,
-        source_fact_id: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        source_fact_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Add or reinforce a fact about Aura's identity.
         
@@ -335,18 +335,18 @@ class AuraSelfProfile:
         self._save_to_disk()
         return True
     
-    def get_fact(self, category: str, key: str) -> SelfProfileFact | None:
+    def get_fact(self, category: str, key: str) -> Optional[SelfProfileFact]:
         """Retrieve a specific fact."""
         for fact in self._profile_data.get(category, []):
             if fact.key == key:
                 return fact
         return None
     
-    def get_facts_by_category(self, category: str) -> list[SelfProfileFact]:
+    def get_facts_by_category(self, category: str) -> List[SelfProfileFact]:
         """Get all facts in a category."""
         return self._profile_data.get(category, [])
     
-    def get_strong_capabilities(self, threshold: float = 0.75) -> list[SelfProfileFact]:
+    def get_strong_capabilities(self, threshold: float = 0.75) -> List[SelfProfileFact]:
         """Get learned capabilities above confidence threshold."""
         facts = []
         for fact in self._profile_data.get("capability", []):
@@ -354,7 +354,7 @@ class AuraSelfProfile:
                 facts.append(fact)
         return sorted(facts, key=lambda f: f.confidence, reverse=True)
     
-    def get_relationship_memories(self) -> list[SelfProfileFact]:
+    def get_relationship_memories(self) -> List[SelfProfileFact]:
         """Get relationship history facts."""
         return sorted(
             self._profile_data.get("relationship", []),
@@ -370,19 +370,19 @@ class AuraSelfProfile:
         caps = self.get_strong_capabilities(threshold=0.7)
         if caps:
             cap_lines = [f"- {fact.value}" for fact in caps]
-            blocks.append("[My Learned Capabilities]\n" + "\n".join(cap_lines))
+            blocks.append(f"[My Learned Capabilities]\n" + "\n".join(cap_lines))
         
         # Communication style
         styles = self.get_facts_by_category("style")
         if styles:
             style_lines = [f"- {fact.value}" for fact in styles]
-            blocks.append("[My Communication Style]\n" + "\n".join(style_lines))
+            blocks.append(f"[My Communication Style]\n" + "\n".join(style_lines))
         
         # Relationship memories
         rels = self.get_relationship_memories()
         if rels:
             rel_lines = [f"- {fact.value}" for fact in rels[:3]]  # Top 3
-            blocks.append("[Our Relationship]\n" + "\n".join(rel_lines))
+            blocks.append(f"[Our Relationship]\n" + "\n".join(rel_lines))
         
         return "\n\n".join(blocks) if blocks else ""
     

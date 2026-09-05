@@ -16,15 +16,17 @@ The inspector is what an external evaluator uses to reconstruct Aura's
 "will pattern" without reading any of her replies — only her decisions.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import json
 import logging
+import os
 import time
 from collections import Counter
 from dataclasses import asdict, dataclass, field
-from typing import Any
-
-from core.runtime.errors import record_degradation
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.WillReceiptLog")
@@ -42,8 +44,8 @@ class WillReceiptEntry:
     domain: str
     approved: bool
     reason: str
-    rationale: list[str] = field(default_factory=list)
-    regret: float | None = None
+    rationale: List[str] = field(default_factory=list)
+    regret: Optional[float] = None
 
 
 def append(entry: WillReceiptEntry) -> None:
@@ -61,13 +63,13 @@ def append(entry: WillReceiptEntry) -> None:
         logger.warning("will receipt append failed: %s", exc)
 
 
-def recent(*, days: int = 30) -> list[WillReceiptEntry]:
+def recent(*, days: int = 30) -> List[WillReceiptEntry]:
     cutoff = time.time() - days * 86_400.0
-    out: list[WillReceiptEntry] = []
+    out: List[WillReceiptEntry] = []
     if not _PATH.exists():
         return out
     try:
-        with open(_PATH, encoding="utf-8") as fh:
+        with open(_PATH, "r", encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
                 if not line:
@@ -85,7 +87,7 @@ def recent(*, days: int = 30) -> list[WillReceiptEntry]:
     return out
 
 
-def summarize_policy(*, days: int = 30, top_n: int = 10) -> dict[str, Any]:
+def summarize_policy(*, days: int = 30, top_n: int = 10) -> Dict[str, Any]:
     entries = recent(days=days)
     if not entries:
         return {"days": days, "n": 0}
@@ -99,7 +101,7 @@ def summarize_policy(*, days: int = 30, top_n: int = 10) -> dict[str, Any]:
 
     # Change-of-mind: same action+domain approved earlier and refused
     # later (or vice versa) within the window.
-    by_action: dict[str, list[WillReceiptEntry]] = {}
+    by_action: Dict[str, List[WillReceiptEntry]] = {}
     for e in entries:
         by_action.setdefault(f"{e.action}|{e.domain}", []).append(e)
     change_of_mind = 0

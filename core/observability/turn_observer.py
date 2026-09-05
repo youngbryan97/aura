@@ -33,16 +33,16 @@ Two honest limits on what this can see:
 from __future__ import annotations
 
 import logging
+import threading
 import time
 import weakref
 from collections import deque
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
-from core.runtime.lockdep import LockRank, checked_lock
 from core.runtime.stuck_detector import AgentStep, StuckDetector, StuckVerdict
 from core.runtime.turn_budget import Budget, BudgetLedger
+from core.runtime.lockdep import LockRank, checked_lock
 
 logger = logging.getLogger("Aura.TurnObserver")
 
@@ -219,7 +219,7 @@ _install_lock = checked_lock("turn_observer.install", rank=LockRank.LEAF)
 #: because idempotence is a property of the *pairing*: a bare "already
 #: installed" flag on the observer would silently refuse to attach to a second
 #: instrumentation, leaving it unmetered while reporting success.
-_installed_into: weakref.WeakSet[Any] = weakref.WeakSet()
+_installed_into: "weakref.WeakSet[Any]" = weakref.WeakSet()
 
 
 def get_turn_observer() -> TurnObserver:

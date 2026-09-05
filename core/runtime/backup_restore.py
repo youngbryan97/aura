@@ -14,18 +14,18 @@ pattern used in atomic_writer / receipts.
 from __future__ import annotations
 
 import logging
-
 logger = logging.getLogger("core.runtime.backup_restore")
 import os
 import shutil
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List
 
 from core.runtime.archive_gateway import get_archive_gateway
 from core.runtime.state_ownership import state_root
 
-BACKUP_INCLUDED_DIRS: list[str] = [
+
+BACKUP_INCLUDED_DIRS: List[str] = [
     "state",
     "memory",
     "receipts",
@@ -65,7 +65,7 @@ def _delete_tree(p: Path, *, cause: str) -> None:
         shutil.rmtree(p)
 
 
-def perform_backup(*, target: Path) -> dict[str, Any]:
+def perform_backup(*, target: Path) -> Dict[str, Any]:
     """Bundle the live Aura home into a tar.gz snapshot."""
     target = Path(target)
     _ensure_dir(target, cause="perform_backup.target")
@@ -73,7 +73,7 @@ def perform_backup(*, target: Path) -> dict[str, Any]:
     _ensure_dir(snapshot_dir, cause="perform_backup.snapshot")
 
     home = aura_home()
-    included: list[str] = []
+    included: List[str] = []
     for rel in BACKUP_INCLUDED_DIRS:
         src = home / rel
         if src.exists():
@@ -99,7 +99,7 @@ def perform_backup(*, target: Path) -> dict[str, Any]:
     }
 
 
-def perform_restore(*, snapshot: Path) -> dict[str, Any]:
+def perform_restore(*, snapshot: Path) -> Dict[str, Any]:
     """Replace the live Aura home with the contents of ``snapshot``."""
     snapshot = Path(snapshot)
     if not snapshot.exists():
@@ -121,7 +121,7 @@ def perform_restore(*, snapshot: Path) -> dict[str, Any]:
         _delete_tree(extract_dir, cause="perform_restore.invalid_archive_cleanup")
         return {"command": "restore", "ok": False, "error": "invalid_archive"}
 
-    restored: list[str] = []
+    restored: List[str] = []
     for sub in inner.iterdir():
         live = home / sub.name
         _delete_tree(live, cause="perform_restore.live_swap")

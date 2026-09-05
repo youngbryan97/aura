@@ -15,8 +15,8 @@ themselves here instead, and everything downstream asks the registry.
 from __future__ import annotations
 
 import importlib
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Callable
 
 __all__ = [
     "Reader",

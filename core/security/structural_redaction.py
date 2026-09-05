@@ -45,9 +45,8 @@ rather than discovering it during an incident.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 REDACTED = "[REDACTED]"
 

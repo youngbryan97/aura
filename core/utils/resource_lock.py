@@ -6,6 +6,7 @@ When Playwright is active, heavy metabolic tasks pause.
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from typing import Optional
 
 logger = logging.getLogger("Aura.ResourceLock")
 
@@ -69,7 +70,7 @@ class ResourceLock:
         finally:
             self.end_browser_session()
 
-    async def wait_for_browser_idle(self, timeout: float | None = 30.0):
+    async def wait_for_browser_idle(self, timeout: Optional[float] = 30.0):
         """Wait until no browser session is active.
         
         Call this before starting heavy metabolic tasks.
@@ -83,7 +84,7 @@ class ResourceLock:
         try:
             await asyncio.wait_for(self._browser_idle.wait(), timeout=timeout)
             return True
-        except TimeoutError:
+        except asyncio.TimeoutError:
             logger.warning("Browser session still active after %ds — proceeding anyway", timeout)
             return False
 
@@ -99,7 +100,7 @@ class ResourceLock:
                         await self._gpu_semaphore.acquire()
                 else:
                     await asyncio.wait_for(self._gpu_semaphore.acquire(), timeout=30.0)
-            except TimeoutError:
+            except (asyncio.TimeoutError, TimeoutError):
                 logger.error("🚨 DEADLOCK DETECTED: Could not acquire GPU semaphore within 30s for %s", owner)
                 raise RuntimeError(f"GPU semaphore deadlock for {owner}")
         
@@ -126,7 +127,7 @@ class ResourceLock:
 
 
 # Singleton
-_lock: ResourceLock | None = None
+_lock: Optional[ResourceLock] = None
 
 def get_resource_lock() -> ResourceLock:
     global _lock

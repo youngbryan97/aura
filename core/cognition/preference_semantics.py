@@ -761,35 +761,35 @@ class PreferenceBuilder:
         if not str(self.source).strip():
             raise ValueError("a preference builder needs a source")
 
-    def add(self, pref: Preference) -> PreferenceBuilder:
+    def add(self, pref: Preference) -> "PreferenceBuilder":
         self._prefs.append(pref)
         return self
 
-    def acceptable(self, item: str, detail: str = "") -> PreferenceBuilder:
+    def acceptable(self, item: str, detail: str = "") -> "PreferenceBuilder":
         return self.add(acceptable(item, source=self.source, detail=detail))
 
-    def reject(self, item: str, detail: str = "") -> PreferenceBuilder:
+    def reject(self, item: str, detail: str = "") -> "PreferenceBuilder":
         return self.add(reject(item, source=self.source, detail=detail))
 
-    def require(self, item: str, detail: str = "") -> PreferenceBuilder:
+    def require(self, item: str, detail: str = "") -> "PreferenceBuilder":
         return self.add(require(item, source=self.source, detail=detail))
 
-    def prohibit(self, item: str, detail: str = "") -> PreferenceBuilder:
+    def prohibit(self, item: str, detail: str = "") -> "PreferenceBuilder":
         return self.add(prohibit(item, source=self.source, detail=detail))
 
-    def best(self, item: str, detail: str = "") -> PreferenceBuilder:
+    def best(self, item: str, detail: str = "") -> "PreferenceBuilder":
         return self.add(best(item, source=self.source, detail=detail))
 
-    def worst(self, item: str, detail: str = "") -> PreferenceBuilder:
+    def worst(self, item: str, detail: str = "") -> "PreferenceBuilder":
         return self.add(worst(item, source=self.source, detail=detail))
 
-    def better(self, item: str, than: str, detail: str = "") -> PreferenceBuilder:
+    def better(self, item: str, than: str, detail: str = "") -> "PreferenceBuilder":
         return self.add(better(item, than, source=self.source, detail=detail))
 
-    def indifferent(self, item: str, detail: str = "") -> PreferenceBuilder:
+    def indifferent(self, item: str, detail: str = "") -> "PreferenceBuilder":
         return self.add(indifferent(item, source=self.source, detail=detail))
 
-    def numeric_indifferent(self, item: str, value: float, detail: str = "") -> PreferenceBuilder:
+    def numeric_indifferent(self, item: str, value: float, detail: str = "") -> "PreferenceBuilder":
         return self.add(numeric_indifferent(item, value, source=self.source, detail=detail))
 
     def build(self) -> PreferenceSet:

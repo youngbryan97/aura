@@ -5,6 +5,7 @@ This replaces static state flags with a continuous multi-dimensional state vecto
 """
 
 import logging
+import math
 import time
 from collections import deque
 from dataclasses import dataclass

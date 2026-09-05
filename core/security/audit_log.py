@@ -5,7 +5,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 from core.config import get_config
 from core.governance_context import local_internal_governed_scope
@@ -24,7 +24,7 @@ class SecurityAuditLogger:
         self.config = get_config()
         self.log_path = Path(self.config.paths.log_dir) / "security_audit.jsonl"
 
-    def log_event(self, action: str, details: dict[str, Any]) -> None:
+    def log_event(self, action: str, details: Dict[str, Any]) -> None:
         event = {
             "timestamp": time.time(),
             "action": action,

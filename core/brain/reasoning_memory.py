@@ -63,7 +63,7 @@ class ReasoningReflection:
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> ReasoningReflection:
+    def from_dict(cls, d: dict[str, Any]) -> "ReasoningReflection":
         return cls(
             task_type=str(d.get("task_type", "generic")),
             signature=str(d.get("signature", "")),

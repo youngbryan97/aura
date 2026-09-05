@@ -33,13 +33,13 @@ range.
 
 from __future__ import annotations
 
-import math
-from collections.abc import Iterator
-from contextlib import contextmanager
-from dataclasses import dataclass
-from enum import StrEnum
-
 from core.runtime.lockdep import checked_lock
+import math
+import threading
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import Iterator
 
 
 class ParamKind(StrEnum):
@@ -118,7 +118,7 @@ class Param:
                 )
 
     @contextmanager
-    def override(self, value: float) -> Iterator[None]:
+    def override(self, value: float) -> "Iterator[None]":
         """Hold a different value for the duration of the block.
 
         Every call site reads ``PARAM.value`` rather than a float captured

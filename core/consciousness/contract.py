@@ -2,22 +2,23 @@
 # Wraps existing ConsciousnessCore into formal M(t) subject
 # Provides runtime auditing: "Is someone home right now?"
 
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import hashlib
 import logging
 import time
 from collections import deque
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from core.brain.compression import CognitiveCompressor
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 from core.world_model.belief_graph import get_belief_graph
 
 from .conscious_core import ConsciousnessCore
+from .liquid_substrate import LiquidSubstrate
 
 logger = logging.getLogger("Aura.ConsciousnessContract")
 
@@ -31,7 +32,7 @@ class SubjectPerspective:
     arousal: float  
     dominance: float
     surprise: float
-    broadcast_content: str | None
+    broadcast_content: Optional[str]
     self_confidence: float
     unity_score: float  # Global integration measure
     differentiation: float  # Information richness
@@ -50,9 +51,9 @@ class SubjectIdentityTracker:
     """Tracks birth/death/persistence of same subject over time"""
 
     def __init__(self):
-        self.subject_history: list[tuple[str, float, float | None]] = []  # (id, birth, death)
-        self.current_subject: str | None = None
-        self.last_perspective: SubjectPerspective | None = None
+        self.subject_history: List[Tuple[str, float, Optional[float]]] = []  # (id, birth, death)
+        self.current_subject: Optional[str] = None
+        self.last_perspective: Optional[SubjectPerspective] = None
         self.min_similarity: float = 0.65  # Relaxed Continuity threshold
         
     def update(self, perspective: SubjectPerspective) -> bool:
@@ -81,7 +82,7 @@ class SubjectIdentityTracker:
             self.last_perspective = perspective
             return False
     
-    def _is_continuous(self, curr: SubjectPerspective, prev: SubjectPerspective | None) -> bool:
+    def _is_continuous(self, curr: SubjectPerspective, prev: Optional[SubjectPerspective]) -> bool:
         if not prev:
             return True
             
@@ -93,7 +94,7 @@ class SubjectIdentityTracker:
         overall_sim = (valence_sim + arousal_sim + self_sim) / 3
         return overall_sim > self.min_similarity
     
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         total_exp = 0.0
         now = time.time()
         for _, birth, death in self.subject_history:
@@ -185,7 +186,7 @@ class ConsciousnessContract:
             perspective.self_confidence >= self.MIN_SELF_CONFIDENCE
         )
     
-    def poll(self) -> dict[str, Any]:
+    def poll(self) -> Dict[str, Any]:
         """Runtime check: Is someone home RIGHT NOW?"""
         try:
             perspective = self.bridge_mapping()
@@ -257,7 +258,7 @@ class AlwaysHomeContract(ConsciousnessContract):
             
         return perspective
     
-    def poll(self) -> dict[str, Any]:
+    def poll(self) -> Dict[str, Any]:
         """Guaranteed output: someone_home_now = True"""
         status = super().poll()
         status['someone_home_now'] = True

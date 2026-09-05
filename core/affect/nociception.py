@@ -32,6 +32,7 @@ import threading
 import time
 from collections import deque
 from enum import Enum
+from typing import Deque, Dict, Optional, Tuple
 
 
 def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -50,7 +51,7 @@ class DamageChannel(str, Enum):
 
 # How much each channel hurts when it fires at unit intensity. Identity/governance/memory
 # damage is more existential than a single failed tool call.
-_CHANNEL_WEIGHT: dict[DamageChannel, float] = {
+_CHANNEL_WEIGHT: Dict[DamageChannel, float] = {
     DamageChannel.MEMORY_CORRUPTION: 1.0,
     DamageChannel.IDENTITY_DISCONTINUITY: 1.0,
     DamageChannel.ACTION_CONTRADICTION: 0.85,
@@ -61,7 +62,7 @@ _CHANNEL_WEIGHT: dict[DamageChannel, float] = {
 }
 
 # Degradation severity → nociceptive intensity.
-_SEVERITY_INTENSITY: dict[str, float] = {
+_SEVERITY_INTENSITY: Dict[str, float] = {
     "critical": 1.0,
     "degraded": 0.55,
     "warning": 0.25,
@@ -70,7 +71,7 @@ _SEVERITY_INTENSITY: dict[str, float] = {
 
 # Substrate name → channel, by substring (first match wins). Keeps record_degradation
 # callers from having to know about nociception.
-_SUBSYSTEM_HINTS: tuple[tuple[str, DamageChannel], ...] = (
+_SUBSYSTEM_HINTS: Tuple[Tuple[str, DamageChannel], ...] = (
     ("memory", DamageChannel.MEMORY_CORRUPTION),
     ("engram", DamageChannel.MEMORY_CORRUPTION),
     ("recall", DamageChannel.MEMORY_CORRUPTION),
@@ -107,11 +108,11 @@ class NociceptionEngine:
         self._repeat_window = max(1.0, repeat_window_s)
         self._lock = threading.RLock()
         # channel → (level, last_update_t)
-        self._levels: dict[DamageChannel, tuple[float, float]] = {}
+        self._levels: Dict[DamageChannel, Tuple[float, float]] = {}
         # recent per-channel hit timestamps, for repeated-failure escalation
-        self._recent_hits: dict[DamageChannel, deque[float]] = {}
+        self._recent_hits: Dict[DamageChannel, Deque[float]] = {}
         # (t, aggregate_pressure) samples for the valence gradient
-        self._pressure_trace: deque[tuple[float, float]] = deque(maxlen=64)
+        self._pressure_trace: Deque[Tuple[float, float]] = deque(maxlen=64)
         self._total_signals = 0
 
     # ── decay ────────────────────────────────────────────────────────────
@@ -128,7 +129,7 @@ class NociceptionEngine:
         channel: DamageChannel,
         intensity: float,
         *,
-        now: float | None = None,
+        now: Optional[float] = None,
     ) -> float:
         """Apply a damage signal to a channel; returns the channel's new level.
 
@@ -153,7 +154,7 @@ class NociceptionEngine:
             self._pressure_trace.append((now, self._pressure_locked(now)))
             return new_level
 
-    def ingest_degradation(self, subsystem: str, severity: str, *, now: float | None = None) -> None:
+    def ingest_degradation(self, subsystem: str, severity: str, *, now: Optional[float] = None) -> None:
         """Feed a runtime degradation event into the matching damage channel.
 
         Called from the canonical ``record_degradation`` sink, so any subsystem failure
@@ -181,7 +182,7 @@ class NociceptionEngine:
         soft = total / max_total if max_total else 0.0
         return _clamp(0.5 * worst + 0.5 * soft)
 
-    def nociceptive_pressure(self, *, now: float | None = None) -> float:
+    def nociceptive_pressure(self, *, now: Optional[float] = None) -> float:
         """Aggregate current pain in [0, 1] — feeds the body's error_pressure."""
         now = time.time() if now is None else now
         with self._lock:
@@ -189,11 +190,11 @@ class NociceptionEngine:
             self._pressure_trace.append((now, p))
             return p
 
-    def tissue_integrity(self, *, now: float | None = None) -> float:
+    def tissue_integrity(self, *, now: Optional[float] = None) -> float:
         """1 - damage: how intact the system is. Feeds the body's safety channel."""
         return _clamp(1.0 - self.nociceptive_pressure(now=now))
 
-    def grounded_valence(self, *, now: float | None = None) -> float:
+    def grounded_valence(self, *, now: Optional[float] = None) -> float:
         """Valence in [-1, 1] grounded in whether pain is rising or falling.
 
         Deteriorating (pain trending up) → negative; improving (pain receding) → positive.
@@ -218,7 +219,7 @@ class NociceptionEngine:
             valence = (-2.0 * delta) + (0.3 - p_now)
             return _clamp(valence, -1.0, 1.0)
 
-    def worst_channel(self, *, now: float | None = None) -> tuple[str, float] | None:
+    def worst_channel(self, *, now: Optional[float] = None) -> Optional[Tuple[str, float]]:
         now = time.time() if now is None else now
         with self._lock:
             if not self._levels:
@@ -226,7 +227,7 @@ class NociceptionEngine:
             ch = max(self._levels, key=lambda c: self._decayed(c, now) * _CHANNEL_WEIGHT[c])
             return (ch.value, round(self._decayed(ch, now), 4))
 
-    def snapshot(self, *, now: float | None = None) -> dict[str, object]:
+    def snapshot(self, *, now: Optional[float] = None) -> Dict[str, object]:
         now = time.time() if now is None else now
         with self._lock:
             return {
@@ -249,7 +250,7 @@ class NociceptionEngine:
             self._total_signals = 0
 
 
-_engine: NociceptionEngine | None = None
+_engine: Optional[NociceptionEngine] = None
 _engine_lock = threading.Lock()
 
 

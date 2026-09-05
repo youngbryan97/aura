@@ -301,7 +301,7 @@ class OmniTool:
         name: str,
         process: asyncio.subprocess.Process,
         timeout_s: float,
-        verdict: ExecutionVerdict | None = None,
+        verdict: "ExecutionVerdict | None" = None,
     ) -> None:
         """Watch the daemon, and close its grant when it stops.
 

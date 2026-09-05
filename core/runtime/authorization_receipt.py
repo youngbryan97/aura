@@ -29,9 +29,8 @@ which of the two reasons it failed on.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping
 
 ALLOW = "allow"
 DENY = "deny"

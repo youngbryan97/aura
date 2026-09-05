@@ -128,7 +128,7 @@ class TheFurthestSheHasGot:
         }
 
     @classmethod
-    def from_memory(cls, held: Any) -> TheFurthestSheHasGot:
+    def from_memory(cls, held: Any) -> "TheFurthestSheHasGot":
         """What she got through last time. A route keeps between sittings."""
         if not isinstance(held, dict):
             return cls()

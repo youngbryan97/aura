@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import ast
+import dataclasses
 import math
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Dict, List, Optional
 
 from core.discovery.code_eval import SafeCodeEvaluator
 from core.discovery.evolver import EvolverResult, ExpressionEvolver
@@ -15,7 +15,7 @@ from core.lattice.config import LatticeConfig
 from core.lattice.model import LatticeLM
 from core.lattice.trainer import LatticeTrainer, TrainConfig
 from core.promotion.dynamic_benchmark import DynamicBenchmark, Task
-from core.promotion.gate import PromotionGate, ScoreEstimate
+from core.promotion.gate import PromotionDecision, PromotionGate, ScoreEstimate
 from core.promotion.holdout_vault import HoldoutVault, LeakageDetector
 from core.runtime.prediction_ledger import PredictionLedger
 from core.runtime.tenant_boundary import TenantBoundary
@@ -53,15 +53,15 @@ class CycleReport:
     iteration: int
     started_at: float
     finished_at: float
-    promotion: dict[str, Any] | None = None
-    discovery: dict[str, Any] | None = None
+    promotion: Optional[Dict[str, Any]] = None
+    discovery: Optional[Dict[str, Any]] = None
     unknowns_added: int = 0
     semantic_ok: bool = True
-    notes: list[str] = field(default_factory=list)
-    metrics: dict[str, float] = field(default_factory=dict)
-    receipt_id: str | None = None
+    notes: List[str] = field(default_factory=list)
+    metrics: Dict[str, float] = field(default_factory=dict)
+    receipt_id: Optional[str] = None
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "iteration": self.iteration,
             "started_at": self.started_at,
@@ -134,12 +134,12 @@ class SelfImprovingResearchCore:
 
     def __init__(
         self,
-        cfg: ResearchCoreConfig | None = None,
+        cfg: Optional[ResearchCoreConfig] = None,
         *,
-        ledger: PredictionLedger | None = None,
-        tenant_id: str | None = None,
-        will_decide_fn: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
-        task_solver: Callable[[str], Any] | None = None,
+        ledger: Optional[PredictionLedger] = None,
+        tenant_id: Optional[str] = None,
+        will_decide_fn: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
+        task_solver: Optional[Callable[[str], Any]] = None,
     ):
         self.cfg = cfg or ResearchCoreConfig()
         self.cfg.workdir.mkdir(parents=True, exist_ok=True)
@@ -188,13 +188,13 @@ class SelfImprovingResearchCore:
         # External hooks
         self.task_solver = task_solver or deterministic_task_solver
         self._iteration = 0
-        self._cycle_history: list[CycleReport] = []
-        self._last_cycle_at: float | None = None
+        self._cycle_history: List[CycleReport] = []
+        self._last_cycle_at: Optional[float] = None
 
     # ------------------------------------------------------------------
     # capability evaluation
     # ------------------------------------------------------------------
-    def evaluate_capability(self, n_tasks: int = 30) -> dict[str, ScoreEstimate]:
+    def evaluate_capability(self, n_tasks: int = 30) -> Dict[str, ScoreEstimate]:
         """Generate fresh dynamic benchmark, score the solver, vault answers.
 
         Returns a score vector compatible with ``PromotionGate.compare``.
@@ -369,7 +369,7 @@ class SelfImprovingResearchCore:
     # ------------------------------------------------------------------
     # introspection
     # ------------------------------------------------------------------
-    def status(self) -> dict[str, Any]:
+    def status(self) -> Dict[str, Any]:
         return {
             "iteration": self._iteration,
             "last_cycle_at": self._last_cycle_at,
@@ -389,5 +389,5 @@ class SelfImprovingResearchCore:
             "global_step": int(self.trainer.global_step),
         }
 
-    def cycle_history(self) -> list[dict[str, Any]]:
+    def cycle_history(self) -> List[Dict[str, Any]]:
         return [c.to_dict() for c in self._cycle_history]

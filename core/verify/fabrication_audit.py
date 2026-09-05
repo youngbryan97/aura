@@ -42,10 +42,9 @@ What this module is careful NOT to do:
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, Iterable, Mapping, Sequence
 
 from core.runtime.errors import record_degradation
 from core.verify.work_ledger import get_work_ledger

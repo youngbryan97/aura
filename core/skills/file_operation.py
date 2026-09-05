@@ -1,17 +1,17 @@
+from core.runtime.errors import record_degradation
+from core.runtime.action_executor import ActionExecutor
+from core.governance.will import ActionDomain
 import contextlib
 import hashlib
 import logging
 import os
-import tempfile
 from pathlib import Path
-from typing import Any, Literal
-
+import tempfile
+from typing import Any, Dict, Literal, Optional
 from pydantic import BaseModel, Field
 
-from core.governance.will import ActionDomain
-from core.runtime.action_executor import ActionExecutor
-from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill
+
 
 #: The actions this skill performs. Declared once, so the schema, the
 #: governance check and the code that dispatches them cannot disagree.
@@ -28,10 +28,10 @@ class FileOpInput(BaseModel):
         "read", "list", "exists", "write", "append", "patch", "move", "copy", "delete"
     ] = Field(..., description="Action to perform.")
     path: str = Field(..., description="Target file or directory path.")
-    content: str | None = Field(None, description="Content for write, append, or patch actions.")
-    destination: str | None = Field(None, description="Destination path for move or copy actions.")
-    start_line: int | None = Field(None, description="Starting line number for 'patch' action (inclusive, 1-indexed).")
-    end_line: int | None = Field(None, description="Ending line number for 'patch' action (inclusive, 1-indexed).")
+    content: Optional[str] = Field(None, description="Content for write, append, or patch actions.")
+    destination: Optional[str] = Field(None, description="Destination path for move or copy actions.")
+    start_line: Optional[int] = Field(None, description="Starting line number for 'patch' action (inclusive, 1-indexed).")
+    end_line: Optional[int] = Field(None, description="Ending line number for 'patch' action (inclusive, 1-indexed).")
 
 #: Actions that observe and change nothing.
 _READING_ACTIONS = frozenset({"read", "list", "exists", "stat", "head", "tail"})
@@ -180,11 +180,11 @@ class FileOperationSkill(BaseSkill):
             evidence["effect_verified"] = False
         return evidence
 
-    def match(self, goal: dict[str, Any]) -> bool:
+    def match(self, goal: Dict[str, Any]) -> bool:
         obj = goal.get("objective", "").lower()
         return "file" in obj or "read" in obj or "write" in obj or "save" in obj or "log" in obj
 
-    async def execute(self, params: FileOpInput, context: dict[str, Any] = None) -> dict[str, Any]:
+    async def execute(self, params: FileOpInput, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """Standard execution entry point."""
         import asyncio
         if isinstance(params, dict):
@@ -248,7 +248,7 @@ class FileOperationSkill(BaseSkill):
                     return {"ok": False, "error": f"File not found: {path}", "path": path}
                 
                 def _read():
-                    with open(full_path, encoding='utf-8', errors='ignore') as f:
+                    with open(full_path, "r", encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
                         # Output semantic line-indexed text
                         indexed_lines = [f"{i+1:04d}: {line}" for i, line in enumerate(lines)]
@@ -280,7 +280,7 @@ class FileOperationSkill(BaseSkill):
                 existing = ""
                 if await asyncio.to_thread(os.path.exists, full_path):
                     def _read_existing():
-                        with open(full_path, encoding="utf-8", errors="ignore") as f:
+                        with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
                             return f.read()
 
                     existing = await asyncio.to_thread(_read_existing)
@@ -427,7 +427,7 @@ class FileOperationSkill(BaseSkill):
                     return {"ok": False, "error": "Missing 'start_line', 'end_line', or 'content' for patch action"}
                 
                 def _patch():
-                    with open(full_path, encoding='utf-8', errors='ignore') as f:
+                    with open(full_path, "r", encoding='utf-8', errors='ignore') as f:
                         lines = f.readlines()
                     
                     if start_line < 1 or end_line > len(lines) or start_line > end_line:

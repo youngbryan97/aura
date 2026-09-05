@@ -1,12 +1,12 @@
 """core/identity/identity_kernel.py
 Core Identity Kernel maintaining Aura's stable self-continuity over time.
 """
+from typing import Dict, Any, Optional
 import logging
-from typing import Any
 
+from core.identity.self_contract import SelfContract
 from core.identity.continuity_guard import ContinuityGuard
 from core.identity.identity_history import IdentityHistoryTracker
-from core.identity.self_contract import SelfContract
 from core.identity.self_revision_protocol import SelfRevisionProtocol
 
 logger = logging.getLogger("Identity.IdentityKernel")
@@ -29,7 +29,7 @@ class IdentityKernel:
             "primary_operator": self.contract.get_relationship_constraints().get("primary_operator", "Bryan")
         }
 
-    def get_current_identity(self) -> dict[str, Any]:
+    def get_current_identity(self) -> Dict[str, Any]:
         return self._identity_state
 
     async def guard_identity_continuity(self, state: Any) -> None:

@@ -7,14 +7,11 @@ import queue
 import re
 import sys
 import tempfile
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from re import Pattern
-from typing import Any
-
+from typing import Any, Pattern, Union, Optional
 import structlog
 from structlog.dev import ConsoleRenderer
-
 from core.runtime.state_ownership import state_root
 
 # ── Redaction Patterns ─────────────────────────────────────────
@@ -58,7 +55,7 @@ class JsonLineFormatter(logging.Formatter):
         if record.exc_info and not record.exc_text:
             record.exc_text = self.formatException(record.exc_info)
 
-        timestamp = datetime.fromtimestamp(record.created, tz=UTC).isoformat()
+        timestamp = datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat()
         payload: dict[str, Any] | None = None
         if message.startswith("{"):
             try:
@@ -146,7 +143,7 @@ _initialised: bool = False
 _queue_listener: logging.handlers.QueueListener | None = None
 
 
-def _resolve_log_dir(log_dir: Path | None) -> Path:
+def _resolve_log_dir(log_dir: Optional[Path]) -> Path:
     """Explicit argument wins, then AURA_LOG_DIR (test/CI hermeticity), then ~/.aura/logs."""
     if log_dir is not None:
         return Path(log_dir)
@@ -157,8 +154,8 @@ def _resolve_log_dir(log_dir: Path | None) -> Path:
 
 def setup_logging(
     name: str = "Aura",
-    level: str | int = logging.INFO,
-    log_dir: Path | None = None,
+    level: Union[str, int] = logging.INFO,
+    log_dir: Optional[Path] = None,
     max_bytes: int = 100 * 1024 * 1024, # 100MB
     backup_count: int = 10,
 ) -> Any:

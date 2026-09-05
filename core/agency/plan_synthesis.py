@@ -21,9 +21,8 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 from core.runtime.errors import record_degradation
 

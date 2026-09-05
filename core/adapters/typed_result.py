@@ -23,14 +23,13 @@ Usage:
                 return WorldResult.fail("adapter_failure", str(e))
 """
 from __future__ import annotations
-
+from core.runtime.numeric_guards import bounded_float
 import inspect
+
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, TypeVar
-
-from core.runtime.numeric_guards import bounded_float
+from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
 T = TypeVar("T")
 
@@ -56,7 +55,7 @@ class AdapterError:
     message: str
     retryable: bool = True
     retry_after_s: float = 0.0
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Enforce what the annotations only describe.
@@ -105,11 +104,11 @@ class WorldResult:
     """
     success: bool
     data: Any = None
-    error_info: AdapterError | None = None
+    error_info: Optional[AdapterError] = None
     timestamp: float = field(default_factory=time.time)
     adapter_name: str = ""
     latency_ms: float = 0.0
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     @staticmethod
     def ok(
@@ -117,7 +116,7 @@ class WorldResult:
         *,
         adapter_name: str = "",
         latency_ms: float = 0.0,
-        metadata: dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> WorldResult:
         """Create a successful result."""
         return WorldResult(
@@ -130,13 +129,13 @@ class WorldResult:
 
     @staticmethod
     def fail(
-        kind: str | AdapterErrorKind,
+        kind: Union[str, AdapterErrorKind],
         message: str,
         *,
         retryable: bool = True,
         retry_after_s: float = 0.0,
         adapter_name: str = "",
-        metadata: dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> WorldResult:
         """Create an error result."""
         if isinstance(kind, str):
@@ -190,9 +189,9 @@ class WorldResult:
             f"Adapter {self.adapter_name} failed: {self.error_info}"
         )
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize for logging/telemetry."""
-        result: dict[str, Any] = {
+        result: Dict[str, Any] = {
             "success": self.success,
             "adapter_name": self.adapter_name,
             "latency_ms": round(self.latency_ms, 1),
@@ -217,6 +216,7 @@ def wrap_adapter_call(func):
 
     Catches exceptions and returns WorldResult instead.
     """
+    import asyncio
     import functools
 
     if inspect.iscoroutinefunction(func):

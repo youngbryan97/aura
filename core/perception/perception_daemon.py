@@ -16,6 +16,8 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
+from core.container import ServiceContainer
+from core.runtime.service_access import optional_service
 from core.event_bus import EventPriority, get_event_bus
 from core.governance_context import local_internal_governed_scope
 from core.perception.frontmost_app import frontmost_app_name_fast
@@ -30,10 +32,9 @@ from core.perception.multimodal_sync import (
 )
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind, declare
-from core.runtime.service_access import optional_service
-from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.utils.task_tracker import get_task_tracker
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.PerceptionDaemon")
 

@@ -1,9 +1,8 @@
-import asyncio
-import logging
-from typing import Any
-
-from core.data.project_store import Project, ProjectStore, StrategicTask
 from core.runtime.errors import record_degradation
+import logging
+import asyncio
+from typing import List, Dict, Any, Optional
+from core.data.project_store import ProjectStore, Project, StrategicTask
 from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("Aura.StrategicPlanner")
@@ -14,9 +13,9 @@ class StrategicPlanner:
     def __init__(self, cognitive_engine, project_store: ProjectStore):
         self.brain = cognitive_engine
         self.store = project_store
-        self.active_project_id: str | None = None
+        self.active_project_id: Optional[str] = None
         
-    async def analyze_and_plan(self, goal_text: str) -> Project | None:
+    async def analyze_and_plan(self, goal_text: str) -> Optional[Project]:
         """Analyze a mega-goal and create a persistent project with tasks."""
         logger.info("Decomposing mega-goal: %s", goal_text)
         
@@ -75,7 +74,7 @@ Return the response as a valid JSON object with the following structure:
             logger.error("🚫 Strategic scaling failure: %s", e)
             return None
 
-    def _persist_plan_sync(self, goal_text: str, plan_data: dict[str, Any]) -> tuple[Project, list[dict[str, Any]]]:
+    def _persist_plan_sync(self, goal_text: str, plan_data: Dict[str, Any]) -> tuple[Project, List[Dict[str, Any]]]:
         tasks = list(plan_data.get("tasks", []) or [])
         with self.store.transaction() as conn:
             project = self.store.create_project(
@@ -97,7 +96,7 @@ Return the response as a valid JSON object with the following structure:
                 )
         return project, tasks
 
-    def get_next_task(self, project_id: str | None = None) -> StrategicTask | None:
+    def get_next_task(self, project_id: Optional[str] = None) -> Optional[StrategicTask]:
         """Retrieve the next pending task for the specified project (or first active)."""
         p_id = project_id or self.active_project_id
         if not p_id:
@@ -180,10 +179,10 @@ Return as JSON as before:
     def _replan_project_sync(
         self,
         project_id: str,
-        pending: list[StrategicTask],
+        pending: List[StrategicTask],
         reason: str,
-        plan_data: dict[str, Any],
-    ) -> list[dict[str, Any]]:
+        plan_data: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
         new_tasks = list(plan_data.get("tasks", []) or [])
         with self.store.transaction() as conn:
             for task in pending:

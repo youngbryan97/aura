@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any
+from typing import Any, Dict, Optional
 
 from core.brain.cognitive_engine import CognitiveEngine
 from core.capability_engine import CapabilityEngine as RobustSkillRegistry
@@ -18,7 +18,7 @@ class CentralNervousSystem:
     Orchestrates the neural processing pipeline with real cognitive grounding.
     """
 
-    def __init__(self, memory_system, brain: CognitiveEngine, registry: RobustSkillRegistry | None = None):
+    def __init__(self, memory_system, brain: CognitiveEngine, registry: Optional[RobustSkillRegistry] = None):
         if registry is None:
             # Lazy import to avoid circular dependency
             from core.container import get_container
@@ -28,7 +28,7 @@ class CentralNervousSystem:
         self.brain = brain
         self.registry = registry
         self.glue_factory = GlueFactory(memory_system=memory_system)
-        self.neurons: dict[str, Neuron] = {}
+        self.neurons: Dict[str, Neuron] = {}
         
         # Initialize internal neuron maps from registry
         self._refresh_neurons()
@@ -49,7 +49,7 @@ class CentralNervousSystem:
         self.glue_factory.neurons = list(self.neurons.values())
         logger.info("CNS: %d neurons loaded from registry.", len(self.neurons))
 
-    async def process_stimulus(self, text: str) -> dict[str, Any]:
+    async def process_stimulus(self, text: str) -> Dict[str, Any]:
         """Process a text stimulus (user input) using the brain to extract intent.
         Returns an execution plan.
         """
@@ -101,7 +101,7 @@ class CentralNervousSystem:
                         intent = Intent(text=text, confidence=0.5)
                 else:
                     intent = Intent(text=text, confidence=0.5)
-        except (TimeoutError, Exception) as e:
+        except (asyncio.TimeoutError, Exception) as e:
             if isinstance(e, asyncio.TimeoutError):
                 logger.warning("CNS Intent Extraction timed out - using raw stimulus.")
             else:
@@ -125,7 +125,7 @@ class CentralNervousSystem:
                     logger.debug("CNS: Stimulus won GW competition (pri=%.2f)", winner.effective_priority)
                 else:
                     logger.info("CNS: Stimulus silenced by GW competition bottleneck.")
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 logger.debug("CNS: GW competition timed out - proceeding with stimulus.")
             except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
                 record_degradation('cns', e)

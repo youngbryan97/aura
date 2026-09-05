@@ -46,13 +46,11 @@ import math
 import threading
 import time
 from collections import deque
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Deque, Dict, List, Optional
 
 import numpy as np
-
 from core.runtime.atomic_writer import interprocess_file_lock
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.state_ownership import state_root
@@ -109,10 +107,10 @@ class ProbeResult:
 class LesionResult:
     """Result of lesioning a single component."""
     component_name: str
-    baseline_metrics: dict[str, float | None]
-    lesioned_metrics: dict[str, float | None]
-    deltas: dict[str, float | None]           # lesioned - baseline
-    relative_impact: dict[str, float | None]  # |delta| / |baseline|
+    baseline_metrics: Dict[str, Optional[float]]
+    lesioned_metrics: Dict[str, Optional[float]]
+    deltas: Dict[str, Optional[float]]           # lesioned - baseline
+    relative_impact: Dict[str, Optional[float]]  # |delta| / |baseline|
     criticality_score: float                     # Aggregate impact (NaN if none)
     #: Metrics that could not be measured on either side. These are absent from
     #: the criticality average rather than counted as zero impact.
@@ -121,13 +119,13 @@ class LesionResult:
     timestamp: float = field(default_factory=time.time)
 
     @staticmethod
-    def _round(values: dict[str, float | None], places: int) -> dict[str, Any]:
+    def _round(values: Dict[str, Optional[float]], places: int) -> Dict[str, Any]:
         return {
             key: (None if value is None or not math.isfinite(value) else round(value, places))
             for key, value in values.items()
         }
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "component": self.component_name,
             "baseline": self._round(self.baseline_metrics, 6),
@@ -146,13 +144,13 @@ class LesionResult:
 @dataclass
 class LesionMatrix:
     """Complete lesion study results."""
-    components: list[str]
-    metrics: list[str]
+    components: List[str]
+    metrics: List[str]
     matrix: np.ndarray  # shape: (n_components, n_metrics) -- relative impacts
-    results: list[LesionResult]
+    results: List[LesionResult]
     total_time_ms: float
     baseline_policy: str = "interleaved"
-    probe_failures: dict[str, int] = field(default_factory=dict)
+    probe_failures: Dict[str, int] = field(default_factory=dict)
     step_failures: int = 0
     restore_failures: tuple[str, ...] = ()
     timestamp: float = field(default_factory=time.time)
@@ -161,7 +159,7 @@ class LesionMatrix:
         row = np.asarray(self.matrix[index], dtype=np.float64)
         return row[np.isfinite(row)]
 
-    def get_critical_components(self, threshold: float = 0.3) -> list[str]:
+    def get_critical_components(self, threshold: float = 0.3) -> List[str]:
         """Components whose removal causes > threshold relative impact."""
         critical = []
         for i, comp in enumerate(self.components):
@@ -170,7 +168,7 @@ class LesionMatrix:
                 critical.append(comp)
         return critical
 
-    def get_redundant_components(self, threshold: float = 0.05) -> list[str]:
+    def get_redundant_components(self, threshold: float = 0.05) -> List[str]:
         """Components whose removal causes < threshold relative impact.
 
         A component with NO measured metric is not redundant — it is
@@ -184,12 +182,12 @@ class LesionMatrix:
                 redundant.append(comp)
         return redundant
 
-    def get_unmeasured_components(self) -> list[str]:
+    def get_unmeasured_components(self) -> List[str]:
         return [
             comp for i, comp in enumerate(self.components) if self._row(i).size == 0
         ]
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "components": self.components,
             "metrics": self.metrics,
@@ -222,7 +220,7 @@ class LesionableComponent:
         self._get_state = get_state
         self._set_state = set_state
         self._zero_fn = zero_fn
-        self._saved_state: np.ndarray | None = None
+        self._saved_state: Optional[np.ndarray] = None
 
     def read_state(self) -> np.ndarray:
         """Current state as an independent copy."""
@@ -304,19 +302,19 @@ class LesionStudy:
         seed: int = 42,
         *,
         interleaved_baseline: bool = True,
-        quiescence_check: Callable[[], bool] | None = None,
-        data_dir: Path | None = None,
+        quiescence_check: Optional[Callable[[], bool]] = None,
+        data_dir: Optional[Path] = None,
     ) -> None:
-        self._components: dict[str, LesionableComponent] = {}
-        self._probes: dict[str, Callable[[], float]] = {}
-        self._step_fn: Callable[[], None] | None = None
+        self._components: Dict[str, LesionableComponent] = {}
+        self._probes: Dict[str, Callable[[], float]] = {}
+        self._step_fn: Optional[Callable[[], None]] = None
         self._n_probe_steps = n_probe_steps
         self._rng = np.random.default_rng(seed)
-        self._last_matrix: LesionMatrix | None = None
-        self._history: deque[dict[str, Any]] = deque(maxlen=20)
+        self._last_matrix: Optional[LesionMatrix] = None
+        self._history: Deque[Dict[str, Any]] = deque(maxlen=20)
         self._interleaved_baseline = bool(interleaved_baseline)
         self._quiescence_check = quiescence_check
-        self._probe_failures: dict[str, int] = {}
+        self._probe_failures: Dict[str, int] = {}
         self._step_failures = 0
 
         self._data_dir = Path(data_dir) if data_dir is not None else _DATA_DIR
@@ -338,14 +336,14 @@ class LesionStudy:
         """Set the function that advances the system by one step."""
         self._step_fn = fn
 
-    def _run_probes(self) -> dict[str, float | None]:
+    def _run_probes(self) -> Dict[str, Optional[float]]:
         """Run all probes. A probe that cannot be measured returns None.
 
         CP126 ec3611ea: probe exceptions were converted to 0.0, so a broken
         measurement was indistinguishable from a stable one — and a component
         whose probe crashed under lesion looked perfectly redundant.
         """
-        results: dict[str, float | None] = {}
+        results: Dict[str, Optional[float]] = {}
         for name, fn in self._probes.items():
             try:
                 value = float(fn())
@@ -362,12 +360,12 @@ class LesionStudy:
             results[name] = value
         return results
 
-    def _run_steps_and_probe(self) -> dict[str, float | None]:
+    def _run_steps_and_probe(self) -> Dict[str, Optional[float]]:
         """Run N steps, then probe. Returns averaged probe results.
 
         A metric with no usable sample is None, not 0.0.
         """
-        accumulated: dict[str, list[float]] = {n: [] for n in self._probes}
+        accumulated: Dict[str, List[float]] = {n: [] for n in self._probes}
 
         for _ in range(self._n_probe_steps):
             if self._step_fn:
@@ -400,22 +398,22 @@ class LesionStudy:
             except (AttributeError, TypeError, ValueError) as exc:
                 logger.warning("Could not snapshot '%s': %s", component.name, exc)
 
-    def _restore_all(self) -> list[str]:
+    def _restore_all(self) -> List[str]:
         """Restore every component. Returns the names that did not come back."""
-        failures: list[str] = []
+        failures: List[str] = []
         for component in self._components.values():
             if not component.restore():
                 failures.append(component.name)
         return failures
 
-    def _capture_states(self) -> dict[str, np.ndarray]:
+    def _capture_states(self) -> Dict[str, np.ndarray]:
         """Study-level snapshot, held separately from the per-lesion slot.
 
         The per-lesion snapshot is consumed by its matching restore, so the
         study needs its own copy to guarantee the live system is unchanged
         once the diagnostic finishes (CP126 43446d39).
         """
-        states: dict[str, np.ndarray] = {}
+        states: Dict[str, np.ndarray] = {}
         for name, component in self._components.items():
             try:
                 states[name] = component.read_state()
@@ -423,8 +421,8 @@ class LesionStudy:
                 logger.warning("Could not capture study state for '%s': %s", name, exc)
         return states
 
-    def _restore_states(self, states: dict[str, np.ndarray]) -> list[str]:
-        failures: list[str] = []
+    def _restore_states(self, states: Dict[str, np.ndarray]) -> List[str]:
+        failures: List[str] = []
         for name, saved in states.items():
             component = self._components.get(name)
             if component is None:
@@ -437,7 +435,7 @@ class LesionStudy:
                 failures.append(name)
         return failures
 
-    def run(self, *, quiescence_check: Callable[[], bool] | None = None) -> LesionMatrix:
+    def run(self, *, quiescence_check: Optional[Callable[[], bool]] = None) -> LesionMatrix:
         """Execute the full lesion study.
 
         The study mutates LIVE component state, so it takes an in-process lock
@@ -483,9 +481,9 @@ class LesionStudy:
              for k, v in first_baseline.items()},
         )
 
-        results: list[LesionResult] = []
+        results: List[LesionResult] = []
         matrix = np.full((len(comp_names), len(metric_names)), np.nan, dtype=np.float64)
-        restore_failures: list[str] = []
+        restore_failures: List[str] = []
         baseline = first_baseline
 
         for c_idx, comp_name in enumerate(comp_names):
@@ -507,7 +505,7 @@ class LesionStudy:
             # exception left the component disabled — in the live system.
             # CP126 43446d39: snapshot everything, not only the target.
             self._snapshot_all()
-            lesioned: dict[str, float | None] = {}
+            lesioned: Dict[str, Optional[float]] = {}
             try:
                 component.save_and_lesion()
                 lesioned = self._run_steps_and_probe()
@@ -526,9 +524,9 @@ class LesionStudy:
                         self._step_failures += 1
                         break
 
-            deltas: dict[str, float | None] = {}
-            relative: dict[str, float | None] = {}
-            unavailable: list[str] = []
+            deltas: Dict[str, Optional[float]] = {}
+            relative: Dict[str, Optional[float]] = {}
+            unavailable: List[str] = []
             for m_idx, metric in enumerate(metric_names):
                 base_val = baseline.get(metric)
                 les_val = lesioned.get(metric)
@@ -608,10 +606,10 @@ class LesionStudy:
                 json.dumps(matrix.to_dict(), indent=2, default=str),
                 source="architect.lesion_matrix.results",
             )
-        except (OSError, TypeError, ValueError) as exc:
+        except (OSError, IOError, TypeError, ValueError) as exc:
             logger.debug("Lesion results save failed: %s", exc)
 
-    def _append_history(self, payload: dict[str, Any]) -> None:
+    def _append_history(self, payload: Dict[str, Any]) -> None:
         """Append this study to the durable longitudinal record."""
         try:
             get_file_write_gateway().append_text(
@@ -619,7 +617,7 @@ class LesionStudy:
                 json.dumps(payload, default=str) + "\n",
                 source="architect.lesion_matrix.history",
             )
-        except (OSError, TypeError, ValueError) as exc:
+        except (OSError, IOError, TypeError, ValueError) as exc:
             logger.warning("Lesion history append failed: %s", exc)
 
     def _load_history(self) -> None:
@@ -640,12 +638,12 @@ class LesionStudy:
             except (json.JSONDecodeError, TypeError, ValueError):
                 continue
 
-    def history(self, limit: int = 0) -> list[dict[str, Any]]:
+    def history(self, limit: int = 0) -> List[Dict[str, Any]]:
         """Prior studies, newest last."""
         entries = list(self._history)
         return entries if limit <= 0 else entries[-limit:]
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "n_components": len(self._components),
             "n_probes": len(self._probes),

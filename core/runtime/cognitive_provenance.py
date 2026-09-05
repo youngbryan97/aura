@@ -39,9 +39,8 @@ import logging
 import time
 import uuid
 from collections import deque
-from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Iterator, Mapping
 
 from core.runtime.cognitive_contract import (
     CognitiveTransformContract,

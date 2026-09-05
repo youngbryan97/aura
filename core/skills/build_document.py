@@ -77,11 +77,11 @@ class BuildDocumentSkill(BaseSkill):
             document_from_plan,
             render_document,
         )
+        from core.runtime.payload_values import payload_path
 
         # What the PERSON asked for, not what the model echoed back, read
         # before anything is decided from it.
         from core.conversation.session_scope import the_persons_own_words
-        from core.runtime.payload_values import payload_path
 
         asked = the_persons_own_words(params.request)
         entries = list(params.sections) or list(params.slides) or list(params.slide_contents)

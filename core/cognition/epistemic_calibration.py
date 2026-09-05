@@ -24,6 +24,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
+from typing import Optional
 
 
 def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -129,12 +130,12 @@ class EpistemicCalibrator:
         self,
         claim: str,
         *,
-        stated_confidence: float | None = None,
+        stated_confidence: Optional[float] = None,
         tool_verified: bool = False,
         evidence_count: int = 0,
-        experiment_supported: bool | None = None,
-        other_agent_confidence: float | None = None,
-        track_record: float | None = None,
+        experiment_supported: Optional[bool] = None,
+        other_agent_confidence: Optional[float] = None,
+        track_record: Optional[float] = None,
     ) -> CalibrationResult:
         """Return the warranted confidence ceiling + stance for holding the claim.
 
@@ -168,9 +169,9 @@ class EpistemicCalibrator:
         *,
         tool_verified: bool,
         evidence_count: int,
-        experiment_supported: bool | None,
-        other_agent_confidence: float | None,
-        track_record: float | None,
+        experiment_supported: Optional[bool],
+        other_agent_confidence: Optional[float],
+        track_record: Optional[float],
     ) -> tuple[float, str, str]:
         ev = _clamp(0.12 * evidence_count)  # each cited piece of evidence buys a little
 
@@ -207,7 +208,7 @@ class EpistemicCalibrator:
         return 0.12, "disclaim", "in-principle unknowable; certainty here is never warranted"
 
 
-_calibrator: EpistemicCalibrator | None = None
+_calibrator: Optional[EpistemicCalibrator] = None
 
 
 def get_epistemic_calibrator() -> EpistemicCalibrator:

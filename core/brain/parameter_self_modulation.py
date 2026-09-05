@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Dict, Any
 
 logger = logging.getLogger("Cognition.SelfModulation")
 
@@ -14,7 +14,7 @@ class ParameterSelfModulator:
         }
         self.last_confidence = 1.0
 
-    def calculate_adjustments(self, status: dict[str, Any], last_thought_confidence: float) -> dict[str, float]:
+    def calculate_adjustments(self, status: Dict[str, Any], last_thought_confidence: float) -> Dict[str, float]:
         """Analyze system status and previous thought quality to suggest sampling deltas."""
         temp_delta = 0.0
         engagement = status.get("engagement", 0.5)
@@ -38,7 +38,7 @@ class ParameterSelfModulator:
         self.overrides["temperature_delta"] = temp_delta
         return self.overrides
 
-    def apply_to_params(self, base_params: dict[str, Any]) -> dict[str, Any]:
+    def apply_to_params(self, base_params: Dict[str, Any]) -> Dict[str, Any]:
         """Apply suggested deltas to the calculated base parameters."""
         base_params["temperature"] = max(0.1, min(1.2, base_params["temperature"] + self.overrides["temperature_delta"]))
         base_params["top_p"] = max(0.1, min(1.0, base_params["top_p"] + self.overrides["top_p_delta"]))

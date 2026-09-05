@@ -1,13 +1,13 @@
 from __future__ import annotations
+from typing import Dict, Optional
 
 from .active_inference import GenerativeModel
 from .affective_core import AffectiveCore
-from .attachment import AttachmentState, AttachmentSystem
-from .global_workspace import Coalition, GlobalWorkspace
-from .maths import clamp
+from .attachment import AttachmentSystem, AttachmentState
+from .global_workspace import GlobalWorkspace, Coalition
 from .phenomenal_field import PhenomenalField
-from .types import AttachmentEvent, Event, ExperienceState, RuntimeBody
-
+from .types import RuntimeBody, Event, ExperienceState, AttachmentEvent
+from .maths import clamp
 
 class PhenomenalEngine:
     """
@@ -24,12 +24,12 @@ class PhenomenalEngine:
         self.field = PhenomenalField()
         self.workspace = GlobalWorkspace()
         self.attachments = AttachmentSystem()
-        self.last_state: ExperienceState | None = None
+        self.last_state: Optional[ExperienceState] = None
         # Self-model → phenomenal signals (agency/embodiment/continuity/presence).
         # SelfAwareness sets these; step() blends them into the body so the self-model's
         # sense of itself actually modulates the phenomenal inference — a real
         # self↔experience loop, not a no-op bridge.
-        self._self_signals: dict[str, float] = {}
+        self._self_signals: Dict[str, float] = {}
 
     def record_attachment(self, event: AttachmentEvent) -> AttachmentState:
         return self.attachments.record(event)
@@ -60,7 +60,7 @@ class PhenomenalEngine:
             return body
         import dataclasses
 
-        updates: dict[str, float] = {}
+        updates: Dict[str, float] = {}
         if "agency" in sig:
             updates["agency"] = clamp(0.5 * body.agency + 0.5 * sig["agency"])
         if "continuity" in sig:
@@ -78,7 +78,7 @@ class PhenomenalEngine:
         self,
         body: RuntimeBody,
         event: Event,
-        person_key: str | None = None,
+        person_key: Optional[str] = None,
         recurrent_cycles: int = 5,
     ) -> ExperienceState:
         self.t += 1
@@ -167,7 +167,7 @@ class PhenomenalEngine:
         self.last_state = state
         return state
 
-    def _policy_priors(self, a, belief: dict[str, float], broadcast: dict[str, object]) -> dict[str, float]:
+    def _policy_priors(self, a, belief: Dict[str, float], broadcast: Dict[str, object]) -> Dict[str, float]:
         priors = {
             "continue_goal": clamp(0.20 + 0.50 * max(0.0, a.valence) + 0.25 * belief.get("agency", 0.5) - 0.30 * a.distress),
             "seek_information": clamp(0.15 + 0.45 * a.curiosity + 0.25 * (1.0 - belief.get("certainty", 0.7))),
@@ -184,7 +184,7 @@ class PhenomenalEngine:
             priors["seek_information"] = clamp(priors["seek_information"] + 0.20)
         return priors
 
-    def _memory_weights(self, a, integration: float, broadcast: dict[str, object]) -> dict[str, float]:
+    def _memory_weights(self, a, integration: float, broadcast: Dict[str, object]) -> Dict[str, float]:
         return {
             "episodic_write": clamp(0.20 + 0.35 * abs(a.valence) + 0.35 * a.arousal + 0.25 * integration),
             "semantic_update": clamp(0.15 + 0.40 * a.curiosity + 0.20 * integration),

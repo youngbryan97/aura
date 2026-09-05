@@ -1,7 +1,10 @@
 import logging
+import time
+import asyncio
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional
+from core.config import config
 
 logger = logging.getLogger("Cognition.GroundingGuard")
 
@@ -31,7 +34,7 @@ class GroundingGuard:
         self.orchestrator = orchestrator
         self.history = deque(maxlen=200)
 
-    def assess(self, objective: str, eval_score: float, actual_result: dict[str, Any]) -> GroundingAssessment:
+    def assess(self, objective: str, eval_score: float, actual_result: Dict[str, Any]) -> GroundingAssessment:
         refined_score = float(eval_score)
         result = actual_result if isinstance(actual_result, dict) else {"result": actual_result}
         ok = bool(result.get("ok") or result.get("status") == "success")
@@ -82,7 +85,7 @@ class GroundingGuard:
             explanation=explanation,
         )
 
-    async def validate_eval(self, objective: str, eval_score: float, actual_result: dict[str, Any]) -> float:
+    async def validate_eval(self, objective: str, eval_score: float, actual_result: Dict[str, Any]) -> float:
         """Adjusts the self-evaluation score based on evidence.
         Prevents 'Hallucination Loops' where the LLM thinks it succeeded but
         the tool logs show a failure.
@@ -100,7 +103,7 @@ class GroundingGuard:
         
         return assessment.grounded_score
 
-    async def validate_and_correct(self, objective: str, eval_score: float, actual_result: dict[str, Any]) -> tuple[float, dict[str, Any] | None]:
+    async def validate_and_correct(self, objective: str, eval_score: float, actual_result: Dict[str, Any]) -> tuple[float, Optional[Dict[str, Any]]]:
         """Validate an evaluation and return both the grounded score and any necessary correction.
         Combines assessment and correction generation into a single call.
         """
@@ -138,7 +141,7 @@ class GroundingGuard:
             return "request_authority", {"reason": "governance_required"}
         return "observe", {"reason": "verify_state_before_replan"}
 
-    def correction_action(self, objective: str, eval_score: float, actual_result: dict[str, Any]) -> dict[str, Any]:
+    def correction_action(self, objective: str, eval_score: float, actual_result: Dict[str, Any]) -> Dict[str, Any]:
         assessment = self.assess(objective, eval_score, actual_result)
         return {
             "needs_replan": assessment.needs_replan,

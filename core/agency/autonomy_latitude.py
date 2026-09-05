@@ -33,7 +33,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 from core.runtime.service_registry import has_runtime_service, register_runtime_service
 
@@ -115,7 +115,7 @@ class AutonomyLatitude:
         domain: str,
         *,
         content: str = "",
-        context: dict[str, Any] | None = None,
+        context: Optional[dict[str, Any]] = None,
     ) -> LatitudeAssessment:
         dom = str(domain or "").strip().lower()
         context = context or {}
@@ -187,7 +187,7 @@ class AutonomyLatitude:
         }
 
 
-_engine: AutonomyLatitude | None = None
+_engine: Optional[AutonomyLatitude] = None
 _engine_lock = threading.Lock()
 
 

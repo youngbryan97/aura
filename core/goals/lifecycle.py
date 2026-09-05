@@ -43,9 +43,9 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
-
-from core.runtime.sqlite_support import connecting, open_tracked
+from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
+from core.runtime.sqlite_support import connecting
+from core.runtime.sqlite_support import open_tracked
 
 
 class GoalState(str, Enum):
@@ -64,18 +64,18 @@ class GoalState(str, Enum):
     DEFERRED = "deferred"
 
 
-TERMINAL_STATES: frozenset[GoalState] = frozenset(
+TERMINAL_STATES: FrozenSet[GoalState] = frozenset(
     {GoalState.COMPLETED, GoalState.FAILED, GoalState.ABANDONED}
 )
 
-ACTIVE_STATES: frozenset[GoalState] = frozenset(
+ACTIVE_STATES: FrozenSet[GoalState] = frozenset(
     {
         GoalState.IN_PROGRESS,
         GoalState.TESTING,
     }
 )
 
-IDLE_STATES: frozenset[GoalState] = frozenset(
+IDLE_STATES: FrozenSet[GoalState] = frozenset(
     {
         GoalState.PROPOSED,
         GoalState.ACCEPTED,
@@ -103,7 +103,7 @@ class IllegalTransitionError(RuntimeError):
 class MissingEvidenceError(RuntimeError):
     """Raised when a transition requires evidence that the caller did not supply."""
 
-    def __init__(self, *, from_state: GoalState, to_state: GoalState, missing: list[str]):
+    def __init__(self, *, from_state: GoalState, to_state: GoalState, missing: List[str]):
         super().__init__(
             f"transition {from_state.value} -> {to_state.value} requires "
             f"evidence: {', '.join(missing)}"
@@ -122,15 +122,15 @@ class StatePolicy:
     description: str
     requires_owner: bool = True
     requires_deadline: bool = False
-    rollback_to: GoalState | None = None
+    rollback_to: Optional[GoalState] = None
     # Names of evidence keys that must be present in the transition's
     # ``evidence`` dict to *leave* this state for any reachable target.
-    exit_evidence: tuple[str, ...] = ()
+    exit_evidence: Tuple[str, ...] = ()
 
 
 # Per-state policies.  Owners are role names, not user IDs; an autonomy
 # layer maps roles to actual operators.
-STATE_POLICIES: dict[GoalState, StatePolicy] = {
+STATE_POLICIES: Dict[GoalState, StatePolicy] = {
     GoalState.PROPOSED: StatePolicy(
         state=GoalState.PROPOSED,
         owner_role="reviewer",
@@ -220,7 +220,7 @@ STATE_POLICIES: dict[GoalState, StatePolicy] = {
 # may also self-transition (e.g. a progress update that does not change
 # state); self-transitions are *not* listed here and are handled
 # separately by ``allow_self_transition``.
-ALLOWED_TRANSITIONS: dict[GoalState, frozenset[GoalState]] = {
+ALLOWED_TRANSITIONS: Dict[GoalState, FrozenSet[GoalState]] = {
     GoalState.PROPOSED: frozenset(
         {GoalState.ACCEPTED, GoalState.ABANDONED}
     ),
@@ -258,7 +258,7 @@ ALLOWED_TRANSITIONS: dict[GoalState, frozenset[GoalState]] = {
 }
 
 
-def reachable_states(state: GoalState) -> frozenset[GoalState]:
+def reachable_states(state: GoalState) -> FrozenSet[GoalState]:
     """Return the set of states reachable from ``state`` in one transition."""
     return ALLOWED_TRANSITIONS[state]
 
@@ -331,10 +331,10 @@ class TransitionRequest:
     to_state: GoalState
     actor: str
     reason: str = ""
-    evidence: dict[str, Any] = field(default_factory=dict)
-    deadline: float | None = None
+    evidence: Dict[str, Any] = field(default_factory=dict)
+    deadline: Optional[float] = None
     requested_at: float = field(default_factory=time.time)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -347,11 +347,11 @@ class TransitionResult:
     actor: str
     reason: str
     occurred_at: float
-    evidence: dict[str, Any] = field(default_factory=dict)
-    rollback_to: GoalState | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    evidence: Dict[str, Any] = field(default_factory=dict)
+    rollback_to: Optional[GoalState] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "goal_id": self.goal_id,
             "from": self.from_state.value,
@@ -381,7 +381,7 @@ def validate_transition(req: TransitionRequest) -> None:
             ),
         )
     policy = STATE_POLICIES[req.from_state]
-    missing: list[str] = [k for k in policy.exit_evidence if k not in req.evidence]
+    missing: List[str] = [k for k in policy.exit_evidence if k not in req.evidence]
     if missing:
         raise MissingEvidenceError(
             from_state=req.from_state,
@@ -526,7 +526,7 @@ class TaskLifecycleManager:
         objective: str = "",
         state: GoalState = GoalState.PROPOSED,
         actor: str = "",
-        metadata: dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         if state in TERMINAL_STATES:
             raise IllegalTransitionError(
@@ -559,7 +559,7 @@ class TaskLifecycleManager:
     # ------------------------------------------------------------------
     # state read / write
     # ------------------------------------------------------------------
-    def get_state(self, goal_id: str) -> GoalState | None:
+    def get_state(self, goal_id: str) -> Optional[GoalState]:
         with connecting(self._connect()) as conn:
             row = conn.execute(
                 "SELECT status FROM goals WHERE id = ?", (goal_id,)
@@ -631,7 +631,7 @@ class TaskLifecycleManager:
             )
         return result
 
-    def history(self, goal_id: str) -> list[dict[str, Any]]:
+    def history(self, goal_id: str) -> List[Dict[str, Any]]:
         with connecting(self._connect()) as conn:
             rows = conn.execute(
                 """
@@ -641,7 +641,7 @@ class TaskLifecycleManager:
                 """,
                 (goal_id,),
             ).fetchall()
-        out: list[dict[str, Any]] = []
+        out: List[Dict[str, Any]] = []
         for row in rows:
             out.append(
                 {
@@ -659,7 +659,7 @@ class TaskLifecycleManager:
         return out
 
 
-def migrate_legacy_status_db(db_path: Path) -> dict[str, int]:
+def migrate_legacy_status_db(db_path: Path) -> Dict[str, int]:
     """Idempotent migration of legacy ``goals.status`` values.
 
     For every row whose ``status`` is not already in ``GoalState``,

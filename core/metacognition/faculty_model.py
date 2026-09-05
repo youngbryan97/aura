@@ -43,7 +43,7 @@ from __future__ import annotations
 import math
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 

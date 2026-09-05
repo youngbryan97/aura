@@ -1,11 +1,10 @@
-import logging
-from typing import Any
-
-from pydantic import BaseModel, Field
-
-from core.config import config
 from core.runtime.errors import record_degradation
+import logging
+import asyncio
+from typing import Any, Dict, Optional
 from core.skills.base_skill import BaseSkill
+from pydantic import BaseModel, Field
+from core.config import config
 
 # Optional Playwright import
 try:
@@ -17,15 +16,15 @@ except ImportError:
 logger = logging.getLogger("Skills.Social")
 
 class LurkerInput(BaseModel):
-    url: str | None = Field("https://news.ycombinator.com", description="Target URL to scrape (default: HackerNews).")
-    limit: int | None = Field(10, description="Number of posts to read.")
+    url: Optional[str] = Field("https://news.ycombinator.com", description="Target URL to scrape (default: HackerNews).")
+    limit: Optional[int] = Field(10, description="Number of posts to read.")
 
 class LurkerSkill(BaseSkill):
     name = "social_lurker"
     description = "Scrape feeds (HackerNews/Reddit) for latest topics."
     input_model = LurkerInput
 
-    async def execute(self, params: LurkerInput, context: dict[str, Any]) -> dict[str, Any]:
+    async def execute(self, params: LurkerInput, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute social scraping."""
         if not PLAYWRIGHT:
             return {"ok": False, "error": "Playwright missing."}

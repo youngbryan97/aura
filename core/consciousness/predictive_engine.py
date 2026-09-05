@@ -13,8 +13,8 @@ from typing import Any
 
 import numpy as np
 
-from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Consciousness.Predictive")
 

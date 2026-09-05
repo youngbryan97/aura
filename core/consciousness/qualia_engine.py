@@ -61,13 +61,13 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
 from core.runtime.errors import record_degradation
+
 from core.verify.earned_metric import (
     EarnedAxis,
     RecurrenceVerdict,
@@ -136,11 +136,11 @@ class QualiaDescriptor:
     """Output of the full qualia processing pipeline."""
 
     # Per-layer outputs
-    subconceptual: dict[str, float] = field(default_factory=dict)
-    conceptual: dict[str, float] = field(default_factory=dict)
-    predictive: dict[str, float] = field(default_factory=dict)
-    workspace: dict[str, Any] = field(default_factory=dict)
-    witness: dict[str, float] = field(default_factory=dict)
+    subconceptual: Dict[str, float] = field(default_factory=dict)
+    conceptual: Dict[str, float] = field(default_factory=dict)
+    predictive: Dict[str, float] = field(default_factory=dict)
+    workspace: Dict[str, Any] = field(default_factory=dict)
+    witness: Dict[str, float] = field(default_factory=dict)
 
     # Summary metrics
     #: Weighted composite of the layer features. The weights were chosen, not
@@ -160,15 +160,15 @@ class QualiaDescriptor:
     self_referential: bool = False
     #: The measured bar recurrence had to clear, or None when the trajectory
     #: was too short to build a null from.
-    self_reference_threshold: float | None = None
+    self_reference_threshold: Optional[float] = None
     #: The full recurrence verdict: statistic, threshold, dominant lag, and the
     #: sample sizes behind them.
-    recurrence: dict[str, Any] = field(default_factory=dict)
+    recurrence: Dict[str, Any] = field(default_factory=dict)
     temporal_depth: float = 0.0          # Specious present duration estimate
     dominant_modality: str = ""          # Which layer contributes most
 
     #: Per-axis evidence: whether valence/arousal/dominance earned their names.
-    axis_fits: dict[str, Any] = field(default_factory=dict)
+    axis_fits: Dict[str, Any] = field(default_factory=dict)
 
     timestamp: float = field(default_factory=time.time)
 
@@ -211,7 +211,7 @@ class SubconceptualLayer:
     - Temporal gradient (rate of change)
     """
 
-    def process(self, state: np.ndarray, velocity: np.ndarray) -> dict[str, float]:
+    def process(self, state: np.ndarray, velocity: np.ndarray) -> Dict[str, float]:
         energy = float(np.mean(np.abs(state)))
         spectral_entropy = self._spectral_entropy(state)
         temporal_gradient = float(np.mean(np.abs(velocity)))
@@ -250,7 +250,7 @@ class ConceptualLayer:
     """
 
     def __init__(self) -> None:
-        self._running_mean: np.ndarray | None = None
+        self._running_mean: Optional[np.ndarray] = None
         self._alpha = 0.05  # EMA update rate
         self._axes = {
             "valence": _axis("valence"),
@@ -320,8 +320,8 @@ class ConceptualLayer:
     def process(
         self,
         state: np.ndarray,
-        affect_target: dict[str, float] | None = None,
-    ) -> dict[str, float]:
+        affect_target: Optional[Dict[str, float]] = None,
+    ) -> Dict[str, float]:
         # Initialize running mean
         if self._running_mean is None or self._running_mean.shape != state.shape:
             self._running_mean = state.copy()
@@ -348,7 +348,7 @@ class ConceptualLayer:
                 if self._observations % _REFIT_EVERY == 0:
                     self._refit_off_the_loop()
 
-        readings: dict[str, float] = {}
+        readings: Dict[str, float] = {}
         for index, (name, axis) in enumerate(self._axes.items()):
             fitted = axis.value(state)
             if fitted is not None:
@@ -361,7 +361,7 @@ class ConceptualLayer:
         readings["novelty"] = round(min(1.0, novelty), 4)
         return readings
 
-    def axis_fits(self) -> dict[str, Any]:
+    def axis_fits(self) -> Dict[str, Any]:
         return {name: axis.snapshot() for name, axis in self._axes.items()}
 
 
@@ -372,7 +372,7 @@ class PredictiveLayer:
     High surprise → high free energy → rich phenomenal content.
     """
 
-    def process(self, predictive_metrics: dict[str, float]) -> dict[str, float]:
+    def process(self, predictive_metrics: Dict[str, float]) -> Dict[str, float]:
         surprise = predictive_metrics.get("current_surprise", 0.0)
         free_energy = predictive_metrics.get("free_energy", 0.0)
         precision = predictive_metrics.get("precision", 1.0)
@@ -395,7 +395,7 @@ class WorkspaceLayer:
     (i.e., is "ignited"). Only ignited content contributes to conscious experience.
     """
 
-    def process(self, workspace_snapshot: dict[str, Any]) -> dict[str, Any]:
+    def process(self, workspace_snapshot: Dict[str, Any]) -> Dict[str, Any]:
         ignited = workspace_snapshot.get("ignited", False)
         ignition_level = workspace_snapshot.get("ignition_level", 0.0)
         last_winner = workspace_snapshot.get("last_winner", None)
@@ -428,13 +428,13 @@ class WitnessLayer:
     """
 
     def __init__(self) -> None:
-        self._state_history: list[np.ndarray] = []
+        self._state_history: List[np.ndarray] = []
         self._max_history = 20
-        self._verdict: RecurrenceVerdict | None = None
+        self._verdict: Optional[RecurrenceVerdict] = None
         self._recompute_every = 4
         self._since_recompute = 0
 
-    def process(self, state: np.ndarray, phi: float) -> dict[str, float]:
+    def process(self, state: np.ndarray, phi: float) -> Dict[str, float]:
         # Store recent states
         self._state_history.append(state.copy())
         if len(self._state_history) > self._max_history:
@@ -472,11 +472,11 @@ class WitnessLayer:
         }
 
     @property
-    def verdict(self) -> RecurrenceVerdict | None:
+    def verdict(self) -> Optional[RecurrenceVerdict]:
         return self._verdict
 
     @property
-    def threshold(self) -> float | None:
+    def threshold(self) -> Optional[float]:
         return self._verdict.threshold if self._verdict else None
 
     def _refresh_verdict(self) -> None:
@@ -577,7 +577,7 @@ class QualiaEngine:
         self.layer_4 = WorkspaceLayer()
         self.layer_5 = WitnessLayer()
 
-        self._last_descriptor: QualiaDescriptor | None = None
+        self._last_descriptor: Optional[QualiaDescriptor] = None
         self._process_count: int = 0
 
         logger.info("Qualia Engine v3 initialized (5-layer pipeline, earned axes)")
@@ -586,10 +586,10 @@ class QualiaEngine:
         self,
         state: np.ndarray,
         velocity: np.ndarray,
-        predictive_metrics: dict[str, float],
-        workspace_snapshot: dict[str, Any],
+        predictive_metrics: Dict[str, float],
+        workspace_snapshot: Dict[str, Any],
         phi: float = 0.0,
-        affect_target: dict[str, float] | None = None,
+        affect_target: Optional[Dict[str, float]] = None,
     ) -> QualiaDescriptor:
         """Run the full qualia pipeline.
 
@@ -657,7 +657,7 @@ class QualiaEngine:
         self._last_descriptor = descriptor
         return descriptor
 
-    def get_last_descriptor(self) -> QualiaDescriptor | None:
+    def get_last_descriptor(self) -> Optional[QualiaDescriptor]:
         """Return the last computed descriptor without recomputation."""
         return self._last_descriptor
 
@@ -670,7 +670,7 @@ class QualiaEngine:
             if fit.get("validated")
         )
 
-    def get_snapshot(self) -> dict[str, Any]:
+    def get_snapshot(self) -> Dict[str, Any]:
         """Telemetry snapshot."""
         if self._last_descriptor:
             return {

@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, Protocol
+from typing import Any, Optional, Protocol
 
 from core.self_improvement.blinded_workspace import BlindedWorkspace
 from core.self_improvement.interface_contract import (
@@ -34,7 +34,7 @@ class CodeGenerator(Protocol):
 class PromptBuilder:
     """Builds structured prompts from ModuleSpec for code generation."""
 
-    def build(self, spec: ModuleSpec, discrepancy: DiscrepancyReport | None = None) -> str:
+    def build(self, spec: ModuleSpec, discrepancy: Optional[DiscrepancyReport] = None) -> str:
         """Build a code generation prompt from a ModuleSpec."""
         sections = []
         sections.append("# Module Reimplementation Task")
@@ -144,7 +144,7 @@ class CandidateBuilder:
         spec: ModuleSpec,
         workspace: BlindedWorkspace,
         attempt: int = 1,
-        discrepancy: DiscrepancyReport | None = None,
+        discrepancy: Optional[DiscrepancyReport] = None,
     ) -> CandidateModule:
         """Generate a candidate implementation from the spec.
 

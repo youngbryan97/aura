@@ -27,6 +27,7 @@ Deliberately narrow:
 from __future__ import annotations
 
 import contextvars
+
 import os
 import re
 from collections import Counter
@@ -440,7 +441,7 @@ def _wants_whole_tree(text: str, target: Path | None) -> bool:
     return bool(_OWN_SOURCE_RE.search(text))
 
 
-def _count_for_match(match: re.Match[str], text: str) -> FilesystemCount | None:
+def _count_for_match(match: "re.Match[str]", text: str) -> FilesystemCount | None:
     """Resolve and count one ``_COUNT_RE`` match."""
     kind = (match.group("kind") or "").strip().lower()
     suffix = _KIND_SUFFIXES.get(kind, "")

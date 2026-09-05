@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+
 ProofLevel = Literal["none", "fixture", "simulated", "strict_real"]
 
 

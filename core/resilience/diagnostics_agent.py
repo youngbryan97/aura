@@ -2,15 +2,16 @@
 Responsible for deep system health checks, skill validation, and connectivity verification.
 Run independently of the main loop to ensure resilience.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import importlib
 import importlib.util
 import logging
+import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List
 
-from core.runtime.errors import record_degradation
 from core.runtime.network_gateway import get_network_gateway
 
 logger = logging.getLogger("Resilience.Diagnostics")
@@ -24,7 +25,7 @@ class DiagnosticsAgent:
         self.base_path = Path(__file__).parent.parent.parent
         self.skills_path = self.base_path / "skills"
         
-    async def run_full_diagnosis(self) -> dict[str, Any]:
+    async def run_full_diagnosis(self) -> Dict[str, Any]:
         """Run all diagnostic checks."""
         logger.info("Starting deep system diagnosis...")
         
@@ -43,7 +44,7 @@ class DiagnosticsAgent:
         logger.info("Diagnosis complete. Status: %s", results['system_status'])
         return results
 
-    async def check_skills(self) -> dict[str, Any]:
+    async def check_skills(self) -> Dict[str, Any]:
         """Verify all skills can be loaded and have valid signatures."""
         results = {
             "valid": [],
@@ -90,7 +91,7 @@ class DiagnosticsAgent:
             
         return results
 
-    async def check_connectivity(self) -> dict[str, Any]:
+    async def check_connectivity(self) -> Dict[str, Any]:
         """Check server and external connectivity."""
         results = {
             "server_online": False,
@@ -115,7 +116,7 @@ class DiagnosticsAgent:
             
         return results
 
-    def check_integrity(self) -> dict[str, Any]:
+    def check_integrity(self) -> Dict[str, Any]:
         """Verify critical files exist."""
         critical_files = [
             "run_aura.py",

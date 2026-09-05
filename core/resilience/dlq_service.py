@@ -1,13 +1,13 @@
 """Dead Letter Queue (DLQ) Service
 Captures and analyzes failed cognitive cycles.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional
 
-from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 
 logger = logging.getLogger("Resilience.DLQ")
@@ -15,19 +15,19 @@ logger = logging.getLogger("Resilience.DLQ")
 class DeadLetterQueue:
     """Service to handle failed thought payloads and system blocks."""
     
-    def __init__(self, storage_path: Path | None = None):
+    def __init__(self, storage_path: Optional[Path] = None):
         from core.config import config
         self.storage_path = storage_path or config.paths.data_dir / "dlq.jsonl"
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
         
         # In-memory failure patterns
-        self.failure_counts: dict[str, int] = {}
-        self.last_failure: dict[str, Any] | None = None
+        self.failure_counts: Dict[str, int] = {}
+        self.last_failure: Optional[Dict[str, Any]] = None
 
     def capture_failure(
         self, 
         message: str, 
-        context: dict[str, Any], 
+        context: Dict[str, Any], 
         error: Exception, 
         source: str = "orchestrator"
     ):
@@ -58,7 +58,7 @@ class DeadLetterQueue:
             record_degradation('dlq_service', e)
             logger.error("Failed to write to DLQ: %s", e)
 
-    def get_failure_report(self) -> dict[str, Any]:
+    def get_failure_report(self) -> Dict[str, Any]:
         """Get summary of recent failures."""
         return {
             "total_captured": sum(self.failure_counts.values()),

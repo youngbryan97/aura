@@ -2,6 +2,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from typing import List
 
 logger = logging.getLogger("System.Degradation")
 
@@ -40,7 +41,7 @@ class DegradationManager:
 
     def __init__(self):
         self.current_state = SystemState.HEALTHY
-        self.failure_history: list[FailureEvent] = []
+        self.failure_history: List[FailureEvent] = []
         self.consecutive_healthy_checks = 0
         self.degraded = False  # Flag other subsystems can inspect
         self.capabilities = {

@@ -5,6 +5,7 @@ Determines reliability ratings and credentials for external information sources.
 from __future__ import annotations
 
 import logging
+from typing import Dict
 
 logger = logging.getLogger("Aura.SourceReliability")
 
@@ -14,7 +15,7 @@ class SourceReliabilityMonitor:
 
     def __init__(self) -> None:
         # Default baseline credentials
-        self.ratings: dict[str, float] = {
+        self.ratings: Dict[str, float] = {
             "arxiv.org": 0.92,
             "pubmed.ncbi.nlm.nih.gov": 0.95,
             "github.com": 0.90,

@@ -1,13 +1,13 @@
 """core/agency/autonomous_followup.py
 Coordinates background follow-up loops for tasks that require long processing times.
 """
-from typing import Any
+from typing import List, Dict, Any
 
 
 class AutonomousFollowupCoordinator:
     """Monitors running background tasks and queues followup check actions."""
 
-    def evaluate_followups(self, active_tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def evaluate_followups(self, active_tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         followups = []
         for t in active_tasks:
             # If a task has been running for a while, schedule a status query action

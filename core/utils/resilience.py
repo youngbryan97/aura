@@ -1,10 +1,9 @@
-import asyncio
-import logging
-import time
-from enum import Enum
-from typing import Any
-
 from core.runtime.errors import record_degradation
+import time
+import logging
+import asyncio
+from enum import Enum
+from typing import Optional, Callable, Any
 
 logger = logging.getLogger("Utils.Resilience")
 
@@ -21,7 +20,7 @@ class CircuitBreaker:
         self.max_failures = max_failures
         self.reset_timeout = reset_timeout
         self.failure_count = 0
-        self.last_failure_time: float | None = None
+        self.last_failure_time: Optional[float] = None
         self.state = CircuitState.CLOSED
         
     def to_dict(self) -> dict:
@@ -65,7 +64,7 @@ class CircuitBreaker:
     #: breaker exists to stop.
     MIN_PROBE_RESET_TIMEOUT = 5.0
 
-    def request_probe(self, *, reason: str, requested_timeout: float | None = None) -> bool:
+    def request_probe(self, *, reason: str, requested_timeout: Optional[float] = None) -> bool:
         """Ask a tripped circuit to allow ONE trial call.
 
         CP126 39211fcc: recovery paths reached in and assigned ``state`` and
@@ -144,7 +143,7 @@ async def run_with_watchdog(task_name: str, coro_or_fn: Any, timeout: float = 5.
             return await asyncio.wait_for(asyncio.to_thread(coro_or_fn), timeout=timeout)
         else:
             return await asyncio.wait_for(coro_or_fn, timeout=timeout)
-    except TimeoutError:
+    except asyncio.TimeoutError:
         logger.error("⏰ Task [%s] Timed Out (>%ds)", task_name, timeout)
         return fallback
     except (RuntimeError, TimeoutError, AttributeError) as e:

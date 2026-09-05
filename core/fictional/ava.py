@@ -6,21 +6,23 @@ number here is a heuristic reading and says so wherever it is reported.
 
 from __future__ import annotations
 
-import json
 import logging
+import json
 import re
 import time
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 from core.cognition.state_modifiers import set_modifiers
+from core.security.structural_redaction import redact_text
+
 from core.fictional.common import (
     WORD_TOKEN_RE,
     engine_state_path,
     record_fictional_degradation,
     save_engine_state,
 )
-from core.security.structural_redaction import redact_text
 
 logger = logging.getLogger("Aura.FictionalSynthesis")
 

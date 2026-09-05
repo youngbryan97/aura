@@ -1,9 +1,9 @@
 """core/memory/learning/learning_system.py — Canonical location for LearningSystem"""
-import asyncio
 import logging
+import asyncio
 from collections import defaultdict
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from core.memory.retention_policy import working_history_retention_policy
 
@@ -30,7 +30,7 @@ class LearningSystem:
             "total_runs": 0, "successful_runs": 0, "last_success_time": None, "common_failures": []
         })
     
-    async def record_execution(self, goal: dict[str, Any], result: dict[str, Any], skill_used: str, strategy: str = "default"):
+    async def record_execution(self, goal: Dict[str, Any], result: Dict[str, Any], skill_used: str, strategy: str = "default"):
         execution_record = {
             "timestamp": datetime.now().isoformat(),
             "goal": goal, "result": result, "skill": skill_used, "strategy": strategy,
@@ -48,7 +48,7 @@ class LearningSystem:
         status = "\u2713 Success" if execution_record["success"] else "\u2717 Failed"
         self.logger.info("Recorded execution: %s/%s - %s (Quality: %.2f)", skill_used, strategy, status, execution_record["quality_score"])
     
-    def _calculate_quality_score(self, result: dict[str, Any]) -> float:
+    def _calculate_quality_score(self, result: Dict[str, Any]) -> float:
         if not result.get("ok"): return 0.0
         score = 0.5
         if "results" in result:
@@ -61,7 +61,7 @@ class LearningSystem:
         if result.get("engine") in ["brave", "wikipedia"]: score -= 0.05
         return min(1.0, score)
     
-    def _update_strategy_stats(self, strategy: str, record: dict[str, Any]):
+    def _update_strategy_stats(self, strategy: str, record: Dict[str, Any]):
         stats = self.strategy_stats[strategy]
         stats["attempts"] += 1
         if record["success"]: stats["successes"] += 1
@@ -70,7 +70,7 @@ class LearningSystem:
         n = stats["attempts"]
         stats["avg_quality"] = (stats["avg_quality"] * (n - 1) + quality) / n
     
-    def _update_skill_performance(self, skill: str, record: dict[str, Any]):
+    def _update_skill_performance(self, skill: str, record: Dict[str, Any]):
         perf = self.skill_performance[skill]
         perf["total_runs"] += 1
         if record["success"]:
@@ -80,7 +80,7 @@ class LearningSystem:
             error = record["result"].get("error", "unknown")
             if error not in perf["common_failures"]: perf["common_failures"].append(error)
     
-    def _learn_from_execution(self, record: dict[str, Any]):
+    def _learn_from_execution(self, record: Dict[str, Any]):
         goal = record["goal"]; result = record["result"]; success = record["success"]
         query = goal.get("objective").get("query") if isinstance(goal.get("objective"), dict) else goal.get("objective")
         if query:
@@ -95,7 +95,7 @@ class LearningSystem:
             elif not success:
                 self.learned_patterns["failed_queries"].append({"query": query, "strategy": record["strategy"], "error": result.get("error")})
     
-    async def _store_in_long_term_memory(self, record: dict[str, Any]):
+    async def _store_in_long_term_memory(self, record: Dict[str, Any]):
         try:
             goal_text = str(record["goal"].get("objective", ""))
             success = record["success"]
@@ -106,7 +106,7 @@ class LearningSystem:
                 elif hasattr(self.vector_memory, 'add'): self.vector_memory.add(strategy_text, metadata=metadata)
         except (OSError, ConnectionError, TimeoutError) as e: self.logger.error("Failed to store in long-term memory: %s", e)
     
-    def get_best_strategy(self, skill: str, goal: dict[str, Any]) -> str | None:
+    def get_best_strategy(self, skill: str, goal: Dict[str, Any]) -> Optional[str]:
         relevant_strategies = {name: stats for name, stats in self.strategy_stats.items() if stats["attempts"] > 0}
         if not relevant_strategies: return None
         strategy_scores = []
@@ -122,7 +122,7 @@ class LearningSystem:
         if best_score > 0.5: self.logger.info("Recommending strategy '%s' (score: %.2f)", best_strategy, best_score); return best_strategy
         return None
     
-    def get_performance_report(self) -> dict[str, Any]:
+    def get_performance_report(self) -> Dict[str, Any]:
         total_executions = len(self.execution_history)
         successful = sum(1 for e in self.execution_history if e["success"])
         return {
@@ -137,7 +137,7 @@ class LearningSystem:
             }
         }
     
-    def get_learning_insights(self) -> list[str]:
+    def get_learning_insights(self) -> List[str]:
         insights = []
         report = self.get_performance_report()
         insights.append(f"Current success rate: {report['success_rate'] * 100:.1f}%")

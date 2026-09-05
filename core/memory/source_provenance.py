@@ -1,6 +1,7 @@
 """core/memory/source_provenance.py
 Tracks memory source origin validation and confidence metrics.
 """
+from typing import Dict, Any
 
 
 class SourceProvenanceResolver:

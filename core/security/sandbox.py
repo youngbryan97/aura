@@ -35,9 +35,8 @@ from __future__ import annotations
 import logging
 import shlex
 import sys
-from collections.abc import Sequence
 from subprocess import SubprocessError
-from typing import Any
+from typing import Any, Dict, Sequence
 
 from core.runtime.errors import record_degradation
 
@@ -82,7 +81,7 @@ class LocalCommandSandbox:
         sandbox_dir: str,
         *,
         timeout: float = DEFAULT_TIMEOUT_S,
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         argv = (
             [str(part) for part in command]
             if isinstance(command, (list, tuple))

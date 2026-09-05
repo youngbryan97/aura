@@ -24,10 +24,9 @@ import json
 import logging
 import threading
 import time
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Sequence, Set
 
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
@@ -39,7 +38,7 @@ def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return lo if x < lo else hi if x > hi else x
 
 
-def _jaccard(a: set[str], b: set[str]) -> float:
+def _jaccard(a: Set[str], b: Set[str]) -> float:
     if not a and not b:
         return 1.0
     if not a or not b:
@@ -51,7 +50,7 @@ def _jaccard(a: set[str], b: set[str]) -> float:
 class _ErrorCluster:
     """An accumulating group of similar surprising events — a candidate concept."""
 
-    features: set[str]
+    features: Set[str]
     support: int = 1
     error_sum: float = 0.0
     last_seen: float = field(default_factory=time.time)
@@ -67,7 +66,7 @@ class Concept:
 
     concept_id: str
     name: str
-    defining_features: list[str]
+    defining_features: List[str]
     support: int
     mean_error_at_formation: float
     confidence: float
@@ -75,7 +74,7 @@ class Concept:
     explained: int = 0               # times it has since recognized a matching event
     created_at: float = field(default_factory=time.time)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "concept_id": self.concept_id,
             "name": self.name,
@@ -91,12 +90,12 @@ class Concept:
 
 @dataclass
 class FormationResult:
-    recognized: str | None        # concept_id if an existing concept already explains it
-    formed: Concept | None        # a newly-formed concept, if this event triggered one
+    recognized: Optional[str]        # concept_id if an existing concept already explains it
+    formed: Optional[Concept]        # a newly-formed concept, if this event triggered one
     cluster_support: int = 0
     reason: str = ""
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "recognized": self.recognized,
             "formed": self.formed.to_dict() if self.formed else None,
@@ -110,7 +109,7 @@ class ConceptFormationEngine:
 
     def __init__(
         self,
-        storage_path: Path | None = None,
+        storage_path: Optional[Path] = None,
         *,
         similarity_threshold: float = 0.5,
         error_threshold: float = 0.5,
@@ -134,8 +133,8 @@ class ConceptFormationEngine:
         self._autosave = autosave
         self._min_save_interval = min_save_interval_s
         self._lock = threading.RLock()
-        self._clusters: list[_ErrorCluster] = []
-        self._concepts: dict[str, Concept] = {}
+        self._clusters: List[_ErrorCluster] = []
+        self._concepts: Dict[str, Concept] = {}
         self._last_save = 0.0
         self._counter = 0
         self._load()
@@ -149,7 +148,7 @@ class ConceptFormationEngine:
         magnitude: float,
         *,
         context: str = "",
-        now: float | None = None,
+        now: Optional[float] = None,
     ) -> FormationResult:
         """Feed one surprising event. May recognize an existing concept or form a new one."""
         now = time.time() if now is None else now
@@ -185,7 +184,7 @@ class ConceptFormationEngine:
             return FormationResult(recognized=None, formed=None,
                                    cluster_support=cluster.support, reason="accumulating")
 
-    def _assign_cluster(self, sig: set[str], magnitude: float, now: float) -> _ErrorCluster:
+    def _assign_cluster(self, sig: Set[str], magnitude: float, now: float) -> _ErrorCluster:
         best, best_sim = None, 0.0
         for c in self._clusters:
             sim = _jaccard(sig, c.features)
@@ -242,13 +241,13 @@ class ConceptFormationEngine:
 
     # ── recognition (the closed loop) ─────────────────────────────────────
 
-    def recognize(self, features: Sequence[str]) -> Concept | None:
+    def recognize(self, features: Sequence[str]) -> Optional[Concept]:
         """Does a formed concept explain this signature? (a learned primitive recognizing reality)"""
         sig = {str(f).strip().lower() for f in features if str(f).strip()}
         with self._lock:
             return self._recognize_locked(sig)
 
-    def _recognize_locked(self, sig: set[str]) -> Concept | None:
+    def _recognize_locked(self, sig: Set[str]) -> Optional[Concept]:
         best, best_sim = None, 0.0
         for c in self._concepts.values():
             sim = _jaccard(sig, set(c.defining_features))
@@ -258,14 +257,14 @@ class ConceptFormationEngine:
 
     # ── readout ───────────────────────────────────────────────────────────
 
-    def concepts(self) -> list[dict[str, Any]]:
+    def concepts(self) -> List[Dict[str, Any]]:
         with self._lock:
             return [c.to_dict() for c in self._concepts.values()]
 
-    def retrieve(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+    def retrieve(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Back a concept memory store: concepts whose features overlap the query."""
         toks = {t for t in str(query or "").lower().split() if len(t) > 2}
-        out: list[dict[str, Any]] = []
+        out: List[Dict[str, Any]] = []
         with self._lock:
             for c in self._concepts.values():
                 overlap = len(toks & set(" ".join(c.defining_features).split()))
@@ -275,7 +274,7 @@ class ConceptFormationEngine:
         out.sort(key=lambda d: d["score"], reverse=True)
         return out[:limit]
 
-    def get_health(self) -> dict[str, Any]:
+    def get_health(self) -> Dict[str, Any]:
         with self._lock:
             return {
                 "module": "ConceptFormationEngine",
@@ -331,7 +330,7 @@ class ConceptFormationEngine:
             self.save()
 
 
-_instance: ConceptFormationEngine | None = None
+_instance: Optional[ConceptFormationEngine] = None
 _instance_lock = threading.Lock()
 
 

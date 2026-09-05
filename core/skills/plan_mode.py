@@ -6,7 +6,7 @@ read-only operations while drafting complex plans.
 """
 
 import logging
-from typing import Any
+from typing import Any, Dict
 
 from infrastructure import BaseSkill
 
@@ -21,7 +21,7 @@ class PlanModeSkill(BaseSkill):
         # We store mode on the class to be accessible globally per process
         self.__class__.is_active = False
 
-    async def execute(self, goal: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    async def execute(self, goal: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         action = goal.get("params", {}).get("action", goal.get("objective", "enter"))
         
         if "exit" in action.lower():

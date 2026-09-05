@@ -629,7 +629,7 @@ class ActionExecutor:
             # loop regains control and the episode continues).
             try:
                 await asyncio.wait_for(asyncio.to_thread(_run), timeout=self._PYTHON_SANDBOX_TIMEOUT_S)
-            except TimeoutError:
+            except (asyncio.TimeoutError, TimeoutError):
                 return Observation(
                     content=f"Python execution exceeded the {self._PYTHON_SANDBOX_TIMEOUT_S:.0f}s sandbox limit",
                     success=False,

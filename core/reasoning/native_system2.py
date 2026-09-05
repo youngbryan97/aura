@@ -12,6 +12,8 @@ UnifiedWill and the AuthorityGateway.
 """
 from __future__ import annotations
 
+from core.runtime.errors import record_degradation
+
 import asyncio
 import contextvars
 import hashlib
@@ -23,13 +25,9 @@ import random
 import time
 import uuid
 from collections import OrderedDict
-from collections.abc import Awaitable, Callable, Iterable, Sequence
-from dataclasses import asdict, dataclass, field
-from dataclasses import replace as _dc_replace
+from dataclasses import asdict, dataclass, field, replace as _dc_replace
 from enum import Enum
-from typing import Any
-
-from core.runtime.errors import record_degradation
+from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 logger = logging.getLogger("Aura.Reasoning.NativeSystem2")
 
@@ -37,7 +35,7 @@ logger = logging.getLogger("Aura.Reasoning.NativeSystem2")
 #: ContextVar rather than an attribute because searches interleave on the event
 #: loop, and an attribute would attribute one search's provenance to another —
 #: the same reason the lesion registry scopes counterfactuals this way.
-_VALUE_EVIDENCE: contextvars.ContextVar[dict[str, int] | None] = (
+_VALUE_EVIDENCE: "contextvars.ContextVar[Optional[Dict[str, int]]]" = (
     contextvars.ContextVar("native_system2_value_evidence", default=None)
 )
 
@@ -77,12 +75,12 @@ class System2Action:
     name: str
     prior: float = 1.0
     action_type: str = "latent_plan"
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
     valid: bool = True
     risk: float = 0.0
     external_side_effect: bool = False
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "prior": float(self.prior),
@@ -102,11 +100,11 @@ class SimulatedTransition:
     reward_estimate: float = 0.0
     terminal_probability: float = 0.0
     uncertainty: float = 0.25
-    changed_variables: dict[str, Any] = field(default_factory=dict)
+    changed_variables: Dict[str, Any] = field(default_factory=dict)
     trace: str = ""
     invalid: bool = False
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "next_state": self.next_state,
             "reward_estimate": round(float(self.reward_estimate), 6),
@@ -129,10 +127,10 @@ class NativePlanNode:
 
     id: str
     state: Any
-    latent_state: list[float]
-    action: System2Action | None = None
-    parent_id: str | None = None
-    children_ids: list[str] = field(default_factory=list)
+    latent_state: List[float]
+    action: Optional[System2Action] = None
+    parent_id: Optional[str] = None
+    children_ids: List[str] = field(default_factory=list)
     depth: int = 0
     visits: int = 0
     value_sum: float = 0.0
@@ -140,18 +138,18 @@ class NativePlanNode:
     reward: float = 0.0
     terminal: bool = False
     uncertainty: float = 0.25
-    simulation_trace: list[dict[str, Any]] = field(default_factory=list)
-    reflection_trace: list[dict[str, Any]] = field(default_factory=list)
-    retrieval_trace: list[dict[str, Any]] = field(default_factory=list)
+    simulation_trace: List[Dict[str, Any]] = field(default_factory=list)
+    reflection_trace: List[Dict[str, Any]] = field(default_factory=list)
+    retrieval_trace: List[Dict[str, Any]] = field(default_factory=list)
     commitment_status: CommitmentStatus = CommitmentStatus.OPEN
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
     state_hash: str = ""
     symbolic_summary: str = ""
     surface_text_optional: str = ""
-    action_sequence: list[str] = field(default_factory=list)
+    action_sequence: List[str] = field(default_factory=list)
     rejection_reason: str = ""
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.state_hash:
@@ -173,10 +171,10 @@ class NativePlanNode:
             return 0.0
 
     @property
-    def latent_plan_embedding(self) -> list[float]:
+    def latent_plan_embedding(self) -> List[float]:
         return self.latent_state
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         out = asdict(self)
         out["action"] = self.action.to_dict() if self.action else None
         out["commitment_status"] = self.commitment_status.value
@@ -184,7 +182,7 @@ class NativePlanNode:
         return out
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> NativePlanNode:
+    def from_dict(cls, data: Dict[str, Any]) -> "NativePlanNode":
         data = dict(data)
         data.pop("mean_value", None)
         if data.get("action"):
@@ -202,14 +200,14 @@ class System2SearchConfig:
     beam_width: int = 4
     exploration_constant: float = 1.41
     discount: float = 0.97
-    seed: int | None = None
-    wall_clock_timeout_s: float | None = None
+    seed: Optional[int] = None
+    wall_clock_timeout_s: Optional[float] = None
     confidence_threshold: float = 0.62
     uncertainty_threshold: float = 0.45
     progressive_widening: int = 32
     allow_external_side_effects_in_simulation: bool = False
 
-    def normalized(self) -> System2SearchConfig:
+    def normalized(self) -> "System2SearchConfig":
         self.budget = max(0, int(self.budget))
         self.max_depth = max(1, int(self.max_depth))
         self.branching_factor = max(1, int(self.branching_factor))
@@ -228,17 +226,17 @@ class NativeSearchReceipt:
     root_state_hash: str
     algorithm: str
     budget: int
-    seed: int | None
+    seed: Optional[int]
     nodes_expanded: int
     simulations: int
     max_depth: int
-    best_path: list[str]
-    runner_up_paths: list[list[str]]
-    value_scores: dict[str, float]
+    best_path: List[str]
+    runner_up_paths: List[List[str]]
+    value_scores: Dict[str, float]
     uncertainty: float
-    rejected_branches: list[dict[str, Any]]
+    rejected_branches: List[Dict[str, Any]]
     commitment_reason: str
-    will_receipt_id: str | None = None
+    will_receipt_id: Optional[str] = None
     generated_at: float = field(default_factory=time.time)
     #: Where the value estimates behind this search came from, counted by
     #: source: caller / learned / prior / none. A search whose values were all
@@ -246,25 +244,25 @@ class NativeSearchReceipt:
     #: so its ordering is tie-breaking rather than judgement. Recording this is
     #: what stops a governed search receipt from implying evidence it did not
     #: have.
-    value_evidence: dict[str, int] = field(default_factory=dict)
+    value_evidence: Dict[str, int] = field(default_factory=dict)
     #: Actions whose risk was raised by the lexical hazard floor because they
     #: declared none. Named so a reviewer can see that a safety brake was
     #: applied on the strength of spelling alone.
-    hazard_floored_actions: list[str] = field(default_factory=list)
+    hazard_floored_actions: List[str] = field(default_factory=list)
     #: Candidates the preference procedure removed before the search ran, each
     #: with the stage and the preference that removed it. A prohibited action
     #: never reaches the value model, so without this the receipt would show a
     #: deliberation over a field that silently excluded something — which is
     #: indistinguishable from one where it was never offered.
-    preference_removals: dict[str, str] = field(default_factory=dict)
+    preference_removals: Dict[str, str] = field(default_factory=dict)
     #: How the preference procedure resolved, when it resolved at all. Set only
     #: where measured operator values separated the field and the search
     #: therefore confirmed a decision rather than making one. A receipt that
     #: did not say so would present a one-candidate confirmation as full
     #: deliberation — the same thing ``chunk_reused`` exists to prevent.
-    preference_selection: str | None = None
+    preference_selection: Optional[str] = None
     #: The compiled-resolution key for this decision, when chunking applied.
-    chunk_signature: str | None = None
+    chunk_signature: Optional[str] = None
     #: True when a previously learned chunk supplied the answer and the search
     #: collapsed to confirming it. A receipt that does not say this would
     #: present a one-node confirmation as if it were full deliberation.
@@ -276,7 +274,7 @@ class NativeSearchReceipt:
     rule_applied: bool = False
     #: The conditions that rule fired on, so a reviewer can see what the
     #: shortcut believed was causal rather than only that one was taken.
-    rule_conditions: list[str] = field(default_factory=list)
+    rule_conditions: List[str] = field(default_factory=list)
     #: Stable digest of the situation in which the selected action was ranked.
     #: The raw prompt is deliberately not retained in the value table.
     outcome_state_key: str = ""
@@ -298,7 +296,7 @@ class NativeSearchReceipt:
             or self.value_evidence.get("learned_contextual", 0)
         )
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
@@ -306,23 +304,23 @@ class NativeSearchReceipt:
 class NativeSearchResult:
     search_id: str
     algorithm: SearchAlgorithm
-    tree: NativeSearchTree
+    tree: "NativeSearchTree"
     root_id: str
-    selected_node_id: str | None
-    committed_action: System2Action | None
+    selected_node_id: Optional[str]
+    committed_action: Optional[System2Action]
     confidence: float
     uncertainty: float
     receipt: NativeSearchReceipt
 
     @property
-    def selected_node(self) -> NativePlanNode | None:
+    def selected_node(self) -> Optional[NativePlanNode]:
         return self.tree.nodes.get(self.selected_node_id or "")
 
     @property
-    def best_path_nodes(self) -> list[NativePlanNode]:
+    def best_path_nodes(self) -> List[NativePlanNode]:
         return [self.tree.nodes[nid] for nid in self.receipt.best_path if nid in self.tree.nodes]
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "search_id": self.search_id,
             "algorithm": self.algorithm.value,
@@ -339,7 +337,7 @@ class NativeSearchResult:
 ActionGenerator = Callable[[Any, NativePlanNode, System2SearchConfig], Sequence[System2Action] | Awaitable[Sequence[System2Action]]]
 WorldModel = Callable[[Any, System2Action, NativePlanNode], SimulatedTransition | Awaitable[SimulatedTransition]]
 ValueScorer = Callable[[NativePlanNode, str], float | Awaitable[float]]
-ReflectionScorer = Callable[[NativePlanNode], dict[str, Any] | Awaitable[dict[str, Any]]]
+ReflectionScorer = Callable[[NativePlanNode], Dict[str, Any] | Awaitable[Dict[str, Any]]]
 
 
 def stable_state_hash(state: Any) -> str:
@@ -351,7 +349,7 @@ def stable_state_hash(state: Any) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:24]
 
 
-def latent_from_state(state: Any, dims: int = 32) -> list[float]:
+def latent_from_state(state: Any, dims: int = 32) -> List[float]:
     """Deterministic compressed latent vector for planning and tests.
 
     This is an information-preserving hash projection, not a learned VAE. It
@@ -377,10 +375,10 @@ class NativeSearchTree:
     """Explicit search graph with invariant checks and JSON roundtrip."""
 
     def __init__(self) -> None:
-        self.nodes: dict[str, NativePlanNode] = {}
-        self.root_id: str | None = None
-        self.state_index: dict[str, list[str]] = {}
-        self.rejected_branches: list[dict[str, Any]] = []
+        self.nodes: Dict[str, NativePlanNode] = {}
+        self.root_id: Optional[str] = None
+        self.state_index: Dict[str, List[str]] = {}
+        self.rejected_branches: List[Dict[str, Any]] = []
 
     def create_root(self, state: Any, *, summary: str = "root") -> NativePlanNode:
         node = NativePlanNode(
@@ -400,7 +398,7 @@ class NativeSearchTree:
         action: System2Action,
         transition: SimulatedTransition,
         *,
-        metadata: dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> NativePlanNode:
         if parent_id not in self.nodes:
             raise KeyError(f"parent not found: {parent_id}")
@@ -439,8 +437,8 @@ class NativeSearchTree:
         child.depth = parent.depth + 1
         child.updated_at = time.time()
 
-    def path_to_root(self, node_id: str) -> list[str]:
-        path: list[str] = []
+    def path_to_root(self, node_id: str) -> List[str]:
+        path: List[str] = []
         seen: set[str] = set()
         current = node_id
         while current:
@@ -452,8 +450,8 @@ class NativeSearchTree:
             current = parent_id or ""
         return list(reversed(path))
 
-    def check_invariants(self) -> list[str]:
-        errors: list[str] = []
+    def check_invariants(self) -> List[str]:
+        errors: List[str] = []
         for node_id, node in self.nodes.items():
             if node.parent_id:
                 parent = self.nodes.get(node.parent_id)
@@ -480,9 +478,9 @@ class NativeSearchTree:
                 errors.append(f"visit_sum:{node_id}:{node.visits}<{child_visits}")
         return errors
 
-    def prune(self, predicate: Callable[[NativePlanNode], bool], *, preserve_path: Sequence[str] = ()) -> list[str]:
+    def prune(self, predicate: Callable[[NativePlanNode], bool], *, preserve_path: Sequence[str] = ()) -> List[str]:
         preserve = set(preserve_path)
-        removed: list[str] = []
+        removed: List[str] = []
         for node_id, node in list(self.nodes.items()):
             if node_id == self.root_id or node_id in preserve:
                 continue
@@ -506,7 +504,7 @@ class NativeSearchTree:
         self._rebuild_state_index()
         return removed
 
-    def best_path(self, *, by_visits: bool = False) -> list[str]:
+    def best_path(self, *, by_visits: bool = False) -> List[str]:
         if not self.root_id or self.root_id not in self.nodes:
             return []
         path = [self.root_id]
@@ -526,13 +524,13 @@ class NativeSearchTree:
             current = best
         return path
 
-    def runner_up_paths(self, limit: int = 3) -> list[list[str]]:
+    def runner_up_paths(self, limit: int = 3) -> List[List[str]]:
         if not self.root_id:
             return []
         root = self.nodes[self.root_id]
         children = [self.nodes[cid] for cid in root.children_ids if cid in self.nodes]
         children.sort(key=lambda n: (n.mean_value, n.visits), reverse=True)
-        paths: list[list[str]] = []
+        paths: List[List[str]] = []
         best = self.best_path()
         for child in children:
             path = self.best_path_from(child.id)
@@ -542,7 +540,7 @@ class NativeSearchTree:
                 break
         return paths
 
-    def best_path_from(self, node_id: str) -> list[str]:
+    def best_path_from(self, node_id: str) -> List[str]:
         if not self.root_id or node_id not in self.nodes:
             return []
         path = self.path_to_root(node_id)
@@ -564,7 +562,7 @@ class NativeSearchTree:
         return json.dumps(payload, sort_keys=True, default=str)
 
     @classmethod
-    def from_json(cls, raw: str) -> NativeSearchTree:
+    def from_json(cls, raw: str) -> "NativeSearchTree":
         payload = json.loads(raw)
         tree = cls()
         tree.root_id = payload.get("root_id")
@@ -606,10 +604,10 @@ class NativeSystem2Engine:
         *,
         llm: Any = None,
         governed: bool = True,
-        action_generator: ActionGenerator | None = None,
-        world_model: WorldModel | None = None,
-        value_scorer: ValueScorer | None = None,
-        reflection_scorer: ReflectionScorer | None = None,
+        action_generator: Optional[ActionGenerator] = None,
+        world_model: Optional[WorldModel] = None,
+        value_scorer: Optional[ValueScorer] = None,
+        reflection_scorer: Optional[ReflectionScorer] = None,
     ) -> None:
         self.llm = llm
         self.governed = governed
@@ -627,12 +625,12 @@ class NativeSystem2Engine:
         goal: str,
         initial_state: Any,
         *,
-        config: System2SearchConfig | None = None,
-        action_generator: ActionGenerator | None = None,
-        world_model: WorldModel | None = None,
-        value_scorer: ValueScorer | None = None,
+        config: Optional[System2SearchConfig] = None,
+        action_generator: Optional[ActionGenerator] = None,
+        world_model: Optional[WorldModel] = None,
+        value_scorer: Optional[ValueScorer] = None,
         source: str = "native_system2",
-        context: dict[str, Any] | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> NativeSearchResult:
         config = (config or System2SearchConfig()).normalized()
         algorithm = self._route_algorithm(config, initial_state, context or {})
@@ -804,7 +802,7 @@ class NativeSystem2Engine:
     @staticmethod
     def _standing_prohibitions(
         candidate_actions: Sequence[System2Action],
-    ) -> dict[str, str]:
+    ) -> Dict[str, str]:
         """Which candidates the owner's standing directives forbid.
 
         Runs off the loop because the store stats and may read its file. A
@@ -819,7 +817,7 @@ class NativeSystem2Engine:
             return {}
 
         store = get_standing_directives()
-        found: dict[str, str] = {}
+        found: Dict[str, str] = {}
         for action in candidate_actions:
             try:
                 match, _loaded = store.check(
@@ -840,8 +838,8 @@ class NativeSystem2Engine:
         self,
         *,
         context: str,
-        actions: Sequence[str | System2Action | dict[str, Any]],
-        config: System2SearchConfig | None = None,
+        actions: Sequence[str | System2Action | Dict[str, Any]],
+        config: Optional[System2SearchConfig] = None,
         source: str = "native_system2.rank_actions",
     ) -> NativeSearchResult:
         candidate_actions = [self._coerce_action(action, idx) for idx, action in enumerate(actions)]
@@ -858,7 +856,7 @@ class NativeSystem2Engine:
         # Evidence refresh performs SQLite reads.  Do it once, off-loop, before
         # search rather than inside the synchronous scorer for the first node.
         await value_model.refresh_if_stale()
-        evidence_counts: dict[str, int] = {}
+        evidence_counts: Dict[str, int] = {}
         # The situation this decision is being made in. Passing it is what
         # makes the estimate Q(s,a) rather than V(a) where the evidence
         # supports it: "this action works here" instead of "this action tends
@@ -878,8 +876,8 @@ class NativeSystem2Engine:
         # risk channel — which the world model and value scorer both already
         # respect — carries the hazard, instead of the value function inventing
         # a penalty from the same substrings.
-        hazard_floored: list[str] = []
-        floored_actions: list[System2Action] = []
+        hazard_floored: List[str] = []
+        floored_actions: List[System2Action] = []
         for action in candidate_actions:
             floor = lexical_hazard_floor(action.name) if action.risk <= 0.0 else 0.0
             if floor > 0.0:
@@ -1005,8 +1003,8 @@ class NativeSystem2Engine:
         # a chunk has to out-earn its own match cost, and tie-breaking never
         # could.
         from core.cognition.impasse import (
-            Impasse,
             ImpasseType,
+            Impasse,
             classify,
             get_impasse_learner,
             situation_signature,
@@ -1299,10 +1297,10 @@ class NativeSystem2Engine:
             )
             return False
 
-    def get_receipt(self, search_id: str) -> NativeSearchReceipt | None:
+    def get_receipt(self, search_id: str) -> Optional[NativeSearchReceipt]:
         return self._receipts.get(search_id)
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "receipts": len(self._receipts),
             "governed": self.governed,
@@ -1366,7 +1364,7 @@ class NativeSystem2Engine:
         for _depth in range(config.max_depth):
             if simulations >= config.budget or self._timed_out(started_at, config):
                 break
-            next_frontier: list[NativePlanNode] = []
+            next_frontier: List[NativePlanNode] = []
             for node in frontier:
                 if simulations and simulations % 4 == 0:
                     await asyncio.sleep(0)
@@ -1404,7 +1402,7 @@ class NativeSystem2Engine:
         started_at: float,
         rng: random.Random,
     ) -> int:
-        heap: list[tuple[float, float, str]] = [(-0.5, rng.random(), root.id)]
+        heap: List[Tuple[float, float, str]] = [(-0.5, rng.random(), root.id)]
         simulations = 0
         while heap and simulations < config.budget and not self._timed_out(started_at, config):
             if simulations and simulations % 4 == 0:
@@ -1529,7 +1527,7 @@ class NativeSystem2Engine:
         value: float,
         discount: float,
         *,
-        tree: NativeSearchTree | None = None,
+        tree: Optional[NativeSearchTree] = None,
     ) -> None:
         running = float(value)
         for item in reversed(path):
@@ -1578,7 +1576,7 @@ class NativeSystem2Engine:
         ][: config.branching_factor]
 
     @staticmethod
-    def _estimate(action: System2Action, goal: str) -> ActionValueEstimate:
+    def _estimate(action: System2Action, goal: str) -> "ActionValueEstimate":
         """Value for an action on the generic path, from evidence or admitted absent.
 
         These defaults are what every caller inherits who does not supply a
@@ -1660,9 +1658,9 @@ class NativeSystem2Engine:
         algorithm: SearchAlgorithm,
         tree: NativeSearchTree,
         root_id: str,
-        selected_id: str | None,
+        selected_id: Optional[str],
         config: System2SearchConfig,
-        will_receipt_id: str | None,
+        will_receipt_id: Optional[str],
         simulations: int,
     ) -> NativeSearchResult:
         best_path = tree.best_path(by_visits=algorithm == SearchAlgorithm.MCTS)
@@ -1719,7 +1717,7 @@ class NativeSystem2Engine:
 
     def _commitment_reason(
         self,
-        selected: NativePlanNode | None,
+        selected: Optional[NativePlanNode],
         confidence: float,
         uncertainty: float,
         config: System2SearchConfig,
@@ -1745,7 +1743,7 @@ class NativeSystem2Engine:
         self,
         config: System2SearchConfig,
         state: Any,
-        context: dict[str, Any],
+        context: Dict[str, Any],
     ) -> SearchAlgorithm:
         if isinstance(config.algorithm, str):
             config.algorithm = SearchAlgorithm(config.algorithm)
@@ -1764,7 +1762,7 @@ class NativeSystem2Engine:
             return SearchAlgorithm.MCTS
         return SearchAlgorithm.BEST_FIRST if config.budget <= 16 else SearchAlgorithm.MCTS
 
-    def _coerce_action(self, action: str | System2Action | dict[str, Any], idx: int) -> System2Action:
+    def _coerce_action(self, action: str | System2Action | Dict[str, Any], idx: int) -> System2Action:
         if isinstance(action, System2Action):
             return action
         if isinstance(action, dict):
@@ -1781,9 +1779,9 @@ class NativeSystem2Engine:
         return System2Action(name=str(action), prior=1.0, action_type="candidate", metadata={"index": idx})
 
     @staticmethod
-    def _dedupe_actions(actions: Iterable[System2Action]) -> list[System2Action]:
+    def _dedupe_actions(actions: Iterable[System2Action]) -> List[System2Action]:
         seen: set[str] = set()
-        deduped: list[System2Action] = []
+        deduped: List[System2Action] = []
         for action in actions:
             key = action.name.strip().lower()
             if not key or key in seen:
@@ -1798,8 +1796,8 @@ class NativeSystem2Engine:
         source: str,
         algorithm: SearchAlgorithm,
         config: System2SearchConfig,
-        context: dict[str, Any],
-    ) -> str | None:
+        context: Dict[str, Any],
+    ) -> Optional[str]:
         if not self.governed:
             return None
         try:
@@ -1831,7 +1829,7 @@ class NativeSystem2Engine:
         return bool(config.wall_clock_timeout_s and (time.monotonic() - started_at) >= config.wall_clock_timeout_s)
 
 
-_native_system2: NativeSystem2Engine | None = None
+_native_system2: Optional[NativeSystem2Engine] = None
 
 
 def get_native_system2() -> NativeSystem2Engine:

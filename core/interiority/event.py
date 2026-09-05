@@ -20,10 +20,10 @@ from __future__ import annotations
 
 import time
 import uuid
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
+from typing import Mapping
 
 from core.interiority.evidence import Reading, absent
 

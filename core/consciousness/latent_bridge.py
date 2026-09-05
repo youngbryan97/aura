@@ -43,7 +43,9 @@ substrate and a running event loop both exist.
 import logging
 import threading
 import time
-from typing import Any
+from collections import deque
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -86,7 +88,7 @@ class LatentReadoutHook:
         self,
         block,
         layer_idx: int,
-        steering_vectors: dict,
+        steering_vectors: Dict,
         feedback_weight: float = LATENT_FEEDBACK_WEIGHT,
     ):
         self._block = block
@@ -97,12 +99,12 @@ class LatentReadoutHook:
         self._active = True
 
         # EMA-smoothed readout buffer (one per dimension)
-        self._readout_ema: dict[str, float] = {
+        self._readout_ema: Dict[str, float] = {
             key: 0.0 for key in steering_vectors.keys()
         }
 
         # Accumulated readouts for injection
-        self._pending_injection: dict[int, float] = {}
+        self._pending_injection: Dict[int, float] = {}
         self._injection_lock = threading.Lock()
         self._readout_count = 0
 
@@ -119,6 +121,7 @@ class LatentReadoutHook:
         if self._installed:
             return
 
+        import mlx.core as mx
         block = self._block
         hook = self
 
@@ -194,18 +197,18 @@ class LatentReadoutHook:
             self._layer_idx, len(self._steering_vectors), target_name
         )
 
-    def pop_pending_injection(self) -> dict[int, float]:
+    def pop_pending_injection(self) -> Dict[int, float]:
         """Pop and return the accumulated injection deltas (thread-safe)."""
         with self._injection_lock:
             result = dict(self._pending_injection)
             self._pending_injection.clear()
         return result
 
-    def get_current_readouts(self) -> dict[str, float]:
+    def get_current_readouts(self) -> Dict[str, float]:
         """Current EMA-smoothed readout values per affective dimension."""
         return dict(self._readout_ema)
 
-    def get_diagnostics(self) -> dict[str, Any]:
+    def get_diagnostics(self) -> Dict[str, Any]:
         return {
             "layer_idx": self._layer_idx,
             "installed": self._installed,
@@ -239,12 +242,12 @@ class SubstrateInjectionThread:
 
     def __init__(
         self,
-        readout_hooks: list[LatentReadoutHook],
+        readout_hooks: List[LatentReadoutHook],
         channel: Any = None,
     ):
         self._hooks = readout_hooks
         self._channel = channel
-        self._thread: threading.Thread | None = None
+        self._thread: Optional[threading.Thread] = None
         self._running = False
         self._total_published = 0
         self._total_magnitude_published = 0.0
@@ -275,7 +278,7 @@ class SubstrateInjectionThread:
 
         while self._running:
             try:
-                combined: dict[int, float] = {}
+                combined: Dict[int, float] = {}
                 for hook in self._hooks:
                     for idx, delta in hook.pop_pending_injection().items():
                         combined[idx] = combined.get(idx, 0.0) + delta
@@ -296,7 +299,7 @@ class SubstrateInjectionThread:
 
             time.sleep(INJECTION_INTERVAL_S)
 
-    def get_diagnostics(self) -> dict[str, Any]:
+    def get_diagnostics(self) -> Dict[str, Any]:
         return {
             "running": self._running,
             "has_channel": self._channel is not None,
@@ -323,11 +326,11 @@ class LatentBridge:
 
     def __init__(self, steering_engine, channel: Any = None):
         self._steering_engine = steering_engine
-        self._readout_hooks: list[LatentReadoutHook] = []
-        self._injection_thread: SubstrateInjectionThread | None = None
+        self._readout_hooks: List[LatentReadoutHook] = []
+        self._injection_thread: Optional[SubstrateInjectionThread] = None
         self._attached = False
-        self._attachment_error: str | None = None
-        self._layer_path: str | None = None
+        self._attachment_error: Optional[str] = None
+        self._layer_path: Optional[str] = None
         #: Shared array to the parent. None means the backward arrow has no
         #: transport and must not pretend otherwise.
         self._channel = channel
@@ -424,7 +427,7 @@ class LatentBridge:
             hook._active = False
         logger.info("🔕 LatentBridge stopped")
 
-    def get_current_affective_readout(self) -> dict[str, float]:
+    def get_current_affective_readout(self) -> Dict[str, float]:
         """
         The model's current "opinion" about its own affective state,
         as read from its hidden representations.
@@ -432,7 +435,7 @@ class LatentBridge:
         if not self._readout_hooks:
             return {}
 
-        readouts: dict[str, list[float]] = {}
+        readouts: Dict[str, List[float]] = {}
         for hook in self._readout_hooks:
             for key, val in hook.get_current_readouts().items():
                 if key not in readouts:
@@ -510,11 +513,11 @@ class LatentBridge:
 
         coherence = self.get_coupling_coherence()
         lines.append(f"\n  Coupling coherence: {coherence:.3f}")
-        lines.append("  (1.0=fully aligned, 0.0=orthogonal, -1.0=opposed)")
+        lines.append(f"  (1.0=fully aligned, 0.0=orthogonal, -1.0=opposed)")
 
         return "\n".join(lines)
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "attached": self._attached,
             "attachment_error": self._attachment_error,
@@ -531,14 +534,14 @@ class LatentBridge:
 
 # ── Singleton and Boot Helpers ─────────────────────────────────────────────────
 
-_bridge_instance: LatentBridge | None = None
+_bridge_instance: Optional[LatentBridge] = None
 
 
-def get_latent_bridge() -> LatentBridge | None:
+def get_latent_bridge() -> Optional[LatentBridge]:
     return _bridge_instance
 
 
-def attach_latent_bridge(model, channel: Any = None) -> LatentBridge | None:
+def attach_latent_bridge(model, channel: Any = None) -> Optional[LatentBridge]:
     """Install the backward path. Call after ``AffectiveSteeringEngine.attach()``.
 
     ``channel`` carries readouts to the process that owns the substrate. It

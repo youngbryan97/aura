@@ -35,16 +35,16 @@ from __future__ import annotations
 from typing import Any
 
 from core.cognition.the_floor_she_stands_on import (
+    A,
     BELOW,
+    Code,
     IF,
+    L,
     LET,
     MINUS,
+    N,
     PLUS,
     SAME,
-    A,
-    Code,
-    L,
-    N,
     V,
     Y,
     build,

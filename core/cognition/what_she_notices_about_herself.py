@@ -36,9 +36,8 @@ from __future__ import annotations
 
 import logging
 import statistics
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 __all__ = [
     "AnOpportunity",
@@ -315,11 +314,11 @@ def slack() -> list[AnOpportunity]:
 
 def a_hint_of_transfer() -> list[AnOpportunity]:
     """A stored term shaped like a family she has met, with no label saying so."""
-    from core.cognition.the_floor_she_stands_on import how_long
     from core.cognition.what_she_is_made_of import (
         the_most_they_have_in_common,
         what_she_is_made_of,
     )
+    from core.cognition.the_floor_she_stands_on import how_long
 
     parts = [one for one in what_she_is_made_of() if one.term is not None]
     found = []

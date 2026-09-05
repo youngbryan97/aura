@@ -1,8 +1,8 @@
 """core/agency/task_resumption.py
 Task resumption logic. Restores goals and task state lists after system reboot.
 """
+from typing import Dict, List, Any
 import logging
-from typing import Any
 
 logger = logging.getLogger("Agency.TaskResumption")
 
@@ -10,7 +10,7 @@ logger = logging.getLogger("Agency.TaskResumption")
 class TaskResumptionManager:
     """Handles parsing historical snapshots on boot to reload active tasks."""
 
-    def resume_tasks(self, history: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def resume_tasks(self, history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Extracts incomplete tasks from the recent episode logs."""
         if not history:
             return []

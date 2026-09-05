@@ -49,7 +49,7 @@ class MutationTier(IntEnum):
     T5_SEALED = 5
 
     @classmethod
-    def parse(cls, value: str | int | MutationTier) -> MutationTier:
+    def parse(cls, value: str | int | "MutationTier") -> "MutationTier":
         if isinstance(value, MutationTier):
             return value
         if isinstance(value, int):
@@ -277,7 +277,7 @@ class ProofReceipt:
         data = json.dumps(self.stable_payload(), sort_keys=True, default=str).encode("utf-8")
         return hashlib.sha256(data).hexdigest()
 
-    def signed(self) -> ProofReceipt:
+    def signed(self) -> "ProofReceipt":
         return ProofReceipt(
             run_id=self.run_id,
             plan_id=self.plan_id,
@@ -355,7 +355,7 @@ class ArchitectureGraph:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> ArchitectureGraph:
+    def from_dict(cls, payload: dict[str, Any]) -> "ArchitectureGraph":
         graph = cls(root=str(payload["root"]), created_at=float(payload.get("created_at", time.time())))
         graph.nodes = {
             key: ArchitectureNode(**value)
@@ -384,5 +384,5 @@ class ArchitectureGraph:
         atomic_write_text(target, json.dumps(self.to_dict(), indent=2, sort_keys=True, default=str))
 
     @classmethod
-    def load_json(cls, path: str | Path) -> ArchitectureGraph:
+    def load_json(cls, path: str | Path) -> "ArchitectureGraph":
         return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))

@@ -1,6 +1,6 @@
 import logging
 import threading
-from typing import Any
+from typing import Any, Dict, Optional
 
 from core.drive_engine import DriveEngine
 
@@ -16,7 +16,7 @@ class DriveSystem:
         self._lock = threading.Lock() # Final safety lock for sync mutations
 
     @property
-    def drives(self) -> dict[str, float]:
+    def drives(self) -> Dict[str, float]:
         # Map budget levels to simple float dict for legacy access
         return {name: b.level for name, b in self.engine.budgets.items()}
 
@@ -52,10 +52,10 @@ class DriveSystem:
                 b.level = max(0.0, b.level - amount)
                 logger.debug("💔 Drive Damaged (Legacy-Safe): %s -%.1f -> %.1f", drive, amount, b.level)
 
-    def get_imperative(self) -> str | None:
+    def get_imperative(self) -> Optional[str]:
         return self.engine.get_imperative()
 
-    async def get_status(self) -> dict[str, Any]:
+    async def get_status(self) -> Dict[str, Any]:
         """Forward to engine's async get_status to return full dict structure
         expected by server.py (e.g. {'energy': {'level': ...}}).
         """

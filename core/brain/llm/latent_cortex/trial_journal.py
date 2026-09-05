@@ -33,10 +33,9 @@ import json
 import os
 import time
 import uuid
-from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 
 def manifest_digest(manifest: Any) -> str:
@@ -68,7 +67,7 @@ class TrialRecord:
         }
 
     @classmethod
-    def from_dict(cls, data: Any) -> TrialRecord | None:
+    def from_dict(cls, data: Any) -> "TrialRecord | None":
         if not isinstance(data, dict):
             return None
         key = str(data.get("key") or "")
@@ -108,7 +107,7 @@ class TrialJournal:
         self._skipped_corrupt = 0
 
     # ── lifecycle ───────────────────────────────────────────────────────
-    def open(self) -> TrialJournal:
+    def open(self) -> "TrialJournal":
         """Create or resume the journal, refusing a mismatched manifest."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():

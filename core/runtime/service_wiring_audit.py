@@ -33,12 +33,10 @@ from __future__ import annotations
 
 import ast
 import re
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
-
+from typing import Any, Iterable
 from core.runtime.errors import record_degradation
 
 #: Call names that publish something into the service spine.

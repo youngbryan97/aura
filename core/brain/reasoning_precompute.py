@@ -18,6 +18,7 @@ import asyncio
 import logging
 import os
 import threading
+import time
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -46,7 +47,7 @@ class PrecomputeQueue:
         self._max_queue = max(8, int(max_queue))
         self._lock = threading.RLock()
         # key -> (objective, task_type); OrderedDict gives FIFO + cheap dedup.
-        self._queue: OrderedDict[str, tuple[str, str]] = OrderedDict()
+        self._queue: "OrderedDict[str, tuple[str, str]]" = OrderedDict()
         self._stats = {"enqueued": 0, "deduped": 0, "already_cached": 0, "solved": 0, "failed": 0}
 
     def enqueue(self, objective: str, task_type: str) -> bool:
@@ -126,7 +127,7 @@ class PrecomputeQueue:
                     logger.info("🧠 [Precompute] idle-solved a queued problem (%s).", task_type)
                 else:
                     self._stats["failed"] += 1
-            except (TimeoutError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            except (asyncio.TimeoutError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
                 self._stats["failed"] += 1
                 record_degradation("reasoning_precompute_solve", exc)
         return solved

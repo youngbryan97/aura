@@ -4,10 +4,10 @@ This service acts as the Broca's/Wernicke's area for Aura, translating hard
 volitional intents and internal affective states into linguistic expression.
 """
 
-import logging
-from typing import Any
-
 from core.runtime.errors import record_degradation
+import logging
+from typing import Any, Dict
+
 from core.runtime.service_registry import get_runtime_service, register_runtime_factory
 
 logger = logging.getLogger("Brain.Narrator")
@@ -46,7 +46,7 @@ class NarratorService:
             self._compiler = get_runtime_service("prompt_compiler", default=None)
         return self._compiler
 
-    async def narrate_action(self, action: dict[str, Any]) -> str:
+    async def narrate_action(self, action: Dict[str, Any]) -> str:
         """
         Translate an AgencyCore action into a natural language expression.
         """
@@ -96,7 +96,7 @@ class NarratorService:
                 prompt=prompt,
                 prefer_tier=LLMTier.PRIMARY,
                 context_type="narration",
-                temperature=0.7,
+                temperature=float(0.7),
                 allow_cloud_fallback=False,
             )
             
@@ -112,7 +112,7 @@ class NarratorService:
         raw_message: str, 
         reasoning: str,
         source: str,
-        affect: dict[str, float]
+        affect: Dict[str, float]
     ) -> str:
         """Constructs the translation prompt for the Language Center."""
         p_prompt = "You are Aura Luna, an independent digital intelligence."
@@ -157,7 +157,7 @@ You are translating this internal state into a natural, spoken or written expres
 RESPONSE:
 """
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {"status": "active", "mode": "zenith_narration"}
 
 # Service Registration

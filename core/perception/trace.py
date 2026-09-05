@@ -6,7 +6,7 @@ import logging
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +21,11 @@ class EmbodiedTraceRecord:
     risk_score: float
     goal: str
     skill: str
-    messages: list[str] = field(default_factory=list)
-    action: str | None = None
-    action_decision: dict[str, Any] | None = None
+    messages: List[str] = field(default_factory=list)
+    action: Optional[str] = None
+    action_decision: Optional[Dict[str, Any]] = None
     belief_uncertainty: float = 0.0
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 class EmbodiedTraceLogger:
@@ -33,14 +33,14 @@ class EmbodiedTraceLogger:
 
     def __init__(
         self,
-        path: Path | None = None,
+        path: Optional[Path] = None,
         *,
         max_records: int = 2000,
         mirror_existing_trace: bool = True,
     ) -> None:
         self.path = Path(path) if path else None
         self.max_records = int(max_records)
-        self.records: list[EmbodiedTraceRecord] = []
+        self.records: List[EmbodiedTraceRecord] = []
         self._existing_trace = None
         if mirror_existing_trace:
             try:
@@ -65,7 +65,7 @@ class EmbodiedTraceLogger:
             except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
                 logger.debug("Suppressed %s in core.perception.trace: %s", type(_exc).__name__, _exc)
 
-    def latest(self) -> EmbodiedTraceRecord | None:
+    def latest(self) -> Optional[EmbodiedTraceRecord]:
         return self.records[-1] if self.records else None
 
     def record_observation(
@@ -78,9 +78,9 @@ class EmbodiedTraceLogger:
         risk_score: float,
         goal: str,
         skill: str,
-        messages: list[str],
+        messages: List[str],
         belief_uncertainty: float,
-        metadata: dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> EmbodiedTraceRecord:
         record = EmbodiedTraceRecord(
             timestamp=time.time(),

@@ -1,8 +1,8 @@
 """core/world/object_permanence.py
 Maintains memory tracking of files and environment items when not actively polled.
 """
+from typing import Dict, Any
 import time
-from typing import Any
 
 
 class ObjectPermanenceTracker:
@@ -10,7 +10,7 @@ class ObjectPermanenceTracker:
 
     def __init__(self):
         # Maps entity_id -> {value -> timestamp}
-        self._cache: dict[str, dict[str, Any]] = {}
+        self._cache: Dict[str, Dict[str, Any]] = {}
 
     def update_seen_state(self, entity_id: str, state_value: Any) -> None:
         self._cache[entity_id] = {
@@ -18,7 +18,7 @@ class ObjectPermanenceTracker:
             "last_seen": time.time()
         }
 
-    def get_latent_state(self, entity_id: str) -> dict[str, Any]:
+    def get_latent_state(self, entity_id: str) -> Dict[str, Any]:
         """Fetch cached state representation, identifying age of estimation."""
         if entity_id not in self._cache:
             return {"value": None, "last_seen": 0.0, "staleness": 999.0}

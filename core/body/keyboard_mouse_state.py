@@ -2,7 +2,7 @@
 Keyboard and mouse state tracking sensor.
 """
 import time
-from typing import Any
+from typing import Any, Dict
 
 from core.body.sensor_registry import BaseSensor
 
@@ -14,7 +14,7 @@ class KeyboardMouseSensor(BaseSensor):
     def name(self) -> str:
         return "keyboard_mouse"
 
-    async def read(self) -> dict[str, Any]:
+    async def read(self) -> Dict[str, Any]:
         # Direct pointer telemetry is not polled unless an approved host adapter is present.
         return {
             "mouse_x": None,

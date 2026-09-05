@@ -3,7 +3,7 @@ Sensor registry and registration system for Aura's perceptual body.
 """
 import logging
 import re
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from core.runtime.errors import record_degradation
 
@@ -35,7 +35,7 @@ class BaseSensor:
     async def initialize(self) -> None:
         return None
 
-    async def read(self) -> dict[str, Any]:
+    async def read(self) -> Dict[str, Any]:
         return {}
 
 
@@ -43,20 +43,20 @@ class SensorRegistry:
     """Registry maintaining active perceptual body sensors."""
 
     def __init__(self):
-        self._sensors: dict[str, BaseSensor] = {}
+        self._sensors: Dict[str, BaseSensor] = {}
 
     def register(self, sensor: BaseSensor) -> None:
         """Register a sensor into the perceptual body catalog."""
         self._sensors[sensor.name] = sensor
         logger.info("Registered sensor: %s", sensor.name)
 
-    def get_sensor(self, name: str) -> BaseSensor | None:
+    def get_sensor(self, name: str) -> Optional[BaseSensor]:
         return self._sensors.get(name)
 
-    def list_sensors(self) -> list[str]:
+    def list_sensors(self) -> List[str]:
         return list(self._sensors.keys())
 
-    async def read_all(self) -> dict[str, Any]:
+    async def read_all(self) -> Dict[str, Any]:
         """Poll all active sensors simultaneously."""
         results = {}
         for name, sensor in self._sensors.items():

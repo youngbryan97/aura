@@ -30,10 +30,9 @@ import json
 import logging
 import math
 import time
-from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable, Sequence
 
 import numpy as np
 

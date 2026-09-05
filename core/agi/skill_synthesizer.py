@@ -61,6 +61,7 @@ PERSIST_PATH = state_root() / "data" / "synthesized_skills.json"
 # Skill template — all synthesized skills follow this pattern
 import re as _re
 
+
 #: Gaps forged for in one pass. Each forge costs model calls and a sandbox run,
 #: and a background pass that tries every open gap at once turns a quiet period
 #: into a stampede.

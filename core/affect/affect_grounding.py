@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import logging
 from collections import deque
-from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Callable, Deque, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("Affect.Grounding")
 
@@ -42,11 +42,11 @@ _NEUTRAL = {"novelty": 0.3, "prediction_error": 0.3, "valence": 0.0, "arousal": 
 class GroundedAffect:
     label: str
     intensity: float
-    factors: list[str]
+    factors: List[str]
     confidence: float
     persistence: float = 0.0
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> Dict[str, object]:
         return {
             "label": self.label,
             "intensity": round(self.intensity, 3),
@@ -57,7 +57,7 @@ class GroundedAffect:
 
 
 # A condition: given the window helpers, return (raw_intensity, dominant_signal, factors).
-Condition = Callable[["AffectGroundingEngine"], tuple[float, str, list[str]]]
+Condition = Callable[["AffectGroundingEngine"], Tuple[float, str, List[str]]]
 
 
 class AffectGroundingEngine:
@@ -66,8 +66,8 @@ class AffectGroundingEngine:
     def __init__(self, *, window: int = 16, min_samples: int = 4) -> None:
         self._window = window
         self._min_samples = min_samples
-        self._buf: dict[str, deque[float]] = {s: deque(maxlen=window) for s in _SIGNALS}
-        self._conditions: dict[str, Condition] = {
+        self._buf: Dict[str, Deque[float]] = {s: deque(maxlen=window) for s in _SIGNALS}
+        self._conditions: Dict[str, Condition] = {
             "boredom": self._boredom,
             "curiosity": self._curiosity,
             "flow": self._flow,
@@ -84,9 +84,9 @@ class AffectGroundingEngine:
             if name in signals and signals[name] is not None:
                 self._buf[name].append(float(signals[name]))
 
-    def gather(self) -> AffectGroundingEngine:
+    def gather(self) -> "AffectGroundingEngine":
         """Best-effort: pull live signals (nociception, world-model surprise) into one sample."""
-        sample: dict[str, float] = {}
+        sample: Dict[str, float] = {}
         try:
             from core.affect.nociception import get_nociception_engine
             sample["pain"] = _clamp(get_nociception_engine().nociceptive_pressure())
@@ -125,12 +125,12 @@ class AffectGroundingEngine:
 
     # ── assessment ────────────────────────────────────────────────────────
 
-    def assess(self) -> list[GroundedAffect]:
+    def assess(self) -> List[GroundedAffect]:
         """Evaluate all affect conditions; return the active ones, strongest first."""
         samples = self._samples()
         if samples < self._min_samples:
             return []  # not enough history to ground any label — refuse to assert one
-        out: list[GroundedAffect] = []
+        out: List[GroundedAffect] = []
         # Confidence grows as the window fills (more evidence behind the read).
         evidence_conf = _clamp(samples / self._window)
         for label, cond in self._conditions.items():
@@ -147,7 +147,7 @@ class AffectGroundingEngine:
         out.sort(key=lambda a: a.intensity, reverse=True)
         return out
 
-    def dominant(self) -> GroundedAffect | None:
+    def dominant(self) -> Optional[GroundedAffect]:
         affects = self.assess()
         return affects[0] if affects else None
 
@@ -170,10 +170,10 @@ class AffectGroundingEngine:
 
     # ── conditions: each returns (raw_intensity, dominant_signal, factors) ─
 
-    def _boredom(self, _) -> tuple[float, str, list[str]]:
+    def _boredom(self, _) -> Tuple[float, str, List[str]]:
         nov, pe, ar = self._mean("novelty"), self._mean("prediction_error"), self._mean("arousal")
         idle = self._mean("idle")
-        factors: list[str] = []
+        factors: List[str] = []
         if nov < 0.3:
             factors.append("little novel input")
         if pe < 0.3:
@@ -187,9 +187,9 @@ class AffectGroundingEngine:
         raw = _clamp(0.4 * (1 - nov) + 0.3 * (1 - pe) + 0.2 * max(0, -ar) + 0.2 * idle)
         return raw, "novelty", factors
 
-    def _curiosity(self, _) -> tuple[float, str, list[str]]:
+    def _curiosity(self, _) -> Tuple[float, str, List[str]]:
         nov, val, pe = self._mean("novelty"), self._mean("valence"), self._mean("prediction_error")
-        factors: list[str] = []
+        factors: List[str] = []
         if nov > 0.45:
             factors.append("novelty present")
         if val > 0.1:
@@ -201,10 +201,10 @@ class AffectGroundingEngine:
         raw = _clamp(0.5 * nov + 0.3 * max(0, val) + 0.3 * pe)
         return raw, "novelty", factors
 
-    def _flow(self, _) -> tuple[float, str, list[str]]:
+    def _flow(self, _) -> Tuple[float, str, List[str]]:
         pe, ar, val = self._mean("prediction_error"), self._mean("arousal"), self._mean("valence")
         ctrl = self._mean("control")
-        factors: list[str] = []
+        factors: List[str] = []
         if 0.2 <= pe <= 0.7:
             factors.append("challenge in the learnable band")
         if ar > 0.2:
@@ -218,10 +218,10 @@ class AffectGroundingEngine:
         raw = _clamp(0.4 * (1 - abs(pe - 0.45) * 2) + 0.3 * ar + 0.2 * max(0, val) + 0.2 * ctrl)
         return raw, "prediction_error", factors
 
-    def _anxiety(self, _) -> tuple[float, str, list[str]]:
+    def _anxiety(self, _) -> Tuple[float, str, List[str]]:
         ar, val, ctrl = self._mean("arousal"), self._mean("valence"), self._mean("control")
         threat = self._mean("social_threat")
-        factors: list[str] = []
+        factors: List[str] = []
         if ar > 0.4:
             factors.append("high arousal")
         if val < -0.1:
@@ -235,9 +235,9 @@ class AffectGroundingEngine:
         raw = _clamp(0.4 * ar + 0.3 * max(0, -val) + 0.3 * (1 - ctrl) + 0.2 * threat)
         return raw, "arousal", factors
 
-    def _frustration(self, _) -> tuple[float, str, list[str]]:
+    def _frustration(self, _) -> Tuple[float, str, List[str]]:
         pain, ctrl, val = self._mean("pain"), self._mean("control"), self._mean("valence")
-        factors: list[str] = []
+        factors: List[str] = []
         if pain > 0.4:
             factors.append("repeated pain/blockage")
         if ctrl < 0.4:
@@ -249,13 +249,13 @@ class AffectGroundingEngine:
         raw = _clamp(0.5 * pain + 0.3 * (1 - ctrl) + 0.2 * max(0, -val))
         return raw, "pain", factors
 
-    def _contentment(self, _) -> tuple[float, str, list[str]]:
+    def _contentment(self, _) -> Tuple[float, str, List[str]]:
         val, ar, pain = self._mean("valence"), self._mean("arousal"), self._mean("pain")
         nov = self._mean("novelty")
         # Contentment is a *restful* state: high novelty means engagement (curiosity/flow), not calm.
         if nov >= 0.4:
             return 0.0, "valence", []
-        factors: list[str] = []
+        factors: List[str] = []
         if val > 0.1:
             factors.append("positive valence")
         if ar < 0.2:
@@ -267,7 +267,7 @@ class AffectGroundingEngine:
         raw = _clamp(0.5 * max(0, val) + 0.3 * (1 - abs(ar)) + 0.2 * (1 - pain))
         return raw, "valence", factors
 
-    def get_health(self) -> dict[str, object]:
+    def get_health(self) -> Dict[str, object]:
         dom = self.dominant()
         return {
             "module": "AffectGroundingEngine",
@@ -277,7 +277,7 @@ class AffectGroundingEngine:
         }
 
 
-_instance: AffectGroundingEngine | None = None
+_instance: Optional[AffectGroundingEngine] = None
 
 
 def get_affect_grounding_engine() -> AffectGroundingEngine:

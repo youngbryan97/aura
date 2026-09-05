@@ -36,9 +36,8 @@ solver with EMPTY retrieval and requiring it to fail.
 from __future__ import annotations
 
 import random
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 INTEGRATED_EVAL_SCHEMA = "aura.integrated_reasoning_eval.v1"
 

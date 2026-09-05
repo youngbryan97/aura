@@ -1,21 +1,21 @@
 """Belief Graph v6.0 - Unified Probabilistic World Model & Epistemic State.
 Combines Bayesian-ish updates, time-decay, and cognitive dissonance resolution.
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
-import math
 import os
-import re
-import threading
 import time
+import re
+import math
+import threading
 from dataclasses import dataclass, field
-from typing import Any
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import networkx as nx
-
 from core.config import config
 from core.governance_context import local_internal_governed_scope
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("WorldModel.BeliefGraph")
 
@@ -56,7 +56,7 @@ class BeliefGraph:
         self._persist_path = persist_path or str(config.paths.home_dir / "world_model.json")
         self._causal_path = causal_path or str(config.paths.home_dir / "causal_graph.json")
 
-        self.causal_links: list[dict[str, Any]] = [] # Renamed from self.causal_links to self.links in the instruction, but keeping original name for consistency with other methods.
+        self.causal_links: List[Dict[str, Any]] = [] # Renamed from self.causal_links to self.links in the instruction, but keeping original name for consistency with other methods.
         self._last_save = 0.0 # For main graph
         self._dirty = False # For main graph
         self._causal_last_save = 0.0 # For causal links
@@ -122,7 +122,7 @@ class BeliefGraph:
             is_goal=True
         )
 
-    def detect_contradiction(self, source: str, relation: str, target: str) -> dict[str, Any] | None:
+    def detect_contradiction(self, source: str, relation: str, target: str) -> Optional[Dict[str, Any]]:
         """Check if a proposed belief contradicts existing state.
         Returns the existing conflicting belief if found.
         """
@@ -154,8 +154,8 @@ class BeliefGraph:
         """
         constitutional_runtime_live = False
         try:
-            from core.constitution import get_constitutional_core
             from core.container import ServiceContainer
+            from core.constitution import get_constitutional_core
 
             constitutional_runtime_live = (
                 ServiceContainer.has("executive_core")
@@ -321,7 +321,7 @@ class BeliefGraph:
                         self._update_indices(source, target, relation, new_conf, edge_data.get('is_goal', False))
                     self._save()
 
-    def check_action_coherence(self, action_type: str, params: dict[str, Any]) -> tuple[bool, float, str]:
+    def check_action_coherence(self, action_type: str, params: Dict[str, Any]) -> Tuple[bool, float, str]:
         """
         Evaluate if an action is coherent with core values (Phase 15).
         Returns: (is_coherent, dissonance_score, reason)
@@ -379,7 +379,7 @@ class BeliefGraph:
         elif conf < 0.1:
             self._suspended_edges.add(edge_key)
 
-    def get_beliefs_about(self, entity: str) -> list[dict[str, Any]]:
+    def get_beliefs_about(self, entity: str) -> List[Dict[str, Any]]:
         """Get all known relations originating from an entity."""
         with self._graph_lock:
             if entity not in self.graph:
@@ -393,7 +393,7 @@ class BeliefGraph:
                 })
             return results
 
-    async def query_federated(self, entity: str) -> list[dict[str, Any]]:
+    async def query_federated(self, entity: str) -> List[Dict[str, Any]]:
         """Phase 16.2: Query both local beliefs and remote peers."""
         local_beliefs = self.get_beliefs_about(entity)
 
@@ -419,7 +419,7 @@ class BeliefGraph:
 
         return merged
 
-    def get_beliefs(self) -> dict[str, Any]:
+    def get_beliefs(self) -> Dict[str, Any]:
         """Returns all beliefs as a dictionary (Compatibility with EpistemicState)."""
         with self._graph_lock:
             return {f"{u}->{v}": d.copy() for u, v, d in self.graph.edges(data=True)}
@@ -445,7 +445,7 @@ class BeliefGraph:
 
             return max(0.0, min(1.0, 0.7 * base_uncertainty + 0.3 * conf_entropy))
 
-    def get_strong_beliefs(self, threshold: float = 0.8) -> list[dict[str, Any]]:
+    def get_strong_beliefs(self, threshold: float = 0.8) -> List[Dict[str, Any]]:
         """Return only high-confidence beliefs (O(K) via index)."""
         with self._graph_lock:
             results = []
@@ -455,7 +455,7 @@ class BeliefGraph:
                     results.append({"source": u, "target": v, **d})
             return results
 
-    def get_weak_beliefs(self, threshold: float = 0.3) -> list[dict[str, Any]]:
+    def get_weak_beliefs(self, threshold: float = 0.3) -> List[Dict[str, Any]]:
         """Return uncertain beliefs (O(K) via index)."""
         with self._graph_lock:
             results = []
@@ -466,7 +466,7 @@ class BeliefGraph:
                         results.append({"source": u, "target": v, **d})
             return results
 
-    def get_suspended_beliefs(self) -> list[dict[str, Any]]:
+    def get_suspended_beliefs(self) -> List[Dict[str, Any]]:
         """Return beliefs that are highly uncertain (O(K) via index)."""
         with self._graph_lock:
             results = []
@@ -499,7 +499,7 @@ class BeliefGraph:
                 self._save()
                 logger.info("Belief decay: %d beliefs dissolved", len(to_remove))
 
-    def get_goals(self) -> list[dict[str, Any]]:
+    def get_goals(self) -> List[Dict[str, Any]]:
         """Return all active goals (O(K) via index)."""
         with self._graph_lock:
             results = []
@@ -509,7 +509,7 @@ class BeliefGraph:
                     results.append({"source": u, "target": v, **d})
             return results
 
-    def get_summary(self) -> dict[str, Any]:
+    def get_summary(self) -> Dict[str, Any]:
         """Status overview of the world model."""
         with self._graph_lock:
             return {
@@ -551,7 +551,7 @@ class BeliefGraph:
                         json.dumps(data, indent=2),
                         source="belief_graph.save_graph",
                     )
-            except OSError as e:
+            except (OSError, IOError) as e:
                 record_degradation('belief_graph', e)
                 logger.error("Failed to save world model: %s", e)
 
@@ -559,7 +559,7 @@ class BeliefGraph:
         with self._graph_lock:
             try:
                 if os.path.exists(self._persist_path):
-                    with open(self._persist_path) as f:
+                    with open(self._persist_path, "r") as f:
                         data = json.load(f)
 
                     # Restore nodes
@@ -585,7 +585,7 @@ class BeliefGraph:
                 logger.warning("Failed to load world model: %s", e)
 
     # ── Causal Engine (Merged from ACG) ───────────────────────
-    def record_outcome(self, action: str | dict[str, Any], context: str, outcome: Any, success: bool):
+    def record_outcome(self, action: Union[str, Dict[str, Any]], context: str, outcome: Any, success: bool):
         action_name = action if isinstance(action, str) else action.get("tool", "unknown")
         params = {} if isinstance(action, str) else action.get("params", {})
 
@@ -632,7 +632,7 @@ class BeliefGraph:
         self._save_causal()
         logger.info("Causal Link Recorded: %s -> %s", action_name, 'Success' if success else 'Failure')
 
-    def query_consequences(self, action_type: str, params: dict[str, Any] = None) -> list[dict[str, Any]]:
+    def query_consequences(self, action_type: str, params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         matches = []
         for link in self.causal_links:
             if link["action"] == action_type:
@@ -640,7 +640,7 @@ class BeliefGraph:
                     matches.append(link)
         return matches
 
-    def _params_overlap(self, p1: dict[str, Any], p2: dict[str, Any]) -> bool:
+    def _params_overlap(self, p1: Dict[str, Any], p2: Dict[str, Any]) -> bool:
         if not p1 or not p2: return True
         common = set(p1.keys()).intersection(set(p2.keys()))
         if not common: return True
@@ -669,17 +669,17 @@ class BeliefGraph:
                     json.dumps(self.causal_links, indent=2),
                     source="belief_graph.save_causal",
                 )
-        except OSError as e:
+        except (OSError, IOError) as e:
             record_degradation('belief_graph', e)
             logger.error("Failed to save ACG: %s", e)
 
     def _load_causal(self):
         try:
             if os.path.exists(self._causal_path):
-                with open(self._causal_path) as f:
+                with open(self._causal_path, "r") as f:
                     self.causal_links = json.load(f)
                 logger.info("Loaded %d causal links from disk", len(self.causal_links))
-        except OSError as e:
+        except (OSError, IOError) as e:
             record_degradation('belief_graph', e)
             logger.debug("BeliefGraph: Failed to load causal links: %s", e)
 

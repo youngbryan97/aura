@@ -19,7 +19,7 @@ arithmetic looks.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from typing import Mapping
 
 from core.agency.how_good_is_this import ROOM_MATTERS
 

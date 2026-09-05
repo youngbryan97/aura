@@ -7,6 +7,7 @@ Enhancements:
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -40,7 +41,7 @@ class ModalState:
         return self.kind != "unknown" and self.confidence >= 0.5
 
     @staticmethod
-    def from_prompt_text(text: str) -> ModalState:
+    def from_prompt_text(text: str) -> "ModalState":
         """Auto-classify a modal from raw prompt text."""
         lower = text.lower()
 

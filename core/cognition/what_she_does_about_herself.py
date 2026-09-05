@@ -36,8 +36,7 @@ step scores negative, which is the honest limit this removes.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
-from typing import Any
+from typing import Any, Sequence
 
 __all__ = [
     "offer_what_she_can_do_about_what_she_is_made_of",
@@ -241,6 +240,7 @@ def offer_what_she_can_do_about_what_she_is_made_of() -> None:
     def one_name_for_both(situation: Any = None) -> str | None:
         from core.cognition.a_way_of_computing_she_wrote import as_a_head
         from core.cognition.one_algebra import DERIVED_HEADS, the_head_she_wrote
+
         from core.cognition.what_she_can_take_back import only_if_it_pays
 
         found = what_two_parts_share()

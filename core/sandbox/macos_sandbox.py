@@ -11,6 +11,7 @@ import os
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
+from typing import List, Optional
 
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.subprocess_gateway import get_subprocess_gateway
@@ -22,9 +23,9 @@ class SandboxConfig:
     """Configuration for a macOS sandbox profile."""
     allow_network: bool = False
     allow_exec: bool = False
-    read_paths: list[str] = field(default_factory=list)
-    write_paths: list[str] = field(default_factory=list)
-    execute_paths: list[str] = field(default_factory=list)
+    read_paths: List[str] = field(default_factory=list)
+    write_paths: List[str] = field(default_factory=list)
+    execute_paths: List[str] = field(default_factory=list)
 
 class MacOSSandbox:
     """Manages creation and execution of native macOS sandboxes via sandbox-exec."""
@@ -91,7 +92,7 @@ class MacOSSandbox:
 
         return "\n".join(lines)
 
-    def execute_command(self, command: list[str], cwd: str | None = None) -> subprocess.CompletedProcess:
+    def execute_command(self, command: List[str], cwd: Optional[str] = None) -> subprocess.CompletedProcess:
         """Execute a command within the generated sandbox."""
         profile_content = self._generate_profile()
         

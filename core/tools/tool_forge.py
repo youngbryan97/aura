@@ -7,10 +7,11 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
-from core.container import ServiceContainer
-from core.tools.tool_registry import get_tool_registry
+from core.tools.tool_registry import ToolRegistry, get_tool_registry
 from core.tools.tool_sandbox import ToolSandbox
+from core.container import ServiceContainer
 
 logger = logging.getLogger("Aura.ToolForge")
 
@@ -20,8 +21,8 @@ class ForgedToolManifest:
     name: str
     description: str
     code: str
-    inputs: dict[str, str]
-    outputs: dict[str, str]
+    inputs: Dict[str, str]
+    outputs: Dict[str, str]
     sandbox_level: str  # restricted, standard, unrestricted
     created_at: float = field(default_factory=time.time)
     verified: bool = False
@@ -33,7 +34,7 @@ class ToolForge:
     def __init__(self) -> None:
         self.registry = get_tool_registry()
         self.sandbox = ToolSandbox()
-        self.forged_tools: dict[str, ForgedToolManifest] = {}
+        self.forged_tools: Dict[str, ForgedToolManifest] = {}
 
     @classmethod
     async def forge_and_install(
@@ -69,7 +70,7 @@ class ToolForge:
         name: str,
         description: str,
         requirements: str,
-    ) -> ForgedToolManifest | None:
+    ) -> Optional[ForgedToolManifest]:
         """Generate, test, sandbox, and draft manifest for a new tool."""
         logger.info("🛠️  ToolForge: forging new tool '%s' - %s", name, description)
 

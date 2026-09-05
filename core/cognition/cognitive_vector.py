@@ -40,13 +40,13 @@ the embedding store knows" becomes a measurement. Card 082.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import hashlib
 import math
-from collections.abc import Sequence
-from dataclasses import dataclass
+import threading
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Any
-
-from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "DEFAULT_DIMENSION",

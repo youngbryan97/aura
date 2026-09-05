@@ -7,6 +7,7 @@ Periodically scans the project tree and purges:
 Returns a report of bytes reclaimed and files removed.
 Runs as the first maintenance step in DreamerV2.engage_sleep_cycle().
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
@@ -14,8 +15,7 @@ import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-
-from core.runtime.errors import record_degradation
+from typing import List, Optional
 
 # The backward-compatibility shim that re-exported MetabolismService from
 # here is gone: nothing imported it from this path. What callers actually
@@ -34,7 +34,7 @@ class PurgeReport:
     files_removed: int = 0
     dirs_removed: int = 0
     bytes_reclaimed: int = 0
-    errors: list[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
     duration_s: float = 0.0
 
     def __str__(self) -> str:
@@ -52,9 +52,9 @@ class MetabolismEngine:
 
     def __init__(
         self,
-        root_dir: Path | None = None,
+        root_dir: Optional[Path] = None,
         days_threshold: int = 7,
-        protected_dirs: set | None = None,
+        protected_dirs: Optional[set] = None,
     ):
         self.root_dir = Path(root_dir) if root_dir else Path.cwd()
         self.days_threshold = days_threshold

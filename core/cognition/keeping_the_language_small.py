@@ -34,9 +34,8 @@ and expressible stop agreeing the moment a search is bounded.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, Sequence
 
 from core.cognition.what_it_costs_to_say import how_many_expressions
 

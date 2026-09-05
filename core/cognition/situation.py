@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -88,7 +89,7 @@ class SituationSnapshot:
             }
         )
 
-    def agrees_with(self, other: SituationSnapshot) -> bool:
+    def agrees_with(self, other: "SituationSnapshot") -> bool:
         """Whether two organs were looking at the same world."""
         return self.content_hash == other.content_hash
 

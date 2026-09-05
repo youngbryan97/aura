@@ -46,21 +46,22 @@ each fixes a specific misfire:
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
+from typing import Mapping
 
-from core.interiority.event import EventKind, InteriorEvent
 from core.interiority.evidence import (
     Provenance,
     Reading,
     absent,
     assumed,
     ceiling_for,
+    inferred,
     joint_confidence,
     measured,
     weakest,
 )
+from core.interiority.event import EventKind, InteriorEvent
 from core.interiority.params import ParamKind, declare
 
 #: Checks in the frame, in the order Scherer runs them. The order is not
@@ -203,7 +204,7 @@ class AppraisalEngine:
     variable as an argument.
     """
 
-    def __init__(self, ledger: RelationalLedger) -> None:  # noqa: F821 — cycle
+    def __init__(self, ledger: "RelationalLedger") -> None:  # noqa: F821 — cycle
         self._ledger = ledger
 
     # ── relevance group ───────────────────────────────────────────────
@@ -302,7 +303,7 @@ class AppraisalEngine:
         )
 
     def _other_coping(
-        self, event: InteriorEvent, other: OtherEstimate | None  # noqa: F821
+        self, event: InteriorEvent, other: "OtherEstimate | None"  # noqa: F821
     ) -> Reading:
         """Can the other agent change their own outcome?
 
@@ -316,7 +317,7 @@ class AppraisalEngine:
         return other.coping
 
     def _other_capability(
-        self, event: InteriorEvent, other: OtherEstimate | None  # noqa: F821
+        self, event: InteriorEvent, other: "OtherEstimate | None"  # noqa: F821
     ) -> Reading:
         """Could the other agent have done otherwise?
 
@@ -428,7 +429,7 @@ class AppraisalEngine:
         return absent(source="ledger:no-endorsement")
 
     def _vulnerability(
-        self, event: InteriorEvent, other: OtherEstimate | None  # noqa: F821
+        self, event: InteriorEvent, other: "OtherEstimate | None"  # noqa: F821
     ) -> Reading:
         if other is not None and other.vulnerability.present:
             return other.vulnerability
@@ -446,7 +447,7 @@ class AppraisalEngine:
     def appraise(
         self,
         event: InteriorEvent,
-        other: OtherEstimate | None = None,  # noqa: F821
+        other: "OtherEstimate | None" = None,  # noqa: F821
     ) -> AppraisalFrame:
         agency_self, agency_other, agency_circumstance = self._agency(event)
         checks: dict[str, Reading] = {

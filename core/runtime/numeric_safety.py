@@ -21,8 +21,7 @@ These are deliberately dependency-free so `core/runtime` may import them.
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Sequence
-from typing import Any
+from typing import Any, Iterable, Sequence
 
 __all__ = [
     "ValidatedScalar",

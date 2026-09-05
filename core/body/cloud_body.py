@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Aura.CloudBody")
 
@@ -32,8 +32,8 @@ class CloudBody:
         self.hourly_budget_limit = hourly_budget_limit
         self.budget_limit = 100.0  # Total budget limit
         self.total_cost_incurred = 0.0
-        self.active_jobs: dict[str, CloudJob] = {}
-        self.nodes: dict[str, dict[str, Any]] = {}
+        self.active_jobs: Dict[str, CloudJob] = {}
+        self.nodes: Dict[str, Dict[str, Any]] = {}
         self._job_counter = 0
         self._initialized = False
 
@@ -77,7 +77,7 @@ class CloudBody:
         resource_type: str,
         cores: int = 4,
         max_duration_hours: float = 1.0,
-    ) -> dict[str, Any] | None:
+    ) -> Optional[Dict[str, Any]]:
         """Request a remote worker node under strict cost checks."""
         # Calculate expected cost
         cost_rates = {"worker_node": 0.50, "embedding_node": 0.25, "model_server": 1.50}
@@ -113,7 +113,7 @@ class CloudBody:
             "auto_shutdown_in": f"{max_duration_hours} hours",
         }
 
-    def enforce_shutdown_policy(self) -> list[str]:
+    def enforce_shutdown_policy(self) -> List[str]:
         """Tears down any active instances that exceed their lease duration."""
         now = time.time()
         terminated = []

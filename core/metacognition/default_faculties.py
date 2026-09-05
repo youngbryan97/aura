@@ -21,13 +21,16 @@ this model is built to reject.
 
 from __future__ import annotations
 
+import threading
+from typing import Any
+
+from core.runtime.lockdep import LockRank, checked_lock
 from core.metacognition.faculty_model import (
     Faculty,
     FacultyRegistry,
     ImprovementMetric,
     get_faculty_registry,
 )
-from core.runtime.lockdep import LockRank, checked_lock
 
 _declared_lock = checked_lock("metacognition.default_faculties", rank=LockRank.REGISTRY, reentrant=True)
 _declared = False

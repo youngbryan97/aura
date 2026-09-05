@@ -12,10 +12,12 @@ set a context variable so the factory knows to allow them.
 """
 from __future__ import annotations
 
+
 import asyncio
 import contextvars
 import logging
 import os
+from typing import Any, Optional
 
 logger = logging.getLogger("Aura.StrictTaskOwner")
 
@@ -29,7 +31,7 @@ except (ImportError, AttributeError, RuntimeError):  # pragma: no cover - defens
     _SKIP_FACTORY_TRACK = contextvars.ContextVar("aura_skip_factory_track", default=False)
 
 
-def install_strict_task_owner(loop: asyncio.AbstractEventLoop | None = None) -> None:
+def install_strict_task_owner(loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
     """Install a strict task factory on ``loop``."""
     loop = loop or asyncio.get_event_loop()
     # A tracker-managed parent task may have inherited an old skip context from
@@ -65,7 +67,7 @@ def install_strict_task_owner(loop: asyncio.AbstractEventLoop | None = None) -> 
     loop._aura_previous_factory = previous  # type: ignore[attr-defined]
 
 
-def restore_strict_task_owner(loop: asyncio.AbstractEventLoop | None = None) -> None:
+def restore_strict_task_owner(loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
     loop = loop or asyncio.get_event_loop()
     previous = getattr(loop, "_aura_previous_factory", None)
     loop.set_task_factory(previous)
@@ -95,7 +97,7 @@ def _install_create_task_wrapper() -> None:
         _record_unowned_task(coro)
         return previous_create_task(coro, *args, **kwargs)
 
-    _strict_create_task._aura_strict_wrapper = True
+    setattr(_strict_create_task, "_aura_strict_wrapper", True)
     asyncio.create_task = _strict_create_task  # type: ignore[assignment]
 
 

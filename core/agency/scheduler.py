@@ -1,17 +1,17 @@
 """core/agency/scheduler.py
 Schedules recurring tasks and one-shot timer callbacks.
 """
+from typing import Dict, List, Any, Callable
 import time
-from typing import Any
 
 
 class Scheduler:
     """Manages scheduled events and time triggers."""
 
     def __init__(self):
-        self._scheduled_tasks: list[dict[str, Any]] = []
+        self._scheduled_tasks: List[Dict[str, Any]] = []
 
-    def schedule_one_shot(self, label: str, delay_s: float, task_data: dict[str, Any]) -> None:
+    def schedule_one_shot(self, label: str, delay_s: float, task_data: Dict[str, Any]) -> None:
         self._scheduled_tasks.append({
             "label": label,
             "trigger_time": time.time() + delay_s,
@@ -19,7 +19,7 @@ class Scheduler:
             "triggered": False
         })
 
-    def check_and_trigger(self) -> list[dict[str, Any]]:
+    def check_and_trigger(self) -> List[Dict[str, Any]]:
         """Identifies and returns tasks whose schedule trigger time has passed."""
         now = time.time()
         triggered = []

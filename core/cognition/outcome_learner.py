@@ -13,16 +13,16 @@ These outcomes are fed back into:
   - Response style calibration
 """
 
+from core.runtime.errors import record_degradation
 import json
 import logging
 import sqlite3
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from core.config import config
-from core.runtime.errors import record_degradation
 from core.runtime.sqlite_support import connecting
 
 logger = logging.getLogger("Learning.Outcomes")
@@ -31,7 +31,7 @@ logger = logging.getLogger("Learning.Outcomes")
 class OutcomeLearner:
     """Tracks outcomes of Aura's actions and learns from them."""
 
-    def __init__(self, db_path: str | None = None):
+    def __init__(self, db_path: Optional[str] = None):
         self._db_path = db_path or str(config.paths.home_dir / "data/outcomes.db")
         self._lock = threading.Lock()
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -84,11 +84,11 @@ class OutcomeLearner:
         category: str,
         action: str,
         success: bool,
-        confidence_before: float | None = None,
-        user_feedback: str | None = None,
-        duration_ms: float | None = None,
-        context: dict[str, Any] | None = None,
-        lesson: str | None = None,
+        confidence_before: Optional[float] = None,
+        user_feedback: Optional[str] = None,
+        duration_ms: Optional[float] = None,
+        context: Optional[Dict[str, Any]] = None,
+        lesson: Optional[str] = None,
     ):
         """Record the outcome of an action for learning.
         
@@ -195,7 +195,7 @@ class OutcomeLearner:
                 record_degradation('outcome_learner', e)
                 logger.debug("Metric recording failed: %s", e)
 
-    def get_success_rate(self, category: str | None = None, hours: int = 24) -> float:
+    def get_success_rate(self, category: Optional[str] = None, hours: int = 24) -> float:
         """Get success rate over a time window."""
         cutoff = time.time() - (hours * 3600)
         with connecting(self._get_conn()) as conn:
@@ -216,7 +216,7 @@ class OutcomeLearner:
                 return 1.0  # No data — assume good
             return (wins or 0) / total
 
-    def get_best_strategy(self) -> str | None:
+    def get_best_strategy(self) -> Optional[str]:
         """Get the highest-performing reasoning strategy."""
         with connecting(self._get_conn()) as conn:
             row = conn.execute(
@@ -229,7 +229,7 @@ class OutcomeLearner:
             ).fetchone()
             return row[0] if row else None
 
-    def get_session_stats(self) -> dict[str, Any]:
+    def get_session_stats(self) -> Dict[str, Any]:
         """Current session performance."""
         total = self._session_successes + self._session_failures
         uptime = time.time() - self._session_start
@@ -242,7 +242,7 @@ class OutcomeLearner:
             "session_uptime_minutes": float(f"{uptime / 60.0:.1f}"),
         }
 
-    def get_stats(self) -> dict[str, Any]:
+    def get_stats(self) -> Dict[str, Any]:
         """Overall learning statistics."""
         with connecting(self._get_conn()) as conn:
             total = conn.execute("SELECT COUNT(*) FROM outcomes").fetchone()[0]
@@ -265,7 +265,7 @@ class OutcomeLearner:
 # ---------------------------------------------------------------------------
 # Singleton
 # ---------------------------------------------------------------------------
-_instance: OutcomeLearner | None = None
+_instance: Optional[OutcomeLearner] = None
 
 
 def get_outcome_learner() -> OutcomeLearner:

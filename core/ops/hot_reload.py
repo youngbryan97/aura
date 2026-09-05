@@ -23,6 +23,8 @@ Usage:
     POST /api/system/hot-reload?scope=X  → reload only scope X
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import importlib
 import inspect
@@ -33,9 +35,8 @@ import time
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
-
-from core.runtime.errors import record_degradation
+from types import ModuleType
+from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger("Aura.HotReload")
 
@@ -44,7 +45,7 @@ logger = logging.getLogger("Aura.HotReload")
 # Scopes are intentionally conservative — we never reload the kernel
 # itself, the running server, or the ServiceContainer.
 
-RELOAD_SCOPES: dict[str, list[str]] = {
+RELOAD_SCOPES: Dict[str, List[str]] = {
     "phases": [
         "core.phases.",
     ],
@@ -118,7 +119,7 @@ LIVE_SAFE_ALL_SCOPES: tuple[str, ...] = (
 
 # Modules that must NEVER be reloaded — reloading them would
 # destroy running state or break the process.
-PROTECTED_MODULES: set[str] = {
+PROTECTED_MODULES: Set[str] = {
     "core.container",
     "core.config",
     "core.event_bus",
@@ -154,24 +155,24 @@ class ReloadResult:
     """Outcome of a single hot-reload operation."""
 
     scope: str
-    reloaded: list[str] = field(default_factory=list)
-    skipped: list[str] = field(default_factory=list)
-    failed: list[dict[str, str]] = field(default_factory=list)
+    reloaded: List[str] = field(default_factory=list)
+    skipped: List[str] = field(default_factory=list)
+    failed: List[Dict[str, str]] = field(default_factory=list)
     # Declared prefixes that matched no loaded module. A scope entry that
     # names a module which does not exist is a configuration defect, and it
     # used to be indistinguishable from a clean reload.
-    unmatched_prefixes: list[str] = field(default_factory=list)
+    unmatched_prefixes: List[str] = field(default_factory=list)
     # Modules refused because reloading them would orphan live subclasses.
     # Reported, never silent: a skipped inheritance anchor means the change on
     # disk is NOT live, and the caller has to know that to act on it.
-    orphan_risks: list[dict[str, str]] = field(default_factory=list)
+    orphan_risks: List[Dict[str, str]] = field(default_factory=list)
     duration_ms: float = 0.0
 
     @property
     def ok(self) -> bool:
         return len(self.failed) == 0 and not self.unmatched_prefixes
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "ok": self.ok,
             "scope": self.scope,
@@ -195,7 +196,7 @@ class HotReloader:
     changes from their imports.
     """
 
-    def __init__(self, project_root: str | None = None):
+    def __init__(self, project_root: Optional[str] = None):
         self._project_root = Path(
             project_root
             or os.getenv("AURA_ROOT", "")
@@ -203,10 +204,10 @@ class HotReloader:
         )
         self._reload_count = 0
         self._last_reload_at = 0.0
-        self._last_result: ReloadResult | None = None
+        self._last_result: Optional[ReloadResult] = None
 
     @property
-    def last_result(self) -> ReloadResult | None:
+    def last_result(self) -> Optional[ReloadResult]:
         return self._last_result
 
     def _is_protected(self, module_name: str) -> bool:
@@ -267,7 +268,7 @@ class HotReloader:
                     )
         return ""
 
-    def _unmatched_prefixes(self, scopes: tuple[str, ...] | list[str]) -> list[str]:
+    def _unmatched_prefixes(self, scopes: tuple[str, ...] | List[str]) -> List[str]:
         """Declared prefixes that name a module which does not exist.
 
         A scope entry pointing at a non-module reloads nothing and, until this
@@ -282,7 +283,7 @@ class HotReloader:
         """
         import importlib.util
 
-        unmatched: list[str] = []
+        unmatched: List[str] = []
         for scope in scopes:
             for prefix in RELOAD_SCOPES.get(scope, []):
                 target = prefix.rstrip(".")
@@ -296,13 +297,13 @@ class HotReloader:
                     unmatched.append(f"{scope}:{prefix}")
         return unmatched
 
-    def _collect_modules_for_scope(self, scope: str) -> list[str]:
+    def _collect_modules_for_scope(self, scope: str) -> List[str]:
         """Find all currently-loaded modules matching the given scope."""
         if scope not in RELOAD_SCOPES:
             return []
 
         prefixes = RELOAD_SCOPES[scope]
-        matched: list[str] = []
+        matched: List[str] = []
 
         for module_name in list(sys.modules.keys()):
             for prefix in prefixes:
@@ -321,9 +322,9 @@ class HotReloader:
         matched.sort(key=lambda m: m.count("."), reverse=True)
         return matched
 
-    def _collect_live_safe_all_modules(self) -> list[str]:
+    def _collect_live_safe_all_modules(self) -> List[str]:
         """Collect the curated live-safe union used by the default `all` scope."""
-        matched: set[str] = set()
+        matched: Set[str] = set()
         for scope in LIVE_SAFE_ALL_SCOPES:
             matched.update(self._collect_modules_for_scope(scope))
         return sorted(
@@ -505,7 +506,7 @@ class HotReloader:
         self._last_result = result
         return result
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         """Return the current state of the hot-reload engine."""
         return {
             "reload_count": self._reload_count,
@@ -520,7 +521,7 @@ class HotReloader:
 
 # ── Singleton ──────────────────────────────────────────────────
 
-_instance: HotReloader | None = None
+_instance: Optional[HotReloader] = None
 
 
 def get_hot_reloader() -> HotReloader:

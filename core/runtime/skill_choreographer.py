@@ -5,10 +5,10 @@ verification chaining, rollback plan, and per-chain memory updates.
 """
 from __future__ import annotations
 
+
 import asyncio
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 
 from core.runtime.skill_contract import (
     SkillExecutionResult,
@@ -21,21 +21,21 @@ from core.runtime.skill_contract import (
 @dataclass
 class ChainStep:
     skill_name: str
-    inputs: dict[str, Any] = field(default_factory=dict)
-    depends_on: list[str] = field(default_factory=list)
+    inputs: Dict[str, Any] = field(default_factory=dict)
+    depends_on: List[str] = field(default_factory=list)
 
 
 @dataclass
 class ChainPlan:
     objective: str
-    steps: list[ChainStep]
+    steps: List[ChainStep]
 
 
 @dataclass
 class ChainOutcome:
     objective: str
-    results: dict[str, SkillExecutionResult] = field(default_factory=dict)
-    failed_step: str | None = None
+    results: Dict[str, SkillExecutionResult] = field(default_factory=dict)
+    failed_step: Optional[str] = None
 
     @property
     def ok(self) -> bool:
@@ -45,7 +45,7 @@ class ChainOutcome:
         )
 
 
-SkillExecutor = Callable[[ChainStep, dict[str, Any]], SkillExecutionResult | Awaitable[SkillExecutionResult]]
+SkillExecutor = Callable[[ChainStep, Dict[str, Any]], Union[SkillExecutionResult, Awaitable[SkillExecutionResult]]]
 
 _SKILL_CHAIN_ERRORS = (
     AttributeError,
@@ -59,7 +59,7 @@ _SKILL_CHAIN_ERRORS = (
 
 
 class SkillChoreographer:
-    def __init__(self, *, registry: SkillRegistry | None = None):
+    def __init__(self, *, registry: Optional[SkillRegistry] = None):
         self.registry = registry or get_skill_registry()
 
     async def execute(
@@ -68,7 +68,7 @@ class SkillChoreographer:
         executor: SkillExecutor,
     ) -> ChainOutcome:
         outcome = ChainOutcome(objective=plan.objective)
-        completed: dict[str, SkillExecutionResult] = {}
+        completed: Dict[str, SkillExecutionResult] = {}
         for step in plan.steps:
             unmet = [d for d in step.depends_on if d not in completed]
             if unmet:

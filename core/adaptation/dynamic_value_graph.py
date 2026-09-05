@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import tempfile
 import time
@@ -28,8 +29,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
-
+from typing import Any, Dict, List, Optional, Set, Tuple
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.DynamicValueGraph")
@@ -89,7 +89,7 @@ class ValueEvidence:
         """Signal weighted by confidence."""
         return self.signal * self.confidence
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "evidence_type": self.evidence_type.value,
             "value_name": self.value_name,
@@ -110,15 +110,15 @@ class ValueNode:
     origin_weight: float = 0.5               # Weight at creation
     created_at: float = field(default_factory=time.time)
     last_updated: float = field(default_factory=time.time)
-    evidence_buffer: list[ValueEvidence] = field(default_factory=list)
+    evidence_buffer: List[ValueEvidence] = field(default_factory=list)
     adoption_timestamp: float = 0.0          # When it was adopted
     rollback_deadline: float = 0.0           # Grace period for rollback
     total_evidence_count: int = 0
     source_diversity: int = 0                # Number of unique evidence sources
-    edges: dict[str, float] = field(default_factory=dict)  # name → coupling weight
+    edges: Dict[str, float] = field(default_factory=dict)  # name → coupling weight
 
     # Anti-wireheading
-    _recent_sources: set[str] = field(default_factory=set)
+    _recent_sources: Set[str] = field(default_factory=set)
 
     def add_evidence(self, evidence: ValueEvidence) -> None:
         """Add evidence to this node's buffer."""
@@ -131,7 +131,7 @@ class ValueNode:
         if len(self.evidence_buffer) > 200:
             self.evidence_buffer = self.evidence_buffer[-200:]
 
-    def compute_evidence_delta(self, min_evidence: int = 5) -> tuple[float, float]:
+    def compute_evidence_delta(self, min_evidence: int = 5) -> Tuple[float, float]:
         """Compute the recommended weight delta from accumulated evidence.
 
         Returns:
@@ -178,7 +178,7 @@ class ValueNode:
 
         return delta, confidence
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "weight": round(self.weight, 4),
@@ -195,7 +195,7 @@ class ValueNode:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> ValueNode:
+    def from_dict(cls, data: Dict[str, Any]) -> "ValueNode":
         # FAIL CLOSED. An unreadable or unknown persisted status used to
         # become ADOPTED — the MOST trusted state — so corrupting one field
         # in the value file promoted an unvetted value straight past the
@@ -240,7 +240,7 @@ class ValueMutation:
     reason: str
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "node_name": self.node_name,
             "mutation_type": self.mutation_type,
@@ -288,8 +288,8 @@ class DynamicValueGraph:
     MIN_SOURCE_DIVERSITY = 2
 
     def __init__(self) -> None:
-        self._nodes: dict[str, ValueNode] = {}
-        self._mutation_log: list[ValueMutation] = []
+        self._nodes: Dict[str, ValueNode] = {}
+        self._mutation_log: List[ValueMutation] = []
         self._cycle_count: int = 0
         _DATA_DIR.mkdir(parents=True, exist_ok=True)
         self._load()
@@ -342,7 +342,7 @@ class DynamicValueGraph:
 
     # ── Evolution Cycle ─────────────────────────────────────────────────
 
-    def evolve(self) -> list[ValueMutation]:
+    def evolve(self) -> List[ValueMutation]:
         """Run one evolution cycle.
 
         Called during dream/consolidation. Processes evidence buffers,
@@ -352,7 +352,7 @@ class DynamicValueGraph:
             List of mutations applied.
         """
         self._cycle_count += 1
-        mutations: list[ValueMutation] = []
+        mutations: List[ValueMutation] = []
 
         for name, node in list(self._nodes.items()):
             # Skip deprecated nodes
@@ -412,7 +412,7 @@ class DynamicValueGraph:
 
     def _process_candidate(
         self, node: ValueNode, delta: float, confidence: float
-    ) -> ValueMutation | None:
+    ) -> Optional[ValueMutation]:
         """Process a candidate value: promote to sandbox if evidence is sufficient.
 
         Promotion requires evidence FOR the value. The gate used to test only
@@ -438,7 +438,7 @@ class DynamicValueGraph:
 
     def _process_sandbox(
         self, node: ValueNode, delta: float, confidence: float
-    ) -> ValueMutation | None:
+    ) -> Optional[ValueMutation]:
         """Process a sandbox value: promote to provisional if diversity is sufficient.
 
         As with the candidate gate, a negative net signal must not advance a
@@ -474,7 +474,7 @@ class DynamicValueGraph:
 
     def _process_provisional(
         self, node: ValueNode, delta: float, confidence: float
-    ) -> ValueMutation | None:
+    ) -> Optional[ValueMutation]:
         """Process a provisional value: adopt if grace period passed and evidence holds."""
         now = time.time()
         # Adoption requires the evidence to still be POSITIVE at the end of
@@ -517,7 +517,7 @@ class DynamicValueGraph:
 
     def _process_adopted(
         self, node: ValueNode, delta: float, confidence: float
-    ) -> ValueMutation | None:
+    ) -> Optional[ValueMutation]:
         """Process an adopted value: apply evidence-gated delta."""
         old_weight = node.weight
         node.weight = max(0.05, min(0.95, node.weight + delta))
@@ -534,10 +534,10 @@ class DynamicValueGraph:
         )
 
     def _propagate_edges(
-        self, mutations: list[ValueMutation]
-    ) -> list[ValueMutation]:
+        self, mutations: List[ValueMutation]
+    ) -> List[ValueMutation]:
         """Propagate value changes through edges (coupling)."""
-        edge_mutations: list[ValueMutation] = []
+        edge_mutations: List[ValueMutation] = []
         for mutation in mutations:
             node = self._nodes.get(mutation.node_name)
             if node is None:
@@ -569,9 +569,9 @@ class DynamicValueGraph:
 
         return edge_mutations
 
-    def _check_rollbacks(self) -> list[ValueMutation]:
+    def _check_rollbacks(self) -> List[ValueMutation]:
         """Check for provisional values that should be rolled back."""
-        rollbacks: list[ValueMutation] = []
+        rollbacks: List[ValueMutation] = []
         now = time.time()
 
         for name, node in self._nodes.items():
@@ -671,7 +671,7 @@ class DynamicValueGraph:
             finally:
                 try:
                     Path(tmp_path).unlink(missing_ok=True)
-                except OSError as _exc:
+                except (OSError, IOError) as _exc:
                     logger.debug("Suppressed %s in core.adaptation.dynamic_value_graph: %s", type(_exc).__name__, _exc)
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
             logger.debug("Value graph save failed: %s", exc)
@@ -694,7 +694,7 @@ class DynamicValueGraph:
 
     # ── Events ──────────────────────────────────────────────────────────
 
-    def _publish_event(self, topic: str, data: dict[str, Any]) -> None:
+    def _publish_event(self, topic: str, data: Dict[str, Any]) -> None:
         try:
             from core.event_bus import get_event_bus
             get_event_bus().publish_threadsafe(topic, data)
@@ -703,7 +703,7 @@ class DynamicValueGraph:
 
     # ── Public API ──────────────────────────────────────────────────────
 
-    def get_adopted_values(self) -> dict[str, float]:
+    def get_adopted_values(self) -> Dict[str, float]:
         """Return all adopted value weights."""
         return {
             name: node.weight
@@ -711,7 +711,7 @@ class DynamicValueGraph:
             if node.status in (ValueNodeStatus.ADOPTED, ValueNodeStatus.PROVISIONAL)
         }
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         """Return graph status for observability."""
         by_status = defaultdict(int)
         for node in self._nodes.values():
@@ -725,14 +725,14 @@ class DynamicValueGraph:
             "recent_mutations": [m.to_dict() for m in self._mutation_log[-20:]],
         }
 
-    def get_recent_mutations(self, n: int = 20) -> list[dict[str, Any]]:
+    def get_recent_mutations(self, n: int = 20) -> List[Dict[str, Any]]:
         """Return recent mutations for observability."""
         return [m.to_dict() for m in self._mutation_log[-n:]]
 
 
 # ── Singleton ───────────────────────────────────────────────────────────────
 
-_instance: DynamicValueGraph | None = None
+_instance: Optional[DynamicValueGraph] = None
 
 
 def get_dynamic_value_graph() -> DynamicValueGraph:

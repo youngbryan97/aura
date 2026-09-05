@@ -13,7 +13,7 @@ Usage:
 import logging
 import time
 from dataclasses import dataclass, field
-
+from typing import Dict, List, Optional
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.PromptRegistry")
@@ -35,8 +35,8 @@ class PromptRegistry:
     """Centralized prompt management with version tracking."""
 
     def __init__(self):
-        self._prompts: dict[str, PromptEntry] = {}
-        self._history: dict[str, list[dict]] = {}  # name -> [{version, text, timestamp}]
+        self._prompts: Dict[str, PromptEntry] = {}
+        self._history: Dict[str, List[Dict]] = {}  # name -> [{version, text, timestamp}]
 
     def register(self, name: str, text: str, category: str = "system",
                  description: str = "") -> None:
@@ -49,7 +49,7 @@ class PromptRegistry:
         self._history[name] = [{"version": 1, "text": text[:200], "timestamp": time.time()}]
         logger.debug("Registered prompt: %s (category=%s)", name, category)
 
-    def get(self, name: str, default: str | None = None) -> str | None:
+    def get(self, name: str, default: Optional[str] = None) -> Optional[str]:
         """Get the current text of a named prompt."""
         entry = self._prompts.get(name)
         if entry:
@@ -85,7 +85,7 @@ class PromptRegistry:
         logger.info("Prompt '%s' updated to v%d", name, entry.version)
         return entry.version
 
-    def list_all(self) -> list[dict]:
+    def list_all(self) -> List[Dict]:
         """List all registered prompts with metadata."""
         return [
             {
@@ -99,11 +99,11 @@ class PromptRegistry:
             for e in self._prompts.values()
         ]
 
-    def get_history(self, name: str) -> list[dict]:
+    def get_history(self, name: str) -> List[Dict]:
         """Get version history for a prompt."""
         return self._history.get(name, [])
 
-    def search(self, query: str) -> list[str]:
+    def search(self, query: str) -> List[str]:
         """Search prompt texts for a query string."""
         results = []
         for name, entry in self._prompts.items():
@@ -119,11 +119,7 @@ prompt_registry = PromptRegistry()
 def _bootstrap_prompts():
     """Register all known system prompts on first import."""
     try:
-        from core.brain.aura_persona import (
-            AURA_IDENTITY,
-            AUTONOMOUS_THOUGHT_PROMPT,
-            REFLECTION_PROMPT,
-        )
+        from core.brain.aura_persona import AURA_IDENTITY, REFLECTION_PROMPT, AUTONOMOUS_THOUGHT_PROMPT
         prompt_registry.register(
             "aura_identity", AURA_IDENTITY,
             category="persona",

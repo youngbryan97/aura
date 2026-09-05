@@ -23,8 +23,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.runtime.service_registry import get_runtime_service, register_runtime_service
 from core.utils.engine_support import coerce_text, record_engine_degradation, resolve_brain
+from core.runtime.service_registry import get_runtime_service, register_runtime_service
 
 logger = logging.getLogger("Aura.ScenarioForge")
 

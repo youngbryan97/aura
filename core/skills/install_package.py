@@ -2,16 +2,17 @@
 Allows Aura to install Python packages into the Sovereign Sandbox.
 Essential for upgrading the "Body" (Perception libraries).
 """
+from core.runtime.errors import record_degradation
 import inspect
 import logging
 import sys
-from typing import Any
+from typing import Any, Dict
 
 from pydantic import BaseModel, Field
 
-from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill
 
+from ..sovereign.local_sandbox import LocalSandbox
 from .active_coding import get_sandbox
 
 logger = logging.getLogger("Skills.InstallPackage")
@@ -28,7 +29,7 @@ class InstallPackageSkill(BaseSkill):
         super().__init__()
 
         
-    async def execute(self, params: InstallPackageParams, context: dict[str, Any]) -> dict[str, Any]:
+    async def execute(self, params: InstallPackageParams, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the package installation.
         """
         # Legacy support

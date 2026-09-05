@@ -28,7 +28,7 @@ import logging
 import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Aura.BootPhases")
 
@@ -51,13 +51,13 @@ class BootState(str, Enum):
 class BootSnapshot:
     state: str
     progress: float  # 0..1
-    blocked_on: list[str] = field(default_factory=list)
-    organs: dict[str, str] = field(default_factory=dict)
+    blocked_on: List[str] = field(default_factory=list)
+    organs: Dict[str, str] = field(default_factory=dict)
     started_at: float = 0.0
     last_transition_at: float = field(default_factory=time.time)
-    last_change: str | None = None
+    last_change: Optional[str] = None
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
@@ -66,8 +66,8 @@ class BootPhases:
         self.state: BootState = BootState.STARTING
         self.started_at = time.time()
         self.last_transition_at = self.started_at
-        self.last_change: str | None = None
-        self.organs: dict[str, str] = {
+        self.last_change: Optional[str] = None
+        self.organs: Dict[str, str] = {
             "core": "starting",
             "memory": "starting",
             "cortex": "starting",
@@ -146,7 +146,7 @@ class BootPhases:
         return self.state == BootState.READY
 
 
-_PHASES: BootPhases | None = None
+_PHASES: Optional[BootPhases] = None
 
 
 def get_boot_phases() -> BootPhases:

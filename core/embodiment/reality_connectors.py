@@ -6,7 +6,6 @@ import inspect
 import os
 from dataclasses import dataclass, replace
 from typing import Any
-
 from core.runtime.flags import env_str
 
 _OPENHAB_CONNECTOR_ID = "openhab.local"

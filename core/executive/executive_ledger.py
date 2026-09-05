@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 
 class ExecutiveLedger:
@@ -17,7 +17,7 @@ class ExecutiveLedger:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-    def append(self, event: dict[str, Any]) -> None:
+    def append(self, event: Dict[str, Any]) -> None:
         payload = dict(event)
         payload.setdefault("timestamp", time.time())
         with self.path.open("a", encoding="utf-8") as handle:

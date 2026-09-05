@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import Any, Dict, List
 
 logger = logging.getLogger("Aura.PRBuilder")
 
@@ -14,7 +14,7 @@ logger = logging.getLogger("Aura.PRBuilder")
 class PRBuilder:
     """Generates unified diffs, logs, and structures Pull Request descriptions."""
 
-    def generate_diff_summary(self, patches: list[dict[str, Any]]) -> str:
+    def generate_diff_summary(self, patches: List[Dict[str, Any]]) -> str:
         """Create a markdown diff summary of the software factory changes."""
         logger.info("📝 PRBuilder generating changelog/diff summary for %d patches", len(patches))
 
@@ -47,7 +47,7 @@ class PRBuilder:
 
         return "\n".join(summary_lines)
 
-    def build_pr_metadata(self, job_id: str, diff_summary: str, test_summary: str) -> dict[str, Any]:
+    def build_pr_metadata(self, job_id: str, diff_summary: str, test_summary: str) -> Dict[str, Any]:
         """Constructs metadata to submit a Pull Request or git commit."""
         title = f"Aura Refactor: Autonomously resolved job {job_id}"
         body = (

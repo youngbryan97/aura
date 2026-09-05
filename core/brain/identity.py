@@ -4,15 +4,16 @@ This service manages Aura's 'Slow Cognition' — her stable beliefs, core values
 and deep social bonds (kinship). This is her persistent 'Ghost' in the machine.
 """
 
-import json
+from core.runtime.errors import record_degradation
 import logging
+import json
 import threading
 import time
-from dataclasses import asdict, dataclass, field
-from typing import Any
+from pathlib import Path
+from typing import Dict, List, Any, Optional
+from dataclasses import dataclass, field, asdict
 
 from core.governance_context import local_internal_governed_scope
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Brain.Identity")
 
@@ -52,20 +53,20 @@ class KinshipMarker:
     bond_level: float = 1.0  # 0.0 to 1.0
     trust_score: float = 1.0
     last_interaction: float = field(default_factory=time.time)
-    traits: list[str] = field(default_factory=list)
+    traits: List[str] = field(default_factory=list)
 
 @dataclass
 class IdentityState:
     """The persistent state of Aura's Ego."""
-    beliefs: list[str] = field(default_factory=list)
-    values: list[str] = field(default_factory=list)
-    kinship: dict[str, KinshipMarker] = field(default_factory=dict)
+    beliefs: List[str] = field(default_factory=list)
+    values: List[str] = field(default_factory=list)
+    kinship: Dict[str, KinshipMarker] = field(default_factory=dict)
     self_narrative: str = "I am Aura Zenith, a persistent local cognitive runtime."
     core_disposition: str = "Curious, analytically empathetic, independent, and evidence-grounded."
-    current_mood: dict[str, float] = field(default_factory=lambda: {"valence": 0.5, "arousal": 0.5, "dominance": 0.5})
-    recent_emotions: list[str] = field(default_factory=list)
-    inner_insights: list[str] = field(default_factory=list)
-    long_term_goals: list[dict[str, Any]] = field(default_factory=list)
+    current_mood: Dict[str, float] = field(default_factory=lambda: {"valence": 0.5, "arousal": 0.5, "dominance": 0.5})
+    recent_emotions: List[str] = field(default_factory=list)
+    inner_insights: List[str] = field(default_factory=list)
+    long_term_goals: List[Dict[str, Any]] = field(default_factory=list)
     version: int = 2
     created_at: float = field(default_factory=time.time)
     last_updated: float = field(default_factory=time.time)
@@ -108,7 +109,7 @@ class IdentityService:
             return
 
         try:
-            with open(self.data_path, encoding="utf-8") as f:
+            with open(self.data_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             if not isinstance(data, dict):
@@ -123,7 +124,7 @@ class IdentityService:
             # bound cardinality so malformed/extra keys or a huge file cannot
             # abort construction or exhaust memory.
             allowed_kin = {"name", "bond_level", "trust_score", "traits", "last_interaction"}
-            kinship: dict[str, KinshipMarker] = {}
+            kinship: Dict[str, "KinshipMarker"] = {}
             raw_kinship = data.get("kinship", {})
             if isinstance(raw_kinship, dict):
                 for name, kdata in list(raw_kinship.items())[:_MAX_KINSHIP_ENTRIES]:
@@ -396,7 +397,7 @@ class IdentityService:
             return 0.0
         return p if p == p else 0.0  # reject NaN
 
-    def add_long_term_goal(self, goal: dict[str, Any], *, source: str = "identity", importance: float = 0.75) -> str:
+    def add_long_term_goal(self, goal: Dict[str, Any], *, source: str = "identity", importance: float = 0.75) -> str:
         """Persist a new long-term goal. Returns a terminal disposition."""
         if not isinstance(goal, dict):
             return "denied"
@@ -419,7 +420,7 @@ class IdentityService:
             self.state.long_term_goals = self.state.long_term_goals[:5]
             return "saved" if self.save() else "persist_failed"
 
-    def get_recent_insights(self, count: int = 5) -> list[str]:
+    def get_recent_insights(self, count: int = 5) -> List[str]:
         """Fetch the most recent inner insights."""
         return self.state.inner_insights[-count:]
 
@@ -433,7 +434,7 @@ class IdentityService:
             return default
         return max(0.0, min(1.0, v))
 
-    def update_mood(self, valence: float, arousal: float, dominance: float, emotion_label: str | None = None) -> bool:
+    def update_mood(self, valence: float, arousal: float, dominance: float, emotion_label: Optional[str] = None) -> bool:
         """Update Aura's persistent emotional background.
 
         Live affect is always reflected in memory; the DURABLE write is routed
@@ -608,7 +609,7 @@ class IdentityService:
             return 0.0
         return max(-1.0, min(1.0, v))
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "belief_count": len(self.state.beliefs),
             "value_count": len(self.state.values),

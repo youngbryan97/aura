@@ -40,14 +40,15 @@ to the log line nearest in time.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
+import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
 from core.cognition.cognitive_event import Phase, cycle, get_event_graph
-from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Step",

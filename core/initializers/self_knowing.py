@@ -37,9 +37,9 @@ def initialize_self_knowing(orchestrator: Any | None = None) -> dict[str, Any]:
             register_runtime_service("automatic_self_knowing", automatic, required=False)
 
         if orchestrator is not None:
-            orchestrator.phenomenal_knowing = phenomenal
-            orchestrator.recursive_self_knowing = recursive
-            orchestrator.automatic_self_knowing = automatic
+            setattr(orchestrator, "phenomenal_knowing", phenomenal)
+            setattr(orchestrator, "recursive_self_knowing", recursive)
+            setattr(orchestrator, "automatic_self_knowing", automatic)
 
         return {
             "phenomenal_knowing": phenomenal,

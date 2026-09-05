@@ -26,9 +26,8 @@ for looks indispensable every time.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Callable, Sequence
 
 __all__ = [
     "APart",

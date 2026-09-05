@@ -12,8 +12,8 @@ import logging
 import time
 from typing import Any
 
-from core.conversation.tagged_reply_queue import reply_delivery_scope
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.conversation.tagged_reply_queue import reply_delivery_scope
 from core.utils.queues import unpack_priority_message
 from core.utils.task_tracker import get_task_tracker, task_tracker
 

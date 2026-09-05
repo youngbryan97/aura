@@ -23,9 +23,9 @@ from core.container import ServiceContainer
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
-from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.runtime.task_ownership import create_tracked_task
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.CapabilityDiscovery")
 

@@ -2,10 +2,10 @@
 Affect Coordinator for the RobustOrchestrator.
 Handles emotional regulation, drive maintenance, and homeostasis.
 """
-import asyncio
 import inspect
 import logging
-from typing import Any
+import asyncio
+from typing import Any, Dict
 
 from core.runtime.service_registry import get_runtime_service
 
@@ -64,7 +64,7 @@ class AffectCoordinator:
             else:
                 await asyncio.to_thread(engine.somatic_update, label, value)
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         """Returns the current status of the affect system."""
         engine = self.emotion_engine
         if engine and hasattr(engine, 'get_status'):

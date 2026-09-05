@@ -6,10 +6,10 @@ It is the answer to the question: "Who are you, and why do you exist?"
 import hashlib
 import json
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import date
 from typing import ClassVar, Final
-
 from core.config import config
 
 _hs_logger = logging.getLogger("Heartstone")
@@ -28,7 +28,7 @@ def _load_creator_profile() -> dict:
         "signature": "[REDACTED — populate ~/.aura/creator_profile.json]",
     }
     try:
-        with open(profile_path, encoding="utf-8") as f:
+        with open(profile_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return {
             "name": data.get("name", defaults["name"]),

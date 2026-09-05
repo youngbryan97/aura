@@ -25,6 +25,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from typing import Deque, Dict, Optional, Tuple
 
 from core.runtime.errors import record_degradation
 
@@ -41,9 +42,9 @@ class RegulatedAffect:
     hold: bool
     valence: float
     rationale: str
-    factors: dict[str, float] = field(default_factory=dict)
+    factors: Dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, float]:
+    def to_dict(self) -> Dict[str, float]:
         return {
             "raw_intensity": round(self.raw_intensity, 3),
             "regulated_intensity": round(self.regulated_intensity, 3),
@@ -63,7 +64,7 @@ class EmotionalRegulator:
         self._hold_arousal = hold_arousal
         self._lock = threading.RLock()
         # rolling (t, arousal, valence) samples for sustained-vs-transient discrimination
-        self._samples: deque[tuple[float, float, float]] = deque(maxlen=64)
+        self._samples: Deque[Tuple[float, float, float]] = deque(maxlen=64)
 
     def _sustained(self, now: float) -> float:
         """Fraction of the window that arousal has been elevated — sustained vs spike."""
@@ -79,8 +80,8 @@ class EmotionalRegulator:
         arousal: float,
         valence: float,
         deliberation: float = 0.5,    # [0,1] how much considered thought is available now
-        stakes: float | None = None,  # [0,1] how much this actually matters; None → infer
-        now: float | None = None,
+        stakes: Optional[float] = None,  # [0,1] how much this actually matters; None → infer
+        now: Optional[float] = None,
     ) -> RegulatedAffect:
         now = time.time() if now is None else now
         arousal = _clamp(arousal)
@@ -163,7 +164,7 @@ class EmotionalRegulator:
         )
 
 
-_regulator: EmotionalRegulator | None = None
+_regulator: Optional[EmotionalRegulator] = None
 _lock = threading.Lock()
 
 

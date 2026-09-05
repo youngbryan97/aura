@@ -27,7 +27,7 @@ returned deltas. See ``core/memory/episodic_memory.py``.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 

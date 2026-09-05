@@ -1,9 +1,8 @@
-import asyncio
-import logging
-
 from core.runtime.errors import record_degradation
-from core.runtime.service_registry import get_runtime_service
 from core.utils.task_tracker import get_task_tracker
+import logging
+import asyncio
+from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("Aura.Senses.Instincts")
 

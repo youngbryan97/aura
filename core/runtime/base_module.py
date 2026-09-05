@@ -1,12 +1,11 @@
 import inspect
+from core.runtime.errors import record_degradation
 import logging
 import time
+import asyncio
 import traceback
-from collections.abc import Callable
+from typing import Any, Dict, Optional, Callable, TypeVar, Union
 from functools import wraps
-from typing import Any, TypeVar
-
-from core.runtime.errors import record_degradation
 
 T = TypeVar("T")
 
@@ -22,7 +21,7 @@ class AuraBaseModule:
         metrics (Dict[str, Any]): Dictionary containing performance and error metrics.
     """
     
-    def __init__(self, name: str | None = None):
+    def __init__(self, name: Optional[str] = None):
         """Initializes the base module.
         
         Args:
@@ -30,7 +29,7 @@ class AuraBaseModule:
         """
         self.module_name = name or self.__class__.__name__
         self.logger = logging.getLogger(f"Aura.{self.module_name}")
-        self.metrics: dict[str, Any] = {
+        self.metrics: Dict[str, Any] = {
             "calls": 0,
             "errors": 0,
             "avg_latency": 0.0,
@@ -97,7 +96,7 @@ class AuraBaseModule:
         old_avg = self.metrics["avg_latency"]
         self.metrics["avg_latency"] = old_avg + (current_latency - old_avg) / n
 
-    def handle_error(self, error: Exception | str, context: str) -> dict[str, Any]:
+    def handle_error(self, error: Union[Exception, str], context: str) -> Dict[str, Any]:
         """Overrideable error handler for module-specific recovery.
         
         Args:
@@ -109,7 +108,7 @@ class AuraBaseModule:
         """
         return {"ok": False, "error": str(error), "context": context}
 
-    def get_health(self) -> dict[str, Any]:
+    def get_health(self) -> Dict[str, Any]:
         """Retrieves module health statistics.
         
         Returns:

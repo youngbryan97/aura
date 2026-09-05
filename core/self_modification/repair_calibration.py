@@ -6,14 +6,14 @@ module family, then returns a calibrated probability used by promotion gates.
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
-from core.runtime.sqlite_support import connecting
 from core.runtime.state_ownership import state_root
+from core.runtime.sqlite_support import connecting
 
 
 @dataclass(frozen=True)

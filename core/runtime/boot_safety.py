@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import Tuple
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 
@@ -24,7 +25,7 @@ def main_process_camera_policy(
     requested: bool,
     *,
     platform: str | None = None,
-) -> tuple[bool, str]:
+) -> Tuple[bool, str]:
     platform = platform or sys.platform
     if not requested:
         return False, "camera disabled"

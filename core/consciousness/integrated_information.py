@@ -107,7 +107,7 @@ class LaggedGaussian:
     n_samples: int
 
     @classmethod
-    def fit(cls, X: np.ndarray, *, shrinkage: float = 0.05) -> LaggedGaussian:
+    def fit(cls, X: np.ndarray, *, shrinkage: float = 0.05) -> "LaggedGaussian":
         X = np.asarray(X, dtype=float)
         if X.ndim != 2 or X.shape[0] < 8 or X.shape[1] < 2:
             raise ValueError("channel matrix must be T×N with T ≥ 8, N ≥ 2")
@@ -1045,7 +1045,7 @@ class PhiEstimate:
         }
 
 
-def _bounded_claim(est: PhiEstimate) -> str:
+def _bounded_claim(est: "PhiEstimate") -> str:
     verdict = ("integration beats chance" if est.integration_established()
                else "integration NOT established against the null")
     mip_proof = (

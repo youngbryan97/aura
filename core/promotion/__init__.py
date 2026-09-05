@@ -13,12 +13,12 @@ Wires into existing Aura modules:
   * F2 prediction ledger — the gate accepts a callable that produces
     a ``ScoreEstimate`` per metric.
 """
-from core.promotion.dynamic_benchmark import DynamicBenchmark, Task
 from core.promotion.gate import (
     PromotionDecision,
     PromotionGate,
     ScoreEstimate,
 )
+from core.promotion.dynamic_benchmark import DynamicBenchmark, Task
 from core.promotion.holdout_vault import HoldoutVault, LeakageDetector
 
 __all__ = [

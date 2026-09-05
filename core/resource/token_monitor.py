@@ -1,7 +1,7 @@
 import logging
 import time
 
-from core.container import ServiceContainer
+from core.container import ServiceContainer, ServiceLifetime
 
 logger = logging.getLogger("Resource.TokenMonitor")
 

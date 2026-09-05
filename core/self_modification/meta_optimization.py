@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from core.runtime import resource_psutil as psutil
 from core.utils.task_tracker import get_task_tracker
@@ -26,8 +26,8 @@ class MetaOptimizationLoop:
     def __init__(self, orchestrator=None, rollback_threshold: float = 1.25):
         self.orchestrator = orchestrator
         self.rollback_threshold = rollback_threshold
-        self.history: list[dict[str, Any]] = []
-        self.baseline: PerformanceMetrics | None = None
+        self.history: List[Dict[str, Any]] = []
+        self.baseline: Optional[PerformanceMetrics] = None
         self.process = psutil.Process(os.getpid())
         
     def capture_baseline(self) -> PerformanceMetrics:
@@ -41,7 +41,7 @@ class MetaOptimizationLoop:
         logger.info("🚀 Dynamic baseline captured: %s", metrics)
         return metrics
         
-    def evaluate_modification(self, proposal_id: str, before: PerformanceMetrics, after: PerformanceMetrics) -> dict[str, Any]:
+    def evaluate_modification(self, proposal_id: str, before: PerformanceMetrics, after: PerformanceMetrics) -> Dict[str, Any]:
         """Evaluate the impact of a code modification."""
         delta_latency = after.latency_ms / max(before.latency_ms, 0.001)
         delta_cpu = after.cpu_usage_pct / max(before.cpu_usage_pct, 0.1)

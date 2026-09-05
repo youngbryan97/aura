@@ -37,9 +37,8 @@ to run before committing to either.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Callable, Sequence
 
 __all__ = [
     "ACause",
@@ -97,13 +96,13 @@ def what_a_reader_would_call_it(cause: ACause) -> str:
 
 def _lesion_causes() -> list[ACause]:
     """One cause per part: what happens without it."""
-    from core.cognition.sequence_induction import (  # noqa: PLC2701
-        _everything_she_can_say,
-        _put_back,
-    )
     from core.cognition.what_she_is_made_of import (
         _take_it_out,  # noqa: PLC2701
         what_she_is_made_of,
+    )
+    from core.cognition.sequence_induction import (  # noqa: PLC2701
+        _everything_she_can_say,
+        _put_back,
     )
 
     found: list[ACause] = []

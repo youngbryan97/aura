@@ -44,7 +44,7 @@ import asyncio
 import logging
 import math
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, List, Optional
 
 from core.kernel.bridge import Phase
 from core.runtime.errors import record_degradation
@@ -69,10 +69,10 @@ FE_DISTRESSED  = 0.75   # Above: high prediction error — emergency modifiers
 
 # ─── Lightweight phi approximation (no numpy required) ─────────────────────────
 
-def _safe_mean(values: list[float]) -> float:
+def _safe_mean(values: List[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
-def _safe_std(values: list[float]) -> float:
+def _safe_std(values: List[float]) -> float:
     if len(values) < 2:
         return 0.0
     mu = _safe_mean(values)
@@ -264,7 +264,7 @@ def compute_phi_approx(state: AuraState) -> float:
     return float(f"{phi:.4f}")
 
 
-def _build_emotion_vector(state: AuraState) -> list[float]:
+def _build_emotion_vector(state: AuraState) -> List[float]:
     """Flat float vector from AuraState for RIIU."""
     e   = state.affect.emotions
     phy = state.affect.physiology
@@ -309,7 +309,7 @@ class PhiConsciousnessPhase(Phase):
     BEFORE routing_phase (so phi can influence mode selection).
     """
 
-    def __init__(self, kernel: AuraKernel):
+    def __init__(self, kernel: "AuraKernel"):
         super().__init__(kernel)
         self._riiu:         Any = None   # Lazy-loaded
         self._fe_engine:    Any = None   # Lazy-loaded
@@ -323,7 +323,7 @@ class PhiConsciousnessPhase(Phase):
 
     # ── Main execute ────────────────────────────────────────────────────────────
 
-    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
         priority = kwargs.get("priority", False)
         new_state = state.derive("phi_consciousness", origin="PhiConsciousnessPhase")
 
@@ -470,7 +470,7 @@ class PhiConsciousnessPhase(Phase):
             logger.debug("PhiCore not available: %s", e)
         return self._phi_core
 
-    def _get_riiu(self) -> Any | None:
+    def _get_riiu(self) -> Optional[Any]:
         if self._riiu_checked:
             return self._riiu
         self._riiu_checked = True
@@ -490,7 +490,7 @@ class PhiConsciousnessPhase(Phase):
 
     # ── Free energy ─────────────────────────────────────────────────────────────
 
-    async def _read_free_energy(self) -> float | None:
+    async def _read_free_energy(self) -> Optional[float]:
         fe_engine = self._get_fe_engine()
         if fe_engine is None:
             return None
@@ -503,7 +503,7 @@ class PhiConsciousnessPhase(Phase):
             logger.debug("Free energy read failed: %s", e)
         return None
 
-    def _get_fe_engine(self) -> Any | None:
+    def _get_fe_engine(self) -> Optional[Any]:
         if self._fe_checked:
             return self._fe_engine
         self._fe_checked = True
@@ -556,7 +556,7 @@ class PhiConsciousnessPhase(Phase):
 
     async def _generate_phenomenal_state(
         self, state: AuraState, objective: str, priority: bool = False
-    ) -> PhenomenalField | None:
+    ) -> Optional[PhenomenalField]:
         """
         Higher-Order Thought: generate a first-person sentence describing
         what Aura is experiencing right now.
@@ -690,7 +690,7 @@ class PhiConsciousnessPhase(Phase):
         logger.debug("Phenomenal state synthesized: %s", phenomenal)
         return phenomenal
 
-    def _rule_based_phenomenal(self, state: AuraState) -> PhenomenalField | None:
+    def _rule_based_phenomenal(self, state: AuraState) -> Optional[PhenomenalField]:
         """Deterministic phenomenal state when LLM is unavailable."""
         e       = state.affect.emotions
         mood    = state.affect.dominant_emotion

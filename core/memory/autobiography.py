@@ -1,13 +1,13 @@
 """core/memory/autobiography.py
 Autobiographical memory orchestrator building narrative continuity.
 """
-import logging
-import time
+from typing import Dict, Any, Optional
 import uuid
-from typing import Any
+import time
+import logging
 
-from core.memory.episode_store import EpisodeStore
 from core.memory.life_event import LifeEvent
+from core.memory.episode_store import EpisodeStore
 
 logger = logging.getLogger("Memory.Autobiography")
 
@@ -18,7 +18,7 @@ class AutobiographyEngine:
     def __init__(self):
         self.store = EpisodeStore()
 
-    async def record_tick_event(self, state: Any, receipt: dict[str, Any] | None) -> None:
+    async def record_tick_event(self, state: Any, receipt: Optional[Dict[str, Any]]) -> None:
         """Assembles a single LifeEvent trace from the current loop status and appends to disk."""
         
         event_id = str(uuid.uuid4())

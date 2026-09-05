@@ -38,6 +38,7 @@ relationship rather than forcing a link that would make neither mean anything.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from core.runtime.errors import record_degradation

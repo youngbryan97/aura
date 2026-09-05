@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Dict, Optional
 
 from core.health.degraded_events import get_unified_failure_state
+from core.runtime.service_registry import get_runtime_service
 from core.runtime.service_access import (
     resolve_canonical_self,
     resolve_identity_model,
     resolve_orchestrator,
     resolve_state_repository,
 )
-from core.runtime.service_registry import get_runtime_service
 
 
-def _canonical_self_version(current: Any) -> int | None:
+def _canonical_self_version(current: Any) -> Optional[int]:
     try:
         return int(getattr(current, "version", 0) or 0)
     except (TypeError, ValueError):
@@ -75,7 +75,7 @@ def _clean_current_intention_for_status(intention: Any, live_objective: Any = ""
     return text[:260]
 
 
-def get_organism_status(orchestrator: Any = None) -> dict[str, Any]:
+def get_organism_status(orchestrator: Any = None) -> Dict[str, Any]:
     orch = orchestrator or resolve_orchestrator(default=None)
     repo = resolve_state_repository(orch, default=None)
     state = getattr(repo, "_current", None) if repo is not None else None
@@ -85,7 +85,7 @@ def get_organism_status(orchestrator: Any = None) -> dict[str, Any]:
     canonical_self_version = _canonical_self_version(canonical_self)
     identity_model = resolve_identity_model(default=None)
     failure_state = get_unified_failure_state(limit=25)
-    resource_state: dict[str, Any] = {}
+    resource_state: Dict[str, Any] = {}
     try:
         stakes = get_runtime_service("resource_stakes", default=None)
         if stakes is not None:

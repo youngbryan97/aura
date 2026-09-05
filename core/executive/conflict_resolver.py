@@ -1,13 +1,13 @@
 """core/executive/conflict_resolver.py
 Resolves conflicting goal parameters and execution conflicts.
 """
-from typing import Any
+from typing import List, Dict, Any
 
 
 class ExecutiveConflictResolver:
     """Detects and clears duplicate goals inside the active queues."""
 
-    def resolve_goal_clashes(self, goals: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def resolve_goal_clashes(self, goals: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         seen = set()
         deduped = []
         for g in goals:

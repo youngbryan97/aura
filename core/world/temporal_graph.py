@@ -1,15 +1,15 @@
 """core/world/temporal_graph.py
 Temporal graph cataloging chronologies and duration estimates for events.
 """
+from typing import Dict, Any, List
 import time
-from typing import Any
 
 
 class TemporalGraph:
     """Tracks chronological links and event sequencing."""
 
     def __init__(self):
-        self._events: list[dict[str, Any]] = []
+        self._events: List[Dict[str, Any]] = []
 
     def record_event_time(self, label: str, duration: float) -> None:
         self._events.append({

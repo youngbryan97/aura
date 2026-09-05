@@ -29,6 +29,8 @@ The engine never reverts memory contents — only structural / policy state.
 That keeps autobiographical continuity intact across organ resets.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import hashlib
 import hmac
@@ -46,7 +48,6 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_bytes
-from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.state_ownership import state_root
 

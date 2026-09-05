@@ -32,6 +32,7 @@ import logging
 import math
 import time
 from dataclasses import dataclass
+from typing import Optional, Tuple
 
 logger = logging.getLogger("Aura.HedoniGradient")
 
@@ -98,7 +99,7 @@ class HedoniGradientEngine:
     """
 
     def __init__(self):
-        self._allocation: ResourceAllocation | None = None
+        self._allocation: Optional[ResourceAllocation] = None
         self._prev_score: float = 0.5
         self._score_ema: float = 0.5
         self._gradient: float = 0.0
@@ -153,7 +154,7 @@ class HedoniGradientEngine:
             return False
 
     @property
-    def allocation(self) -> ResourceAllocation | None:
+    def allocation(self) -> Optional[ResourceAllocation]:
         return self._allocation
 
     @property
@@ -213,7 +214,7 @@ class HedoniGradientEngine:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_hedonic: HedoniGradientEngine | None = None
+_hedonic: Optional[HedoniGradientEngine] = None
 
 
 def get_hedonic_gradient() -> HedoniGradientEngine:

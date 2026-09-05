@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Dict, List
 
 logger = logging.getLogger("Aura.RegressionMemory")
 
@@ -10,7 +11,7 @@ class RegressionMemory:
     """Remembers past patch failures and bugs to avoid duplicate regression patterns."""
 
     def __init__(self) -> None:
-        self.failed_patches: list[dict[str, str]] = []
+        self.failed_patches: List[Dict[str, str]] = []
 
     def record_failure(self, module: str, patch_hash: str, error_details: str) -> None:
         """Saves a failed patch fingerprint to regression memory."""

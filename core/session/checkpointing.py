@@ -12,6 +12,7 @@ Features:
   - Rotational cleanup (keep last 10 checkpoints)
 """
 
+from core.runtime.errors import record_degradation
 import glob
 import json
 import logging
@@ -19,8 +20,6 @@ import os
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
-
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Checkpointing")
 
@@ -125,7 +124,7 @@ class CheckpointService:
             try:
                 os.remove(old_file)
                 logger.debug("Removed old checkpoint: %s", os.path.basename(old_file))
-            except OSError as e:
+            except (OSError, IOError) as e:
                 record_degradation('checkpointing', e)
                 logger.warning("Failed to remove old checkpoint: %s", e)
 

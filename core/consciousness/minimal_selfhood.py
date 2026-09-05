@@ -48,6 +48,7 @@ Registered as ``minimal_selfhood`` in ServiceContainer and fed by
 """
 from __future__ import annotations
 
+
 import logging
 import math
 import threading
@@ -55,7 +56,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -67,7 +68,7 @@ BIAS_DIM = 16
 # Named action categories whose priority this module modulates. These map to
 # abstract action-types recognised by the action-selection layer; the exact
 # string names are semantic labels for telemetry, not dispatch hooks.
-ACTION_CATEGORIES: tuple[str, ...] = (
+ACTION_CATEGORIES: Tuple[str, ...] = (
     "rest",             # low-energy → restore
     "explore",          # high-energy + curiosity
     "engage_social",    # social-hunger deficit
@@ -99,7 +100,7 @@ class Mode(str, Enum):
 
 # Deficits the module attends to.  Each maps to a body-budget / affect
 # signal scaled into [0, 1] where 1.0 = maximum deficit (urgent demand).
-DEFICIT_KEYS: tuple[str, ...] = (
+DEFICIT_KEYS: Tuple[str, ...] = (
     "energy",          # 1 - energy_reserves
     "resource",        # resource_pressure
     "thermal",         # thermal_state
@@ -170,11 +171,11 @@ class MinimalSelfhood:
         )
 
         # Running history for diagnostics.
-        self._history: deque[SelfhoodState] = deque(maxlen=256)
-        self._last_state: SelfhoodState | None = None
+        self._history: Deque[SelfhoodState] = deque(maxlen=256)
+        self._last_state: Optional[SelfhoodState] = None
 
         # Pending action-categories awaiting reinforcement (pre-state snapshot).
-        self._pending: dict[str, tuple[float, np.ndarray]] = {}
+        self._pending: Dict[str, Tuple[float, np.ndarray]] = {}
 
         logger.info(
             "MinimalSelfhood initialized: mode=%s, %d categories, %d deficits",
@@ -184,9 +185,9 @@ class MinimalSelfhood:
     # ── Update loop ────────────────────────────────────────────────────────
 
     def update(self,
-               body_budget: dict[str, float],
-               affect: dict[str, float] | None = None,
-               cognitive_state: dict[str, float] | None = None
+               body_budget: Dict[str, float],
+               affect: Optional[Dict[str, float]] = None,
+               cognitive_state: Optional[Dict[str, float]] = None
                ) -> SelfhoodState:
         """Advance one cognitive tick using interoceptive and affective state."""
         affect = affect or {}
@@ -245,9 +246,9 @@ class MinimalSelfhood:
     # ── Deficit computation ───────────────────────────────────────────────
 
     @staticmethod
-    def _build_deficit_vector(body_budget: dict[str, float],
-                              affect: dict[str, float],
-                              cognitive: dict[str, float]
+    def _build_deficit_vector(body_budget: Dict[str, float],
+                              affect: Dict[str, float],
+                              cognitive: Dict[str, float]
                               ) -> np.ndarray:
         """Assemble an 8-D deficit vector, each component in [0, 1]."""
         energy_reserves = float(body_budget.get("energy_reserves", 0.5))
@@ -345,7 +346,7 @@ class MinimalSelfhood:
 
     # ── Public accessors ─────────────────────────────────────────────────
 
-    def current_state(self) -> SelfhoodState | None:
+    def current_state(self) -> Optional[SelfhoodState]:
         with self._lock:
             return self._last_state
 
@@ -357,7 +358,7 @@ class MinimalSelfhood:
             return np.zeros(BIAS_DIM, dtype=np.float32)
         return self._last_state.action_priority.copy()
 
-    def dominant_deficit(self) -> str | None:
+    def dominant_deficit(self) -> Optional[str]:
         return self._last_state.dominant_deficit if self._last_state else None
 
     def mode(self) -> Mode:
@@ -381,7 +382,7 @@ class MinimalSelfhood:
         s = self.speed_scalar()
         return float(np.clip(1.4 - 0.9 * s, 0.5, 1.5))
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         with self._lock:
             s = self._last_state
             return {
@@ -401,7 +402,7 @@ class MinimalSelfhood:
 
 # ── Singleton accessor ────────────────────────────────────────────────────────
 
-_INSTANCE: MinimalSelfhood | None = None
+_INSTANCE: Optional[MinimalSelfhood] = None
 
 
 def get_minimal_selfhood() -> MinimalSelfhood:

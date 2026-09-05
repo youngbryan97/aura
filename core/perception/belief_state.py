@@ -10,9 +10,8 @@ from __future__ import annotations
 
 import math
 import time
-from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from .environment_parser import EnvironmentState
 
@@ -27,7 +26,7 @@ class BeliefHypothesis:
 
     label: str
     probability: float
-    evidence: list[str] = field(default_factory=list)
+    evidence: List[str] = field(default_factory=list)
     updated_at: float = field(default_factory=time.time)
 
 
@@ -39,11 +38,11 @@ class EntityKnowledge:
     entity_type: str
     first_seen: float = field(default_factory=time.time)
     last_seen: float = field(default_factory=time.time)
-    last_known_pos: tuple[int, int] | None = None
+    last_known_pos: Optional[Tuple[int, int]] = None
     confidence: float = 0.7
     salience: float = 0.4
-    tags: list[str] = field(default_factory=list)
-    properties: dict[str, Any] = field(default_factory=dict)
+    tags: List[str] = field(default_factory=list)
+    properties: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -54,7 +53,7 @@ class BeliefNode:
     value: Any
     confidence: float = 0.7
     source: str = "observation"
-    evidence: list[str] = field(default_factory=list)
+    evidence: List[str] = field(default_factory=list)
     updated_at: float = field(default_factory=time.time)
     ttl: float = 3600.0
     contested: bool = False
@@ -72,9 +71,9 @@ class EventRecord:
     description: str
     timestamp: float = field(default_factory=time.time)
     salience: float = 0.5
-    related_entities: list[str] = field(default_factory=list)
-    location: tuple[int, int] | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    related_entities: List[str] = field(default_factory=list)
+    location: Optional[Tuple[int, int]] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -85,8 +84,8 @@ class DeferredIntention:
     trigger: str
     priority: float = 0.5
     created_at: float = field(default_factory=time.time)
-    expires_at: float | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    expires_at: Optional[float] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def expired(self) -> bool:
         return self.expires_at is not None and time.time() >= self.expires_at
@@ -105,17 +104,17 @@ class EnvironmentBeliefState:
         self.session_id = session_id
         self.max_events = int(max_events)
 
-        self.spatial_memory: dict[str, dict[str, Any]] = {}
-        self.entities: dict[str, EntityKnowledge] = {}
-        self.event_log: list[EventRecord] = []
-        self.beliefs: dict[str, BeliefNode] = {}
-        self.hypotheses: dict[str, dict[str, BeliefHypothesis]] = {}
-        self.deferred_intentions: list[DeferredIntention] = []
-        self.prediction_errors: list[dict[str, Any]] = []
-        self.action_outcomes: list[dict[str, Any]] = []
+        self.spatial_memory: Dict[str, Dict[str, Any]] = {}
+        self.entities: Dict[str, EntityKnowledge] = {}
+        self.event_log: List[EventRecord] = []
+        self.beliefs: Dict[str, BeliefNode] = {}
+        self.hypotheses: Dict[str, Dict[str, BeliefHypothesis]] = {}
+        self.deferred_intentions: List[DeferredIntention] = []
+        self.prediction_errors: List[Dict[str, Any]] = []
+        self.action_outcomes: List[Dict[str, Any]] = []
 
         self.current_context: str = "unknown"
-        self.self_history: list[dict[str, Any]] = []
+        self.self_history: List[Dict[str, Any]] = []
         self.last_observation_id: str = ""
 
     def update_from_observation(self, state: EnvironmentState, context_id: str = "default") -> None:
@@ -221,7 +220,7 @@ class EnvironmentBeliefState:
         *,
         confidence: float = 0.7,
         source: str = "observation",
-        evidence: Iterable[str] | None = None,
+        evidence: Optional[Iterable[str]] = None,
         ttl: float = 3600.0,
     ) -> BeliefNode:
         existing = self.beliefs.get(key)
@@ -267,7 +266,7 @@ class EnvironmentBeliefState:
         labels: Iterable[str],
         *,
         evidence: str = "",
-    ) -> dict[str, BeliefHypothesis]:
+    ) -> Dict[str, BeliefHypothesis]:
         labels = [str(label) for label in labels if str(label)]
         if not labels:
             labels = ["unknown"]
@@ -286,17 +285,17 @@ class EnvironmentBeliefState:
     def update_hypotheses(
         self,
         subject: str,
-        likelihoods: dict[str, float],
+        likelihoods: Dict[str, float],
         *,
         evidence: str = "",
-    ) -> dict[str, BeliefHypothesis]:
+    ) -> Dict[str, BeliefHypothesis]:
         """Bayesian-style update for an explicit finite hypothesis set."""
         current = self.ensure_hypotheses(subject, likelihoods.keys(), evidence=evidence)
         for label in likelihoods:
             current.setdefault(label, BeliefHypothesis(label=label, probability=0.01))
 
         total = 0.0
-        updated: dict[str, float] = {}
+        updated: Dict[str, float] = {}
         for label, hypothesis in current.items():
             likelihood = max(0.001, float(likelihoods.get(label, 0.05)))
             value = hypothesis.probability * likelihood
@@ -346,13 +345,13 @@ class EnvironmentBeliefState:
                     held[label].evidence = held[label].evidence[-8:]
         return finding
 
-    def epistemic_uncertainty(self, subject: str | None = None) -> float:
+    def epistemic_uncertainty(self, subject: Optional[str] = None) -> float:
         """Return entropy-normalized uncertainty across hypotheses."""
         if subject is not None:
             groups = [self.hypotheses.get(subject, {})]
         else:
             groups = list(self.hypotheses.values())
-        entropies: list[float] = []
+        entropies: List[float] = []
         for group in groups:
             probs = [max(0.0, h.probability) for h in group.values()]
             if len(probs) <= 1:
@@ -373,8 +372,8 @@ class EnvironmentBeliefState:
         trigger: str,
         *,
         priority: float = 0.5,
-        ttl: float | None = None,
-        metadata: dict[str, Any] | None = None,
+        ttl: Optional[float] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> DeferredIntention:
         item = DeferredIntention(
             intention=intention,
@@ -386,7 +385,7 @@ class EnvironmentBeliefState:
         self.deferred_intentions.append(item)
         return item
 
-    def due_intentions(self, state: EnvironmentState) -> list[DeferredIntention]:
+    def due_intentions(self, state: EnvironmentState) -> List[DeferredIntention]:
         text = " ".join(
             [
                 state.domain,
@@ -409,7 +408,7 @@ class EnvironmentBeliefState:
         *,
         expected: str = "",
         observed: str = "",
-        success: bool | None = None,
+        success: Optional[bool] = None,
         surprise: float = 0.0,
     ) -> None:
         outcome = {
@@ -433,9 +432,9 @@ class EnvironmentBeliefState:
         event_type: str = "event",
         *,
         salience: float = 0.5,
-        related_entities: list[str] | None = None,
-        location: tuple[int, int] | None = None,
-        metadata: dict[str, Any] | None = None,
+        related_entities: Optional[List[str]] = None,
+        location: Optional[Tuple[int, int]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> EventRecord:
         event = EventRecord(
             event_type=event_type,
@@ -497,7 +496,7 @@ class EnvironmentBeliefState:
 
         return "\n".join(lines)
 
-    def _entity_id(self, ent: dict[str, Any]) -> str:
+    def _entity_id(self, ent: Dict[str, Any]) -> str:
         if ent.get("id"):
             return str(ent["id"])
         pos = ent.get("pos")
@@ -527,7 +526,7 @@ class EnvironmentBeliefState:
         return not any(token in lowered for token in prompt_noise)
 
     @staticmethod
-    def _poi_exists(items: list[dict[str, Any]], candidate: dict[str, Any]) -> bool:
+    def _poi_exists(items: List[Dict[str, Any]], candidate: Dict[str, Any]) -> bool:
         return any(
             item.get("type") == candidate.get("type")
             and item.get("pos") == candidate.get("pos")

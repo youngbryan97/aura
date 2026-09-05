@@ -123,6 +123,7 @@ class ProceduralMemory:
     _ERRORS = (OSError, ValueError, TypeError, json.JSONDecodeError)
 
     def __init__(self, path: str | Path | None = None) -> None:
+        import os
 
         self._path = Path(path or str(state_root() / "data/runtime/procedural_playbooks.json"))
         self._lock = threading.RLock()

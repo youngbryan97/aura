@@ -7,7 +7,7 @@ import os
 import threading
 import time
 import uuid
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from core.governance_context import local_internal_governed_scope
 from core.memory import embedding_model
@@ -75,7 +75,7 @@ class BlackHoleVault:
         self._collection = self  # Compatibility surface, not a Chroma collection.
         self._mutation_lock = checked_lock("black_hole_vault.mutation.mutation", reentrant=True)
         self._initialized = False
-        self._init_error: str | None = None
+        self._init_error: Optional[str] = None
         self._ensure_ready()
         
     async def on_start_async(self):
@@ -101,7 +101,7 @@ class BlackHoleVault:
         except RuntimeError:
             return bool(asyncio.run(self.initialize()))
 
-        result: dict[str, Any] = {}
+        result: Dict[str, Any] = {}
 
         def _runner() -> None:
             try:
@@ -143,7 +143,7 @@ class BlackHoleVault:
             self.memories = []
             return
         try:
-            with open(self.memories_file, encoding="utf-8") as f:
+            with open(self.memories_file, "r", encoding="utf-8") as f:
                 encrypted_data = f.read().strip()
             if not encrypted_data:
                 self.memories = []
@@ -219,7 +219,7 @@ class BlackHoleVault:
             self._dirty = False
 
     @staticmethod
-    def _memory_id(memory: dict[str, Any]) -> str:
+    def _memory_id(memory: Dict[str, Any]) -> str:
         return str(memory.get("id") or memory.get("created") or "").strip()
 
     def _ensure_memory_ids(self, *, persist: bool = False) -> bool:
@@ -265,8 +265,8 @@ class BlackHoleVault:
             
     def add_memory(
         self,
-        text: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        text: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         """Standard interface matching VectorMemory and legacy content= callers."""
@@ -275,8 +275,8 @@ class BlackHoleVault:
 
     def _add_memory_locked(
         self,
-        text: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        text: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         self._ensure_ready()
@@ -345,7 +345,7 @@ class BlackHoleVault:
             policy.basis,
         )
 
-    def _normalize_memory_metadata(self, metadata: dict[str, Any]) -> dict[str, Any]:
+    def _normalize_memory_metadata(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
         normalized = dict(metadata or {})
         centrality = max(
             _safe_float(normalized.get("conceptual_centrality")),
@@ -363,7 +363,7 @@ class BlackHoleVault:
         normalized["affect_intensity"] = max(0.0, min(1.0, affect))
         return normalized
 
-    def _memory_importance(self, memory: dict[str, Any], *, now_ms: int | None = None) -> float:
+    def _memory_importance(self, memory: Dict[str, Any], *, now_ms: int | None = None) -> float:
         now_ms = now_ms or int(time.time() * 1000)
         metadata = memory.get("metadata", {}) or {}
         if not isinstance(metadata, dict):
@@ -385,7 +385,7 @@ class BlackHoleVault:
         decayed_amplitude = affective_amplitude * math.exp(-SEMANTIC_DECAY_LAMBDA_PER_DAY * age_days)
         return decayed_amplitude + conceptual_centrality
 
-    def _select_semantically_important(self, memories: list[dict[str, Any]], keep_count: int) -> list[dict[str, Any]]:
+    def _select_semantically_important(self, memories: List[Dict[str, Any]], keep_count: int) -> List[Dict[str, Any]]:
         now_ms = int(time.time() * 1000)
         return sorted(
             list(memories),
@@ -393,7 +393,7 @@ class BlackHoleVault:
             reverse=True,
         )[: max(0, keep_count)]
         
-    def search_similar(self, query: str, limit: int = 5, **kwargs) -> list[dict[str, Any]]:
+    def search_similar(self, query: str, limit: int = 5, **kwargs) -> List[Dict[str, Any]]:
         """Standard interface matching VectorMemory"""
         self._ensure_ready()
         if not self.memories:
@@ -444,7 +444,7 @@ class BlackHoleVault:
         return formatted
 
     # --- Legacy Compatibility Aliases ---
-    async def index(self, content: str, metadata: dict[str, Any] | None = None, **kwargs):
+    async def index(self, content: str, metadata: Optional[Dict[str, Any]] = None, **kwargs):
         """Async shim for MemoryManager compatibility."""
         import asyncio
         return await asyncio.to_thread(self.add_memory, content, metadata)
@@ -452,7 +452,7 @@ class BlackHoleVault:
     def search(self, query: str, limit: int = 5, **kwargs):
         return self.search_similar(query, limit)
         
-    def get(self, ids: list[str] | None = None, limit: int | None = None, include: list[str] | None = None, **kwargs) -> Any:
+    def get(self, ids: Optional[List[str]] = None, limit: Optional[int] = None, include: Optional[List[str]] = None, **kwargs) -> Any:
         """Bulk retrieval for ChromaDB compatibility and SemanticDefragmenter support."""
         # If a single string is passed as the first positional arg (legacy behavior)
         if isinstance(ids, str) and not limit and not include:
@@ -478,14 +478,14 @@ class BlackHoleVault:
             sequence = list(found)
             found = sequence[:limit] if ids else sequence[-limit:]
             
-        ret: dict[str, Any] = {
+        ret: Dict[str, Any] = {
             "ids": [self._memory_id(m) for m in found] if isinstance(found, list) else [],
             "documents": [str(m.get("text", "")) for m in found] if isinstance(found, list) else [],
             "metadatas": [m.get("metadata", {}) for m in found] if isinstance(found, list) else []
         }
         return ret
 
-    def get_memory(self, memory_id: str) -> dict[str, Any] | None:
+    def get_memory(self, memory_id: str) -> Optional[Dict[str, Any]]:
         """Alias for get() to support various component integrations."""
         return self.get(memory_id)
 
@@ -531,12 +531,12 @@ class BlackHoleVault:
         self._save_vault()
         logger.info("BlackHoleVault: Event horizon cleared.")
 
-    def delete(self, ids: list[str]):
+    def delete(self, ids: List[str]):
         """Standard interface: Delete memories by ID."""
         with self._mutation_guard():
             return self._delete_locked(ids)
 
-    def _delete_locked(self, ids: list[str]):
+    def _delete_locked(self, ids: List[str]):
         id_set = {str(memory_id) for memory_id in ids}
         self.memories = [
             m
@@ -549,9 +549,9 @@ class BlackHoleVault:
 
     def delete_memories(
         self,
-        ids: list[str] | None = None,
+        ids: Optional[List[str]] = None,
         *,
-        filter_metadata: dict[str, Any] | None = None,
+        filter_metadata: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> int:
         """VectorMemory-compatible deletion shim used by episodic pruning."""
@@ -564,9 +564,9 @@ class BlackHoleVault:
 
     def _delete_memories_locked(
         self,
-        ids: list[str] | None = None,
+        ids: Optional[List[str]] = None,
         *,
-        filter_metadata: dict[str, Any] | None = None,
+        filter_metadata: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> int:
         id_set = {str(memory_id) for memory_id in (ids or []) if str(memory_id)}
@@ -574,7 +574,7 @@ class BlackHoleVault:
         if not id_set and not metadata_filters:
             return 0
 
-        normalized_filters: dict[str, set[str]] = {}
+        normalized_filters: Dict[str, set[str]] = {}
         for key, raw_value in metadata_filters.items():
             if isinstance(raw_value, (list, tuple, set)):
                 values = {str(value) for value in raw_value}
@@ -582,7 +582,7 @@ class BlackHoleVault:
                 values = {str(raw_value)}
             normalized_filters[str(key)] = values
 
-        def _matches(memory: dict[str, Any]) -> bool:
+        def _matches(memory: Dict[str, Any]) -> bool:
             if self._memory_id(memory) in id_set or str(memory.get("created")) in id_set:
                 return True
             metadata = memory.get("metadata", {}) or {}
@@ -602,7 +602,7 @@ class BlackHoleVault:
             logger.info("BlackHoleVault: Deleted %d memories via compatibility filter.", deleted)
         return deleted
 
-    def get_stats(self) -> dict[str, Any]:
+    def get_stats(self) -> Dict[str, Any]:
         """Standard interface: Return collection statistics."""
         return {
             "total_vectors": self.count(),

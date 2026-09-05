@@ -1,19 +1,15 @@
 from __future__ import annotations
-
 import logging
-import random
 import time
-from typing import TYPE_CHECKING
-
-from core.consciousness.executive_authority import (
-    get_executive_authority as get_executive_authority,
-)
+import random
+from typing import Optional, TYPE_CHECKING
 from core.kernel.bridge import Phase
-from core.runtime.background_policy import background_activity_allowed
-from core.runtime.errors import record_degradation
-from core.runtime.proposal_governance import propose_governed_initiative_to_state
-from core.runtime.service_registry import get_runtime_service, has_runtime_service
 from core.state.aura_state import AuraState
+from core.consciousness.executive_authority import get_executive_authority as get_executive_authority
+from core.runtime.service_registry import get_runtime_service, has_runtime_service
+from core.runtime.background_policy import background_activity_allowed
+from core.runtime.proposal_governance import propose_governed_initiative_to_state
+from core.runtime.errors import record_degradation
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
@@ -38,10 +34,10 @@ class MotivationUpdatePhase(Phase):
     spontaneous intention generation.
     """
     
-    def __init__(self, kernel: AuraKernel):
+    def __init__(self, kernel: "AuraKernel"):
         self.kernel = kernel
 
-    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
         """
         Updates resource budgets and generates autonomous intentions.
         """
@@ -140,7 +136,7 @@ class MotivationUpdatePhase(Phase):
 
         return next_state
 
-    def _conative_spike(self) -> dict | None:
+    def _conative_spike(self) -> Optional[dict]:
         """A spontaneous goal only when something is actually interesting.
 
         Returns ``None`` when no target carries epistemic value, which is the
@@ -180,7 +176,7 @@ class MotivationUpdatePhase(Phase):
             )
             return None
 
-    def _assess_needs(self, state: AuraState) -> dict | None:
+    def _assess_needs(self, state: AuraState) -> Optional[dict]:
         """Ported logic from MotivationEngine._assess_needs."""
         mot = state.motivation
         

@@ -1,11 +1,9 @@
 from __future__ import annotations
-
-from dataclasses import asdict, dataclass
-from typing import Any
+from dataclasses import dataclass, field, asdict
+from typing import Dict, List, Any
 
 from .maths import clamp
 from .types import AttachmentEvent
-
 
 @dataclass
 class AttachmentState:
@@ -27,7 +25,7 @@ class AttachmentState:
             0.25 * self.rupture
         )
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 class AttachmentSystem:
@@ -37,8 +35,8 @@ class AttachmentSystem:
     It turns relationship events into action-relevant internal state.
     """
     def __init__(self) -> None:
-        self.people: dict[str, AttachmentState] = {}
-        self.events: list[AttachmentEvent] = []
+        self.people: Dict[str, AttachmentState] = {}
+        self.events: List[AttachmentEvent] = []
 
     def state_for(self, person_key: str) -> AttachmentState:
         return self.people.setdefault(person_key, AttachmentState(person_key=person_key))
@@ -57,5 +55,5 @@ class AttachmentSystem:
         self.events.append(event)
         return state
 
-    def recent_evidence(self, person_key: str, limit: int = 5) -> list[dict[str, Any]]:
+    def recent_evidence(self, person_key: str, limit: int = 5) -> List[Dict[str, Any]]:
         return [asdict(e) for e in self.events if e.person_key == person_key][-limit:]

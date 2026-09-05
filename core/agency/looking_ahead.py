@@ -22,8 +22,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Sequence
-from typing import Any
+from typing import Any, Sequence
 
 from core.agency.how_good_is_this import how_good, why
 

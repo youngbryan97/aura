@@ -4,10 +4,11 @@ Avoid importing PyAutoGUI at module import time so skills can be registered,
 listed, and instantiated even when display access is unavailable.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
+
 
 from typing import Any
-
-from core.runtime.errors import record_degradation
 
 _PYAUTOGUI_MODULE: Any | None = None
 _PYAUTOGUI_ERROR: Exception | None = None

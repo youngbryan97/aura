@@ -18,12 +18,12 @@ Integration:
     flow.
 """
 
+from .vector_registry import VectorRegistry, VectorProvenance, RegisteredVector
 from .alpha_controller import AlphaController, AlphaState
-from .mode_collapse_detector import CollapseSeverity, CollapseSignal, ModeCollapseDetector
-from .production_caa import ProductionCAA
-from .quality_metrics import VectorQualityReport, compute_vector_quality
+from .mode_collapse_detector import ModeCollapseDetector, CollapseSignal, CollapseSeverity
 from .readiness_gate import ReadinessGate, ReadinessLevel
-from .vector_registry import RegisteredVector, VectorProvenance, VectorRegistry
+from .quality_metrics import VectorQualityReport, compute_vector_quality
+from .production_caa import ProductionCAA
 
 __all__ = [
     "VectorRegistry",

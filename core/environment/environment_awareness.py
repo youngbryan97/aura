@@ -25,8 +25,8 @@ from core.runtime.errors import FallbackClassification, Severity, record_degrada
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.network_gateway import get_network_gateway
 from core.runtime.resource_observation import get_resource_observer
-from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Environment")
 

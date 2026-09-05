@@ -59,6 +59,7 @@ heart rates are two answers to one question.
 
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass, field
 from typing import Any

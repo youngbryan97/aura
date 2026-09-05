@@ -28,12 +28,12 @@ Boot-time enforcement:
 """
 from __future__ import annotations
 
+import asyncio
 import functools
 import inspect
 import logging
 import time
-from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, Callable, Dict, List, Optional, Set, TypeVar
 
 from core.will import ActionDomain, WillOutcome, get_will
 
@@ -63,7 +63,7 @@ class WillDeferred(Exception):
 
 
 # Registry of all will-gated methods for boot-time audit
-_GATED_METHODS: set[str] = set()
+_GATED_METHODS: Set[str] = set()
 
 
 def will_gated(
@@ -73,7 +73,7 @@ def will_gated(
     raise_on_defer: bool = False,
     return_none_on_block: bool = True,
     priority: float = 0.5,
-    source_override: str | None = None,
+    source_override: Optional[str] = None,
     is_critical: bool = False,
 ) -> Callable[[F], F]:
     """Decorator that gates a method through the Unified Will.
@@ -204,7 +204,7 @@ def will_gated(
 
 # Methods that MUST be will-gated for sealed operation.
 # Format: "ClassName.method_name" or just "method_name" for module-level.
-REQUIRED_GATED_METHODS: list[str] = [
+REQUIRED_GATED_METHODS: List[str] = [
     # These are checked as substrings in qualname
     "execute_tool",
     "execute_skill",
@@ -219,7 +219,7 @@ REQUIRED_GATED_METHODS: list[str] = [
 ]
 
 
-def audit_will_coverage(strict: bool = False) -> dict[str, Any]:
+def audit_will_coverage(strict: bool = False) -> Dict[str, Any]:
     """Audit that all required methods are will-gated.
 
     Args:

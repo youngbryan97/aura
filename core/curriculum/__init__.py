@@ -12,14 +12,14 @@ captures Brier loss and accuracy at every iteration so external
 observers can see whether the loop is *actually* improving over time.
 """
 from core.curriculum.gap_detector import GapDetector, GapReport
+from core.curriculum.task_generator import LearningTask, TaskGenerator
+from core.curriculum.lesson_store import Lesson, LessonStore
+from core.curriculum.strategy import Strategy, StrategyController
 from core.curriculum.improvement import (
     ImprovementRecorder,
     ImprovementSnapshot,
 )
-from core.curriculum.lesson_store import Lesson, LessonStore
 from core.curriculum.loop import CurriculumLoop, LoopOutcome
-from core.curriculum.strategy import Strategy, StrategyController
-from core.curriculum.task_generator import LearningTask, TaskGenerator
 
 __all__ = [
     "GapDetector",

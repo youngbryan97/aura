@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Set
 
 
 @dataclass
@@ -11,16 +11,16 @@ class ClaimNode:
     """Represents a discrete knowledge claim with full provenance."""
     claim_id: str
     text: str
-    sources: list[str]
+    sources: List[str]
     confidence: float
     timestamp: float = field(default_factory=time.time)
     freshness: float = 1.0
-    contradiction_links: list[str] = field(default_factory=list)
-    supporting_evidence: list[str] = field(default_factory=list)
+    contradiction_links: List[str] = field(default_factory=list)
+    supporting_evidence: List[str] = field(default_factory=list)
     impact_score: float = 0.5
     action_relevance: float = 0.5
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "claim_id": self.claim_id,
             "text": self.text,
@@ -39,8 +39,8 @@ class ClaimGraph:
     """Directed graph representing claims, supporting evidence, and contradiction links."""
 
     def __init__(self) -> None:
-        self.nodes: dict[str, ClaimNode] = {}
-        self.contradictions: dict[str, set[str]] = {}
+        self.nodes: Dict[str, ClaimNode] = {}
+        self.contradictions: Dict[str, Set[str]] = {}
 
     def add_claim(self, node: ClaimNode) -> None:
         self.nodes[node.claim_id] = node
@@ -57,5 +57,4 @@ class ClaimGraph:
 
 
 import logging
-
 logger = logging.getLogger("Aura.ClaimGraph")

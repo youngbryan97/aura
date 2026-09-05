@@ -387,7 +387,7 @@ class RubricEnsembleVerifier:
                         asyncio.to_thread(self._scorer, text, prompt_q),
                         timeout=min(self._CALL_TIMEOUT_S, remaining),
                     )
-                except TimeoutError as exc:
+                except asyncio.TimeoutError as exc:
                     timed_out = True
                     record_degradation("rubric_verifier", exc, severity="debug",
                                        action="rubric sample timed out")

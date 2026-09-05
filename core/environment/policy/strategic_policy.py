@@ -8,10 +8,10 @@ Now integrates with HTN planner for:
 """
 from __future__ import annotations
 
-from core.environment.belief_graph import EnvironmentBeliefGraph
 from core.environment.command import ActionIntent
-from core.environment.homeostasis import Homeostasis
 from core.environment.parsed_state import ParsedState
+from core.environment.belief_graph import EnvironmentBeliefGraph
+from core.environment.homeostasis import Homeostasis
 from core.environment.strategy.htn_planner import HTNPlanner
 
 from .tactical_policy import TacticalPolicy

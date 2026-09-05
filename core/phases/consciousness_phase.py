@@ -1,12 +1,10 @@
 import logging
-from typing import Any
-
+from typing import Any, Optional
+from . import BasePhase
+from ..state.aura_state import AuraState
 from core.consciousness.integration import get_consciousness_integration
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
-
-from ..state.aura_state import AuraState
-from . import BasePhase
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +21,7 @@ class ConsciousnessPhase(BasePhase):
     def __init__(self, container: Any = None):
         self.container = container
 
-    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
         """
         Pull the latest phenomenal context from the integration layer.
         """

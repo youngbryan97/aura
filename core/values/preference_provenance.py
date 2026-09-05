@@ -1,15 +1,15 @@
 """core/values/preference_provenance.py
 Preference Provenance Manager evaluating preference calibrations against history.
 """
+from typing import Dict, Any, List, Optional
 import logging
-from typing import Any
 
-from core.values.anti_wireheading import AntiWireheadingGuard
-from core.values.preference_conflict import PreferenceConflictResolver
-from core.values.preference_explanation import PreferenceExplanationGenerator
 from core.values.repeated_choice_tracker import RepeatedChoiceTracker
-from core.values.value_rollback import ValueRollbackManager
+from core.values.preference_conflict import PreferenceConflictResolver
 from core.values.value_stability_test import ValueStabilityTester
+from core.values.anti_wireheading import AntiWireheadingGuard
+from core.values.preference_explanation import PreferenceExplanationGenerator
+from core.values.value_rollback import ValueRollbackManager
 
 logger = logging.getLogger("Values.PreferenceProvenance")
 
@@ -25,7 +25,7 @@ class PreferenceProvenanceManager:
         self.explainer = PreferenceExplanationGenerator()
         self.rollback_manager = ValueRollbackManager()
         
-        self._history: list[dict[str, Any]] = []
+        self._history: List[Dict[str, Any]] = []
 
     async def evaluate_preferences(self, state: Any) -> None:
         """Main evaluation cycle executed on each organism loop tick."""

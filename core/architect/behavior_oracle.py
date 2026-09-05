@@ -17,13 +17,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.architect.models import (
-    ArchitectureGraph,
-    MutationTier,
-    ProofResult,
-    RefactorPlan,
-    SemanticSurface,
-)
+from core.architect.models import ArchitectureGraph, MutationTier, ProofResult, RefactorPlan, SemanticSurface
+
 
 PROTECTED_EFFECTS = frozenset(
     {

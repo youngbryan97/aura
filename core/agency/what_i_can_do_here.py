@@ -23,8 +23,8 @@ out what a button does by pressing it.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Sequence
 
 __all__ = [
     "COMMITS_TO_NOTHING",
@@ -153,7 +153,7 @@ class WhatWorksHere:
         }
 
     @classmethod
-    def from_memory(cls, held: object, told: Sequence[str] = ()) -> WhatWorksHere:
+    def from_memory(cls, held: object, told: Sequence[str] = ()) -> "WhatWorksHere":
         """What worked here last time, as a starting point rather than a fact."""
         named = tuple(str(key or "").strip().lower() for key in told)
         if not isinstance(held, dict):

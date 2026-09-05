@@ -1,12 +1,11 @@
+from core.runtime.errors import record_degradation
 import logging
+from core.utils.exceptions import capture_and_log
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
-
+from typing import Any, Dict
 from core.dual_memory import DualMemorySystem
-from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
-from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Aura.MemoryBridge")
 
@@ -16,7 +15,7 @@ class ConversationTurn:
     conversation_id: str
     user_message: str
     aura_response: str
-    context: dict[str, Any] = field(default_factory=dict)
+    context: Dict[str, Any] = field(default_factory=dict)
 
 class EnhancedMemorySystem:
     """A bridge that maps the legacy Memory interface to the new DualMemorySystem."""
@@ -26,7 +25,7 @@ class EnhancedMemorySystem:
         self.dual = DualMemorySystem()
         self._tasks = set()
 
-    async def store_turn(self, conversation_id: str, user_message: str, aura_response: str, context: dict[str, Any]):
+    async def store_turn(self, conversation_id: str, user_message: str, aura_response: str, context: Dict[str, Any]):
         """Stores a conversation turn in the episodic store of the DualMemorySystem."""
         # Dynamically derive valence/importance from context or AffectEngine
         valence = context.get("emotional_valence")

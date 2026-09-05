@@ -8,14 +8,7 @@ from typing import Any
 
 from .modal import ModalState
 from .observation import _json_safe
-from .ontology import (
-    Affordance,
-    EntityState,
-    HazardState,
-    ObjectState,
-    ResourceState,
-    SemanticEvent,
-)
+from .ontology import Affordance, EntityState, HazardState, ObjectState, ResourceState, SemanticEvent
 
 
 @dataclass

@@ -3082,15 +3082,16 @@ def _the_floor_cannot_read_itself() -> int:
     """
     from core.cognition.the_floor_reading_itself import interpret
     from core.cognition.the_floor_she_stands_on import (
-        PLUS,
-        TIMES,
-        Code,
         L,
         N,
+        PLUS,
+        TIMES,
         V,
         build,
         run,
     )
+
+    from core.cognition.the_floor_she_stands_on import A, Code
 
     failed = 0
     for term in (build(PLUS(N(2), N(3))), build(TIMES(N(6), N(7)))):

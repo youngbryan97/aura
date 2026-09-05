@@ -15,14 +15,17 @@ installed, maps capabilities, and lets the planner choose.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Set
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 logger = logging.getLogger("Aura.AppRegistry")
@@ -79,10 +82,10 @@ class InstalledApp:
     bundle_id: str = ""
     path: str = ""
     category: AppCategory = AppCategory.UNKNOWN
-    affordances: set[AppAffordance] = field(default_factory=set)
+    affordances: Set[AppAffordance] = field(default_factory=set)
     launch_method: str = "activate"  # "activate", "open -a", "open -b"
     reliability: float = 0.8         # 0-1, how reliable is automation with this app
-    known_issues: list[str] = field(default_factory=list)
+    known_issues: List[str] = field(default_factory=list)
     adapter_class: str = ""          # which adapter handles this app
     last_used: float = 0.0
     discovered_at: float = field(default_factory=time.time)
@@ -94,7 +97,7 @@ class InstalledApp:
 
 # These map app NAMES (lowercase) to categories and affordances.
 # The registry uses these as seed data, then augments from discovery.
-KNOWN_APP_PROFILES: dict[str, dict[str, Any]] = {
+KNOWN_APP_PROFILES: Dict[str, Dict[str, Any]] = {
     # Text editors
     "notes": {
         "category": AppCategory.TEXT_EDITOR,
@@ -241,7 +244,7 @@ class AppRegistry:
     """
 
     def __init__(self) -> None:
-        self._apps: dict[str, InstalledApp] = {}
+        self._apps: Dict[str, InstalledApp] = {}
         self._discovered = False
         self._started = False
 
@@ -259,7 +262,7 @@ class AppRegistry:
 
     async def discover(self) -> None:
         """Scan the system for installed applications."""
-        discovered: dict[str, InstalledApp] = {}
+        discovered: Dict[str, InstalledApp] = {}
 
         # 1. Scan /Applications and ~/Applications
         for app_dir in [Path("/Applications"), Path.home() / "Applications"]:
@@ -331,7 +334,7 @@ class AppRegistry:
                             known_issues=list(profile.get("known_issues", [])),
                             adapter_class=profile.get("adapter_class", ""),
                         )
-                except (TimeoutError, OSError):
+                except (OSError, asyncio.TimeoutError):
                     continue
 
         self._apps = discovered
@@ -349,15 +352,15 @@ class AppRegistry:
         """Check if an app is installed (case-insensitive)."""
         return app_name.lower() in self._apps
 
-    def get_app(self, app_name: str) -> InstalledApp | None:
+    def get_app(self, app_name: str) -> Optional[InstalledApp]:
         """Get app info by name."""
         return self._apps.get(app_name.lower())
 
-    def get_apps_by_category(self, category: AppCategory) -> list[InstalledApp]:
+    def get_apps_by_category(self, category: AppCategory) -> List[InstalledApp]:
         """Find all installed apps in a category."""
         return [a for a in self._apps.values() if a.category == category]
 
-    def get_apps_with_affordance(self, affordance: AppAffordance) -> list[InstalledApp]:
+    def get_apps_with_affordance(self, affordance: AppAffordance) -> List[InstalledApp]:
         """Find all apps that can perform an affordance, sorted by reliability."""
         matching = [a for a in self._apps.values() if affordance in a.affordances]
         matching.sort(key=lambda a: a.reliability, reverse=True)
@@ -365,7 +368,7 @@ class AppRegistry:
 
     def get_best_app_for(
         self, affordance: AppAffordance, preferred: str = ""
-    ) -> InstalledApp | None:
+    ) -> Optional[InstalledApp]:
         """Get the most reliable app for an affordance.
 
         If preferred is specified and installed, use it if it has the affordance.
@@ -379,7 +382,7 @@ class AppRegistry:
         candidates = self.get_apps_with_affordance(affordance)
         return candidates[0] if candidates else None
 
-    def get_preferred_browser(self) -> InstalledApp | None:
+    def get_preferred_browser(self) -> Optional[InstalledApp]:
         """Get the preferred browser (Chrome > Safari > Firefox > Arc)."""
         preference_order = ["google chrome", "safari", "firefox", "arc"]
         for name in preference_order:
@@ -389,7 +392,7 @@ class AppRegistry:
         browsers = self.get_apps_by_category(AppCategory.BROWSER)
         return browsers[0] if browsers else None
 
-    def get_preferred_text_editor(self) -> InstalledApp | None:
+    def get_preferred_text_editor(self) -> Optional[InstalledApp]:
         """Get the preferred text editor (TextEdit > Notes > VS Code)."""
         preference_order = ["textedit", "notes", "visual studio code", "sublime text"]
         for name in preference_order:
@@ -398,12 +401,12 @@ class AppRegistry:
         editors = self.get_apps_by_category(AppCategory.TEXT_EDITOR)
         return editors[0] if editors else None
 
-    def get_capability_report(self) -> dict[str, Any]:
+    def get_capability_report(self) -> Dict[str, Any]:
         """Produce a summary of what this machine can do.
 
         Used by TaskDecomposer to plan realistic task graphs.
         """
-        available_affordances: set[str] = set()
+        available_affordances: Set[str] = set()
         for app in self._apps.values():
             for aff in app.affordances:
                 available_affordances.add(aff.value)
@@ -427,7 +430,7 @@ class AppRegistry:
             },
         }
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "discovered": self._discovered,
             "total_apps": len(self._apps),
@@ -438,7 +441,7 @@ class AppRegistry:
             },
         }
 
-    def all_apps(self) -> list[InstalledApp]:
+    def all_apps(self) -> List[InstalledApp]:
         """Return all discovered apps."""
         return list(self._apps.values())
 
@@ -447,7 +450,7 @@ class AppRegistry:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_instance: AppRegistry | None = None
+_instance: Optional[AppRegistry] = None
 
 
 def get_app_registry() -> AppRegistry:

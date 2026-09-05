@@ -31,13 +31,14 @@ one observation.
 
 from __future__ import annotations
 
+import math
 import statistics
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
-from core.knowledge.atomspace import Atom, AtomSpace, Link, TruthValue, concept, predicate
+from core.knowledge.atomspace import Atom, AtomSpace, Link, Node, TruthValue, concept, predicate
 
 __all__ = [
     "TemporalRelation",
@@ -79,13 +80,13 @@ class Interval:
     def finish(self) -> float:
         return self.start if self.end is None else self.end
 
-    def before(self, other: Interval) -> bool:
+    def before(self, other: "Interval") -> bool:
         return self.finish < other.start
 
-    def during(self, other: Interval) -> bool:
+    def during(self, other: "Interval") -> bool:
         return other.start <= self.start and self.finish <= other.finish
 
-    def overlaps(self, other: Interval) -> bool:
+    def overlaps(self, other: "Interval") -> bool:
         return (
             self.start < other.finish
             and other.start < self.finish

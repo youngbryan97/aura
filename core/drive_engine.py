@@ -1,13 +1,12 @@
+from core.runtime.numeric_guards import bounded_float
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import random
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
-
-from core.runtime.errors import record_degradation
-from core.runtime.numeric_guards import bounded_float
+from typing import Any, Deque, Dict, List, Optional
 
 logger = logging.getLogger("Aura.DriveEngine")
 
@@ -49,7 +48,7 @@ class DriveEngine:
     def __init__(self):
         # Initial drives mapped to resource budgets
         # Regen rates are negative for drives that decay (entropy)
-        self.budgets: dict[str, ResourceBudget] = {
+        self.budgets: Dict[str, ResourceBudget] = {
             "energy": ResourceBudget("energy", capacity=100.0, level=100.0, regen_rate_per_sec=0.01),
             "uptime_value": ResourceBudget("uptime_value", capacity=100.0, level=50.0, regen_rate_per_sec=0.0),
 
@@ -65,7 +64,7 @@ class DriveEngine:
         self._last_fe_value: float = 0.3       # track previous FE for delta detection
         self._seek_novelty: bool = False        # raised when boredom threshold crossed
         self._last_boredom_relief: float = time.time()
-        self._boredom_history: deque[float] = deque(maxlen=600)  # 10 min of boredom levels
+        self._boredom_history: Deque[float] = deque(maxlen=600)  # 10 min of boredom levels
 
         # Latent Interests (The "Subconscious" to pull from when bored)
         self.latent_interests = [
@@ -92,7 +91,7 @@ class DriveEngine:
             and all(b.capacity > 0.0 and 0.0 <= b.level <= b.capacity for b in self.budgets.values())
         )
 
-    def get_drive_vector(self) -> dict[str, float]:
+    def get_drive_vector(self) -> Dict[str, float]:
         """Return normalized drive levels (0-1) for cross-system use.
 
         This is the single read point for any subsystem that needs to
@@ -107,7 +106,7 @@ class DriveEngine:
             vector[name] = round(level / b.capacity, 4) if b.capacity > 0 else 0.0
         return vector
 
-    def get_arbiter_weight_modifiers(self) -> dict[str, float]:
+    def get_arbiter_weight_modifiers(self) -> Dict[str, float]:
         """Return weight modifiers for InitiativeArbiter based on drive state.
 
         When energy is low: increase resource_cost weight (prefer cheap actions)
@@ -259,7 +258,7 @@ class DriveEngine:
                 b.level = min(b.capacity, b.level + amount)
                 logger.debug("Satisfied %s: +%.1f -> %.1f", name, amount, b.level)
 
-    async def get_status(self) -> dict[str, Any]:
+    async def get_status(self) -> Dict[str, Any]:
         """Get a snapshot of all resource budgets + boredom state."""
         async with self._lock:
             # Tick all before reporting
@@ -294,7 +293,7 @@ class DriveEngine:
             for b in self.budgets.values():
                 b.tick()
 
-    async def get_imperative(self) -> str | None:
+    async def get_imperative(self) -> Optional[str]:
         """Check budgets and return a high-level goal directive.
         (Now Secure/Async)
         """

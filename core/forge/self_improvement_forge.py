@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Dict, List
 
-from core.forge.capability_eval import CapabilityEval
+from core.forge.weakness_detector import WeaknessDetector
 from core.forge.patch_generator import PatchGenerator
+from core.forge.shadow_runner import ShadowRunner
+from core.forge.capability_eval import CapabilityEval
 from core.forge.promotion_gate import PromotionGate
 from core.forge.regression_memory import get_regression_memory
-from core.forge.shadow_runner import ShadowRunner
-from core.forge.weakness_detector import WeaknessDetector
 
 logger = logging.getLogger("Aura.SelfImprovementForge")
 
@@ -24,16 +24,16 @@ class SelfImprovementForge:
         self._initialized = True
         logger.info("Self Improvement Forge fully online.")
 
-    async def analyze_weaknesses(self) -> dict[str, Any]:
+    async def analyze_weaknesses(self) -> Dict[str, Any]:
         """Kernel spine query to check codebase quality and regressions."""
         return {"weaknesses_detected": 0}
 
 
     async def run_improvement_cycle(
         self,
-        recent_execution_logs: list[dict[str, Any]],
-        baseline_performance: dict[str, Any],
-    ) -> dict[str, Any]:
+        recent_execution_logs: List[Dict[str, Any]],
+        baseline_performance: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """Drives one complete iteration of the self-improvement loop."""
         logger.info("🚀 Initiating Self-Improvement Forge cycle...")
 
@@ -90,7 +90,6 @@ class SelfImprovementForge:
 
 
 import hashlib
-
 _forge_instance: SelfImprovementForge | None = None
 
 

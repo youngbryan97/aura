@@ -36,12 +36,12 @@ that call being present rather than a promise in a docstring.
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
-
 from core.runtime.lockdep import checked_lock
 
 __all__ = [

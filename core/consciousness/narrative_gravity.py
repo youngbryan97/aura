@@ -27,12 +27,13 @@ Integration:
 """
 from __future__ import annotations
 
+
 import hashlib
 import logging
 import time
 from collections import deque
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Consciousness.NarrativeGravity")
 
@@ -83,9 +84,9 @@ class NarrativeGravityCenter:
 
     def __init__(self):
         self._autobiography: deque[NarrativeEntry] = deque(maxlen=self._AUTOBIOGRAPHY_WINDOW)
-        self._arcs: dict[str, StoryArc] = {}
+        self._arcs: Dict[str, StoryArc] = {}
         self._narrative_self_summary: str = ""
-        self._identity_keywords: list[str] = []
+        self._identity_keywords: List[str] = []
         self._last_synthesis: float = 0.0
         self._synthesis_interval: float = 120.0  # Re-synthesize self-summary every 2 min
         logger.info("NarrativeGravityCenter initialized.")
@@ -255,7 +256,7 @@ class NarrativeGravityCenter:
         all_interpretations = " ".join(
             e.interpretation for e in self._autobiography if e.interpretation
         ).lower()
-        word_freq: dict[str, int] = {}
+        word_freq: Dict[str, int] = {}
         for word in all_interpretations.split():
             if len(word) > 4:
                 word_freq[word] = word_freq.get(word, 0) + 1
@@ -283,7 +284,7 @@ class NarrativeGravityCenter:
 
         return block
 
-    def get_snapshot(self) -> dict[str, Any]:
+    def get_snapshot(self) -> Dict[str, Any]:
         """Telemetry payload."""
         return {
             "autobiography_depth": len(self._autobiography),
@@ -300,7 +301,7 @@ class NarrativeGravityCenter:
 
 # ── Singleton ────────────────────────────────────────────────────────────────
 
-_instance: NarrativeGravityCenter | None = None
+_instance: Optional[NarrativeGravityCenter] = None
 
 
 def get_narrative_gravity_center() -> NarrativeGravityCenter:

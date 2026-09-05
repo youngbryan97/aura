@@ -4,8 +4,8 @@ Uses distributed agency (SovereignSwarm) to research and refine its own skills.
 """
 
 import logging
+from typing import List, Dict, Any
 from dataclasses import dataclass
-from typing import Any
 
 from core.runtime.service_registry import get_runtime_service, register_runtime_factory
 
@@ -17,7 +17,7 @@ class SkillMutation:
     skill_name: str
     target_logic: str
     rationale: str
-    proposed_change: dict[str, Any]
+    proposed_change: Dict[str, Any]
     benefit_prediction: float  # Expected success rate improvement
 
 class SkillEvolutionEngine:
@@ -26,7 +26,7 @@ class SkillEvolutionEngine:
     def __init__(self):
         logger.info("SkillEvolutionEngine initialized.")
 
-    async def identify_evolution_targets(self) -> list[str]:
+    async def identify_evolution_targets(self) -> List[str]:
         """Identify skills that need improvement based on [OMNI] execution logs."""
         omni = get_runtime_service("omni_tool", default=None)
         if not omni:

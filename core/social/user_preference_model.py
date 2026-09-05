@@ -1,14 +1,14 @@
 """core/social/user_preference_model.py
 Tracks explicit and implicit user communication preferences.
 """
-from typing import Any
+from typing import Dict, Any
 
 
 class UserPreferenceModel:
     """Manages profile preferences (e.g. verbosity levels) for operators."""
 
     def __init__(self):
-        self._profiles: dict[str, dict[str, Any]] = {
+        self._profiles: Dict[str, Dict[str, Any]] = {
             "Bryan": {
                 "verbosity": "concise",
                 "tts_enabled": False,

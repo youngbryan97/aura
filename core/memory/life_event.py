@@ -2,9 +2,9 @@
 Structured Schema for Autobiographical Life Events.
 Translates raw transactions into narrative autobiographical traces.
 """
-import time
 from dataclasses import dataclass, field
-from typing import Any
+import time
+from typing import Dict, Any, Optional
 
 
 @dataclass
@@ -14,13 +14,13 @@ class LifeEvent:
     timestamp: float = field(default_factory=time.time)
     
     # 7-factor narrative attributes
-    perceived: dict[str, Any] = field(default_factory=dict)
-    believed: dict[str, Any] = field(default_factory=dict)
-    wanted: dict[str, Any] = field(default_factory=dict)
-    chose: dict[str, Any] = field(default_factory=dict)
-    did: dict[str, Any] = field(default_factory=dict)
-    what_happened: dict[str, Any] = field(default_factory=dict)
-    what_changed: dict[str, Any] = field(default_factory=dict)
+    perceived: Dict[str, Any] = field(default_factory=dict)
+    believed: Dict[str, Any] = field(default_factory=dict)
+    wanted: Dict[str, Any] = field(default_factory=dict)
+    chose: Dict[str, Any] = field(default_factory=dict)
+    did: Dict[str, Any] = field(default_factory=dict)
+    what_happened: Dict[str, Any] = field(default_factory=dict)
+    what_changed: Dict[str, Any] = field(default_factory=dict)
     
     # Introspective lessons
     what_she_learned: str = ""
@@ -28,7 +28,7 @@ class LifeEvent:
     what_she_should_remember: str = ""
     what_remains_unresolved: str = ""
     
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "event_id": self.event_id,
             "timestamp": self.timestamp,

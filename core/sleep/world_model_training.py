@@ -1,9 +1,9 @@
 """core/sleep/world_model_training.py
 Offline world model training and causal graph alignment.
 """
-import logging
 import time
 from typing import Any
+import logging
 
 logger = logging.getLogger("Sleep.WorldModelTraining")
 

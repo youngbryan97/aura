@@ -1,9 +1,9 @@
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
-
-from core.runtime.errors import record_degradation
+from typing import Optional
 from core.runtime.service_registry import get_runtime_service
-from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.MemoryGuard")
 
@@ -14,7 +14,7 @@ class MemoryGuard:
     """
     def __init__(self, threshold_percent: float = 82.0):
         self.threshold_percent = threshold_percent
-        self._task: asyncio.Task | None = None
+        self._task: Optional[asyncio.Task] = None
         self._running = False
         self.consecutive_strikes = 0
 
@@ -33,7 +33,7 @@ class MemoryGuard:
             task.cancel()
             try:
                 await asyncio.wait_for(task, timeout=2.0)
-            except (TimeoutError, asyncio.CancelledError):
+            except (asyncio.CancelledError, asyncio.TimeoutError):
                 logger.debug('Ignored Exception in memory_guard.py: %s', "unknown_error")
         logger.info("MemoryGuard disengaged.")
 

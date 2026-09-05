@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from subprocess import SubprocessError
-from typing import Any
+from typing import Any, Dict
 
 from core.body.sensor_registry import BaseSensor
 from core.perception.frontmost_app import frontmost_app_name_fast
@@ -24,7 +24,7 @@ class AppFocusSensor(BaseSensor):
     def name(self) -> str:
         return "app_focus"
 
-    async def read(self) -> dict[str, Any]:
+    async def read(self) -> Dict[str, Any]:
         """Queries the active application via NSWorkspace (fast) or AppleScript (fallback)."""
         try:
             # Fast in-process path first — no subprocess fork.

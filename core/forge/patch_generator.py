@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Dict
 
 logger = logging.getLogger("Aura.PatchGenerator")
 
@@ -11,7 +11,7 @@ class PatchGenerator:
     """Simulates or calls local models to generate code fixes for targeted bugs."""
 
     @staticmethod
-    def generate_patch(module_name: str, weakness_details: dict[str, Any]) -> dict[str, Any]:
+    def generate_patch(module_name: str, weakness_details: Dict[str, Any]) -> Dict[str, Any]:
         """Drafts a patch mapping to the targeted module."""
         logger.info("Drafting self-improvement code patch for module: %s", module_name)
         

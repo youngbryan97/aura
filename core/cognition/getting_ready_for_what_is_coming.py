@@ -125,7 +125,7 @@ class WhatUsuallyComes:
         }
 
     @classmethod
-    def from_memory(cls, held: Any) -> WhatUsuallyComes:
+    def from_memory(cls, held: Any) -> "WhatUsuallyComes":
         if not isinstance(held, dict):
             return cls()
 

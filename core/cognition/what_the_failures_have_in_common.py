@@ -42,9 +42,8 @@ vocabulary that cannot be the wrong one.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Sequence
 
 __all__ = [
     "A_CHECK_THAT_CANNOT_SEE_IT",
@@ -307,7 +306,7 @@ def why_nothing_fits(
 def _a_check_that_cannot_see_it(
     pairs: Sequence[tuple[tuple[Any, ...], tuple[Any, ...]]],
     hypotheses: Sequence[Any] | None,
-) -> WhyNothingFits | None:
+) -> "WhyNothingFits | None":
     """Whether every reading is right and the comparison cannot tell.
 
     The signature is one consistent renaming. If what a reading says maps to

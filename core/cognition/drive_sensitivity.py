@@ -24,11 +24,12 @@ reported, and when they disagree the natural estimate is the suspect one.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import statistics
+import threading
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
-
-from core.runtime.lockdep import checked_lock
 
 __all__ = ["Observation", "DriveModel", "DriveSensitivities"]
 

@@ -35,6 +35,8 @@ import ast
 from functools import lru_cache
 from typing import Any
 
+from core.runtime.errors import record_degradation
+
 from core.brain.llm.latent_cortex.neural_transition_tissue import (
     NeuralTransitionTissue,
     execute_neural_action_program,
@@ -63,7 +65,6 @@ from core.learning.recurrent_work_memory_tissue import (
     execute_mathematics_memory,
     load_mathematics_memory_tissue,
 )
-from core.runtime.errors import record_degradation
 
 __all__ = [
     "neural_compiled_transition_expected",

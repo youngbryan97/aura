@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Dict, Optional
 
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
@@ -14,7 +14,7 @@ class ComposerNode:
     the resident visual context. It does not apply an image transformation.
     """
     
-    def __init__(self, container: Any | None = None):
+    def __init__(self, container: Optional[Any] = None):
         self._container = container
         self.vision_buffer = None
         self.capability_engine = None
@@ -36,7 +36,7 @@ class ComposerNode:
             record_degradation('composer_node', e)
             logger.error("Composer setup failed: %s", e)
 
-    async def stylize_desktop(self, style_prompt: str) -> dict[str, Any]:
+    async def stylize_desktop(self, style_prompt: str) -> Dict[str, Any]:
         """
         Derive a style-transfer plan from the current desktop observation.
 

@@ -24,11 +24,11 @@ implications on the event bus (``atomspace.derived``).
 """
 from __future__ import annotations
 
+import os
 import threading
 import time
-from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 # ── PLN truth values ──────────────────────────────────────────────────────
 
@@ -59,7 +59,7 @@ class TruthValue:
     def confidence(self) -> float:
         return self.count / (self.count + _LOOKAHEAD)
 
-    def revise(self, other: TruthValue) -> TruthValue:
+    def revise(self, other: "TruthValue") -> "TruthValue":
         """PLN revision: merge two independent estimates of the same atom.
 
         Evidence-weighted mean of strengths; counts add. Convergent — repeated
@@ -72,7 +72,7 @@ class TruthValue:
         s = (self.strength * self.count + other.strength * other.count) / total
         return TruthValue(s, total)
 
-    def negation(self) -> TruthValue:
+    def negation(self) -> "TruthValue":
         return TruthValue(1.0 - self.strength, self.count)
 
     def to_dict(self) -> dict[str, float]:
@@ -220,7 +220,7 @@ class _Record:
     unattributed: TruthValue | None = None
 
 
-def _fold(rec: _Record) -> TruthValue:
+def _fold(rec: "_Record") -> TruthValue:
     """Recompute an atom's truth from its per-source contributions.
 
     Each source contributes once, whatever it has said most recently. The
@@ -702,7 +702,7 @@ class AtomSpace:
 
     def apply_rules(
         self,
-        rules: Sequence[InferenceRule],
+        rules: Sequence["InferenceRule"],
         *,
         max_derivations: int = 16,
         focus_only: bool = True,
@@ -762,7 +762,7 @@ class AtomSpace:
         *,
         max_derivations: int = 16,
         focus_only: bool = True,
-        rules: Sequence[InferenceRule] | None = None,
+        rules: Sequence["InferenceRule"] | None = None,
     ) -> list[Atom]:
         """One bounded forward-chaining pass with the standard PLN rule set."""
         return self.apply_rules(
@@ -852,10 +852,10 @@ class InferenceRule:
     name: str
     premises: tuple[Atom, ...]
     conclusion: Atom
-    tv_fn: Callable[[AtomSpace, Bindings, tuple[TruthValue, ...]], TruthValue | None]
+    tv_fn: Callable[["AtomSpace", Bindings, tuple[TruthValue, ...]], TruthValue | None]
 
 
-def _node_tv(space: AtomSpace, binding: Bindings, var: str) -> TruthValue:
+def _node_tv(space: "AtomSpace", binding: Bindings, var: str) -> TruthValue:
     atom = binding.get(var)
     if atom is None:
         return TruthValue()
@@ -937,8 +937,7 @@ def assert_claim(
     claims assert the concept with inverted strength (PLN negation).
     """
     from core.reasoning.belief_consistency import encode_belief
-    from core.reasoning.natural_deduction import Atom as PropAtom
-    from core.reasoning.natural_deduction import Implies, Not
+    from core.reasoning.natural_deduction import Implies, Not, Atom as PropAtom
 
     encoded = encode_belief(claim)
     formula = encoded.formula
@@ -985,7 +984,7 @@ def _where_it_is_kept() -> Any:
     return _Path(state_root()) / "atomspace.json"
 
 
-def _fill_it_from_disk(space: AtomSpace) -> int:
+def _fill_it_from_disk(space: "AtomSpace") -> int:
     """Load the last snapshot into a fresh store. Returns atoms loaded.
 
     The store was built empty on every boot and never written, so the whole

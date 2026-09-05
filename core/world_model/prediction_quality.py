@@ -38,12 +38,12 @@ bad world model.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
-from collections.abc import Sequence
+import threading
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
-
-from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "PredictionOutcome",

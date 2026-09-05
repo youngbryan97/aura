@@ -1,7 +1,7 @@
 import logging
+import asyncio
 from typing import Any
-
-from core.senses.soma import get_soma
+from core.senses.soma import get_soma, Soma
 
 logger = logging.getLogger("Aura.SomaSubsystem")
 

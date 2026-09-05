@@ -11,11 +11,12 @@ The LLM is the voicebox. This is the brain telling it what to do.
 """
 from __future__ import annotations
 
+
 import logging
 import math
 import random
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.runtime.structured_input import analyze_prompt_shape
 
@@ -67,7 +68,7 @@ class SpeechProfile:
 
     # ── Follow-up Behavior ───────────────────────────────────────────────
     followup_probability: float = 0.0       # chance of sending a second message after
-    followup_delay_seconds: tuple[float, float] = (3.0, 15.0)  # delay range
+    followup_delay_seconds: Tuple[float, float] = (3.0, 15.0)  # delay range
     followup_type: str = "none"             # "none", "curiosity", "additional_thought", "topic_shift", "correction"
 
     # ── Mood Coloring ────────────────────────────────────────────────────
@@ -79,7 +80,7 @@ class SpeechProfile:
 
     # ── Debug ────────────────────────────────────────────────────────────
     compilation_source: str = ""            # what drove these values
-    substrate_snapshot: dict[str, float] = field(default_factory=dict)
+    substrate_snapshot: Dict[str, float] = field(default_factory=dict)
 
     def to_constraint_block(self) -> str:
         """Compile into a hard constraint block for LLM system prompt injection."""
@@ -93,7 +94,7 @@ class SpeechProfile:
         if self.sentence_length_mean < 8:
             lines.append(f"- SHORT SENTENCES. Target ~{self.sentence_length_mean} words per sentence.")
         elif self.sentence_length_mean > 15:
-            lines.append("- FLOWING SENTENCES. You're in a contemplative space. Let thoughts breathe.")
+            lines.append(f"- FLOWING SENTENCES. You're in a contemplative space. Let thoughts breathe.")
 
         if self.multi_message:
             lines.append(f"- MULTI-MESSAGE: Break your response into {self.multi_message_count} separate short messages, like texting. Send the core thought first.")
@@ -171,7 +172,7 @@ class SpeechProfile:
         lines.append("")
         return "\n".join(lines)
 
-    def to_generation_params(self) -> dict[str, float | int]:
+    def to_generation_params(self) -> Dict[str, float | int]:
         """Compile sampler settings from the current speech profile.
 
         This is the lowest-level place short of retraining where the substrate
@@ -241,12 +242,12 @@ class SpeechProfileCompiler:
     @staticmethod
     def compile(
         affect: Any = None,
-        neurochemicals: dict[str, float] | None = None,
-        homeostasis: dict[str, float] | None = None,
-        unified_field: dict[str, float] | None = None,
-        personality: dict[str, float] | None = None,
-        social_context: dict[str, Any] | None = None,
-        conversation_context: dict[str, Any] | None = None,
+        neurochemicals: Optional[Dict[str, float]] = None,
+        homeostasis: Optional[Dict[str, float]] = None,
+        unified_field: Optional[Dict[str, float]] = None,
+        personality: Optional[Dict[str, float]] = None,
+        social_context: Optional[Dict[str, Any]] = None,
+        conversation_context: Optional[Dict[str, Any]] = None,
         user_message: str = "",
     ) -> SpeechProfile:
         """Compile substrate state into a SpeechProfile.
@@ -263,7 +264,7 @@ class SpeechProfileCompiler:
         """
         profile = SpeechProfile()
         sources = []
-        snapshot: dict[str, float] = {}
+        snapshot: Dict[str, float] = {}
 
         # ─── Extract raw values with safe defaults ────────────────────────
         # Affect

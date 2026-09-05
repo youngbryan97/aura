@@ -6,7 +6,7 @@ here computes an engineering result, and nothing here may put a number on a
 drawing that did not come from a finding.
 """
 
-from core.engineering.draw.canvas import LINE_TYPES, THEMES, Canvas, Theme
+from core.engineering.draw.canvas import Canvas, LINE_TYPES, THEMES, Theme
 from core.engineering.draw.project import VIEWS, View, view_named
 from core.engineering.draw.views import (
     Region,

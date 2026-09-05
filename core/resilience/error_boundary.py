@@ -1,15 +1,14 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import asyncio
 import functools
-import inspect
 import logging
+import inspect
 import time
 import traceback
-from collections.abc import Callable
-from typing import Any
-
-from core.runtime.errors import record_degradation
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger("Aura.ErrorBoundary")
 
@@ -89,10 +88,10 @@ class CircuitBreaker:
 
 class CircuitRegistry:
     """Central registry of all circuit breakers in the system."""
-    _instance: CircuitRegistry | None = None
+    _instance: Optional[CircuitRegistry] = None
 
     def __init__(self):
-        self.circuits: dict[str, CircuitBreaker] = {}
+        self.circuits: Dict[str, CircuitBreaker] = {}
 
     @classmethod
     def get_instance(cls) -> CircuitRegistry:
@@ -105,7 +104,7 @@ class CircuitRegistry:
             self.circuits[name] = CircuitBreaker(name)
         return self.circuits[name]
 
-    def get_all_status(self) -> dict[str, str]:
+    def get_all_status(self) -> Dict[str, str]:
         return {name: c.state.value for name, c in self.circuits.items()}
 
 
@@ -143,7 +142,7 @@ def _clear_failed_user_facing_response_state(phase_name: str, state: Any, error:
 # ── Boundary Decorators ───────────────────────────────────────────────────────
 
 def error_boundary(
-    name: str | None = None,
+    name: Optional[str] = None,
     fallback_value: Any = None,
     reraise: bool = False,
 ):
@@ -205,7 +204,7 @@ async def wrap_phase(
     phase_name: str,
     phase_fn: Callable,
     state: Any,
-    objective: str | None = None,
+    objective: Optional[str] = None,
     **kwargs,
 ) -> Any:
     """

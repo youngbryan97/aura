@@ -40,7 +40,7 @@ import os
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 from core.runtime.errors import record_degradation
 
@@ -64,11 +64,11 @@ class OverrideDecision:
     flag: str
     guard: str
     reason: str
-    first_seen_unix: float | None = None
-    expires_at_unix: float | None = None
+    first_seen_unix: Optional[float] = None
+    expires_at_unix: Optional[float] = None
     uses: int = 0
-    uses_remaining: int | None = None
-    receipt_id: str | None = None
+    uses_remaining: Optional[int] = None
+    receipt_id: Optional[str] = None
 
     def as_detail(self) -> str:
         """Compact form for degradation details and log lines."""
@@ -102,7 +102,7 @@ def consume_override(
     observed: str = "",
     window_s: float = DEFAULT_WINDOW_S,
     max_uses: int = DEFAULT_MAX_USES,
-    now: float | None = None,
+    now: Optional[float] = None,
 ) -> OverrideDecision:
     """Decide whether ``flag`` may bypass ``guard`` on this call.
 
@@ -201,7 +201,7 @@ def _emit_risk_receipt(
     uses: int,
     uses_cap: int,
     at: float,
-) -> str | None:
+) -> Optional[str]:
     """Record that a named risk was accepted, durably.
 
     Best-effort by design: the receipt store must never be able to turn a
@@ -249,7 +249,7 @@ def _forget(flag: str) -> None:
         _states.pop(flag, None)
 
 
-def override_status(flag: str, *, now: float | None = None) -> dict[str, Any]:
+def override_status(flag: str, *, now: Optional[float] = None) -> dict[str, Any]:
     """Inspect an override without consuming a use (for health surfaces)."""
     at = time.time() if now is None else float(now)
     with _lock:

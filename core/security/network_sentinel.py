@@ -5,11 +5,9 @@ import json
 import logging
 import threading
 import time
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
-
+from typing import Any, Callable, Dict, List, Optional, Sequence
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Security.NetworkSentinel")
@@ -51,7 +49,7 @@ class Device:
             min(1.0, float(self.observation_confidence or 0.0)),
         )
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "fingerprint": self.fingerprint,
             "name": self.name,
@@ -74,11 +72,11 @@ class DeviceVerdict:
     anomalous: bool
     threat: float
     action: str
-    reasons: list[str] = field(default_factory=list)
+    reasons: List[str] = field(default_factory=list)
     state: str = "normal"
-    evidence: dict[str, Any] = field(default_factory=dict)
+    evidence: Dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "fingerprint": self.fingerprint,
             "known": self.known,
@@ -91,7 +89,7 @@ class DeviceVerdict:
         }
 
 
-Scanner = Callable[[], list[Device]]
+Scanner = Callable[[], List[Device]]
 
 
 class NetworkSentinel:
@@ -105,14 +103,14 @@ class NetworkSentinel:
         confirmation_count: int = 2,
     ) -> None:
         self._lock = threading.RLock()
-        self._known: dict[str, Device] = {}
-        self._novel: dict[str, dict[str, Any]] = {}
+        self._known: Dict[str, Device] = {}
+        self._novel: Dict[str, dict[str, Any]] = {}
         self._settle = max(0.0, float(settle_period_s))
         self._confirmation_count = max(2, int(confirmation_count))
         self._started_at = time.time()
         self._baseline_established_at = 0.0
         self._baseline_path = Path(baseline_path or _default_baseline_path())
-        self._scanner: Scanner | None = None
+        self._scanner: Optional[Scanner] = None
         self._load_baseline()
 
     def register_scanner(self, scanner: Scanner) -> None:
@@ -193,7 +191,7 @@ class NetworkSentinel:
                 exc,
             )
 
-    def learn_baseline(self, devices: list[Device]) -> None:
+    def learn_baseline(self, devices: List[Device]) -> None:
         changed = False
         now = time.time()
         with self._lock:
@@ -221,7 +219,7 @@ class NetworkSentinel:
         self,
         device: Device,
         *,
-        now: float | None = None,
+        now: Optional[float] = None,
         corroborating_signals: Sequence[str] = (),
     ) -> DeviceVerdict:
         now = time.time() if now is None else float(now)
@@ -340,7 +338,7 @@ class NetworkSentinel:
                 evidence=evidence,
             )
 
-    def enumerate(self) -> list[Device]:
+    def enumerate(self) -> List[Device]:
         if self._scanner is None:
             return []
         try:
@@ -349,14 +347,14 @@ class NetworkSentinel:
             logger.debug("Network enumerate failed: %s", exc)
             return []
 
-    def sweep(self) -> list[DeviceVerdict]:
+    def sweep(self) -> List[DeviceVerdict]:
         return [self.observe(device) for device in self.enumerate()]
 
     def _flag_immune(
         self,
         device: Device,
         threat: float,
-        reasons: list[str],
+        reasons: List[str],
         *,
         evidence: dict[str, Any],
     ) -> None:
@@ -377,8 +375,8 @@ class NetworkSentinel:
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             pass
 
-    def recovery_plan(self) -> dict[str, Any]:
-        plan: dict[str, Any] = {"restore_points": [], "recoverable": False}
+    def recovery_plan(self) -> Dict[str, Any]:
+        plan: Dict[str, Any] = {"restore_points": [], "recoverable": False}
         try:
             from core.security.deletion_guard import get_deletion_guard
 
@@ -406,7 +404,7 @@ class NetworkSentinel:
         )
         return plan
 
-    def status(self) -> dict[str, Any]:
+    def status(self) -> Dict[str, Any]:
         with self._lock:
             return {
                 "known_devices": len(self._known),
@@ -423,7 +421,7 @@ class NetworkSentinel:
             }
 
 
-_sentinel: NetworkSentinel | None = None
+_sentinel: Optional[NetworkSentinel] = None
 _lock = threading.Lock()
 
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+
 #: The canonicalization contract these signatures are made under.
 #:
 #: sort_keys and compact separators are a Python recipe, not a cross-language

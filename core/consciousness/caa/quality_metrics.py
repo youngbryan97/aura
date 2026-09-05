@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import asdict, dataclass
-from typing import Any
+from dataclasses import dataclass, asdict
+from typing import Any, Mapping
 
 import numpy as np
 

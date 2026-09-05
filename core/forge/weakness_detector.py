@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Dict, List
 
 logger = logging.getLogger("Aura.WeaknessDetector")
 
@@ -11,11 +11,11 @@ class WeaknessDetector:
     """Scans error logs, test failure counts, and trace records to identify codebase weaknesses."""
 
     @staticmethod
-    def scan_for_weaknesses(recent_logs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def scan_for_weaknesses(recent_logs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Analyzes log sequences and identifies systems with high failure rates."""
         weaknesses = []
-        failures_by_module: dict[str, int] = {}
-        error_details: dict[str, list[str]] = {}
+        failures_by_module: Dict[str, int] = {}
+        error_details: Dict[str, List[str]] = {}
 
         for log in recent_logs:
             # Check for failure markers

@@ -30,9 +30,11 @@ Operates entirely on numpy arrays.  Thread-safe via an internal lock.
 """
 from __future__ import annotations
 
+
 import logging
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -54,7 +56,7 @@ _SENSORY_END = 16       # columns  0..15
 _ASSOCIATION_END = 48   # columns 16..47
 _NUM_COLUMNS = 64       # columns 48..63 = executive
 
-_SPECIALIZATION_LABELS: tuple[str, ...] = (
+_SPECIALIZATION_LABELS: Tuple[str, ...] = (
     "language",
     "emotion",
     "spatial",
@@ -146,9 +148,9 @@ class TopologyDelta:
     Contains the *proposed* structural changes.  The mesh (or its bridge)
     applies them at its discretion.
     """
-    births: list[tuple[int, int, float]]   # (src, dst, initial_weight)
-    deaths: list[tuple[int, int]]          # (src, dst)
-    metrics: TopologyMetrics
+    births: List[Tuple[int, int, float]]   # (src, dst, initial_weight)
+    deaths: List[Tuple[int, int]]          # (src, dst)
+    metrics: "TopologyMetrics"
     tick: int
 
 
@@ -210,7 +212,7 @@ class TopologyEvolution:
 
         # -- Connection registry --
         # Key: (src, dst).  Only inter-column connections are tracked here.
-        self._connections: dict[tuple[int, int], ConnectionRecord] = {}
+        self._connections: Dict[Tuple[int, int], ConnectionRecord] = {}
 
         # -- Column specialization profiles --
         # Each column gets an 8-d vector (one per label).  Updated via EMA.
@@ -220,7 +222,7 @@ class TopologyEvolution:
 
         # -- Fitness history --
         self._topology_fitness: float = 0.0
-        self._fitness_history: list[float] = []
+        self._fitness_history: List[float] = []
 
         # -- Cached metrics --
         self._last_metrics = TopologyMetrics(
@@ -281,7 +283,7 @@ class TopologyEvolution:
         with self._lock:
             return self._last_metrics
 
-    def get_column_specializations(self) -> dict[int, str]:
+    def get_column_specializations(self) -> Dict[int, str]:
         """Return each column's dominant specialization label.
 
         Example return value::
@@ -294,12 +296,12 @@ class TopologyEvolution:
             specialization = np.array(self._specialization, copy=True)
         return self._compute_specialization_labels_from(specialization)
 
-    def get_connection_records(self) -> dict[tuple[int, int], ConnectionRecord]:
+    def get_connection_records(self) -> Dict[Tuple[int, int], ConnectionRecord]:
         """Return a shallow copy of all tracked connection records."""
         with self._lock:
             return dict(self._connections)
 
-    def get_fitness_history(self) -> list[float]:
+    def get_fitness_history(self) -> List[float]:
         """Return the topology-level fitness over time.
 
         Each entry corresponds to one ``evolve()`` call.
@@ -501,15 +503,15 @@ class TopologyEvolution:
             (1.0 - alpha) * self._specialization + alpha * projection
         ).astype(np.float32)
 
-    def _compute_specialization_labels(self) -> dict[int, str]:
+    def _compute_specialization_labels(self) -> Dict[int, str]:
         """Assign a human-readable label to each column based on its
         specialization profile."""
         return self._compute_specialization_labels_from(self._specialization)
 
     @staticmethod
-    def _compute_specialization_labels_from(specialization: np.ndarray) -> dict[int, str]:
+    def _compute_specialization_labels_from(specialization: np.ndarray) -> Dict[int, str]:
         """Assign labels from a snapshot so dashboard reads do not hold locks."""
-        result: dict[int, str] = {}
+        result: Dict[int, str] = {}
         for col in range(_NUM_COLUMNS):
             profile = specialization[col]
             peak = float(np.max(np.abs(profile)))
@@ -528,7 +530,7 @@ class TopologyEvolution:
         self,
         weights: np.ndarray,
         tick: int,
-    ) -> list[tuple[int, int, float]]:
+    ) -> List[Tuple[int, int, float]]:
         """Propose new inter-column connections based on co-activation.
 
         Two columns that are NOT currently connected but show high correlation
@@ -544,7 +546,7 @@ class TopologyEvolution:
         if corr.max() == 0.0:
             return []  # not enough data yet
 
-        births: list[tuple[int, int, float]] = []
+        births: List[Tuple[int, int, float]] = []
 
         # Build mask of currently unconnected pairs (where weight == 0)
         unconnected = (weights == 0.0)
@@ -603,7 +605,7 @@ class TopologyEvolution:
         self,
         weights: np.ndarray,
         tick: int,
-    ) -> list[tuple[int, int]]:
+    ) -> List[Tuple[int, int]]:
         """Propose removal of inter-column connections that are effectively dead.
 
         A connection is a pruning candidate if:
@@ -616,7 +618,7 @@ class TopologyEvolution:
         Intra-column connections are never touched — they are structural.
         At most 1 connection is removed per tick.
         """
-        deaths: list[tuple[int, int]] = []
+        deaths: List[Tuple[int, int]] = []
 
         # Current connectivity count
         total_existing = int(np.count_nonzero(weights)) - _NUM_COLUMNS  # minus diagonal
@@ -632,7 +634,7 @@ class TopologyEvolution:
             return []
 
         # Build list of pruning candidates sorted by fitness (worst first)
-        candidates: list[tuple[float, tuple[int, int]]] = []
+        candidates: List[Tuple[float, Tuple[int, int]]] = []
         for key, rec in self._connections.items():
             src, dst = key
             w = abs(float(weights[src, dst]))
@@ -862,7 +864,7 @@ class TopologyEvolution:
         dist[source] = 0
         frontier = [source]
         while frontier:
-            next_frontier: list[int] = []
+            next_frontier: List[int] = []
             for node in frontier:
                 neighbors = np.where(adj[node] > 0)[0]
                 for nb in neighbors:
@@ -877,7 +879,7 @@ class TopologyEvolution:
     # Introspection / status
     # =====================================================================
 
-    def get_status(self) -> dict:
+    def get_status(self) -> Dict:
         """Return a JSON-serializable status dictionary for dashboards."""
         with self._lock:
             specialization = np.array(self._specialization, copy=True)
@@ -888,7 +890,7 @@ class TopologyEvolution:
             fitness_history_length = len(self._fitness_history)
 
         specs = self._compute_specialization_labels_from(specialization)
-        label_counts: dict[str, int] = {}
+        label_counts: Dict[str, int] = {}
         for label in specs.values():
             label_counts[label] = label_counts.get(label, 0) + 1
 

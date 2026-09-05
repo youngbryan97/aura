@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 import logging
-from typing import Any
+from typing import Any, Dict, Optional, Tuple
 
 from core.consciousness.executive_authority import get_executive_authority
 from core.constitution import get_constitutional_core
@@ -28,8 +28,8 @@ async def propose_governed_initiative_to_state(
     kind: str = "autonomous_thought",
     urgency: float = 0.5,
     triggered_by: str = "",
-    metadata: dict[str, Any] | None = None,
-) -> tuple[Any, dict[str, Any]]:
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Tuple[Any, Dict[str, Any]]:
     normalized_goal = _normalize_goal(goal)
     if state is None:
         return state, {"action": "rejected", "reason": "state_missing", "goal": normalized_goal}
@@ -105,8 +105,8 @@ async def queue_governed_initiative(
     kind: str = "autonomous_thought",
     urgency: float = 0.5,
     triggered_by: str = "",
-    metadata: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     normalized_goal = _normalize_goal(goal)
     repo = resolve_state_repository(orchestrator, default=None)
     if repo is None:
@@ -168,5 +168,5 @@ async def queue_governed_initiative(
                     "goal": normalized_goal,
                 }
         else:
-            repo._current = new_state
+            setattr(repo, "_current", new_state)
     return decision

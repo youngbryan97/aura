@@ -4,12 +4,13 @@ Compresses designated log files into timestamped ZIP archives
 *before* Metabolism purges them. The archive is the permanent history.
 Runs as the very first step in the Dreamer sleep cycle.
 """
+from core.runtime.errors import record_degradation
 import logging
+import time
 import zipfile
 from datetime import datetime
 from pathlib import Path
-
-from core.runtime.errors import record_degradation
+from typing import Dict, List, Optional
 
 logger = logging.getLogger("Kernel.Archiver")
 
@@ -29,9 +30,9 @@ class ArchiveEngine:
 
     def __init__(
         self,
-        log_dir: Path | None = None,
-        archive_dir: Path | None = None,
-        vital_logs: list[str] | None = None,
+        log_dir: Optional[Path] = None,
+        archive_dir: Optional[Path] = None,
+        vital_logs: Optional[List[str]] = None,
         max_archives: int = 30,
     ):
         from core.config import config
@@ -40,12 +41,12 @@ class ArchiveEngine:
         self.vital_logs = vital_logs or DEFAULT_VITAL_LOGS
         self.max_archives = max_archives
 
-    async def archive_vital_logs(self) -> dict:
+    async def archive_vital_logs(self) -> Dict:
         """Compress vital logs into a timestamped ZIP. Returns summary dict."""
         logger.info("📦 Archive sweep starting in %s", self.log_dir)
         self.archive_dir.mkdir(parents=True, exist_ok=True)
 
-        found: list[Path] = []
+        found: List[Path] = []
         for name in self.vital_logs:
             candidate = self.log_dir / name
             if candidate.exists() and candidate.stat().st_size > 0:
@@ -67,10 +68,10 @@ class ArchiveEngine:
                         total_bytes += log_path.stat().st_size
                         zf.write(log_path, arcname=log_path.name)
                         archived_count += 1
-                    except OSError as exc:
+                    except (OSError, IOError) as exc:
                         record_degradation('archiver', exc)
                         logger.warning("Failed to archive %s: %s", log_path.name, exc)
-        except OSError as exc:
+        except (OSError, IOError) as exc:
             record_degradation('archiver', exc)
             logger.error("Failed to create archive %s: %s", zip_path, exc)
             return {"archived": 0, "path": None, "error": str(exc)}

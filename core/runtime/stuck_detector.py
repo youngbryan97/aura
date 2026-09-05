@@ -40,9 +40,9 @@ from __future__ import annotations
 import logging
 import re
 from collections import Counter
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Iterable, Sequence
 
 logger = logging.getLogger("Aura.StuckDetector")
 

@@ -36,8 +36,8 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
-from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.AgencyOrchestrator")
 

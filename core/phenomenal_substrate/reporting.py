@@ -1,15 +1,14 @@
 from __future__ import annotations
-
-from .attachment import AttachmentSystem
+from typing import Optional
 from .types import ExperienceState
-
+from .attachment import AttachmentSystem
 
 class ExperienceReporter:
     """
     Converts state to language after the fact.
     This layer must not write to the engine.
     """
-    def __init__(self, attachments: AttachmentSystem | None = None) -> None:
+    def __init__(self, attachments: Optional[AttachmentSystem] = None) -> None:
         self.attachments = attachments
 
     def compact(self, state: ExperienceState) -> str:

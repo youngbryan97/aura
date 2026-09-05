@@ -12,13 +12,14 @@ Components:
 """
 from __future__ import annotations
 
+
 import logging
 import threading
 import time
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from core.runtime.atomic_writer import atomic_write_json, read_json_envelope
 from core.runtime.state_ownership import state_root
@@ -31,9 +32,9 @@ class Commitment:
     commitment_id: str
     text: str
     created_at: float
-    fulfilled_at: float | None = None
-    revoked_at: float | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    fulfilled_at: Optional[float] = None
+    revoked_at: Optional[float] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -50,15 +51,15 @@ class PreferenceChange:
 class SelfModelSnapshot:
     snapshot_id: str
     at: float
-    state: dict[str, Any]
+    state: Dict[str, Any]
 
 
 class CommitmentTracker:
     def __init__(self):
-        self._commitments: dict[str, Commitment] = {}
+        self._commitments: Dict[str, Commitment] = {}
         self._lock = threading.RLock()
 
-    def add(self, text: str, metadata: dict[str, Any] | None = None) -> Commitment:
+    def add(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Commitment:
         c = Commitment(
             commitment_id=f"commit-{uuid.uuid4()}",
             text=text,
@@ -85,22 +86,22 @@ class CommitmentTracker:
             c.revoked_at = time.time()
             return True
 
-    def open_commitments(self) -> list[Commitment]:
+    def open_commitments(self) -> List[Commitment]:
         with self._lock:
             return [
                 c for c in self._commitments.values()
                 if c.fulfilled_at is None and c.revoked_at is None
             ]
 
-    def all(self) -> list[Commitment]:
+    def all(self) -> List[Commitment]:
         with self._lock:
             return list(self._commitments.values())
 
 
 class PreferenceHistory:
     def __init__(self):
-        self._history: list[PreferenceChange] = []
-        self._current: dict[str, Any] = {}
+        self._history: List[PreferenceChange] = []
+        self._current: Dict[str, Any] = {}
         self._lock = threading.RLock()
 
     def set(self, key: str, value: Any, reason: str = "") -> None:
@@ -122,21 +123,21 @@ class PreferenceHistory:
         with self._lock:
             return self._current.get(key, default)
 
-    def history_for(self, key: str) -> list[PreferenceChange]:
+    def history_for(self, key: str) -> List[PreferenceChange]:
         with self._lock:
             return [c for c in self._history if c.key == key]
 
-    def all_changes(self) -> list[PreferenceChange]:
+    def all_changes(self) -> List[PreferenceChange]:
         with self._lock:
             return list(self._history)
 
 
 class SelfModelVersioning:
     def __init__(self):
-        self._snapshots: list[SelfModelSnapshot] = []
+        self._snapshots: List[SelfModelSnapshot] = []
         self._lock = threading.RLock()
 
-    def snapshot(self, state: dict[str, Any]) -> SelfModelSnapshot:
+    def snapshot(self, state: Dict[str, Any]) -> SelfModelSnapshot:
         snap = SelfModelSnapshot(
             snapshot_id=f"snap-{uuid.uuid4()}",
             at=time.time(),
@@ -146,21 +147,21 @@ class SelfModelVersioning:
             self._snapshots.append(snap)
         return snap
 
-    def all(self) -> list[SelfModelSnapshot]:
+    def all(self) -> List[SelfModelSnapshot]:
         with self._lock:
             return list(self._snapshots)
 
 
 class ContradictionDetector:
-    def __init__(self, *, ledger: IdentityLedger):
+    def __init__(self, *, ledger: "IdentityLedger"):
         self.ledger = ledger
 
-    def detect(self, *, candidate_statement: str) -> list[str]:
+    def detect(self, *, candidate_statement: str) -> List[str]:
         # Lightweight contradiction surface: look for negations of fulfilled
         # commitments. Real impl would use a semantic classifier; this is the
         # callable contract.
         lower = candidate_statement.lower().strip()
-        contradictions: list[str] = []
+        contradictions: List[str] = []
         for c in self.ledger.commitments.all():
             if c.fulfilled_at is None and c.revoked_at is None:
                 if (
@@ -191,7 +192,7 @@ class IdentityDriftMonitor:
 class IdentityLedger:
     SCHEMA_VERSION = 1
 
-    def __init__(self, *, root: Path | None = None):
+    def __init__(self, *, root: Optional[Path] = None):
         self.root = Path(root) if root else (state_root() / "identity")
         self.root.mkdir(parents=True, exist_ok=True)
         self.commitments = CommitmentTracker()
@@ -241,7 +242,7 @@ class IdentityLedger:
             self.versioning._snapshots.append(SelfModelSnapshot(**s))
 
 
-_global: IdentityLedger | None = None
+_global: Optional[IdentityLedger] = None
 
 
 def get_identity_ledger() -> IdentityLedger:

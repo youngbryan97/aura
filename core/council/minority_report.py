@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import List, Optional
 
 from core.runtime.file_write_gateway import get_file_write_gateway
 
@@ -25,7 +27,7 @@ class MinorityDisagreement:
 class MinorityReportStore:
     """Manages files tracking dissenting opinions of council members."""
 
-    def __init__(self, log_path: Path | None = None) -> None:
+    def __init__(self, log_path: Optional[Path] = None) -> None:
         if log_path is None:
             # Default to data dir
             from core.config import config
@@ -48,7 +50,7 @@ class MinorityReportStore:
         except (OSError, RuntimeError, TypeError, ValueError) as e:
             logger.error("Failed to write minority report: %s", e)
 
-    def list_dissents(self) -> list[MinorityDisagreement]:
+    def list_dissents(self) -> List[MinorityDisagreement]:
         if not self.log_path.exists():
             return []
         entries = []

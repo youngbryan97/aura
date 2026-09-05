@@ -30,9 +30,8 @@ the decode and to ablation.
 """
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Sequence
 
 PROTECTED_MEMORY_SCHEMA = "aura.latent_protected_memory.v1"
 

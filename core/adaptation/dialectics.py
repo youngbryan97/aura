@@ -152,7 +152,7 @@ class DialecticalCrucible:
 
         try:
             response = await asyncio.wait_for(_invoke(), timeout=self.stage_timeout_s)
-        except (TimeoutError, ConnectionError) as exc:
+        except (TimeoutError, asyncio.TimeoutError, ConnectionError) as exc:
             # A bounded background debate stage losing the model under load is
             # expected backpressure, not a critical incident (observed live:
             # INC-1783068780-0002 was exactly this as a fail-closed CRITICAL).

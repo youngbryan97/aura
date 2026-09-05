@@ -15,9 +15,8 @@ import hashlib
 import json
 import math
 import random
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Sequence
 
 
 def _stable_hash(obj: Any) -> str:
@@ -31,9 +30,9 @@ class Task:
     kind: str
     prompt: str
     answer: Any
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
-    def public(self) -> dict[str, Any]:
+    def public(self) -> Dict[str, Any]:
         return {"kind": self.kind, "prompt": self.prompt, "metadata": self.metadata}
 
     def hash_public(self) -> str:
@@ -61,13 +60,13 @@ class DynamicBenchmark:
         self,
         n: int = 100,
         kinds: Sequence[str] = SUPPORTED_KINDS,
-    ) -> list[Task]:
+    ) -> List[Task]:
         if n <= 0:
             return []
         for kind in kinds:
             if kind not in self.SUPPORTED_KINDS:
                 raise ValueError(f"unsupported task kind: {kind}")
-        out: list[Task] = []
+        out: List[Task] = []
         for _ in range(n):
             kind = self.rng.choice(list(kinds))
             out.append(self._make(kind))

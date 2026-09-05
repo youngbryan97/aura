@@ -1,8 +1,8 @@
 """Compile selected options into action intents."""
 from __future__ import annotations
 
-from ..command import ActionIntent
 from .base import Option
+from ..command import ActionIntent
 
 
 class OptionCompiler:

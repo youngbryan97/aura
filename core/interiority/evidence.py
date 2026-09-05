@@ -33,9 +33,9 @@ the activation constructor asks the frame for it.
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import IntEnum
+from typing import Iterable
 
 from core.interiority.params import ParamKind, declare
 
@@ -141,10 +141,10 @@ class Reading:
             return _CEILING_REPORTED.value
         return 1.0
 
-    def scaled(self, factor: float) -> Reading:
+    def scaled(self, factor: float) -> "Reading":
         return Reading(self.value * factor, self.provenance, self.confidence, self.source)
 
-    def at_least(self, other: Reading) -> Reading:
+    def at_least(self, other: "Reading") -> "Reading":
         """The stronger of two readings of the same quantity."""
         if not self.present:
             return other

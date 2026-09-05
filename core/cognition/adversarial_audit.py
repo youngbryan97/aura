@@ -30,9 +30,8 @@ from __future__ import annotations
 import logging
 import re
 import time
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional, Sequence
 
 from core.runtime.errors import record_degradation
 
@@ -50,7 +49,7 @@ class AuditFinding:
     severity: float            # [0,1] how much a failure of this check costs
     detail: str = ""
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {"check": self.check, "passed": self.passed,
                 "severity": round(self.severity, 3), "detail": self.detail}
 
@@ -58,16 +57,16 @@ class AuditFinding:
 @dataclass
 class AuditReport:
     claim: str
-    findings: list[AuditFinding]
+    findings: List[AuditFinding]
     risk_score: float
     verdict: str               # trust | caveat | block
-    caveats: list[str] = field(default_factory=list)
+    caveats: List[str] = field(default_factory=list)
 
     @property
-    def failed(self) -> list[AuditFinding]:
+    def failed(self) -> List[AuditFinding]:
         return [f for f in self.findings if not f.passed]
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "claim": self.claim[:300],
             "verdict": self.verdict,
@@ -131,21 +130,21 @@ class AdversarialAuditor:
         self,
         claim: str,
         *,
-        action_done: bool | None = None,
-        receipt_id: str | None = None,
-        memory_age_s: float | None = None,
-        world_state_age_s: float | None = None,
-        evidence: Sequence[Any] | None = None,
-        agent_id: str | None = None,
-        stated_confidence: float | None = None,
+        action_done: Optional[bool] = None,
+        receipt_id: Optional[str] = None,
+        memory_age_s: Optional[float] = None,
+        world_state_age_s: Optional[float] = None,
+        evidence: Optional[Sequence[Any]] = None,
+        agent_id: Optional[str] = None,
+        stated_confidence: Optional[float] = None,
         tool_verified: bool = False,
-        now: float | None = None,
+        now: Optional[float] = None,
     ) -> AuditReport:
         """Audit a claim. Optional context grounds the checks in real runtime state."""
         claim = str(claim or "")
         now = time.time() if now is None else now
-        findings: list[AuditFinding] = []
-        caveats: list[str] = []
+        findings: List[AuditFinding] = []
+        caveats: List[str] = []
 
         # 1) Overclaiming.
         over = _OVERCLAIM.findall(claim)
@@ -267,7 +266,7 @@ class AdversarialAuditor:
     # ── grounding helpers ─────────────────────────────────────────────────
 
     @staticmethod
-    def _receipt_ok(receipt_id: str | None) -> bool:
+    def _receipt_ok(receipt_id: Optional[str]) -> bool:
         if not receipt_id:
             return False
         # Prefer the Will audit trail (the provability surface); fall back to the ledger.
@@ -290,12 +289,12 @@ class AdversarialAuditor:
         return False
 
     @staticmethod
-    def _projection_grounded(agent_id: str | None, now: float) -> bool:
+    def _projection_grounded(agent_id: Optional[str], now: float) -> bool:
         conf = AdversarialAuditor._projection_confidence(agent_id, now)
         return conf is not None and conf >= 0.4
 
     @staticmethod
-    def _projection_confidence(agent_id: str | None, now: float) -> float | None:
+    def _projection_confidence(agent_id: Optional[str], now: float) -> Optional[float]:
         if not agent_id:
             return None
         try:
@@ -307,7 +306,7 @@ class AdversarialAuditor:
             return None
 
     @staticmethod
-    def _risk(findings: list[AuditFinding]) -> float:
+    def _risk(findings: List[AuditFinding]) -> float:
         # Risk is the severity-weighted share of failed checks (so one severe miss matters more
         # than several trivial ones), normalized by the severity actually in play.
         total = sum(f.severity for f in findings) or 1.0
@@ -319,7 +318,7 @@ class AdversarialAuditor:
         return self.audit(text, **ctx)
 
 
-_instance: AdversarialAuditor | None = None
+_instance: Optional[AdversarialAuditor] = None
 
 
 def get_adversarial_auditor() -> AdversarialAuditor:

@@ -12,7 +12,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
@@ -73,17 +73,17 @@ class OSSettingsAdapter:
             )
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5.0)
             return stdout.decode("utf-8", errors="replace").strip() if stdout else ""
-        except (TimeoutError, OSError, RuntimeError) as e:
+        except (OSError, RuntimeError, asyncio.TimeoutError) as e:
             record_degradation("os_settings.wallpaper_get", e)
             return ""
 
-    async def set_wallpaper(self, image_path: str) -> AutomationReceipt:
+    async def set_wallpaper(self, image_path: str) -> "AutomationReceipt":
         """Set the desktop wallpaper.
 
         Saves previous wallpaper for rollback.
         Verifies the change after setting.
         """
-        from core.capabilities.host_automation import AppleScriptRunner, AutomationReceipt
+        from core.capabilities.host_automation import AutomationReceipt, AppleScriptRunner
 
         start = time.time()
         path = Path(image_path).expanduser().resolve()
@@ -184,7 +184,7 @@ class OSSettingsAdapter:
             if proc.returncode == 0 and stdout:
                 return "dark" if "dark" in stdout.decode().lower() else "light"
             return "light"  # Default if key doesn't exist
-        except (TimeoutError, OSError, RuntimeError) as exc:
+        except (OSError, RuntimeError, asyncio.TimeoutError) as exc:
             record_degradation("os_settings.appearance_get", exc)
             return "unknown"
 
@@ -240,7 +240,7 @@ class OSSettingsAdapter:
             )
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3.0)
             return int(stdout.decode().strip()) if stdout else 50
-        except (TimeoutError, OSError, RuntimeError, ValueError) as exc:
+        except (OSError, RuntimeError, asyncio.TimeoutError, ValueError) as exc:
             record_degradation("os_settings.volume_get", exc)
             return 50
 
@@ -269,7 +269,7 @@ class OSSettingsAdapter:
     # General rollback
     # ------------------------------------------------------------------
 
-    async def rollback_last(self) -> dict[str, Any]:
+    async def rollback_last(self) -> Dict[str, Any]:
         """Rollback the last setting change."""
         if not self._changes:
             return {"success": False, "error": "No changes to rollback"}
@@ -290,7 +290,7 @@ class OSSettingsAdapter:
             "restored_to": change.previous_value,
         }
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "changes": len(self._changes),
             "recent": [
@@ -300,7 +300,7 @@ class OSSettingsAdapter:
         }
 
 
-_instance: OSSettingsAdapter | None = None
+_instance: Optional[OSSettingsAdapter] = None
 
 
 def get_os_settings() -> OSSettingsAdapter:

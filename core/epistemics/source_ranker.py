@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import logging
+from typing import Dict
 from urllib.parse import urlparse
 
 logger = logging.getLogger("Aura.SourceRanker")
 
 # Domain credibility defaults
-DEFAULT_RELIABILITY: dict[str, float] = {
+DEFAULT_RELIABILITY: Dict[str, float] = {
     "arxiv.org": 0.90,
     "pubmed.ncbi.nlm.nih.gov": 0.95,
     "nature.com": 0.98,
@@ -23,8 +24,8 @@ class SourceRanker:
     """Tracks and calibrates reliability scores for academic, web, and user sources."""
 
     def __init__(self) -> None:
-        self.dynamic_scores: dict[str, float] = dict(DEFAULT_RELIABILITY)
-        self.evidence_count: dict[str, int] = {}
+        self.dynamic_scores: Dict[str, float] = dict(DEFAULT_RELIABILITY)
+        self.evidence_count: Dict[str, int] = {}
 
     @staticmethod
     def _normalized_source(source: str) -> str:

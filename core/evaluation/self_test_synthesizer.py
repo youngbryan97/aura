@@ -9,15 +9,11 @@ from __future__ import annotations
 import json
 import re
 import time
-from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable, Mapping
 
-from core.promotion.behavioral_contracts import (
-    BehavioralContract,
-    synthesize_contracts_from_history,
-)
+from core.promotion.behavioral_contracts import BehavioralContract, synthesize_contracts_from_history
 from core.runtime.atomic_writer import atomic_write_text
 
 

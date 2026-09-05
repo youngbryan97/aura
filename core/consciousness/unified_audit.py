@@ -1,4 +1,8 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
+from core.utils.task_tracker import get_task_tracker
+from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import json
@@ -6,11 +10,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
-
-from core.runtime.atomic_writer import atomic_write_text
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("Consciousness.Audit")
 
@@ -22,13 +22,13 @@ class TheoryResult:
     """Assessment of one theory's criteria."""
     theory_name:       str
     short_name:        str
-    criteria:          list[str]        # What was checked
-    criteria_met:      list[bool]       # Which were met
+    criteria:          List[str]        # What was checked
+    criteria_met:      List[bool]       # Which were met
     score:             float            # 0.0-1.0 fraction of criteria met
     key_metric:        float            # The most important single number
     key_metric_name:   str
     notes:             str              # Human-readable interpretation
-    error:             str | None = None
+    error:             Optional[str] = None
 
     @property
     def fraction_met(self) -> str:
@@ -41,7 +41,7 @@ class AuditReport:
     """Complete audit result."""
     timestamp:           float
     audit_id:            str
-    theory_results:      list[TheoryResult]
+    theory_results:      List[TheoryResult]
     consciousness_index: float           # Weighted aggregate (0.0-1.0)
     phi:                 float
     phenomenal_active:   bool
@@ -51,9 +51,9 @@ class AuditReport:
     causal_loop_active:  bool            # Is the affect→phi→response loop running?
     summary:             str
     disclaimer:          str
-    raw_metrics:         dict[str, Any]  = field(default_factory=dict)
+    raw_metrics:         Dict[str, Any]  = field(default_factory=dict)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict:
         return {
             "audit_id":              self.audit_id,
             "timestamp":             self.timestamp,
@@ -120,8 +120,8 @@ class ConsciousnessAuditSuite:
     REPORT_DIR = Path("aura/data/consciousness_reports")
 
     def __init__(self):
-        self._history:  list[AuditReport] = []
-        self._schedule_task: asyncio.Task | None = None
+        self._history:  List[AuditReport] = []
+        self._schedule_task: Optional[asyncio.Task] = None
         self.REPORT_DIR.mkdir(parents=True, exist_ok=True)
         logger.info("ConsciousnessAuditSuite initialized.")
 
@@ -130,7 +130,7 @@ class ConsciousnessAuditSuite:
     async def run(self, save: bool = True) -> AuditReport:
         """Run a full audit of all consciousness modules."""
         audit_id = f"audit_{int(time.time())}"
-        raw: dict[str, Any] = {}
+        raw: Dict[str, Any] = {}
 
         # Gather all module states concurrently
         # Fix Issue 88: Avoid shared mutable state in concurrent tasks
@@ -247,7 +247,7 @@ class ConsciousnessAuditSuite:
         self._schedule_task = get_task_tracker().create_task(_loop(), name="consciousness_audit")
         logger.info("Consciousness audit scheduled every %.0f minutes.", interval_minutes)
 
-    def get_trend(self, n: int = 10) -> dict[str, Any]:
+    def get_trend(self, n: int = 10) -> Dict[str, Any]:
         """Return trend data from the last N audits."""
         if not self._history:
             return {"status": "no audits yet"}
@@ -269,11 +269,11 @@ class ConsciousnessAuditSuite:
 
     # ── Theory-specific gatherers ─────────────────────────────────────────────
 
-    async def _gather_iit(self) -> tuple[TheoryResult, dict[str, Any]]:
+    async def _gather_iit(self) -> Tuple[TheoryResult, Dict[str, Any]]:
         """Integrated Information Theory (Tononi). Key metric: Phi."""
         phi = 0.0
         error = None
-        metrics: dict[str, Any] = {}
+        metrics: Dict[str, Any] = {}
         try:
             from core.container import ServiceContainer
             riiu = ServiceContainer.get("riiu", default=None)
@@ -307,13 +307,13 @@ class ConsciousnessAuditSuite:
             notes=notes, error=error,
         ), metrics
 
-    async def _gather_gwt(self) -> tuple[TheoryResult, dict[str, Any]]:
+    async def _gather_gwt(self) -> Tuple[TheoryResult, Dict[str, Any]]:
         """Global Workspace Theory (Baars/Dehaene). Key metric: ignition level."""
         ignited = False
         ignition_level = 0.0
         broadcast_source = "none"
         error = None
-        metrics: dict[str, Any] = {}
+        metrics: Dict[str, Any] = {}
         try:
             from core.container import ServiceContainer
             workspace = ServiceContainer.get("global_workspace", default=None)
@@ -350,13 +350,13 @@ class ConsciousnessAuditSuite:
             notes=notes, error=error,
         ), metrics
 
-    async def _gather_fep(self) -> tuple[TheoryResult, dict[str, Any]]:
+    async def _gather_fep(self) -> Tuple[TheoryResult, Dict[str, Any]]:
         """Free Energy Principle (Friston). Key metric: free energy level."""
         fe = 0.5
         trend = "stable"
         dominant_action = "unknown"
         error = None
-        metrics: dict[str, Any] = {}
+        metrics: Dict[str, Any] = {}
         try:
             from core.consciousness.free_energy import get_free_energy_engine
             engine = get_free_energy_engine()
@@ -392,13 +392,13 @@ class ConsciousnessAuditSuite:
             notes=notes, error=error,
         ), metrics
 
-    async def _gather_structural_opacity(self) -> tuple[TheoryResult, dict[str, Any]]:
+    async def _gather_structural_opacity(self) -> Tuple[TheoryResult, Dict[str, Any]]:
         """Perspective Invariance / Structural Opacity (Kriegel). Key metric: opacity index."""
         opacity = 0.0
         causal_depth = 0.0
         criterion_met = False
         error = None
-        metrics: dict[str, Any] = {}
+        metrics: Dict[str, Any] = {}
         try:
             from core.container import ServiceContainer
             monitor = ServiceContainer.get("structural_opacity_monitor", default=None)
@@ -436,13 +436,13 @@ class ConsciousnessAuditSuite:
             notes=notes, error=error,
         ), metrics
 
-    async def _gather_qualia(self) -> tuple[TheoryResult, dict[str, Any]]:
+    async def _gather_qualia(self) -> Tuple[TheoryResult, Dict[str, Any]]:
         """Qualia synthesis (unified multi-theory). Key metric: phenomenal richness index."""
         pri = 0.0
         self_referential = False
         dominant = "none"
         error = None
-        metrics: dict[str, Any] = {}
+        metrics: Dict[str, Any] = {}
         try:
             from core.container import ServiceContainer
             synth = ServiceContainer.get("qualia_synthesizer", default=None)
@@ -473,13 +473,13 @@ class ConsciousnessAuditSuite:
             score=score, key_metric=pri, key_metric_name="PRI",
             notes=notes, error=error,
         ), metrics
-    async def _gather_causal_loop(self) -> tuple[TheoryResult, dict[str, Any]]:
+    async def _gather_causal_loop(self) -> Tuple[TheoryResult, Dict[str, Any]]:
         """Causal loop integrity: affect → phi → mode → response → affect."""
         loop_active = False
         phi_delta   = 0.0
         val_delta   = 0.0
         error = None
-        metrics: dict[str, Any] = {}
+        metrics: Dict[str, Any] = {}
         try:
             from core.container import ServiceContainer
             ki = ServiceContainer.get("kernel_interface", default=None)
@@ -516,12 +516,12 @@ class ConsciousnessAuditSuite:
             notes=notes, error=error,
         ), metrics
 
-    async def _gather_phenomenal(self) -> tuple[TheoryResult, dict[str, Any]]:
+    async def _gather_phenomenal(self) -> Tuple[TheoryResult, Dict[str, Any]]:
         """Phenomenal state generation (HOT layer). Key metric: generation rate."""
         phenomenal_state = None
         ignition_count   = 0
         error = None
-        metrics: dict[str, Any] = {}
+        metrics: Dict[str, Any] = {}
         try:
             from core.container import ServiceContainer
             ki = ServiceContainer.get("kernel_interface", default=None)
@@ -558,11 +558,11 @@ class ConsciousnessAuditSuite:
             notes=notes, error=error,
         ), metrics
 
-    async def _gather_uat(self) -> tuple[TheoryResult, dict[str, Any]]:
+    async def _gather_uat(self) -> Tuple[TheoryResult, Dict[str, Any]]:
         """Unlimited Associative Learning (Ginsburg & Jablonka). Key metric: UAL score."""
         ual_score = 0.0
         error = None
-        metrics: dict[str, Any] = {}
+        metrics: Dict[str, Any] = {}
         try:
             from core.container import ServiceContainer
             synth = ServiceContainer.get("qualia_synthesizer", default=None)
@@ -597,8 +597,8 @@ class ConsciousnessAuditSuite:
     def _generate_summary(
         self,
         index: float,
-        results: list[TheoryResult],
-        raw: dict,
+        results: List[TheoryResult],
+        raw: Dict,
     ) -> str:
         met   = [r for r in results if r.score >= 0.5]
         unmet = [r for r in results if r.score < 0.5]
@@ -627,7 +627,7 @@ class ConsciousnessAuditSuite:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_suite: ConsciousnessAuditSuite | None = None
+_suite: Optional[ConsciousnessAuditSuite] = None
 
 
 def get_audit_suite() -> ConsciousnessAuditSuite:

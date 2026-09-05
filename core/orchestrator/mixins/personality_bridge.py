@@ -1,11 +1,10 @@
 """Personality Bridge Mixin for RobustOrchestrator.
 Extracts identity resolution and formatting logic.
 """
+from core.runtime.errors import record_degradation
 import inspect
 import logging
 from typing import Any
-
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger(__name__)
 

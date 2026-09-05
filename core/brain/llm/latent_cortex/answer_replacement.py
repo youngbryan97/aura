@@ -30,14 +30,12 @@ from core.brain.llm.latent_cortex.deterministic_verifier_router import (
 from core.brain.llm.latent_cortex.local_repair import (
     validate_local_repair_receipt,
 )
-from core.brain.llm.latent_cortex.neural_objective_producer import (
-    solve_objective_program_neural as solve_objective_program,
-)
-from core.brain.llm.latent_cortex.neural_objective_producer import (
-    validate_objective_program_solution_neural as validate_objective_program_solution,
-)
 from core.brain.llm.latent_cortex.objective_program_verifier import (
     verify_objective_program,
+)
+from core.brain.llm.latent_cortex.neural_objective_producer import (
+    solve_objective_program_neural as solve_objective_program,
+    validate_objective_program_solution_neural as validate_objective_program_solution,
 )
 
 ANSWER_REPLACEMENT_SCHEMA = "aura.rlc.answer_replacement.v5"

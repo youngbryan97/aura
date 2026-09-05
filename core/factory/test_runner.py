@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from pathlib import Path
+from typing import Any, Dict
 
-from core.runtime.errors import record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.TestRunner")
 
@@ -24,7 +25,7 @@ class TestRunner:
         *,
         test_command: str = "python -m pytest --tb=short -q",
         timeout: float = 120.0,
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """Run the test suite and return structured results."""
         logger.info("🧪 TestRunner: executing tests in %s", repo_path)
         started = time.time()

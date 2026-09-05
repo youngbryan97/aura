@@ -40,7 +40,7 @@ import os
 import struct
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import numpy as np
 
@@ -110,7 +110,7 @@ class ChaosEngine:
         # --- Dream residuals ---
         # List of (deposit_time, initial_vector) tuples.
         # Vectors decay exponentially from deposit_time.
-        self._dream_residuals: list[tuple[float, np.ndarray]] = []
+        self._dream_residuals: List[tuple[float, np.ndarray]] = []
         self._max_residuals: int = 20  # cap memory
 
         # --- Somatic state cache ---
@@ -118,8 +118,8 @@ class ChaosEngine:
         self._last_somatic_poll: float = 0.0
 
         # --- Neurochemical system reference ---
-        self._ncs: NeurochemicalSystem | None = None
-        self._prev_chem_levels: np.ndarray | None = None
+        self._ncs: Optional[NeurochemicalSystem] = None
+        self._prev_chem_levels: Optional[np.ndarray] = None
 
         # --- Dynamic anti-degeneracy pressure (0=healthy, 1=fully degenerate) ---
         # Driven by a downstream field's eigenvalue-entropy collapse so the
@@ -130,7 +130,7 @@ class ChaosEngine:
         # --- Telemetry ---
         self._tick_count: int = 0
         self._last_perturbation: np.ndarray = np.zeros(dim, dtype=np.float64)
-        self._component_magnitudes: dict[str, float] = {
+        self._component_magnitudes: Dict[str, float] = {
             "dream": 0.0, "somatic": 0.0, "neurochemical": 0.0, "total": 0.0,
         }
 
@@ -223,7 +223,7 @@ class ChaosEngine:
 
     # ── Dream residuals ─────────────────────────────────────────────────
 
-    def deposit_dream_residual(self, dream_vector: np.ndarray | None = None) -> None:
+    def deposit_dream_residual(self, dream_vector: Optional[np.ndarray] = None) -> None:
         """Deposit a perturbation residual from a completed dream cycle.
 
         If no vector is provided, a pseudo-random residual is generated
@@ -331,7 +331,7 @@ class ChaosEngine:
           - Process RSS memory
           - Thread count
         """
-        signals: list[float] = []
+        signals: List[float] = []
 
         # Wall clock components (always available)
         t = time.time()
@@ -464,7 +464,7 @@ class ChaosEngine:
         # Project 8 chemical rates into dim-dimensional space.
         # Use a fixed projection matrix seeded from chemical names for
         # reproducibility across runs.
-        seed = int(hashlib.md5(b"neurochemical_projection").hexdigest()[:8], 16) % (2**31)
+        seed = int(hashlib.md5("neurochemical_projection".encode()).hexdigest()[:8], 16) % (2**31)
         rng = np.random.RandomState(seed)
         projection = rng.randn(dim, len(chem_names)).astype(np.float64)
         # Normalize columns
@@ -484,7 +484,7 @@ class ChaosEngine:
 
     # ── Telemetry ───────────────────────────────────────────────────────
 
-    def get_snapshot(self) -> dict[str, Any]:
+    def get_snapshot(self) -> Dict[str, Any]:
         """Return current chaos engine state for telemetry/diagnostics."""
         return {
             "tick_count": self._tick_count,
@@ -515,8 +515,8 @@ class ChaosEngine:
 # Module-level singleton
 # ---------------------------------------------------------------------------
 
-_instance: ChaosEngine | None = None
-_instances_by_dim: dict[int, ChaosEngine] = {}
+_instance: Optional[ChaosEngine] = None
+_instances_by_dim: Dict[int, ChaosEngine] = {}
 
 
 def get_chaos_engine(config: ChaosConfig | None = None) -> ChaosEngine:

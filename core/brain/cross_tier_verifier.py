@@ -51,13 +51,13 @@ import enum
 import hashlib
 import logging
 import re
-from collections.abc import Awaitable, Callable
+import threading
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from core.runtime.errors import record_degradation
-from core.runtime.lockdep import checked_lock
 from core.runtime.turn_outcome import VerificationGrade
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.CrossTier")
 

@@ -3,8 +3,8 @@ Recursive Self-Modeling Layer: Auditing Aura's internal thought cycles.
 """
 import logging
 import time
-from dataclasses import dataclass
-from typing import Any
+from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
 
 logger = logging.getLogger("Core.Meta.MirrorLayer")
 
@@ -15,21 +15,21 @@ class ThoughtMirror:
     summary: str
     context_fingerprint: str
     mode: str
-    affective_state: dict[str, float]
+    affective_state: Dict[str, float]
 
 class MirrorLayer:
     """The 'Hall of Mirrors' that observes and analyzes cognitive cycles."""
     
     def __init__(self, max_history: int = 50):
-        self.history: list[ThoughtMirror] = []
+        self.history: List[ThoughtMirror] = []
         self.max_history = max_history
-        self.acoustics_report: dict[str, Any] = {
+        self.acoustics_report: Dict[str, Any] = {
             "pollution_detected": False,
             "logic_loops": 0,
             "context_drift": 0.0
         }
 
-    def audit_cycle(self, thought_data: dict[str, Any]):
+    def audit_cycle(self, thought_data: Dict[str, Any]):
         """Analyze a single cognitive cycle for recursive health."""
         mirror = ThoughtMirror(
             timestamp=time.time(),
@@ -47,7 +47,7 @@ class MirrorLayer:
         self._detect_logic_loops()
         self._audit_acoustics()
 
-    def _generate_fingerprint(self, context: dict[str, Any]) -> str:
+    def _generate_fingerprint(self, context: Dict[str, Any]) -> str:
         """Create a stable hash/fingerprint of the input context."""
         # Simplified: key-based fingerprint
         keys = sorted(context.keys())
@@ -71,6 +71,6 @@ class MirrorLayer:
         if self.history[-1].context_fingerprint != self.history[-2].context_fingerprint:
             self.acoustics_report["context_drift"] += 0.1
             
-    def get_audit_summary(self) -> dict[str, Any]:
+    def get_audit_summary(self) -> Dict[str, Any]:
         """Return the current health of the 'Cathedral Acoustics'."""
         return self.acoustics_report

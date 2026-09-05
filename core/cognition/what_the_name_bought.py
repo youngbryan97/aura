@@ -40,9 +40,8 @@ next family to ask.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, Sequence
 
 __all__ = ["WhatTheNameBought", "what_the_name_bought"]
 

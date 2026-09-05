@@ -2,15 +2,15 @@
 Central Welfare Bus managing interoceptive updates and behavior policies.
 """
 
+from typing import Dict, Any, Optional
 import logging
-from typing import Any
 
-from core.welfare.anti_suffering_guard import AntiSufferingGuard
-from core.welfare.distress_regulation import DistressRegulator
-from core.welfare.lesion_tests import WelfareLesionSuite
-from core.welfare.recovery_behavior import RecoveryBehaviorManager
 from core.welfare.welfare_memory import WelfareMemoryManager
 from core.welfare.welfare_policy import WelfarePolicy
+from core.welfare.distress_regulation import DistressRegulator
+from core.welfare.recovery_behavior import RecoveryBehaviorManager
+from core.welfare.anti_suffering_guard import AntiSufferingGuard
+from core.welfare.lesion_tests import WelfareLesionSuite
 
 logger = logging.getLogger("Welfare.WelfareBus")
 

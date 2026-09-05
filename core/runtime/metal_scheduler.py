@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from enum import IntEnum
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger("Aura.MetalScheduler")
 
@@ -56,7 +57,7 @@ class MetalScheduler:
         else:
             logger.info("⚖️ [METAL] Standard distribution restored.")
 
-    def get_stats(self) -> dict[str, int]:
+    def get_stats(self) -> Dict[str, int]:
         return {tier.name: count for tier, count in self._active_counts.items()}
 
 # Global Instance

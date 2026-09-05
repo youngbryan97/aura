@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 from core.actuation.world_actuator import get_world_actuator
 from core.runtime.state_ownership import state_root
@@ -144,7 +144,7 @@ class FileActuator:
         *,
         expected_sha256: str | None = None,
         allow_replace: bool = True,
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """Actuate one bounded, contained file write.
 
         ``expected_sha256`` is a compare-and-swap precondition (CP126
@@ -215,9 +215,9 @@ class FileActuator:
         cls,
         repo_path: str,
         action: str,
-        params: dict[str, Any],
+        params: Dict[str, Any],
         source: str = "file_actuator",
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """Actuate a repository operation with the risk of the action ACTUALLY run.
 
         CP126 b7894f2c: ``act_params`` spread the caller's params AFTER the

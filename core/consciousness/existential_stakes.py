@@ -13,7 +13,7 @@ import os
 import re
 import threading
 import time
-from typing import Any
+from typing import Any, Dict, Optional
 
 try:
     from core.runtime import resource_psutil as psutil
@@ -111,7 +111,7 @@ class ExistentialStakes:
         self._threat = 0.0
         
         # State tracking
-        self._last_update_time: float | None = None
+        self._last_update_time: Optional[float] = None
         self._rolling_loop_lag = 0.0
         self._rolling_cpu_load = 0.0
         self._total_ticks = 0
@@ -503,7 +503,7 @@ class ExistentialStakes:
         with self._lock:
             return self._threat
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         with self._lock:
             return {
                 "existential_threat": round(self._threat, 4),
@@ -553,7 +553,7 @@ class ExistentialStakes:
 
 # ── Singleton Accessor ────────────────────────────────────────────────────────
 
-_INSTANCE: ExistentialStakes | None = None
+_INSTANCE: Optional[ExistentialStakes] = None
 
 
 def _resolve_memory_limit_bytes() -> int:

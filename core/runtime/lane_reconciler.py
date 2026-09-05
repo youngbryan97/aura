@@ -38,9 +38,8 @@ import logging
 import threading
 import time
 from collections import deque
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind, declare

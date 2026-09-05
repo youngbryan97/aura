@@ -29,14 +29,15 @@ Integration points:
 import asyncio
 import logging
 import threading
-from typing import Any, Optional
+import time
+from typing import Any, Dict, Optional
 
 from core.phenomenal_substrate import (
-    AttachmentEvent,
-    Event,
-    ExperienceState,
     PhenomenalEngine,
     RuntimeBody,
+    Event,
+    AttachmentEvent,
+    ExperienceState,
 )
 from core.phenomenal_substrate.reporting import ExperienceReporter
 
@@ -75,7 +76,7 @@ class PhenomenalIntegrator:
     def __init__(self):
         self.engine = PhenomenalEngine()
         self.reporter = ExperienceReporter(self.engine.attachments)
-        self.last_state: ExperienceState | None = None
+        self.last_state: Optional[ExperienceState] = None
         self.step_count = 0
         # Serializes engine.step + last_state/step_count mutation across the
         # async step() and the thread-pool _pulse_blocking() paths so concurrent
@@ -129,10 +130,10 @@ class PhenomenalIntegrator:
         repair: float = 0.0,
         novelty_event: float = 0.0,
         control_gain: float = 0.0,
-        evidence_id: str | None = None,
-        person_key: str | None = None,
+        evidence_id: Optional[str] = None,
+        person_key: Optional[str] = None,
         recurrent_cycles: int = 7,
-        metadata: dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> ExperienceState:
         """Run one step of the phenomenal engine.
 
@@ -297,7 +298,7 @@ class PhenomenalIntegrator:
         except _PHENOMENAL_RECOVERABLE_ERRORS as exc:
             logger.exception("Failed to record attachment event: %s", exc)
 
-    async def get_bond_status(self, person_key: str) -> dict[str, Any]:
+    async def get_bond_status(self, person_key: str) -> Dict[str, Any]:
         """Query bond state with a person.
 
         Reads the structured AttachmentState directly rather than regex-parsing
@@ -328,11 +329,11 @@ class PhenomenalIntegrator:
             logger.exception("Failed to get bond status for %s: %s", person_key, exc)
             return {"person": person_key, "trust": 0.0, "care": 0.0, "degraded": True}
 
-    def get_last_state(self) -> ExperienceState | None:
+    def get_last_state(self) -> Optional[ExperienceState]:
         """Return the most recent phenomenal state."""
         return self.last_state
 
-    def get_routing_hints(self) -> dict[str, Any]:
+    def get_routing_hints(self) -> Dict[str, Any]:
         """Get routing hints from the phenomenal state for downstream systems.
 
         Returns a copy — the engine-owned dictionaries are never handed out by
@@ -343,19 +344,19 @@ class PhenomenalIntegrator:
             return {}
         return dict(self.last_state.global_broadcast)
 
-    def get_policy_priors(self) -> dict[str, float]:
+    def get_policy_priors(self) -> Dict[str, float]:
         """Get policy priors from the phenomenal state (defensive copy)."""
         if self.last_state is None:
             return {}
         return dict(self.last_state.policy_priors)
 
-    def get_memory_weights(self) -> dict[str, float]:
+    def get_memory_weights(self) -> Dict[str, float]:
         """Get memory prioritization weights from the phenomenal state (copy)."""
         if self.last_state is None:
             return {}
         return dict(self.last_state.memory_weights)
 
-    def collect_observations(self, orchestrator: Any | None = None) -> dict[str, float]:
+    def collect_observations(self, orchestrator: Optional[Any] = None) -> Dict[str, float]:
         """Collect RuntimeBody observations from the orchestrator and runtime.
 
         If orchestrator is provided, use it to fetch real state. Otherwise,
@@ -479,10 +480,10 @@ class PhenomenalIntegrator:
 
     async def pulse_from_orchestrator(
         self,
-        orchestrator: Any | None = None,
+        orchestrator: Optional[Any] = None,
         event_label: str = "heartbeat",
-        person_key: str | None = None,
-    ) -> ExperienceState | None:
+        person_key: Optional[str] = None,
+    ) -> Optional[ExperienceState]:
         """Run phenomenal engine step from orchestrator context.
 
         This is the main integration point called from AgencyCore.pulse().
@@ -562,8 +563,8 @@ class PhenomenalIntegrator:
         *,
         orchestrator: Any,
         event_label: str = "heartbeat",
-        person_key: str | None = None,
-    ) -> ExperienceState | None:
+        person_key: Optional[str] = None,
+    ) -> Optional[ExperienceState]:
         """Blocking wrapper for phenomenal pulse. Safe to call from thread pool.
         
         Does not await anything - pure synchronous execution for thread safety.

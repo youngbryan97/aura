@@ -18,20 +18,18 @@ so the audit trail cannot be silently rewritten.
 from __future__ import annotations
 
 import logging
-
 logger = logging.getLogger("core.self_modification.structural_mutator")
 import hashlib
 import json
 import sqlite3
 import threading
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
-
-from core.runtime.sqlite_support import connecting
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 from core.runtime.state_ownership import state_root
+from core.runtime.sqlite_support import connecting
+
 
 MUTATION_KINDS = {
     "module_toggle": "enable or disable a registered module",
@@ -45,7 +43,7 @@ class MutationRequest:
     kind: str
     target: str
     operation: str
-    payload: dict[str, Any]
+    payload: Dict[str, Any]
     rationale: str
     requested_at: float = field(default_factory=time.time)
 
@@ -56,16 +54,16 @@ class MutationRecord:
     kind: str
     target: str
     operation: str
-    payload: dict[str, Any]
-    prev_state: dict[str, Any]
-    post_state: dict[str, Any]
+    payload: Dict[str, Any]
+    prev_state: Dict[str, Any]
+    post_state: Dict[str, Any]
     rationale: str
     applied_at: float
-    reverted_at: float | None
+    reverted_at: Optional[float]
     prev_hash: str
     hash: str
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self) -> Dict[str, Any]:
         return {
             "mutation_id": self.mutation_id,
             "kind": self.kind,
@@ -85,7 +83,7 @@ class MutationRecord:
 class StructuralMutator:
     """Runtime architecture mutations with audit log and rollback."""
 
-    def __init__(self, db_path: str | Path | None = None) -> None:
+    def __init__(self, db_path: Optional[str | Path] = None) -> None:
         self._lock = threading.RLock()
         if db_path is None:
             try:
@@ -101,11 +99,11 @@ class StructuralMutator:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
-        self._module_state: dict[str, bool] = {}
-        self._parameter_bands: dict[str, tuple[float, float, float]] = {}
-        self._routing_edges: set[tuple[str, str]] = set()
-        self._module_registry: dict[str, Callable[[bool], None]] = {}
-        self._parameter_registry: dict[str, Callable[[float], None]] = {}
+        self._module_state: Dict[str, bool] = {}
+        self._parameter_bands: Dict[str, Tuple[float, float, float]] = {}
+        self._routing_edges: set[Tuple[str, str]] = set()
+        self._module_registry: Dict[str, Callable[[bool], None]] = {}
+        self._parameter_registry: Dict[str, Callable[[float], None]] = {}
 
     def _init_db(self) -> None:
         with connecting(sqlite3.connect(self._db_path)) as conn:
@@ -225,7 +223,7 @@ class StructuralMutator:
     # ------------------------------------------------------------------
     # Kind handlers
     # ------------------------------------------------------------------
-    def _apply_module_toggle(self, request: MutationRequest) -> tuple[dict[str, Any], dict[str, Any]]:
+    def _apply_module_toggle(self, request: MutationRequest) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         name = request.target
         if name not in self._module_state:
             raise KeyError(f"module {name} not registered for toggling")
@@ -237,7 +235,7 @@ class StructuralMutator:
         self._module_state[name] = desired
         return prev, {"enabled": desired}
 
-    def _apply_parameter_band(self, request: MutationRequest) -> tuple[dict[str, Any], dict[str, Any]]:
+    def _apply_parameter_band(self, request: MutationRequest) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         name = request.target
         if name not in self._parameter_bands:
             raise KeyError(f"parameter {name} not registered")
@@ -251,7 +249,7 @@ class StructuralMutator:
         self._parameter_bands[name] = (minv, maxv, clamped)
         return prev, {"value": clamped, "requested": desired, "clamped": desired != clamped}
 
-    def _apply_routing_edge(self, request: MutationRequest) -> tuple[dict[str, Any], dict[str, Any]]:
+    def _apply_routing_edge(self, request: MutationRequest) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         payload = request.payload or {}
         edge = (str(payload.get("source", "")), str(payload.get("dest", "")))
         if not all(edge):
@@ -270,18 +268,18 @@ class StructuralMutator:
     def _commit_record(
         self,
         request: MutationRequest,
-        prev_state: dict[str, Any],
-        post_state: dict[str, Any],
+        prev_state: Dict[str, Any],
+        post_state: Dict[str, Any],
         *,
-        prev_state_override: dict[str, Any] | None = None,
-        post_state_override: dict[str, Any] | None = None,
-        mark_source_reverted: str | None = None,
+        prev_state_override: Optional[Dict[str, Any]] = None,
+        post_state_override: Optional[Dict[str, Any]] = None,
+        mark_source_reverted: Optional[str] = None,
     ) -> MutationRecord:
         applied_at = time.time()
         pre = prev_state_override if prev_state_override is not None else prev_state
         post = post_state_override if post_state_override is not None else post_state
         mutation_id = hashlib.sha256(
-            f"{applied_at}|{request.kind}|{request.target}|{request.operation}|{json.dumps(request.payload, sort_keys=True)}".encode()
+            f"{applied_at}|{request.kind}|{request.target}|{request.operation}|{json.dumps(request.payload, sort_keys=True)}".encode("utf-8")
         ).hexdigest()[:16]
         prev_hash = self._tail_hash()
         payload = {
@@ -348,12 +346,12 @@ class StructuralMutator:
             ).fetchone()
         return row[0] if row else "GENESIS"
 
-    def _fetch_row(self, mutation_id: str) -> sqlite3.Row | None:
+    def _fetch_row(self, mutation_id: str) -> Optional[sqlite3.Row]:
         with connecting(sqlite3.connect(self._db_path)) as conn:
             conn.row_factory = sqlite3.Row
             return conn.execute("SELECT * FROM structural_mutations WHERE mutation_id = ?", (mutation_id,)).fetchone()
 
-    def audit_log(self, limit: int = 50) -> list[dict[str, Any]]:
+    def audit_log(self, limit: int = 50) -> List[Dict[str, Any]]:
         with connecting(sqlite3.connect(self._db_path)) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
@@ -406,7 +404,7 @@ class StructuralMutator:
         return True
 
 
-_singleton: StructuralMutator | None = None
+_singleton: Optional[StructuralMutator] = None
 _lock = threading.Lock()
 
 

@@ -2,15 +2,15 @@
 Coordinates actuator execution from intents to concrete motor controllers.
 """
 import logging
-from typing import Any
+from typing import Any, Dict, Optional
 
-from core.body.browser_motor import BrowserMotor
-from core.body.desktop_motor import DesktopMotor
-from core.body.file_motor import FileMotor
-from core.body.gesture_motor import GestureMotor
 from core.body.motor_controller import get_motor_controller
+from core.body.desktop_motor import DesktopMotor
+from core.body.browser_motor import BrowserMotor
+from core.body.file_motor import FileMotor
 from core.body.terminal_motor import TerminalMotor
 from core.body.voice_motor import VoiceMotor
+from core.body.gesture_motor import GestureMotor
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Body.ActionBody")
@@ -39,7 +39,7 @@ class ActionBody:
         self._initialized = True
         logger.info("Actuator motor systems initialized.")
 
-    async def execute_action(self, intent: dict[str, Any], state: Any) -> dict[str, Any]:
+    async def execute_action(self, intent: Dict[str, Any], state: Any) -> Dict[str, Any]:
         """Routes action intent to the registered motor channel."""
         self.initialize_motors()
         
@@ -65,7 +65,7 @@ class ActionBody:
 
 
 # Singleton Access
-_action_body: ActionBody | None = None
+_action_body: Optional[ActionBody] = None
 
 
 def get_action_body() -> ActionBody:

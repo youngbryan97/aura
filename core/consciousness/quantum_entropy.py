@@ -21,15 +21,14 @@ Integration: Enhances ManagedEntropy as a backend source. Also usable directly
 via collapse_decision() for weighted random selection.
 """
 
+from collections import deque
 import json
 import logging
 import os
 import struct
 import threading
 import time
-from collections import deque
-from collections.abc import Sequence
-from typing import Any
+from typing import Any, List, Optional, Sequence
 
 from core.runtime.errors import record_degradation
 from core.runtime.network_gateway import get_network_gateway
@@ -106,7 +105,7 @@ class QuantumEntropyBridge:
     def collapse_decision(
         self,
         options: Sequence[Any],
-        weights: list[float] | None = None,
+        weights: Optional[List[float]] = None,
     ) -> Any:
         """Select from options using quantum entropy, with optional weights.
 
@@ -321,7 +320,7 @@ class QuantumEntropyBridge:
 # ---------------------------------------------------------------------------
 # Module-level singleton
 # ---------------------------------------------------------------------------
-_instance: QuantumEntropyBridge | None = None
+_instance: Optional[QuantumEntropyBridge] = None
 
 
 def get_quantum_entropy() -> QuantumEntropyBridge:

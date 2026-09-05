@@ -13,10 +13,9 @@ import json
 import logging
 import math
 import re
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Iterable, Optional, Tuple
 
 import numpy as np
 
@@ -48,9 +47,9 @@ class ImperativeScore:
     prosperity_delta: float
     understanding_delta: float
     aggregate: float
-    conflicts: tuple[str, ...] = field(default_factory=tuple)
+    conflicts: Tuple[str, ...] = field(default_factory=tuple)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "suffering_delta": round(self.suffering_delta, 3),
             "prosperity_delta": round(self.prosperity_delta, 3),
@@ -137,7 +136,7 @@ class PrincipleValueNetwork:
         if not tokens:
             return vector
         for pos, token in enumerate(tokens):
-            h = hashlib.blake2b(f"{pos % 5}:{token}".encode(), digest_size=8).digest()
+            h = hashlib.blake2b(f"{pos % 5}:{token}".encode("utf-8"), digest_size=8).digest()
             bucket = int.from_bytes(h[:4], "little") % self.feature_dim
             sign = 1.0 if (h[4] & 1) == 0 else -1.0
             vector[bucket] += sign
@@ -183,7 +182,7 @@ class HeuristicImperatives:
     def score_action(
         self,
         description: str,
-        context: dict[str, Any] | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> ImperativeScore:
         self._ensure_principles_loaded()
         text_parts = [str(description or "")]
@@ -271,7 +270,7 @@ class HeuristicImperatives:
         return principles or [dict(item) for item in _DEFAULT_PRINCIPLES]
 
 
-_singleton: HeuristicImperatives | None = None
+_singleton: Optional[HeuristicImperatives] = None
 
 
 def get_heuristic_imperatives() -> HeuristicImperatives:
@@ -283,6 +282,6 @@ def get_heuristic_imperatives() -> HeuristicImperatives:
 
 def score_action(
     description: str,
-    context: dict[str, Any] | None = None,
+    context: Optional[Dict[str, Any]] = None,
 ) -> ImperativeScore:
     return get_heuristic_imperatives().score_action(description, context)

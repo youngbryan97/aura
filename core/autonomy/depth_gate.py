@@ -38,9 +38,8 @@ Public API:
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional, Sequence
 
 # ── Scoring thresholds (tunable) ──────────────────────────────────────────
 
@@ -51,7 +50,7 @@ HARD_FLOOR_FACTUAL_RECALL = 0.50
 DEFAULT_PASS_THRESHOLD = 0.70
 
 # Content-type-specific adjustments
-CONTENT_TYPE_PROFILES: dict[str, dict[str, float]] = {
+CONTENT_TYPE_PROFILES: Dict[str, Dict[str, float]] = {
     "youtube_short":  {"diversity_weight": 0.5, "min_checkpoints": 1, "pass": 0.60},
     "youtube_video":  {"diversity_weight": 0.8, "min_checkpoints": 2, "pass": 0.65},
     "feature_film":   {"diversity_weight": 1.0, "min_checkpoints": 4, "pass": 0.72},
@@ -73,13 +72,13 @@ _HEDGE_RE = re.compile(r"\b(maybe|perhaps|generally|in general|roughly|sort of|k
 class DepthReport:
     passed: bool
     score: float
-    criteria: dict[str, float] = field(default_factory=dict)
-    failures: list[str] = field(default_factory=list)
-    notes: list[str] = field(default_factory=list)
+    criteria: Dict[str, float] = field(default_factory=dict)
+    failures: List[str] = field(default_factory=list)
+    notes: List[str] = field(default_factory=list)
     threshold: float = DEFAULT_PASS_THRESHOLD
     content_type: str = "default"
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "passed": self.passed,
             "score": round(self.score, 3),
@@ -92,7 +91,7 @@ class DepthReport:
 
 
 class DepthGate:
-    def __init__(self, pass_threshold: float | None = None) -> None:
+    def __init__(self, pass_threshold: Optional[float] = None) -> None:
         self.default_threshold = pass_threshold or DEFAULT_PASS_THRESHOLD
 
     # ── Main evaluation ───────────────────────────────────────────────────
@@ -100,14 +99,14 @@ class DepthGate:
     def evaluate(
         self,
         item: Any,                # ContentItem from curated_media_loader
-        verification_answers: dict[str, str],
+        verification_answers: Dict[str, str],
         priority_levels_engaged: Sequence[int],
-        critical_view_engaged: str | None,
-        own_opinion: str | None,
+        critical_view_engaged: Optional[str],
+        own_opinion: Optional[str],
         opinion_disagrees_somewhere: bool,
-        comprehension_checkpoints: Sequence[dict[str, Any]],
+        comprehension_checkpoints: Sequence[Dict[str, Any]],
         open_threads: Sequence[str],
-        parked_threads: Sequence[dict[str, str]],
+        parked_threads: Sequence[Dict[str, str]],
     ) -> DepthReport:
         """
         Args mirror the structured outputs that comprehension_loop and
@@ -117,9 +116,9 @@ class DepthGate:
         content_type = self._infer_content_type(item)
         profile = CONTENT_TYPE_PROFILES.get(content_type, CONTENT_TYPE_PROFILES["default"])
 
-        criteria: dict[str, float] = {}
-        failures: list[str] = []
-        notes: list[str] = []
+        criteria: Dict[str, float] = {}
+        failures: List[str] = []
+        notes: List[str] = []
 
         # 1. Verification substance
         verif = self._score_verification(verification_answers)
@@ -211,10 +210,10 @@ class DepthGate:
 
     # ── Per-criterion scoring helpers ────────────────────────────────────
 
-    def _score_verification(self, answers: dict[str, str]) -> float:
+    def _score_verification(self, answers: Dict[str, str]) -> float:
         if not answers:
             return 0.0
-        per_q: list[float] = []
+        per_q: List[float] = []
         for question, ans in answers.items():
             ans = (ans or "").strip()
             if not ans:
@@ -244,7 +243,7 @@ class DepthGate:
         raw = min(1.0, base + span_bonus)
         return raw * (0.5 + 0.5 * weight)  # diversity-weight-adjusted
 
-    def _score_opinion(self, critical_view: str | None, own: str | None, disagrees: bool) -> float:
+    def _score_opinion(self, critical_view: Optional[str], own: Optional[str], disagrees: bool) -> float:
         own_strength = 1.0 if (own and len(own.split()) >= 12) else 0.3 if own else 0.0
         critical_strength = 1.0 if (critical_view and len(critical_view.split()) >= 12) else 0.3 if critical_view else 0.0
         disagree_bonus = 0.4 if disagrees else 0.0
@@ -252,11 +251,11 @@ class DepthGate:
 
     def _score_factual_recall(
         self,
-        checkpoints: Sequence[dict[str, Any]],
-        answers: dict[str, str],
+        checkpoints: Sequence[Dict[str, Any]],
+        answers: Dict[str, str],
     ) -> float:
         # Aggregate text from both checkpoints and answers; count specific entities.
-        corpus_parts: list[str] = []
+        corpus_parts: List[str] = []
         for ck in checkpoints:
             for k in ("summary", "extracted_facts", "scene_descriptions", "quotes"):
                 v = ck.get(k)
@@ -275,7 +274,7 @@ class DepthGate:
 
         return min(1.0, 0.5 * min(1.0, n_proper / 8.0) + 0.3 * min(1.0, n_quotes / 3.0) + 0.2 * min(1.0, density))
 
-    def _score_anti_skim(self, checkpoints: Sequence[dict[str, Any]], min_required: int) -> float:
+    def _score_anti_skim(self, checkpoints: Sequence[Dict[str, Any]], min_required: int) -> float:
         if not checkpoints:
             return 0.0
         n = len(checkpoints)
@@ -285,7 +284,7 @@ class DepthGate:
         unique_ratio = len(set(summaries)) / max(1, len(summaries))
         return 0.7 * coverage + 0.3 * unique_ratio
 
-    def _score_open_threads(self, open_threads: Sequence[str], parked: Sequence[dict[str, str]]) -> float:
+    def _score_open_threads(self, open_threads: Sequence[str], parked: Sequence[Dict[str, str]]) -> float:
         n_open = len(open_threads)
         n_parked = len(parked)
         if n_open == 0:

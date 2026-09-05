@@ -21,12 +21,12 @@ starting over in the worst moment to start over.
 from __future__ import annotations
 
 import asyncio
+
 import logging
 import re
 import time
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Sequence
 
 from core.agency.deliberate_action import ActionOption, Expectation
 from core.runtime.errors import record_degradation
@@ -93,7 +93,7 @@ class Strategy:
         }
 
     @classmethod
-    def from_memory(cls, held: Any) -> Strategy | None:
+    def from_memory(cls, held: Any) -> "Strategy | None":
         """A line she held before, ready to be tested against what is here now.
 
         Resumed rather than assumed: it comes back with the condition that

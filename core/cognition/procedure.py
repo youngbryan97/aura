@@ -50,6 +50,8 @@ possibly apply rather than with the number that exist.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
+import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -57,7 +59,6 @@ from enum import StrEnum
 from typing import Any
 
 from core.evidence.packet import EvidencePacket
-from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Backend",

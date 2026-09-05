@@ -11,17 +11,10 @@ from core.architect.behavior_fingerprint import BehaviorFingerprinter
 from core.architect.code_graph import LiveArchitectureGraphBuilder
 from core.architect.config import ASAConfig
 from core.architect.ghost_boot import GhostBootRunner
-from core.architect.models import (
-    ArchitecturalSmell,
-    ArchitectureGraph,
-    MutationTier,
-    PromotionDecision,
-    PromotionStatus,
-    RefactorPlan,
-)
+from core.architect.models import ArchitecturalSmell, ArchitectureGraph, MutationTier, PromotionDecision, PromotionStatus, RefactorPlan
 from core.architect.post_promotion_monitor import PostPromotionMonitor
-from core.architect.promotion_governor import PromotionGovernor
 from core.architect.proof_obligations import ProofVerifier
+from core.architect.promotion_governor import PromotionGovernor
 from core.architect.refactor_planner import RefactorPlanner, plan_from_dict, plan_to_dict
 from core.architect.rollback_manager import RollbackManager
 from core.architect.shadow_workspace import ShadowRun, ShadowWorkspaceManager

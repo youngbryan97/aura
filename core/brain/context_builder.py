@@ -1,8 +1,8 @@
+from core.runtime.errors import record_degradation
 import logging
-from typing import Any
+from typing import Any, Dict, Optional
 
 from core.container import get_container
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ContextBuilder")
 
@@ -42,8 +42,8 @@ class DynamicContextBuilder:
     @staticmethod
     async def build_rich_context(
         message: str,
-        current_context: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+        current_context: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
         """Gather all available state data and format it for the cognitive loop.
 
         CP126 9fde1d73: a non-empty ``current_context`` was mutated in place
@@ -172,7 +172,7 @@ class DynamicContextBuilder:
         return rich_context
 
     @staticmethod
-    def format_for_prompt(context: dict[str, Any]) -> str:
+    def format_for_prompt(context: Dict[str, Any]) -> str:
         """Convert the rich context dictionary into a formatted string.
 
         Sections built from material Aura did not author are fenced with a

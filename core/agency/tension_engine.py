@@ -10,6 +10,9 @@ maintains a registry of active tensions sorted by severity.
 Persists to disk so tensions survive restarts.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
+from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
@@ -17,11 +20,10 @@ import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import Dict, List, Optional
 
 from core.autonomy.research_goal_filter import is_stale_or_prompt_scaffold_goal
 from core.container import ServiceContainer
-from core.runtime.atomic_writer import atomic_write_text
-from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Agency")
@@ -47,10 +49,10 @@ class Tension:
     last_checked_at: float = field(default_factory=time.time)
     resolution_attempts: int = 0
     source_subsystem: str = "unknown"
-    related_beliefs: list[str] = field(default_factory=list)
-    related_goals: list[str] = field(default_factory=list)
+    related_beliefs: List[str] = field(default_factory=list)
+    related_goals: List[str] = field(default_factory=list)
     resolved: bool = False
-    resolution: str | None = None
+    resolution: Optional[str] = None
 
     # -- Serialisation helpers ------------------------------------------------
 
@@ -60,7 +62,7 @@ class Tension:
         return d
 
     @classmethod
-    def from_dict(cls, d: dict) -> Tension:
+    def from_dict(cls, d: dict) -> "Tension":
         d = dict(d)  # shallow copy — don't mutate the source
         d["category"] = TensionCategory(d["category"])
         return cls(**d)
@@ -80,7 +82,7 @@ class TensionEngine:
 
     name = "tension_engine"
 
-    def __init__(self, persist_path: Path | None = None):
+    def __init__(self, persist_path: Optional[Path] = None):
         if persist_path is not None:
             self._persist_path = Path(persist_path)
         else:
@@ -90,7 +92,7 @@ class TensionEngine:
             except (ImportError, AttributeError, RuntimeError):
                 self._persist_path = state_root() / "data" / "tensions.json"
 
-        self._tensions: dict[str, Tension] = {}
+        self._tensions: Dict[str, Tension] = {}
         self._load()
 
     # -- Persistence ----------------------------------------------------------
@@ -157,7 +159,7 @@ class TensionEngine:
         logger.info("Tension resolved [%s]: %s", tension_id, resolution[:120])
         self._save()
 
-    def get_active_tensions(self) -> list[Tension]:
+    def get_active_tensions(self) -> List[Tension]:
         """All unresolved tensions sorted by severity descending."""
         active = [
             t for t in self._tensions.values()
@@ -185,7 +187,7 @@ class TensionEngine:
         self._tensions = {tid: tension for tid, tension in self._tensions.items() if tid in keep}
         return before - len(self._tensions)
 
-    def get_highest_tension(self) -> Tension | None:
+    def get_highest_tension(self) -> Optional[Tension]:
         """The single most pressing unresolved tension, or None."""
         active = self.get_active_tensions()
         return active[0] if active else None
@@ -270,7 +272,7 @@ class TensionEngine:
 
         # Simple heuristic: beliefs in the same domain with opposing valences
         # and high confidence are likely contradictions.
-        by_domain: dict[str, list] = {}
+        by_domain: Dict[str, list] = {}
         for b in beliefs:
             by_domain.setdefault(b.domain, []).append(b)
 
@@ -305,7 +307,7 @@ class TensionEngine:
 
         # Lightweight conflict detection: goals that target the same resource
         # or have explicitly opposing objectives.
-        seen_resources: dict[str, list] = {}
+        seen_resources: Dict[str, list] = {}
         for g in goals:
             resource = g.get("resource") or g.get("type", "general")
             seen_resources.setdefault(resource, []).append(g)
@@ -382,7 +384,7 @@ class TensionEngine:
             return
 
         # Aggregate into a single tension per signal type
-        by_type: dict[str, list] = {}
+        by_type: Dict[str, list] = {}
         for s in recent:
             by_type.setdefault(s.signal_type, []).append(s)
 
@@ -419,7 +421,7 @@ class TensionEngine:
 
 # -- Singleton ----------------------------------------------------------------
 
-_instance: TensionEngine | None = None
+_instance: Optional[TensionEngine] = None
 
 
 def get_tension_engine() -> TensionEngine:

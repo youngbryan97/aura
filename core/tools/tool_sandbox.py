@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import ast
 import logging
-from typing import Any
+from typing import Any, Dict
 
 logger = logging.getLogger("Aura.ToolSandbox")
 
@@ -15,7 +15,7 @@ logger = logging.getLogger("Aura.ToolSandbox")
 class ToolSandbox:
     """Verifies compilation and safety properties of dynamically forged tool code."""
 
-    def validate_tool_code(self, code_str: str) -> dict[str, Any]:
+    def validate_tool_code(self, code_str: str) -> Dict[str, Any]:
         logger.info("🔒 ToolSandbox: auditing candidate tool code...")
 
         # 1. Compilation check

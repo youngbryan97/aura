@@ -4,10 +4,9 @@ Manages long-running, multi-step tasks (projects).
 Checkpoints project states to receipt stores and enforces safety limits/budgets.
 """
 
-import logging
 import time
-from typing import Any
-
+import logging
+from typing import Dict, Any, Optional
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
 
@@ -17,7 +16,7 @@ logger = logging.getLogger("Aura.ProjectManager")
 class Project:
     """Represents a tracked, long-running project with safety envelopes."""
 
-    def __init__(self, project_id: str, name: str, limits: dict[str, Any] | None = None):
+    def __init__(self, project_id: str, name: str, limits: Optional[Dict[str, Any]] = None):
         self.project_id = project_id
         self.name = name
         self.start_time = time.time()
@@ -32,8 +31,8 @@ class Project:
         # Consumed metrics
         self.tool_calls_count = 0
         self.tokens_consumed = 0
-        self.checkpoints: dict[float, dict[str, Any]] = {}
-        self.current_state: dict[str, Any] = {}
+        self.checkpoints: Dict[float, Dict[str, Any]] = {}
+        self.current_state: Dict[str, Any] = {}
 
     def is_valid(self) -> bool:
         """Enforces physical project limits."""
@@ -54,19 +53,19 @@ class ProjectManager:
     """Manages active projects, state checkpointing, and safety budgets."""
 
     def __init__(self):
-        self._projects: dict[str, Project] = {}
+        self._projects: Dict[str, Project] = {}
 
-    def start_project(self, project_id: str, name: str, limits: dict[str, Any] | None = None) -> Project:
+    def start_project(self, project_id: str, name: str, limits: Optional[Dict[str, Any]] = None) -> Project:
         """Create and start tracking a new project."""
         project = Project(project_id, name, limits)
         self._projects[project_id] = project
         logger.info("⚡ [PROJECT] Started project '%s' (ID: %s)", name, project_id)
         return project
 
-    def get_project(self, project_id: str) -> Project | None:
+    def get_project(self, project_id: str) -> Optional[Project]:
         return self._projects.get(project_id)
 
-    def checkpoint_project(self, project_id: str, state: dict[str, Any], receipt_id: str = "") -> bool:
+    def checkpoint_project(self, project_id: str, state: Dict[str, Any], receipt_id: str = "") -> bool:
         """Save a state checkpoint for the project."""
         project = self.get_project(project_id)
         if not project:

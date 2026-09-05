@@ -1,10 +1,11 @@
-import asyncio
-import logging
-from dataclasses import dataclass
-
-from core.runtime.base_module import AuraBaseModule
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
+import asyncio
+import logging
+import time
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
+from core.runtime.base_module import AuraBaseModule
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class AffectStateManager(AuraBaseModule):
             semantic_summary="Aura is currently feeling balanced and observant."
         )
         self._running = False
-        self._task: asyncio.Task | None = None
+        self._task: Optional[asyncio.Task] = None
         self._lock = asyncio.Lock()
 
     async def start(self):

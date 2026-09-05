@@ -50,17 +50,19 @@ than reporting them weakly.
 from __future__ import annotations
 
 import math
+import threading
 import time
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
+from typing import Mapping
 
-from core.interiority.event import CHANNELS, InteriorEvent
 from core.interiority.evidence import (
     Reading,
     absent,
     inferred,
+    measured,
 )
+from core.interiority.event import CHANNELS, InteriorEvent
 from core.interiority.params import Param, ParamKind, declare
 from core.runtime.lockdep import checked_lock
 

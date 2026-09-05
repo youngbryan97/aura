@@ -16,7 +16,8 @@ number, and a panel with nothing to say does not appear.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
 from typing import Any
 
 from core.engineering.draw.canvas import LINE_TYPES, Canvas
@@ -27,6 +28,7 @@ from core.engineering.draw.views import (
     draw_orthographic,
     draw_section,
 )
+from core.engineering.units import Q
 
 __all__ = ["SHEET_SIZES", "Sheet", "compose_sheet", "SHEET_KINDS"]
 

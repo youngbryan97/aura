@@ -29,8 +29,6 @@ from .mutation_constitution import DEFER, PROPOSE, REFUSE, admit_mutation
 from .mutation_tiers import MutationTier, classify_mutation_path
 from .promotion_policy import (
     SAFE_AUTONOMOUS_REPAIR_ENV as _SAFE_AUTONOMOUS_REPAIR_ENV,
-)
-from .promotion_policy import (
     SUPERVISED_SELF_MODIFICATION_ENV as _SUPERVISED_SELF_MODIFICATION_ENV,
 )
 from .promotion_policy import env_flag, safe_autonomous_repair_decision, source_promotion_decision

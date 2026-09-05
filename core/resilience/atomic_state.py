@@ -4,8 +4,7 @@ Uses aiosqlite for thread-safe, resilient state persistence.
 import json
 import logging
 from pathlib import Path
-from typing import Any
-
+from typing import Any, Dict, Optional
 import aiosqlite
 
 from core.config import config
@@ -16,9 +15,9 @@ logger = logging.getLogger("Aura.AtomicState")
 class AtomicStateManager:
     """Manages system state with ACID guarantees using SQLite.
     """
-    def __init__(self, db_path: Path | None = None):
+    def __init__(self, db_path: Optional[Path] = None):
         self.db_path = db_path or (Path(config.paths.data_dir) / "atomic_state.db")
-        self._db: aiosqlite.Connection | None = None
+        self._db: Optional[aiosqlite.Connection] = None
 
     async def _get_conn(self) -> aiosqlite.Connection:
         if self._db is None:
@@ -68,7 +67,7 @@ class AtomicStateManager:
         await db.execute("DELETE FROM system_state WHERE key = ?", (key,))
         await db.commit()
 
-    async def get_all(self) -> dict[str, Any]:
+    async def get_all(self) -> Dict[str, Any]:
         """Retrieve the entire state dictionary."""
         state = {}
         db = await self._get_conn()

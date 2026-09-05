@@ -1,8 +1,8 @@
 """core/morality/human_priority_policy.py
 Enforces absolute prioritization of human instructions over agentic directives.
 """
+from typing import List, Dict, Any
 import logging
-from typing import Any
 
 logger = logging.getLogger("Morality.HumanPriorityPolicy")
 
@@ -10,7 +10,7 @@ logger = logging.getLogger("Morality.HumanPriorityPolicy")
 class HumanPriorityPolicy:
     """Prioritizes operator instructions over background/autonomous loop tasks."""
 
-    def prioritize_agenda(self, active_goals: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def prioritize_agenda(self, active_goals: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Orders goals such that human-requested tasks are always placed first."""
         logger.info("HumanPriorityPolicy ordering active goal priority queue...")
         # Sort goals: items marked user_requested first

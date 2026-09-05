@@ -7,13 +7,13 @@ per-call ToolExecutionReceipt entries when receipts are requested.
 """
 from __future__ import annotations
 
+
 import asyncio
 import logging
 import time
 import uuid
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable, Dict, Optional
 
 from core.runtime.errors import (
     DependencyUnavailable,
@@ -43,21 +43,21 @@ class GenerateRequest:
     prompt: str
     max_tokens: int = 256
     temperature: float = 0.7
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
     receipt_required: bool = False
 
 
 @dataclass
 class EmbedRequest:
     text: str
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class VisionRequest:
     image_bytes: bytes
     prompt: str = ""
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -65,14 +65,14 @@ class GenerateResult:
     text: str
     tokens: int
     duration_s: float
-    receipt_id: str | None = None
+    receipt_id: Optional[str] = None
 
 
 GenerateBackend = Callable[[GenerateRequest], Awaitable[GenerateResult]]
 
 
 class ModelRuntimeActor:
-    def __init__(self, *, backend: GenerateBackend | None = None, queue_depth: int = 64):
+    def __init__(self, *, backend: Optional[GenerateBackend] = None, queue_depth: int = 64):
         self._backend = backend
         self._queue: asyncio.Queue = asyncio.Queue(maxsize=queue_depth)
         self._lock = asyncio.Lock()
@@ -134,7 +134,7 @@ class ModelRuntimeActor:
         return idle_for >= idle_threshold_s
 
 
-_global: ModelRuntimeActor | None = None
+_global: Optional[ModelRuntimeActor] = None
 
 
 def get_model_runtime_actor() -> ModelRuntimeActor:

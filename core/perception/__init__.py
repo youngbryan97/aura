@@ -10,6 +10,14 @@ camera/microphone present; tests assert that the contract holds and that
 sensor enablement is governed.
 """
 
+from .perception_runtime import (
+    CapabilityToken,
+    MovieSessionMemory,
+    PerceptionRuntime,
+    SharedAttentionState,
+    SilencePolicy,
+    SceneEvent,
+)
 from .action_gateway import ActionDecision, ActionRequest, EnvironmentActionGateway
 from .ambient_developer_stream import AmbientDeveloperFrame, AmbientDeveloperStream
 from .belief_state import EnvironmentBeliefState
@@ -17,14 +25,6 @@ from .cognitive_runtime import EmbodiedCognitionRuntime, EmbodiedCognitiveFrame
 from .environment_parser import EnvironmentParser, EnvironmentState, parser_for_domain
 from .general_terminal_parser import GeneralTerminalParser
 from .goal_manager import EmbodiedGoal, EnvironmentGoalManager
-from .perception_runtime import (
-    CapabilityToken,
-    MovieSessionMemory,
-    PerceptionRuntime,
-    SceneEvent,
-    SharedAttentionState,
-    SilencePolicy,
-)
 from .reflex_layer import DangerAssessment, EnvironmentReflexLayer, RiskProfile
 from .skill_graph import EnvironmentSkillGraph, SkillOption
 

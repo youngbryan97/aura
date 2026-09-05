@@ -30,9 +30,9 @@ caught by ``admission_defects`` below.
 
 from __future__ import annotations
 
-import contextvars
 import hashlib
 import re
+import contextvars
 import time
 from dataclasses import dataclass
 from enum import Enum

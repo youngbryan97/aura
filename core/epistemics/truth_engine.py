@@ -11,10 +11,10 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, Dict, List, Optional
 
-from core.epistemics.confidence_calibrator import ConfidenceCalibrator
 from core.epistemics.contradiction_detector import ContradictionDetector
+from core.epistemics.confidence_calibrator import ConfidenceCalibrator
 
 logger = logging.getLogger("Aura.TruthEngine")
 
@@ -36,15 +36,15 @@ class Claim:
     """A single epistemic claim in the truth graph."""
     claim_id: str
     content: str
-    sources: list[str] = field(default_factory=list)
+    sources: List[str] = field(default_factory=list)
     status: ClaimStatus = ClaimStatus.GENERATED
     confidence: float = 0.5
     timestamp: float = field(default_factory=time.time)
     freshness_window_hours: float = 24.0
-    contradiction_links: list[str] = field(default_factory=list)
-    supporting_claims: list[str] = field(default_factory=list)
-    affected_missions: list[str] = field(default_factory=list)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    contradiction_links: List[str] = field(default_factory=list)
+    supporting_claims: List[str] = field(default_factory=list)
+    affected_missions: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
     last_verified: float = 0.0
     verification_count: int = 0
 
@@ -68,23 +68,23 @@ class TruthEngine:
     """
 
     def __init__(self) -> None:
-        self.claims: dict[str, Claim] = {}
+        self.claims: Dict[str, Claim] = {}
         self.detector = ContradictionDetector()
         self.calibrator = ConfidenceCalibrator()
-        self._verification_log: list[dict[str, Any]] = []
+        self._verification_log: List[Dict[str, Any]] = []
 
     def add_claim(
         self,
         claim_id: str,
         content: str | None = None,
-        sources: list[str] | None = None,
+        sources: Optional[List[str]] = None,
         *,
         text: str | None = None,
-        supporting_evidence: list[str] | None = None,
+        supporting_evidence: Optional[List[str]] = None,
         status: ClaimStatus = ClaimStatus.OBSERVED,
         confidence: float = 0.7,
         freshness_hours: float = 24.0,
-        affected_missions: list[str] | None = None,
+        affected_missions: Optional[List[str]] = None,
     ) -> Claim:
         """Register a new claim with source provenance."""
         claim_content = content if content is not None else text
@@ -105,7 +105,7 @@ class TruthEngine:
         logger.info("📋 TruthEngine: registered claim '%s' [%s] confidence=%.2f", claim_id, status, confidence)
         return claim
 
-    def get_claim(self, claim_id: str) -> Claim | None:
+    def get_claim(self, claim_id: str) -> Optional[Claim]:
         return self.claims.get(claim_id)
 
     def classify_claim(self, claim_id: str) -> ClaimStatus:
@@ -164,7 +164,7 @@ class TruthEngine:
         logger.warning("❌ TruthEngine: claim '%s' marked FALSE: %s", claim_id, reason)
         return True
 
-    def recalibrate(self) -> dict[str, Any]:
+    def recalibrate(self) -> Dict[str, Any]:
         """Run contradiction detection and confidence recalibration across all claims."""
         # Detect contradictions
         contradictions_found = 0
@@ -190,17 +190,17 @@ class TruthEngine:
             "contradictions_found": contradictions_found,
         }
 
-    def get_presentable_claims(self) -> list[Claim]:
+    def get_presentable_claims(self) -> List[Claim]:
         """Return only claims safe to present as fact."""
         return [c for c in self.claims.values() if c.is_presentable]
 
-    def get_contested_claims(self) -> list[Claim]:
+    def get_contested_claims(self) -> List[Claim]:
         return [c for c in self.claims.values() if c.status == ClaimStatus.CONTESTED]
 
-    def get_stale_claims(self) -> list[Claim]:
+    def get_stale_claims(self) -> List[Claim]:
         return [c for c in self.claims.values() if c.is_stale]
 
-    def verify_action_outcome(self, objective: str, result: dict[str, Any]) -> dict[str, Any]:
+    def verify_action_outcome(self, objective: str, result: Dict[str, Any]) -> Dict[str, Any]:
         """Verify an action outcome against the truth store."""
         ok = result.get("ok", False)
         return {
@@ -210,7 +210,7 @@ class TruthEngine:
             "result_ok": ok,
         }
 
-    async def update_for_objective(self, objective: str) -> dict[str, Any]:
+    async def update_for_objective(self, objective: str) -> Dict[str, Any]:
         """Refresh relevant claims for a given objective."""
         relevant = [c for c in self.claims.values()
                      if any(m in objective.lower() for m in [c.claim_id.lower(), c.content[:20].lower()])]
@@ -221,9 +221,9 @@ class TruthEngine:
                 stale_refreshed += 1
         return {"relevant_claims": len(relevant), "stale_refreshed": stale_refreshed}
 
-    def summary(self) -> dict[str, Any]:
+    def summary(self) -> Dict[str, Any]:
         """Return a summary of the truth store."""
-        by_status: dict[str, int] = {}
+        by_status: Dict[str, int] = {}
         for c in self.claims.values():
             by_status[str(c.status)] = by_status.get(str(c.status), 0) + 1
         return {

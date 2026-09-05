@@ -1,13 +1,14 @@
 """core/learning/adapter_registry.py
 Maintains registered candidate and active model adapters.
 """
+from typing import Dict, List
 
 
 class AdapterRegistry:
     """Tracks path references of active and candidate model adapters."""
 
     def __init__(self):
-        self._adapters: dict[str, str] = {}
+        self._adapters: Dict[str, str] = {}
         self._active: str = "baseline"
 
     def register_adapter(self, name: str, file_path: str) -> None:

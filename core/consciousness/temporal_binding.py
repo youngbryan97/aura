@@ -3,7 +3,7 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Consciousness.Temporal")
 
@@ -65,7 +65,7 @@ class TemporalBindingEngine:
     def __init__(self):
         self._lock = asyncio.Lock()
         self._events: deque = deque(maxlen=self._MAX_EVENTS)
-        self._anchors: list[str] = []          # Compressed summaries of older events
+        self._anchors: List[str] = []          # Compressed summaries of older events
         self._current_narrative: str = ""
         self._narrative_age: float = 0.0
         self._tick_count: int = 0
@@ -110,7 +110,7 @@ class TemporalBindingEngine:
         async with self._lock:
             return self._current_narrative or self._build_minimal_narrative()
 
-    def get_snapshot(self) -> dict[str, Any]:
+    def get_snapshot(self) -> Dict[str, Any]:
         present = [e for e in self._events if e.age_seconds() < self._PRESENT_WINDOW_SECS]
         return {
             "total_events": len(self._events),
@@ -124,7 +124,7 @@ class TemporalBindingEngine:
             ),
         }
 
-    def get_most_significant(self, n: int = 5) -> list[TemporalEvent]:
+    def get_most_significant(self, n: int = 5) -> List[TemporalEvent]:
         """Return the N most significant recent events — used by sleep consolidation."""
         present = [e for e in self._events if e.age_seconds() < self._PRESENT_WINDOW_SECS]
         return sorted(present, key=lambda e: e.significance, reverse=True)[:n]

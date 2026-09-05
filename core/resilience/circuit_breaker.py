@@ -1,22 +1,19 @@
+import inspect
 import asyncio
 import collections
-import inspect
 import logging
 import re
 import time
-from collections.abc import Callable
 from difflib import SequenceMatcher
 from functools import wraps
-from typing import Any
-
+from typing import Callable, Any, Optional, Dict
 from core.exceptions import CircuitOpenError
-
 from .circuit_breaker_state import CircuitState
 
 logger = logging.getLogger("Aura.Resilience.CircuitBreaker")
 
 try:
-    from prometheus_client import Counter, Gauge
+    from prometheus_client import Gauge, Counter
     CIRCUIT_STATE = Gauge('aura_circuit_breaker_state', 'State of circuit breaker (0=OPEN, 1=HALF_OPEN, 2=CLOSED)', ['name'])
     CIRCUIT_FAILURES = Counter('aura_circuit_breaker_failures_total', 'Total failures for circuit breaker', ['name'])
     CIRCUIT_CALLS = Counter('aura_circuit_breaker_calls_total', 'Total calls for circuit breaker', ['name'])

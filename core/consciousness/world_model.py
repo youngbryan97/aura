@@ -1,12 +1,11 @@
-import logging
-import re
-import time
-from typing import Any
-
-import networkx as nx
-
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
+import re
+import time
+from typing import Any, Dict, List, Optional
+
+import networkx as nx
+import logging
 
 logger = logging.getLogger("Aura.WorldModel")
 
@@ -126,7 +125,7 @@ class EpistemicState:
         # No matching target edge found — just add it
         self.world_graph.add_edge(s, o, predicate=p, confidence=new_conf, last_verified=time.time())
 
-    def get_beliefs(self, subject: str | None = None) -> dict[str, Any]:
+    def get_beliefs(self, subject: Optional[str] = None) -> Dict[str, Any]:
         """Returns the current beliefs in the graph as typed dicts."""
         if subject:
             return {
@@ -168,7 +167,7 @@ class EpistemicState:
             block = f"WorldModel: {total} beliefs, {self._contradiction_count} contradictions resolved"
         return block[:200]
 
-    def get_summary(self) -> dict[str, Any]:
+    def get_summary(self) -> Dict[str, Any]:
         """Returns aggregate metrics used by FreeEnergyEngine for complexity."""
         edges = list(self.world_graph.edges(data=True))
         confidences = [float(d.get("confidence", 0.0)) for _, _, d in edges]
@@ -189,13 +188,13 @@ class EpistemicState:
             "strongest_beliefs": strongest,
         }
 
-    def get_relevant_beliefs(self, topic: str, n: int = 3) -> list[dict]:
+    def get_relevant_beliefs(self, topic: str, n: int = 3) -> List[Dict]:
         """Searches graph for nodes/edges where *topic* appears in names or predicates.
 
         Returns up to *n* results sorted by confidence descending.
         """
         topic_lower = topic.lower()
-        matches: list[dict] = []
+        matches: List[Dict] = []
         for u, v, d in self.world_graph.edges(data=True):
             predicate = str(d.get("predicate", ""))
             if topic_lower in u.lower() or topic_lower in v.lower() or topic_lower in predicate.lower():

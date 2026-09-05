@@ -23,7 +23,7 @@ counts as a violation.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterator
+from typing import Iterator
 
 from core.verify.invariants import Severity, Violation, invariant
 

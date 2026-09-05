@@ -60,9 +60,8 @@ privilege she did not have.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, Iterator, Sequence
 
 __all__ = [
     "ARITHMETIC",
@@ -131,9 +130,9 @@ class Stuck(RuntimeError):
 class Nothing:
     """The empty thing. One of it, so equality is identity."""
 
-    _only: Nothing | None = None
+    _only: "Nothing | None" = None
 
-    def __new__(cls) -> Nothing:
+    def __new__(cls) -> "Nothing":
         if cls._only is None:
             cls._only = super().__new__(cls)
         return cls._only
@@ -157,7 +156,7 @@ class Pair:
 class Closure:
     """A function that remembers where it was written."""
 
-    body: Code
+    body: "Code"
     env: tuple[Any, ...]
 
 
@@ -174,7 +173,7 @@ class Code:
     """
 
     head: str
-    parts: tuple[Code, ...] = ()
+    parts: tuple["Code", ...] = ()
     value: Any = None
 
     def __repr__(self) -> str:
@@ -330,7 +329,7 @@ def run(
     env: Sequence[Any] = (),
     *,
     fuel: int = ENOUGH_STEPS,
-    meter: _Meter | None = None,
+    meter: "_Meter | None" = None,
 ) -> Any:
     """Evaluate a term, spending at most that many steps.
 

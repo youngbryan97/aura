@@ -1,6 +1,7 @@
 """core/values/preference_explanation.py
 Generates explanations grounding preferences in historical choices.
 """
+from typing import Dict, Any
 
 
 class PreferenceExplanationGenerator:

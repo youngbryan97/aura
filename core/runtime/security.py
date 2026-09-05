@@ -8,11 +8,14 @@ governed tools call into.
 """
 from __future__ import annotations
 
+
 import logging
+import os
 import re
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
-
+from typing import Dict, List, Optional, Tuple
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Security")
@@ -33,7 +36,7 @@ CAPABILITY_KINDS = (
 )
 
 
-DEFAULT_DENY: tuple[str, ...] = (
+DEFAULT_DENY: Tuple[str, ...] = (
     "terminal.run",
     "network.post",
     "credentials.read",
@@ -41,7 +44,7 @@ DEFAULT_DENY: tuple[str, ...] = (
 )
 
 
-PROTECTED_PATH_PATTERNS: tuple[str, ...] = (
+PROTECTED_PATH_PATTERNS: Tuple[str, ...] = (
     r"\.ssh($|/)",
     r"\.aws($|/)",
     r"\.config/aura/secrets",
@@ -64,8 +67,8 @@ class CapabilityScope:
 @dataclass
 class SandboxPolicy:
     workspace_root: Path
-    allowed_scopes: list[CapabilityScope] = field(default_factory=list)
-    denied_capabilities: list[str] = field(default_factory=lambda: list(DEFAULT_DENY))
+    allowed_scopes: List[CapabilityScope] = field(default_factory=list)
+    denied_capabilities: List[str] = field(default_factory=lambda: list(DEFAULT_DENY))
 
     def allow(self, capability: str, pattern: str) -> None:
         if capability not in CAPABILITY_KINDS:
@@ -78,7 +81,7 @@ class SandboxPolicy:
         if capability not in self.denied_capabilities:
             self.denied_capabilities.append(capability)
 
-    def is_allowed(self, capability: str, target: str) -> tuple[bool, str]:
+    def is_allowed(self, capability: str, target: str) -> Tuple[bool, str]:
         if capability in self.denied_capabilities:
             return False, f"capability '{capability}' is denied by policy"
         if capability.startswith("file."):
@@ -93,7 +96,7 @@ class SandboxPolicy:
                 return True, "explicit scope match"
         return False, f"no explicit scope grants '{capability}' for '{target}'"
 
-    def _check_file(self, capability: str, target: str) -> tuple[bool, str]:
+    def _check_file(self, capability: str, target: str) -> Tuple[bool, str]:
         try:
             target_path = Path(target).expanduser().resolve()
         except (OSError, RuntimeError):
@@ -107,7 +110,7 @@ class SandboxPolicy:
             return False, f"path '{target_path}' matches protected pattern"
         return True, "inside workspace"
 
-    def _check_browser(self, target: str) -> tuple[bool, str]:
+    def _check_browser(self, target: str) -> Tuple[bool, str]:
         if target.startswith("file://"):
             return False, "browser file:// is denied"
         if target.startswith(("http://", "https://")):
@@ -118,7 +121,7 @@ class SandboxPolicy:
 # Convenience -----------------------------------------------------------------
 
 
-def default_workspace_policy(root: Path | None = None) -> SandboxPolicy:
+def default_workspace_policy(root: Optional[Path] = None) -> SandboxPolicy:
     workspace = (root or state_root() / "workspace").expanduser().resolve()
     workspace.mkdir(parents=True, exist_ok=True)
     return SandboxPolicy(workspace_root=workspace)

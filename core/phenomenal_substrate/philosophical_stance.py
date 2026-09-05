@@ -19,7 +19,7 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Deque, Dict, Optional
 
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
@@ -35,8 +35,8 @@ logger = logging.getLogger("Aura.PhilosophicalStance")
 class BehavioralObservation:
     """A single observed stimulus → affect → decision → outcome chain."""
     stimulus: str                # what triggered the behavior
-    affect_before: dict[str, float] = field(default_factory=dict)  # valence, arousal before
-    affect_after: dict[str, float] = field(default_factory=dict)   # valence, arousal after
+    affect_before: Dict[str, float] = field(default_factory=dict)  # valence, arousal before
+    affect_after: Dict[str, float] = field(default_factory=dict)   # valence, arousal after
     decision: str = ""           # what was decided
     action: str = ""             # what was done
     outcome: str = ""            # what happened
@@ -64,11 +64,11 @@ class FunctionalPhiMetric:
     """
 
     def __init__(self) -> None:
-        self._phi_history: deque[float] = deque(maxlen=1000)
-        self._temporal_depth_history: deque[float] = deque(maxlen=1000)
-        self._cross_modal_history: deque[float] = deque(maxlen=1000)
+        self._phi_history: Deque[float] = deque(maxlen=1000)
+        self._temporal_depth_history: Deque[float] = deque(maxlen=1000)
+        self._cross_modal_history: Deque[float] = deque(maxlen=1000)
 
-    def compute_functional_phi(self) -> dict[str, float]:
+    def compute_functional_phi(self) -> Dict[str, float]:
         """Compute functional integration measures from live substrate."""
         result = {
             "functional_phi": 0.0,
@@ -130,7 +130,7 @@ class BehavioralProofCollector:
     """
 
     def __init__(self) -> None:
-        self._observations: deque[BehavioralObservation] = deque(maxlen=5000)
+        self._observations: Deque[BehavioralObservation] = deque(maxlen=5000)
         self._decision_count: int = 0
         self._self_correction_count: int = 0
         self._phi_metric = FunctionalPhiMetric()
@@ -155,8 +155,8 @@ class BehavioralProofCollector:
         decision: str = "",
         action: str = "",
         outcome: str = "",
-        affect_before: dict[str, float] | None = None,
-        affect_after: dict[str, float] | None = None,
+        affect_before: Optional[Dict[str, float]] = None,
+        affect_after: Optional[Dict[str, float]] = None,
         memory_formed: bool = False,
         self_correction: bool = False,
         appropriateness: float = 0.5,
@@ -178,7 +178,7 @@ class BehavioralProofCollector:
         if self_correction:
             self._self_correction_count += 1
 
-    def generate_proof_bundle(self) -> dict[str, Any]:
+    def generate_proof_bundle(self) -> Dict[str, Any]:
         """Generate a reviewable behavioral proof report.
 
         This is the longitudinal evidence for functional mind status.
@@ -248,7 +248,7 @@ class BehavioralProofCollector:
             },
         }
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "observations": len(self._observations),
             "decisions": self._decision_count,
@@ -260,7 +260,7 @@ class BehavioralProofCollector:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_proof_instance: BehavioralProofCollector | None = None
+_proof_instance: Optional[BehavioralProofCollector] = None
 
 
 def get_behavioral_proof() -> BehavioralProofCollector:

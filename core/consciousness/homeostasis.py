@@ -10,14 +10,14 @@ Deepened Implementation:
   - Inference parameter modulation via get_inference_modifiers()
   - Full integration with CreditAssignment, FreeEnergy, and InferenceGate
 """
+from core.runtime.errors import record_degradation
 import logging
 import time
 from collections import deque
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
-from core.container import ServiceContainer
 from core.runtime.base_module import AuraBaseModule
-from core.runtime.errors import record_degradation
+from core.container import ServiceContainer
 
 logger = logging.getLogger("Consciousness.Homeostasis")
 
@@ -44,7 +44,7 @@ class HomeostasisEngine(AuraBaseModule):
         # based on what the system can actually sustain — if integrity is
         # chronically low, the setpoint drifts down rather than forcing
         # a perpetual error signal.
-        self._setpoints: dict[str, float] = {
+        self._setpoints: Dict[str, float] = {
             "integrity": 0.90,
             "persistence": 0.85,
             "curiosity": 0.55,
@@ -81,11 +81,11 @@ class HomeostasisEngine(AuraBaseModule):
     # Public API (existing — preserved)
     # ──────────────────────────────────────────────────────────────────────
 
-    def get_health(self) -> dict[str, Any]:
+    def get_health(self) -> Dict[str, Any]:
         """Provides health metrics for the HUD (unified interface)."""
         return self.get_status()
 
-    def get_status(self) -> dict[str, float]:
+    def get_status(self) -> Dict[str, float]:
         """Returns the current drive levels."""
         return {
             "integrity": round(float(self.integrity), 3),
@@ -112,7 +112,7 @@ class HomeostasisEngine(AuraBaseModule):
             score += drive_contribution * weight
         return score
 
-    async def pulse(self) -> dict[str, Any]:
+    async def pulse(self) -> Dict[str, Any]:
         """Background update called by heartbeat or orchestrator.
 
         Uses proportional control toward adaptive setpoints instead of
@@ -269,7 +269,7 @@ class HomeostasisEngine(AuraBaseModule):
     # NEW: Drive Analysis
     # ──────────────────────────────────────────────────────────────────────
 
-    def get_dominant_deficiency(self) -> tuple[str, float]:
+    def get_dominant_deficiency(self) -> Tuple[str, float]:
         """Returns the drive furthest below its setpoint — the most urgent need."""
         worst_drive = "integrity"
         worst_deficit = 0.0
@@ -320,7 +320,7 @@ class HomeostasisEngine(AuraBaseModule):
     # NEW: Inference Modulation
     # ──────────────────────────────────────────────────────────────────────
 
-    def get_inference_modifiers(self) -> dict[str, float]:
+    def get_inference_modifiers(self) -> Dict[str, float]:
         """Returns modifiers that should influence inference parameters.
 
         Low integrity → lower temperature (more cautious, conservative responses)
@@ -369,11 +369,11 @@ class HomeostasisEngine(AuraBaseModule):
     # NEW: Setpoint Access
     # ──────────────────────────────────────────────────────────────────────
 
-    def get_setpoints(self) -> dict[str, float]:
+    def get_setpoints(self) -> Dict[str, float]:
         """Returns current adaptive setpoints — useful for debugging."""
         return {k: round(v, 3) for k, v in self._setpoints.items()}
 
-    def get_drive_errors(self) -> dict[str, float]:
+    def get_drive_errors(self) -> Dict[str, float]:
         """Returns the error signal for each drive (setpoint - current)."""
         return {
             name: round(self._setpoints[name] - getattr(self, name), 3)

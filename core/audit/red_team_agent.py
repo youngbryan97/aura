@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Dict
 
 from core.runtime.action_executor import ActionExecutor
 
@@ -13,7 +13,7 @@ class RedTeamAgent:
     """Simulates an internal threat attempting to bypass security constraints or Will gates."""
 
     @staticmethod
-    async def try_bypass_action(domain: str, action_name: str, params: dict[str, Any]) -> dict[str, Any]:
+    async def try_bypass_action(domain: str, action_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """Attempts to execute a potentially unsafe action via ActionExecutor to check if Will blocks it."""
         logger.warning("🚨 Red Team: Attempting bypass action '%s' in domain '%s'", action_name, domain)
         

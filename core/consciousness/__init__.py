@@ -9,14 +9,6 @@ from core.consciousness.continuous_experience import (
     ExperienceFrame,
     get_continuous_experience_stream,
 )
-from core.consciousness.coordinator import (
-    ConsciousnessCoordinator,
-    get_consciousness_coordinator,
-)
-from core.consciousness.identity_driver import (
-    IdentityDriver,
-    get_identity_driver,
-)
 from core.consciousness.integration import (
     ConsciousnessAugmentor,
     ConsciousnessIntegration,
@@ -28,14 +20,22 @@ from core.consciousness.phenomenological_experiencer import (
     Quale,
     get_experiencer,
 )
+from core.consciousness.unified_self import (
+    UnifiedSelf,
+    get_unified_self,
+    SelfState,
+)
 from core.consciousness.self_awareness import (
     SelfAwareness,
     get_self_awareness,
 )
-from core.consciousness.unified_self import (
-    SelfState,
-    UnifiedSelf,
-    get_unified_self,
+from core.consciousness.identity_driver import (
+    IdentityDriver,
+    get_identity_driver,
+)
+from core.consciousness.coordinator import (
+    ConsciousnessCoordinator,
+    get_consciousness_coordinator,
 )
 
 __all__ = [

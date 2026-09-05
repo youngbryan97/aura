@@ -26,7 +26,7 @@ import re
 import time
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Deque, Dict, List, Optional, Set
 
 from core.memory.retention_policy import working_history_retention_policy
 
@@ -65,9 +65,9 @@ class SemanticDedupGate:
     DURABLE_EXACT_MAX = 20000
 
     def __init__(self) -> None:
-        self._recent: deque[RecentWrite] = deque(maxlen=self.MAX_RECENT_WRITES)
-        self._exact_hashes: set[str] = set()
-        self._durable_exact: OrderedDict[str, None] = OrderedDict()
+        self._recent: Deque[RecentWrite] = deque(maxlen=self.MAX_RECENT_WRITES)
+        self._exact_hashes: Set[str] = set()
+        self._durable_exact: "OrderedDict[str, None]" = OrderedDict()
         self._total_checked: int = 0
         self._total_rejected: int = 0
         self._total_passed: int = 0
@@ -126,7 +126,7 @@ class SemanticDedupGate:
         self,
         text: str,
         *,
-        tags: list[str] | None = None,
+        tags: Optional[List[str]] = None,
         importance: float = 0.5,
     ) -> bool:
         """Check whether this memory should be stored.
@@ -203,11 +203,11 @@ class SemanticDedupGate:
     def _record_write(
         self,
         text: str,
-        tags: list[str] | None = None,
+        tags: Optional[List[str]] = None,
         *,
-        text_hash: str | None = None,
-        normalized: str | None = None,
-        trigrams: frozenset | None = None,
+        text_hash: Optional[str] = None,
+        normalized: Optional[str] = None,
+        trigrams: Optional[frozenset] = None,
     ) -> None:
         """Record a successful write for future dedup checks."""
         if normalized is None:
@@ -231,7 +231,7 @@ class SemanticDedupGate:
         while len(self._durable_exact) > self.DURABLE_EXACT_MAX:
             self._durable_exact.popitem(last=False)
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "total_checked": self._total_checked,
             "total_rejected": self._total_rejected,
@@ -245,7 +245,7 @@ class SemanticDedupGate:
 
 # ── Singleton ─────────────────────────────────────────────────────────────
 
-_instance: SemanticDedupGate | None = None
+_instance: Optional[SemanticDedupGate] = None
 
 
 def get_dedup_gate() -> SemanticDedupGate:

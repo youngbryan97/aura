@@ -1,12 +1,11 @@
 """core/resilience/self_healer.py
 Pattern-based diagnostic and auto-fix system.
 """
+from core.runtime.errors import record_degradation
 import logging
 import re
 from collections.abc import Callable
 from typing import Any
-
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Core.SelfHealer")
 

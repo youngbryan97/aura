@@ -9,11 +9,10 @@ Assembles the prompt context by prioritizing:
 All within a configurable token budget to avoid exceeding
 the model's context window.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
-from typing import Any
-
-from core.runtime.errors import record_degradation
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Memory.ContextManager")
 
@@ -49,7 +48,7 @@ class ContextManager:
     async def assemble_context(
         self,
         user_query: str,
-        conversation_history: list[dict] | None = None,
+        conversation_history: Optional[List[Dict]] = None,
         max_memories: int = 5,
     ) -> str:
         """Build a complete context string within the token budget.

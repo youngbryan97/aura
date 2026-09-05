@@ -42,23 +42,22 @@ produced it rather than to the author's intent.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import logging
 import math
+import threading
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
-from enum import StrEnum
 from types import MappingProxyType
-from typing import Any
+from enum import StrEnum
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from core.interiority.appraisal import ALL_CHECKS, AppraisalFrame
 from core.interiority.effects import Effects
 from core.interiority.evidence import Reading, absent, ceiling_for, weakest
 from core.interiority.ledger import RelationalLedger
 from core.interiority.other_minds import OtherEstimate
-from core.interiority.params import Param
-from core.interiority.params import registry as param_registry
-from core.runtime.lockdep import checked_lock
+from core.interiority.params import Param, registry as param_registry
 
 logger = logging.getLogger("Aura.Interiority.Faculty")
 

@@ -15,6 +15,7 @@ from typing import Any
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
 
+
 _BRIDGE_ERRORS = (ImportError, AttributeError, RuntimeError, TypeError, ValueError)
 
 

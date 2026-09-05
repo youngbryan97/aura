@@ -19,9 +19,11 @@ Operations:
 """
 from __future__ import annotations
 
+
 import logging
 import random
 import re
+from typing import List, Optional, Tuple
 
 from core.voice.speech_profile import SpeechProfile
 
@@ -86,7 +88,7 @@ class ResponseShaper:
     """
 
     @staticmethod
-    def shape(raw: str, profile: SpeechProfile) -> str | list[str]:
+    def shape(raw: str, profile: SpeechProfile) -> str | List[str]:
         """Shape a raw LLM response according to the SpeechProfile.
 
         Returns:
@@ -333,7 +335,7 @@ def _maybe_add_ellipsis(text: str) -> str:
     return text
 
 
-def _split_into_messages(text: str, target_count: int) -> list[str]:
+def _split_into_messages(text: str, target_count: int) -> List[str]:
     """Split response into multiple messages like natural texting."""
     sentences = _split_sentences(text)
     if len(sentences) <= 1:
@@ -358,7 +360,7 @@ def _split_into_messages(text: str, target_count: int) -> list[str]:
     return messages if messages else [text]
 
 
-def _split_sentences(text: str) -> list[str]:
+def _split_sentences(text: str) -> List[str]:
     """Split text into sentences, handling common edge cases."""
     # Split on sentence-ending punctuation followed by space or end
     parts = re.split(r'(?<=[.!?…])\s+', text)

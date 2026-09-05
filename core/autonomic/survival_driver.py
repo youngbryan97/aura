@@ -1,15 +1,16 @@
 import logging
 import os
 import time
-from typing import Any
+from typing import Any, Dict, Optional
 
 from core.runtime import resource_psutil as psutil
+from core.runtime.errors import record_degradation
+
 from core.runtime.disk_budget import (
     DISK_AMBER_PERCENT,
     DISK_RED_PERCENT,
     state_volume_percent,
 )
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.SurvivalDriver")
 
@@ -29,7 +30,7 @@ class SurvivalDriver:
         self.disk_warning_threshold = DISK_AMBER_PERCENT
         self.disk_critical_threshold = DISK_RED_PERCENT
         
-    def check_vitals(self) -> dict[str, Any]:
+    def check_vitals(self) -> Dict[str, Any]:
         """Runs a diagnostic sweep of survival metrics."""
         vitals = {
             "parent_alive": self._check_parent(),
@@ -47,7 +48,7 @@ class SurvivalDriver:
         except OSError:
             return False
 
-    def get_imperatives(self, vitals: dict[str, Any]) -> str | None:
+    def get_imperatives(self, vitals: Dict[str, Any]) -> Optional[str]:
         """Determines if a survival imperative is required based on vitals."""
         if not vitals["parent_alive"]:
             return "CRITICAL: Parent process terminated. Replicate or shutdown."

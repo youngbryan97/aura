@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import Any, Optional
 
-from core.unity import get_unity_runtime
-
-from ..state.aura_state import AuraState
 from . import BasePhase
+from ..state.aura_state import AuraState
+from core.unity import get_unity_runtime
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +17,7 @@ class UnityBindingPhase(BasePhase):
     def __init__(self, container: Any = None):
         super().__init__(container)
 
-    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
         new_state = state.derive("unity_binding", origin="UnityBindingPhase")
         tick_id = f"unity_{new_state.version}_{int(time.time() * 1000)}"
         runtime = get_unity_runtime()

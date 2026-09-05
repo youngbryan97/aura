@@ -1,9 +1,9 @@
 """core/memory/commitment_ledger.py
 Durable register of commitments, agreements, and preferences made by Aura.
 """
-import time
 from dataclasses import dataclass, field
-from typing import Any
+import time
+from typing import List, Dict, Any
 
 
 @dataclass
@@ -20,7 +20,7 @@ class CommitmentLedger:
     """Ledger tracking active social commitments and operational tasks."""
 
     def __init__(self):
-        self._commitments: list[Commitment] = []
+        self._commitments: List[Commitment] = []
 
     def record_commitment(self, id: str, description: str, person: str = "Bryan") -> None:
         self._commitments.append(Commitment(id=id, description=description, target_person=person))
@@ -31,7 +31,7 @@ class CommitmentLedger:
                 c.fulfilled = True
                 c.fulfilled_at = time.time()
 
-    def get_commitments(self) -> list[dict[str, Any]]:
+    def get_commitments(self) -> List[Dict[str, Any]]:
         return [
             {
                 "id": c.id,

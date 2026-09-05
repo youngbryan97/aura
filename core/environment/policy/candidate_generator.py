@@ -8,9 +8,9 @@ Generates candidates dynamically from:
 """
 from __future__ import annotations
 
-from core.environment.belief_graph import EnvironmentBeliefGraph
 from core.environment.command import ActionIntent
 from core.environment.parsed_state import ParsedState
+from core.environment.belief_graph import EnvironmentBeliefGraph
 from core.environment.planning import GridPathPlanner
 
 

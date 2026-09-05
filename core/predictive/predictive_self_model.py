@@ -1,7 +1,6 @@
-import numpy as np
-
 from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
+import numpy as np
 
 
 class PredictiveSelfModel:

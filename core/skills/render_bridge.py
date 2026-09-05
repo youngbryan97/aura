@@ -15,8 +15,10 @@ payloads that the frontend chat UI can interpret and display.
 This closes the "render ecosystem" gap in tool parity.
 """
 
+import json
 import logging
 import time
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field

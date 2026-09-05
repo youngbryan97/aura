@@ -28,7 +28,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from core.learning.transition_grading import (
@@ -56,7 +56,7 @@ class TrajectoryRecord:
     final_success: bool
     latent_receipt_sha256: str = ""
 
-    def validated(self) -> TrajectoryRecord:
+    def validated(self) -> "TrajectoryRecord":
         if not self.task_id.strip() or not self.family.strip():
             raise ValueError("trajectory requires task_id and family")
         if not self.transitions:
@@ -75,7 +75,7 @@ class RepairCandidate:
     corrector: str  # which teacher/strategy produced it
     rationale: str = ""
 
-    def validated(self) -> RepairCandidate:
+    def validated(self) -> "RepairCandidate":
         if type(self.error_index) is not int or self.error_index < 0:
             raise ValueError("repair error_index must be a non-negative integer")
         if not self.corrected_action.strip():

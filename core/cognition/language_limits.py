@@ -30,9 +30,8 @@ and a detector that escalated it would be measuring its own appetite.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Sequence
 
 __all__ = ["LanguageVerdict", "certify"]
 

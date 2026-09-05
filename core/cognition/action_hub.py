@@ -33,13 +33,14 @@ sources do not have types yet and refusing them would turn the hub off.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
+import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
 from core.cognition.procedure import Signature
-from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Source",

@@ -4,17 +4,18 @@ This module provides persistent memory storage with automatic pruning,
 corruption detection, and atomic write operations to prevent data loss.
 """
 
+from core.runtime.errors import record_degradation
 import hashlib
 import json
 import logging
+import os
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 
 from core.runtime.atomic_writer import atomic_write_text as runtime_atomic_write_text
 from core.runtime.atomic_writer import durable_replace, durable_unlink
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Kernel.Memory")
 
@@ -67,12 +68,12 @@ class Memory:
         # Load existing memory
         self.load()
     
-    def _calculate_checksum(self, data: dict[str, Any]) -> str:
+    def _calculate_checksum(self, data: Dict[str, Any]) -> str:
         """Calculate SHA-256 checksum of memory data."""
         data_str = json.dumps(data, sort_keys=True)
         return hashlib.sha256(data_str.encode()).hexdigest()
     
-    def _validate_data_structure(self, data: dict[str, Any]) -> bool:
+    def _validate_data_structure(self, data: Dict[str, Any]) -> bool:
         """Validate memory data structure integrity."""
         required_keys = {"episodic", "semantic", "goals"}
         if not all(key in data for key in required_keys):
@@ -108,7 +109,7 @@ class Memory:
         try:
             with self._lock:
                 # Read current file
-                with open(self.storage_file, encoding='utf-8') as f:
+                with open(self.storage_file, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
                 runtime_atomic_write_text(backup_file, content)
@@ -121,11 +122,11 @@ class Memory:
                     for old_backup in backups[:-self.BACKUP_COUNT]:
                         durable_unlink(old_backup, missing_ok=True)
                         
-        except OSError as e:
+        except (OSError, IOError) as e:
             record_degradation('atomic_storage', e)
             logger.error("Failed to create backup: %s", e)
     
-    def _atomic_write(self, data: dict[str, Any]) -> bool:
+    def _atomic_write(self, data: Dict[str, Any]) -> bool:
         """Atomic write with rollback capability.
         
         Args:
@@ -213,10 +214,10 @@ class Memory:
             logger.error("Memory load failed: %s", e)
             # Continue with default data
     
-    def _load_file(self, file_path: Path) -> dict[str, Any] | None:
+    def _load_file(self, file_path: Path) -> Optional[Dict[str, Any]]:
         """Load and validate a single memory file."""
         try:
-            with open(file_path, encoding='utf-8') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
             # Validate structure
@@ -286,7 +287,7 @@ class Memory:
             self.data["episodic"] = episodic[-self.MAX_EPISODIC_ENTRIES:]
             logger.info("Pruned episodic memory to %s entries", self.MAX_EPISODIC_ENTRIES)
     
-    def log_event(self, event: dict[str, Any] | MemoryEvent) -> bool:
+    def log_event(self, event: Union[Dict[str, Any], MemoryEvent]) -> bool:
         """Log a memory event with auto-save threshold.
         
         Args:
@@ -355,7 +356,7 @@ class Memory:
             logger.error("Failed to update semantic memory: %s", e)
             return False
     
-    def get_recent_events(self, count: int = 10) -> list[dict[str, Any]]:
+    def get_recent_events(self, count: int = 10) -> List[Dict[str, Any]]:
         """Get recent memory events.
         
         Args:
@@ -397,7 +398,7 @@ class Memory:
                 logger.error("Failed to clear episodic memory: %s", e)
                 return False
     
-    def get_stats(self) -> dict[str, Any]:
+    def get_stats(self) -> Dict[str, Any]:
         """Get memory statistics."""
         with self._lock:
             return {
@@ -414,7 +415,7 @@ def atomic_write(file_path: str, content: str) -> None:
     """Thread-safe atomic write utility using a temporary file and atomic rename."""
     try:
         runtime_atomic_write_text(file_path, content)
-    except OSError as e:
+    except (OSError, IOError) as e:
         record_degradation('atomic_storage', e)
         logger.error("Standalone atomic write failed for %s: %s", file_path, e)
         raise

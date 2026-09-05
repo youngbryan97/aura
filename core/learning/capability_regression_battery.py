@@ -23,10 +23,9 @@ gate needs; it does not itself decide to keep or revert.
 """
 from __future__ import annotations
 
-import logging
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
+import logging
 
 logger = logging.getLogger(__name__)
 

@@ -186,10 +186,10 @@ class VerifierCurriculumLoop:
         self,
         prompt: str,
         task_type: str,
-        solve: Callable[[str, str], Awaitable[str]],
+        solve: "Callable[[str, str], Awaitable[str]]",
         *,
         max_passes: int = 3,
-    ) -> tuple[str, Any]:
+    ) -> "tuple[str, Any]":
         """Solve one task over up to ``max_passes`` INDEPENDENT attempts,
         keeping an answer only when the monotonic revision gate says its
         verified evidence clearly beats the one in hand.

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 from .alpha_controller import AlphaController
 from .mode_collapse_detector import CollapseSignal, ModeCollapseDetector
@@ -28,8 +28,8 @@ class ProductionCAA:
         )
         self.alpha_controller = AlphaController(base_alpha=base_alpha)
         self.collapse_detector = ModeCollapseDetector()
-        self.vector_quality_by_layer: dict[int, dict[str, Any]] = {}
-        self.readiness: dict[str, Any] = {
+        self.vector_quality_by_layer: Dict[int, Dict[str, Any]] = {}
+        self.readiness: Dict[str, Any] = {
             "level": "bootstrap",
             "detail": "uninitialized",
             "coverage_ratio": 0.0,
@@ -37,7 +37,7 @@ class ProductionCAA:
             "extracted_ratio": 0.0,
             "validator": None,
         }
-        self.last_collapse: dict[str, Any] = self.collapse_detector.status()["last_signal"]
+        self.last_collapse: Dict[str, Any] = self.collapse_detector.status()["last_signal"]
 
     def ingest_registry(
         self,
@@ -46,7 +46,7 @@ class ProductionCAA:
         expected_layers: list[int],
         expected_keys: list[str],
         model_path: str = "",
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         self.registry = registry
         self.vector_quality_by_layer = {
             layer: compute_vector_quality(vectors, layer_idx=layer).to_dict()
@@ -67,7 +67,7 @@ class ProductionCAA:
         *,
         generation_health: float | None = None,
         cross_entropy: float | None = None,
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         signal: CollapseSignal = self.collapse_detector.observe(text)
         self.last_collapse = signal.to_dict()
         self.alpha_controller.update(
@@ -80,7 +80,7 @@ class ProductionCAA:
         )
         return {"collapse": self.last_collapse, "alpha_state": self.alpha_controller.state.to_dict()}
 
-    def status(self) -> dict[str, Any]:
+    def status(self) -> Dict[str, Any]:
         return {
             "readiness": self.readiness,
             "alpha_state": self.alpha_controller.state.to_dict(),

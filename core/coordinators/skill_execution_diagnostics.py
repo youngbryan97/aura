@@ -7,7 +7,7 @@ This helps Aura answer questions like:
 - "What's broken?"
 """
 import logging
-from typing import Any
+from typing import Any, Dict, List
 
 logger = logging.getLogger("SelfDiagnosis")
 
@@ -23,7 +23,7 @@ class SelfDiagnosisTool:
         
         logger.info("✓ Self-Diagnosis Tool initialized")
     
-    async def check_capabilities(self) -> dict[str, Any]:
+    async def check_capabilities(self) -> Dict[str, Any]:
         """Check what Aura can actually do (Async).
         
         Returns comprehensive capability report.
@@ -47,7 +47,7 @@ class SelfDiagnosisTool:
         
         return analysis
     
-    def _get_overall_status(self, health: dict, skill_test: dict) -> str:
+    def _get_overall_status(self, health: Dict, skill_test: Dict) -> str:
         """Get overall system status"""
         working_skills = skill_test.get("working", 0)
         total_skills = skill_test.get("total_skills", 0)
@@ -61,7 +61,7 @@ class SelfDiagnosisTool:
         else:
             return "HEALTHY"
     
-    def _identify_issues(self, health: dict, skill_test: dict) -> list[str]:
+    def _identify_issues(self, health: Dict, skill_test: Dict) -> List[str]:
         """Identify specific issues"""
         issues = []
         
@@ -87,7 +87,7 @@ class SelfDiagnosisTool:
         
         return issues
     
-    def _summarize_capabilities(self, skill_test: dict) -> dict[str, Any]:
+    def _summarize_capabilities(self, skill_test: Dict) -> Dict[str, Any]:
         """Summarize what Aura can actually do"""
         details = skill_test.get("details", {})
         
@@ -107,7 +107,7 @@ class SelfDiagnosisTool:
             "total_capabilities": len(working_skills)
         }
     
-    def explain_to_user(self, check_result: dict) -> str:
+    def explain_to_user(self, check_result: Dict) -> str:
         """Generate human-readable explanation of capabilities.
         
         This is what Aura says to Bryan when asked "what's wrong?"
@@ -145,7 +145,7 @@ class SelfDiagnosisTool:
         
         return explanation
     
-    def get_specific_skill_status(self, skill_name: str) -> dict[str, Any]:
+    def get_specific_skill_status(self, skill_name: str) -> Dict[str, Any]:
         """Check status of a specific skill.
         
         This is what Aura uses when she tries a skill and it fails.

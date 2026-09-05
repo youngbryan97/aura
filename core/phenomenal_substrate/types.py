@@ -1,11 +1,9 @@
 from __future__ import annotations
-
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field, asdict
 from time import time
-from typing import Any
+from typing import Dict, Optional, Any, List
 
 from .maths import clamp
-
 
 @dataclass
 class RuntimeBody:
@@ -32,7 +30,7 @@ class RuntimeBody:
     foreground_app_familiar: float = 0.5  # how familiar the current app is
     timestamp: float = field(default_factory=time)
 
-    def observed_vector(self) -> dict[str, float]:
+    def observed_vector(self) -> Dict[str, float]:
         return {
             "energy": clamp(self.energy),
             "continuity": clamp(self.continuity),
@@ -62,8 +60,8 @@ class Event:
     repair: float = 0.0
     novelty: float = 0.0
     control_gain: float = 0.0
-    evidence_id: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    evidence_id: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
 class AttachmentEvent:
@@ -87,7 +85,7 @@ class ExperienceState:
     If it is removed, behavior should change.
     """
     t: int
-    phenomenal_vector: dict[str, float]
+    phenomenal_vector: Dict[str, float]
     valence: float
     arousal: float
     free_energy: float
@@ -103,11 +101,11 @@ class ExperienceState:
     distress: float
     curiosity: float
     intentional_object: str
-    evidence_id: str | None
-    global_broadcast: dict[str, Any]
-    policy_priors: dict[str, float]
-    memory_weights: dict[str, float]
+    evidence_id: Optional[str]
+    global_broadcast: Dict[str, Any]
+    policy_priors: Dict[str, float]
+    memory_weights: Dict[str, float]
     timestamp: float = field(default_factory=time)
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self) -> Dict[str, Any]:
         return asdict(self)

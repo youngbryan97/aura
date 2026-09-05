@@ -1,13 +1,13 @@
 """core/learning/trace_labeler.py
 Labels collected training samples with task success flags.
 """
-from typing import Any
+from typing import Dict, Any
 
 
 class TraceLabeler:
     """Labels training samples based on outcomes and verification evidence."""
 
-    def label_sample(self, sample: dict[str, Any], outcome: dict[str, Any]) -> dict[str, Any]:
+    def label_sample(self, sample: Dict[str, Any], outcome: Dict[str, Any]) -> Dict[str, Any]:
         labeled = sample.copy()
         status = str(outcome.get("status", "")).lower()
         effect_verified = bool(

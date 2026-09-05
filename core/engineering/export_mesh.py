@@ -20,6 +20,7 @@ from __future__ import annotations
 import math
 import struct
 import zipfile
+from dataclasses import dataclass
 from io import BytesIO
 from typing import Any
 from xml.sax.saxutils import escape

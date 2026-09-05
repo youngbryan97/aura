@@ -10,9 +10,8 @@ import hashlib
 import json
 import math
 import time
-from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 
 def canonical_json(value: Any) -> str:

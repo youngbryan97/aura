@@ -47,12 +47,13 @@ and the metric worth watching is how much it declined.
 
 from __future__ import annotations
 
+import math
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Any
+from typing import Any, Iterable
 
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import LockRank, checked_lock

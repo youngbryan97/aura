@@ -10,8 +10,9 @@ from __future__ import annotations
 import operator
 import re
 from collections import deque
-from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Callable
+
 
 _POSITION_RE = re.compile(r"Position:\s*\(([-0-9]+),\s*([-0-9]+)\)")
 _TARGET_RE = re.compile(r"Target:\s*\(([-0-9]+),\s*([-0-9]+)\)")

@@ -142,7 +142,7 @@ class WhatSheHasHeard:
         }
 
     @classmethod
-    def from_memory(cls, held: Any) -> WhatSheHasHeard:
+    def from_memory(cls, held: Any) -> "WhatSheHasHeard":
         if not isinstance(held, dict):
             return cls()
         after: dict[str, dict[str, int]] = {}

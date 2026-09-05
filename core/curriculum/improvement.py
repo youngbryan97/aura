@@ -8,7 +8,8 @@ operator needs to know if the loop is doing real work.
 from __future__ import annotations
 
 import statistics
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 from core.runtime.prediction_ledger import PredictionLedger
 
@@ -17,7 +18,7 @@ from core.runtime.prediction_ledger import PredictionLedger
 class ImprovementSnapshot:
     iteration: int
     n_resolved: int
-    mean_brier: float | None
+    mean_brier: Optional[float]
     accuracy: float
 
 
@@ -25,7 +26,7 @@ class ImprovementRecorder:
     def __init__(self, ledger: PredictionLedger, *, window: int = 50):
         self.ledger = ledger
         self.window = int(window)
-        self.snapshots: list[ImprovementSnapshot] = []
+        self.snapshots: List[ImprovementSnapshot] = []
 
     def snapshot(self, iteration: int) -> ImprovementSnapshot:
         records = self.ledger.recent(limit=self.window, resolved=True)

@@ -25,9 +25,10 @@ References:
 """
 from __future__ import annotations
 
+
 import logging
 import threading
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Consciousness.Illusionism")
 
@@ -38,7 +39,7 @@ logger = logging.getLogger("Consciousness.Illusionism")
 # measurable functional state.  The mapping is defined here so that future
 # claims added to qualia_synthesizer automatically get a default annotation.
 
-_FUNCTIONAL_BASIS: dict[str, str] = {
+_FUNCTIONAL_BASIS: Dict[str, str] = {
     "genuine_uncertainty": (
         "high meta-qualia dissonance (>0.08) or low meta-qualia confidence (<0.4); "
         "reflects unresolved model conflict in the qualia state space"
@@ -97,7 +98,7 @@ def _build_illusionism_note(claim: str, functional_basis: str) -> str:
 
 def _compute_phenomenal_certainty(
     claim: str,
-    gates: dict[str, bool],
+    gates: Dict[str, bool],
     honesty_score: float,
 ) -> float:
     """Compute phenomenal certainty for a claim.
@@ -181,13 +182,13 @@ class IllusionismLayer:
             The same report, enriched with per-claim illusionism annotations
             and a top-level "illusionism" metadata block.
         """
-        claims: list[str] = report.get("claims", [])
-        gates: dict[str, bool] = report.get("gates", {})
+        claims: List[str] = report.get("claims", [])
+        gates: Dict[str, bool] = report.get("gates", {})
         honesty_score: float = report.get("honesty_score", 0.0)
 
         # Per-claim annotations
-        annotated_claims: list[dict[str, Any]] = []
-        certainty_values: list[float] = []
+        annotated_claims: List[Dict[str, Any]] = []
+        certainty_values: List[float] = []
 
         for claim in claims:
             functional_basis = _FUNCTIONAL_BASIS.get(claim, _DEFAULT_FUNCTIONAL_BASIS)
@@ -241,7 +242,7 @@ class IllusionismLayer:
         """One-line summary of current phenomenal honesty level."""
         return self._last_epistemic_status
 
-    def get_snapshot(self) -> dict[str, Any]:
+    def get_snapshot(self) -> Dict[str, Any]:
         """Telemetry payload."""
         avg = (
             round(self._total_certainty_sum / self._annotation_count, 4)
@@ -258,7 +259,7 @@ class IllusionismLayer:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_instance: IllusionismLayer | None = None
+_instance: Optional[IllusionismLayer] = None
 _instance_lock = threading.Lock()
 
 

@@ -25,6 +25,9 @@ This is not cosmetic. The circadian state feeds directly into:
   - Experience consolidation scheduling
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
+from core.utils.task_tracker import get_task_tracker
 
 import logging
 import math
@@ -32,9 +35,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
+from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger("Aura.Circadian")
 
@@ -80,7 +81,7 @@ class CircadianState:
 
 
 # Phase definitions: (start_hour, end_hour, arousal, energy_mod, mode, focus, warmth, intro)
-_PHASE_PARAMS: dict[CircadianPhase, tuple] = {
+_PHASE_PARAMS: Dict[CircadianPhase, Tuple] = {
     CircadianPhase.DAWN:       (5,  8,  0.45, 0.6, "reflective",    0.4, 0.5, 0.7),
     CircadianPhase.MORNING:    (8,  12, 0.75, 1.2, "analytical",    0.8, 0.4, 0.3),
     CircadianPhase.AFTERNOON:  (12, 17, 0.65, 1.0, "integrative",   0.6, 0.6, 0.4),
@@ -134,7 +135,7 @@ class CircadianEngine:
     """
 
     def __init__(self):
-        self._state: CircadianState | None = None
+        self._state: Optional[CircadianState] = None
         self._last_update: float = 0.0
         self.update()
         logger.info(
@@ -204,7 +205,7 @@ class CircadianEngine:
             return 1  # consolidation only
         return max(1, int(4 * self.state.energy_modifier))
 
-    def get_attractor_shift(self) -> dict[str, float]:
+    def get_attractor_shift(self) -> Dict[str, float]:
         """
         Returns the circadian delta that should be *added* to the hedonic attractor.
         Morning: push toward higher arousal. Evening: push toward lower arousal,
@@ -243,7 +244,7 @@ class CircadianEngine:
 
 # ── Singleton ──────────────────────────────────────────────────────────────────
 
-_engine: CircadianEngine | None = None
+_engine: Optional[CircadianEngine] = None
 
 
 def get_circadian() -> CircadianEngine:

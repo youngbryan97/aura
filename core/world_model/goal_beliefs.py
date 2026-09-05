@@ -9,11 +9,11 @@ The difference between a parameterized goal and a belief-goal:
 Aura's goals are beliefs about what matters and why.
 """
 
-import hashlib
-import logging
 import time
-from typing import Any
-
+import logging
+import hashlib
+from dataclasses import dataclass, field
+from typing import List, Optional, Dict, Any
 from core.world_model.belief_graph import BeliefGraph
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ class GoalBeliefManager:
 
     def __init__(self, belief_system: BeliefGraph):
         self.bs = belief_system
-        self._centrality: dict[str, float] = {}
+        self._centrality: Dict[str, float] = {}
         self._seed_core_goals()
 
     @staticmethod
@@ -106,7 +106,7 @@ class GoalBeliefManager:
                     
             self._centrality[goal["content"][:50]] = goal["centrality"]
 
-    def get_active_goals(self, min_confidence: float = 0.6) -> list[dict[str, Any]]:
+    def get_active_goals(self, min_confidence: float = 0.6) -> List[Dict[str, Any]]:
         """Return all goal-domain beliefs above confidence threshold."""
         goals = []
         for u, v, d in self.bs.graph.edges(data=True):

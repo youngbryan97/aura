@@ -24,9 +24,9 @@ Execution passes two checks the registry did not used to have:
 """
 from __future__ import annotations
 
-import ast
 import logging
-from typing import Any
+import ast
+from typing import Any, Dict, Optional
 
 from core.agency.stuck_detector import AgentStep, StuckDetector, StuckPattern
 from core.observability.genai_semconv import tool_span
@@ -52,7 +52,7 @@ class ToolRegistry:
         rules: ToolRuleSolver | None = None,
         stuck: StuckDetector | None = None,
     ) -> None:
-        self._tools: dict[str, Any] = {}
+        self._tools: Dict[str, Any] = {}
         self._rules: ToolRuleSolver | None = None
         self._step: list[ToolCall] = []
         self._stuck = stuck if stuck is not None else StuckDetector(scope="tool_registry")
@@ -62,7 +62,7 @@ class ToolRegistry:
         #: and not blocked: the remedy there is a different plan, and the
         #: registry has no basis for deciding which of the alternating calls is
         #: the wrong one.
-        self._blocked_calls: dict[str, Any] = {}
+        self._blocked_calls: Dict[str, Any] = {}
         if rules is not None:
             self.set_rules(rules)
 
@@ -74,7 +74,7 @@ class ToolRegistry:
         self._tools[name] = manifest
         logger.info("📦 ToolRegistry: registered '%s'", name)
 
-    def get_tool(self, name: str) -> Any | None:
+    def get_tool(self, name: str) -> Optional[Any]:
         return self._tools.get(name)
 
     # ── sequencing ────────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ class ToolRegistry:
 
     # ── execution ─────────────────────────────────────────────────────────
 
-    async def execute_tool(self, name: str, *args, **kwargs) -> dict[str, Any]:
+    async def execute_tool(self, name: str, *args, **kwargs) -> Dict[str, Any]:
         """Invoke a registered tool in the isolated tool sandbox."""
         manifest = self.get_tool(name)
         if not manifest:

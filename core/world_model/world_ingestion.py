@@ -22,9 +22,8 @@ from __future__ import annotations
 import logging
 import re
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from urllib.parse import quote_plus, urlparse
 
 from core.runtime.errors import record_degradation
@@ -68,13 +67,13 @@ class SearchResult:
 @dataclass
 class IngestReport:
     source: str
-    facts: list[str]
+    facts: List[str]
     beliefs_written: int
     memories_written: int
-    anomalies: list[str] = field(default_factory=list)
+    anomalies: List[str] = field(default_factory=list)
     error: str = ""
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "source": self.source,
             "facts": self.facts,
@@ -91,9 +90,9 @@ class WorldIngestionEngine:
     def __init__(
         self,
         *,
-        fetcher: Fetcher | None = None,
-        belief_sink: Callable[[str, Any, float], None] | None = None,
-        memory_sink: Callable[[str, dict[str, Any]], None] | None = None,
+        fetcher: Optional[Fetcher] = None,
+        belief_sink: Optional[Callable[[str, Any, float], None]] = None,
+        memory_sink: Optional[Callable[[str, Dict[str, Any]], None]] = None,
         max_chars: int = 20000,
         min_requests_interval_s: float = 0.5,
         max_facts_per_doc: int = 12,
@@ -123,7 +122,7 @@ class WorldIngestionEngine:
         text = self._extract_text(raw)[: self._max_chars]
         return IngestDocument(url=url, status=int(status), text=text, title=title)
 
-    async def search(self, query: str, limit: int = 5) -> list[SearchResult]:
+    async def search(self, query: str, limit: int = 5) -> List[SearchResult]:
         """Unrestricted web search via the default HTML backend (or injected fetcher)."""
         url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
         await self._throttle()
@@ -132,7 +131,7 @@ class WorldIngestionEngine:
         except (RuntimeError, OSError, ValueError, TypeError) as exc:
             record_degradation("world_ingestion", exc, severity="debug", action="search failed")
             return []
-        results: list[SearchResult] = []
+        results: List[SearchResult] = []
         for href, label in _DDG_RESULT.findall(raw or ""):
             title = _WS_RE.sub(" ", _TAG_RE.sub("", label)).strip()
             if href and title:
@@ -157,7 +156,7 @@ class WorldIngestionEngine:
         facts = self._distill(text)
         beliefs_written = 0
         memories_written = 0
-        anomalies: list[str] = []
+        anomalies: List[str] = []
         trust = max(0.0, min(1.0, source_trust))
 
         for fact in facts:
@@ -179,7 +178,7 @@ class WorldIngestionEngine:
 
     async def state_changing_request(self, method: str, url: str,
                                      *, reversible: bool = False, confirmed: bool = False,
-                                     **kwargs: Any) -> dict[str, Any]:
+                                     **kwargs: Any) -> Dict[str, Any]:
         """A request that changes the world (POST/PUT/...) — gated by the value model + Will.
 
         Reads never reach this path. This is reversibility discipline, not a reach restriction:
@@ -239,7 +238,7 @@ class WorldIngestionEngine:
             record_degradation("world_ingestion", exc, severity="debug")
             return False
 
-    def _write_memory(self, content: str, meta: dict[str, Any]) -> bool:
+    def _write_memory(self, content: str, meta: Dict[str, Any]) -> bool:
         sink = self._memory_sink
         if sink is None:
             return False
@@ -287,9 +286,9 @@ class WorldIngestionEngine:
         m = re.search(r"<title[^>]*>(.*?)</title>", raw or "", re.IGNORECASE | re.DOTALL)
         return _WS_RE.sub(" ", _TAG_RE.sub("", m.group(1))).strip()[:200] if m else ""
 
-    def _distill(self, text: str) -> list[str]:
+    def _distill(self, text: str) -> List[str]:
         """Pull declarative, information-bearing sentences out of extracted text."""
-        out: list[str] = []
+        out: List[str] = []
         seen: set = set()
         for sent in _SENT_SPLIT.split(text or ""):
             s = sent.strip()
@@ -324,7 +323,7 @@ class WorldIngestionEngine:
             await asyncio.sleep(self._min_interval - dt)
         self._last_request = time.time()
 
-    async def _invoke_fetcher(self, url: str) -> tuple[int, str]:
+    async def _invoke_fetcher(self, url: str) -> Tuple[int, str]:
         if self._fetcher is not None:
             res = self._fetcher(url)
             if hasattr(res, "__await__"):
@@ -332,7 +331,7 @@ class WorldIngestionEngine:
             return res
         return await self._default_get(url)
 
-    async def _invoke_fetcher_method(self, method: str, url: str, **kwargs: Any) -> tuple[int, str]:
+    async def _invoke_fetcher_method(self, method: str, url: str, **kwargs: Any) -> Tuple[int, str]:
         if self._fetcher is not None:
             res = self._fetcher(url)  # injected fetchers are read-shaped in tests
             if hasattr(res, "__await__"):
@@ -340,10 +339,10 @@ class WorldIngestionEngine:
             return res
         return await self._default_request(method, url, **kwargs)
 
-    async def _default_get(self, url: str) -> tuple[int, str]:
+    async def _default_get(self, url: str) -> Tuple[int, str]:
         return await self._default_request("GET", url)
 
-    async def _default_request(self, method: str, url: str, **kwargs: Any) -> tuple[int, str]:
+    async def _default_request(self, method: str, url: str, **kwargs: Any) -> Tuple[int, str]:
         headers = kwargs.pop("headers", {"User-Agent": "Mozilla/5.0 (compatible; Aura/1.0)"})
         result = await get_network_gateway().request_async(
             method,
@@ -361,11 +360,11 @@ class WorldIngestionEngine:
             text = str(content or "")
         return int(result.get("status_code") or 0), text
 
-    def get_health(self) -> dict[str, Any]:
+    def get_health(self) -> Dict[str, Any]:
         return {"module": "WorldIngestionEngine", "stats": dict(self._stats), "status": "online"}
 
 
-_instance: WorldIngestionEngine | None = None
+_instance: Optional[WorldIngestionEngine] = None
 
 
 def get_world_ingestion_engine() -> WorldIngestionEngine:

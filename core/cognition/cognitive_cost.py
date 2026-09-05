@@ -42,14 +42,14 @@ measurements.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
+import threading
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Any
-
-from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "ModelTier",
@@ -88,13 +88,13 @@ class CostWeights:
     context: str = "default"
 
     @classmethod
-    def while_waiting(cls) -> CostWeights:
+    def while_waiting(cls) -> "CostWeights":
         """Someone is at the keyboard. Time dominates everything else."""
         return cls(per_second=4.0, per_thousand_tokens=0.05, per_memory_pressure=0.5,
                    context="while_waiting")
 
     @classmethod
-    def idle(cls) -> CostWeights:
+    def idle(cls) -> "CostWeights":
         """Nobody is waiting. Memory pressure matters more than the clock."""
         return cls(per_second=0.1, per_thousand_tokens=0.05, per_memory_pressure=2.0,
                    context="idle")
@@ -129,7 +129,7 @@ class CognitiveCost:
             + self.risk
         )
 
-    def under(self, weights: CostWeights) -> CognitiveCost:
+    def under(self, weights: CostWeights) -> "CognitiveCost":
         """The same act, priced in a different context."""
         return replace(self, weights=weights)
 
@@ -174,7 +174,7 @@ class CognitiveBudget:
 
     def child(
         self, *, uncertainty: float, information_gain: float, complexity: float = 1.0
-    ) -> CognitiveBudget:
+    ) -> "CognitiveBudget":
         """A subgoal's budget, derived rather than fixed.
 
         A subgoal is worth what its parent is worth, times how uncertain the

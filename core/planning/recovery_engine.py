@@ -18,9 +18,8 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any, Awaitable, Callable, Dict, List, Optional, TYPE_CHECKING
 
 from core.container import ServiceContainer
 from core.planning.task_graph import TaskNode
@@ -48,7 +47,7 @@ class RecoveryAttempt:
 
 
 # Known error patterns → recovery strategies
-ERROR_RECOVERY_MAP: dict[str, str] = {
+ERROR_RECOVERY_MAP: Dict[str, str] = {
     # App not found / not installed
     "application can't be found": "use_fallback_app",
     "is not running": "launch_and_retry",
@@ -103,7 +102,7 @@ class RecoveryEngine:
     """
 
     def __init__(self, sleep: Callable[[float], Awaitable[None]] | None = None) -> None:
-        self._attempts: list[RecoveryAttempt] = []
+        self._attempts: List[RecoveryAttempt] = []
         self._max_attempts = 200
         self._started = False
         if sleep is None:
@@ -121,7 +120,7 @@ class RecoveryEngine:
 
     async def recover(
         self,
-        mission: Mission,
+        mission: "Mission",
         node: TaskNode,
         error: str,
     ) -> bool:
@@ -222,7 +221,7 @@ class RecoveryEngine:
     # ------------------------------------------------------------------
 
     async def _retry_with_delay(
-        self, mission: Mission, node: TaskNode, error: str
+        self, mission: "Mission", node: TaskNode, error: str
     ) -> tuple[bool, str]:
         """Wait briefly, then retry the same action."""
         if node.retries_used >= node.retry_count:
@@ -256,7 +255,7 @@ class RecoveryEngine:
             return False, f"Retry error: {e}"
 
     async def _launch_and_retry(
-        self, mission: Mission, node: TaskNode, error: str
+        self, mission: "Mission", node: TaskNode, error: str
     ) -> tuple[bool, str]:
         """Launch the required app, then retry the action."""
         app_name = node.params.get("name", "") or node.params.get("app", "")
@@ -282,7 +281,7 @@ class RecoveryEngine:
             return False, f"Launch+retry error: {e}"
 
     async def _use_fallback_app(
-        self, mission: Mission, node: TaskNode, error: str
+        self, mission: "Mission", node: TaskNode, error: str
     ) -> tuple[bool, str]:
         """Switch to a fallback application for this step."""
         if not node.fallback_action:
@@ -324,7 +323,7 @@ class RecoveryEngine:
         return await self._retry_with_delay(mission, node, error)
 
     async def _retry_then_fallback(
-        self, mission: Mission, node: TaskNode, error: str
+        self, mission: "Mission", node: TaskNode, error: str
     ) -> tuple[bool, str]:
         """Retry once, then try fallback if retry fails."""
         success, msg = await self._retry_with_delay(mission, node, error)
@@ -333,7 +332,7 @@ class RecoveryEngine:
         return await self._use_fallback_app(mission, node, error)
 
     async def _use_hotkey_alternative(
-        self, mission: Mission, node: TaskNode, error: str
+        self, mission: "Mission", node: TaskNode, error: str
     ) -> tuple[bool, str]:
         """If menu_select fails, try a keyboard shortcut instead."""
         # Common menu → hotkey mappings
@@ -364,7 +363,7 @@ class RecoveryEngine:
         return False, "No hotkey alternative found"
 
     async def _retry_with_screenshot(
-        self, mission: Mission, node: TaskNode, error: str
+        self, mission: "Mission", node: TaskNode, error: str
     ) -> tuple[bool, str]:
         """Take a screenshot to re-perceive the screen, then retry."""
         try:
@@ -379,7 +378,7 @@ class RecoveryEngine:
         return False, "Screenshot+retry failed: host automation unavailable"
 
     async def _retry_with_backoff(
-        self, mission: Mission, node: TaskNode, error: str
+        self, mission: "Mission", node: TaskNode, error: str
     ) -> tuple[bool, str]:
         """Exponential backoff retry for network errors."""
         max_retries = 3
@@ -406,7 +405,7 @@ class RecoveryEngine:
         return False, f"All {max_retries} backoff retries failed{suffix}"
 
     async def _version_filename(
-        self, mission: Mission, node: TaskNode, error: str
+        self, mission: "Mission", node: TaskNode, error: str
     ) -> tuple[bool, str]:
         """If a file already exists, version the filename and retry."""
         from pathlib import Path
@@ -431,7 +430,7 @@ class RecoveryEngine:
         return False, "Could not find available version number"
 
     async def _escalate_permission(
-        self, mission: Mission, node: TaskNode, error: str
+        self, mission: "Mission", node: TaskNode, error: str
     ) -> tuple[bool, str]:
         """Log permission escalation need and pause for user."""
         mission.narration_log.append(
@@ -445,7 +444,7 @@ class RecoveryEngine:
         return False, f"Permission required: {error[:100]}"
 
     async def _ask_user(
-        self, mission: Mission, node: TaskNode, error: str
+        self, mission: "Mission", node: TaskNode, error: str
     ) -> tuple[bool, str]:
         """Pause the mission and ask the user for help."""
         mission.narration_log.append(
@@ -457,7 +456,7 @@ class RecoveryEngine:
         return False, f"Mission paused — user help needed: {error[:80]}"
 
     async def _skip_or_ask(
-        self, mission: Mission, node: TaskNode, error: str
+        self, mission: "Mission", node: TaskNode, error: str
     ) -> tuple[bool, str]:
         """Skip if non-critical, otherwise ask user."""
         if not node.critical:
@@ -467,7 +466,7 @@ class RecoveryEngine:
         return await self._ask_user(mission, node, error)
 
     async def _generic_recovery(
-        self, mission: Mission, node: TaskNode, error: str
+        self, mission: "Mission", node: TaskNode, error: str
     ) -> tuple[bool, str]:
         """Generic recovery: retry once, then skip if non-critical."""
         if node.retries_used < 1:
@@ -478,7 +477,7 @@ class RecoveryEngine:
         if not node.critical:
             if mission.graph:
                 mission.graph.mark_skipped(node.task_id, f"Generic recovery: {error[:60]}")
-            return True, "Non-critical step skipped after failed retry"
+            return True, f"Non-critical step skipped after failed retry"
 
         return False, f"No recovery strategy for: {error[:100]}"
 
@@ -486,7 +485,7 @@ class RecoveryEngine:
     # Status
     # ------------------------------------------------------------------
 
-    def get_recent_attempts(self, limit: int = 20) -> list[dict[str, Any]]:
+    def get_recent_attempts(self, limit: int = 20) -> List[Dict[str, Any]]:
         return [
             {
                 "node_id": a.node_id,
@@ -498,7 +497,7 @@ class RecoveryEngine:
             for a in self._attempts[-limit:]
         ]
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         total = len(self._attempts)
         successes = sum(1 for a in self._attempts if a.success)
         return {
@@ -512,7 +511,7 @@ class RecoveryEngine:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_instance: RecoveryEngine | None = None
+_instance: Optional[RecoveryEngine] = None
 
 
 def get_recovery_engine() -> RecoveryEngine:

@@ -180,10 +180,10 @@ class EvidencePacket:
     def independent_sources(self) -> int:
         return len(self.sources)
 
-    def with_subject(self, subject: str) -> EvidencePacket:
+    def with_subject(self, subject: str) -> "EvidencePacket":
         return replace(self, subject=subject)
 
-    def fuse(self, other: EvidencePacket) -> EvidencePacket:
+    def fuse(self, other: "EvidencePacket") -> "EvidencePacket":
         """Merge another packet into this one, counting shared sources once.
 
         Mass is apportioned per source, so the shared part of two overlapping
@@ -193,7 +193,7 @@ class EvidencePacket:
         """
         return fuse((self, other))
 
-    def negated(self) -> EvidencePacket:
+    def negated(self) -> "EvidencePacket":
         return replace(self, strength=1.0 - self.strength)
 
     def to_dict(self) -> dict[str, Any]:
@@ -347,7 +347,7 @@ def _mint(origin: str, payload: object) -> frozenset[str]:
 
 
 def from_truth_value(
-    tv: TruthValue, *, origin: str, ref: str = "", subject: str = ""
+    tv: "TruthValue", *, origin: str, ref: str = "", subject: str = ""
 ) -> EvidencePacket:
     """Lift a PLN truth value into a packet.
 
@@ -367,7 +367,7 @@ def from_truth_value(
     )
 
 
-def to_truth_value(packet: EvidencePacket) -> TruthValue:
+def to_truth_value(packet: EvidencePacket) -> "TruthValue":
     """Project back to PLN. Lineage is dropped, which is why fusion happens here."""
     from core.knowledge.atomspace import TruthValue
 

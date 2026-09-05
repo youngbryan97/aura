@@ -12,10 +12,10 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, List, Optional
 
-from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
+from core.runtime.errors import record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 logger = logging.getLogger("Aura.VoiceSession")
@@ -37,7 +37,7 @@ class VoiceSessionLog:
     state: SessionState = SessionState.IDLE
     started_at: float = field(default_factory=time.time)
     completed_at: float = 0.0
-    narration: list[str] = field(default_factory=list)
+    narration: List[str] = field(default_factory=list)
     mission_id: str = ""
     success: bool = False
     error: str = ""
@@ -60,8 +60,8 @@ class VoiceSessionManager:
     """
 
     def __init__(self) -> None:
-        self._current_session: VoiceSessionLog | None = None
-        self._session_history: list[VoiceSessionLog] = []
+        self._current_session: Optional[VoiceSessionLog] = None
+        self._session_history: List[VoiceSessionLog] = []
         self._max_history = 50
         self._session_counter = 0
         self._started = False
@@ -116,7 +116,7 @@ class VoiceSessionManager:
                     accelerator_capability="none",
                 )
                 await asyncio.wait_for(proc.wait(), timeout=10.0)
-        except (TimeoutError, ImportError, OSError, RuntimeError) as e:
+        except (ImportError, OSError, RuntimeError, asyncio.TimeoutError) as e:
             record_degradation("voice_session.tts", e)
 
     async def narrate_progress(self, step_description: str) -> None:
@@ -162,7 +162,7 @@ class VoiceSessionManager:
     def is_active(self) -> bool:
         return self._current_session is not None
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "active": self.is_active,
             "session_count": self._session_counter,
@@ -184,7 +184,7 @@ class VoiceSessionManager:
         }
 
 
-_instance: VoiceSessionManager | None = None
+_instance: Optional[VoiceSessionManager] = None
 
 
 def get_voice_session_manager() -> VoiceSessionManager:

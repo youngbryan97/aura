@@ -59,9 +59,8 @@ have.
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Sequence
 
 from core.conation.origins import OriginReading, ValueOrigin
 from core.runtime.errors import record_degradation

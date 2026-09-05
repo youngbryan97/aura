@@ -1,9 +1,10 @@
+from core.runtime.errors import record_degradation
+import asyncio
 import logging
+import time
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
-
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Trajectory")
 
@@ -17,7 +18,7 @@ class TrajectoryStep:
 @dataclass
 class Trajectory:
     objective: str
-    steps: list[TrajectoryStep] = field(default_factory=list)
+    steps: List[TrajectoryStep] = field(default_factory=list)
     confidence: float = 0.0
     generated_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
@@ -29,7 +30,7 @@ class TrajectoryPredictor:
     
     def __init__(self, container: Any):
         self.container = container
-        self.last_trajectory: Trajectory | None = None
+        self.last_trajectory: Optional[Trajectory] = None
         
     async def predict_path(self, objective: str, current_state: Any) -> Trajectory:
         """Analyze objective and predict next steps."""
@@ -50,9 +51,7 @@ class TrajectoryPredictor:
             resp_obj = await router.generate(prompt, prefer_tier=LLMTier.TERTIARY, is_background=True)
             resp = resp_obj.get("text", "") if isinstance(resp_obj, dict) else str(resp_obj)
             
-            import ast
-            import json
-            import re
+            import json, re, ast
             match = re.search(r"(\[.*?\])", resp, re.DOTALL)
             if match:
                 try:

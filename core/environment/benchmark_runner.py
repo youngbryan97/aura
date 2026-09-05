@@ -9,12 +9,11 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Callable, Any, Literal
 
-from core.environment.boundary_guard import BoundaryGuard, IntegrityReport
 from core.environment.environment_kernel import EnvironmentKernel
+from core.environment.boundary_guard import BoundaryGuard, IntegrityReport
 
 RunMode = Literal["strict_real", "simulated_canary", "fixture_replay"]
 

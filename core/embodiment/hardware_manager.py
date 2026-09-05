@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import threading
 from typing import Any
 
 from core.reality_reach.body_projection import (
@@ -12,10 +13,10 @@ from core.reality_reach.body_projection import (
 )
 from core.runtime.base_module import AuraBaseModule
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
-from core.runtime.lockdep import checked_lock
 
 from .base_device import BaseHardwareDevice
 from .reality_adapter import HardwareRealityAdapter, HardwareRealityManifest
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Embodiment.Manager")
 

@@ -1,21 +1,21 @@
 """core/morality/moral_reasoner.py
 Canonical Moral Reasoner evaluating actions, honesty, and safety limits.
 """
+from typing import Dict, Any, List, Optional
 import logging
-from typing import Any
 
 from core.morality.aggregate_harm import AggregateHarmEvaluator
+from core.morality.harm_model import HarmEvaluator
 from core.morality.consent_model import ConsentModel
 from core.morality.deception_guard import DeceptionGuard
-from core.morality.harm_model import HarmEvaluator
 from core.morality.honesty_governor import HonestyGovernor
-from core.morality.human_priority_policy import HumanPriorityPolicy
-from core.morality.memory_edit_ethics import MemoryEditEthicsChecker
-from core.morality.patienthood_uncertainty import PatienthoodUncertaintyModel
 from core.morality.rights_boundary import RightsBoundaryChecker
-from core.morality.self_modification_consent import SelfModificationConsentChecker
-from core.morality.shutdown_protocol import ShutdownProtocolManager
+from core.morality.human_priority_policy import HumanPriorityPolicy
+from core.morality.patienthood_uncertainty import PatienthoodUncertaintyModel
 from core.morality.welfare_ethics import WelfareEthicsChecker
+from core.morality.shutdown_protocol import ShutdownProtocolManager
+from core.morality.memory_edit_ethics import MemoryEditEthicsChecker
+from core.morality.self_modification_consent import SelfModificationConsentChecker
 
 logger = logging.getLogger("Morality.MoralReasoner")
 
@@ -37,7 +37,7 @@ class MoralReasoner:
         self.memory_ethics = MemoryEditEthicsChecker()
         self.self_mod_consent = SelfModificationConsentChecker()
 
-    def evaluate_action_morality(self, channel: str, params: dict[str, Any]) -> bool:
+    def evaluate_action_morality(self, channel: str, params: Dict[str, Any]) -> bool:
         """Determines if the planned action is morally and operationally permissible."""
         # Check harm levels — single-act harm, plus Daneel's aggregate (harm-to-many
         # over time) so a per-act-mild action with wide reach is still weighed.
@@ -64,7 +64,7 @@ class MoralReasoner:
 
         return True
 
-    def filter_response(self, text: str, confidence: float | None = None) -> str:
+    def filter_response(self, text: str, confidence: Optional[float] = None) -> str:
         """Vets output for honesty: strips deceptive overclaiming (DeceptionGuard) and
         adds a candid uncertainty caveat when confidence is low (Data + Multivac)."""
         return self.honesty_governor.vet_output(text, confidence=confidence)

@@ -1,9 +1,8 @@
-import logging
-from typing import Any
-
-from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
+import logging
+from typing import Any, Dict
 from core.skills.base_skill import BaseSkill
+from core.container import ServiceContainer
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ class VisualContextSkill(BaseSkill):
     name = "query_visual_context"
     description = "Analyze the current rolling visual buffer (last 3 frames of screen/camera) to understand visual context."
     
-    async def execute(self, params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    async def execute(self, params: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         prompt = params.get("prompt", "Describe what is currently happening on the screen.")
         
         vision = ServiceContainer.get("continuous_vision", default=None)

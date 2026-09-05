@@ -1,10 +1,11 @@
+from core.runtime.errors import record_degradation
 import logging
+import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.config import config
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Security.InputSanitizer")
 
@@ -81,7 +82,7 @@ class InputSanitizer:
         self._SQL_COMPILED = [re.compile(p, re.IGNORECASE) for p in self.SQL_INJECTION]
         self._PATH_COMPILED = [re.compile(p, re.IGNORECASE) for p in self.PATH_TRAVERSAL]
 
-    def sanitize(self, text: str, max_length: int = MAX_MESSAGE_LENGTH) -> tuple[str, bool]:
+    def sanitize(self, text: str, max_length: int = MAX_MESSAGE_LENGTH) -> Tuple[str, bool]:
         """Check and sanitize input through ALL security layers. (FIXED: BUG-042)"""
         if not text:
             return text, True
@@ -119,7 +120,7 @@ class InputSanitizer:
 
         return text, True
 
-    def sanitize_for_shell(self, text: str) -> tuple[str, bool]:
+    def sanitize_for_shell(self, text: str) -> Tuple[str, bool]:
         """Check input for shell injection attempts."""
         for pattern in self._SHELL_COMPILED:
             if pattern.search(text):
@@ -127,7 +128,7 @@ class InputSanitizer:
                 return "", False
         return text, True
 
-    def sanitize_path(self, path: str) -> tuple[str, bool]:
+    def sanitize_path(self, path: str) -> Tuple[str, bool]:
         """v6.1: Resolve and validate against allowed roots (SEC-05).
         Regex is an arms race; resolution is the final answer.
         """
@@ -152,12 +153,12 @@ class InputSanitizer:
                 return "", False
                 
             return str(resolved), True
-        except OSError as e:
+        except (OSError, IOError) as e:
             record_degradation('input_sanitizer', e)
             logger.warning("🛡️ Path Resolution Failed: %s (%s)", path, e)
             return "", False
 
-    def sanitize_for_sql(self, text: str) -> tuple[str, bool]:
+    def sanitize_for_sql(self, text: str) -> Tuple[str, bool]:
         """Check for SQL injection attempts."""
         for pattern in self.SQL_INJECTION:
             if re.search(pattern, text, re.IGNORECASE):
@@ -187,7 +188,7 @@ class InputSanitizer:
 
         return True
 
-    def validate_params(self, params: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    def validate_params(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], bool]:
         """Validate all params in a dict for size and content."""
         if not params:
             return params, True

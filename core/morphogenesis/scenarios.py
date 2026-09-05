@@ -15,7 +15,7 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from .governor import MorphBounds
-from .motifs import MotifLibrary
+from .motifs import MotifLibrary, demand_fingerprint
 from .policy import PolicyContext
 from .sandbox import (
     ABLATIONS,
@@ -25,7 +25,7 @@ from .sandbox import (
     ScenarioResult,
     _harness_for,
 )
-from .substrate import PHYSICAL_LIKE
+from .substrate import PHYSICAL_LIKE, SubstratePhysics
 from .workload import task_families
 
 

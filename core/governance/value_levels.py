@@ -33,6 +33,7 @@ no setter, rather than by nobody having written one yet.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field

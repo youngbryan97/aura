@@ -8,20 +8,19 @@ Enables Aura to:
 4. Select appropriate reasoning strategies
 5. Evaluate her own performance
 """
-import asyncio
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 import json
 import logging
 import random
+import asyncio
 import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any
-
+from typing import Any, Dict, List, Optional
 from core.container import ServiceContainer
 from core.memory.retention_policy import working_history_retention_policy
 from core.meta.mirror_layer import MirrorLayer
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("AGI.MetaCognition")
 
@@ -55,8 +54,8 @@ class MetaCognitiveAssessment:
     reasoning_quality: ReasoningQuality
     confidence: float
     knowledge_state: KnowledgeState
-    knowledge_gaps: list[str]
-    confusions: list[str]
+    knowledge_gaps: List[str]
+    confusions: List[str]
     reasoning_strategy: str
     should_ask_for_help: bool
     
@@ -73,7 +72,7 @@ class MetaCognitiveMonitor:
     
     def __init__(self, cognitive_engine):
         self.brain = cognitive_engine
-        self.reasoning_history: list[MetaCognitiveAssessment] = []
+        self.reasoning_history: List[MetaCognitiveAssessment] = []
         self.max_history = working_history_retention_policy(
             "AURA_METACOGNITIVE_REASONING_HISTORY_MAX",
         ).max_items
@@ -110,7 +109,7 @@ class MetaCognitiveMonitor:
         
         return assessment
     
-    async def _evaluate_with_llm(self, task: str, reasoning: str, result: Any) -> dict[str, Any]:
+    async def _evaluate_with_llm(self, task: str, reasoning: str, result: Any) -> Dict[str, Any]:
         """Use LLM to evaluate reasoning quality"""
         # ... (same prompt code)
         prompt = f"""You are evaluating your own reasoning. Be honest and critical.
@@ -178,13 +177,13 @@ Return JSON:
             logger.error("Self-evaluation failed: %s", e)
             return {"quality": "acceptable", "confidence": 0.5, "knowledge_state": "learning"}
 
-    def _identify_knowledge_gaps(self, task: str, reasoning: str, evaluation: dict[str, Any]) -> list[str]:
+    def _identify_knowledge_gaps(self, task: str, reasoning: str, evaluation: Dict[str, Any]) -> List[str]:
         return evaluation.get('logical_flaws', [])[:5]
 
-    def _detect_confusions(self, reasoning: str, evaluation: dict[str, Any]) -> list[str]:
+    def _detect_confusions(self, reasoning: str, evaluation: Dict[str, Any]) -> List[str]:
         return evaluation.get('logical_flaws', [])[:3]
 
-    def _should_ask_for_help(self, evaluation: dict[str, Any], gaps: list[str], confusions: list[str]) -> bool:
+    def _should_ask_for_help(self, evaluation: Dict[str, Any], gaps: List[str], confusions: List[str]) -> bool:
         if evaluation.get('confidence', 1.0) < 0.3: return True
         if evaluation.get('quality') in ['poor', 'failing']: return True
         return False
@@ -209,7 +208,7 @@ class StrategySelector:
             "systematic": "Exhaustive search"
         }
     
-    def select_strategy(self, task: str, context: dict[str, Any]) -> str:
+    def select_strategy(self, task: str, context: Dict[str, Any]) -> str:
         # Static logic for now
         if "create" in task.lower() or "design" in task.lower():
             return "creative"
@@ -225,8 +224,8 @@ class Reflection:
     source_id: str  # ID of the experience/thought being reflected on
     impact_score: float
     timestamp: float = field(default_factory=time.time)
-    parent_reflection: str | None = None
-    tags: list[str] = field(default_factory=list)
+    parent_reflection: Optional[str] = None
+    tags: List[str] = field(default_factory=list)
 
 class OmniReflector:
     """Holistic reflection system for all experiences.
@@ -235,15 +234,15 @@ class OmniReflector:
     
     def __init__(self, cognitive_engine):
         self.brain = cognitive_engine
-        self.reflections: list[Reflection] = []
-        self.experience_log: list[dict[str, Any]] = []
+        self.reflections: List[Reflection] = []
+        self.experience_log: List[Dict[str, Any]] = []
         self.max_depth = 3
         self.max_history = working_history_retention_policy(
             "AURA_OMNI_REFLECTOR_HISTORY_MAX",
         ).max_items
         logger.info("OmniReflector initialized")
 
-    async def reflect_on_experience(self, experience: dict[str, Any], depth: int = 1):
+    async def reflect_on_experience(self, experience: Dict[str, Any], depth: int = 1):
         """Main entry point for reflection on any event.
         experience: { 'id': str, 'type': 'search'|'chat'|'action', 'content': str, 'impact': float }
         """
@@ -336,7 +335,7 @@ class MetaCognitionEngine:
             # Periodic checks of the global system state/logs
             await asyncio.sleep(60)
 
-    def _check_consistency(self, thought: str, action: str) -> str | None:
+    def _check_consistency(self, thought: str, action: str) -> Optional[str]:
         # Rule-based consistency audit (Merged from MetacognitiveAudit)
         thought_low = thought.lower()
         action_low = action.lower()
@@ -358,7 +357,7 @@ class MetaCognitionEngine:
                     marker("metacognition.cognitive_reset")
         self.violation_count = 0
     
-    def before_reasoning(self, task: str, context: dict[str, Any]) -> dict[str, Any]:
+    def before_reasoning(self, task: str, context: Dict[str, Any]) -> Dict[str, Any]:
         strategy = self.strategy_selector.select_strategy(task, context)
         knowledge_state = self.monitor.get_knowledge_state(task)
         return {
@@ -367,7 +366,7 @@ class MetaCognitionEngine:
             "should_proceed": True
         }
     
-    async def after_reasoning(self, task: str, reasoning: str, result: Any, success: bool, context: dict | None = None) -> MetaCognitiveAssessment:
+    async def after_reasoning(self, task: str, reasoning: str, result: Any, success: bool, context: Optional[Dict] = None) -> MetaCognitiveAssessment:
         # Phase 19.3: Skip evaluation for background placeholders
         if reasoning == "Processing deeper reflections in the background...":
             logger.debug("Skipping meta-cognitive audit for background placeholder.")

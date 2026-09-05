@@ -1,11 +1,10 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
 import time
-from typing import Any
-
+from typing import Any, Dict, List
 from core.config import config
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Meta.CognitiveTrace")
 
@@ -15,12 +14,12 @@ class CognitiveTrace:
 
     def __init__(self, trace_id: str = None):
         self.trace_id = trace_id or str(int(time.time()))
-        self.steps: list[dict[str, Any]] = []
+        self.steps: List[Dict[str, Any]] = []
         self.start_time = time.time()
         self.log_dir = str(config.paths.home_dir / "traces")
         os.makedirs(self.log_dir, exist_ok=True)
 
-    def record_step(self, step_type: str, content: Any, metadata: dict[str, Any] = None):
+    def record_step(self, step_type: str, content: Any, metadata: Dict[str, Any] = None):
         """Record a single step in the reasoning chain."""
         self.steps.append({
             "type": step_type,

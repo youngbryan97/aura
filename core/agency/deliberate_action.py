@@ -26,8 +26,9 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.cognition.when_the_situation_decides import nothing_to_decide
 from core.runtime.errors import record_degradation
+
+from core.cognition.when_the_situation_decides import nothing_to_decide
 
 logger = logging.getLogger(__name__)
 

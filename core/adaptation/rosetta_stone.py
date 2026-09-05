@@ -1,7 +1,7 @@
 import logging
 import platform
 import re
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Core.Adaptation.RosettaStone")
 
@@ -41,7 +41,7 @@ class RosettaStone:
                 
         return command
 
-    def analyze_threat(self, code: str) -> dict[str, Any]:
+    def analyze_threat(self, code: str) -> Dict[str, Any]:
         """Analyze code for potential malicious patterns.
         Returns: {safe: bool, threats: List[str], countermeasures: List[str]}
         """
@@ -50,7 +50,7 @@ class RosettaStone:
         
         # Audit Fix: Use word boundaries and more robust regex to catch obfuscation.
         # 1. Destructive Patterns
-        if re.search(r"\brm\s+(-rf|-r\s+-f|-f\s+-r)\s+/", code):
+        if re.search(rf"\brm\s+(-rf|-r\s+-f|-f\s+-r)\s+/", code):
             threats.append("Root Deletion Attempt")
             counters.append("Sandbox Isolation")
             
@@ -59,21 +59,21 @@ class RosettaStone:
             counters.append("Process Limiting")
             
         # Check for harmful python calls with varied spacing
-        if re.search(r"os\.(system|popen|spawn|execuv)\s*\(\s*['\"]rm\s+-rf", code) or 'shutil.rmtree' in code:
+        if re.search(rf"os\.(system|popen|spawn|execuv)\s*\(\s*['\"]rm\s+-rf", code) or 'shutil.rmtree' in code:
              threats.append("Python File Deletion")
              
         # 2. Exfiltration & Networking
-        if re.search(r"\b(socket|urllib|requests|aiohttp)\b", code) and \
-           re.search(r"\b(connect|get|post|request)\b", code):
+        if re.search(rf"\b(socket|urllib|requests|aiohttp)\b", code) and \
+           re.search(rf"\b(connect|get|post|request)\b", code):
             threats.append("Networking / Exfiltration Attempt")
             counters.append("Network Block")
             
         # 3. Persistence & System Modification
-        if re.search(r"\b(crontab|AutoRun|bashrc|launchctl|systemctl)\b", code):
+        if re.search(rf"\b(crontab|AutoRun|bashrc|launchctl|systemctl)\b", code):
             threats.append("Persistence Mechanism")
             
         # 4. Indirect execution / Obfuscation
-        if re.search(r"(__import__|eval|exec|getattr)\b", code):
+        if re.search(rf"(__import__|eval|exec|getattr)\b", code):
             threats.append("Dynamic Execution / Obfuscation")
             
         is_safe = len(threats) == 0

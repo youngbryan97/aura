@@ -13,11 +13,14 @@ Design:
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
+from typing import Any
 
-from core.being.welfare_transaction import WelfareTransaction
+from core.being.welfare_transaction import TransactionRecord, WelfareTransaction
+from core.being.welfare_state import WelfareState
 
 logger = logging.getLogger("Aura.WelfareLearning")
 

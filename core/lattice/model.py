@@ -16,6 +16,7 @@ choice so capacity can scale independently.
 from __future__ import annotations
 
 import math
+from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -69,7 +70,7 @@ class RotaryEmbedding(nn.Module):
         q: torch.Tensor,
         k: torch.Tensor,
         offset: int = 0,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         L = q.shape[-2]
         if offset + L > self.cos.shape[0]:
             raise ValueError(
@@ -188,7 +189,7 @@ class TopKMoE(nn.Module):
         )
         self.dropout = nn.Dropout(cfg.dropout)
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         B, L, D = x.shape
         flat = x.reshape(B * L, D)
         logits = self.router(flat)
@@ -227,7 +228,7 @@ class LatentWorldHead(nn.Module):
             nn.Linear(cfg.d_model * 2, cfg.d_model),
         )
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         if x.shape[1] < 2:
             return self.pred(self.norm(x)), x.new_tensor(0.0)
         pred = self.pred(self.norm(x[:, :-1]))
@@ -257,7 +258,7 @@ class LatticeBlock(nn.Module):
         self.primitive_router = nn.Linear(cfg.d_model, 3)
         self.out_norm = RMSNorm(cfg.d_model, cfg.eps)
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         pooled = x.mean(dim=1)
         route = F.softmax(self.primitive_router(pooled).float(), dim=-1).to(x.dtype)
         attn_out = self.attn(self.n_attn(x))
@@ -309,8 +310,8 @@ class LatticeLM(nn.Module):
     def forward(
         self,
         input_ids: torch.Tensor,
-        labels: torch.Tensor | None = None,
-    ) -> dict[str, torch.Tensor]:
+        labels: Optional[torch.Tensor] = None,
+    ) -> Dict[str, torch.Tensor]:
         if input_ids.ndim != 2:
             raise ValueError(
                 f"input_ids must have shape [batch, seq], got {input_ids.shape}"
@@ -335,7 +336,7 @@ class LatticeLM(nn.Module):
 
         logits = self.head(self.norm(x))
         n = max(1, len(self.blocks))
-        out: dict[str, torch.Tensor] = {
+        out: Dict[str, torch.Tensor] = {
             "logits": logits,
             "moe_aux": moe_aux / n,
             "world_loss": world_loss / n,

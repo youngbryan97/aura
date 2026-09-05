@@ -19,7 +19,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from core.engineering.draw.canvas import Canvas, Point
@@ -805,7 +805,7 @@ def _structure(canvas: Canvas, centre: Point, size: float, colour: str, layer: s
 
 #: Whole words only. Substring matching drew a hemispherical "end cap" as a
 #: capacitor, because "cap" is one of that symbol's keywords.
-_WORD_CACHE: dict[str, re.Pattern[str]] = {}
+_WORD_CACHE: dict[str, "re.Pattern[str]"] = {}
 
 
 def _mentions(haystack: str, word: str) -> bool:

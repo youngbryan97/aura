@@ -14,22 +14,11 @@ memory, task ownership, and adaptive immunity.
 Run the experiments with ``tools/run_morphogenesis_sandbox.py``.
 """
 
-from .cell import CellTickResult, MorphogenCell
-from .field import MorphogenField
 from .governor import MorphBounds, MorphGovernor
 from .graph import EdgeType, GraphSnapshot, MorphEdge, MorphGraph
-from .integration import (
-    build_default_cells,
-    register_morphogenesis_services,
-    start_morphogenesis_runtime,
-)
 from .lineage import Lineage, LineageRecord
-from .metabolism import MetabolismManager, ResourceSnapshot
 from .motifs import MorphMotif, MotifLibrary
-from .organs import Organ, OrganStabilizer
 from .proposal import Decision, MorphProposal, MorphTransaction, MorphTransition, TransitionKind
-from .registry import MorphogenesisRegistry
-from .runtime import MorphogeneticRuntime, get_morphogenetic_runtime
 from .substrate import (
     LocalRuntimeSubstrate,
     SimulationSubstrate,
@@ -44,6 +33,17 @@ from .types import (
     MorphogenesisConfig,
     MorphogenSignal,
     SignalKind,
+)
+from .field import MorphogenField
+from .cell import MorphogenCell, CellTickResult
+from .metabolism import MetabolismManager, ResourceSnapshot
+from .organs import Organ, OrganStabilizer
+from .registry import MorphogenesisRegistry
+from .runtime import MorphogeneticRuntime, get_morphogenetic_runtime
+from .integration import (
+    build_default_cells,
+    register_morphogenesis_services,
+    start_morphogenesis_runtime,
 )
 
 __all__ = [

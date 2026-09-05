@@ -47,19 +47,21 @@ conversational memory, learning loops, and the narrative engine.
 Persists to ``data/memory/absorbed_voices.json`` on change.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
+
 
 import json
 import logging
 import math
+import os
 import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-
-from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Consciousness.AbsorbedVoices")
@@ -82,17 +84,17 @@ class Voice:
     label: str
     origin: str = "personal"                  # personal|author|corpus|fictional
     valence_bias: float = 0.0                  # -1..1
-    characteristic_topics: list[str] = field(default_factory=list)
+    characteristic_topics: List[str] = field(default_factory=list)
     fingerprint: np.ndarray = field(
         default_factory=lambda: np.zeros(VOICE_FP_DIM, dtype=np.float32)
     )
     weight: float = DEFAULT_WEIGHT              # current amplification
-    corpus: list[str] = field(default_factory=list)
+    corpus: List[str] = field(default_factory=list)
     n_reinforcements: int = 0
     created_at: float = field(default_factory=time.time)
     last_active_at: float = field(default_factory=time.time)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "voice_id": self.voice_id,
             "label": self.label,
@@ -108,7 +110,7 @@ class Voice:
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> Voice:
+    def from_dict(cls, d: Dict[str, Any]) -> "Voice":
         fp = np.asarray(d.get("fingerprint", [0.0] * VOICE_FP_DIM), dtype=np.float32)
         if fp.size != VOICE_FP_DIM:
             fp = np.zeros(VOICE_FP_DIM, dtype=np.float32)
@@ -129,9 +131,9 @@ class Voice:
 @dataclass
 class Attribution:
     thought: str
-    best_voice_id: str | None
+    best_voice_id: Optional[str]
     confidence: float
-    alternative_votes: list[tuple[str, float]] = field(default_factory=list)
+    alternative_votes: List[Tuple[str, float]] = field(default_factory=list)
 
 
 # ── Utility ──────────────────────────────────────────────────────────────────
@@ -159,8 +161,8 @@ def _text_fingerprint(text: str, rng_seed: int = 0xDEADBEEF) -> np.ndarray:
 class AbsorbedVoices:
     """Catalogue of internalised perspectives with attribution + amplification."""
 
-    def __init__(self, storage_dir: Path | None = None):
-        self._voices: dict[str, Voice] = {}
+    def __init__(self, storage_dir: Optional[Path] = None):
+        self._voices: Dict[str, Voice] = {}
         self._lock = threading.RLock()
         self._storage_path = self._resolve_storage_path(storage_dir)
         self._load()
@@ -172,7 +174,7 @@ class AbsorbedVoices:
     # ── storage ────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _resolve_storage_path(storage_dir: Path | None) -> Path:
+    def _resolve_storage_path(storage_dir: Optional[Path]) -> Path:
         if storage_dir is not None:
             storage_dir = Path(storage_dir)
             storage_dir.mkdir(parents=True, exist_ok=True)
@@ -191,7 +193,7 @@ class AbsorbedVoices:
         if not self._storage_path.exists():
             return
         try:
-            with open(self._storage_path) as f:
+            with open(self._storage_path, "r") as f:
                 raw = json.load(f)
             for vid, d in raw.items():
                 try:
@@ -220,10 +222,10 @@ class AbsorbedVoices:
 
     # ── voice management ───────────────────────────────────────────────────
 
-    def add_voice(self, voice_id: str, label: str | None = None,
+    def add_voice(self, voice_id: str, label: Optional[str] = None,
                   origin: str = "personal",
-                  sample_text: str | None = None,
-                  characteristic_topics: list[str] | None = None,
+                  sample_text: Optional[str] = None,
+                  characteristic_topics: Optional[List[str]] = None,
                   valence_bias: float = 0.0) -> Voice:
         with self._lock:
             if voice_id in self._voices:
@@ -247,7 +249,7 @@ class AbsorbedVoices:
             return self._voices.pop(voice_id, None) is not None
 
     def reinforce(self, voice_id: str, sample_text: str,
-                   delta: float = 0.1) -> Voice | None:
+                   delta: float = 0.1) -> Optional[Voice]:
         """Blend a new sample into the voice's fingerprint and raise its weight."""
         with self._lock:
             v = self._voices.get(voice_id)
@@ -266,7 +268,7 @@ class AbsorbedVoices:
             v.last_active_at = time.time()
             return v
 
-    def dampen(self, voice_id: str, delta: float = 0.1) -> Voice | None:
+    def dampen(self, voice_id: str, delta: float = 0.1) -> Optional[Voice]:
         with self._lock:
             v = self._voices.get(voice_id)
             if v is None:
@@ -285,7 +287,7 @@ class AbsorbedVoices:
             if not self._voices:
                 return Attribution(thought=thought, best_voice_id=None,
                                     confidence=0.0)
-            scored: list[tuple[str, float]] = []
+            scored: List[Tuple[str, float]] = []
             for vid, v in self._voices.items():
                 sim = float(np.dot(v.fingerprint, fp))
                 # Weight boost from current amplification
@@ -308,7 +310,7 @@ class AbsorbedVoices:
 
     # ── voice-weight aggregate (for GWS bias) ──────────────────────────────
 
-    def voice_influence_summary(self) -> dict[str, Any]:
+    def voice_influence_summary(self) -> Dict[str, Any]:
         """Return which voices are amplified right now."""
         with self._lock:
             items = sorted(
@@ -326,7 +328,7 @@ class AbsorbedVoices:
 
     # ── passive decay ──────────────────────────────────────────────────────
 
-    def tick_decay(self, now: float | None = None) -> None:
+    def tick_decay(self, now: Optional[float] = None) -> None:
         """Apply passive weight decay proportional to time since last active."""
         now = now or time.time()
         with self._lock:
@@ -338,7 +340,7 @@ class AbsorbedVoices:
 
     # ── accessors ──────────────────────────────────────────────────────────
 
-    def get_voice(self, voice_id: str) -> Voice | None:
+    def get_voice(self, voice_id: str) -> Optional[Voice]:
         with self._lock:
             return self._voices.get(voice_id)
 
@@ -346,7 +348,7 @@ class AbsorbedVoices:
         with self._lock:
             return len(self._voices)
 
-    def all_voices(self) -> list[Voice]:
+    def all_voices(self) -> List[Voice]:
         with self._lock:
             return list(self._voices.values())
 
@@ -356,7 +358,7 @@ class AbsorbedVoices:
         with self._lock:
             return "aura_self" not in self._voices and "self" not in self._voices
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         with self._lock:
             return {
                 "voice_count": len(self._voices),
@@ -367,7 +369,7 @@ class AbsorbedVoices:
 
 # ── Singleton accessor ───────────────────────────────────────────────────────
 
-_INSTANCE: AbsorbedVoices | None = None
+_INSTANCE: Optional[AbsorbedVoices] = None
 
 
 def get_absorbed_voices() -> AbsorbedVoices:

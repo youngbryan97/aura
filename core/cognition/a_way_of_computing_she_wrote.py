@@ -44,9 +44,8 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, Iterator, Sequence
 
 from core.cognition.the_floor_she_stands_on import (
     A,

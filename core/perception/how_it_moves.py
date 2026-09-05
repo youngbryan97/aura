@@ -35,9 +35,8 @@ know about. What it must get right is what it said would move.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable, Iterable, Sequence
 
 from core.perception.what_is_there import Arrangement, Cell
 
@@ -936,7 +935,7 @@ class HowItMoves:
         }
 
     @classmethod
-    def from_memory(cls, held: dict[str, Any], trust: float = 1.0) -> HowItMoves:
+    def from_memory(cls, held: dict[str, Any], trust: float = 1.0) -> "HowItMoves":
         """What she worked out last time, discounted.
 
         Under full trust on purpose. Something she worked out yesterday is

@@ -7,6 +7,7 @@ deterministic data without an external dependency.
 from __future__ import annotations
 
 import random
+from typing import Dict
 
 import torch
 from torch.utils.data import Dataset
@@ -46,7 +47,7 @@ class RandomTokenDataset(Dataset):
     def __len__(self) -> int:
         return self.n_samples
 
-    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         rng = random.Random(self.seeds[idx])
         start = rng.randrange(self.vocab_size)
         step = rng.randrange(1, 17)

@@ -53,7 +53,7 @@ import os
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from functools import cache
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -203,7 +203,7 @@ def _fold_modes_to_byte(state: int) -> int:
     return folded & 0xFF
 
 
-@cache
+@lru_cache(maxsize=None)
 def grassmann_fold_collision_rate(width: int) -> float:
     """Fraction of distinct width-bit states that share a folded byte.
 
@@ -619,7 +619,7 @@ class PhiCore:
         self._grassmann_state_visits: np.ndarray = np.ones(n_residual_states, dtype=np.float32)
         self._grassmann_last_result: PhiResult | None = None
         #: The last grounding-aware selection across all φ estimators.
-        self._last_selection: PhiSelection | None = None
+        self._last_selection: "PhiSelection | None" = None
         #: The residual complex is 8 contiguous chunk-means of the hidden
         #: vector, so its population is that vector's width. Set on the first
         #: sample; 0 until then, which reports as "unknown" rather than as a

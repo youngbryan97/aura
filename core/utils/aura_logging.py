@@ -8,6 +8,7 @@ import sqlite3
 import threading
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind, aura_root_override, declare
@@ -160,7 +161,7 @@ class WebhookAlertHandler(logging.Handler):
     """
     Sends logs of ERROR level and above to a Discord/Slack webhook.
     """
-    def __init__(self, webhook_url: str | None = WEBHOOK_URL):
+    def __init__(self, webhook_url: Optional[str] = WEBHOOK_URL):
         super().__init__()
         self.webhook_url = webhook_url
 

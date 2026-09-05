@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import List, Optional
 
 import networkx as nx
 
@@ -42,7 +43,7 @@ class MycelialNetwork:
                     logger.debug("Rollback edge removal failed: %s", rollback_err)
                 return False
 
-    async def plan_path(self, start_memory: str, goal_skill: str) -> list[str]:
+    async def plan_path(self, start_memory: str, goal_skill: str) -> List[str]:
         """Find the shortest safe path through the mycelial graph."""
         async with self._lock:
             # Defensive check: NetworkX shortest_path raises NodeNotFound if node doesn't exist
@@ -58,7 +59,7 @@ class MycelialNetwork:
                 return []
 
 # Singleton
-_mycelial: MycelialNetwork | None = None
+_mycelial: Optional[MycelialNetwork] = None
 
 def get_mycelial() -> MycelialNetwork:
     global _mycelial

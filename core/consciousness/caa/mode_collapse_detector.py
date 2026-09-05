@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, asdict
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, List
 
 
 class CollapseSeverity(str, Enum):
@@ -15,14 +15,14 @@ class CollapseSeverity(str, Enum):
 @dataclass(frozen=True)
 class CollapseSignal:
     severity: CollapseSeverity
-    reasons: list[str]
+    reasons: List[str]
     token_count: int
     unique_token_ratio: float
     repeated_line_count: int
     repeated_ngram: str = ""
     repeated_ngram_count: int = 0
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         payload = asdict(self)
         payload["severity"] = self.severity.value
         return payload
@@ -32,7 +32,7 @@ class ModeCollapseDetector:
     """Detects repetition and lexical collapse in model generations."""
 
     def __init__(self) -> None:
-        self._history: list[dict[str, Any]] = []
+        self._history: List[Dict[str, Any]] = []
         self._last_signal = CollapseSignal(
             severity=CollapseSeverity.NONE,
             reasons=[],
@@ -42,8 +42,8 @@ class ModeCollapseDetector:
         )
 
     @staticmethod
-    def _max_repeated_ngram(tokens: list[str], n: int = 3) -> tuple[str, int]:
-        counts: dict[str, int] = {}
+    def _max_repeated_ngram(tokens: List[str], n: int = 3) -> tuple[str, int]:
+        counts: Dict[str, int] = {}
         best = ("", 0)
         if len(tokens) < n:
             return best
@@ -61,12 +61,12 @@ class ModeCollapseDetector:
         unique_ratio = float(len(set(tokens)) / len(tokens)) if tokens else 1.0
         repeated_lines = 0
         if lines:
-            line_counts: dict[str, int] = {}
+            line_counts: Dict[str, int] = {}
             for line in lines:
                 line_counts[line] = line_counts.get(line, 0) + 1
             repeated_lines = max(line_counts.values())
         repeated_ngram, repeated_ngram_count = self._max_repeated_ngram(tokens, n=3)
-        reasons: list[str] = []
+        reasons: List[str] = []
         severity = CollapseSeverity.NONE
         if repeated_ngram_count >= 4:
             reasons.append(f"repeated_trigram:{repeated_ngram_count}")
@@ -104,7 +104,7 @@ class ModeCollapseDetector:
             self._history = self._history[-64:]
         return signal
 
-    def status(self) -> dict[str, Any]:
+    def status(self) -> Dict[str, Any]:
         return {
             "last_signal": self._last_signal.to_dict(),
             "history_size": len(self._history),

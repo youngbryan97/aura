@@ -15,11 +15,11 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.errors import record_degradation
-from core.runtime.state_ownership import state_root
 from core.social.relational_memory import (
     RelationalMemoryAuthority,
     get_relational_memory_authority,
 )
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Memory.UserProfile")
 

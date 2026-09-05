@@ -4,13 +4,12 @@ Concrete implementation of LLMInterface using IntelligentLLMRouter.
 """
 
 import asyncio
-
-from core.brain.llm.llm_router import IntelligentLLMRouter, LLMTier
+from typing import Any, Dict, Optional
 from core.brain.llm_interface import LLMInterface
-
+from core.brain.llm.llm_router import IntelligentLLMRouter, LLMTier
 
 class RouterLLMInterface(LLMInterface):
-    def __init__(self, router: IntelligentLLMRouter, tier: LLMTier | None = None):
+    def __init__(self, router: IntelligentLLMRouter, tier: Optional[LLMTier] = None):
         super().__init__()
         self.router = router
         self.tier = tier

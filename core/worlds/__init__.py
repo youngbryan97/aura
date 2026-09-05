@@ -17,10 +17,10 @@ Honest scope: translational rigid-body dynamics with spheres, static
 planes, and axis-aligned boxes. No rotational dynamics yet — that is a
 declared limitation, not an approximation smuggled in as realism.
 """
-from core.worlds.embodied import EmbodiedAgent, RayHit
+from core.worlds.physics import Body, PhysicsWorld, PhysicsError
 from core.worlds.generation import WorldBlueprint, generate_world
+from core.worlds.embodied import EmbodiedAgent, RayHit
 from core.worlds.hosting import WorldHost, get_world_host
-from core.worlds.physics import Body, PhysicsError, PhysicsWorld
 
 __all__ = [
     "Body",

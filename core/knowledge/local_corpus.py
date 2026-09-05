@@ -32,7 +32,6 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Knowledge.LocalCorpus")

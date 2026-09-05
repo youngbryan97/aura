@@ -57,6 +57,7 @@ The age effect falls out of the arithmetic rather than being written in.
 
 from __future__ import annotations
 
+import math
 import time
 from collections import deque
 from dataclasses import dataclass, field

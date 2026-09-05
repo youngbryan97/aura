@@ -58,10 +58,9 @@ import threading
 import time
 import uuid
 from collections import deque
-from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
+from typing import Any, Callable
 
 from core.runtime.errors import record_degradation
 

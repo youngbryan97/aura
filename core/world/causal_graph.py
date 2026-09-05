@@ -1,6 +1,7 @@
 """core/world/causal_graph.py
 Models cause-and-effect relationship predictions from actions to outcomes.
 """
+from typing import Dict, Any, List
 
 
 class CausalGraph:
@@ -8,7 +9,7 @@ class CausalGraph:
 
     def __init__(self):
         # Maps action_channel -> {outcome -> frequency}
-        self._frequencies: dict[str, dict[str, int]] = {}
+        self._frequencies: Dict[str, Dict[str, int]] = {}
 
     def record_causal_link(self, action: str, outcome: str) -> None:
         if action not in self._frequencies:

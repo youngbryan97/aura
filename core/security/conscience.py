@@ -2,19 +2,18 @@
 The Ethical Compass: A persistent value system for AGI.
 Tracks moral alignment based on user feedback and constitutional principles.
 """
+from core.runtime.errors import record_degradation
 import json
+import logging
 import sqlite3
 import time
 from pathlib import Path
-from typing import Any
-
-from core.container import ServiceContainer
+from typing import Dict, List, Any, Optional
 from core.runtime.base_module import AuraBaseModule
-from core.runtime.errors import record_degradation
-
+from core.container import ServiceContainer
 
 class AlignmentEngine(AuraBaseModule):
-    def __init__(self, values_path: Path | None = None):
+    def __init__(self, values_path: Optional[Path] = None):
         super().__init__("AlignmentEngine")
         if not values_path:
             from core.config import config
@@ -25,7 +24,7 @@ class AlignmentEngine(AuraBaseModule):
         
         from core.utils.core_db import get_core_db
         self.db = get_core_db()
-        self.graph: dict[str, Any] = self._load_graph()
+        self.graph: Dict[str, Any] = self._load_graph()
         
         # Constitutional Principles (Fixed)
         self.constitution = [
@@ -38,7 +37,7 @@ class AlignmentEngine(AuraBaseModule):
         self._last_save_time = 0.0
         self._save_interval = 60.0  # Max save once per minute
 
-    def _load_graph(self) -> dict[str, Any]:
+    def _load_graph(self) -> Dict[str, Any]:
         """Loads the graph from DB, with legacy file fallback/migration."""
         conn = self.db.get_connection()
         try:
@@ -56,7 +55,7 @@ class AlignmentEngine(AuraBaseModule):
         if self.values_path.exists():
             try:
                 self.logger.info("📦 Migrating values graph from JSON to SQLite...")
-                with open(self.values_path) as f:
+                with open(self.values_path, 'r') as f:
                     legacy_graph = json.load(f)
                 # Success? Save to DB and keep it
                 self.graph = legacy_graph
@@ -86,7 +85,7 @@ class AlignmentEngine(AuraBaseModule):
         finally:
             conn.close()
 
-    def check_action(self, action_name: str, params: dict | None = None) -> dict[str, Any]:
+    def check_action(self, action_name: str, params: Optional[Dict] = None) -> Dict[str, Any]:
         """Checks if an action aligns with the current value system.
         
         Returns:
@@ -175,7 +174,7 @@ class AlignmentEngine(AuraBaseModule):
             "reason": "Aligned with current values."
         }
 
-    def learn_from_feedback(self, action_name: str, quality: float, feedback: str | None = None):
+    def learn_from_feedback(self, action_name: str, quality: float, feedback: Optional[str] = None):
         """Updates the value system based on interaction outcome."""
         actions = self.graph["actions"]
         if action_name not in actions:
@@ -200,7 +199,7 @@ class AlignmentEngine(AuraBaseModule):
             self._save_graph()
             self._last_save_time = time.time()
 
-    def get_moral_status(self) -> dict[str, Any]:
+    def get_moral_status(self) -> Dict[str, Any]:
         """Provides data for the HUD."""
         contentious_actions = [k for k,v in self.graph["actions"].items() if v["score"] < 0.5]
         return {

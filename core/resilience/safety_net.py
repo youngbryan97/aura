@@ -1,11 +1,11 @@
+from core.runtime.errors import record_degradation
 import datetime
 import io
 import logging
 import sys
 import traceback
-
+from pathlib import Path
 from core.config import config
-from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 
 logger = logging.getLogger("SafetyNet")
@@ -42,7 +42,7 @@ def panic_handler(exc_type, exc_value, exc_traceback):
         )
         
         logger.info("Crash report saved to %s", report_path)
-    except OSError as e:
+    except (OSError, IOError) as e:
         record_degradation('safety_net', e)
         logger.critical("Failed to write crash report: %s", e)
 

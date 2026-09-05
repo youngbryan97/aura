@@ -493,7 +493,7 @@ class APIAdapter:
                 )
             except StopAsyncIteration:
                 return
-            except TimeoutError as exc:
+            except asyncio.TimeoutError as exc:
                 await self._aclose_quietly(source)
                 raise _StreamFailed(
                     f"no token for {self.STREAM_INACTIVITY_TIMEOUT_S:.0f}s"

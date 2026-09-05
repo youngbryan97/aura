@@ -34,10 +34,9 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Mapping
-from typing import Any
+from typing import Any, Mapping
 
-from core.interiority.evidence import Reading, inferred, measured
+from core.interiority.evidence import Reading, absent, inferred, measured
 from core.interiority.params import ParamKind, declare
 from core.runtime.errors import record_degradation
 

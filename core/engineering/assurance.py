@@ -30,7 +30,7 @@ and the factor sets are data here rather than assumptions in a formula.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from core.engineering.units import Q, Quantity

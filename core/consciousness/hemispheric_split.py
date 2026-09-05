@@ -50,6 +50,7 @@ the consciousness_bridge subsystem audit.
 """
 from __future__ import annotations
 
+
 import logging
 import math
 import threading
@@ -57,7 +58,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -99,7 +100,7 @@ class HemisphericState:
     disagreement_l2: float
     callosum_bandwidth: float
     dissent_active: bool
-    right_pattern_hit: str | None = None   # label of recognised pattern
+    right_pattern_hit: Optional[str] = None   # label of recognised pattern
     confabulation_count: int = 0
     tick: int = 0
     ts: float = field(default_factory=time.time)
@@ -111,7 +112,7 @@ class ActionRecord:
     ts: float
     action_id: str
     driver: Hemisphere                # Which hemisphere's bias won
-    reason_given_at: float | None  # When left hemisphere supplied a reason
+    reason_given_at: Optional[float]  # When left hemisphere supplied a reason
     reason_text: str = ""
 
 
@@ -130,8 +131,8 @@ class HebbianPatternMemory:
         self._d = d
         self._capacity = capacity
         self._patterns: np.ndarray = np.zeros((0, d), dtype=np.float32)
-        self._labels: list[str] = []
-        self._usage: list[int] = []
+        self._labels: List[str] = []
+        self._usage: List[int] = []
         self._lock = threading.Lock()
         self._recognition_threshold: float = 0.82
 
@@ -157,7 +158,7 @@ class HebbianPatternMemory:
             self._labels.append(label)
             self._usage.append(1)
 
-    def recognise(self, vec: np.ndarray) -> tuple[str, float] | None:
+    def recognise(self, vec: np.ndarray) -> Optional[Tuple[str, float]]:
         v = np.asarray(vec, dtype=np.float32).reshape(-1)
         if v.shape[0] != self._d or self._patterns.shape[0] == 0:
             return None
@@ -190,9 +191,9 @@ class LeftHemisphere:
         # to BIAS_DIM.  Deterministic seed so behaviour is reproducible.
         rng = np.random.default_rng(seed=0x1EF7)
         self._proj = rng.standard_normal((BIAS_DIM, 24)).astype(np.float32) / math.sqrt(24)
-        self._recent_inputs: deque[np.ndarray] = deque(maxlen=16)
+        self._recent_inputs: Deque[np.ndarray] = deque(maxlen=16)
         self._last_update: float = 0.0
-        self._confab_reasons: deque[str] = deque(maxlen=128)
+        self._confab_reasons: Deque[str] = deque(maxlen=128)
 
     def update(self,
                mesh_exec_summary: np.ndarray,
@@ -258,7 +259,7 @@ class RightHemisphere:
         # Linear projection from (sensory-tier summary + affective) to BIAS_DIM.
         rng = np.random.default_rng(seed=0xCAFE)
         self._proj = rng.standard_normal((BIAS_DIM, 32)).astype(np.float32) / math.sqrt(32)
-        self._last_recognised: str | None = None
+        self._last_recognised: Optional[str] = None
 
     def update(self,
                mesh_sensory_summary: np.ndarray,
@@ -304,7 +305,7 @@ class RightHemisphere:
         with self._lock:
             return float(self._dissent)
 
-    def last_recognised_pattern(self) -> str | None:
+    def last_recognised_pattern(self) -> Optional[str]:
         return self._last_recognised
 
     def learn_pattern(self, vector: np.ndarray, label: str) -> None:
@@ -341,7 +342,7 @@ class CorpusCallosum:
     def exchange(self,
                  left_bias: np.ndarray,
                  right_bias: np.ndarray
-                 ) -> tuple[np.ndarray, np.ndarray]:
+                 ) -> Tuple[np.ndarray, np.ndarray]:
         """Return (signal_to_left_from_right, signal_to_right_from_left)."""
         with self._lock:
             bw = self._bandwidth
@@ -376,9 +377,9 @@ class HemisphericSplit:
         self._right = RightHemisphere()
         self._callosum = CorpusCallosum()
         self._fused: np.ndarray = np.zeros(BIAS_DIM, dtype=np.float32)
-        self._history: deque[HemisphericState] = deque(maxlen=AGREEMENT_WINDOW)
+        self._history: Deque[HemisphericState] = deque(maxlen=AGREEMENT_WINDOW)
         self._tick: int = 0
-        self._action_log: deque[ActionRecord] = deque(maxlen=256)
+        self._action_log: Deque[ActionRecord] = deque(maxlen=256)
         self._confabulation_count: int = 0
         self._disagreement_count: int = 0
         self._lock = threading.RLock()  # reentrant — status calls aggregate helpers
@@ -475,7 +476,7 @@ class HemisphericSplit:
             reason_text="",
         ))
 
-    def supply_reason(self, action_id: str, reason_text: str | None = None) -> str:
+    def supply_reason(self, action_id: str, reason_text: Optional[str] = None) -> str:
         """Left hemisphere provides a reason for an action. Returns the text.
 
         If the action was driven by the RIGHT hemisphere but the reason is
@@ -483,7 +484,7 @@ class HemisphericSplit:
         """
         now = time.time()
         with self._lock:
-            target: ActionRecord | None = None
+            target: Optional[ActionRecord] = None
             for rec in reversed(self._action_log):
                 if rec.action_id == action_id and rec.reason_given_at is None:
                     target = rec
@@ -516,7 +517,7 @@ class HemisphericSplit:
         with self._lock:
             return self._fused.copy()
 
-    def current_state(self) -> HemisphericState | None:
+    def current_state(self) -> Optional[HemisphericState]:
         with self._lock:
             return self._history[-1] if self._history else None
 
@@ -537,7 +538,7 @@ class HemisphericSplit:
                 return 0.0
             return self._confabulation_count / n
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         with self._lock:
             recent = self._history[-1] if self._history else None
             return {
@@ -562,7 +563,7 @@ class HemisphericSplit:
 
 # ── Singleton accessor ─────────────────────────────────────────────────────────
 
-_INSTANCE: HemisphericSplit | None = None
+_INSTANCE: Optional[HemisphericSplit] = None
 
 
 def get_hemispheric_split() -> HemisphericSplit:

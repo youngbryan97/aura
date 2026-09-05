@@ -1,6 +1,6 @@
-import logging
-
 from core.runtime.errors import record_degradation
+import logging
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger("Cognition.GoalDrift")
 

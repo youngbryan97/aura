@@ -23,9 +23,8 @@ import asyncio
 import logging
 import time
 from collections import deque
-from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable, Coroutine, Dict, List, Optional
 
 import numpy as np
 
@@ -74,7 +73,7 @@ class StateExpression:
             self.prediction_error, self.loop_strength,
         ], dtype=np.float32)
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self) -> Dict[str, Any]:
         return {
             "phi": round(self.phi, 4),
             "arousal": round(self.arousal, 4),
@@ -152,7 +151,7 @@ class ConstitutiveExpressionLayer:
     def __init__(
         self,
         thread_depth: int = 6,
-        on_expression: Callable[..., Coroutine] | None = None,
+        on_expression: Optional[Callable[..., Coroutine]] = None,
     ):
         self.thread_depth = thread_depth
         self.on_expression = on_expression
@@ -301,11 +300,11 @@ class ConstitutiveExpressionLayer:
 
     # ── Thread access ─────────────────────────────────────────────────────
 
-    def get_current_expression(self) -> StateExpression | None:
+    def get_current_expression(self) -> Optional[StateExpression]:
         """The most recent state-expression."""
         return self._thread[0] if self._thread else None
 
-    def get_thread(self) -> list[StateExpression]:
+    def get_thread(self) -> List[StateExpression]:
         """The full temporal thread."""
         return list(self._thread)
 
@@ -323,7 +322,7 @@ class ConstitutiveExpressionLayer:
             lines.append(f"[{recency}] {se.first_person}")
         return "\n".join(lines)
 
-    def get_snapshot(self) -> dict[str, Any]:
+    def get_snapshot(self) -> Dict[str, Any]:
         """Telemetry snapshot."""
         current = self.get_current_expression()
         return {
@@ -488,12 +487,12 @@ class CELBridge:
             thread_depth=6,
             on_expression=self._on_expression,
         )
-        self._last_expression: StateExpression | None = None
+        self._last_expression: Optional[StateExpression] = None
         self._tick_count: int = 0
 
         logger.info("CELBridge initialized")
 
-    async def tick(self) -> StateExpression | None:
+    async def tick(self) -> Optional[StateExpression]:
         """Single bridge tick. Called from heartbeat.
 
         Reads existing state from services, constitutes expression,
@@ -592,12 +591,12 @@ class CELBridge:
         """For injection into LLM prompts — AURA's running phenomenal thread."""
         return self.cel.get_thread_as_context()
 
-    def get_snapshot(self) -> dict[str, Any]:
+    def get_snapshot(self) -> Dict[str, Any]:
         """Telemetry snapshot."""
         snap = self.cel.get_snapshot()
         snap["bridge_tick_count"] = self._tick_count
         return snap
 
     @property
-    def current_expression(self) -> StateExpression | None:
+    def current_expression(self) -> Optional[StateExpression]:
         return self._last_expression

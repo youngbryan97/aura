@@ -10,6 +10,7 @@ Decision factors: message length, keyword analysis, complexity signals.
 import logging
 import re
 from enum import Enum
+from typing import Optional
 
 logger = logging.getLogger("Ops.ModeRouter")
 

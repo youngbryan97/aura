@@ -42,7 +42,7 @@ _PLAYING_AUDIO = "playing audio"
 # meaningfully faster than a spoken wake phrase.
 _SAMPLE_TTL_S = 2.0
 
-_cached: tuple[float, HostAudioSources] | None = None
+_cached: tuple[float, "HostAudioSources"] | None = None
 
 
 @dataclass(frozen=True)
@@ -56,7 +56,7 @@ class HostAudioSources:
     readable: bool = True
     sampled_at: float = field(default_factory=time.time)
 
-    def excluding(self, pid: int) -> HostAudioSources:
+    def excluding(self, pid: int) -> "HostAudioSources":
         """Drop one pid — Aura's own output is not a foreign speaker.
 
         Her TTS is already handled by the duplex barge-in path; counting it

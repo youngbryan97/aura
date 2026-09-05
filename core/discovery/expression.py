@@ -12,7 +12,8 @@ to ``SafeCodeEvaluator``.
 from __future__ import annotations
 
 import random
-from typing import Any
+from typing import Any, Tuple
+
 
 _OPS_BINARY = ("add", "sub", "mul", "mod", "min", "max")
 _OPS_UNARY = ("abs",)
@@ -32,7 +33,7 @@ class SafeExpression:
     # construction
     # ------------------------------------------------------------------
     @classmethod
-    def random(cls, rng: random.Random, depth: int = 3) -> SafeExpression:
+    def random(cls, rng: random.Random, depth: int = 3) -> "SafeExpression":
         return cls(cls._random_tree(rng, depth))
 
     @classmethod
@@ -47,7 +48,7 @@ class SafeExpression:
     # ------------------------------------------------------------------
     # mutation
     # ------------------------------------------------------------------
-    def mutate(self, rng: random.Random, p: float = 0.25) -> SafeExpression:
+    def mutate(self, rng: random.Random, p: float = 0.25) -> "SafeExpression":
         return SafeExpression(self._mutate(self.tree, rng, p, 0))
 
     @classmethod
@@ -61,10 +62,10 @@ class SafeExpression:
     @classmethod
     def crossover(
         cls,
-        a: SafeExpression,
-        b: SafeExpression,
+        a: "SafeExpression",
+        b: "SafeExpression",
         rng: random.Random,
-    ) -> tuple[SafeExpression, SafeExpression]:
+    ) -> Tuple["SafeExpression", "SafeExpression"]:
         a_paths = list(cls._paths(a.tree))
         b_paths = list(cls._paths(b.tree))
         if not a_paths or not b_paths:

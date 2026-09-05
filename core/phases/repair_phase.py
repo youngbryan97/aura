@@ -1,9 +1,7 @@
 from __future__ import annotations
-
 import logging
 import re
-from typing import Any
-
+from typing import Any, Optional
 from core.kernel.bridge import Phase
 from core.state.aura_state import AuraState
 
@@ -60,7 +58,7 @@ class RepairPhase(Phase):
         super().__init__(kernel=container)
         self.container = container
 
-    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
         """
         1. Scan last_response for robotic patterns.
         2. If detected, attempt string-level 'soft repair' or flag for re-generation.

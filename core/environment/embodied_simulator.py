@@ -18,8 +18,8 @@ import numpy as np
 
 from core.brain.causal_world_model import CausalWorldModel
 from core.perception.affordance_schema import AffordanceKnowledgeBase
-from core.runtime.service_registry import get_runtime_service
 from core.runtime.task_ownership import create_tracked_task, fire_and_forget
+from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("Aura.EmbodiedSimulator")
 

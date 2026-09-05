@@ -15,13 +15,13 @@ domain.
 from __future__ import annotations
 
 import random
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.discovery.expression import SafeExpression
 
-Example = tuple[int, int, int]
+
+Example = Tuple[int, int, int]
 
 
 @dataclass
@@ -30,11 +30,11 @@ class EvolverResult:
     score: float
     generation: int
     perfect: bool
-    history: list[float] = field(default_factory=list)
-    receipt_id: str | None = None
+    history: List[float] = field(default_factory=list)
+    receipt_id: Optional[str] = None
     best_str: str = ""
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "best": str(self.best),
             "score": self.score,
@@ -82,7 +82,7 @@ class ExpressionEvolver:
         if not examples:
             raise ValueError("examples must be non-empty")
 
-        population: list[SafeExpression] = [
+        population: List[SafeExpression] = [
             SafeExpression.random(self.rng, depth=4) for _ in range(self.population_size)
         ]
 
@@ -98,9 +98,9 @@ class ExpressionEvolver:
             mean_err = err / max(1, len(examples))
             return -mean_err - 0.001 * expr.size()
 
-        history: list[float] = []
+        history: List[float] = []
         best_score = float("-inf")
-        best: SafeExpression | None = None
+        best: Optional[SafeExpression] = None
         best_gen = 0
 
         for gen in range(generations):
@@ -113,7 +113,7 @@ class ExpressionEvolver:
             history.append(top_score)
 
             elites = [e for _, e in ranked[: self.elite_size]]
-            new_pop: list[SafeExpression] = list(elites)
+            new_pop: List[SafeExpression] = list(elites)
             while len(new_pop) < self.population_size:
                 if self.rng.random() < self.crossover_p and len(elites) >= 2:
                     a, b = self.rng.sample(elites, 2)
@@ -157,7 +157,7 @@ class ExpressionEvolver:
         expr: SafeExpression,
         target_label: str,
         score: float,
-    ) -> str | None:
+    ) -> Optional[str]:
         try:
             from core.runtime.receipts import StateMutationReceipt, get_receipt_store
 

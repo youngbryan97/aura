@@ -13,9 +13,9 @@ import re
 from pathlib import Path
 from typing import Any
 
+from core.runtime.service_registry import get_runtime_service
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, record_degradation
-from core.runtime.service_registry import get_runtime_service
 from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Aura.CanvasManager")

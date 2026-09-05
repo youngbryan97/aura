@@ -2,11 +2,11 @@
 
 Asynchronous SQLite Relational Graph. Maps the physical and social ecosystem.
 """
+import aiosqlite
 import asyncio
 import logging
 import time
-
-import aiosqlite
+from typing import List, Dict, Optional
 
 logger = logging.getLogger("Aura.EntityGraph")
 
@@ -65,7 +65,7 @@ class RelationalGraph:
                 ''', (source, target, relation_type, now, now))
                 await db.commit()
 
-    async def get_ecosystem_context(self, entities: list[str]) -> str:
+    async def get_ecosystem_context(self, entities: List[str]) -> str:
         """Pulls the graph topology for given entities to inject into the active prompt."""
         if not entities:
             return ""

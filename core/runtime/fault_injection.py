@@ -21,19 +21,19 @@ explicit construction, so chaos cannot fire in normal runs.
 """
 from __future__ import annotations
 
+
 import asyncio
 import logging
 import os
 import random
 import time
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, Union
 
 logger = logging.getLogger("Aura.FaultInjection")
 
 
-FAULT_CLASSES: tuple[str, ...] = (
+FAULT_CLASSES: Tuple[str, ...] = (
     "hanging_sync_skill",
     "malformed_tool_result",
     "actor_crash",
@@ -51,27 +51,27 @@ class FaultEvent:
     name: str
     timestamp: float
     severity: str
-    payload: dict[str, Any] = field(default_factory=dict)
+    payload: Dict[str, Any] = field(default_factory=dict)
 
 
 # A fault handler is a callable returning the synthetic fault output.
 # It may be sync or async.
-FaultHandler = Callable[[dict[str, Any]], Any | Awaitable[Any]]
+FaultHandler = Callable[[Dict[str, Any]], Union[Any, Awaitable[Any]]]
 
 
 class FaultInjector:
     def __init__(
         self,
         *,
-        enabled: bool | None = None,
-        rng: random.Random | None = None,
+        enabled: Optional[bool] = None,
+        rng: Optional[random.Random] = None,
     ):
         if enabled is None:
             enabled = os.environ.get("AURA_FAULT_INJECTION") == "1"
         self.enabled = enabled
-        self._handlers: dict[str, FaultHandler] = {}
-        self._events: list[FaultEvent] = []
-        self._probabilities: dict[str, float] = {name: 0.0 for name in FAULT_CLASSES}
+        self._handlers: Dict[str, FaultHandler] = {}
+        self._events: List[FaultEvent] = []
+        self._probabilities: Dict[str, float] = {name: 0.0 for name in FAULT_CLASSES}
         self._rng = rng or random.Random()
 
     # --- configuration -----------------------------------------------------
@@ -95,7 +95,7 @@ class FaultInjector:
 
     # --- runtime API -------------------------------------------------------
 
-    def maybe_inject(self, name: str, payload: dict[str, Any] | None = None) -> FaultEvent | None:
+    def maybe_inject(self, name: str, payload: Optional[Dict[str, Any]] = None) -> Optional[FaultEvent]:
         if not self.enabled:
             return None
         prob = self._probabilities.get(name, 0.0)
@@ -110,7 +110,7 @@ class FaultInjector:
         self._events.append(ev)
         return ev
 
-    async def execute(self, name: str, payload: dict[str, Any] | None = None) -> Any:
+    async def execute(self, name: str, payload: Optional[Dict[str, Any]] = None) -> Any:
         """Force a fault by class. Used by tests and the abuse runner."""
         ev = FaultEvent(
             name=name,
@@ -127,7 +127,7 @@ class FaultInjector:
             result = await result
         return result
 
-    def events(self) -> list[FaultEvent]:
+    def events(self) -> List[FaultEvent]:
         return list(self._events)
 
     @staticmethod
@@ -144,23 +144,23 @@ class FaultInjector:
 # ---------------------------------------------------------------------------
 
 
-def _malformed_tool_result(payload: dict[str, Any]) -> dict[str, Any]:
+def _malformed_tool_result(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"error": payload.get("reason", "synthetic_malformed_tool_result")}
 
 
-def _model_timeout(payload: dict[str, Any]) -> dict[str, Any]:
+def _model_timeout(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"ok": False, "error": "model_timeout", "timeout_s": payload.get("timeout_s", 30.0)}
 
 
-def _bad_checkpoint(payload: dict[str, Any]) -> dict[str, Any]:
+def _bad_checkpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"ok": False, "error": "checkpoint_corrupted", "where": payload.get("path", "<unknown>")}
 
 
-def _memory_pressure(payload: dict[str, Any]) -> dict[str, Any]:
+def _memory_pressure(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"ok": False, "error": "memory_pressure", "rss_mb": payload.get("rss_mb", 4000)}
 
 
-_DEFAULT_HANDLERS: dict[str, FaultHandler] = {
+_DEFAULT_HANDLERS: Dict[str, FaultHandler] = {
     "malformed_tool_result": _malformed_tool_result,
     "model_timeout": _model_timeout,
     "bad_checkpoint_file": _bad_checkpoint,
@@ -170,7 +170,7 @@ _DEFAULT_HANDLERS: dict[str, FaultHandler] = {
 
 # Singleton accessor ---------------------------------------------------------
 
-_global_injector: FaultInjector | None = None
+_global_injector: Optional[FaultInjector] = None
 
 
 def get_fault_injector() -> FaultInjector:
@@ -190,7 +190,7 @@ def reset_fault_injector() -> None:
 # ---------------------------------------------------------------------------
 
 
-ABUSE_STAGES: tuple[tuple[str, float], ...] = (
+ABUSE_STAGES: Tuple[Tuple[str, float], ...] = (
     ("stage_1_2h", 2 * 3600.0),
     ("stage_2_24h", 24 * 3600.0),
     ("stage_3_72h", 72 * 3600.0),
@@ -202,8 +202,8 @@ ABUSE_STAGES: tuple[tuple[str, float], ...] = (
 class AbuseGauntletReport:
     stage: str
     duration_s: float
-    fired: list[FaultEvent] = field(default_factory=list)
-    invariant_violations: list[str] = field(default_factory=list)
+    fired: List[FaultEvent] = field(default_factory=list)
+    invariant_violations: List[str] = field(default_factory=list)
 
     @property
     def passed(self) -> bool:
@@ -213,11 +213,11 @@ class AbuseGauntletReport:
 async def run_abuse_stage(
     stage: str,
     *,
-    invariants_check: Callable[[], bool | Awaitable[bool]],
-    injector: FaultInjector | None = None,
-    duration_s: float | None = None,
+    invariants_check: Callable[[], Union[bool, Awaitable[bool]]],
+    injector: Optional[FaultInjector] = None,
+    duration_s: Optional[float] = None,
     interval_s: float = 30.0,
-    fault_sequence: list[str] | None = None,
+    fault_sequence: Optional[List[str]] = None,
 ) -> AbuseGauntletReport:
     """Run a single stage of the abuse gauntlet.
 

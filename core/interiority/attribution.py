@@ -32,14 +32,15 @@ leaves nothing behind but a counter.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
+import threading
 import time
-from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Iterable, Mapping
 
 from core.interiority.params import ParamKind, declare
-from core.runtime.lockdep import checked_lock
+from core.runtime.errors import record_degradation
 
 _TRACE_HALF_LIFE = declare(
     "interiority.attribution.trace_half_life_s",

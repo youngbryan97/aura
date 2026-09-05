@@ -19,8 +19,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from core.brain.llm.latent_cortex.types import WorkspaceConfig
 from core.runtime.errors import record_degradation
+from core.brain.llm.latent_cortex.types import WorkspaceConfig
 
 logger = logging.getLogger("Aura.LatentCortex.Workspace")
 

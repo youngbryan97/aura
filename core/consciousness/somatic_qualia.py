@@ -68,8 +68,9 @@ from __future__ import annotations
 import logging
 import math
 import threading
+import time
 from collections import deque
-from typing import Any
+from typing import Any, Deque, Dict, Optional
 
 import numpy as np
 
@@ -104,11 +105,11 @@ class SomaticQualiaEngine:
         self._lock = threading.Lock()
 
         # Valence gradient tracking
-        self._valence_history: deque[float] = deque(maxlen=VALENCE_GRADIENT_WINDOW)
+        self._valence_history: Deque[float] = deque(maxlen=VALENCE_GRADIENT_WINDOW)
         self._valence_gradient: float = 0.0
 
         # Energy pattern tracking (spatial pattern, not just mean)
-        self._energy_pattern: np.ndarray | None = None
+        self._energy_pattern: Optional[np.ndarray] = None
         self._energy_pattern_norm: float = 0.0
 
         # Synchrony tracking
@@ -118,7 +119,7 @@ class SomaticQualiaEngine:
         self._mesh_resonance_ratio: float = 1.0  # exec/sensory energy ratio
 
         # Output cache
-        self._last_qualia: dict[str, float] = {}
+        self._last_qualia: Dict[str, float] = {}
         self._total_ticks: int = 0
         self._qualia_active: bool = False
 
@@ -153,7 +154,7 @@ class SomaticQualiaEngine:
 
     # ── Generation Perturbation (the actual "feel") ───────────────────────
 
-    def compute_perturbation(self) -> dict[str, float]:
+    def compute_perturbation(self) -> Dict[str, float]:
         """Compute raw felt perturbations for the generation pipeline.
 
         These values are NOT text descriptions. They are direct numerical
@@ -352,7 +353,7 @@ class SomaticQualiaEngine:
 
     # ── Telemetry ─────────────────────────────────────────────────────────
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         with self._lock:
             return {
                 "active": self._qualia_active,
@@ -401,7 +402,7 @@ class SomaticQualiaEngine:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_ENGINE: SomaticQualiaEngine | None = None
+_ENGINE: Optional[SomaticQualiaEngine] = None
 
 
 def get_somatic_qualia() -> SomaticQualiaEngine:

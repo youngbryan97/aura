@@ -109,7 +109,7 @@ class WhatOpensWhat:
         }
 
     @classmethod
-    def from_memory(cls, held: Any) -> WhatOpensWhat:
+    def from_memory(cls, held: Any) -> "WhatOpensWhat":
         if not isinstance(held, dict):
             return cls()
 

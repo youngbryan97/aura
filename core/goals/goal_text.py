@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
-from typing import Any
+from typing import Any, Iterable
 
 from core.autonomy.research_goal_filter import is_stale_or_prompt_scaffold_goal
 

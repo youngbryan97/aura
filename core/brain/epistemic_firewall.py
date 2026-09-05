@@ -81,7 +81,7 @@ class EvidenceItem:
     kind: str = "claim"  # observed_fact | claim | inference
     trust: float = 0.5  # prior source trust inside [0, 1]
 
-    def validated(self) -> EvidenceItem:
+    def validated(self) -> "EvidenceItem":
         if not isinstance(self.text, str) or not self.text.strip():
             raise ValueError("evidence item requires non-empty text")
         if not isinstance(self.origin, str) or not self.origin.strip():
@@ -192,7 +192,7 @@ _STOPWORDS = frozenset(
         "given", "come", "came", "went", "say", "said", "see", "seen", "know",
         "known", "want", "like", "need", "use", "used", "show", "tell", "let",
         "put", "way", "thing", "things", "something", "anything", "everything",
-        "nothing", "me", "my", "mine", "him", "she", "it", "we", "us",
+        "nothing", "me", "my", "mine", "him", "she", "hers", "it", "we", "us",
     }
 )
 

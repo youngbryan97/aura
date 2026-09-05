@@ -40,7 +40,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from core.brain.ontology_discovery import (
     DiscoveredLaw,
@@ -101,8 +101,8 @@ _GENESIS_ERRORS = (
 
 
 def degradation_observations(
-    records: list[dict[str, Any]] | None = None,
-) -> list[Observation]:
+    records: Optional[List[Dict[str, Any]]] = None,
+) -> List[Observation]:
     """Turn the runtime's degradation ring into episodes to learn from.
 
     The outcome is whether a record was serious — error or critical. Severity
@@ -125,7 +125,7 @@ def degradation_observations(
             return []
 
     ordered = sorted(records or [], key=lambda r: float(r.get("at", 0.0) or 0.0))
-    observations: list[Observation] = []
+    observations: List[Observation] = []
     for index, record in enumerate(ordered):
         at = float(record.get("at", 0.0) or 0.0)
         window_start = at - BURST_WINDOW_S
@@ -169,10 +169,10 @@ class OntologyGenesisEngine:
     The discovery step itself is not implemented; see the module docstring.
     """
 
-    def __init__(self, discovery: OntologyDiscovery | None = None) -> None:
+    def __init__(self, discovery: Optional[OntologyDiscovery] = None) -> None:
         self._active = False
-        self._genesis_task: asyncio.Task | None = None
-        self._discovery_log: list[dict[str, Any]] = []
+        self._genesis_task: Optional[asyncio.Task] = None
+        self._discovery_log: List[Dict[str, Any]] = []
         self._last_refusal = ""
         self._started_at = 0.0
         self._discovery = discovery or OntologyDiscovery(
@@ -181,7 +181,7 @@ class OntologyGenesisEngine:
         self._cycles = 0
         self._integrated = 0
         self._last_cycle_at = 0.0
-        self._last_outcome: DiscoveryOutcome | None = None
+        self._last_outcome: Optional[DiscoveryOutcome] = None
 
     # -- resource telemetry ----------------------------------------------
     def resource_anxiety(self) -> tuple[float, bool]:
@@ -344,7 +344,7 @@ class OntologyGenesisEngine:
         )
 
     async def run_discovery_cycle(
-        self, observations: list[Observation] | None = None
+        self, observations: Optional[List[Observation]] = None
     ) -> DiscoveryOutcome:
         """One candidate → experiment → verifier → integration pass.
 
@@ -438,7 +438,7 @@ class OntologyGenesisEngine:
             await asyncio.sleep(DISCOVERY_INTERVAL_S)
 
     # -- status -----------------------------------------------------------
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         anxiety, measured = self.resource_anxiety()
         volition = self._volition_level()
         return {
@@ -466,13 +466,13 @@ class OntologyGenesisEngine:
         }
 
 
-def register_ontology_genesis(orchestrator: Any | None = None) -> OntologyGenesisEngine:
+def register_ontology_genesis(orchestrator: Optional[Any] = None) -> OntologyGenesisEngine:
     """Legacy registration helper expected by boot code."""
     engine = OntologyGenesisEngine()
     register_runtime_service("ontology_genesis", engine)
     if orchestrator is not None:
         try:
-            orchestrator.ontology_genesis = engine
+            setattr(orchestrator, "ontology_genesis", engine)
         except _GENESIS_ERRORS as _exc:
             record_degradation('ontology_genesis', _exc)
             logger.debug("Suppressed Exception: %s", _exc)

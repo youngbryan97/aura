@@ -24,6 +24,10 @@ Belief states:
 Persistence: belief graph saved to ~/.aura/data/belief_graph.json
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
+
+from core.runtime.atomic_writer import atomic_write_text
 
 import enum
 import json
@@ -31,13 +35,11 @@ import logging
 import re
 import time
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from core.memory.retention_policy import working_history_retention_policy
-from core.runtime.atomic_writer import atomic_write_text
-from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Cognition.Paraconsistent")
@@ -106,20 +108,20 @@ class Belief:
     confidence: float                     # 0.0-1.0
     source: str                           # Where this belief came from
     state: BeliefState = BeliefState.TENTATIVE
-    contradicts: list[str] = field(default_factory=list)  # IDs of conflicting beliefs
+    contradicts: List[str] = field(default_factory=list)  # IDs of conflicting beliefs
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
-    evidence_for: list[str] = field(default_factory=list)   # Supporting evidence
-    evidence_against: list[str] = field(default_factory=list)  # Contrary evidence
-    tags: list[str] = field(default_factory=list)
+    evidence_for: List[str] = field(default_factory=list)   # Supporting evidence
+    evidence_against: List[str] = field(default_factory=list)  # Contrary evidence
+    tags: List[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         d["state"] = self.state.value
         return d
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> Belief:
+    def from_dict(cls, d: Dict[str, Any]) -> Belief:
         d = dict(d)
         d["state"] = BeliefState(d.get("state", "tentative"))
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
@@ -145,11 +147,11 @@ class ParadoxState:
     resolution_notes: str = ""  # Optional notes about why both are held
     domain: str = ""            # Topic area (e.g., "ethics", "self-model", "world-model")
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> ParadoxState:
+    def from_dict(cls, d: Dict[str, Any]) -> ParadoxState:
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
     @property
@@ -192,11 +194,11 @@ class ParaconsistentEngine:
         await engine.stop()
     """
 
-    def __init__(self, graph_path: Path | None = None):
+    def __init__(self, graph_path: Optional[Path] = None):
         self._graph_path = graph_path or _DEFAULT_GRAPH_PATH
-        self._beliefs: dict[str, Belief] = {}  # id -> Belief
-        self._paradoxes: dict[str, ParadoxState] = {}  # id -> ParadoxState
-        self._content_index: dict[str, str] = {}  # content_hash -> belief_id (dedup)
+        self._beliefs: Dict[str, Belief] = {}  # id -> Belief
+        self._paradoxes: Dict[str, ParadoxState] = {}  # id -> ParadoxState
+        self._content_index: Dict[str, str] = {}  # content_hash -> belief_id (dedup)
         self._running = False
 
         self._load_graph()
@@ -223,7 +225,7 @@ class ParaconsistentEngine:
         content: str,
         confidence: float = 0.5,
         source: str = "unknown",
-        tags: list[str] | None = None,
+        tags: Optional[List[str]] = None,
     ) -> str:
         """Register a new belief. Returns belief ID.
 
@@ -337,7 +339,7 @@ class ParaconsistentEngine:
 
     # ── Contradiction detection ──────────────────────────────────────────
 
-    def detect_contradictions(self) -> list[tuple[str, str]]:
+    def detect_contradictions(self) -> List[Tuple[str, str]]:
         """Scan all beliefs and return pairs of contradicting belief IDs."""
         pairs = []
         seen = set()
@@ -349,7 +351,7 @@ class ParaconsistentEngine:
                     pairs.append(pair)
         return pairs
 
-    def resolve_contradiction(self, belief_a_id: str, belief_b_id: str) -> ParadoxState | None:
+    def resolve_contradiction(self, belief_a_id: str, belief_b_id: str) -> Optional[ParadoxState]:
         """Attempt to 'resolve' a contradiction -- but NOT by forcing a winner.
 
         Instead, returns a ParadoxState that holds both beliefs and their
@@ -402,11 +404,11 @@ class ParaconsistentEngine:
 
     # ── Query operations ─────────────────────────────────────────────────
 
-    def get_belief(self, belief_id: str) -> Belief | None:
+    def get_belief(self, belief_id: str) -> Optional[Belief]:
         """Get a belief by ID."""
         return self._beliefs.get(belief_id)
 
-    def get_belief_state(self, content: str) -> dict[str, Any] | None:
+    def get_belief_state(self, content: str) -> Optional[Dict[str, Any]]:
         """Get the status of a belief by content, including contradictions."""
         content_hash = self._hash_content(content.strip())
         belief_id = self._content_index.get(content_hash)
@@ -436,12 +438,12 @@ class ParaconsistentEngine:
                                   if belief.id in (p.belief_a_id, p.belief_b_id)]),
         }
 
-    def find_beliefs(self, query: str) -> list[Belief]:
+    def find_beliefs(self, query: str) -> List[Belief]:
         """Find beliefs whose content contains the query string."""
         query_lower = query.lower()
         return [b for b in self._beliefs.values() if query_lower in b.content.lower()]
 
-    def get_active_paradoxes(self) -> list[ParadoxState]:
+    def get_active_paradoxes(self) -> List[ParadoxState]:
         """Return all unresolved contradictions as ParadoxState objects."""
         active = []
         for paradox in self._paradoxes.values():
@@ -452,7 +454,7 @@ class ParaconsistentEngine:
                 active.append(paradox)
         return active
 
-    def get_high_tension_paradoxes(self, threshold: float = 0.6) -> list[ParadoxState]:
+    def get_high_tension_paradoxes(self, threshold: float = 0.6) -> List[ParadoxState]:
         """Return paradoxes where both beliefs are strongly held."""
         return [p for p in self.get_active_paradoxes() if p.tension >= threshold]
 
@@ -553,7 +555,7 @@ class ParaconsistentEngine:
         normalized = " ".join(content.lower().split())
         return str(hash(normalized))
 
-    def _find_contradictions_for(self, belief: Belief) -> list[str]:
+    def _find_contradictions_for(self, belief: Belief) -> List[str]:
         """Find existing beliefs that might contradict the new one.
 
         Uses simple heuristic: look for negation patterns and explicit
@@ -618,11 +620,11 @@ class ParaconsistentEngine:
         return " ".join(text.split())
 
     @staticmethod
-    def _tokens(text: str) -> set[str]:
+    def _tokens(text: str) -> Set[str]:
         return set(re.findall(r"[a-z][a-z0-9_-]*", str(text or "").lower()))
 
     @classmethod
-    def _topic_tokens(cls, text: str) -> set[str]:
+    def _topic_tokens(cls, text: str) -> Set[str]:
         stance_words = {word for pair in _SEMANTIC_ANTONYM_PAIRS for word in pair}
         negators = {"not", "no", "never", "cannot", "can't", "without"}
         return {
@@ -699,7 +701,7 @@ class ParaconsistentEngine:
         if not existing:
             self.resolve_contradiction(id_a, id_b)
 
-    def _find_paradox(self, id_a: str, id_b: str) -> ParadoxState | None:
+    def _find_paradox(self, id_a: str, id_b: str) -> Optional[ParadoxState]:
         """Find an existing paradox between two beliefs."""
         for paradox in self._paradoxes.values():
             if (paradox.belief_a_id == id_a and paradox.belief_b_id == id_b) or \
@@ -815,7 +817,7 @@ class ParaconsistentEngine:
 
     # ── Status / Telemetry ───────────────────────────────────────────────
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         """Return telemetry snapshot for diagnostics."""
         active = self.get_active_paradoxes()
         high_tension = self.get_high_tension_paradoxes()

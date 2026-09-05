@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
 logger = logging.getLogger("Aura.ForecastStore")
 
@@ -24,15 +25,15 @@ class Forecast:
     confidence: float
     change_trigger: str  # observation that would change the forecast
     created_at: float = field(default_factory=time.time)
-    actual_outcome: str | None = None  # success, failure, aborted
-    brier_score: float | None = None  # forecast accuracy indicator (0 is perfect, 1 is worst)
+    actual_outcome: Optional[str] = None  # success, failure, aborted
+    brier_score: Optional[float] = None  # forecast accuracy indicator (0 is perfect, 1 is worst)
 
 
 class ForecastStore:
     """Stores forecasts and evaluates prediction accuracy over time."""
 
     def __init__(self) -> None:
-        self.forecasts: dict[str, Forecast] = {}
+        self.forecasts: Dict[str, Forecast] = {}
 
     def make_forecast(
         self,
@@ -60,7 +61,7 @@ class ForecastStore:
                     mission_id, success_prob, blocker)
         return fc
 
-    def resolve_forecast(self, forecast_id: str, actual_outcome: str) -> float | None:
+    def resolve_forecast(self, forecast_id: str, actual_outcome: str) -> Optional[float]:
         """Record the actual outcome and calculate the Brier score."""
         fc = self.forecasts.get(forecast_id)
         if not fc:
@@ -83,5 +84,5 @@ class ForecastStore:
             return 0.0
         return sum(resolved) / len(resolved)
 
-    def get_mission_forecasts(self, mission_id: str) -> list[Forecast]:
+    def get_mission_forecasts(self, mission_id: str) -> List[Forecast]:
         return [f for f in self.forecasts.values() if f.mission_id == mission_id]

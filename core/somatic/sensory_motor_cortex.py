@@ -207,7 +207,7 @@ class SensoryMotorCortex:
                 time.sleep(1.0) # Low-power polling
 
             authority.release(lease)
-        except OSError as e:
+        except (OSError, IOError) as e:
             # Release on the failure path too. A thread that dies holding
             # the device is exactly the case the authority's stale-lease
             # reclamation exists for, but recovering after 30s of a dark

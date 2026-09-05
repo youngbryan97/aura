@@ -20,10 +20,9 @@ import json
 import os
 import shutil
 import time
-from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 
 from core.runtime.atomic_writer import atomic_write_bytes
 
@@ -97,7 +96,7 @@ class ToolSpec:
     path_hash: str = ""
 
     @classmethod
-    def discover(cls, name: str) -> ToolSpec | None:
+    def discover(cls, name: str) -> "ToolSpec | None":
         path = shutil.which(name)
         if not path:
             return None
@@ -118,7 +117,7 @@ class SourceFile:
     hash: str
 
     @classmethod
-    def from_path(cls, root: Path, path: Path) -> SourceFile:
+    def from_path(cls, root: Path, path: Path) -> "SourceFile":
         return cls(str(path.relative_to(root)), _hash_file(path))
 
 
@@ -175,7 +174,7 @@ class BuildGraph:
         }
 
     @classmethod
-    def from_dict(cls, raw: Mapping[str, Any]) -> BuildGraph:
+    def from_dict(cls, raw: Mapping[str, Any]) -> "BuildGraph":
         graph = cls(root=str(raw["root"]), created_at=float(raw.get("created_at", time.time())))
         graph.sources = {k: SourceFile(**v) for k, v in raw.get("sources", {}).items()}
         graph.tools = {k: ToolSpec(**v) for k, v in raw.get("tools", {}).items()}
@@ -201,7 +200,7 @@ class BuildGraph:
 
     def dirty_nodes(
         self,
-        cas: ContentAddressedStore,
+        cas: "ContentAddressedStore",
         *,
         env: Mapping[str, str] | None = None,
     ) -> list[DirtyReason]:

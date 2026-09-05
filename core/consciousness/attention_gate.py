@@ -45,7 +45,8 @@ from __future__ import annotations
 import logging
 import re
 import threading
-from typing import Any
+import time
+from typing import Any, Dict, List, Optional
 
 from core.runtime.errors import record_degradation
 
@@ -94,14 +95,14 @@ class AttentionGate:
         self._total_passed: int = 0
         self._total_calls: int = 0
         self._last_threshold: float = BASE_ATTENTION_THRESHOLD
-        self._last_gate_report: dict[str, Any] = {}
+        self._last_gate_report: Dict[str, Any] = {}
 
         logger.info("AttentionGate ONLINE — causal context pruning active")
 
     def gate_context(
         self,
-        messages: list[dict[str, str]],
-    ) -> list[dict[str, str]]:
+        messages: List[Dict[str, str]],
+    ) -> List[Dict[str, str]]:
         """Apply attentional gating to a message list.
 
         Messages are scored for relevance to the current attentional focus.
@@ -227,7 +228,7 @@ class AttentionGate:
         self,
         content: str,
         focus: str,
-        salience_map: dict[str, float],
+        salience_map: Dict[str, float],
     ) -> float:
         """Score a message's relevance to the current attentional focus.
 
@@ -268,8 +269,8 @@ class AttentionGate:
 
     @staticmethod
     def _compress_message(
-        msg: dict[str, str], relevance: float
-    ) -> dict[str, str] | None:
+        msg: Dict[str, str], relevance: float
+    ) -> Optional[Dict[str, str]]:
         """Compress a gated message to a minimal summary.
 
         Very low relevance messages are removed entirely.
@@ -357,7 +358,7 @@ class AttentionGate:
 
     # ── Telemetry ─────────────────────────────────────────────────────────
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         with self._lock:
             total = self._total_gated + self._total_passed
             return {
@@ -398,7 +399,7 @@ class AttentionGate:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_GATE: AttentionGate | None = None
+_GATE: Optional[AttentionGate] = None
 
 
 def get_attention_gate() -> AttentionGate:

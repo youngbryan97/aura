@@ -104,7 +104,7 @@ class WhatBeatsWhat:
         }
 
     @classmethod
-    def from_memory(cls, held: Any) -> WhatBeatsWhat:
+    def from_memory(cls, held: Any) -> "WhatBeatsWhat":
         if not isinstance(held, dict):
             return cls()
         got: dict[str, dict[str, list[int]]] = {}

@@ -24,8 +24,8 @@ with no record of what it took on is performing.
 from __future__ import annotations
 
 from core.interiority.effects import (
-    ActionConstraint,
     AffectDelta,
+    ActionConstraint,
     ConstraintForce,
     Effects,
     GoalDelta,

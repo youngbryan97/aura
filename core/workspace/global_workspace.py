@@ -1,12 +1,12 @@
 """core/workspace/global_workspace.py
 Global Workspace coordinator aggregating scratchpad, attention, and inner dialogue.
 """
-from typing import Any
+from typing import Dict, List, Any, Optional
 
+from core.workspace.private_scratchpad import PrivateScratchpad
 from core.workspace.attention_field import AttentionField
 from core.workspace.inner_dialogue import InnerDialogueGenerator
 from core.workspace.metacognitive_monitor import MetacognitiveMonitor
-from core.workspace.private_scratchpad import PrivateScratchpad
 from core.workspace.thought_lifecycle import ThoughtLifecycle
 
 
@@ -20,7 +20,7 @@ class GlobalWorkspace:
         self.monitor = MetacognitiveMonitor()
         self.lifecycle = ThoughtLifecycle()
         
-        self._monologue_history: list[str] = []
+        self._monologue_history: List[str] = []
 
     def process_workspace_tick(self, state: Any) -> None:
         """Runs evaluation updates on private working memory workspace."""

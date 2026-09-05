@@ -83,7 +83,7 @@ def conservation(design) -> Iterable[Finding]:
                 inputs={},
                 method=f"{spec.name} conservation over the model graph",
                 plain=(
-                    "This junction cannot be checked yet. "
+                    f"This junction cannot be checked yet. "
                     + (
                         f"{len(unknown)} of its {len(ports)} connections do not say which "
                         f"way the {spec.carries or spec.through_name} goes or how much: "

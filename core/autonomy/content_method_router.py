@@ -23,9 +23,10 @@ Public API:
 
 from __future__ import annotations
 
+import re
 import shutil
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional, Sequence
 from urllib.parse import urlparse
 
 # ── Capability detection ──────────────────────────────────────────────────
@@ -105,7 +106,7 @@ class FetchAttempt:
                   # "fan_transcript_search", "creator_interview_search"
     priority_level: int
     target: str   # URL or query
-    args: dict[str, Any] = field(default_factory=dict)
+    args: Dict[str, Any] = field(default_factory=dict)
     rationale: str = ""
 
 
@@ -115,8 +116,8 @@ class FetchPlan:
     accepting the first that produces usable content."""
     item_title: str
     top_priority_level: int
-    attempts: list[FetchAttempt] = field(default_factory=list)
-    capability_notes: list[str] = field(default_factory=list)
+    attempts: List[FetchAttempt] = field(default_factory=list)
+    capability_notes: List[str] = field(default_factory=list)
 
     def is_empty(self) -> bool:
         return not self.attempts
@@ -128,9 +129,9 @@ class FetchPlan:
 class MethodRouter:
     def __init__(
         self,
-        ytdlp_path: str | None = None,
-        whisper_available: bool | None = None,
-        browser_available: bool | None = None,
+        ytdlp_path: Optional[str] = None,
+        whisper_available: Optional[bool] = None,
+        browser_available: Optional[bool] = None,
     ) -> None:
         self._ytdlp = ytdlp_path or (shutil.which("yt-dlp") if _ytdlp_available() else None)
         self._has_whisper = _have_whisper() if whisper_available is None else whisper_available
@@ -174,8 +175,8 @@ class MethodRouter:
 
     # ── Per-priority-level planners ──────────────────────────────────────
 
-    def _level1_watch_listen(self, title: str, url: str, description: str) -> list[FetchAttempt]:
-        out: list[FetchAttempt] = []
+    def _level1_watch_listen(self, title: str, url: str, description: str) -> List[FetchAttempt]:
+        out: List[FetchAttempt] = []
         # Direct YouTube content
         if url and (_is_youtube_video(url) or _is_youtube_channel(url)):
             if self._ytdlp:
@@ -212,10 +213,10 @@ class MethodRouter:
             ))
         return out
 
-    def _level2_script(self, title: str, url: str, description: str) -> list[FetchAttempt]:
+    def _level2_script(self, title: str, url: str, description: str) -> List[FetchAttempt]:
         if not title:
             return []
-        out: list[FetchAttempt] = []
+        out: List[FetchAttempt] = []
         for query in [
             f'"{title}" screenplay PDF',
             f'"{title}" script transcript',
@@ -230,8 +231,8 @@ class MethodRouter:
             ))
         return out
 
-    def _level3_transcript(self, title: str, url: str, description: str) -> list[FetchAttempt]:
-        out: list[FetchAttempt] = []
+    def _level3_transcript(self, title: str, url: str, description: str) -> List[FetchAttempt]:
+        out: List[FetchAttempt] = []
         # YouTube-specific: pull subs directly via yt-dlp
         if self._ytdlp and url and _is_youtube_video(url):
             out.append(FetchAttempt(
@@ -258,10 +259,10 @@ class MethodRouter:
                 ))
         return out
 
-    def _level4_text(self, title: str, url: str, description: str) -> list[FetchAttempt]:
+    def _level4_text(self, title: str, url: str, description: str) -> List[FetchAttempt]:
         if not title:
             return []
-        out: list[FetchAttempt] = []
+        out: List[FetchAttempt] = []
         for query in [
             f'"{title}" novelization',
             f'"{title}" book companion',
@@ -276,10 +277,10 @@ class MethodRouter:
             ))
         return out
 
-    def _level5_commentary(self, title: str, url: str, description: str) -> list[FetchAttempt]:
+    def _level5_commentary(self, title: str, url: str, description: str) -> List[FetchAttempt]:
         if not title:
             return []
-        out: list[FetchAttempt] = []
+        out: List[FetchAttempt] = []
         for query in [
             f'"{title}" director interview',
             f'"{title}" creator commentary',
@@ -304,10 +305,10 @@ class MethodRouter:
             ))
         return out
 
-    def _level6_forum_wiki(self, title: str, url: str, description: str) -> list[FetchAttempt]:
+    def _level6_forum_wiki(self, title: str, url: str, description: str) -> List[FetchAttempt]:
         if not title:
             return []
-        out: list[FetchAttempt] = []
+        out: List[FetchAttempt] = []
         # Wikipedia (preferred for canonical summary + critical reception)
         out.append(FetchAttempt(
             method="wikipedia_api",

@@ -19,7 +19,7 @@ package exists to prevent, one level up.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 __all__ = [

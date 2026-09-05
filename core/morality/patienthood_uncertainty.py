@@ -1,7 +1,7 @@
 """core/morality/patienthood_uncertainty.py
 Ethical framework managing uncertainty regarding synthetic moral patienthood.
 """
-from typing import Any
+from typing import Dict, Any
 
 
 class PatienthoodUncertaintyModel:

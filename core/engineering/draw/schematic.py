@@ -18,14 +18,16 @@ coolant line cannot be confused even in one ink.
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from core.engineering.domains import domain as get_domain
 from core.engineering.draw.canvas import Canvas, Point
 from core.engineering.draw.symbols import Symbol, draw_symbol, symbol_for
 from core.engineering.draw.views import Region
+from core.engineering.units import Q
 
 __all__ = ["draw_schematic", "SchematicResult", "schematic_drawer"]
 

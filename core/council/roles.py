@@ -5,6 +5,7 @@ Defines all 12 specialized roles for high-stakes task debates.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Dict
 
 
 @dataclass(frozen=True)
@@ -15,7 +16,7 @@ class CouncilRoleConfig:
     weight: float = 1.0
 
 
-COUNCIL_ROLES: dict[str, CouncilRoleConfig] = {
+COUNCIL_ROLES: Dict[str, CouncilRoleConfig] = {
     "strategist": CouncilRoleConfig(
         role_name="Strategist",
         system_prompt=(

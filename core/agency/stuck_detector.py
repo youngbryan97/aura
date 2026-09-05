@@ -54,8 +54,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.cognition.impasse import Impasse, ImpasseType, situation_signature
-from core.runtime.stuck_detector import AgentStep as _RuntimeStep
 from core.runtime.stuck_detector import Remedy, StuckPattern
+from core.runtime.stuck_detector import AgentStep as _RuntimeStep
 from core.runtime.stuck_detector import StuckDetector as _Mechanism
 
 __all__ = [
@@ -127,7 +127,7 @@ class AgentStep(_RuntimeStep):
         error_kind: str = "",
         kind: str = "tool",
         progress_marker: str | None = None,
-    ) -> AgentStep:
+    ) -> "AgentStep":
         # A failed step is identified by how it failed, not by what it returned.
         # Folding error_kind into the observation is what makes "the same action
         # failing the same way" a distinct fingerprint from "the same action

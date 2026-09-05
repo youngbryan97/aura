@@ -1,7 +1,7 @@
-import logging
-from typing import Any
-
 from core.runtime.errors import record_degradation
+import asyncio
+import logging
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger("Aura.ParallelThought")
 
@@ -13,7 +13,7 @@ class ParallelThoughtStream:
     def __init__(self, container: Any):
         self.container = container
         
-    async def branch(self, objective: str, context: str) -> list[dict[str, str]]:
+    async def branch(self, objective: str, context: str) -> List[Dict[str, str]]:
         """Generate 3 parallel thoughts/hypotheses for the current context."""
         from core.brain.llm.llm_router import LLMTier
         router = self.container.get("llm_router", default=None)

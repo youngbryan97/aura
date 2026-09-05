@@ -20,15 +20,15 @@ Based on:
 Register in ServiceContainer as "conversation_intelligence".
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
-
-from core.runtime.errors import record_degradation
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Aura.ConversationIntelligence")
 
@@ -77,8 +77,8 @@ class ConversationArc:
     phase: str = "opening"  # opening, building, peak, winding_down, closing
     turns_in_phase: int = 0
     total_turns: int = 0
-    energy_trajectory: list[float] = field(default_factory=list)  # last 10 readings
-    peak_moment: str | None = None  # what the conversation peaked on
+    energy_trajectory: List[float] = field(default_factory=list)  # last 10 readings
+    peak_moment: Optional[str] = None  # what the conversation peaked on
     emotional_high_point: float = 0.0
     topics_covered: int = 0
     depth_reached: str = "surface"  # surface, moderate, deep, intimate
@@ -108,12 +108,12 @@ class PacingDirective:
 @dataclass
 class TopicTrajectory:
     """Predicts where the conversation should go next."""
-    predicted_next_topic: str | None = None
+    predicted_next_topic: Optional[str] = None
     user_likely_wants: str = "go_deeper"
     # go_deeper, change_topic, wrap_up, play, vent, explore, be_quiet
-    suggested_transition: str | None = None  # natural bridge phrase
-    topics_to_avoid: list[str] = field(default_factory=list)  # exhausted or sensitive
-    topics_to_surface: list[str] = field(default_factory=list)  # from interests + open threads
+    suggested_transition: Optional[str] = None  # natural bridge phrase
+    topics_to_avoid: List[str] = field(default_factory=list)  # exhausted or sensitive
+    topics_to_surface: List[str] = field(default_factory=list)  # from interests + open threads
 
 
 @dataclass
@@ -123,7 +123,7 @@ class CodeSwitchContext:
     vocabulary_level: str = "moderate"  # simple, moderate, sophisticated, technical
     should_mirror_emoji: bool = False
     should_use_slang: bool = False
-    formality_shift_reason: str | None = None
+    formality_shift_reason: Optional[str] = None
 
 
 @dataclass
@@ -169,7 +169,7 @@ class ConversationIntelligenceEngine:
         self._user_message_lengths: deque = deque(maxlen=self.MAX_LENGTHS)
         self._aura_message_lengths: deque = deque(maxlen=self.MAX_LENGTHS)
         self._seen_topics: set = set()
-        self._topic_dwell_counts: dict[str, int] = {}  # topic -> turns spent on it
+        self._topic_dwell_counts: Dict[str, int] = {}  # topic -> turns spent on it
         self._last_user_message: str = ""
         self._last_energy: float = 0.5
         self._phase_entered_at_turn: int = 0
@@ -181,7 +181,7 @@ class ConversationIntelligenceEngine:
         user_message: str,
         aura_response: str,
         dynamics_state: Any,
-        discourse_state: dict,
+        discourse_state: Dict,
     ) -> ConversationalDirective:
         """
         The main method. Runs after each exchange. Computes all sub-signals
@@ -304,7 +304,7 @@ class ConversationIntelligenceEngine:
         self,
         current_phase: str,
         total_turns: int,
-        trajectory: list[float],
+        trajectory: List[float],
         energy: float,
         dynamics_state: Any,
     ) -> str:
@@ -551,7 +551,7 @@ class ConversationIntelligenceEngine:
             sentence_count_target=sentence_target,
         )
 
-    def _compute_recent_gap(self) -> float | None:
+    def _compute_recent_gap(self) -> Optional[float]:
         """Compute seconds between the two most recent message timestamps."""
         if len(self._message_timestamps) < 2:
             return None
@@ -565,7 +565,7 @@ class ConversationIntelligenceEngine:
         discourse_topic: str,
         energy: float,
         user_trend: str,
-        branches: list[str],
+        branches: List[str],
     ) -> TopicTrajectory:
         """Predict where conversation should go next."""
 
@@ -825,7 +825,7 @@ class ConversationIntelligenceEngine:
 
         return "\n".join(lines)
 
-    def _describe_energy_trend(self, trajectory: list[float]) -> str:
+    def _describe_energy_trend(self, trajectory: List[float]) -> str:
         """Human-readable description of energy trajectory."""
         if len(trajectory) < 2:
             return "Energy neutral"
@@ -855,7 +855,7 @@ class ConversationIntelligenceEngine:
 
 # ── Singleton ───────────────────────────────────────────────────────────────
 
-_engine_instance: ConversationIntelligenceEngine | None = None
+_engine_instance: Optional[ConversationIntelligenceEngine] = None
 
 
 def get_conversation_intelligence() -> ConversationIntelligenceEngine:

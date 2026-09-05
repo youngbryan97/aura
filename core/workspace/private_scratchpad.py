@@ -1,6 +1,7 @@
 """core/workspace/private_scratchpad.py
 Private working memory scratchpad for temporary agent deliberations.
 """
+from typing import Dict, Any
 
 
 class PrivateScratchpad:

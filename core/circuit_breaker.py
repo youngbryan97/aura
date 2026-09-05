@@ -1,7 +1,5 @@
 """Shim for core.resilience.circuit_breaker. Legacy location."""
-from core.resilience.circuit_breaker import CircuitBreaker as _CB
-from core.resilience.circuit_breaker import CircuitState
-
+from core.resilience.circuit_breaker import CircuitBreaker as _CB, CircuitState
 
 class State:
     CLOSED = CircuitState.CLOSED

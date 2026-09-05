@@ -31,8 +31,8 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
+from typing import Callable, Iterable, Sequence
 
 from core.runtime.errors import record_degradation
 

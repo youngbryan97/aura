@@ -1,9 +1,8 @@
+from core.runtime.errors import record_degradation
 import importlib
 import logging
 import sys
-from typing import Any
-
-from core.runtime.errors import record_degradation
+from typing import Dict, Any
 
 logger = logging.getLogger("Aura.Resilience")
 
@@ -15,7 +14,7 @@ class HotfixEngine:
         self.orchestrator = orchestrator
         self.reloads_total = 0
 
-    async def reload_module(self, module_name: str) -> dict[str, Any]:
+    async def reload_module(self, module_name: str) -> Dict[str, Any]:
         """
         Reloads a specific module and lets runtime services refresh themselves if needed.
         """

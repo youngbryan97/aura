@@ -159,7 +159,7 @@ class WhatWorkedBefore:
         }
 
     @classmethod
-    def from_memory(cls, held: Any, trust: float = 1.0) -> WhatWorkedBefore:
+    def from_memory(cls, held: Any, trust: float = 1.0) -> "WhatWorkedBefore":
         """What she got good at last time, discounted like anything carried over.
 
         A habit from yesterday is evidence about today rather than a fact about

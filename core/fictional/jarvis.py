@@ -6,18 +6,19 @@ initiates. The difference between a tool and a partner.
 
 from __future__ import annotations
 
-import asyncio
 import logging
+import asyncio
 import time
 from collections import deque
 from typing import Any
+
+from core.runtime import resource_psutil as psutil
+from core.runtime.lockdep import LockRank, checked_lock
 
 from core.fictional.common import (
     disk_percent_value,
     record_fictional_degradation,
 )
-from core.runtime import resource_psutil as psutil
-from core.runtime.lockdep import LockRank, checked_lock
 
 logger = logging.getLogger("Aura.FictionalSynthesis")
 

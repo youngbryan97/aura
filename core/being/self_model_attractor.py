@@ -6,11 +6,10 @@ the self-model a causal, auditable control structure.
 """
 from __future__ import annotations
 
+from dataclasses import asdict, dataclass, field
+from typing import Any, Mapping
 import time
 import uuid
-from collections.abc import Mapping
-from dataclasses import asdict, dataclass, field
-from typing import Any
 
 from core.being.causal_self_state import CausalSelfVector, runtime_field
 

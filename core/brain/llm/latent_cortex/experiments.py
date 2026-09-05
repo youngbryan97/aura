@@ -34,6 +34,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+
 # Split out when this module crossed the 2,000-line ceiling. These are
 # re-exports, not incidental imports: every caller of
 # `latent_cortex.experiments` keeps working, and the grading digest keeps
@@ -41,6 +42,7 @@ from typing import Any
 # an autofixer deciding a public re-export is an unused import.
 from core.brain.llm.latent_cortex.experiment_grading import (
     _MIN_N_FOR_VERDICT,
+    experiments_implementation_sha256,
     CONJECTURE,
     PROVEN,
     REFUTED,
@@ -53,7 +55,6 @@ from core.brain.llm.latent_cortex.experiment_grading import (
     _coerce_role_outcome,
     _coerce_solver_outcome,
     _holm_adjust,
-    experiments_implementation_sha256,
     grade_paired_treatment_vs_control,
     grade_treatment_vs_control,
 )

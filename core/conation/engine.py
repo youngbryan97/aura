@@ -52,9 +52,8 @@ from __future__ import annotations
 import contextlib
 import logging
 import time
-from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Iterator, Sequence
 
 from core.conation.access import AccessLedger, Blocker
 from core.conation.aesthetic import AestheticValuation

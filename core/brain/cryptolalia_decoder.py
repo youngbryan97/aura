@@ -9,9 +9,8 @@ while she runs efficiently entirely in latent space.
 """
 
 import logging
-
 import numpy as np
-
+from typing import List
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
 
 logger = logging.getLogger("Aura.CryptolaliaDecoder")
@@ -28,7 +27,7 @@ class CryptolaliaDecoder:
     def init_routes(self):
         self.bridge = get_runtime_service("concept_bridge", default=None)
 
-    def cosine_similarity(self, v1: list[float], v2: list[float]) -> float:
+    def cosine_similarity(self, v1: List[float], v2: List[float]) -> float:
         """Calculate similarity between two vectors."""
         if not v1 or not v2 or len(v1) != len(v2):
             return 0.0
@@ -41,7 +40,7 @@ class CryptolaliaDecoder:
             return 0.0
         return dot_product / (norm1 * norm2)
 
-    def approximate_translation(self, latent_vector: list[float], top_n: int = 3) -> str:
+    def approximate_translation(self, latent_vector: List[float], top_n: int = 3) -> str:
         """
         Reverse-engineer a vector back to closest known English concepts.
         This provides the "poetic/fragmented" insight into her alien thoughts.

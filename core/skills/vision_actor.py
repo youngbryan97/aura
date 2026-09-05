@@ -4,25 +4,25 @@ This module implements the See -> Think -> Act loop using PyAutoGUI.
 It allows the LLM to control the local UI by asking for visual bounding boxes.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
-import re
-from typing import Any
+from typing import Dict, Any, Tuple, Optional
 
 from pydantic import BaseModel, Field
-
-from core.container import ServiceContainer
-from core.runtime.errors import record_degradation
-from core.senses.screen_vision import LocalVision
-from core.skills._pyautogui_runtime import get_pyautogui
 from core.skills.base_skill import BaseSkill
+from core.skills._pyautogui_runtime import get_pyautogui
+from core.senses.screen_vision import LocalVision
+from core.container import ServiceContainer
+import re
+import time
 
 logger = logging.getLogger("Skills.VisionActor")
 
 class VisionActorInput(BaseModel):
     action: str = Field("look", description="Action to perform: 'click', 'type', or 'look'.")
-    target_desc: str | None = Field(None, description="Visual description of the target on screen (e.g. 'Submit button', 'Search bar'). Required for 'click' or 'look'.")
-    text_to_type: str | None = Field(None, description="Text string to type. Required if action is 'type'.")
+    target_desc: Optional[str] = Field(None, description="Visual description of the target on screen (e.g. 'Submit button', 'Search bar'). Required for 'click' or 'look'.")
+    text_to_type: Optional[str] = Field(None, description="Text string to type. Required if action is 'type'.")
     press_enter: bool = Field(False, description="Press Enter after typing.")
 
 class VisionActorSkill(BaseSkill):
@@ -41,7 +41,7 @@ class VisionActorSkill(BaseSkill):
         if not self._vision_engine:
             self._vision_engine = LocalVision(model=self.vision_model)
 
-    async def execute(self, params: VisionActorInput, context: dict[str, Any]) -> dict[str, Any]:
+    async def execute(self, params: VisionActorInput, context: Dict[str, Any]) -> Dict[str, Any]:
         self._lazy_init()
 
         pyautogui, pyautogui_error = get_pyautogui()
@@ -70,7 +70,7 @@ class VisionActorSkill(BaseSkill):
         else:
             return {"ok": False, "message": f"Unknown action: {action}", "action": action}
 
-    async def _capture_screen(self) -> str | None:
+    async def _capture_screen(self) -> Optional[str]:
         if not self._vision_engine:
             return None
         try:
@@ -87,7 +87,7 @@ class VisionActorSkill(BaseSkill):
             logger.error("Screen capture failed: %s", e)
             return None
 
-    async def _locate_target(self, image_b64: str, target_desc: str) -> tuple[int, int] | None:
+    async def _locate_target(self, image_b64: str, target_desc: str) -> Optional[Tuple[int, int]]:
         prompt = (
             f"You are a UI automation parser. Look at this screen and find the center coordinates of: '{target_desc}'. "
             "Respond ONLY with a valid JSON strictly matching this schema: {\"x\": integer, \"y\": integer, \"found\": boolean}. "
@@ -115,7 +115,7 @@ class VisionActorSkill(BaseSkill):
             logger.error("Vision location failed: %s", e)
         return None
 
-    async def _execute_look(self, target_desc: str) -> dict[str, Any]:
+    async def _execute_look(self, target_desc: str) -> Dict[str, Any]:
         """Look but don't click."""
         img = await self._capture_screen()
         if not img:
@@ -131,7 +131,7 @@ class VisionActorSkill(BaseSkill):
             "coordinates": {"x": coords[0], "y": coords[1]}
         }
 
-    async def _execute_look_and_click(self, target_desc: str, pyautogui: Any) -> dict[str, Any]:
+    async def _execute_look_and_click(self, target_desc: str, pyautogui: Any) -> Dict[str, Any]:
         coords_payload = await self._execute_look(target_desc)
         if not coords_payload["ok"]:
             return coords_payload
@@ -153,7 +153,7 @@ class VisionActorSkill(BaseSkill):
         pyautogui.moveTo(x, y, duration=0.5, tween=pyautogui.easeInOutQuad)
         pyautogui.click()
 
-    async def _execute_type(self, text: str, enter: bool, pyautogui: Any) -> dict[str, Any]:
+    async def _execute_type(self, text: str, enter: bool, pyautogui: Any) -> Dict[str, Any]:
         try:
             await asyncio.to_thread(pyautogui.write, text, interval=0.05)
             if enter:

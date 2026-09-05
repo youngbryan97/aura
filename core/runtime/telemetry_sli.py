@@ -9,7 +9,9 @@ source of truth and tested for completeness.
 """
 from __future__ import annotations
 
+
 from dataclasses import dataclass
+from typing import Dict
 
 
 @dataclass(frozen=True)
@@ -21,7 +23,7 @@ class SLO:
     pageable: bool
 
 
-SLO_CATALOG: dict[str, SLO] = {
+SLO_CATALOG: Dict[str, SLO] = {
     "runtime_availability": SLO(
         name="runtime_availability",
         description="Aura accepts local user input during single-user operation",
@@ -112,5 +114,5 @@ SLO_CATALOG: dict[str, SLO] = {
 REQUIRED_SLO_NAMES = frozenset(SLO_CATALOG.keys())
 
 
-def required_pageable_slos() -> dict[str, SLO]:
+def required_pageable_slos() -> Dict[str, SLO]:
     return {name: slo for name, slo in SLO_CATALOG.items() if slo.pageable}

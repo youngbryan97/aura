@@ -2,7 +2,7 @@
 Browser interaction motor channel.
 """
 import logging
-from typing import Any
+from typing import Any, Dict
 
 from core.body.motor_controller import BaseMotor
 from core.runtime.errors import record_degradation
@@ -19,7 +19,7 @@ class BrowserMotor(BaseMotor):
     def name(self) -> str:
         return "browser"
 
-    async def actuate(self, params: dict[str, Any]) -> dict[str, Any]:
+    async def actuate(self, params: Dict[str, Any]) -> Dict[str, Any]:
         action = params.get("action", "load_url")
         url = params.get("url", "about:blank")
         

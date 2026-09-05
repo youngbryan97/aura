@@ -37,7 +37,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 from core.runtime.errors import record_degradation
 
@@ -119,7 +119,7 @@ class UnifiedFeltStateEngine:
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._last: UnifiedFeltState | None = None
+        self._last: Optional[UnifiedFeltState] = None
         self._incoherence_events = 0
         self._last_divergence: dict[str, float] = {}
         self._last_checked_at = 0.0
@@ -303,7 +303,7 @@ class UnifiedFeltStateEngine:
         self,
         text: str,
         *,
-        unified: UnifiedFeltState | None = None,
+        unified: Optional[UnifiedFeltState] = None,
         welfare: Any = None,
         memory_coherence: float = 1.0,
     ) -> Any:
@@ -334,7 +334,7 @@ class UnifiedFeltStateEngine:
             return None
 
     # ── introspection ───────────────────────────────────────────────────────
-    def last(self) -> UnifiedFeltState | None:
+    def last(self) -> Optional[UnifiedFeltState]:
         with self._lock:
             return self._last
 
@@ -355,7 +355,7 @@ def _first(*values: Any) -> float:
     return float(values[-1])
 
 
-_engine: UnifiedFeltStateEngine | None = None
+_engine: Optional[UnifiedFeltStateEngine] = None
 _engine_lock = threading.Lock()
 
 

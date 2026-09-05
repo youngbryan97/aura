@@ -1,12 +1,10 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
-from typing import Any
-
-from core.runtime.errors import record_degradation
-from core.utils.queues import role_for_origin, unpack_priority_message
-
-from ..state.aura_state import AuraState
+from typing import Any, Optional
 from . import BasePhase
+from ..state.aura_state import AuraState
+from core.utils.queues import role_for_origin, unpack_priority_message
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +18,7 @@ class SensoryIngestionPhase(BasePhase):
     def __init__(self, container: Any):
         self.container = container
 
-    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
         """
         Pull the next message from the queue and append it to working memory.
         """

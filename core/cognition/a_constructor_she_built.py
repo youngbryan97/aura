@@ -34,9 +34,8 @@ source never contained.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, Iterator, Sequence
 
 __all__ = [
     "IN_SEQUENCE",
@@ -74,7 +73,7 @@ class Recipe:
 
     kind: str
     depth: int = 2
-    then: Recipe | None = None
+    then: "Recipe | None" = None
 
     @property
     def name(self) -> str:

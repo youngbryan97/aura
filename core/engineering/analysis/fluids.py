@@ -14,9 +14,8 @@ import math
 from collections.abc import Iterable
 
 from core.engineering.analysis import Finding, register
-from core.engineering.materials import STANDARD_GRAVITY
-from core.engineering.materials import fluid as get_fluid
-from core.engineering.units import Q
+from core.engineering.materials import STANDARD_GRAVITY, fluid as get_fluid
+from core.engineering.units import Q, Quantity
 
 #: Wall roughness in metres for the pipe materials a design names.
 ROUGHNESS: dict[str, float] = {

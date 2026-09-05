@@ -45,7 +45,7 @@ import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
@@ -145,11 +145,11 @@ class CompletionEvidence:
 
     verified_by: str
     #: What was actually produced or observed — a path, a receipt id, a URL.
-    artifacts: list[str] = field(default_factory=list)
+    artifacts: List[str] = field(default_factory=list)
     #: The criterion this evidence is claimed to satisfy.
     criterion: str = ""
     #: An independent verifier's verdict, when one ran.
-    verifier_passed: bool | None = None
+    verifier_passed: Optional[bool] = None
     note: str = ""
     at: float = field(default_factory=time.time)
 
@@ -174,7 +174,7 @@ class CompletionEvidence:
             score += 0.1
         return float(min(MAX_TRAINING_QUALITY, score))
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "verified_by": self.verified_by,
             "artifacts": list(self.artifacts),
@@ -192,16 +192,16 @@ class Goal:
     level: GoalLevel
     title: str
     description: str
-    parent_id: str | None         # None for strategic goals
+    parent_id: Optional[str]         # None for strategic goals
     success_criteria: str
     status: GoalStatus = GoalStatus.ACTIVE
     progress: float = 0.0            # 0.0 to 1.0
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
-    deadline: float | None = None # epoch timestamp
-    notes: list[str] = field(default_factory=list)
-    child_ids: list[str] = field(default_factory=list)
-    evidence: list[dict[str, Any]] = field(default_factory=list)
+    deadline: Optional[float] = None # epoch timestamp
+    notes: List[str] = field(default_factory=list)
+    child_ids: List[str] = field(default_factory=list)
+    evidence: List[Dict[str, Any]] = field(default_factory=list)
     #: Set once the completion training example has been emitted, so a repeat
     #: update at 1.0 cannot emit a duplicate (CP126 ca294af2).
     completion_emitted: bool = False
@@ -210,7 +210,7 @@ class Goal:
         return (self.status == GoalStatus.ACTIVE
                 and time.time() - self.updated_at > threshold_secs)
 
-    def is_overdue(self, now: float | None = None) -> bool:
+    def is_overdue(self, now: Optional[float] = None) -> bool:
         if self.deadline is None or self.status in _TERMINAL_STATUSES:
             return False
         return (now or time.time()) > self.deadline
@@ -236,8 +236,8 @@ class HierarchicalPlanner:
       - VERIFIED completed goals are logged to the canonical finetune service
     """
 
-    def __init__(self, persist_path: Path | None = None):
-        self._goals: dict[str, Goal] = {}
+    def __init__(self, persist_path: Optional[Path] = None):
+        self._goals: Dict[str, Goal] = {}
         self._last_checkin: float = 0.0
         # CP126 7a354661: every mutation, propagation, save and load path
         # shared mutable dicts and lists with no lock.
@@ -246,7 +246,7 @@ class HierarchicalPlanner:
         self.last_save_ok = True
         self.last_save_error = ""
         self.load_quarantined = False
-        self._pending_decomposition: list[str] = []
+        self._pending_decomposition: List[str] = []
         self._load()
         logger.info("HierarchicalPlanner online — %d goals loaded.",
                     len(self._goals))
@@ -255,9 +255,9 @@ class HierarchicalPlanner:
 
     def add_goal(self, title: str, description: str,
                  level: GoalLevel = GoalLevel.TACTICAL,
-                 parent_id: str | None = None,
+                 parent_id: Optional[str] = None,
                  success_criteria: str = "",
-                 deadline_days: float | None = None) -> Goal | None:
+                 deadline_days: Optional[float] = None) -> Optional[Goal]:
         """Create a new goal at the specified level.
 
         Returns None when the request would corrupt the graph — an unknown
@@ -323,7 +323,7 @@ class HierarchicalPlanner:
 
     def update_progress(self, goal_id: str, progress: float,
                         note: str = "",
-                        evidence: CompletionEvidence | None = None) -> Goal | None:
+                        evidence: Optional[CompletionEvidence] = None) -> Optional[Goal]:
         """Update progress on a goal (0.0–1.0).
 
         CP126 674f919c / f9053978: the old version clamped with min/max — which
@@ -353,11 +353,11 @@ class HierarchicalPlanner:
         return goal
 
     def complete_goal(self, goal_id: str, note: str = "",
-                      evidence: CompletionEvidence | None = None) -> Goal | None:
+                      evidence: Optional[CompletionEvidence] = None) -> Optional[Goal]:
         """Mark a goal complete. Without evidence it awaits verification."""
         return self.update_progress(goal_id, 1.0, note, evidence=evidence)
 
-    def verify_goal(self, goal_id: str, evidence: CompletionEvidence) -> Goal | None:
+    def verify_goal(self, goal_id: str, evidence: CompletionEvidence) -> Optional[Goal]:
         """Supply evidence for a goal already sitting at AWAITING_VERIFICATION."""
         with self._lock:
             goal = self._goals.get(goal_id)
@@ -371,7 +371,7 @@ class HierarchicalPlanner:
         self._save()
         return goal
 
-    def fail_goal(self, goal_id: str, reason: str = "") -> Goal | None:
+    def fail_goal(self, goal_id: str, reason: str = "") -> Optional[Goal]:
         with self._lock:
             goal = self._goals.get(goal_id)
             if goal is None:
@@ -384,29 +384,29 @@ class HierarchicalPlanner:
         self._save()
         return goal
 
-    def get_active_goals(self, level: GoalLevel | None = None) -> list[Goal]:
+    def get_active_goals(self, level: Optional[GoalLevel] = None) -> List[Goal]:
         with self._lock:
             goals = [g for g in self._goals.values() if g.status == GoalStatus.ACTIVE]
         if level:
             goals = [g for g in goals if g.level == level]
         return sorted(goals, key=lambda g: g.created_at)
 
-    def get_stalled_goals(self) -> list[Goal]:
+    def get_stalled_goals(self) -> List[Goal]:
         with self._lock:
             return [g for g in self._goals.values() if g.is_stalled()]
 
-    def get_overdue_goals(self) -> list[Goal]:
+    def get_overdue_goals(self) -> List[Goal]:
         with self._lock:
             return [g for g in self._goals.values() if g.is_overdue()]
 
-    def get_unverified_goals(self) -> list[Goal]:
+    def get_unverified_goals(self) -> List[Goal]:
         with self._lock:
             return [
                 g for g in self._goals.values()
                 if g.status == GoalStatus.AWAITING_VERIFICATION
             ]
 
-    def tick(self, orchestrator=None) -> dict[str, Any]:
+    def tick(self, orchestrator=None) -> Dict[str, Any]:
         """Periodic check-in. Calls ProactivePresence for stalled goals.
 
         Returns what it actually did, so "autonomous decomposition" is a
@@ -415,7 +415,7 @@ class HierarchicalPlanner:
         if time.time() - self._last_checkin < CHECK_IN_INTERVAL:
             return {"ran": False, "reason": "within_check_in_interval"}
         self._last_checkin = time.time()
-        receipt: dict[str, Any] = {
+        receipt: Dict[str, Any] = {
             "ran": True, "checked_in": 0, "overdue": 0, "queued_for_decomposition": [],
         }
 
@@ -489,7 +489,7 @@ class HierarchicalPlanner:
             self._save()
         return overdue
 
-    def pending_decomposition(self) -> list[str]:
+    def pending_decomposition(self) -> List[str]:
         with self._lock:
             return list(self._pending_decomposition)
 
@@ -512,7 +512,7 @@ class HierarchicalPlanner:
             lines.append(_fence(f"goal:{goal.id}", goal.to_brief(), nonce))
         return "\n".join(lines)
 
-    async def decompose_goal(self, goal_id: str, router=None) -> list[Goal]:
+    async def decompose_goal(self, goal_id: str, router=None) -> List[Goal]:
         """Use an LLM to decompose a goal into sub-goals.
 
         CP126 bac59b50: a greedy brace regex and unchecked fields accepted
@@ -553,7 +553,7 @@ class HierarchicalPlanner:
                 return []
 
             # All-or-nothing: validate the whole batch before creating any.
-            created: list[Goal] = []
+            created: List[Goal] = []
             for candidate in candidates:
                 child = self.add_goal(
                     title=candidate["title"],
@@ -576,7 +576,7 @@ class HierarchicalPlanner:
             logger.info("HierarchicalPlanner: decomposed '%s' into %d sub-goals",
                         goal.title[:40], len(created))
             return created
-        except TimeoutError as exc:
+        except (TimeoutError, asyncio.TimeoutError) as exc:
             record_degradation('hierarchical_planner', exc)
             logger.info("Goal decomposition timed out for %s", goal_id)
             return []
@@ -586,7 +586,7 @@ class HierarchicalPlanner:
             return []
 
     @staticmethod
-    def _parse_subgoals(raw: Any) -> list[dict[str, Any]]:
+    def _parse_subgoals(raw: Any) -> List[Dict[str, Any]]:
         """Strictly validate the model's decomposition output."""
         text = str(raw or "")
         # Non-greedy from the first brace, so trailing prose cannot swallow
@@ -604,7 +604,7 @@ class HierarchicalPlanner:
         if not isinstance(raw_goals, list):
             return []
 
-        candidates: list[dict[str, Any]] = []
+        candidates: List[Dict[str, Any]] = []
         for item in raw_goals[:MAX_SUBGOALS_PER_DECOMPOSITION]:
             if not isinstance(item, dict):
                 continue
@@ -612,7 +612,7 @@ class HierarchicalPlanner:
             if not title:
                 continue
             days_raw = item.get("days")
-            days: float | None = None
+            days: Optional[float] = None
             if days_raw is not None:
                 validated = validated_scalar(
                     days_raw, name="days", low=0.0, high=3650.0, default=0.0
@@ -631,7 +631,7 @@ class HierarchicalPlanner:
     # ── Internal ──────────────────────────────────────────────────────────
 
     def _settle_completion(
-        self, goal: Goal, evidence: CompletionEvidence | None
+        self, goal: Goal, evidence: Optional[CompletionEvidence]
     ) -> None:
         """Decide whether a full-progress goal is COMPLETE or unverified."""
         if goal.status in _TERMINAL_STATUSES and goal.completion_emitted:
@@ -660,7 +660,7 @@ class HierarchicalPlanner:
                 parent = self._goals[goal.parent_id]
                 parent.child_ids = [cid for cid in parent.child_ids if cid != goal_id]
 
-    def _propagate_progress(self, goal: Goal, _visited: set | None = None) -> None:
+    def _propagate_progress(self, goal: Goal, _visited: Optional[set] = None) -> None:
         """Parent's progress = mean of its VERIFIABLE children.
 
         CP126 98539e0e: recursion followed parent links with no visited set, so
@@ -741,9 +741,9 @@ class HierarchicalPlanner:
             goal.title[:60], evidence.quality, evidence.verified_by,
         )
 
-    def status(self) -> dict[str, Any]:
+    def status(self) -> Dict[str, Any]:
         with self._lock:
-            by_status: dict[str, int] = {}
+            by_status: Dict[str, int] = {}
             for goal in self._goals.values():
                 by_status[goal.status.value] = by_status.get(goal.status.value, 0) + 1
             return {
@@ -830,7 +830,7 @@ class HierarchicalPlanner:
             self.load_quarantined = True
             return
 
-        loaded: dict[str, Goal] = {}
+        loaded: Dict[str, Goal] = {}
         for g_id, entry in raw_goals.items():
             goal = self._goal_from(g_id, entry)
             if goal is not None:
@@ -848,7 +848,7 @@ class HierarchicalPlanner:
             logger.error("Could not quarantine the goal file: %s", exc)
 
     @staticmethod
-    def _goal_from(g_id: Any, entry: Any) -> Goal | None:
+    def _goal_from(g_id: Any, entry: Any) -> Optional[Goal]:
         if not isinstance(entry, dict):
             return None
         goal_id = _bounded_text(entry.get("id", g_id), 64)
@@ -895,7 +895,7 @@ class HierarchicalPlanner:
         )
 
     @staticmethod
-    def _repair_graph(goals: dict[str, Goal]) -> dict[str, Goal]:
+    def _repair_graph(goals: Dict[str, Goal]) -> Dict[str, Goal]:
         """Drop dangling references, level violations and cycles.
 
         CP126 98539e0e: parent relationships and child ids were accepted from
@@ -941,7 +941,7 @@ class HierarchicalPlanner:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_planner: HierarchicalPlanner | None = None
+_planner: Optional[HierarchicalPlanner] = None
 
 
 def get_hierarchical_planner() -> HierarchicalPlanner:

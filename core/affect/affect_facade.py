@@ -14,7 +14,7 @@ CP126 73b36873 / 422f28c5 / e9f2af3b / 29db4cc1 / db6b6b69 / 79c270b6.
 import inspect
 import logging
 import time
-from typing import Any
+from typing import Any, Dict, Optional
 
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
@@ -29,7 +29,7 @@ _DEGRADATION_INTERVAL_S = 60.0
 #: Behavioural modifiers returned when affect is unavailable. The values are
 #: deliberately neutral, but they travel with provenance so a planner can tell
 #: "affect said proceed normally" from "affect said nothing" (CP126 79c270b6).
-NEUTRAL_MODIFIERS: dict[str, float] = {
+NEUTRAL_MODIFIERS: Dict[str, float] = {
     "creativity": 1.0,
     "risk_tolerance": 1.0,
     "patience": 1.0,
@@ -58,8 +58,8 @@ class AffectFacade:
     def __init__(self, orchestrator: Any = None):
         self.orchestrator = orchestrator
         self._engine = None
-        self._engine_identity: int | None = None
-        self._last_degradation: dict[str, float] = {}
+        self._engine_identity: Optional[int] = None
+        self._last_degradation: Dict[str, float] = {}
 
     # ── lazy resolution ────────────────────────────────────────────
     @property
@@ -139,7 +139,7 @@ class AffectFacade:
         return ""
 
     # ── public API ─────────────────────────────────────────────────
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         """Synchronous status snapshot, or an explicit unavailable record.
 
         CP126 73b36873: the fallback returned curiosity 50, stability 100 and
@@ -165,7 +165,7 @@ class AffectFacade:
         return self._unavailable_status(reason)
 
     @staticmethod
-    def _unavailable_status(reason: str) -> dict[str, Any]:
+    def _unavailable_status(reason: str) -> Dict[str, Any]:
         # No mood/energy/curiosity/stability keys: absent is the honest answer,
         # and a consumer's .get(...) still yields None rather than a number
         # someone might print as a measurement.
@@ -176,7 +176,7 @@ class AffectFacade:
             "source": "affect_facade",
         }
 
-    def get_state_sync(self) -> dict[str, Any]:
+    def get_state_sync(self) -> Dict[str, Any]:
         """Synchronous PAD snapshot, forwarded when the engine offers one.
 
         The facade did not expose this at all, so every caller that falls back
@@ -273,7 +273,7 @@ class AffectFacade:
             dominant_emotion="neutral",
         )
 
-    async def react(self, trigger: str, context: dict | None = None):
+    async def react(self, trigger: str, context: Optional[Dict] = None):
         """Forward a reaction, or report that it did not land.
 
         CP126 e9f2af3b: this returned None after a debug log, so an upstream
@@ -313,7 +313,7 @@ class AffectFacade:
         self._note_unavailable(reason, "receive_qualia_echo")
         return {"applied": False, "reason": reason}
 
-    async def get_behavioral_modifiers(self) -> dict[str, float]:
+    async def get_behavioral_modifiers(self) -> Dict[str, float]:
         """Forward behavioral modifiers query to the active affect engine.
 
         CP126 79c270b6: an unavailable engine returned all-1.0 modifiers that
@@ -340,7 +340,7 @@ class AffectFacade:
         return self._degraded_modifiers(reason)
 
     @staticmethod
-    def _degraded_modifiers(reason: str) -> dict[str, float]:
+    def _degraded_modifiers(reason: str) -> Dict[str, float]:
         payload = dict(NEUTRAL_MODIFIERS)
         payload[MODIFIER_AVAILABLE_KEY] = 0.0
         payload[MODIFIER_DEGRADED_KEY] = 1.0

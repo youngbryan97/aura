@@ -11,18 +11,17 @@ Integrates with:
   - MetaLearningEngine: task fingerprinting
   - SkillRouter: tool execution
 """
+from core.runtime.errors import record_degradation
 import json
 import logging
 import os
 import threading
 import time
 from collections import defaultdict
-from dataclasses import asdict, dataclass
-from typing import Any
-
+from dataclasses import asdict, dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
 from core.config import config
 from core.runtime.atomic_writer import atomic_write_text
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Learning.Tools")
 
@@ -46,7 +45,7 @@ class ToolRecord:
     def avg_time_ms(self) -> float:
         return self.total_time_ms / max(1, self.attempts)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         d["success_rate"] = round(self.success_rate, 3)
         d["avg_time_ms"] = round(self.avg_time_ms, 1)
@@ -57,7 +56,7 @@ class ToolRecord:
 class ToolCombo:
     """Tracks effectiveness of tool sequences."""
 
-    sequence: tuple[str, ...]  # e.g. ("web_search", "summarize")
+    sequence: Tuple[str, ...]  # e.g. ("web_search", "summarize")
     attempts: int = 0
     successes: int = 0
 
@@ -81,9 +80,9 @@ class ToolLearningSystem:
         self._persist_path = persist_path or str(config.paths.home_dir / "tool_learning.json")
         self._lock = threading.Lock()
         # task_category -> tool_name -> ToolRecord
-        self._records: dict[str, dict[str, ToolRecord]] = defaultdict(dict)
+        self._records: Dict[str, Dict[str, ToolRecord]] = defaultdict(dict)
         # combo tracking: tuple_key -> ToolCombo
-        self._combos: dict[str, ToolCombo] = {}
+        self._combos: Dict[str, ToolCombo] = {}
         self._load()
 
     def record_usage(
@@ -110,7 +109,7 @@ class ToolLearningSystem:
             rec.last_used = time.time()
             self._save()
 
-    def record_combo(self, tool_sequence: list[str], success: bool):
+    def record_combo(self, tool_sequence: List[str], success: bool):
         """Record a multi-tool sequence outcome."""
         if len(tool_sequence) < 2:
             return
@@ -124,7 +123,7 @@ class ToolLearningSystem:
                 combo.successes += 1
             self._save()
 
-    def recommend_tools(self, task_category: str, top_k: int = 3) -> list[dict[str, Any]]:
+    def recommend_tools(self, task_category: str, top_k: int = 3) -> List[Dict[str, Any]]:
         """Recommend the best tools for a task category, ranked by success rate
         then by speed. Requires at least 2 attempts for a recommendation.
         """
@@ -139,7 +138,7 @@ class ToolLearningSystem:
         candidates.sort(key=lambda r: (-r.success_rate, r.avg_time_ms))
         return [c.to_dict() for c in candidates[:top_k]]
 
-    def recommend_combo(self, first_tool: str, top_k: int = 3) -> list[dict[str, Any]]:
+    def recommend_combo(self, first_tool: str, top_k: int = 3) -> List[Dict[str, Any]]:
         """Suggest what tool to use after `first_tool`, based on combo history."""
         results = []
         for key, combo in self._combos.items():
@@ -177,7 +176,7 @@ class ToolLearningSystem:
             return "knowledge_query"
         return "conversation"
 
-    def get_summary(self) -> dict[str, Any]:
+    def get_summary(self) -> Dict[str, Any]:
         """Introspection summary."""
         total_records = sum(
             len(tools) for tools in self._records.values()
@@ -214,14 +213,14 @@ class ToolLearningSystem:
                 },
             }
             atomic_write_text(self._persist_path, json.dumps(data, indent=2))
-        except OSError as e:
+        except (OSError, IOError) as e:
             record_degradation('tool_learning', e)
             logger.error("Failed to save tool learning data: %s", e)
 
     def _load(self):
         try:
             if os.path.exists(self._persist_path):
-                with open(self._persist_path) as f:
+                with open(self._persist_path, "r") as f:
                     data = json.load(f)
                 for cat, tools in data.get("records", {}).items():
                     for name, rd in tools.items():
@@ -248,7 +247,7 @@ class ToolLearningSystem:
 # ---------------------------------------------------------------------------
 # Global Instance / Lazy Factory
 # ---------------------------------------------------------------------------
-_tool_learner: ToolLearningSystem | None = None
+_tool_learner: Optional[ToolLearningSystem] = None
 _tool_learner_lock = threading.Lock()
 
 def get_tool_learner() -> ToolLearningSystem:

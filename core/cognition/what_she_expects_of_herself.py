@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import logging
 import statistics
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 __all__ = [
@@ -94,9 +94,9 @@ def what_she_expects(name: str, *, costs_now: int) -> WhatSheExpected:
     the comparison afterwards is against something fixed rather than against a
     memory of what she would have said.
     """
-    from core.cognition.the_record_of_her_own_work import what_it_has_cost
     from core.cognition.what_it_is_worth_doing import how_often_a_change_has_paid
     from core.cognition.what_she_could_do_next import what_it_has_done
+    from core.cognition.the_record_of_her_own_work import what_it_has_cost
 
     mine = what_it_has_done(name)
     made = WhatSheExpected(

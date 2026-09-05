@@ -9,6 +9,7 @@ verifiable receipt independent of any model provider.
 import hashlib
 import logging
 import re
+from typing import Optional
 
 from core.runtime.errors import record_degradation
 
@@ -75,7 +76,6 @@ def _load_private_names() -> list[str]:
     """Load real names from biography_private.json for targeted redaction."""
     try:
         import json
-
         from core.config import config
         config_path = config.paths.home_dir / "biography_private.json"
         if config_path.exists():
@@ -112,7 +112,7 @@ def _load_private_names() -> list[str]:
     return []
 
 
-_cached_names: list[str] | None = None
+_cached_names: Optional[list[str]] = None
 
 
 def _get_private_names() -> list[str]:

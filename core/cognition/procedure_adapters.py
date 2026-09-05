@@ -31,7 +31,7 @@ ranks across learners.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from core.cognition.procedure import (
@@ -39,8 +39,8 @@ from core.cognition.procedure import (
     Effect,
     Origin,
     Precondition,
-    ProceduralValue,
     Procedure,
+    ProceduralValue,
     ProcedureRegistry,
     Reversibility,
     Signature,

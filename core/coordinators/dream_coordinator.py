@@ -1,9 +1,7 @@
 import asyncio
 import logging
 import time
-from collections.abc import Callable, Coroutine
-from typing import Any
-
+from typing import Any, Callable, Coroutine
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service, register_runtime_service
 

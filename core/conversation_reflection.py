@@ -35,7 +35,7 @@ import logging
 import re
 import time
 from collections import deque
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from core.runtime.errors import record_degradation
 from core.runtime.runtime_settings import get_runtime_setting
@@ -104,7 +104,7 @@ def contains_sensitive(text: str) -> bool:
     return any(pattern.search(str(text or "")) for pattern in SENSITIVE_PATTERNS)
 
 
-def _user_text(conversation_history: list[dict[str, str]]) -> str:
+def _user_text(conversation_history: List[Dict[str, str]]) -> str:
     return "\n".join(
         str(item.get("content", ""))
         for item in list(conversation_history or [])
@@ -132,7 +132,7 @@ def _neutralize_fence(line: str, nonce: str) -> str:
     return text
 
 
-def source_certificate(conversation_history: list[dict[str, str]]) -> dict[str, Any]:
+def source_certificate(conversation_history: List[Dict[str, str]]) -> dict[str, Any]:
     """Immutable identity of the messages a reflection was derived from.
 
     CP126 227c016e: a stored reflection had no link back to the messages it
@@ -171,17 +171,17 @@ class ConversationReflector:
         #: Set by the last _generate_reflection / _submit_reflection_for_lora
         #: pass so callers and tests can inspect the provenance decisions.
         self.last_excerpt_had_injection = False
-        self.last_training_certificate: dict[str, Any] = {}
-        self.last_preference_receipt: dict[str, Any] = {}
-        self.last_shared_ground_receipt: dict[str, Any] = {}
+        self.last_training_certificate: Dict[str, Any] = {}
+        self.last_preference_receipt: Dict[str, Any] = {}
+        self.last_shared_ground_receipt: Dict[str, Any] = {}
 
     async def maybe_reflect(
         self,
-        conversation_history: list[dict[str, str]],
+        conversation_history: List[Dict[str, str]],
         brain: Any,
         mood: str = "balanced",
         time_str: str = "",
-    ) -> str | None:
+    ) -> Optional[str]:
         """Attempt a reflection on recent conversation.
         Returns the reflection text if one was generated, None otherwise.
         
@@ -259,7 +259,7 @@ class ConversationReflector:
     def training_certificate(
         self,
         reflection: str,
-        conversation_history: list[dict[str, str]],
+        conversation_history: List[Dict[str, str]],
     ) -> dict[str, Any]:
         """Whether this reflection may become a parameter update, and why not.
 
@@ -301,7 +301,7 @@ class ConversationReflector:
     async def _submit_reflection_for_lora(
         self,
         reflection: str,
-        conversation_history: list[dict[str, str]],
+        conversation_history: List[Dict[str, str]],
     ) -> None:
         if not _reflection_learning_enabled():
             return
@@ -330,11 +330,11 @@ class ConversationReflector:
 
     async def _generate_reflection(
         self,
-        conversation_history: list[dict[str, str]],
+        conversation_history: List[Dict[str, str]],
         brain: Any,
         mood: str,
         time_str: str,
-    ) -> str | None:
+    ) -> Optional[str]:
         """Generate a reflection using the LLM."""
         # Build conversation excerpt from recent messages (last 6-8 messages)
         recent = conversation_history[-8:]
@@ -430,7 +430,7 @@ class ConversationReflector:
 
         return reflection
 
-    def get_recent_reflections(self, n: int = 3) -> list[dict[str, Any]]:
+    def get_recent_reflections(self, n: int = 3) -> List[Dict[str, Any]]:
         """Get the N most recent reflections for context injection."""
         return list(self.reflections)[-n:]
 
@@ -456,7 +456,7 @@ class ConversationReflector:
     async def _extract_and_store_lessons(
         self,
         reflection: str,
-        conversation_history: list[dict[str, str]],
+        conversation_history: List[Dict[str, str]],
         brain: Any,
     ):
         """Extract actionable lessons from a reflection and persist them.
@@ -548,9 +548,9 @@ class ConversationReflector:
     async def _extract_preferences(
         self,
         reflection: str,
-        conversation_history: list[dict[str, str]],
+        conversation_history: List[Dict[str, str]],
         brain: Any,
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """Turn a free-form generation into attributed, bounded claims.
 
         CP126 80897782: a free-form generation was parsed as preferences and
@@ -560,7 +560,7 @@ class ConversationReflector:
         reflector INFERRED. A hallucinated preference became a durable fact
         that shaped every later turn.
         """
-        receipt: dict[str, Any] = {
+        receipt: Dict[str, Any] = {
             "stated": [], "inferred": [], "rejected": [], "stored": 0,
         }
         self.last_preference_receipt = receipt
@@ -648,9 +648,9 @@ class ConversationReflector:
 
     async def _extract_shared_ground(
         self,
-        conversation_history: list[dict[str, str]],
+        conversation_history: List[Dict[str, str]],
         brain: Any,
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """Record interpersonal callbacks only when the conversation shows them.
 
         CP126 426f61a8: model-generated JSON was inserted into shared-ground
@@ -658,7 +658,7 @@ class ConversationReflector:
         durable interpersonal context that Aura would later reference as
         something the two of them shared.
         """
-        receipt: dict[str, Any] = {"accepted": [], "rejected": [], "stored": 0}
+        receipt: Dict[str, Any] = {"accepted": [], "rejected": [], "stored": 0}
         self.last_shared_ground_receipt = receipt
 
         excerpt: list[str] = []
@@ -748,7 +748,7 @@ class ConversationReflector:
 
 
 # Singleton
-_reflector: ConversationReflector | None = None
+_reflector: Optional[ConversationReflector] = None
 
 
 def get_reflector() -> ConversationReflector:

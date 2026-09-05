@@ -30,13 +30,13 @@ weaker one. A boolean cannot hold that distinction.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import hashlib
 import json
-from collections.abc import Mapping
-from dataclasses import dataclass
+import threading
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Any
-
-from core.runtime.lockdep import checked_lock
 
 __all__ = ["Environment", "ReplicationPack", "Replication", "ReplicationRegistry"]
 

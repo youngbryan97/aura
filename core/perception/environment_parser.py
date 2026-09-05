@@ -5,11 +5,11 @@ They convert raw sensory input from any domain -- terminal, browser, UI,
 robotics, simulation, media stream -- into a typed state that downstream
 belief, risk, planning, and action-gating systems can share.
 """
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 import abc
 import hashlib
 import time
-from dataclasses import dataclass, field
-from typing import Any
 
 
 @dataclass
@@ -19,32 +19,32 @@ class EnvironmentState:
     domain: str = "generic"
     context_id: str = "default"
     observation_id: str = ""
-    raw_reference: str | None = None
+    raw_reference: Optional[str] = None
     confidence: float = 1.0
 
     # Who am I in this environment?
-    self_state: dict[str, Any] = field(default_factory=dict)
+    self_state: Dict[str, Any] = field(default_factory=dict)
 
     # What are the immediate messages or system communications?
-    messages: list[str] = field(default_factory=list)
+    messages: List[str] = field(default_factory=list)
 
     # What entities (friends, foes, items, obstacles) do I perceive?
-    entities: list[dict[str, Any]] = field(default_factory=list)
+    entities: List[Dict[str, Any]] = field(default_factory=list)
 
     # What is the layout or topology of my immediate surroundings?
-    spatial_info: dict[str, Any] = field(default_factory=dict)
+    spatial_info: Dict[str, Any] = field(default_factory=dict)
 
     # Any active prompts or menus blocking standard interaction?
-    active_prompts: list[str] = field(default_factory=list)
+    active_prompts: List[str] = field(default_factory=list)
 
     # Has anything significant changed since the last state?
     delta_summary: str = ""
 
     # Explicit uncertainty / modality channels. These are intentionally
     # lightweight dictionaries so any environment adapter can participate.
-    uncertainty: dict[str, float] = field(default_factory=dict)
-    modalities: dict[str, Any] = field(default_factory=dict)
-    action_candidates: list[dict[str, Any]] = field(default_factory=list)
+    uncertainty: Dict[str, float] = field(default_factory=dict)
+    modalities: Dict[str, Any] = field(default_factory=dict)
+    action_candidates: List[Dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if not self.observation_id:
@@ -103,7 +103,7 @@ class EnvironmentState:
 
         return "\n".join(lines)
 
-    def resource_ratio(self, current_key: str, max_key: str) -> float | None:
+    def resource_ratio(self, current_key: str, max_key: str) -> Optional[float]:
         """Return a bounded resource ratio if both fields are available."""
         try:
             current = float(self.self_state[current_key])
@@ -117,8 +117,8 @@ class EnvironmentState:
     def has_active_prompt(self) -> bool:
         return bool(self.active_prompts)
 
-    def nearby_entities(self, max_distance: float = 1.0) -> list[dict[str, Any]]:
-        nearby: list[dict[str, Any]] = []
+    def nearby_entities(self, max_distance: float = 1.0) -> List[Dict[str, Any]]:
+        nearby: List[Dict[str, Any]] = []
         for entity in self.entities:
             distance = entity.get("distance")
             if distance is None:
@@ -130,8 +130,8 @@ class EnvironmentState:
                 continue
         return nearby
 
-    def entity_labels(self) -> list[str]:
-        labels: list[str] = []
+    def entity_labels(self) -> List[str]:
+        labels: List[str] = []
         for entity in self.entities:
             label = entity.get("label") or entity.get("name") or entity.get("type") or entity.get("glyph")
             if label is not None:

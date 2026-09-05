@@ -52,9 +52,9 @@ from typing import Any
 from core.runtime.atomic_writer import async_atomic_write_text
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
-from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.self_modification.mutation_tiers import MutationTier, classify_mutation_path
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.SelfModSafePipeline")
 

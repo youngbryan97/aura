@@ -10,9 +10,9 @@ attention heads and evicts the rest, preserving cognitive coherence
 while reducing physical memory footprint.
 """
 
-import logging
-
 import numpy as np
+import logging
+from typing import List, Dict, Any, Optional, Tuple
 
 logger = logging.getLogger("Aura.SnapKV")
 
@@ -30,11 +30,11 @@ class SnapKVEvictor:
 
     def __init__(self, memory_limit_gb: float = 24.0):  # 64GB system — 32B model needs KV headroom
         self.limit = memory_limit_gb
-        self.token_importance_map: dict[int, float] = {}
+        self.token_importance_map: Dict[int, float] = {}
         self._immutable_indices: set = set()  # Core Memory Lock — never evicted
         logger.info("🧠 SnapKVEvictor initialized. Limit: %.1f GB", self.limit)
 
-    def mark_immutable(self, token_indices: list[int]) -> None:
+    def mark_immutable(self, token_indices: List[int]) -> None:
         """Lock token indices against eviction.
 
         Call this for memories associated with:
@@ -53,7 +53,7 @@ class SnapKVEvictor:
             logger.info("🔒 SnapKV: Locked %d token(s) as Core Memory (total locked: %d).",
                         added, len(self._immutable_indices))
 
-    def unmark_immutable(self, token_indices: list[int]) -> None:
+    def unmark_immutable(self, token_indices: List[int]) -> None:
         """Release a Core Memory lock (requires explicit call — never done automatically)."""
         self._immutable_indices.difference_update(token_indices)
 
@@ -64,9 +64,9 @@ class SnapKVEvictor:
     def calculate_eviction_targets(
         self, 
         attention_scores: np.ndarray, 
-        tokens: list[str], 
+        tokens: List[str], 
         target_reduction: float = 0.2
-    ) -> list[int]:
+    ) -> List[int]:
         """
         Identifies which tokens to evict based on attention importance.
         score shape: (num_layers, num_heads, seq_len, seq_len)

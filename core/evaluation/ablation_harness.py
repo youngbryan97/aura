@@ -27,8 +27,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.evaluation.matched_budget import ConditionBudget, check_budget_parity
 from core.evaluation.statistics import bootstrap_ci as _bootstrap_ci
+from core.evaluation.matched_budget import ConditionBudget, check_budget_parity
 
 # Condition names. RAW = bare model call, current turn only. PROMPTED = bare
 # model + a fixed system/identity prompt, still no history. FULL = the
@@ -147,7 +147,7 @@ class AblationHarness:
         *,
         conditions: Sequence[str] = (RAW, PROMPTED, FULL),
         bootstrap_iterations: int = 2000,
-        budgets: Sequence[ConditionBudget] | None = None,
+        budgets: "Sequence[ConditionBudget] | None" = None,
     ):
         """``budgets`` declares what each arm was allowed to spend.
 

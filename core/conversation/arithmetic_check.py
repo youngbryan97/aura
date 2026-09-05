@@ -38,9 +38,9 @@ import ast
 import math
 import re
 from decimal import Decimal, InvalidOperation
-from typing import Any
 
 from core.conversation.computable_math import computable_result
+from typing import Any
 
 ArithmeticResult = int | float
 

@@ -42,8 +42,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from core.governance.will import ActionDomain
 from core.governance_context import local_internal_governed_scope
+from core.governance.will import ActionDomain
 from core.runtime.action_executor import ActionExecutor
 from core.runtime.errors import record_degradation
 from core.runtime.file_read_gateway import read_stable_bytes

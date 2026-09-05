@@ -8,8 +8,9 @@ This is the difference between "asking the LLM to be Aura" and "ensuring
 the output IS Aura." The LLM is the voice; this guard is the vocal cords.
 """
 import logging
-import random
 import re
+import random
+from typing import Optional, Tuple
 
 logger = logging.getLogger("core.phases.executive_guard")
 
@@ -91,7 +92,7 @@ class ExecutiveGuard:
         self._compiled_fatal = [(re.compile(p, re.IGNORECASE), label) for p, label in FATAL_PATTERNS]
         self._compiled_soft = [(re.compile(p, re.IGNORECASE), label) for p, label in SOFT_PATTERNS]
     
-    def align(self, text: str) -> tuple[str, bool, list]:
+    def align(self, text: str) -> Tuple[str, bool, list]:
         """Apply identity alignment to LLM output (Issue 87)."""
         if not text or not text.strip():
             return text, False, []
@@ -186,7 +187,7 @@ class ExecutiveGuard:
 
 # ─── Singleton ───────────────────────────────────────────────────────────────
 
-_guard_instance: ExecutiveGuard | None = None
+_guard_instance: Optional[ExecutiveGuard] = None
 
 def get_executive_guard() -> ExecutiveGuard:
     """Return the process-wide ExecutiveGuard singleton."""

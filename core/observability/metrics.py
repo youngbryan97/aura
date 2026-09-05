@@ -15,8 +15,7 @@ import os
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
-
+from typing import Any, Deque, Dict, Optional
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Observability.Metrics")
@@ -27,7 +26,7 @@ class MetricSample:
     """A single metric data point."""
     name: str
     value: float
-    labels: dict[str, str] = field(default_factory=dict)
+    labels: Dict[str, str] = field(default_factory=dict)
     metric_type: str = "gauge"  # gauge, counter, histogram
     help_text: str = ""
     timestamp: float = field(default_factory=time.time)
@@ -43,24 +42,24 @@ class MetricsCollector:
     def __init__(self) -> None:
         self._boot_time = time.time()
         self._tick_count = 0
-        self._tick_durations: deque[float] = deque(maxlen=100)
+        self._tick_durations: Deque[float] = deque(maxlen=100)
         self._last_tick_time = 0.0
         self._substrate_resets = 0
-        self._will_decisions: dict[str, int] = {
+        self._will_decisions: Dict[str, int] = {
             "proceed": 0,
             "constrain": 0,
             "defer": 0,
             "refuse": 0,
             "critical": 0,
         }
-        self._process_restarts: dict[str, int] = {}
+        self._process_restarts: Dict[str, int] = {}
         self._receipt_count = 0
         self._initiative_queue_length = 0
         self._initiative_overflow_count = 0
         self._db_size_bytes = 0
-        self._custom_gauges: dict[str, float] = {}
-        self._custom_counters: dict[str, int] = {}
-        self._custom_timers: dict[str, list[float]] = {}
+        self._custom_gauges: Dict[str, float] = {}
+        self._custom_counters: Dict[str, int] = {}
+        self._custom_timers: Dict[str, list[float]] = {}
 
     # ── Recording methods ─────────────────────────────────────────
 
@@ -118,7 +117,7 @@ class MetricsCollector:
             self._custom_timers[name] = []
         self._custom_timers[name].append(duration)
 
-    def get_snapshot(self, name: str) -> dict[str, Any]:
+    def get_snapshot(self, name: str) -> Dict[str, Any]:
         durations = self._custom_timers.get(name, [])
         if not durations:
             return {"count": 0, "sum": 0.0, "avg": 0.0, "max": 0.0, "min": 0.0}
@@ -403,7 +402,7 @@ class MetricTimer:
 
 
 # Singleton
-_metrics_instance: MetricsCollector | None = None
+_metrics_instance: Optional[MetricsCollector] = None
 
 
 def get_metrics() -> MetricsCollector:
@@ -431,7 +430,7 @@ except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc
 # ---------------------------------------------------------------------------
 
 
-def check_liveness() -> dict[str, Any]:
+def check_liveness() -> Dict[str, Any]:
     """Liveness probe: is the process alive and the event loop responsive?
     Returns 200-compatible dict if alive.
     """
@@ -442,7 +441,7 @@ def check_liveness() -> dict[str, Any]:
     }
 
 
-def check_readiness() -> dict[str, Any]:
+def check_readiness() -> Dict[str, Any]:
     """Readiness probe: can Aura accept and process requests?
 
     Checks:

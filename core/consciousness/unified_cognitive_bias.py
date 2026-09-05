@@ -25,11 +25,12 @@ is visible in the fused vector and attributable via
 """
 from __future__ import annotations
 
+
 import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import Any, Dict, Optional, cast
 
 import numpy as np
 
@@ -50,16 +51,16 @@ class UnifiedBiasSnapshot:
     hemi_contribution: np.ndarray
     selfhood_contribution: np.ndarray
     observer_contribution: np.ndarray
-    weights: dict[str, float]
+    weights: Dict[str, float]
     observer_presence: float
     ts: float = field(default_factory=time.time)
 
 
 class UnifiedCognitiveBias:
-    def __init__(self, weights: dict[str, float] | None = None):
+    def __init__(self, weights: Optional[Dict[str, float]] = None):
         self._weights = dict(weights or DEFAULT_WEIGHTS)
         self._lock = threading.Lock()
-        self._last: UnifiedBiasSnapshot | None = None
+        self._last: Optional[UnifiedBiasSnapshot] = None
         logger.info("UnifiedCognitiveBias initialized: weights=%s", self._weights)
 
     @staticmethod
@@ -72,9 +73,9 @@ class UnifiedCognitiveBias:
         return cast(np.ndarray, arr[:BIAS_DIM])
 
     def fuse(self,
-             hemi_bias: np.ndarray | None,
-             selfhood_bias: np.ndarray | None,
-             observer_bias: np.ndarray | None,
+             hemi_bias: Optional[np.ndarray],
+             selfhood_bias: Optional[np.ndarray],
+             observer_bias: Optional[np.ndarray],
              observer_presence: float = 0.0
              ) -> UnifiedBiasSnapshot:
         h = self._vec(hemi_bias)
@@ -100,7 +101,7 @@ class UnifiedCognitiveBias:
             self._last = snap
         return snap
 
-    def last(self) -> UnifiedBiasSnapshot | None:
+    def last(self) -> Optional[UnifiedBiasSnapshot]:
         with self._lock:
             return self._last
 
@@ -114,7 +115,7 @@ class UnifiedCognitiveBias:
             "observer": observer / total,
         }
 
-    def contribution_summary(self) -> dict[str, Any]:
+    def contribution_summary(self) -> Dict[str, Any]:
         s = self.last()
         if s is None:
             return {"has_snapshot": False}
@@ -129,7 +130,7 @@ class UnifiedCognitiveBias:
         }
 
 
-_INSTANCE: UnifiedCognitiveBias | None = None
+_INSTANCE: Optional[UnifiedCognitiveBias] = None
 
 
 def get_unified_cognitive_bias() -> UnifiedCognitiveBias:

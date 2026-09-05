@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from typing import Any
 from xml.sax.saxutils import escape
 
 __all__ = [

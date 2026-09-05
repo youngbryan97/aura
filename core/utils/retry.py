@@ -5,14 +5,12 @@ Provides exponential backoff with jitter, error classification,
 and telemetry integration. Replaces all ad-hoc retry loops.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import random
 import time
-from collections.abc import Callable
-from typing import Any, TypeVar
-
-from core.runtime.errors import record_degradation
+from typing import Any, Callable, Optional, TypeVar
 
 logger = logging.getLogger("Aura.Retry")
 
@@ -77,8 +75,8 @@ async def retry_with_backoff(
     base_delay: float = 1.0,
     max_delay: float = 30.0,
     jitter: bool = True,
-    retry_filter: Callable[[Exception], bool] | None = None,
-    on_retry: Callable[[int, Exception, float], None] | None = None,
+    retry_filter: Optional[Callable[[Exception], bool]] = None,
+    on_retry: Optional[Callable[[int, Exception, float], None]] = None,
     **kwargs: Any,
 ) -> Any:
     """Execute an async function with exponential backoff retry.

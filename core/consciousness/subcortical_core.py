@@ -24,14 +24,15 @@ AND good for indefinite runtime on consumer hardware.
 """
 from __future__ import annotations
 
+
 import logging
 import math
+
+from core.runtime.errors import record_degradation
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Any
-
-from core.runtime.errors import record_degradation
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger("Consciousness.SubcorticalCore")
 
@@ -206,7 +207,7 @@ class SubcorticalCore:
             return "## AROUSAL STATE\nHighly vigilant — all systems at peak capacity."
         return ""
 
-    def get_snapshot(self) -> dict[str, Any]:
+    def get_snapshot(self) -> Dict[str, Any]:
         """Telemetry payload."""
         return {
             "arousal_level": round(self._arousal, 4),
@@ -222,7 +223,7 @@ class SubcorticalCore:
 
 # ── Singleton ────────────────────────────────────────────────────────────────
 
-_instance: SubcorticalCore | None = None
+_instance: Optional[SubcorticalCore] = None
 
 
 def get_subcortical_core() -> SubcorticalCore:

@@ -19,8 +19,8 @@ module assumes is that the thing is laid out.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from typing import Iterable, Sequence
 
 __all__ = ["Arrangement", "Cell", "arranged", "holds_in", "EMPTY_CELL"]
 
@@ -178,7 +178,7 @@ class Arrangement:
             self.place_of(cell) for cell in self.cells if cell.says.strip().lower() == wanted
         }
 
-    def without(self, places: set[tuple[int, int]]) -> Arrangement:
+    def without(self, places: set[tuple[int, int]]) -> "Arrangement":
         """This thing with some places dropped, and any row or column they
         were the whole of dropped with them.
 
@@ -279,7 +279,7 @@ class Arrangement:
 
 
 def arranged(
-    cells: Iterable[tuple[float, float, str]], like: Arrangement | None = None
+    cells: Iterable[tuple[float, float, str]], like: "Arrangement | None" = None
 ) -> Arrangement:
     """Work out the rows and columns that are really there.
 

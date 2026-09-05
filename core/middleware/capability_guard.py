@@ -11,7 +11,7 @@ import os
 import socket
 import urllib.parse
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional
 
 from core.config import config
 from core.runtime.errors import record_degradation
@@ -22,7 +22,7 @@ _NETWORK_RESOLUTION_ERRORS = (OSError, UnicodeError, ValueError)
 class CapabilityGuard:
     """Runtime enforcement of system capabilities."""
 
-    def __init__(self, manifest_path: str | None = None):
+    def __init__(self, manifest_path: Optional[str] = None):
         if manifest_path is None:
             manifest_path = os.path.join(os.path.dirname(__file__), "../capabilities_manifest.json")
         
@@ -34,7 +34,7 @@ class CapabilityGuard:
         """Loads the capabilities manifest from JSON."""
         try:
             if self.manifest_path.exists():
-                with open(self.manifest_path) as f:
+                with open(self.manifest_path, "r") as f:
                     data = json.load(f)
                     self.capabilities = data.get("capabilities", {})
                     logger.info("Capability Manifest loaded (v%s)", data.get("version", "unknown"))
@@ -46,7 +46,7 @@ class CapabilityGuard:
             logger.error("Failed to load capability manifest: %s", e)
             self.capabilities = self._get_default_capabilities()
 
-    def _get_default_capabilities(self) -> dict[str, Any]:
+    def _get_default_capabilities(self) -> Dict[str, Any]:
         """Highly restrictive default capabilities."""
         return {
             "file_system": {
@@ -161,7 +161,7 @@ class CapabilityGuard:
         logger.warning("SecurityViolation: Write Denied (Path not in manifest): %s", path)
         return False
 
-    def can_call_tool(self, tool_name: str, args: dict[str, Any]) -> bool:
+    def can_call_tool(self, tool_name: str, args: Dict[str, Any]) -> bool:
         """Checks if a tool call is permitted with given arguments."""
         # 1. Network check if the tool involves external requests
         if tool_name in ["read_url_content", "search_web"]:

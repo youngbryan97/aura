@@ -1,8 +1,9 @@
-import logging
-import sqlite3
-
-from core.memory import db_config
 from core.runtime.errors import record_degradation
+import sqlite3
+import json
+import logging
+from pathlib import Path
+from core.memory import db_config
 
 logger = logging.getLogger("Aura.CoreDB")
 
@@ -13,7 +14,7 @@ class AuraCoreDB:
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
+            cls._instance = super(AuraCoreDB, cls).__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 

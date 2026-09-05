@@ -1,14 +1,13 @@
 import asyncio
 import logging
-from collections.abc import Callable
 from functools import wraps
-
+from typing import Dict, Callable
 from .circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger("Aura.Resilience.Factory")
 
 # A global registry to hold one breaker per service_name.
-_breakers: dict[str, CircuitBreaker] = {}
+_breakers: Dict[str, CircuitBreaker] = {}
 _factory_lock = None
 
 async def get_breaker(service_name: str, failure_threshold: int = 3, recovery_timeout: int = 60) -> CircuitBreaker:
@@ -23,7 +22,6 @@ async def get_breaker(service_name: str, failure_threshold: int = 3, recovery_ti
         return _breakers[service_name]
 
 import inspect
-
 
 def circuit_breaker(service_name: str, failure_threshold: int = 3, recovery_timeout: int = 60):
     """

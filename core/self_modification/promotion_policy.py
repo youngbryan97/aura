@@ -6,8 +6,8 @@ and must only happen in an operator-controlled repair-lab or supervised flow.
 """
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
+import os
 
 RUNTIME_SELF_MODIFICATION_ENV = "AURA_ALLOW_RUNTIME_SELF_MODIFICATION"
 AUTONOMOUS_PATCH_PROMOTION_ENV = "AURA_ALLOW_AUTONOMOUS_PATCH_PROMOTION"

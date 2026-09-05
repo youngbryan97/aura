@@ -13,15 +13,14 @@ Design principles:
   4. All autonomous actions are logged to an audit trail for observability.
 """
 
+from core.runtime.errors import record_degradation
+from core.runtime.service_registry import get_runtime_service
+from core.utils.task_tracker import get_task_tracker
+from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
 import time
-from collections.abc import Coroutine
-
-from core.runtime.errors import record_degradation
-from core.runtime.service_registry import get_runtime_service
-from core.utils.exceptions import capture_and_log
-from core.utils.task_tracker import get_task_tracker
+from typing import Coroutine, Dict, Optional
 
 logger = logging.getLogger("Aura.AutonomyGuardian")
 
@@ -36,7 +35,7 @@ class AutonomyGuardian:
 
     def __init__(self, orchestrator=None):
         self.orchestrator = orchestrator
-        self._active_tasks: dict[str, asyncio.Task] = {}
+        self._active_tasks: Dict[str, asyncio.Task] = {}
         self._audit_log: list = []
         self._max_audit = 200  # rolling window
         self._is_monitoring = False
@@ -53,7 +52,7 @@ class AutonomyGuardian:
         origin: str = "system",
         allow_cancel_by_user: bool = True,
         retry_on_fail: bool = True,
-    ) -> str | None:
+    ) -> Optional[str]:
         """Execute *coro* with full autonomy guarantees.
 
         Returns the coroutine's result (usually a response string), or None

@@ -191,7 +191,7 @@ class WhatTheWorldDoes:
         }
 
     @classmethod
-    def from_memory(cls, held: Any, trust: float = 1.0) -> WhatTheWorldDoes:
+    def from_memory(cls, held: Any, trust: float = 1.0) -> "WhatTheWorldDoes":
         """What the world did last time, discounted like anything carried over."""
         if not isinstance(held, dict):
             return cls()

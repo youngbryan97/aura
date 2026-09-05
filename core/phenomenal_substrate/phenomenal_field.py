@@ -1,8 +1,8 @@
 from __future__ import annotations
+from typing import Dict
 
+from .maths import clamp, clamp_signed, mix
 from .affective_core import AffectivePrimitives
-from .maths import clamp, mix
-
 
 class PhenomenalField:
     """
@@ -12,7 +12,7 @@ class PhenomenalField:
     It binds affect, self-presence, object-directedness, and action pressure.
     """
     def __init__(self) -> None:
-        self.vector: dict[str, float] = {
+        self.vector: Dict[str, float] = {
             "warmth": 0.0,
             "pressure": 0.1,
             "openness": 0.2,
@@ -28,10 +28,10 @@ class PhenomenalField:
     def update(
         self,
         affect: AffectivePrimitives,
-        belief: dict[str, float],
+        belief: Dict[str, float],
         integration: float,
         recurrent_cycles: int = 4,
-    ) -> dict[str, float]:
+    ) -> Dict[str, float]:
         target = {
             "warmth": affect.care,
             "pressure": max(affect.distress, affect.arousal * 0.6),
@@ -50,7 +50,7 @@ class PhenomenalField:
         return dict(self.vector)
 
     @staticmethod
-    def integration_score(vector: dict[str, float]) -> float:
+    def integration_score(vector: Dict[str, float]) -> float:
         """
         Simple differentiation/integration proxy:
         high when field has structure but not collapse into one dimension.

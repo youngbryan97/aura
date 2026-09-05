@@ -7,12 +7,13 @@ this module without needing access to the chat route or orchestrator instance.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 import os
 import threading
 import time
 import uuid
-from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
+
 
 _LOCK = threading.RLock()
 _ACTIVE: dict[str, dict[str, Any]] = {}
@@ -35,7 +36,7 @@ def _now() -> float:
     return time.time()
 
 
-def notify_user_spoke(message: str = "", *, quiet_seconds: float | None = None) -> None:
+def notify_user_spoke(message: str = "", *, quiet_seconds: Optional[float] = None) -> None:
     """Mark foreground social pressure before a model request begins."""
     del message  # Reserved for future per-message policies.
     quiet_s = default_quiet_seconds() if quiet_seconds is None else max(0.0, float(quiet_seconds))
@@ -58,7 +59,7 @@ class ForegroundLease:
         self.closed = True
         end_foreground_turn(self.token, quiet_seconds=self.quiet_seconds)
 
-    def __enter__(self) -> ForegroundLease:
+    def __enter__(self) -> "ForegroundLease":
         return self
 
     def __exit__(self, _exc_type: Any, _exc: Any, _tb: Any) -> None:
@@ -69,7 +70,7 @@ def begin_foreground_turn(
     *,
     owner: str = "chat_api",
     source: str = "chat_api",
-    quiet_seconds: float | None = None,
+    quiet_seconds: Optional[float] = None,
 ) -> ForegroundLease:
     """Acquire a foreground conversation lease for the current process."""
     quiet_s = default_quiet_seconds() if quiet_seconds is None else max(0.0, float(quiet_seconds))
@@ -87,7 +88,7 @@ def begin_foreground_turn(
     return ForegroundLease(token=token, quiet_seconds=quiet_s)
 
 
-def end_foreground_turn(token: str, *, quiet_seconds: float | None = None) -> None:
+def end_foreground_turn(token: str, *, quiet_seconds: Optional[float] = None) -> None:
     quiet_s = default_quiet_seconds() if quiet_seconds is None else max(0.0, float(quiet_seconds))
     now = _now()
     with _LOCK:

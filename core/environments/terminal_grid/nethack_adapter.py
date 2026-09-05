@@ -9,7 +9,6 @@ without cheating or environment-specific bypasses.
 from __future__ import annotations
 
 import logging
-
 logger = logging.getLogger("core.environments.terminal_grid.nethack_adapter")
 import asyncio
 import os
@@ -26,9 +25,9 @@ from core.environment.adapter import (
 )
 from core.environment.command import CommandSpec
 from core.environment.observation import Observation
-from core.runtime.atomic_writer import async_atomic_write_text
 
 from .base import TerminalGridAdapter
+from core.runtime.atomic_writer import async_atomic_write_text
 
 
 class EnvironmentMode(Enum):

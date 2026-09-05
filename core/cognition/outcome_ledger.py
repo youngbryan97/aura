@@ -37,10 +37,9 @@ import sqlite3
 import threading
 import time
 import uuid
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Dict, List, Optional
 
 from core.config import config
 from core.runtime.errors import record_degradation
@@ -68,7 +67,7 @@ class CreditSource:
     ref: str           # identifier: policy name, memory id, tool name, ...
     weight: float = 1.0  # relative contribution share (normalized at resolve time)
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self) -> Dict[str, Any]:
         return {"kind": self.kind, "ref": self.ref, "weight": self.weight}
 
 
@@ -78,14 +77,14 @@ class OutcomeReceipt:
     action: str
     category: str
     expected: float
-    sources: list[CreditSource]
+    sources: List[CreditSource]
     opened_at: float
     horizon_s: float
-    context: dict[str, Any] = field(default_factory=dict)
-    observed: float | None = None
-    resolved_at: float | None = None
+    context: Dict[str, Any] = field(default_factory=dict)
+    observed: Optional[float] = None
+    resolved_at: Optional[float] = None
     status: str = "pending"          # pending | resolved | expired
-    prediction_error: float | None = None
+    prediction_error: Optional[float] = None
     #: How ``observed`` was arrived at. ``"measured"`` means somebody actually
     #: looked; ``"unobserved"`` means the horizon passed and the zero is an
     #: accountability convention, not a fact about the world. Consumers doing
@@ -97,10 +96,10 @@ class OutcomeReceipt:
     repeat_count: int = 1
 
     @property
-    def delay(self) -> float | None:
+    def delay(self) -> Optional[float]:
         return None if self.resolved_at is None else self.resolved_at - self.opened_at
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self) -> Dict[str, Any]:
         return {
             "receipt_id": self.receipt_id,
             "action": self.action,
@@ -130,19 +129,19 @@ class OutcomeLedger:
 
     MAX_PENDING_LOAD = 5000
 
-    def __init__(self, db_path: str | None = None, default_horizon_s: float = 3600.0) -> None:
+    def __init__(self, db_path: Optional[str] = None, default_horizon_s: float = 3600.0) -> None:
         self._db_path = db_path or str(config.paths.home_dir / "data/outcome_ledger.db")
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._default_horizon = default_horizon_s
-        self._pending: dict[str, OutcomeReceipt] = {}
+        self._pending: Dict[str, OutcomeReceipt] = {}
         self._calib_err_sum = 0.0
         self._calib_n = 0
         self._unobserved_n = 0
         self._collapsed_opens = 0
         self._collapse_window = _DEFAULT_COLLAPSE_WINDOW_S
         self._open_index: dict[tuple[str, str, str], tuple[str, float]] = {}
-        self._resolution_observers: list[Callable[[OutcomeReceipt], None]] = []
+        self._resolution_observers: List[Callable[[OutcomeReceipt], None]] = []
         self._pending_db_count = 0
         self._startup_expired_count = 0
         self._pending_load_truncated = False
@@ -327,11 +326,11 @@ class OutcomeLedger:
         action: str,
         expected: float,
         *,
-        sources: list[CreditSource] | None = None,
+        sources: Optional[List[CreditSource]] = None,
         category: str = "action",
-        horizon_s: float | None = None,
-        context: dict[str, Any] | None = None,
-        now: float | None = None,
+        horizon_s: Optional[float] = None,
+        context: Optional[Dict[str, Any]] = None,
+        now: Optional[float] = None,
         collapse_window_s: float | None = None,
     ) -> str:
         """Commit an action with its *expected* outcome; returns a receipt_id to resolve later.
@@ -373,7 +372,7 @@ class OutcomeLedger:
         self,
         action: str,
         category: str,
-        context: dict[str, Any],
+        context: Dict[str, Any],
         now: float,
         window: float,
     ) -> str | None:
@@ -399,7 +398,7 @@ class OutcomeLedger:
             return receipt_id
 
     @staticmethod
-    def _collapse_context_key(context: dict[str, Any]) -> str:
+    def _collapse_context_key(context: Dict[str, Any]) -> str:
         """Stable identity for deduplication without retaining another raw copy."""
         import hashlib
 
@@ -415,8 +414,8 @@ class OutcomeLedger:
         observed: float,
         *,
         note: str = "",
-        now: float | None = None,
-    ) -> OutcomeReceipt | None:
+        now: Optional[float] = None,
+    ) -> Optional[OutcomeReceipt]:
         """Close a receipt with the observed outcome; assign credit to its sources.
 
         Returns the resolved receipt, or None if the id is unknown/already closed.
@@ -445,7 +444,7 @@ class OutcomeLedger:
         return receipt
 
     def add_resolution_observer(
-        self, observer: Callable[[OutcomeReceipt], None]
+        self, observer: "Callable[[OutcomeReceipt], None]"
     ) -> None:
         """Call ``observer`` whenever a receipt closes with a MEASURED outcome.
 
@@ -477,7 +476,7 @@ class OutcomeLedger:
                     "resolved and credit was still assigned",
                 )
 
-    def sweep(self, *, now: float | None = None) -> list[OutcomeReceipt]:
+    def sweep(self, *, now: Optional[float] = None) -> List[OutcomeReceipt]:
         """Expire pending receipts past their horizon.
 
         The accountability rule stands: an action whose outcome nobody ever
@@ -494,7 +493,7 @@ class OutcomeLedger:
         academic.
         """
         now = time.time() if now is None else now
-        expired: list[OutcomeReceipt] = []
+        expired: List[OutcomeReceipt] = []
         with self._lock:
             for rid, r in list(self._pending.items()):
                 if now - r.opened_at >= r.horizon_s:
@@ -592,14 +591,14 @@ class OutcomeLedger:
             closed = self._calib_n + self._unobserved_n
             return (self._calib_n / closed) if closed else 0.0
 
-    def pending(self) -> list[dict[str, Any]]:
+    def pending(self) -> List[Dict[str, Any]]:
         with self._lock:
             return [r.as_dict() for r in self._pending.values()]
 
-    def credit_by_source(self, *, hours: int = 24, now: float | None = None) -> dict[str, float]:
+    def credit_by_source(self, *, hours: int = 24, now: Optional[float] = None) -> Dict[str, float]:
         """Net reward by source ref over resolved receipts in the window (from the db)."""
         cutoff = (time.time() if now is None else now) - hours * 3600
-        out: dict[str, float] = {}
+        out: Dict[str, float] = {}
         try:
             with connecting(self._connect()) as conn:
                 rows = conn.execute(
@@ -620,7 +619,7 @@ class OutcomeLedger:
 
     def measured_action_stats(
         self, *, limit: int = 20000, by_state: bool = False
-    ) -> dict[str, dict[str, float]]:
+    ) -> Dict[str, Dict[str, float]]:
         """Per-action outcome statistics over MEASURED receipts only.
 
         The evidence base for any learned action value. ``observation`` must be
@@ -645,7 +644,7 @@ class OutcomeLedger:
         exactly why the consumer backs off to the marginal estimate rather
         than trusting a bucket of one.
         """
-        out: dict[str, dict[str, float]] = {}
+        out: Dict[str, Dict[str, float]] = {}
         columns = "action, observed, repeat_count" + (", context_json" if by_state else "")
         try:
             with connecting(self._connect()) as conn:
@@ -697,7 +696,7 @@ class OutcomeLedger:
             bucket["n"] = total
         return out
 
-    def stats(self) -> dict[str, Any]:
+    def stats(self) -> Dict[str, Any]:
         with self._lock:
             return {
                 "pending": len(self._pending),
@@ -713,7 +712,7 @@ class OutcomeLedger:
             }
 
 
-_ledger: OutcomeLedger | None = None
+_ledger: Optional[OutcomeLedger] = None
 _ledger_lock = threading.Lock()
 
 

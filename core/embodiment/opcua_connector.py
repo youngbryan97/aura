@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import math
+import os
 import re
 import time
 import urllib.parse
@@ -31,8 +32,8 @@ from core.reality_reach.scalar_adapter import (
     ScalarWriteResult,
 )
 from core.runtime.audit_chain import canonical_json, sha256_hex
-from core.runtime.flags import env_str
 from core.runtime.lockdep import checked_async_lock
+from core.runtime.flags import env_str
 
 _IDENTIFIER = re.compile(r"^[a-z0-9][a-z0-9_.:-]{0,127}$")
 _VALUE_TYPES = frozenset(

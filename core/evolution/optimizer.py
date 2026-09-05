@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import shutil
+from typing import Any, Dict, List
 
 from core.runtime.file_write_gateway import get_file_write_gateway
 
@@ -15,7 +16,7 @@ from core.self_modification.patch_library import PatchStrategy, get_patches
 logger = logging.getLogger("Kernel.Optimizer")
 
 class Optimizer:
-    def __init__(self, data_file="autonomy_engine/data/hard_examples.json", *, patches: list[PatchStrategy] | None = None):
+    def __init__(self, data_file="autonomy_engine/data/hard_examples.json", *, patches: List[PatchStrategy] | None = None):
         self.data_file = data_file
         self.patches = list(patches) if patches is not None else get_patches()
 
@@ -30,7 +31,7 @@ class Optimizer:
             return
 
         try:
-            with open(self.data_file) as f:
+            with open(self.data_file, 'r') as f:
                 failures = json.load(f)
         except json.JSONDecodeError:
             logger.warning("Corrupted hard_examples.json. resetting.")

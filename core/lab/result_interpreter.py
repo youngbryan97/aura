@@ -9,7 +9,7 @@ could only ever validate).
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Dict
 
 from core.lab.hypothesis_engine import Hypothesis
 
@@ -22,8 +22,8 @@ class ResultInterpreter:
     def interpret(
         self,
         hypothesis: Hypothesis,
-        simulation_result: dict[str, Any],
-    ) -> dict[str, Any]:
+        simulation_result: Dict[str, Any],
+    ) -> Dict[str, Any]:
         logger.info("🎯 ResultInterpreter: analyzing hypothesis '%s'", hypothesis.hypothesis_id)
 
         status = str(simulation_result.get("status", "inconclusive"))
@@ -39,7 +39,7 @@ class ResultInterpreter:
             new_confidence = 0.0
             counterexample = simulation_result.get("counterexample")
             conclusion = (
-                "Hypothesis REFUTED by exact counterexample"
+                f"Hypothesis REFUTED by exact counterexample"
                 + (f" (n={counterexample})" if counterexample is not None else "")
                 + f". {rendered}"
             ).strip()

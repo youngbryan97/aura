@@ -10,12 +10,12 @@ and the token records the audit receipt that authorized the access.
 """
 from __future__ import annotations
 
+
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from core.runtime.errors import record_degradation
 
@@ -50,7 +50,7 @@ class CapabilityToken:
     receipt_id: str
     expires_at: float
 
-    def is_expired(self, now: float | None = None) -> bool:
+    def is_expired(self, now: Optional[float] = None) -> bool:
         return (now or time.time()) >= self.expires_at
 
 
@@ -63,7 +63,7 @@ class SceneEvent:
     summary: str
     confidence: float
     energy: float = 0.0  # 0..1, used by silence policy
-    raw_reference: str | None = None
+    raw_reference: Optional[str] = None
     storage_policy: str = "session"
 
 
@@ -78,12 +78,12 @@ class MovieSessionMemory:
 
     title: str
     started_at: float = field(default_factory=time.time)
-    finished_at: float | None = None
-    scenes: list[SceneEvent] = field(default_factory=list)
-    characters: dict[str, dict[str, Any]] = field(default_factory=dict)
-    user_reactions: list[dict[str, Any]] = field(default_factory=list)
-    aura_comments: list[dict[str, Any]] = field(default_factory=list)
-    open_questions: list[str] = field(default_factory=list)
+    finished_at: Optional[float] = None
+    scenes: List[SceneEvent] = field(default_factory=list)
+    characters: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    user_reactions: List[Dict[str, Any]] = field(default_factory=list)
+    aura_comments: List[Dict[str, Any]] = field(default_factory=list)
+    open_questions: List[str] = field(default_factory=list)
     privacy_mode: bool = False
 
     # Clocks ---------------------------------------------------------------
@@ -106,10 +106,10 @@ class MovieSessionMemory:
         char.update(attrs)
         char["last_seen"] = time.time()
 
-    def record_user_reaction(self, kind: str, text: str = "", at: float | None = None) -> None:
+    def record_user_reaction(self, kind: str, text: str = "", at: Optional[float] = None) -> None:
         self.user_reactions.append({"kind": kind, "text": text, "at": at or time.time()})
 
-    def record_aura_comment(self, text: str, suppressed: bool = False, reason: str | None = None) -> None:
+    def record_aura_comment(self, text: str, suppressed: bool = False, reason: Optional[str] = None) -> None:
         self.aura_comments.append(
             {"text": text, "at": time.time(), "suppressed": suppressed, "reason": reason}
         )
@@ -141,9 +141,9 @@ class SharedAttentionState:
     user_focus_estimate: str = "unknown"
     aura_focus: str = "unknown"
     confidence: float = 0.0
-    recent_joint_events: list[str] = field(default_factory=list)
+    recent_joint_events: List[str] = field(default_factory=list)
 
-    def update_focus(self, *, user: str | None = None, aura: str | None = None, confidence: float | None = None) -> None:
+    def update_focus(self, *, user: Optional[str] = None, aura: Optional[str] = None, confidence: Optional[float] = None) -> None:
         if user is not None:
             self.user_focus_estimate = user
         if aura is not None:
@@ -189,14 +189,14 @@ class PerceptionRuntime:
     def __init__(
         self,
         *,
-        governance_decide: Callable[..., Any] | None = None,
+        governance_decide: Optional[Callable[..., Any]] = None,
         clock: Callable[[], float] = time.time,
     ):
         self._governance = governance_decide
         self._clock = clock
-        self._sensors: dict[str, SensorCallable] = {}
-        self._tokens: dict[str, CapabilityToken] = {}
-        self.movie_session: MovieSessionMemory | None = None
+        self._sensors: Dict[str, SensorCallable] = {}
+        self._tokens: Dict[str, CapabilityToken] = {}
+        self.movie_session: Optional[MovieSessionMemory] = None
         self.silence_policy = SilencePolicy()
         self.shared_attention = SharedAttentionState()
         try:
@@ -278,7 +278,7 @@ class PerceptionRuntime:
             self.daemon.register_moment("movie_session", f"Started watching: {title}", {"privacy_mode": privacy_mode})
         return self.movie_session
 
-    def close_movie_session(self) -> MovieSessionMemory | None:
+    def close_movie_session(self) -> Optional[MovieSessionMemory]:
         if self.movie_session is None:
             return None
         self.movie_session.close_session()

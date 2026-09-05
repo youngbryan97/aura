@@ -24,16 +24,16 @@ Contradiction resolution:
   If similar → TENTATIVE (suspend, flag for review)
   If weaker  → REJECT (reinforce existing belief instead)
 """
+from core.runtime.errors import record_degradation
 import logging
 import re
-from typing import Any
-
-from core.runtime.errors import record_degradation
+import time
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("Aura.EpistemicFilter")
 
 # Source trust scores
-_SOURCE_SCORES: dict[str, float] = {
+_SOURCE_SCORES: Dict[str, float] = {
     "self":         0.95,
     "known_source": 0.85,
     "conversation": 0.75,
@@ -77,7 +77,7 @@ class EpistemicFilter:
         source_label: str = "",
         context: str = "",
         emit_thoughts: bool = True,
-    ) -> list[dict[str, Any]]:
+    ) -> List[Dict[str, Any]]:
         """
         Parse text into atomic claims, evaluate each, and persist to the
         belief graph. Returns a list of outcome records.
@@ -132,9 +132,9 @@ class EpistemicFilter:
         target: str,
         source_type: str = "unknown",
         source_label: str = "",
-        confidence_override: float | None = None,
+        confidence_override: Optional[float] = None,
         centrality: float = 0.2,
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """
         Ingest an explicit triple claim (source, relation, target) rather
         than parsing it from text. More precise — use when the caller already
@@ -164,7 +164,7 @@ class EpistemicFilter:
         self._ingested_count += 1
         return outcome
 
-    def get_stats(self) -> dict[str, int]:
+    def get_stats(self) -> Dict[str, int]:
         return {
             "ingested": self._ingested_count,
             "accepted": self._accepted_count,
@@ -174,7 +174,7 @@ class EpistemicFilter:
     # ─── Claim Extraction ─────────────────────────────────────────────────────
 
     @staticmethod
-    def _extract_claims(text: str) -> list[str]:
+    def _extract_claims(text: str) -> List[str]:
         """
         Split text into sentence-level atomic claims.
         Strips meta-noise (headlines fragments, URLs, navigation text).
@@ -198,7 +198,7 @@ class EpistemicFilter:
         source_score: float,
         source_label: str,
         bg,
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """
         Evaluate a free-text claim. Since we can't do full NLP triple extraction
         without an LLM call, we store it as a propositional fact and check for
@@ -245,7 +245,7 @@ class EpistemicFilter:
         confidence: float,
         source_score: float,
         bg,
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """Evaluate a structured (source, relation, target) triple."""
         outcome_type = ACCEPT
 
@@ -277,7 +277,7 @@ class EpistemicFilter:
 
     # ─── Belief Graph Integration ─────────────────────────────────────────────
 
-    def _write_to_graph(self, outcome: dict[str, Any], bg):
+    def _write_to_graph(self, outcome: Dict[str, Any], bg):
         """Write an accepted/tentative outcome to the belief graph."""
         s = outcome.get("s", "world")
         r = outcome.get("r", "fact")
@@ -298,7 +298,7 @@ class EpistemicFilter:
             logger.debug("EpistemicFilter write failed: %s", e)
 
     @staticmethod
-    def _check_shallow_contradiction(claim: str, bg) -> dict | None:
+    def _check_shallow_contradiction(claim: str, bg) -> Optional[Dict]:
         """
         Lightweight keyword check — looks for existing beliefs whose target
         text overlaps significantly with the new claim's words.
@@ -336,7 +336,7 @@ class EpistemicFilter:
         return self._belief_graph
 
     @staticmethod
-    def _emit_thought(outcome: dict[str, Any]):
+    def _emit_thought(outcome: Dict[str, Any]):
         try:
             from core.thought_stream import get_emitter
             label = {
@@ -362,7 +362,7 @@ class EpistemicFilter:
 
 
 # ── Singleton ──────────────────────────────────────────────────────────────────
-_filter: EpistemicFilter | None = None
+_filter: Optional[EpistemicFilter] = None
 
 
 def get_epistemic_filter() -> EpistemicFilter:

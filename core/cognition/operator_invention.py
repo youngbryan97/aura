@@ -43,12 +43,12 @@ clause and the thing that makes the loop recursive rather than a single step.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
+import threading
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
-
-from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Residual",

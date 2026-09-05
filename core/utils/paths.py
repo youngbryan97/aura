@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Dict
 
 from core.runtime.flags import aura_log_dir_override, aura_root_override
 from core.runtime.state_ownership import state_root
@@ -29,8 +30,9 @@ def _ensure_dir(p: Path, *, cause: str) -> Path:
     return p
 
 
-def get_paths() -> dict[str, Path]:
+def get_paths() -> Dict[str, Path]:
     """Returns a dictionary of all core Aura paths for subsystems."""
+    from core.config import config
     return {
         "root": aura_root(),
         "data": aura_data_dir(),

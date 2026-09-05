@@ -7,7 +7,7 @@ GovernanceReceipts for the F1 audit chain.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Dict, Optional
 
 from core.self_improvement.interface_contract import (
     AuditResult,
@@ -54,7 +54,7 @@ class LabPromotionGate:
         hardcoding_audit: AuditResult,
         guardrail_audit: AuditResult,
         discrepancy: DiscrepancyReport,
-        metadata: dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> PromotionVerdict:
         """Evaluate whether a candidate should be promoted.
 
@@ -127,8 +127,8 @@ class LabPromotionGate:
         return PromotionVerdict.REJECT
 
     def _emit_receipt(
-        self, action: str, reason: str, metadata: dict[str, Any] | None = None
-    ) -> str | None:
+        self, action: str, reason: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> Optional[str]:
         """Emit a GovernanceReceipt for the decision."""
         if not self.emit_receipts:
             return None

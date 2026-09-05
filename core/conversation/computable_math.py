@@ -620,7 +620,7 @@ COMPUTABLE_FORMS = COMPUTABLE_FORMS + (
 )
 
 
-def computable_result(question: str) -> ComputedNumber | None:
+def computable_result(question: str) -> "ComputedNumber | None":
     """The exact answer and the code object that produced it.
 
     Same reason as the text side: an answer with no account of its own

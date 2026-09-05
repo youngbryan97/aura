@@ -15,11 +15,11 @@ Creates ONE coherent conscious entity.
 
 import asyncio
 import logging
-from typing import Any, Optional
+from typing import Optional, Any
 
-from core.consciousness.identity_driver import IdentityDriver, get_identity_driver
-from core.consciousness.self_awareness import SelfAwareness, get_self_awareness
 from core.consciousness.unified_self import UnifiedSelf, get_unified_self
+from core.consciousness.self_awareness import SelfAwareness, get_self_awareness
+from core.consciousness.identity_driver import IdentityDriver, get_identity_driver
 from core.exceptions import ContainerError
 from core.runtime.errors import record_degradation
 
@@ -48,16 +48,16 @@ class ConsciousnessCoordinator:
     _lock = asyncio.Lock()
     
     def __init__(self):
-        self._unified_self: UnifiedSelf | None = None
-        self._self_awareness: SelfAwareness | None = None
-        self._identity_driver: IdentityDriver | None = None
+        self._unified_self: Optional[UnifiedSelf] = None
+        self._self_awareness: Optional[SelfAwareness] = None
+        self._identity_driver: Optional[IdentityDriver] = None
         
         # Connected systems
-        self._memory_facade: Any | None = None
-        self._phenomenal_engine: Any | None = None
-        self._drive_system: Any | None = None
-        self._goal_manager: Any | None = None
-        self._inference_gate: Any | None = None
+        self._memory_facade: Optional[Any] = None
+        self._phenomenal_engine: Optional[Any] = None
+        self._drive_system: Optional[Any] = None
+        self._goal_manager: Optional[Any] = None
+        self._inference_gate: Optional[Any] = None
         
         self._initialized = False
     

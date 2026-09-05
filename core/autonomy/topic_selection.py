@@ -10,11 +10,11 @@ paths before it can cause an external action.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Iterable
 
 from core.autonomy.research_goal_filter import is_unresearchable_goal
+
 
 _LOW_INFORMATION = {
     "hello",

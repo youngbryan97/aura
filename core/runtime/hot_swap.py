@@ -10,12 +10,12 @@ from __future__ import annotations
 import threading
 import time
 import uuid
-from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, Callable, Dict, Optional
 
-StateExporter = Callable[[Any], dict[str, Any]]
-StateImporter = Callable[[Any, dict[str, Any]], Any]
+
+StateExporter = Callable[[Any], Dict[str, Any]]
+StateImporter = Callable[[Any, Dict[str, Any]], Any]
 Validator = Callable[[Any], bool]
 
 
@@ -26,7 +26,7 @@ class HotSwapTicket:
     created_at: float
     state_keys: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
@@ -35,11 +35,11 @@ class HotSwapResult:
     ok: bool
     service_name: str
     reason: str
-    ticket_id: str | None = None
+    ticket_id: Optional[str] = None
     old_generation: int = 0
     new_generation: int = 0
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
@@ -47,8 +47,8 @@ class HotSwapResult:
 class _ServiceSlot:
     instance: Any
     generation: int = 0
-    exporter: StateExporter | None = None
-    importer: StateImporter | None = None
+    exporter: Optional[StateExporter] = None
+    importer: Optional[StateImporter] = None
 
 
 class HotSwapRegistry:
@@ -56,16 +56,16 @@ class HotSwapRegistry:
 
     def __init__(self):
         self._lock = threading.RLock()
-        self._slots: dict[str, _ServiceSlot] = {}
-        self._pending: dict[str, tuple[str, Any, dict[str, Any], Validator]] = {}
+        self._slots: Dict[str, _ServiceSlot] = {}
+        self._pending: Dict[str, tuple[str, Any, Dict[str, Any], Validator]] = {}
 
     def register(
         self,
         name: str,
         instance: Any,
         *,
-        exporter: StateExporter | None = None,
-        importer: StateImporter | None = None,
+        exporter: Optional[StateExporter] = None,
+        importer: Optional[StateImporter] = None,
     ) -> None:
         if not name:
             raise ValueError("service name is required")

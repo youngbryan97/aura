@@ -9,9 +9,8 @@ from __future__ import annotations
 import difflib
 import hashlib
 import time
-from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable, Iterable
 
 from core.promotion.behavioral_contracts import BehavioralContractReport, BehavioralContractSuite
 
@@ -99,7 +98,7 @@ class CanaryRuntime:
             and contract_report.passed
         )
         report_id = hashlib.sha256(
-            f"{time.time()}|{mean_similarity}|{flagged}|{len(diffs)}".encode()
+            f"{time.time()}|{mean_similarity}|{flagged}|{len(diffs)}".encode("utf-8")
         ).hexdigest()[:16]
         return CanaryReport(
             report_id=f"canary_{report_id}",

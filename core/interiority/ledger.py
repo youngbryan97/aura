@@ -53,17 +53,17 @@ had once.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import logging
 import math
+import threading
 import time
-from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Iterable, Mapping
 
 from core.interiority.params import ParamKind, declare
 from core.runtime.errors import record_degradation
-from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Interiority.Ledger")
 
@@ -337,8 +337,8 @@ class EventNotes:
 
     def __init__(
         self,
-        touch: Callable[[], None],
-        record: Callable[[str, Mapping[str, Any]], None],
+        touch: "Callable[[], None]",
+        record: "Callable[[str, Mapping[str, Any]], None]",
     ) -> None:
         self._lock = checked_lock("core.interiority.ledger.EventNotes", reentrant=True)
         self._touch = touch
@@ -480,8 +480,8 @@ class MakingRegister:
 
     def __init__(
         self,
-        touch: Callable[[], None],
-        record: Callable[[str, Mapping[str, Any]], None],
+        touch: "Callable[[], None]",
+        record: "Callable[[str, Mapping[str, Any]], None]",
     ) -> None:
         self._lock = checked_lock("core.interiority.ledger.MakingRegister", reentrant=True)
         self._touch = touch
@@ -571,8 +571,8 @@ class StandingRegister:
 
     def __init__(
         self,
-        touch: Callable[[], None],
-        record: Callable[[str, Mapping[str, Any]], None],
+        touch: "Callable[[], None]",
+        record: "Callable[[str, Mapping[str, Any]], None]",
     ) -> None:
         self._lock = checked_lock("core.interiority.ledger.StandingRegister", reentrant=True)
         self._touch = touch
@@ -999,9 +999,9 @@ class RelationalLedger:
     def persist(self, path: Path | None = None) -> bool:
         """Write the ledger through the governed gateway. Never raises."""
         try:
-            from core.governance_context import local_internal_governed_scope
-            from core.runtime.file_write_gateway import get_file_write_gateway
             from core.runtime.state_ownership import state_root
+            from core.runtime.file_write_gateway import get_file_write_gateway
+            from core.governance_context import local_internal_governed_scope
 
             target = path or (state_root() / "data" / "interiority_ledger.json")
             with local_internal_governed_scope("interiority.ledger.persist"):

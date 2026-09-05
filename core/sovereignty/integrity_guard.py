@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional
 
 from core.config import config
 from core.event_bus import get_event_bus
@@ -24,7 +24,7 @@ class IntegrityGuard:
         self.orchestrator = orchestrator
         self.bus = get_event_bus()
         self.active = False
-        self._watchdog_task: asyncio.Task | None = None
+        self._watchdog_task: Optional[asyncio.Task] = None
         self._last_sovereignty_score = 1.0
         self._last_observation_source = "unavailable"
         self._last_observation_scenario_id = ""
@@ -58,7 +58,7 @@ class IntegrityGuard:
         """Standard lifecycle hook."""
         await self.stop()
 
-    def get_health(self) -> dict[str, Any]:
+    def get_health(self) -> Dict[str, Any]:
         """Returns the health status of the integrity guard."""
         return {
             "status": "secure" if self._last_sovereignty_score > 0.8 else "at_risk",
@@ -71,7 +71,7 @@ class IntegrityGuard:
     def _get_project_root(self) -> Path:
         try:
             return Path(config.paths.project_root).resolve()
-        except OSError:
+        except (OSError, IOError):
             return Path(__file__).resolve().parents[2]
 
     def verify_sovereignty(self) -> float:
@@ -169,7 +169,7 @@ class IntegrityGuard:
         # 0.3 is the threshold where critical files are missing or a debugger is attached
         return self._last_sovereignty_score < 0.3
 
-    async def scan(self, message: str) -> dict[str, Any]:
+    async def scan(self, message: str) -> Dict[str, Any]:
         """v25 Hardening: SovereignScanner resilience."""
         self.called = True
         try:
@@ -188,7 +188,7 @@ class IntegrityGuard:
         finally:
             self.called = False
 
-    async def _process_scan(self, message: str) -> dict[str, Any]:
+    async def _process_scan(self, message: str) -> Dict[str, Any]:
         """Analyze message for forbidden patterns or recursive loops."""
         # This is the 'immunological' layer.
         # For now, it detects high-risk strings that could destabilize the cognitive kernel.

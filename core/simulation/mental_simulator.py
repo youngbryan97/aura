@@ -1,9 +1,9 @@
+from core.runtime.errors import record_degradation
 import json
 import logging
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from core.brain.cognitive_engine import CognitiveEngine
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Brain.Simulator")
 
@@ -21,7 +21,7 @@ class MentalSimulator:
             from core.consciousness.world_model import EpistemicState
             self.world_model = EpistemicState()
         
-    async def simulate_action(self, action: dict[str, Any], context: str = "") -> dict[str, Any]:
+    async def simulate_action(self, action: Dict[str, Any], context: str = "") -> Dict[str, Any]:
         """Simulate an action and return predicted outcome + risk.
         Uses the internal world model to ground the simulation.
         """
@@ -118,7 +118,7 @@ class MentalSimulator:
             logger.error("Simulation failed: %s", e)
             return {"risk": 0.5, "error": str(e)}
             
-    async def evaluate_risk(self, simulation_result: dict[str, Any]) -> bool:
+    async def evaluate_risk(self, simulation_result: Dict[str, Any]) -> bool:
         """Return True if safe to proceed, False if unsafe.
         """
         score = simulation_result.get("risk_score", 0.0)

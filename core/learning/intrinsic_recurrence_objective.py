@@ -36,9 +36,8 @@ the 103 GB incident.
 """
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Sequence
 
 INTRINSIC_OBJECTIVE_SCHEMA = "aura.intrinsic_recurrence_objective.v1"
 
@@ -386,6 +385,7 @@ def depth_tolerance(per_depth_ce: dict[str, float]) -> dict[str, Any]:
 from core.learning.intrinsic_recurrence import (  # noqa: E402
     checkpointed_window,
 )
+
 
 __all__ = [
     "INTRINSIC_OBJECTIVE_SCHEMA",

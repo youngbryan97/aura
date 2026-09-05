@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Aura.Resilience.BoringMode")
 
@@ -52,7 +52,7 @@ class BoringMode:
         self._entry_reason = ""
         self._entry_count = 0
         self._recovery_stable_since = 0.0
-        self._blocked_actions: list[dict[str, Any]] = []
+        self._blocked_actions: List[Dict[str, Any]] = []
 
     @property
     def is_active(self) -> bool:
@@ -68,7 +68,7 @@ class BoringMode:
                 return False
         return self._active
 
-    def enter(self, reason: str, metadata: dict[str, Any] | None = None) -> bool:
+    def enter(self, reason: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
         """Enter Boring Mode.
 
         Returns True if entry was successful (or already active).
@@ -99,8 +99,8 @@ class BoringMode:
         # Notify incident manager
         try:
             from core.resilience.incident_manager import (
-                IncidentSeverity,
                 get_incident_manager,
+                IncidentSeverity,
             )
             get_incident_manager().report(
                 category="boring_mode_activated",
@@ -186,7 +186,7 @@ class BoringMode:
 
         return False
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         """Get Boring Mode status."""
         return {
             "active": self._active,
@@ -208,7 +208,7 @@ class BoringMode:
 
 
 # Singleton
-_boring_mode: BoringMode | None = None
+_boring_mode: Optional[BoringMode] = None
 
 
 def get_boring_mode() -> BoringMode:

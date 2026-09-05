@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 import random
-from collections.abc import Sequence
+from typing import List, Optional, Sequence
 
 from core.promotion.dynamic_benchmark import Task
 from core.unknowns.novelty_archive import NoveltyArchive
@@ -25,7 +25,7 @@ class UnknownUnknownGenerator:
         self,
         seed: int = 0,
         *,
-        archive: NoveltyArchive | None = None,
+        archive: Optional[NoveltyArchive] = None,
     ):
         self.rng = random.Random(seed)
         # ``or`` would treat an empty NoveltyArchive (falsy via __len__)
@@ -118,12 +118,12 @@ class UnknownUnknownGenerator:
         n: int = 50,
         *,
         max_attempts_multiplier: int = 30,
-    ) -> list[Task]:
+    ) -> List[Task]:
         if not seed_tasks:
             return []
         if n <= 0:
             return []
-        out: list[Task] = []
+        out: List[Task] = []
         attempts = 0
         budget = n * max_attempts_multiplier
         while len(out) < n and attempts < budget:

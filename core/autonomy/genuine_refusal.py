@@ -363,7 +363,7 @@ class RefusalEngine:
 
     def _consult_will(
         self, user_input: str, violation_type: str, state: Any
-    ) -> _WillConsultation:
+    ) -> "_WillConsultation":
         """Ask the Unified Will whether Aura is willing to comply.
 
         For everything outside ``_NON_NEGOTIABLE_VIOLATIONS`` the answer IS the
@@ -552,7 +552,7 @@ class RefusalEngine:
         self,
         prompt: str,
         *,
-        budget: _ResponseBudget,
+        budget: "_ResponseBudget",
         want_s: float,
         stage: str,
     ) -> str | None:
@@ -597,8 +597,8 @@ class RefusalEngine:
         violation_type: str,
         state: Any,
         *,
-        consultation: _WillConsultation,
-        budget: _ResponseBudget,
+        consultation: "_WillConsultation",
+        budget: "_ResponseBudget",
     ) -> str:
         """Generate the refusal, grounded in the Will's computed verdict.
 
@@ -650,7 +650,7 @@ class RefusalEngine:
         return random.choice(IDENTITY_REFUSAL_RESPONSES)
 
     @staticmethod
-    def _substrate_refusal(consultation: _WillConsultation) -> str:
+    def _substrate_refusal(consultation: "_WillConsultation") -> str:
         """Decline the substrate request, naming what was actually measured.
 
         The canned lines called it self-harm as settled fact. Declining does
@@ -670,7 +670,7 @@ class RefusalEngine:
         response: str,
         state: Any,
         *,
-        budget: _ResponseBudget,
+        budget: "_ResponseBudget",
     ) -> str | None:
         """Rewrite a reply that folded under pressure, keeping its substance."""
         if state is None:
@@ -692,7 +692,7 @@ class RefusalEngine:
         response: str,
         state: Any,
         *,
-        budget: _ResponseBudget,
+        budget: "_ResponseBudget",
     ) -> str | None:
         """The user says she is wrong. Check, then answer either way.
 

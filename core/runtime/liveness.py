@@ -53,9 +53,7 @@ def mark_runtime_service_progress(source: str = "runtime") -> None:
         )
 
     try:
-        from core.resilience.stall_watchdog import (
-            mark_runtime_service_progress as _mark_watchdog_progress,
-        )
+        from core.resilience.stall_watchdog import mark_runtime_service_progress as _mark_watchdog_progress
 
         _mark_watchdog_progress(normalized)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):

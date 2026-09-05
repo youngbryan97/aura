@@ -29,10 +29,11 @@ References:
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -43,17 +44,17 @@ logger = logging.getLogger("Aura.PhiCompute")
 class PhiResult:
     """Result of an integrated information computation."""
     phi: float
-    mip_partition: tuple[list[int], list[int]]
+    mip_partition: Tuple[List[int], List[int]]
     mip_loss: float
     system_entropy: float
-    part_entropies: tuple[float, float]
+    part_entropies: Tuple[float, float]
     n_neurons: int
     n_partitions_evaluated: int
     computation_time_ms: float
     method: str
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "phi": round(self.phi, 6),
             "mip_sizes": (len(self.mip_partition[0]), len(self.mip_partition[1])),
@@ -88,13 +89,13 @@ class PhiComputer:
         print(f"Phi = {result.phi:.4f}")
     """
 
-    def __init__(self, config: PhiConfig | None = None) -> None:
+    def __init__(self, config: Optional[PhiConfig] = None) -> None:
         self.config = config or PhiConfig()
         self._rng = np.random.default_rng(self.config.seed)
-        self._trajectory: deque[np.ndarray] = deque(maxlen=self.config.trajectory_length)
+        self._trajectory: Deque[np.ndarray] = deque(maxlen=self.config.trajectory_length)
         self._step_counter = 0
-        self._last_result: PhiResult | None = None
-        self._phi_history: deque[float] = deque(maxlen=100)
+        self._last_result: Optional[PhiResult] = None
+        self._phi_history: Deque[float] = deque(maxlen=100)
 
     def record_state(self, state: np.ndarray) -> None:
         """Record a substrate state snapshot."""
@@ -106,7 +107,7 @@ class PhiComputer:
     def has_sufficient_data(self) -> bool:
         return len(self._trajectory) >= max(20, self._trajectory.maxlen // 2)
 
-    def compute(self, coupling_matrix: np.ndarray | None = None) -> PhiResult:
+    def compute(self, coupling_matrix: Optional[np.ndarray] = None) -> PhiResult:
         """Compute Phi from collected trajectory."""
         t_start = time.monotonic()
 
@@ -162,14 +163,14 @@ class PhiComputer:
         return float(0.5 * (n * np.log(2 * np.pi * np.e) + log_det))
 
     def _partition_entropy(self, cov: np.ndarray,
-                           a: list[int], b: list[int]) -> tuple[float, float]:
+                           a: List[int], b: List[int]) -> Tuple[float, float]:
         if not a or not b:
             return (0.0, 0.0)
         return (self._gaussian_entropy(cov[np.ix_(a, a)]),
                 self._gaussian_entropy(cov[np.ix_(b, b)]))
 
     def _phi_for_partition(self, cov: np.ndarray, sys_h: float,
-                           a: list[int], b: list[int]) -> float:
+                           a: List[int], b: List[int]) -> float:
         h_a, h_b = self._partition_entropy(cov, a, b)
         return max(0.0, h_a + h_b - sys_h)
 
@@ -177,8 +178,8 @@ class PhiComputer:
 
     def _exhaustive_phi(self, cov: np.ndarray, sys_h: float, N: int) -> PhiResult:
         min_phi = float("inf")
-        best_a: list[int] = []
-        best_b: list[int] = []
+        best_a: List[int] = []
+        best_b: List[int] = []
         n_eval = 0
         ms = self.config.min_partition_size
         indices = list(range(N))
@@ -208,7 +209,7 @@ class PhiComputer:
     # ── Spectral (N > 16) ──────────────────────────────────────────────
 
     def _spectral_phi(self, cov: np.ndarray, sys_h: float, N: int,
-                      coupling: np.ndarray | None = None) -> PhiResult:
+                      coupling: Optional[np.ndarray] = None) -> PhiResult:
         adj = np.abs(coupling) if coupling is not None and coupling.shape == (N, N) else np.abs(cov)
         np.fill_diagonal(adj, 0.0)
         degree = np.sum(adj, axis=1)
@@ -300,7 +301,7 @@ class PhiComputer:
     def mean_phi(self) -> float:
         return float(np.mean(list(self._phi_history))) if self._phi_history else 0.0
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "trajectory_length": len(self._trajectory),
             "has_sufficient_data": self.has_sufficient_data,
@@ -311,7 +312,7 @@ class PhiComputer:
         }
 
 
-_instance: PhiComputer | None = None
+_instance: Optional[PhiComputer] = None
 
 
 def get_phi_computer() -> PhiComputer:

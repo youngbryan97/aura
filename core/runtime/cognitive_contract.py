@@ -72,9 +72,8 @@ import dataclasses
 import hashlib
 import logging
 import time
-from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Mapping
 
 __all__ = [
     "BranchSpec",
@@ -392,10 +391,7 @@ def contract_coverage_report() -> dict[str, Any]:
     """
 
     from core.runtime.phase_contract_registry import ensure_contracts_loaded
-    from core.runtime.pipeline_blueprint import (
-        kernel_phase_attribute_order,
-        phase_class_for_attribute,
-    )
+    from core.runtime.pipeline_blueprint import kernel_phase_attribute_order, phase_class_for_attribute
 
     # Contracts register at import time, so the count used to depend on who
     # had imported what. Two phases declared contracts that only appeared if

@@ -6,10 +6,10 @@ Modules:
   hierarchical_planner  — Strategic → tactical → operational goal decomposition
   causal_world_model    — Cause-effect tracking for counterfactual simulation
 """
-from .agi_integration import AGIIntegrationLayer, get_agi_integration
 from .curiosity_explorer import CuriosityExplorer, get_curiosity_explorer
-from .hierarchical_planner import HierarchicalPlanner, get_hierarchical_planner
 from .skill_synthesizer import SkillSynthesizer, get_skill_synthesizer
+from .hierarchical_planner import HierarchicalPlanner, get_hierarchical_planner
+from .agi_integration import AGIIntegrationLayer, get_agi_integration
 
 __all__ = [
     "CuriosityExplorer", "get_curiosity_explorer",

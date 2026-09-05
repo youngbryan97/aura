@@ -4,9 +4,8 @@ import asyncio
 import hashlib
 import logging
 import time
-from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from core.container import ServiceContainer
 from core.runtime import service_access
@@ -61,14 +60,14 @@ class ExecutiveAuthority:
     def __init__(self, orchestrator: Any = None):
         self.orchestrator = orchestrator
         self._snapshot = ExecutiveAuthoritySnapshot()
-        self._recent_fingerprints: dict[str, float] = {}
+        self._recent_fingerprints: Dict[str, float] = {}
 
     def bind(self, orchestrator: Any) -> None:
         if orchestrator is not None:
             self.orchestrator = orchestrator
 
     @staticmethod
-    def _is_visible_presence(metadata: dict[str, Any] | None) -> bool:
+    def _is_visible_presence(metadata: Optional[Dict[str, Any]]) -> bool:
         meta = dict(metadata or {})
         return bool(
             meta.get("visible_presence")
@@ -100,7 +99,7 @@ class ExecutiveAuthority:
             logger.debug("Suppressed Exception: %s", _exc)
         return ""
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return asdict(self._snapshot)
 
     def _build_initiative(
@@ -111,10 +110,10 @@ class ExecutiveAuthority:
         kind: str,
         urgency: float,
         triggered_by: str,
-        metadata: dict[str, Any] | None = None,
-        timestamp: float | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[float] = None,
         status: str = "suggested",
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         return {
             "type": kind,
             "goal": goal,
@@ -136,7 +135,7 @@ class ExecutiveAuthority:
         )
         return initiatives[:10]
 
-    def _goal_runtime_policy(self, initiative: dict[str, Any]) -> dict[str, Any]:
+    def _goal_runtime_policy(self, initiative: Dict[str, Any]) -> Dict[str, Any]:
         metadata = dict(initiative.get("metadata", {}) or {})
         triggered_by = str(initiative.get("triggered_by", "") or metadata.get("triggered_by", "") or "").strip().lower()
         kind = str(initiative.get("type", "") or metadata.get("kind", "") or "").strip().lower()
@@ -184,7 +183,7 @@ class ExecutiveAuthority:
             "priority": priority,
         }
 
-    async def _bind_objective_to_goal_engine(self, initiative: dict[str, Any]) -> dict[str, Any]:
+    async def _bind_objective_to_goal_engine(self, initiative: Dict[str, Any]) -> Dict[str, Any]:
         goal = _normalize_text(initiative.get("goal", ""))
         if not goal:
             return {}
@@ -236,8 +235,8 @@ class ExecutiveAuthority:
         kind: str = "autonomous_thought",
         urgency: float = 0.5,
         triggered_by: str = "",
-        metadata: dict[str, Any] | None = None,
-    ) -> tuple[Any, dict[str, Any]]:
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Any, Dict[str, Any]]:
         goal = _normalize_text(goal)
         if state is None:
             return state, self._record("rejected", "state_missing", source=source, goal=goal)
@@ -345,8 +344,8 @@ class ExecutiveAuthority:
         kind: str = "autonomous_thought",
         urgency: float = 0.5,
         triggered_by: str = "",
-        metadata: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         repo = self._get_state_repository()
         if repo is None:
             return self._record("rejected", "state_repository_missing", source=source, goal=_normalize_text(goal))
@@ -370,7 +369,7 @@ class ExecutiveAuthority:
         state: Any,
         *,
         source: str = "mind_tick",
-    ) -> tuple[Any, dict[str, Any] | None, dict[str, Any]]:
+    ) -> Tuple[Any, Optional[Dict[str, Any]], Dict[str, Any]]:
         if state is None:
             return state, None, self._record("rejected", "state_missing", source=source)
         pause_reason = self._autonomy_pause_reason()
@@ -566,7 +565,7 @@ class ExecutiveAuthority:
         reason: str,
         *,
         source: str = "mind_tick",
-    ) -> tuple[Any, dict[str, Any]]:
+    ) -> Tuple[Any, Dict[str, Any]]:
         if state is None:
             return state, self._record("rejected", "state_missing", source=source)
         objective = _normalize_text(getattr(state.cognition, "current_objective", ""))
@@ -744,11 +743,11 @@ class ExecutiveAuthority:
     async def suppress_initiatives(
         self,
         state: Any,
-        predicate: Callable[[dict[str, Any]], bool],
+        predicate: Callable[[Dict[str, Any]], bool],
         reason: str,
         *,
         source: str = "executive_authority",
-    ) -> tuple[Any, dict[str, Any]]:
+    ) -> Tuple[Any, Dict[str, Any]]:
         if state is None:
             return state, self._record("rejected", "state_missing", source=source)
 
@@ -834,9 +833,9 @@ class ExecutiveAuthority:
         *,
         source: str,
         urgency: float = 0.5,
-        metadata: dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
         target: str = "primary",
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         content = _normalize_text(content)
         if len(content) < 4:
             return self._record("suppressed", "empty_content", source=source, content=content, target="discarded")
@@ -952,8 +951,8 @@ class ExecutiveAuthority:
         goal: str = "",
         content: str = "",
         target: str = "",
-        queued_initiatives: int | None = None,
-    ) -> dict[str, Any]:
+        queued_initiatives: Optional[int] = None,
+    ) -> Dict[str, Any]:
         now = time.time()
         if action == "released" and target == "primary":
             self._snapshot.primary_releases += 1
@@ -1015,7 +1014,7 @@ class ExecutiveAuthority:
     def _get_state_repository(self) -> Any:
         return service_access.resolve_state_repository(self._get_orchestrator(), default=None)
 
-    def _get_closure_status(self) -> dict[str, Any]:
+    def _get_closure_status(self) -> Dict[str, Any]:
         try:
             closure = ServiceContainer.get("executive_closure", default=None)
             if closure and hasattr(closure, "get_status"):
@@ -1025,9 +1024,9 @@ class ExecutiveAuthority:
             logger.debug("ExecutiveAuthority: closure lookup failed: %s", exc)
         return {}
 
-    def _gather_affect_context(self) -> dict[str, Any]:
+    def _gather_affect_context(self) -> Dict[str, Any]:
         """Collect current hedonic/affect state for counterfactual deliberation."""
-        ctx: dict[str, Any] = {}
+        ctx: Dict[str, Any] = {}
         try:
             affect = ServiceContainer.get("affect_engine", default=None)
             if affect and hasattr(affect, "get_state"):
@@ -1084,7 +1083,7 @@ class ExecutiveAuthority:
         outcome: str,
         reason: str,
         target: str = "",
-        payload: dict[str, Any] | None = None,
+        payload: Optional[Dict[str, Any]] = None,
         state: Any = None,
     ) -> None:
         try:

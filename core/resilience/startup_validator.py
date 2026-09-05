@@ -4,7 +4,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 
 from core.runtime.atomic_writer import async_atomic_write_text
 from core.runtime.errors import record_degradation
@@ -36,7 +36,7 @@ class StartupValidator:
 
     def __init__(self, orchestrator: Any):
         self.orchestrator = orchestrator
-        self.checks: list[ValidationCheck] = [
+        self.checks: List[ValidationCheck] = [
             # Safety Checks
             ValidationCheck("safe_01", "Dangerous Files Purged", "Verify ethics-bypass files are deleted", True),
             ValidationCheck("safe_02", "Safe Backup Active", "Verify SafeBackupSystem is registered", False),

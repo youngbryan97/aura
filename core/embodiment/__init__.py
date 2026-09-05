@@ -21,9 +21,9 @@ class WorldState:
     """Represents Aura's physical presence in the virtual/real world."""
 
     timestamp: float
-    position: dict[str, float] = field(default_factory=lambda: {"x": 0.0, "y": 0.0, "z": 0.0})
-    objects: dict[str, dict[str, Any]] = field(default_factory=dict)
-    sensors: dict[str, Any] = field(default_factory=dict)
+    position: Dict[str, float] = field(default_factory=lambda: {"x": 0.0, "y": 0.0, "z": 0.0})
+    objects: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    sensors: Dict[str, Any] = field(default_factory=dict)
     energy: float = 100.0
     heat: float = 30.0
     integrity: float = 100.0
@@ -37,7 +37,7 @@ class ContinuousSensoryFeed:
         except (ImportError, OSError, AttributeError) as exc:
             record_degradation('__init__', exc)
             logger.debug("Suppressed: %s", exc)
-    def get_snapshot(self) -> dict[str, float]:
+    def get_snapshot(self) -> Dict[str, float]:
         """Return current hardware sensory data."""
         try:
             battery = psutil.sensors_battery().percent if psutil.sensors_battery() else 100.0
@@ -70,7 +70,7 @@ class EmbodimentSystem:
     def __init__(self):
         self.state = WorldState(timestamp=time.time())
         self.sensory = ContinuousSensoryFeed()
-        self._lock: asyncio.Lock | None = None
+        self._lock: Optional[asyncio.Lock] = None
         self._last_update = time.time()
         logger.info("Unified Embodiment System constructed. Call await initialize() before use.")
 
@@ -80,7 +80,7 @@ class EmbodimentSystem:
             self._lock = asyncio.Lock()
         logger.info("✓ Unified Embodiment System initialized.")
 
-    async def update(self, action: dict[str, Any] | None = None) -> WorldState:
+    async def update(self, action: Optional[Dict[str, Any]] = None) -> WorldState:
         """Run a metabolic cycle and apply physical actions.
         """
         if self._lock is None:
@@ -120,7 +120,7 @@ class EmbodimentSystem:
             self.state.timestamp = now
             return copy.deepcopy(self.state)
 
-    async def predict(self, hypothetical_action: dict[str, Any]) -> WorldState:
+    async def predict(self, hypothetical_action: Dict[str, Any]) -> WorldState:
         """Predict the next state without committing (Planning)."""
         if self._lock is None:
             self._lock = asyncio.Lock()

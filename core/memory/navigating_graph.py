@@ -21,7 +21,7 @@ Usage:
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
@@ -39,8 +39,8 @@ class GraphNode:
     """A node in the proximity graph."""
     node_id: str
     embedding: np.ndarray
-    neighbors: list[str] = field(default_factory=list)  # IDs of K nearest
-    metadata: dict[str, Any] = field(default_factory=dict)
+    neighbors: List[str] = field(default_factory=list)  # IDs of K nearest
+    metadata: Dict[str, Any] = field(default_factory=dict)
     added_at: float = 0.0
 
 
@@ -49,14 +49,14 @@ class NavigatingGraph:
 
     def __init__(self, dim: int = 384):
         self.dim = dim
-        self._nodes: dict[str, GraphNode] = {}
-        self._entry_point: str | None = None
+        self._nodes: Dict[str, GraphNode] = {}
+        self._entry_point: Optional[str] = None
         self._inserts_since_rebuild = 0
         self._total_searches = 0
         self._total_search_steps = 0
 
     def add(self, node_id: str, embedding: np.ndarray,
-            metadata: dict[str, Any] | None = None):
+            metadata: Optional[Dict[str, Any]] = None):
         """Add a memory to the graph with incremental neighbor linking."""
         if embedding.shape[0] != self.dim:
             # Auto-adapt dimension on first add
@@ -113,7 +113,7 @@ class NavigatingGraph:
         if self._inserts_since_rebuild >= REBUILD_THRESHOLD:
             self.rebuild()
 
-    def search(self, query: np.ndarray, top_k: int = 5) -> list[dict[str, Any]]:
+    def search(self, query: np.ndarray, top_k: int = 5) -> List[Dict[str, Any]]:
         """Find the top_k nearest memories to the query vector."""
         if not self._nodes or self._entry_point is None:
             return []
@@ -197,7 +197,7 @@ class NavigatingGraph:
         elapsed = time.time() - start
         logger.info("NSG rebuilt: %d nodes, %d edges, %.2fs", n, n * K_NEIGHBORS, elapsed)
 
-    def get_embedding(self, node_id: str) -> np.ndarray | None:
+    def get_embedding(self, node_id: str) -> Optional[np.ndarray]:
         """Get a node's embedding (for conceptual gravitation)."""
         node = self._nodes.get(node_id)
         return node.embedding.copy() if node else None
@@ -213,12 +213,12 @@ class NavigatingGraph:
 
     # ── Internal ─────────────────────────────────────────────────────────
 
-    def _greedy_search(self, query: np.ndarray, beam_width: int) -> list[tuple[str, float]]:
+    def _greedy_search(self, query: np.ndarray, beam_width: int) -> List[Tuple[str, float]]:
         """Greedy beam search through the graph."""
         if not self._entry_point or self._entry_point not in self._nodes:
             return []
 
-        visited: set[str] = set()
+        visited: Set[str] = set()
         # Priority queue: (distance, node_id)
         entry = self._nodes[self._entry_point]
         entry_dist = self._distance(query, entry.embedding)
@@ -267,7 +267,7 @@ class NavigatingGraph:
         dot = np.dot(a, b)
         return float(1.0 - dot)
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "nodes": len(self._nodes),
             "avg_neighbors": (
@@ -282,7 +282,7 @@ class NavigatingGraph:
         }
 
 
-_instance: NavigatingGraph | None = None
+_instance: Optional[NavigatingGraph] = None
 
 
 def get_navigating_graph(dim: int = 384) -> NavigatingGraph:

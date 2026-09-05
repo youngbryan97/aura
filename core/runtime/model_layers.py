@@ -7,9 +7,8 @@ different ``model.model.layers`` shape.
 """
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Sequence
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Any
+from typing import Any, Dict
 
 from core.runtime import resource_psutil as psutil
 
@@ -14,7 +14,7 @@ class TelemetryEngine:
     def __init__(self) -> None:
         self.last_pulse = time.time()
         
-    def get_pulse(self) -> dict[str, Any]:
+    def get_pulse(self) -> Dict[str, Any]:
         """Collects a complete snapshot of system state."""
         try:
             from core.runtime import CoreRuntime

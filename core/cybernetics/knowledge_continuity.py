@@ -1,17 +1,19 @@
 import logging
-import re
 import time
-from typing import Any
+import asyncio
+import re
+import math
+from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger("Aura.Cybernetics.Continuity")
 
 class SemanticMemory:
     """[CORTICAL STACK] Pure-Python Light Semantic Mapping Engine."""
     def __init__(self):
-        self._registry: list[dict[str, Any]] = []
+        self._registry: List[Dict[str, Any]] = []
         self._stopwords = {"the", "is", "at", "which", "on", "a", "an", "and", "or", "to"}
 
-    def _tokenize(self, text: str) -> set[str]:
+    def _tokenize(self, text: str) -> Set[str]:
         words = re.findall(r'\w+', text.lower())
         tokens = set()
         for w in words:
@@ -21,12 +23,12 @@ class SemanticMemory:
             tokens.add(stem if len(stem) > 2 else w)
         return tokens
 
-    def add(self, text: str, metadata: dict[str, Any]):
+    def add(self, text: str, metadata: Dict[str, Any]):
         tokens = self._tokenize(text)
         if tokens:
             self._registry.append({"tokens": tokens, "text": text, "metadata": metadata})
 
-    def recall(self, query: str, top_k: int = 3) -> list[dict[str, Any]]:
+    def recall(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
         q_tokens = self._tokenize(query)
         if not q_tokens: return []
         
@@ -72,7 +74,7 @@ class KnowledgeContinuity:
             h = (h * 0x01000193) & 0xFFFFFFFF
         return f"{h:08X}"
 
-    async def distill(self, high_value_fragments: list[Any]) -> list[Any]:
+    async def distill(self, high_value_fragments: List[Any]) -> List[Any]:
         """[CORTICAL STACK] Distill fragments with FNV-1a integrity hashing."""
         for fragment in high_value_fragments:
             content = getattr(fragment, "content", None)
@@ -105,11 +107,11 @@ class KnowledgeContinuity:
         
         return high_value_fragments
 
-    def recall_semantic(self, query: str, top_k: int = 3) -> list[dict[str, Any]]:
+    def recall_semantic(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
         """[CORTICAL STACK] Recall fragments by conceptual similarity."""
         return self._semantic_mem.recall(query, top_k)
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "graph_size": self._graph_size
         }

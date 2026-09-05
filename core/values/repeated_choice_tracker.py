@@ -1,6 +1,7 @@
 """core/values/repeated_choice_tracker.py
 Tracks choice frequencies to ground preference formation in empirical evidence.
 """
+from typing import Dict, List, Any
 import time
 
 
@@ -9,7 +10,7 @@ class RepeatedChoiceTracker:
 
     def __init__(self):
         # Maps choice_key -> list of timestamps
-        self._history: dict[str, list[float]] = {}
+        self._history: Dict[str, List[float]] = {}
 
     def record_choice(self, key: str) -> None:
         if key not in self._history:

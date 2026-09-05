@@ -35,15 +35,16 @@ The reports are data, not prose, so a gate can consume them.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from typing import Any
+import math
+from dataclasses import dataclass, field
+from typing import Any, Iterable, Mapping, Sequence
 
 from core.interiority.appraisal import ALL_CHECKS, AppraisalFrame
 from core.interiority.arbitration import Arbitrated
+from core.interiority.evidence import Provenance, Reading, absent, inferred, measured
 from core.interiority.event import EventKind, InteriorEvent
-from core.interiority.evidence import Reading, absent, inferred, measured
 from core.interiority.faculty import (
+    Activation,
     Direction,
     Faculty,
     FacultyContext,

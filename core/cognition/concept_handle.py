@@ -40,7 +40,9 @@ how a kettle becomes a kestrel.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import hashlib
+import threading
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
@@ -48,7 +50,6 @@ from enum import StrEnum
 from typing import Any
 
 from core.evidence.packet import EvidencePacket
-from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Substrate",
@@ -166,7 +167,7 @@ class ConceptHandle:
         """Weakest link. A chain of bindings is as good as its worst hop."""
         return min((p.confidence for p in self.projections), default=0.0)
 
-    def with_projection(self, projection: Projection) -> ConceptHandle:
+    def with_projection(self, projection: Projection) -> "ConceptHandle":
         """Add or upgrade a projection.
 
         A better-evidenced binding replaces a weaker one for the same

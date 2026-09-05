@@ -1,6 +1,7 @@
 """core/security/secret_guard.py
 Secret guard blocks access to credentials, keychains, and API keys.
 """
+from typing import Dict, Any
 
 
 class SecretGuard:

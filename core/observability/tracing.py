@@ -34,11 +34,10 @@ import threading
 import time
 import uuid
 from collections import deque
-from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, Generator
 
 logger = logging.getLogger("Aura.Tracing")
 

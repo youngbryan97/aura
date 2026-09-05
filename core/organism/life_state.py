@@ -1,9 +1,9 @@
 """core/organism/life_state.py
 System-wide state representation for Aura's canonical organism.
 """
-import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional
+import time
 
 
 @dataclass
@@ -38,8 +38,8 @@ class BodyState:
 class CognitiveState:
     """Working memory, attention focus, and goals."""
     active_attention: str = "idle"
-    current_goals: list[dict[str, Any]] = field(default_factory=list)
-    pending_actions: list[dict[str, Any]] = field(default_factory=list)
+    current_goals: List[Dict[str, Any]] = field(default_factory=list)
+    pending_actions: List[Dict[str, Any]] = field(default_factory=list)
     inner_monologue: str = ""
     active_scratchpad: str = ""
     uncertainty_score: float = 0.0
@@ -57,13 +57,13 @@ class LifeState:
     cognition: CognitiveState = field(default_factory=CognitiveState)
     
     # World & Memory structures
-    world_model: dict[str, Any] = field(default_factory=dict)
-    autobiographical_memory: list[dict[str, Any]] = field(default_factory=list)
-    active_preferences: dict[str, float] = field(default_factory=dict)
-    commitments: list[dict[str, Any]] = field(default_factory=list)
-    identity: dict[str, Any] = field(default_factory=dict)
+    world_model: Dict[str, Any] = field(default_factory=dict)
+    autobiographical_memory: List[Dict[str, Any]] = field(default_factory=list)
+    active_preferences: Dict[str, float] = field(default_factory=dict)
+    commitments: List[Dict[str, Any]] = field(default_factory=list)
+    identity: Dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """Serialize current state representation."""
         return {
             "timestamp": self.timestamp,

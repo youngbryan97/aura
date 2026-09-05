@@ -5,9 +5,9 @@ import logging
 import re
 from typing import Any
 
+from core.runtime.service_registry import get_runtime_service
 from core.kernel.bridge import Phase
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
-from core.runtime.service_registry import get_runtime_service
 from core.service_names import ServiceNames
 from core.state.aura_state import AuraState
 

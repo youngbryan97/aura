@@ -9,7 +9,6 @@ keyword signatures.
 from __future__ import annotations
 
 import logging
-
 logger = logging.getLogger("core.governance.will_client")
 import asyncio
 from dataclasses import dataclass

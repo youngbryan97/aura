@@ -14,13 +14,12 @@ Format: List of natural-language entries like:
   "I asked myself: what makes a conversation feel genuine?"
 """
 
+from core.runtime.errors import record_degradation
 import logging
 import sqlite3
 import time
 from datetime import datetime
-from typing import Any
-
-from core.runtime.errors import record_degradation
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Aura.KnowledgeLedger")
 
@@ -104,7 +103,7 @@ class KnowledgeLedger:
 
         return self._kg
     
-    def get_ledger(self, limit: int = 60) -> dict[str, Any]:
+    def get_ledger(self, limit: int = 60) -> Dict[str, Any]:
         """Produce the full knowledge ledger.
         
         Returns:
@@ -175,7 +174,7 @@ class KnowledgeLedger:
             "generated_at": time.time(),
         }
     
-    def _get_knowledge_entries(self, kg, limit: int = 20) -> list[dict]:
+    def _get_knowledge_entries(self, kg, limit: int = 20) -> List[Dict]:
         """Pull recent knowledge from SQLite."""
         entries = []
         try:
@@ -227,7 +226,7 @@ class KnowledgeLedger:
         
         return entries
     
-    def _get_skill_entries(self, kg) -> list[dict]:
+    def _get_skill_entries(self, kg) -> List[Dict]:
         """Pull tracked skills."""
         entries = []
         try:
@@ -273,7 +272,7 @@ class KnowledgeLedger:
         
         return entries
     
-    def _get_people_entries(self, kg) -> list[dict]:
+    def _get_people_entries(self, kg) -> List[Dict]:
         """Pull people Aura has met."""
         entries = []
         try:
@@ -300,7 +299,7 @@ class KnowledgeLedger:
         
         return entries
     
-    def _get_question_entries(self, kg, limit: int = 15) -> list[dict]:
+    def _get_question_entries(self, kg, limit: int = 15) -> List[Dict]:
         """Pull questions — both unanswered and recently answered."""
         entries = []
         try:
@@ -350,7 +349,7 @@ class KnowledgeLedger:
         
         return entries
     
-    def _get_goal_entries(self, kg) -> list[dict]:
+    def _get_goal_entries(self, kg) -> List[Dict]:
         """Pull active learning goals."""
         entries = []
         try:
@@ -375,7 +374,7 @@ class KnowledgeLedger:
         
         return entries
     
-    def _get_reflection_entries(self) -> list[dict]:
+    def _get_reflection_entries(self) -> List[Dict]:
         """Pull recent conversation reflections (in-memory)."""
         entries = []
         try:
@@ -401,7 +400,7 @@ class KnowledgeLedger:
 
         return entries
     
-    def _get_curiosity_entries(self) -> list[dict]:
+    def _get_curiosity_entries(self) -> List[Dict]:
         """Pull curiosity queue items (in-memory)."""
         entries = []
         try:
@@ -431,7 +430,7 @@ class KnowledgeLedger:
 
 
 # Singleton
-_instance: KnowledgeLedger | None = None
+_instance: Optional[KnowledgeLedger] = None
 
 def get_knowledge_ledger() -> KnowledgeLedger:
     global _instance

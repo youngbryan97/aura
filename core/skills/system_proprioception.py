@@ -1,16 +1,16 @@
+from core.runtime.errors import record_degradation
 import inspect
 import logging
-from typing import Any
+import json
+from typing import Any, Dict, List, Optional
+from core.skills.base_skill import BaseSkill
+from core.container import ServiceContainer
 
 from pydantic import BaseModel, Field
 
-from core.container import ServiceContainer
-from core.runtime.errors import record_degradation
-from core.skills.base_skill import BaseSkill
-
 
 class ProprioceptionInput(BaseModel):
-    service_name: str | None = Field(None, description="Specific service to detail.")
+    service_name: Optional[str] = Field(None, description="Specific service to detail.")
     include_docstrings: bool = Field(True, description="Whether to extract and include module/class documentation.")
     include_source_body: bool = Field(
         True,
@@ -34,7 +34,7 @@ class SystemProprioceptionSkill(BaseSkill):
     def __init__(self):
         self.logger = logging.getLogger(f"Skills.{self.name}")
 
-    async def execute(self, params: ProprioceptionInput, context: dict[str, Any]) -> dict[str, Any]:
+    async def execute(self, params: ProprioceptionInput, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute proprioception check."""
         if isinstance(params, dict):
             try:
@@ -97,7 +97,7 @@ class SystemProprioceptionSkill(BaseSkill):
 
                 system_map.append(service_info)
 
-            result: dict[str, Any] = {
+            result: Dict[str, Any] = {
                 "ok": True,
                 "summary": f"System Map contains {len(system_map)} services.",
                 "system_map": system_map,
@@ -119,7 +119,7 @@ class SystemProprioceptionSkill(BaseSkill):
             self.logger.error("Proprioception failed: %s", e)
             return {"ok": False, "error": str(e)}
 
-    def _source_body_report(self) -> dict[str, Any] | None:
+    def _source_body_report(self) -> Optional[Dict[str, Any]]:
         """Grounded account of changes to Aura's own source, from the
         source-body organ's ledger — never from model recall."""
         try:

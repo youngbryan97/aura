@@ -1,15 +1,13 @@
 from __future__ import annotations
-
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Dict, Any, List, Tuple
 
-from .maths import clamp, normalize_sum, sigmoid
-
+from .maths import sigmoid, clamp, normalize_sum
 
 @dataclass
 class Coalition:
     name: str
-    content: dict[str, Any]
+    content: Dict[str, Any]
     salience: float
     affect_gain: float
     precision: float
@@ -30,9 +28,9 @@ class GlobalWorkspace:
     threshold: float = 0.56
     recurrent_gain: float = 0.28
     last_winner: str = "none"
-    ignition_trace: dict[str, float] = field(default_factory=dict)
+    ignition_trace: Dict[str, float] = field(default_factory=dict)
 
-    def compete(self, coalitions: list[Coalition], cycles: int = 4) -> dict[str, Any]:
+    def compete(self, coalitions: List[Coalition], cycles: int = 4) -> Dict[str, Any]:
         if not coalitions:
             return {
                 "ignited": False,

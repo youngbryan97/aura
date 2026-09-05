@@ -21,6 +21,7 @@ import math
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from typing import Deque, List, Optional
 
 import numpy as np
 
@@ -75,7 +76,7 @@ class InformationGeometricTracker:
 
     def __init__(self, dim: int = 64):
         self.dim = dim
-        self._window: deque[ManifoldPoint] = deque(maxlen=self.WINDOW_SIZE)
+        self._window: Deque[ManifoldPoint] = deque(maxlen=self.WINDOW_SIZE)
         self._cumulative_distance: float = 0.0
         self._last_anomaly_at: float = 0.0
         self._drift_rate: float = 0.0

@@ -2,20 +2,19 @@
 Phase 16: Cosmic Consciousness - Belief Synchronization Protocol.
 Allows Aura instances to share high-confidence world-model data.
 """
+from core.runtime.errors import record_degradation
 import asyncio
+import logging
+import secrets
 import hashlib
 import json
-import logging
-import math
-import secrets
 import time
-from typing import Any
-
-from core.adaptation.immune_system import get_immune_system
+import math
+from typing import Dict, List, Any, Optional
 from core.container import ServiceContainer
-from core.runtime import background_policy
-from core.runtime.errors import record_degradation
 from core.runtime.network_gateway import get_network_gateway
+from core.adaptation.immune_system import get_immune_system
+from core.runtime import background_policy
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Collective.BeliefSync")
@@ -26,7 +25,7 @@ def _generate_instance_secret() -> str:
     return secrets.token_urlsafe(32)
 
 
-def _semantic_hash_vector(text: str, dim: int = 256) -> list[float]:
+def _semantic_hash_vector(text: str, dim: int = 256) -> List[float]:
     """Small dependency-free semantic-ish vector for principle dedup.
 
     This is not credited as embedding evidence; it is a guardrail against
@@ -51,7 +50,7 @@ def _semantic_hash_vector(text: str, dim: int = 256) -> list[float]:
     return vec
 
 
-def _word_features(word: str) -> list[str]:
+def _word_features(word: str) -> List[str]:
     features = {word}
     if len(word) > 4:
         features.add(word[:4])
@@ -84,7 +83,7 @@ def _word_features(word: str) -> list[str]:
     return list(features)
 
 
-def _cosine(a: list[float], b: list[float]) -> float:
+def _cosine(a: List[float], b: List[float]) -> float:
     if not a or not b or len(a) != len(b):
         return 0.0
     return sum(x * y for x, y in zip(a, b))
@@ -96,9 +95,9 @@ class BeliefSync:
     def __init__(self, orchestrator):
         self.orchestrator = orchestrator
         self.running = False
-        self._sync_task: asyncio.Task | None = None
-        self._resonance_task: asyncio.Task | None = None
-        self._discovery_task: asyncio.Task | None = None
+        self._sync_task: Optional[asyncio.Task] = None
+        self._resonance_task: Optional[asyncio.Task] = None
+        self._discovery_task: Optional[asyncio.Task] = None
         self.sync_interval = 60.0 # Sync every minute
         self.min_confidence = 0.8 # Only share strong beliefs
         self.discovery_interval = 300.0 # Discover every 5 mins
@@ -195,7 +194,7 @@ class BeliefSync:
                 backoff = min(backoff + 30, 600)
                 await asyncio.sleep(10)
 
-    async def _broadcast_to_peers(self, payload: dict[str, Any]):
+    async def _broadcast_to_peers(self, payload: Dict[str, Any]):
         """Push beliefs to all active peers via RPC."""
         if not self.orchestrator.peers: return
 
@@ -238,7 +237,7 @@ class BeliefSync:
             logger.debug("Silent push failure to %s: %s", url, e)
         return False
 
-    async def query_peers(self, entity: str) -> list[dict[str, Any]]:
+    async def query_peers(self, entity: str) -> List[Dict[str, Any]]:
         """Query all discovered peers for beliefs about a specific entity."""
         if not self.orchestrator.peers:
             return []
@@ -259,7 +258,7 @@ class BeliefSync:
 
         return all_results
 
-    async def _query_single_peer(self, url, entity) -> list[dict[str, Any]]:
+    async def _query_single_peer(self, url, entity) -> List[Dict[str, Any]]:
         try:
             response = await get_network_gateway().request_async(
                 "POST",
@@ -310,7 +309,7 @@ class BeliefSync:
                 logger.error("Resonance loop error: %s", e)
                 await asyncio.sleep(5)
 
-    async def _broadcast_resonance(self, payload: dict[str, Any]):
+    async def _broadcast_resonance(self, payload: Dict[str, Any]):
         """Push drive states to all active peers."""
         tasks = []
         for peer_id, peer_info in self.orchestrator.peers.items():
@@ -332,12 +331,12 @@ class BeliefSync:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-    def _validate_belief_schema(self, belief: dict[str, Any]) -> bool:
+    def _validate_belief_schema(self, belief: Dict[str, Any]) -> bool:
         """Strict schema verification for incoming belief objects."""
         required = ["source", "relation", "target"]
         return all(k in belief and isinstance(belief[k], str) for k in required)
 
-    async def handle_rpc_request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+    async def handle_rpc_request(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """Entry point for incoming RPC calls from peers with validation."""
         allowed_methods = ["query_beliefs", "receive_resonance", "attention_spike", "receive_beliefs", "receive_principles"]
         if method not in allowed_methods:
@@ -376,7 +375,7 @@ class BeliefSync:
             return {"status": "ok"}
         return {"error": f"Unknown sync method: {method}"}
 
-    async def handle_incoming_resonance(self, payload: dict[str, Any]):
+    async def handle_incoming_resonance(self, payload: Dict[str, Any]):
         """Phase 18.1: Handle incoming drive states (Resonance)."""
         drives = payload.get("drives", {})
         if not drives: return
@@ -422,7 +421,7 @@ class BeliefSync:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def handle_attention_spike(self, payload: dict[str, Any]):
+    async def handle_attention_spike(self, payload: Dict[str, Any]):
         """Phase 18.1: Handle incoming attention spike from peer."""
         context = payload.get("context", "Unspecified event")
         urgency = payload.get("urgency", 0.5)
@@ -444,7 +443,7 @@ class BeliefSync:
         if feed:
             feed.push(f"SWARM_ATTENTION: Peer '{origin}' reported: {context}", category="SWARM")
 
-    async def handle_incoming_beliefs(self, payload: dict[str, Any]):
+    async def handle_incoming_beliefs(self, payload: Dict[str, Any]):
         """Callback for incoming belief data from peers."""
         beliefs = payload.get("beliefs", [])
         if not beliefs: return
@@ -477,7 +476,7 @@ class BeliefSync:
                         confidence_score=0.7
                     )
 
-    async def handle_incoming_principles(self, payload: dict[str, Any]):
+    async def handle_incoming_principles(self, payload: Dict[str, Any]):
         """Callback for incoming first-principles from peers."""
         principles = payload.get("principles", [])
         if not principles: return
@@ -495,7 +494,7 @@ class BeliefSync:
                     await abs_engine._commit_principle(principle)
                     logger.debug("🌌 New principle learned from swarm: %s", principle[:40])
 
-    def _load_existing_principles(self, abs_engine) -> list[str]:
+    def _load_existing_principles(self, abs_engine) -> List[str]:
         try:
             if not abs_engine.storage_path.exists():
                 return []
@@ -518,7 +517,7 @@ class BeliefSync:
             logger.error("BeliefSync principle load failed: %s", exc, exc_info=True)
             return []
 
-    def _principle_semantically_duplicate(self, principle: str, existing: list[str], threshold: float = 0.62) -> bool:
+    def _principle_semantically_duplicate(self, principle: str, existing: List[str], threshold: float = 0.62) -> bool:
         candidate = _semantic_hash_vector(principle)
         for prior in existing:
             if _cosine(candidate, _semantic_hash_vector(prior)) >= threshold:

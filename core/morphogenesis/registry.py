@@ -1,25 +1,27 @@
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import logging
 import os
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
-from core.runtime.errors import record_degradation
-from core.runtime.lockdep import checked_lock
-from core.runtime.state_ownership import state_root
-
-from .cell import CellHandler, MorphogenCell
-from .organs import Organ
+from .cell import MorphogenCell, CellHandler
+from .field import MorphogenField
+from .organs import Organ, OrganStabilizer
 from .types import (
     CellLifecycle,
     CellManifest,
     CellState,
     MorphogenesisConfig,
+    json_safe,
     stable_digest,
 )
+from core.runtime.lockdep import checked_lock
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Morphogenesis.Registry")
 
@@ -59,7 +61,7 @@ def _default_root() -> Path:
         return state_root() / "data" / "morphogenesis"
 
 
-def _atomic_write_json(path: Path, payload: dict[str, Any], *, schema_name: str) -> None:
+def _atomic_write_json(path: Path, payload: Dict[str, Any], *, schema_name: str) -> None:
     try:
         from core.runtime.atomic_writer import atomic_write_json
         atomic_write_json(path, payload, schema_version=1, schema_name=schema_name)
@@ -68,9 +70,7 @@ def _atomic_write_json(path: Path, payload: dict[str, Any], *, schema_name: str)
         record_degradation('registry', exc)
         logger.debug("canonical atomic_write_json unavailable for %s: %s", path, exc)
 
-    import json
-    import os
-    import tempfile
+    import json, os, tempfile
     fd, tmp = tempfile.mkstemp(prefix=path.name, suffix=".tmp", dir=str(path.parent))
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -82,7 +82,7 @@ def _atomic_write_json(path: Path, payload: dict[str, Any], *, schema_name: str)
         try:
             if Path(tmp).exists():
                 Path(tmp).unlink()
-        except OSError:
+        except (OSError, IOError):
             pass  # no-op: intentional
 
 
@@ -115,8 +115,8 @@ class MorphogenesisRegistry:
     def __init__(
         self,
         *,
-        root: Path | None = None,
-        config: MorphogenesisConfig | None = None,
+        root: Optional[Path] = None,
+        config: Optional[MorphogenesisConfig] = None,
     ):
         self.root = Path(root) if root is not None else _default_root()
         self.config = config or MorphogenesisConfig()
@@ -124,8 +124,8 @@ class MorphogenesisRegistry:
         # Taken before the graph lock on the persistence path; both are
         # checked so the ordering is recorded rather than assumed.
         self._lock = checked_lock("morphogenesis.registry", reentrant=True)
-        self.cells: dict[str, MorphogenCell] = {}
-        self.organs: dict[str, Organ] = {}
+        self.cells: Dict[str, MorphogenCell] = {}
+        self.organs: Dict[str, Organ] = {}
         #: Topology, lineage and the motif library, attached by the runtime.
         #:
         #: These were held only in memory, so every restart threw away the
@@ -146,7 +146,7 @@ class MorphogenesisRegistry:
         if motifs is not None:
             self._motifs = motifs
 
-    def register_cell(self, manifest: CellManifest, *, handler: CellHandler | None = None, replace: bool = False) -> MorphogenCell:
+    def register_cell(self, manifest: CellManifest, *, handler: Optional[CellHandler] = None, replace: bool = False) -> MorphogenCell:
         cell = MorphogenCell(manifest, handler=handler)
         with self._lock:
             if cell.cell_id in self.cells and not replace:
@@ -167,7 +167,7 @@ class MorphogenesisRegistry:
             cell.handler = handler
             return True
 
-    def register_organ(self, organ: Organ) -> MorphogenCell | None:
+    def register_organ(self, organ: Organ) -> Optional[MorphogenCell]:
         with self._lock:
             if organ.organ_id in self.organs:
                 return None
@@ -176,14 +176,14 @@ class MorphogenesisRegistry:
             self.organs[organ.organ_id] = organ
             return self.register_cell(organ.to_manifest(), replace=False)
 
-    def active_cells(self) -> list[MorphogenCell]:
+    def active_cells(self) -> List[MorphogenCell]:
         with self._lock:
             return [
                 c for c in self.cells.values()
                 if c.lifecycle not in {CellLifecycle.DEAD, CellLifecycle.APOPTOTIC}
             ]
 
-    def get(self, cell_id: str) -> MorphogenCell | None:
+    def get(self, cell_id: str) -> Optional[MorphogenCell]:
         with self._lock:
             return self.cells.get(cell_id)
 
@@ -198,7 +198,7 @@ class MorphogenesisRegistry:
                 self.cells.pop(cid, None)
             return len(dead)
 
-    def snapshot(self) -> dict[str, Any]:
+    def snapshot(self) -> Dict[str, Any]:
         with self._lock:
             return {
                 "schema": "aura.morphogenesis.registry.v1",
@@ -423,10 +423,10 @@ class MorphogenesisRegistry:
                     action="started with an empty motif library after a stored one would not restore",
                 )
 
-    def status(self) -> dict[str, Any]:
+    def status(self) -> Dict[str, Any]:
         with self._lock:
-            by_state: dict[str, int] = {}
-            by_role: dict[str, int] = {}
+            by_state: Dict[str, int] = {}
+            by_role: Dict[str, int] = {}
             for c in self.cells.values():
                 state = c.lifecycle.value if hasattr(c.lifecycle, "value") else str(c.lifecycle)
                 by_state[state] = by_state.get(state, 0) + 1

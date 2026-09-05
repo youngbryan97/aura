@@ -11,13 +11,14 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import threading
 from dataclasses import asdict
 from typing import Any
 
-from core.runtime.lockdep import LockRank, checked_lock
 from core.voice.duplex.config import DuplexConfig
 from core.voice.duplex.streaming_asr import StreamingAsr, _WhisperBackend
 from core.voice.duplex.tts_stream import StreamingTts
+from core.runtime.lockdep import LockRank, checked_lock
 
 logger = logging.getLogger("Aura.Voice.ModelRuntime")
 

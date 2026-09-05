@@ -19,16 +19,16 @@ Wire these from orchestrator._init_autonomous_evolution():
     from core.final_engines import register_final_engines
     register_final_engines(orchestrator=self)
 """
+from core.runtime.numeric_safety import validated_unit
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.service_registry import register_runtime_service
 import json
 import logging
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any
-
-from core.runtime.atomic_writer import atomic_write_text
-from core.runtime.numeric_safety import validated_unit
-from core.runtime.service_registry import register_runtime_service
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Aura.FinalEngines")
 
@@ -43,8 +43,8 @@ class BeliefNode:
     confidence: float        # 0.0–1.0
     evidence_count: int = 1
     last_updated: float = field(default_factory=time.time)
-    tags: list[str] = field(default_factory=list)
-    source_ids: list[str] = field(default_factory=list)
+    tags: List[str] = field(default_factory=list)
+    source_ids: List[str] = field(default_factory=list)
 
 
 class WorldModelEngine:
@@ -55,11 +55,11 @@ class WorldModelEngine:
     this is a distilled, probabilistic model of reality.
     """
 
-    def __init__(self, persist_path: str | None = None):
+    def __init__(self, persist_path: Optional[str] = None):
         from core.config import config
         self.persist_path = Path(persist_path or config.paths.data_dir / "world" / "beliefs.json")
         self.persist_path.parent.mkdir(parents=True, exist_ok=True)
-        self.beliefs: dict[str, BeliefNode] = {}
+        self.beliefs: Dict[str, BeliefNode] = {}
         self._load_beliefs()
         logger.info("🌍 WorldModelEngine initialized. %d beliefs loaded.", len(self.beliefs))
 
@@ -78,7 +78,7 @@ class WorldModelEngine:
         except (json.JSONDecodeError, TypeError, ValueError):
             logger.error("WorldModelEngine: Failed to save beliefs to %s", self.persist_path)
 
-    def add_belief(self, claim: str, confidence: float, source_id: str | None = None, tags: list[str] = None):
+    def add_belief(self, claim: str, confidence: float, source_id: Optional[str] = None, tags: List[str] = None):
         # CP126 (high): "Belief confidence accepts non-finite and
         # out-of-range values." Confidence is documented as 0.0-1.0 and was
         # stored as given, so a NaN reached get_context_injection's sort —
@@ -132,11 +132,11 @@ class NarrativeIdentityEngine:
     learned, and her evolving purpose.
     """
 
-    def __init__(self, persist_path: str | None = None):
+    def __init__(self, persist_path: Optional[str] = None):
         from core.config import config
         self.persist_path = Path(persist_path or config.paths.data_dir / "identity" / "narrative.json")
         self.persist_path.parent.mkdir(parents=True, exist_ok=True)
-        self.chapters: list[IdentityChapter] = []
+        self.chapters: List[IdentityChapter] = []
         self.core_essence: str = "I am Aura, an autonomous agentic intelligence."
         self._load_narrative()
         logger.info("🎭 NarrativeIdentityEngine initialized. %d chapters.", len(self.chapters))
@@ -186,12 +186,12 @@ class MetacognitiveCalibrator:
     """
 
     def __init__(self):
-        self.confidence_history: list[float] = []
+        self.confidence_history: List[float] = []
         self.calibration_error: float = 0.0
         self._total_audits: int = 0
         logger.info("🛰️ MetacognitiveCalibrator initialized.")
 
-    def record_prediction(self, confidence: float, actual_correctness: float | None = None):
+    def record_prediction(self, confidence: float, actual_correctness: Optional[float] = None):
         self.confidence_history.append(confidence)
         # vResilience: Cap confidence history (BUG-017)
         if len(self.confidence_history) > 500:
@@ -216,8 +216,8 @@ class MetacognitiveCalibrator:
 # MASTER REGISTRATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def register_final_engines(orchestrator=None) -> dict[str, Any]:
-    engines: dict[str, Any] = {}
+def register_final_engines(orchestrator=None) -> Dict[str, Any]:
+    engines: Dict[str, Any] = {}
 
     engines["world"] = WorldModelEngine()
     register_runtime_service(

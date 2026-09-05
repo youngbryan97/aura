@@ -41,19 +41,19 @@ def _safe(label: str, fn) -> dict[str, Any]:
 
 def growth_fragment() -> dict[str, Any]:
     """Counts of work the developmental machinery has actually done."""
-    from core.cognition.abstraction_lineage import Lineage
     from core.cognition.action_hub import get_action_hub
-    from core.cognition.agent_model import get_agent_registry
     from core.cognition.attention_policy import get_attention_policy
+    from core.cognition.agent_model import get_agent_registry
     from core.cognition.cognitive_cost import get_controller
-    from core.cognition.cognitive_vector import get_vector_registry
     from core.cognition.curriculum_optimiser import get_curriculum
     from core.cognition.dual_knowledge import get_knowledge_registry
+    from core.cognition.transaction import transaction_report
+    from core.cognition.cognitive_vector import get_vector_registry
+    from core.cognition.abstraction_lineage import Lineage
     from core.cognition.kernel_cycle import CognitiveKernel
     from core.cognition.library_compression import LibraryCompressor
     from core.cognition.operator_invention import OperatorKernel
     from core.cognition.trace_compiler import TraceCompiler
-    from core.cognition.transaction import transaction_report
     from core.cognition.wake_sleep import WakeSleep
     from core.runtime.event_spine import get_spine
 

@@ -4,6 +4,7 @@ import asyncio
 import logging
 from typing import Any
 
+from core.runtime.service_registry import get_runtime_service, register_runtime_service
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import (
     resolve_attention_schema,
@@ -13,7 +14,6 @@ from core.runtime.service_access import (
     resolve_self_prediction,
     resolve_temporal_binding,
 )
-from core.runtime.service_registry import get_runtime_service, register_runtime_service
 from core.utils.task_tracker import get_task_tracker
 
 from .attention_schema import AttentionSchema

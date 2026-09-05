@@ -12,12 +12,11 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Callable
-from typing import Any
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from core.world_model.learned_world_model import LearnedWorldModel
+from core.world_model.learned_world_model import LearnedWorldModel, WorldModelPrediction
 
 logger = logging.getLogger("Aura.MCTSPlanner")
 
@@ -29,8 +28,8 @@ class MCTSNode:
         self,
         latent_state: np.ndarray,
         hidden_state: np.ndarray,
-        parent: MCTSNode | None = None,
-        action_from_parent: np.ndarray | None = None,
+        parent: Optional[MCTSNode] = None,
+        action_from_parent: Optional[np.ndarray] = None,
         prior_prob: float = 1.0,
     ):
         self.latent_state = latent_state
@@ -39,7 +38,7 @@ class MCTSNode:
         self.action_from_parent = action_from_parent
         self.prior_prob = prior_prob
 
-        self.children: dict[int, MCTSNode] = {}
+        self.children: Dict[int, MCTSNode] = {}
         self.visit_count = 0
         self.value_sum = 0.0
         self.is_expanded = False
@@ -64,7 +63,7 @@ class LearnedMCTSPlanner:
     def __init__(
         self,
         world_model: LearnedWorldModel,
-        action_space: list[np.ndarray],
+        action_space: List[np.ndarray],
         value_scorer: Callable[[np.ndarray], float],
         exploration_constant: float = 1.414,
         max_depth: int = 20,
@@ -83,7 +82,7 @@ class LearnedMCTSPlanner:
         self,
         current_observation: np.ndarray,
         ablate_learned_model: bool = False
-    ) -> tuple[np.ndarray, dict[str, Any]]:
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Run MCTS to find the best immediate action.
 
         Args:
@@ -144,7 +143,7 @@ class LearnedMCTSPlanner:
 
         return self.action_space[best_action_idx], info
 
-    def _encode_root(self, current_observation: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _encode_root(self, current_observation: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Encode the current observation without mutating the learned model."""
 
         obs = self.world_model._pad_or_truncate(
@@ -160,7 +159,7 @@ class LearnedMCTSPlanner:
         next_hidden = self.world_model._gru_step(np.concatenate([latent, zero_action]), hidden)
         return latent, next_hidden
 
-    def _select_child(self, node: MCTSNode) -> tuple[int, MCTSNode]:
+    def _select_child(self, node: MCTSNode) -> Tuple[int, MCTSNode]:
         """Select child using PUCT algorithm (combines Q, Prior, and Uncertainty)."""
         best_score = -float('inf')
         best_action = -1
@@ -236,7 +235,7 @@ class LearnedMCTSPlanner:
         self,
         node: MCTSNode,
         action: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Deterministic non-learned transition used only for ablation probes."""
 
         act_pad = self.world_model._pad_or_truncate(action, self.world_model.config.action_dim)
@@ -251,7 +250,7 @@ class LearnedMCTSPlanner:
             hidden[:hidden_width] = np.tanh(hidden[:hidden_width] + 0.05 * act_pad[:hidden_width])
         return latent, hidden
 
-    def _backpropagate(self, search_path: list[MCTSNode], value: float):
+    def _backpropagate(self, search_path: List[MCTSNode], value: float):
         """Propagate value up the tree."""
         for node in reversed(search_path):
             node.value_sum += value

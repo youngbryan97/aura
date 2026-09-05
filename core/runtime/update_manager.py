@@ -28,6 +28,8 @@ points at ``~/.aura/data/releases/<channel>/`` so reviewers can stage a
 release without touching the public release pipeline.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import hashlib
 import hmac
@@ -41,9 +43,9 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import List, Optional
 
 from core.runtime.archive_gateway import get_archive_gateway
-from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.state_ownership import state_root
 
@@ -67,7 +69,7 @@ class Release:
     version: str
     channel: str
     archive_path: str
-    signature_path: str | None
+    signature_path: Optional[str]
     changelog: str
     published_at: float
 
@@ -77,15 +79,15 @@ class UpdateAttempt:
     attempt_id: str
     release: Release
     started_at: float = field(default_factory=time.time)
-    backed_up_to: str | None = None
-    staged_at: str | None = None
-    continuity_hash_before: str | None = None
-    continuity_hash_after: str | None = None
-    previous_live_target: str | None = None
-    moved_aside_to: str | None = None
-    candidate_root: str | None = None
-    completed_at: float | None = None
-    failed_reason: str | None = None
+    backed_up_to: Optional[str] = None
+    staged_at: Optional[str] = None
+    continuity_hash_before: Optional[str] = None
+    continuity_hash_after: Optional[str] = None
+    previous_live_target: Optional[str] = None
+    moved_aside_to: Optional[str] = None
+    candidate_root: Optional[str] = None
+    completed_at: Optional[float] = None
+    failed_reason: Optional[str] = None
 
 
 # ─── transport ─────────────────────────────────────────────────────────────
@@ -95,7 +97,7 @@ class UpdateTransport(ABC):
     name: str = "abstract"
 
     @abstractmethod
-    async def list_available(self, channel: Channel) -> list[Release]:  # pragma: no cover
+    async def list_available(self, channel: Channel) -> List[Release]:  # pragma: no cover
         raise NotImplementedError
 
 
@@ -105,8 +107,8 @@ class LocalFileTransport(UpdateTransport):
     def __init__(self, release_dir: str | Path | None = None) -> None:
         self.release_dir = Path(release_dir).expanduser() if release_dir else _DEFAULT_RELEASE_DIR
 
-    async def list_available(self, channel: Channel) -> list[Release]:
-        out: list[Release] = []
+    async def list_available(self, channel: Channel) -> List[Release]:
+        out: List[Release] = []
         path = self.release_dir / channel.value
         if not path.exists():
             return out
@@ -132,7 +134,7 @@ class UpdateManager:
     def __init__(
         self,
         *,
-        transport: UpdateTransport | None = None,
+        transport: Optional[UpdateTransport] = None,
         backup_dir: str | Path | None = None,
         release_dir: str | Path | None = None,
         live_link: str | Path | None = None,
@@ -201,7 +203,7 @@ class UpdateManager:
         except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
             return False
 
-    async def list_available(self, channel: Channel) -> list[Release]:
+    async def list_available(self, channel: Channel) -> List[Release]:
         return await self.transport.list_available(channel)
 
     async def apply(self, release: Release, *, hot: bool = True) -> UpdateAttempt:
@@ -248,7 +250,7 @@ class UpdateManager:
                 staged,
                 source_label="runtime.update_manager.release_extract",
             )
-        except OSError as exc:
+        except (OSError, IOError) as exc:
             record_degradation('update_manager', exc)
             attempt.failed_reason = f"unpack_failed:{exc}"
             self._record(attempt, "unpack_failed")
@@ -278,7 +280,7 @@ class UpdateManager:
                 shutil.move(str(self.live_link), str(aside))
                 attempt.moved_aside_to = str(aside)
                 shutil.move(str(candidate_root), str(self.live_link))
-        except OSError as exc:
+        except (OSError, IOError) as exc:
             record_degradation('update_manager', exc)
             attempt.failed_reason = f"cutover_failed:{exc}"
             self._record(attempt, "cutover_failed")
@@ -309,7 +311,7 @@ class UpdateManager:
             else:
                 return
             self._record(attempt, "rolled_back")
-        except OSError as exc:
+        except (OSError, IOError) as exc:
             record_degradation('update_manager', exc)
             self._record(attempt, f"rollback_failed:{exc}")
 
@@ -359,7 +361,7 @@ class UpdateManager:
         raise ValueError("release archive does not contain a recognizable Aura source root")
 
     @staticmethod
-    def _continuity_hash() -> str | None:
+    def _continuity_hash() -> Optional[str]:
         try:
             from core.identity.self_object import get_self
             return get_self().snapshot().continuity_hash
@@ -384,7 +386,7 @@ class UpdateManager:
             pass  # no-op: intentional
 
 
-_MANAGER: UpdateManager | None = None
+_MANAGER: Optional[UpdateManager] = None
 
 
 def get_update_manager() -> UpdateManager:

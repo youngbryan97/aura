@@ -26,7 +26,7 @@ import logging
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -40,7 +40,7 @@ class CompetenceRecord:
     """Tracks competence for a specific goal over time."""
     goal_name: str
     # Competence history: (timestamp, competence_score)
-    history: deque[tuple[float, float]] = field(
+    history: Deque[Tuple[float, float]] = field(
         default_factory=lambda: deque(maxlen=200)
     )
     # Cumulative attempts and successes
@@ -101,10 +101,10 @@ class IntrinsicReward:
     source: str       # "competence" or "novelty"
     goal_name: str    # Which goal/state this relates to
     reward: float     # The intrinsic reward value
-    details: dict[str, float]
+    details: Dict[str, float]
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "source": self.source,
             "goal_name": self.goal_name,
@@ -123,8 +123,8 @@ class CompetenceMotivation:
     """
 
     def __init__(self) -> None:
-        self._goals: dict[str, CompetenceRecord] = {}
-        self._reward_history: deque[IntrinsicReward] = deque(
+        self._goals: Dict[str, CompetenceRecord] = {}
+        self._reward_history: Deque[IntrinsicReward] = deque(
             maxlen=working_history_retention_policy("AURA_COMPETENCE_REWARD_HISTORY_MAX").max_items
         )
 
@@ -166,7 +166,7 @@ class CompetenceMotivation:
         self._reward_history.append(ir)
         return ir
 
-    def get_most_improving_goals(self, top_k: int = 5) -> list[tuple[str, float]]:
+    def get_most_improving_goals(self, top_k: int = 5) -> List[Tuple[str, float]]:
         """Return goals with highest learning progress."""
         deltas = []
         for name, record in self._goals.items():
@@ -177,7 +177,7 @@ class CompetenceMotivation:
         deltas.sort(key=lambda x: x[1], reverse=True)
         return deltas[:top_k]
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "n_goals": len(self._goals),
             "goals": {
@@ -202,15 +202,15 @@ class NoveltyMotivation:
     Uses a simple sliding-window approach with L2 distance.
     """
 
-    def __init__(self, config: NoveltyConfig | None = None) -> None:
+    def __init__(self, config: Optional[NoveltyConfig] = None) -> None:
         self._config = config or NoveltyConfig()
-        self._state_archive: deque[np.ndarray] = deque(
+        self._state_archive: Deque[np.ndarray] = deque(
             maxlen=self._config.max_states
         )
-        self._reward_history: deque[IntrinsicReward] = deque(
+        self._reward_history: Deque[IntrinsicReward] = deque(
             maxlen=working_history_retention_policy("AURA_NOVELTY_REWARD_HISTORY_MAX").max_items
         )
-        self._dim: int | None = None
+        self._dim: Optional[int] = None
 
     def compute_novelty(self, state: np.ndarray) -> float:
         """Compute novelty of a state relative to the archive.
@@ -297,7 +297,7 @@ class NoveltyMotivation:
         self._reward_history.append(ir)
         return ir
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "archive_size": len(self._state_archive),
             "max_states": self._config.max_states,
@@ -317,12 +317,12 @@ class IntrinsicMotivationEngine:
     drive, triggering candidate value proposals.
     """
 
-    def __init__(self, novelty_config: NoveltyConfig | None = None) -> None:
+    def __init__(self, novelty_config: Optional[NoveltyConfig] = None) -> None:
         self.competence = CompetenceMotivation()
         self.novelty = NoveltyMotivation(novelty_config)
 
         # Track high-reward clusters for value proposal
-        self._high_reward_clusters: dict[str, list[IntrinsicReward]] = defaultdict(list)
+        self._high_reward_clusters: Dict[str, List[IntrinsicReward]] = defaultdict(list)
         self._proposal_threshold: int = 10  # N high-reward events → propose
         self._reward_threshold: float = 0.3  # Reward above this = "high"
         #: Per-context cap on retained proposal evidence. These lists were
@@ -362,8 +362,8 @@ class IntrinsicMotivationEngine:
                 del cluster[: len(cluster) - self._max_cluster_evidence]
 
     def check_value_proposals(
-        self, existing_drives: list[str] | None = None
-    ) -> list[dict[str, Any]]:
+        self, existing_drives: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
         """Check if any reward clusters should trigger a new value proposal.
 
         Args:
@@ -413,9 +413,7 @@ class IntrinsicMotivationEngine:
         """
         try:
             from core.adaptation.dynamic_value_graph import (
-                EvidenceType,
-                ValueEvidence,
-                get_dynamic_value_graph,
+                get_dynamic_value_graph, ValueEvidence, EvidenceType,
             )
         except ImportError:
             return 0
@@ -492,7 +490,7 @@ class IntrinsicMotivationEngine:
 
         return count
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "competence": self.competence.get_status(),
             "novelty": self.novelty.get_status(),

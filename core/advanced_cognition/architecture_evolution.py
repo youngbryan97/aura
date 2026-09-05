@@ -14,11 +14,11 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Sequence
 
 from .schemas import canonical_json, stable_hash
 

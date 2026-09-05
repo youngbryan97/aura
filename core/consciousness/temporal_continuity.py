@@ -50,9 +50,11 @@ import math
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, Optional
 
 import numpy as np
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Consciousness.TemporalContinuity")
 
@@ -81,11 +83,11 @@ class TemporalResidue:
     drift_magnitude: float = 0.0
     drift_direction: str = "stable"
     temporal_texture: float = 0.5      # 0=calm silence, 1=turbulent silence
-    neurochemical_weathering: dict[str, float] = field(default_factory=dict)
+    neurochemical_weathering: Dict[str, float] = field(default_factory=dict)
     ticks_accumulated: int = 0
     consumed: bool = False
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "silence_duration_s": round(self.silence_duration_s, 1),
             "silence_pressure": round(self.silence_pressure, 4),
@@ -106,9 +108,9 @@ class TemporalContinuityEngine:
         self._lock = threading.Lock()
 
         # State at last inference (anchor point for drift)
-        self._anchor_substrate: np.ndarray | None = None
+        self._anchor_substrate: Optional[np.ndarray] = None
         self._anchor_time: float = time.time()
-        self._anchor_neurochemistry: dict[str, float] = {}
+        self._anchor_neurochemistry: Dict[str, float] = {}
         #: The anchor before the current one, kept so an inference that never
         #: happened can be undone. CP126 130a4708: on_inference_start runs
         #: while generation parameters are still being assembled — before
@@ -116,7 +118,7 @@ class TemporalContinuityEngine:
         #: refusal, timeout or cloud failure moved temporal state for an
         #: inference that never ran, and the silence accumulator then measured
         #: from an anchor no speech ever followed.
-        self._previous_anchor: tuple | None = None
+        self._previous_anchor: Optional[tuple] = None
         self._abandoned_inferences = 0
 
         # Accumulated residue (building up during silence)
@@ -269,7 +271,7 @@ class TemporalContinuityEngine:
 
     # ── Generation Modulation ─────────────────────────────────────────────
 
-    def compute_modulation(self) -> dict[str, float]:
+    def compute_modulation(self) -> Dict[str, float]:
         """Compute generation parameter adjustments from accumulated temporal residue.
 
         This is the causal output. The silence was not just described — it
@@ -372,7 +374,7 @@ class TemporalContinuityEngine:
 
     # ── Status ────────────────────────────────────────────────────────────
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         with self._lock:
             return {
                 "residue": self._residue.to_dict(),
@@ -395,7 +397,7 @@ class TemporalContinuityEngine:
     # ── Internal Sampling ─────────────────────────────────────────────────
 
     @staticmethod
-    def _sample_substrate() -> np.ndarray | None:
+    def _sample_substrate() -> Optional[np.ndarray]:
         """Sample the current substrate state for drift tracking."""
         try:
             from core.container import ServiceContainer
@@ -418,7 +420,7 @@ class TemporalContinuityEngine:
             return None
 
     @staticmethod
-    def _sample_current_neurochemistry() -> dict[str, float]:
+    def _sample_current_neurochemistry() -> Dict[str, float]:
         """Sample current neurochemical levels."""
         try:
             from core.container import ServiceContainer
@@ -435,7 +437,7 @@ class TemporalContinuityEngine:
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return {}
 
-    def _sample_neurochemical_drift(self) -> dict[str, float]:
+    def _sample_neurochemical_drift(self) -> Dict[str, float]:
         """Compute cumulative neurochemical changes since anchor."""
         try:
             current = self._sample_current_neurochemistry()
@@ -454,7 +456,7 @@ class TemporalContinuityEngine:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_ENGINE: TemporalContinuityEngine | None = None
+_ENGINE: Optional[TemporalContinuityEngine] = None
 
 
 def get_temporal_continuity() -> TemporalContinuityEngine:

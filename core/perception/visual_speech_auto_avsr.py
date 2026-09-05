@@ -23,7 +23,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from core.perception.visual_speech import BackendPrediction
-from core.runtime.state_ownership import shared_asset_root
+from core.runtime.state_ownership import shared_asset_root, state_root
 
 logger = logging.getLogger("Aura.VisualSpeech.AutoAVSR")
 

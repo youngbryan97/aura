@@ -13,11 +13,10 @@ Sensitive operations requiring consent:
 - System commands
 """
 
-import asyncio
 import logging
-from collections.abc import Callable
+import asyncio
+from typing import Dict, Any, Optional, Callable
 from enum import Enum
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ class SensitivityLevel(str, Enum):
 
 
 # Operation classification map
-OPERATION_SENSITIVITY: dict[str, SensitivityLevel] = {
+OPERATION_SENSITIVITY: Dict[str, SensitivityLevel] = {
     # File operations
     "write_system_file": SensitivityLevel.CRITICAL,
     "delete_file": SensitivityLevel.HIGH,
@@ -72,11 +71,11 @@ class ConsentWorkflow:
     """
     
     def __init__(self):
-        self.approved_operations: dict[str, bool] = {}
-        self.user_consent_callback: Callable | None = None
-        self.auto_approve_callback: Callable | None = None
+        self.approved_operations: Dict[str, bool] = {}
+        self.user_consent_callback: Optional[Callable] = None
+        self.auto_approve_callback: Optional[Callable] = None
         
-    def set_user_consent_handler(self, handler: Callable[[str, dict[str, Any]], asyncio.Future]):
+    def set_user_consent_handler(self, handler: Callable[[str, Dict[str, Any]], asyncio.Future]):
         """
         Set a callback to handle user consent requests.
         
@@ -92,7 +91,7 @@ class ConsentWorkflow:
         """
         self.auto_approve_callback = handler
     
-    async def check_consent(self, operation: str, details: dict[str, Any] = None) -> bool:
+    async def check_consent(self, operation: str, details: Dict[str, Any] = None) -> bool:
         """
         Check if an operation requires and has consent.
         
@@ -140,7 +139,7 @@ class ConsentWorkflow:
 
 
 # Global workflow instance
-_consent_workflow: ConsentWorkflow | None = None
+_consent_workflow: Optional[ConsentWorkflow] = None
 
 
 def get_consent_workflow() -> ConsentWorkflow:

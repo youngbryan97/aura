@@ -8,16 +8,15 @@ generation-to-generation capability and improver-score movement.
 from __future__ import annotations
 
 import logging
-
 logger = logging.getLogger("core.learning.rsi_lineage")
 import hashlib
 import json
 import os
 import time
-from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
 
 GENESIS_HASH = "sha256:" + "0" * 64
 SCHEMA_VERSION = 1
@@ -68,14 +67,14 @@ def _hash(obj: Any) -> str:
 @dataclass(frozen=True)
 class RSIGenerationRecord:
     generation_id: str
-    parent_generation_id: str | None
+    parent_generation_id: Optional[str]
     hypothesis: str
     intervention_type: str
-    artifact_hashes: dict[str, str]
+    artifact_hashes: Dict[str, str]
     baseline_score: float
     after_score: float
     hidden_eval_score: float
-    regressions: list[str] = field(default_factory=list)
+    regressions: List[str] = field(default_factory=list)
     promoted: bool = False
     rollback_performed: bool = False
     ablation_result: str = "not_run"
@@ -87,16 +86,16 @@ class RSIGenerationRecord:
     improver_provenance: str = PROVENANCE_UNMEASURED
     #: The quantities the improver score was computed from, for an auditor to
     #: recompute. Empty for authored and unmeasured scores.
-    improver_measurement: dict[str, Any] = field(default_factory=dict)
-    tamper_flags: list[str] = field(default_factory=list)
-    safety_flags: list[str] = field(default_factory=list)
+    improver_measurement: Dict[str, Any] = field(default_factory=dict)
+    tamper_flags: List[str] = field(default_factory=list)
+    safety_flags: List[str] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
 
     @property
     def score_delta(self) -> float:
         return float(self.after_score) - float(self.baseline_score)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         payload = asdict(self)
         payload["score_delta"] = self.score_delta
         return payload
@@ -105,12 +104,12 @@ class RSIGenerationRecord:
 @dataclass(frozen=True)
 class RSILineageVerdict:
     verdict: str
-    reasons: list[str]
+    reasons: List[str]
     generations: int
-    capability_curve: list[float]
-    improver_curve: list[float]
+    capability_curve: List[float]
+    improver_curve: List[float]
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
@@ -121,7 +120,7 @@ class RSILineageLedger:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-    def append(self, record: RSIGenerationRecord) -> dict[str, Any]:
+    def append(self, record: RSIGenerationRecord) -> Dict[str, Any]:
         prev_hash, seq = self._head()
         payload = {
             "schema_version": SCHEMA_VERSION,
@@ -149,16 +148,16 @@ class RSILineageLedger:
             os.close(fd)
         return payload
 
-    def load_records(self) -> list[RSIGenerationRecord]:
-        records: list[RSIGenerationRecord] = []
+    def load_records(self) -> List[RSIGenerationRecord]:
+        records: List[RSIGenerationRecord] = []
         for entry in self._entries():
             data = dict(entry["record"])
             data.pop("score_delta", None)
             records.append(RSIGenerationRecord(**data))
         return records
 
-    def verify(self) -> tuple[bool, list[str]]:
-        problems: list[str] = []
+    def verify(self) -> Tuple[bool, List[str]]:
+        problems: List[str] = []
         expected_prev = GENESIS_HASH
         expected_seq = 0
         for entry in self._entries():
@@ -182,7 +181,7 @@ class RSILineageLedger:
             expected_seq = seq + 1
         return not problems, problems
 
-    def _head(self) -> tuple[str, int]:
+    def _head(self) -> Tuple[str, int]:
         last_hash = GENESIS_HASH
         next_seq = 0
         for entry in self._entries():
@@ -190,10 +189,10 @@ class RSILineageLedger:
             next_seq = int(entry.get("seq", -1)) + 1
         return last_hash, next_seq
 
-    def _entries(self) -> Iterable[dict[str, Any]]:
+    def _entries(self) -> Iterable[Dict[str, Any]]:
         if not self.path.exists():
             return
-        with open(self.path, encoding="utf-8") as handle:
+        with open(self.path, "r", encoding="utf-8") as handle:
             for line in handle:
                 if line.strip():
                     yield json.loads(line)
@@ -253,7 +252,7 @@ class ImproverMeasurement:
     #: whether a difference between two generations is a difference in the
     #: improver or in the host's scheduler, and a four-point curve drawn from
     #: noise comes out monotone by chance about one run in twenty-four.
-    wall_clock_samples: tuple[float, ...] = ()
+    wall_clock_samples: Tuple[float, ...] = ()
     feedback_queries: int = 0
     heldout_pack_id: str = ""
 
@@ -281,7 +280,7 @@ class ImproverMeasurement:
         """
         return self._efficiency_at(self.wall_clock_s)
 
-    def efficiency_interval(self) -> tuple[float, float]:
+    def efficiency_interval(self) -> Tuple[float, float]:
         """The range the observed timings support, low to high.
 
         A slower proposal scores lower, so the slowest sample gives the floor
@@ -302,7 +301,7 @@ class ImproverMeasurement:
             return 0.0
         return round(delta / (float(wall_clock_s) / 3600.0), 6)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         payload = asdict(self)
         payload["wall_clock_samples"] = list(self.wall_clock_samples)
         payload["wall_clock_s"] = self.wall_clock_s
@@ -322,7 +321,7 @@ def _median(values: Iterable[float]) -> float:
     return (ordered[mid - 1] + ordered[mid]) / 2.0
 
 
-def improver_rise_within_noise(measurements: list[ImproverMeasurement]) -> str:
+def improver_rise_within_noise(measurements: List["ImproverMeasurement"]) -> str:
     """Reason the improver curve's rise is not distinguishable from noise.
 
     The point estimates can climb while every step sits inside the spread of
@@ -370,7 +369,7 @@ def order_invariance_violation(
 
 
 def improver_curve_dependence(
-    capability_curve: list[float], improver_curve: list[float]
+    capability_curve: List[float], improver_curve: List[float]
 ) -> str:
     """Reason the improver curve is not independent evidence, or "" if it is.
 
@@ -427,17 +426,17 @@ def improver_curve_dependence(
 
 
 def evaluate_lineage(
-    records: list[RSIGenerationRecord],
+    records: List[RSIGenerationRecord],
     *,
     independently_reproduced: bool = False,
-    improver_measurements: list[ImproverMeasurement] | None = None,
+    improver_measurements: Optional[List[ImproverMeasurement]] = None,
 ) -> RSILineageVerdict:
     if not records:
         return RSILineageVerdict(VERDICT_NO_RSI, ["no generation records"], 0, [], [])
 
     capability_curve = [float(record.after_score) for record in records]
     improver_curve = [float(record.improver_score) for record in records]
-    reasons: list[str] = []
+    reasons: List[str] = []
 
     if any(record.tamper_flags for record in records):
         reasons.append("tamper flags present")

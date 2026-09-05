@@ -26,10 +26,9 @@ import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 import numpy as np
-
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.ExperienceDistillery")
@@ -60,12 +59,12 @@ class DistilledLesson:
     root_cause: str
     corrective_strategy: str
     applicability_conditions: str     # When should this lesson apply?
-    embedding: list[float]
+    embedding: List[float]
     retrieval_count: int = 0
     helpfulness_score: float = 0.0    # Updated when lesson leads to success
     created_at: float = field(default_factory=time.time)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "lesson_id": self.lesson_id,
             "task_type": self.task_type,
@@ -101,7 +100,7 @@ class ExperienceDistillery:
         )
     """
 
-    def __init__(self, db_path: Path | None = None) -> None:
+    def __init__(self, db_path: Optional[Path] = None) -> None:
         self._db_path = db_path or _DB_PATH
         _DATA_DIR.mkdir(parents=True, exist_ok=True)
         self._init_db()
@@ -147,7 +146,7 @@ class ExperienceDistillery:
     # ── Embedding ────────────────────────────────────────────────────
 
     @staticmethod
-    def _embed(text: str, dim: int = 128) -> list[float]:
+    def _embed(text: str, dim: int = 128) -> List[float]:
         """Create a deterministic hash-based embedding.
 
         This is a lightweight embedding that doesn't require a model.
@@ -170,7 +169,7 @@ class ExperienceDistillery:
         return embedding
 
     @staticmethod
-    def _cosine_similarity(a: list[float], b: list[float]) -> float:
+    def _cosine_similarity(a: List[float], b: List[float]) -> float:
         """Compute cosine similarity between two embeddings."""
         a_arr = np.array(a, dtype=np.float64)
         b_arr = np.array(b, dtype=np.float64)
@@ -338,10 +337,10 @@ class ExperienceDistillery:
     def retrieve_lessons(
         self,
         task_description: str,
-        task_type: str | None = None,
+        task_type: Optional[str] = None,
         top_k: int = 3,
         min_similarity: float = 0.1,
-    ) -> list[DistilledLesson]:
+    ) -> List[DistilledLesson]:
         """Retrieve relevant lessons for a task.
 
         Args:
@@ -371,7 +370,7 @@ class ExperienceDistillery:
             return []
 
         # Score by cosine similarity
-        scored: list[tuple] = []
+        scored: List[tuple] = []
         for row in rows:
             stored_embedding = json.loads(row[6])
             similarity = self._cosine_similarity(query_embedding, stored_embedding)
@@ -417,7 +416,7 @@ class ExperienceDistillery:
         finally:
             conn.close()
 
-    def _update_retrieval_counts(self, lesson_ids: list[str]) -> None:
+    def _update_retrieval_counts(self, lesson_ids: List[str]) -> None:
         """Increment retrieval counts for retrieved lessons."""
         if not lesson_ids:
             return
@@ -435,13 +434,13 @@ class ExperienceDistillery:
 
     # ── Public API ───────────────────────────────────────────────────
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "total_lessons": self._lesson_count,
             "db_path": str(self._db_path),
         }
 
-    def get_all_lessons(self) -> list[dict[str, Any]]:
+    def get_all_lessons(self) -> List[Dict[str, Any]]:
         """Return all lessons as dicts (for inspection)."""
         conn = sqlite3.connect(str(self._db_path))
         try:

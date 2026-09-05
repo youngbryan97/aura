@@ -45,16 +45,18 @@ Registered as ``octopus_federation`` in ServiceContainer.  Fed by
 the heartbeat via ``tick(environment)``.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
+
 
 import logging
 import math
 import threading
 import time
 from collections import deque
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -84,10 +86,10 @@ class ArmAction:
 
 @dataclass
 class ArbitrationResult:
-    winning_action: int | None
+    winning_action: Optional[int]
     winning_confidence: float
     tally: np.ndarray                # (ACTION_DIM,) per-action vote mass
-    participating_arms: list[int]
+    participating_arms: List[int]
     link_state: ArmState
     integration_latency: int         # Ticks since last stable-agreement
     decision_variance: float         # Across-arm variance of action choices
@@ -112,8 +114,8 @@ class OctopusArm:
         self._policy /= np.linalg.norm(self._policy) + 1e-8
 
         self.autonomy: float = 0.1           # Base autonomy (rises when severed)
-        self._last_action: ArmAction | None = None
-        self._action_history: deque[ArmAction] = deque(maxlen=64)
+        self._last_action: Optional[ArmAction] = None
+        self._action_history: Deque[ArmAction] = deque(maxlen=64)
         self._lock = threading.Lock()
 
     def sense(self, environment: np.ndarray) -> np.ndarray:
@@ -141,7 +143,7 @@ class OctopusArm:
             self._action_history.append(rec)
         return rec
 
-    def last_action(self) -> ArmAction | None:
+    def last_action(self) -> Optional[ArmAction]:
         with self._lock:
             return self._last_action
 
@@ -160,15 +162,15 @@ class CentralArbiter:
     autonomy=1.
     """
 
-    def __init__(self, arms: list[OctopusArm]):
+    def __init__(self, arms: List[OctopusArm]):
         self._arms = arms
         self._link_state: ArmState = ArmState.LINKED
         self._link_changed_tick: int = 0
         self._tick: int = 0
-        self._variance_history: deque[float] = deque(maxlen=INTEGRATION_WINDOW)
-        self._last_result: ArbitrationResult | None = None
+        self._variance_history: Deque[float] = deque(maxlen=INTEGRATION_WINDOW)
+        self._last_result: Optional[ArbitrationResult] = None
         self._lock = threading.Lock()
-        self._observers: list[Callable[[ArbitrationResult], None]] = []
+        self._observers: List[Callable[[ArbitrationResult], None]] = []
 
     # ── link controls ───────────────────────────────────────────────────
 
@@ -202,7 +204,7 @@ class CentralArbiter:
         self._tick += 1
 
         # Gather proposals.
-        proposals: list[ArmAction] = []
+        proposals: List[ArmAction] = []
         for a in self._arms:
             proposals.append(a.decide(environment))
 
@@ -221,7 +223,7 @@ class CentralArbiter:
 
         # Tally per-action vote mass (weighted by (1 - autonomy) × confidence).
         tally = np.zeros(ACTION_DIM, dtype=np.float32)
-        participating: list[int] = []
+        participating: List[int] = []
         for a, p in zip(self._arms, proposals):
             weight = (1.0 - a.autonomy) * p.confidence
             if weight > 0:
@@ -273,7 +275,7 @@ class CentralArbiter:
     def subscribe(self, cb: Callable[[ArbitrationResult], None]) -> None:
         self._observers.append(cb)
 
-    def current_state(self) -> ArbitrationResult | None:
+    def current_state(self) -> Optional[ArbitrationResult]:
         with self._lock:
             return self._last_result
 
@@ -300,7 +302,7 @@ class OctopusFederation:
         )
 
     @property
-    def arms(self) -> list[OctopusArm]:
+    def arms(self) -> List[OctopusArm]:
         return self._arms
 
     @property
@@ -316,12 +318,12 @@ class OctopusFederation:
     def restore_link(self) -> None:
         self._arbiter.restore()
 
-    def arm_action(self, arm_id: int) -> ArmAction | None:
+    def arm_action(self, arm_id: int) -> Optional[ArmAction]:
         if not (0 <= arm_id < N_ARMS):
             return None
         return self._arms[arm_id].last_action()
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         r = self._arbiter.current_state()
         return {
             "n_arms": N_ARMS,
@@ -340,7 +342,7 @@ class OctopusFederation:
 
 # ── Singleton accessor ─────────────────────────────────────────────────────────
 
-_INSTANCE: OctopusFederation | None = None
+_INSTANCE: Optional[OctopusFederation] = None
 
 
 def get_octopus_federation() -> OctopusFederation:

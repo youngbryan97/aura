@@ -22,7 +22,7 @@ import asyncio
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List
 
 from core.runtime.base_module import AuraBaseModule
 from core.runtime.service_registry import get_runtime_service
@@ -76,7 +76,7 @@ class ScratchpadResult:
     passes: int = 0
     elapsed_s: float = 0.0
     truncated: bool = False
-    redactions: list[str] = field(default_factory=list)
+    redactions: List[str] = field(default_factory=list)
 
     def __str__(self) -> str:
         return self.strategy
@@ -84,7 +84,7 @@ class ScratchpadResult:
     def __bool__(self) -> bool:
         return self.ok
 
-    def to_dict(self, *, include_monologue: bool = False) -> dict[str, Any]:
+    def to_dict(self, *, include_monologue: bool = False) -> Dict[str, Any]:
         payload = {
             "ok": self.ok,
             "strategy": self.strategy,
@@ -135,7 +135,7 @@ class ScratchpadEngine(AuraBaseModule):
     async def think_recursive(
         self,
         objective: str,
-        context: dict[str, Any],
+        context: Dict[str, Any],
         depth: int = 1,
         *,
         deadline_s: float | None = None,
@@ -182,7 +182,7 @@ class ScratchpadEngine(AuraBaseModule):
                 self.logger.debug("Scratchpad Refinement %d complete.", completed)
         except asyncio.CancelledError:
             raise
-        except TimeoutError:
+        except (TimeoutError, asyncio.TimeoutError):
             self._last_error = "deadline_exceeded"
             return ScratchpadResult(
                 ok=False,
@@ -218,7 +218,7 @@ class ScratchpadEngine(AuraBaseModule):
         self,
         engine: Any,
         objective: str,
-        context: dict[str, Any],
+        context: Dict[str, Any],
         nonce: str,
         depth: int,
         deadline: float,
@@ -244,7 +244,7 @@ class ScratchpadEngine(AuraBaseModule):
         engine: Any,
         objective: str,
         monologue: str,
-        context: dict[str, Any],
+        context: Dict[str, Any],
         nonce: str,
         remaining: float,
     ) -> str:
@@ -272,7 +272,7 @@ class ScratchpadEngine(AuraBaseModule):
     async def _call(
         engine: Any,
         prompt: str,
-        context: dict[str, Any],
+        context: Dict[str, Any],
         mode: Any,
         remaining: float,
     ) -> Any:
@@ -286,9 +286,9 @@ class ScratchpadEngine(AuraBaseModule):
 
     # -- distillation (CP126 92172bb9) ----------------------------------
     @staticmethod
-    def distill(monologue: str) -> tuple[str, list[str]]:
+    def distill(monologue: str) -> tuple[str, List[str]]:
         """A user-safe strategy from a private monologue, plus what was cut."""
-        redactions: list[str] = []
+        redactions: List[str] = []
         body = str(monologue or "").strip()
         if not body:
             return "", redactions
@@ -297,7 +297,7 @@ class ScratchpadEngine(AuraBaseModule):
             body = _SENSITIVE_RE.sub("[REDACTED]", body)
             redactions.append("sensitive_credentials")
 
-        kept: list[str] = []
+        kept: List[str] = []
         for line in body.splitlines():
             stripped = line.strip()
             if not stripped:
@@ -346,7 +346,7 @@ class ScratchpadEngine(AuraBaseModule):
         history = context.get("history")
         if not isinstance(history, (list, tuple)):
             return ""
-        lines: list[str] = []
+        lines: List[str] = []
         for item in list(history)[-MAX_HISTORY_ITEMS:]:
             if isinstance(item, dict):
                 role = str(item.get("role", "?"))
@@ -364,7 +364,7 @@ class ScratchpadEngine(AuraBaseModule):
         return text[:MAX_MONOLOGUE_CHARS], True
 
     # -- health (CP126 813583e9) -----------------------------------------
-    def get_health(self) -> dict[str, Any]:
+    def get_health(self) -> Dict[str, Any]:
         """Provide health status of the scratchpad."""
         engine = self.cognitive_engine or get_runtime_service("cognitive_engine", default=None)
         engine_ready = engine is not None and callable(getattr(engine, "think", None))

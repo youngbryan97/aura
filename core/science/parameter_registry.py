@@ -31,13 +31,13 @@ whether the campaign could have found a different answer.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import contextlib
+import threading
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
-
-from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Kind",

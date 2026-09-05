@@ -8,7 +8,7 @@ import asyncio
 import logging
 import os
 import time
-from typing import Any
+from typing import Any, Dict
 
 from core.container import ServiceContainer
 from core.memory.semantic_defrag import SemanticDefragmenter
@@ -62,7 +62,7 @@ class KnowledgeCurator:
                 record_degradation("knowledge_curator", e, severity="warning", action="skipped failed curation cycle")
                 logger.error("Error in knowledge curation cycle: %s", e)
 
-    async def consolidate_and_curate(self) -> dict[str, Any]:
+    async def consolidate_and_curate(self) -> Dict[str, Any]:
         """Runs one full cycle of defragmentation, purging, and promoting memory."""
         logger.info("⚡ [CURATOR] Starting scheduled knowledge consolidation...")
         

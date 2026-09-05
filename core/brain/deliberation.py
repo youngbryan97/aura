@@ -1,23 +1,22 @@
 # core/brain/deliberation.py
-import asyncio
-import json
-import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import List, Dict, Any, Optional
+import asyncio
+import re
+import json
 
 from core.brain.llm_interface import LLMInterface
 from core.brain.trace_logger import TraceLogger
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
 
-
 @dataclass
 class Decision:
     action: str
     reason: str
     raw: str
-    confidence: float | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    confidence: Optional[float] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 class DeliberationController:
     """
@@ -36,7 +35,7 @@ Confidence: <0.0-1.0>
 Keep answers concise.
 """
 
-    def __init__(self, llm: LLMInterface, trace: TraceLogger | None = None):
+    def __init__(self, llm: LLMInterface, trace: Optional[TraceLogger] = None):
         self.llm = llm
         self.trace = trace
 
@@ -51,7 +50,7 @@ Keep answers concise.
     #: record that a decision was ever attempted.
     DELIBERATION_TIMEOUT_S = 45.0
 
-    async def deliberate(self, context: str, actions: list[str], temperature: float = 0.2, **opts) -> Decision:
+    async def deliberate(self, context: str, actions: List[str], temperature: float = 0.2, **opts) -> Decision:
         native_declined = ""
         if actions and opts.get("use_native_system2", True):
             system2_decision = await self._native_system2_deliberate(context, actions, **opts)
@@ -132,7 +131,7 @@ Keep answers concise.
             })
         return dec
 
-    def _parse(self, raw: str, actions: list[str]) -> Decision:
+    def _parse(self, raw: str, actions: List[str]) -> Decision:
         # Extract Action:
         action = None
         reason = ""
@@ -166,7 +165,7 @@ Keep answers concise.
             action = actions[0] if actions else ""
         return Decision(action=action, reason=reason, raw=raw, confidence=confidence, metadata={})
 
-    async def _native_system2_deliberate(self, context: str, actions: list[str], **opts) -> Decision | None:
+    async def _native_system2_deliberate(self, context: str, actions: List[str], **opts) -> Optional[Decision]:
         """Use Aura's native governed System 2 search to choose among actions.
 
         This is deliberately a commitment to a plan, not execution of the

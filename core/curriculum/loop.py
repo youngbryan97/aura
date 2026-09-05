@@ -8,19 +8,21 @@ LLM router.
 """
 from __future__ import annotations
 
+import time
 import uuid
-from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from core.curriculum.gap_detector import GapDetector
+from core.curriculum.gap_detector import GapDetector, GapReport
 from core.curriculum.improvement import ImprovementRecorder, ImprovementSnapshot
 from core.curriculum.lesson_store import Lesson, LessonStore
 from core.curriculum.strategy import Strategy, StrategyController
 from core.curriculum.task_generator import LearningTask, TaskGenerator
 from core.runtime.prediction_ledger import PredictionLedger
 
+
 # Attempter takes (task) and returns (predicted_truth, prior_prob, raw_response).
-Attempter = Callable[[LearningTask], tuple[bool, float, str]]
+Attempter = Callable[[LearningTask], Tuple[bool, float, str]]
 
 # Oracle resolves the ground truth for a task.
 Oracle = Callable[[LearningTask], bool]
@@ -31,8 +33,8 @@ class LoopOutcome:
     iterations: int
     final_strategy: Strategy
     final_snapshot: ImprovementSnapshot
-    snapshots: list[ImprovementSnapshot]
-    lessons: list[Lesson]
+    snapshots: List[ImprovementSnapshot]
+    lessons: List[Lesson]
     converged: bool
     trend: str
 
@@ -45,11 +47,11 @@ class CurriculumLoop:
         lessons: LessonStore,
         attempter: Attempter,
         oracle: Oracle,
-        gap_detector: GapDetector | None = None,
-        task_generator: TaskGenerator | None = None,
-        strategy: StrategyController | None = None,
-        improvement: ImprovementRecorder | None = None,
-        seed_tasks: list[LearningTask] | None = None,
+        gap_detector: Optional[GapDetector] = None,
+        task_generator: Optional[TaskGenerator] = None,
+        strategy: Optional[StrategyController] = None,
+        improvement: Optional[ImprovementRecorder] = None,
+        seed_tasks: Optional[List[LearningTask]] = None,
     ):
         self.ledger = ledger
         self.lessons = lessons
@@ -64,7 +66,7 @@ class CurriculumLoop:
     def _attempt_and_resolve(
         self,
         task: LearningTask,
-    ) -> tuple[Lesson, ImprovementSnapshot]:
+    ) -> Tuple[Lesson, ImprovementSnapshot]:
         # 1. attempt — predicted truth + prior probability
         predicted_truth, prior_prob, raw_response = self.attempter(task)
 
@@ -120,9 +122,9 @@ class CurriculumLoop:
         """Run until either max_iterations or ``success_run_to_converge``
         consecutive successes on the same belief."""
         consecutive_success = 0
-        last_belief: str | None = None
-        all_lessons: list[Lesson] = []
-        all_snapshots: list[ImprovementSnapshot] = []
+        last_belief: Optional[str] = None
+        all_lessons: List[Lesson] = []
+        all_snapshots: List[ImprovementSnapshot] = []
         converged = False
 
         for i in range(max_iterations):

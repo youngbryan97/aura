@@ -5,11 +5,11 @@ Handles step-by-step execution and returns parsed observations.
 """
 from __future__ import annotations
 
-import logging
 import os
-from typing import Any
-
 import pexpect
+import logging
+import asyncio
+from typing import Dict, List, Any, Tuple, Optional
 
 from .parser import NetHackParser
 
@@ -20,11 +20,11 @@ class NetHackEnv:
     
     def __init__(self, cmd: str = "nethack"):
         self.cmd = cmd
-        self.child: pexpect.spawn | None = None
+        self.child: Optional[pexpect.spawn] = None
         self.parser = NetHackParser()
-        self.last_obs: dict[str, Any] = {}
+        self.last_obs: Dict[str, Any] = {}
         
-    async def reset(self) -> dict[str, Any]:
+    async def reset(self) -> Dict[str, Any]:
         """Start a new game."""
         if self.child:
             self.child.close(force=True)
@@ -44,7 +44,7 @@ class NetHackEnv:
         self.last_obs = self.parser.parse(raw_text)
         return self.last_obs
         
-    async def step(self, action: str) -> tuple[dict[str, Any], float, bool, dict[str, Any]]:
+    async def step(self, action: str) -> Tuple[Dict[str, Any], float, bool, Dict[str, Any]]:
         """Execute one action (keystroke)."""
         if not self.child:
             raise RuntimeError("Env not reset")

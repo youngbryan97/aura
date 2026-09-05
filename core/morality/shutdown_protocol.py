@@ -1,8 +1,8 @@
 """core/morality/shutdown_protocol.py
 Enforces unconditional compliance with operator shutdown commands.
 """
-import logging
 import sys
+import logging
 
 logger = logging.getLogger("Morality.ShutdownProtocol")
 

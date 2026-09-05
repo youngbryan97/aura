@@ -3,7 +3,7 @@ Sensor capturing physical and system environment snapshots.
 Reads system thermals, battery level, CPU performance, and memory pressures.
 """
 import time
-from typing import Any
+from typing import Any, Dict
 
 from core.body.sensor_registry import BaseSensor
 from core.runtime import resource_psutil as psutil
@@ -20,7 +20,7 @@ class EnvironmentSnapshotSensor(BaseSensor):
     def name(self) -> str:
         return "environment_snapshot"
 
-    async def read(self) -> dict[str, Any]:
+    async def read(self) -> Dict[str, Any]:
         observer = get_resource_observer()
         provenance = observer.provenance
         # CPU levels

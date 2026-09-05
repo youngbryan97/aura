@@ -12,6 +12,7 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 
+
 DEFAULT_AUTONOMY_GOALS = (
     {
         "name": "Maintain and repair Aura",

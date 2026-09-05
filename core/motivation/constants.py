@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from typing import Dict
+
+
 SECONDS_PER_DAY = 86400.0
 
 
@@ -7,7 +10,7 @@ def _per_day(value: float) -> float:
     return float(value) / SECONDS_PER_DAY
 
 
-MOTIVATION_BUDGET_DEFAULTS: dict[str, dict[str, float]] = {
+MOTIVATION_BUDGET_DEFAULTS: Dict[str, Dict[str, float]] = {
     "energy": {"level": 100.0, "capacity": 100.0, "decay": 0.0},
     "curiosity": {"level": 80.0, "capacity": 100.0, "decay": _per_day(2.0)},
     "social": {"level": 90.0, "capacity": 100.0, "decay": _per_day(1.5)},
@@ -16,5 +19,5 @@ MOTIVATION_BUDGET_DEFAULTS: dict[str, dict[str, float]] = {
 }
 
 
-def clone_motivation_budget_defaults() -> dict[str, dict[str, float]]:
+def clone_motivation_budget_defaults() -> Dict[str, Dict[str, float]]:
     return {name: dict(values) for name, values in MOTIVATION_BUDGET_DEFAULTS.items()}

@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Aura.MemoryCivilization")
 
@@ -23,8 +23,8 @@ class DurableLesson:
     what_changed: str
     what_failed: str
     what_was_learned: str
-    remember_targets: list[str]
-    forget_targets: list[str]
+    remember_targets: List[str]
+    forget_targets: List[str]
     retry_recommendation: str
     timestamp: float = field(default_factory=time.time)
 
@@ -33,8 +33,8 @@ class MemoryCivilization:
     """Manages structural lessons and log compression to avoid context bloating."""
 
     def __init__(self) -> None:
-        self.lessons: dict[str, DurableLesson] = {}
-        self.raw_logs: list[dict[str, Any]] = []
+        self.lessons: Dict[str, DurableLesson] = {}
+        self.raw_logs: List[Dict[str, Any]] = []
 
     def record_raw_event(self, event_type: str, details: str) -> None:
         self.raw_logs.append({
@@ -47,7 +47,7 @@ class MemoryCivilization:
         self,
         mission_id: str,
         outcome_ok: bool,
-        failed_steps: list[str],
+        failed_steps: List[str],
     ) -> DurableLesson:
         """Post-mission narrative compression: distills logs into structured lessons."""
         logger.info("📦 MemoryCivilization: compressing logs for mission %s...", mission_id)
@@ -81,10 +81,10 @@ class MemoryCivilization:
         logger.info("💾 Compressed %d raw events into lesson %s", len(mission_raw), lesson.lesson_id)
         return lesson
 
-    def get_lessons(self) -> list[DurableLesson]:
+    def get_lessons(self) -> List[DurableLesson]:
         return list(self.lessons.values())
 
-    async def retrieve_context(self, objective: str) -> dict[str, Any]:
+    async def retrieve_context(self, objective: str) -> Dict[str, Any]:
         """ episodic contextual recall based on keyword matching."""
         matches = [l for l in self.lessons.values() if any(k in l.what_happened.lower() for k in objective.lower().split()[:3])]
         return {
@@ -92,7 +92,7 @@ class MemoryCivilization:
             "lessons": [l.what_was_learned for l in matches[:3]],
         }
 
-    async def record_mission_outcome(self, objective: str, result: dict[str, Any]) -> dict[str, Any]:
+    async def record_mission_outcome(self, objective: str, result: Dict[str, Any]) -> Dict[str, Any]:
         """Commit mission outcome to the lessons list."""
         self.compress_mission_logs(
             mission_id=objective[:80],

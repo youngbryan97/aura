@@ -36,9 +36,8 @@ to reachable, and the second is the one that decides what she can actually do.
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Iterable, Sequence
 
 __all__ = [
     "AlreadySaid",

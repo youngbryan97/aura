@@ -2,16 +2,16 @@
 Part of Aura's Neural Neuro-Surgeon (Phase 29).
 """
 
-import asyncio
-import json
-import logging
-import subprocess
-from enum import Enum
-from pathlib import Path
-from typing import Any
-
 from core.runtime.errors import record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+import logging
+import json
+import subprocess
+import asyncio
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, Any, List, Optional, Tuple
+from enum import Enum
 
 logger = logging.getLogger("Aura.Resilience.NeuroSurgeon")
 
@@ -27,7 +27,7 @@ class ErrorCategory(Enum):
 class DiagnosticHub:
     """Orchestrates diagnostic tools to classify and reproduction system failures."""
     
-    def __init__(self, code_base: Path | None = None):
+    def __init__(self, code_base: Optional[Path] = None):
         from core.config import config
         self.code_base = code_base or config.paths.project_root
         self.tools = {
@@ -54,7 +54,7 @@ class DiagnosticHub:
             
         return ErrorCategory.UNKNOWN
 
-    async def run_deep_diagnostic(self, file_path: str) -> dict[str, Any]:
+    async def run_deep_diagnostic(self, file_path: str) -> Dict[str, Any]:
         """Run multiple tools to find hidden issues in a specific file."""
         abs_path = self.code_base / file_path
         results = {
@@ -63,7 +63,7 @@ class DiagnosticHub:
         }
         return results
 
-    async def _run_ruff(self, target: Path) -> dict[str, Any]:
+    async def _run_ruff(self, target: Path) -> Dict[str, Any]:
         """Run Ruff linter and return issues."""
         try:
             cmd = ["ruff", "check", str(target), "--format", "json"]
@@ -82,7 +82,7 @@ class DiagnosticHub:
             record_degradation('diagnostic_hub', e)
             return {"ok": False, "error": str(e)}
 
-    async def _run_pyright(self, target: Path) -> dict[str, Any]:
+    async def _run_pyright(self, target: Path) -> Dict[str, Any]:
         """Run Pyright type checker and return issues."""
         try:
             cmd = ["pyright", str(target), "--outputjson"]

@@ -172,7 +172,7 @@ class BackgroundReasoningQueue:
                     self._pending_ids.add(task_id)
                     self._schedule_registry_size_update(reason="submit")
                     return task_id
-                except TimeoutError:
+                except (TimeoutError, asyncio.TimeoutError):
                     pass
             reason = f"reasoning queue is full ({self._queue.qsize()} queued)"
             self._remember_result(
@@ -361,7 +361,7 @@ class BackgroundReasoningQueue:
                 },
             )
             raise
-        except TimeoutError as exc:
+        except (TimeoutError, asyncio.TimeoutError) as exc:
             self._store_failure(task, exc, start_time, worker_id, status="timeout")
         except Exception as exc:  # noqa: BLE001 - unlisted failures killed workers
             self._store_failure(task, exc, start_time, worker_id)
@@ -596,7 +596,7 @@ class BackgroundReasoningQueue:
             await asyncio.wait_for(
                 asyncio.gather(*workers, return_exceptions=True), timeout=timeout
             )
-        except TimeoutError:
+        except (TimeoutError, asyncio.TimeoutError):
             logger.warning("Reasoning workers did not stop within %.1fs", timeout)
             return False
         return True

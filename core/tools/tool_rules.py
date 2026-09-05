@@ -30,10 +30,9 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, Iterable, Mapping, Sequence
 
 logger = logging.getLogger("Aura.ToolRules")
 

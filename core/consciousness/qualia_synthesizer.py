@@ -32,7 +32,7 @@ not derived.
 import logging
 import time
 from collections import deque
-from typing import Any
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
@@ -70,7 +70,7 @@ class QualiaSnapshot:
                  "is_attractor", "dominant_dimension")
 
     def __init__(self, q_vector: np.ndarray, q_norm: float, pri: float,
-                 ual_profile: dict[str, float], is_attractor: bool,
+                 ual_profile: Dict[str, float], is_attractor: bool,
                  dominant_dimension: str, timestamp: float = None):
         self.q_vector = q_vector.copy()
         self.q_norm = q_norm
@@ -80,7 +80,7 @@ class QualiaSnapshot:
         self.is_attractor = is_attractor
         self.dominant_dimension = dominant_dimension
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "q_vector": self.q_vector.tolist(),
             "q_norm": round(self.q_norm, 4),
@@ -110,7 +110,7 @@ class QualiaSynthesizer:
         self.q_vector: np.ndarray = np.zeros(6)  # [Coherence, EM, Bursts, Energy, Precision, Proprioception]
         self.q_norm: float = 0.0
         self.pri: float = 0.0               # Phenomenal Richness Index, used as functional telemetry.
-        self.ual_profile: dict[str, float] = {
+        self.ual_profile: Dict[str, float] = {
             "trace": 0.0,
             "compound": 0.0,
             "novel": 0.0,
@@ -126,7 +126,7 @@ class QualiaSynthesizer:
         # Attractor detection state
         self._in_attractor = False
         self._attractor_ticks = 0
-        self._attractor_center: np.ndarray | None = None
+        self._attractor_center: Optional[np.ndarray] = None
 
         # Trend tracking
         self._trend: float = 0.0        # Positive = intensifying, negative = dimming
@@ -141,7 +141,7 @@ class QualiaSynthesizer:
 
         logger.info("Qualia Synthesizer ONLINE (Unified Architecture)")
 
-    def synthesize(self, substrate_metrics: dict[str, Any], predictive_metrics: dict[str, Any]) -> float:
+    def synthesize(self, substrate_metrics: Dict[str, Any], predictive_metrics: Dict[str, Any]) -> float:
         """Process substrate and predictive data into a unified qualia vector.
         
         This method now enriches the base vector with the 5-layer QualiaEngine pipeline
@@ -412,7 +412,7 @@ class QualiaSynthesizer:
     # Meta-Qualia Observer (Karmaniverous)
     # ------------------------------------------------------------------
 
-    def compute_meta_qualia(self) -> dict[str, float]:
+    def compute_meta_qualia(self) -> Dict[str, float]:
         """Generate a compressed introspective summary of the qualia state.
 
         This is the "observer observing itself" — qualia about qualia.
@@ -507,7 +507,7 @@ class QualiaSynthesizer:
     # UAL Profile
     # ------------------------------------------------------------------
 
-    def _update_ual_profile(self, sub: dict[str, Any], pred: dict[str, Any]):
+    def _update_ual_profile(self, sub: Dict[str, Any], pred: Dict[str, Any]):
         """Map metrics to Unlimited Associative Learning markers."""
         self.ual_profile["trace"] = sub.get("mt_coherence", 0.5)
         self.ual_profile["compound"] = min(
@@ -625,7 +625,7 @@ class QualiaSynthesizer:
         detail = "; ".join(p for p in parts if p)
         return f"{prefix}: {detail}." if detail else f"{prefix}."
 
-    def get_qualia_for_memory(self) -> dict[str, Any]:
+    def get_qualia_for_memory(self) -> Dict[str, Any]:
         """Returns a compact qualia snapshot suitable for embedding in
         episodic memory records. Includes enough to enable mood-congruent recall.
         """
@@ -639,7 +639,7 @@ class QualiaSynthesizer:
             "trend": round(self._trend, 4),
         }
 
-    def get_snapshot(self) -> dict[str, Any]:
+    def get_snapshot(self) -> Dict[str, Any]:
         """Full telemetry payload for Qualia Explorer and EventBus."""
         dominant_idx = int(np.argmax(np.abs(self.q_vector))) if self.q_norm > 0 else 0
         return {
@@ -661,7 +661,7 @@ class QualiaSynthesizer:
             "meta_qualia": self.compute_meta_qualia(),
         }
 
-    def get_trend(self) -> tuple[float, float]:
+    def get_trend(self) -> Tuple[float, float]:
         """Returns (trend, volatility) for external consumers."""
         return (self._trend, self._volatility)
 
@@ -711,7 +711,7 @@ class QualiaSynthesizer:
         meta = self.compute_meta_qualia()
         return meta.get("dissonance", 0.0) > 0.12
 
-    def get_gated_phenomenal_report(self) -> dict[str, Any]:
+    def get_gated_phenomenal_report(self) -> Dict[str, Any]:
         """Generate a phenomenal report that is structurally honest.
 
         Every claim about internal state is gated by a measurable predicate.

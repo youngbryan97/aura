@@ -60,7 +60,7 @@ from __future__ import annotations
 
 import logging
 import random
-from collections.abc import Sequence
+from typing import Sequence
 
 logger = logging.getLogger("Aura.RetrievalCalibration")
 

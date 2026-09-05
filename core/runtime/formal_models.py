@@ -17,9 +17,12 @@ machine is claiming to enforce.
 """
 from __future__ import annotations
 
+
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+from typing import Dict, List, Optional, Set, Tuple
+
 
 # ---------------------------------------------------------------------------
 # 1. RuntimeSingularity
@@ -38,7 +41,7 @@ class RuntimeSingularity:
     """
 
     def __init__(self):
-        self._owners: set[int] = set()
+        self._owners: Set[int] = set()
 
     def acquire(self, pid: int) -> bool:
         if self._owners:
@@ -50,7 +53,7 @@ class RuntimeSingularity:
         self._owners.discard(pid)
 
     @property
-    def owner(self) -> int | None:
+    def owner(self) -> Optional[int]:
         return next(iter(self._owners), None)
 
     def invariant_holds(self) -> bool:
@@ -72,10 +75,10 @@ class GovernanceReceiptProtocol:
     """
 
     def __init__(self):
-        self._receipts: dict[str, str] = {}  # receipt_id -> state
-        self._committed: dict[str, str] = {}  # action_id -> receipt_id
+        self._receipts: Dict[str, str] = {}  # receipt_id -> state
+        self._committed: Dict[str, str] = {}  # action_id -> receipt_id
 
-    def propose(self, action_id: str, approved: bool) -> str | None:
+    def propose(self, action_id: str, approved: bool) -> Optional[str]:
         receipt_id = f"rcpt-{action_id}"
         self._receipts[receipt_id] = "APPROVED" if approved else "DENIED"
         return receipt_id if approved else None
@@ -103,8 +106,8 @@ class StateCommitProtocol:
     """
 
     def __init__(self):
-        self.committed: bytes | None = b"old"
-        self._temp: bytes | None = None
+        self.committed: Optional[bytes] = b"old"
+        self._temp: Optional[bytes] = None
         self._temp_fsynced = False
 
     def write_temp(self, payload: bytes) -> None:
@@ -144,7 +147,7 @@ class ActorState(str, Enum):
     CIRCUIT_BROKEN = "CIRCUIT_BROKEN"
 
 
-VALID_ACTOR_TRANSITIONS: set[tuple[ActorState, ActorState]] = {
+VALID_ACTOR_TRANSITIONS: Set[Tuple[ActorState, ActorState]] = {
     (ActorState.DOWN, ActorState.BOOTING),
     (ActorState.BOOTING, ActorState.HEALTHY),
     (ActorState.BOOTING, ActorState.DEGRADED),
@@ -164,7 +167,7 @@ class ActorLifecycle:
     def __init__(self, name: str):
         self.name = name
         self.state = ActorState.DOWN
-        self.history: list[ActorState] = [ActorState.DOWN]
+        self.history: List[ActorState] = [ActorState.DOWN]
 
     def transition(self, target: ActorState) -> bool:
         if (self.state, target) not in VALID_ACTOR_TRANSITIONS:
@@ -188,9 +191,9 @@ class ActorLifecycle:
 class SelfModificationProtocol:
     """No patch becomes active unless validation reaches COMMIT."""
 
-    def __init__(self, ladder_rungs: tuple[str, ...]):
+    def __init__(self, ladder_rungs: Tuple[str, ...]):
         self._rungs = ladder_rungs
-        self._cleared: list[str] = []
+        self._cleared: List[str] = []
         self._committed = False
 
     def clear(self, rung: str) -> None:
@@ -219,9 +222,9 @@ class SelfModificationProtocol:
 class ShutdownOrderingProtocol:
     """Phases must execute in canonical order."""
 
-    def __init__(self, phases: tuple[str, ...]):
+    def __init__(self, phases: Tuple[str, ...]):
         self._phases = phases
-        self._observed: list[str] = []
+        self._observed: List[str] = []
 
     def begin_phase(self, phase: str) -> bool:
         if phase not in self._phases:
@@ -261,7 +264,7 @@ class CapabilityTokenLifecycle:
     USED tokens cannot be re-USED. EXPIRED/REVOKED tokens cannot be USED."""
 
     def __init__(self, *, clock=time.time):
-        self._tokens: dict[str, CapabilityTokenRecord] = {}
+        self._tokens: Dict[str, CapabilityTokenRecord] = {}
         self._clock = clock
 
     def issue(self, token_id: str, *, ttl_s: float = 3600.0) -> None:

@@ -1,25 +1,24 @@
 """ASTAnalyzer: Structural Self-Awareness for Aura
 Provides deep analysis of Python source code via Abstract Syntax Trees.
 """
+from core.runtime.errors import record_degradation
 import ast
-import asyncio
 import logging
 from pathlib import Path
-from typing import Any
-
-from core.runtime.errors import record_degradation
+import asyncio
+from typing import Dict, List, Any, Optional, Set
 
 logger = logging.getLogger("SelfEvolution.ASTAnalyzer")
 
 class ASTAnalyzer:
     """Analyzes Python code to extract architectural patterns and smells."""
 
-    def __init__(self, project_root: Path | None = None):
+    def __init__(self, project_root: Optional[Path] = None):
         from core.config import config
         self.root = project_root or config.paths.project_root
-        self._parent_map: dict[ast.AST, ast.AST] = {}
+        self._parent_map: Dict[ast.AST, ast.AST] = {}
 
-    async def analyze_file(self, file_path: Path) -> dict[str, Any]:
+    async def analyze_file(self, file_path: Path) -> Dict[str, Any]:
         """Performs a comprehensive structural audit of a file (Async)."""
         if not file_path.is_absolute():
             file_path = self.root / file_path
@@ -42,7 +41,7 @@ class ASTAnalyzer:
         }
         return results
 
-    def _get_classes(self, tree: ast.AST) -> list[dict[str, Any]]:
+    def _get_classes(self, tree: ast.AST) -> List[Dict[str, Any]]:
         classes = []
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef):
@@ -54,7 +53,7 @@ class ASTAnalyzer:
                 })
         return classes
 
-    def _get_functions(self, tree: ast.AST) -> list[dict[str, Any]]:
+    def _get_functions(self, tree: ast.AST) -> List[Dict[str, Any]]:
         functions = []
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef):
@@ -69,7 +68,7 @@ class ASTAnalyzer:
                     })
         return functions
 
-    def _get_imports(self, tree: ast.AST) -> list[str]:
+    def _get_imports(self, tree: ast.AST) -> List[str]:
         imports = []
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -79,7 +78,7 @@ class ASTAnalyzer:
                 imports.append(node.module or "")
         return list(set(imports))
 
-    def _detect_smells(self, tree: ast.AST, source: str) -> list[dict[str, Any]]:
+    def _detect_smells(self, tree: ast.AST, source: str) -> List[Dict[str, Any]]:
         smells = []
         
         # 1. Monkey-Patching Sensor
@@ -156,7 +155,7 @@ class ASTAnalyzer:
 
         return smells
 
-    def _calculate_complexity(self, tree: ast.AST) -> dict[str, int]:
+    def _calculate_complexity(self, tree: ast.AST) -> Dict[str, int]:
         """Calculates basic cyclomatic complexity equivalents."""
         complexity = {}
         for node in ast.walk(tree):
@@ -175,7 +174,7 @@ class ASTAnalyzer:
             for child in ast.iter_child_nodes(node):
                 self._parent_map[child] = node
 
-    def _get_parents(self, target_node: ast.AST) -> list[ast.AST]:
+    def _get_parents(self, target_node: ast.AST) -> List[ast.AST]:
         """SM-02: Optimized parent lookup using the pre-built map."""
         parents = []
         curr = target_node
@@ -184,7 +183,7 @@ class ASTAnalyzer:
             parents.append(curr)
         return parents
 
-    def _check_nested_locks(self, func_node: ast.AST) -> list[dict]:
+    def _check_nested_locks(self, func_node: ast.AST) -> List[Dict]:
         """SM-01: Correct nested lock detection using scoped recursive visitor."""
         findings = []
         
@@ -217,7 +216,7 @@ class ASTAnalyzer:
         _visit_with_scope(func_node.body, set())
         return findings
 
-    async def map_repository(self) -> dict[str, Any]:
+    async def map_repository(self) -> Dict[str, Any]:
         """Scans the entire core codebase to build an architectural map (Async)."""
         repo_map = {}
         core_dir = self.root / "core"

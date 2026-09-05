@@ -14,7 +14,7 @@ promised.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from typing import List, Sequence
 
 from core.curriculum.task_generator import LearningTask
 from core.promotion.dynamic_benchmark import Task
@@ -42,5 +42,5 @@ def task_to_learning_task(
 
 def tasks_to_learning_tasks(
     tasks: Sequence[Task], *, strategy: str = "default", iteration: int = 0
-) -> list[LearningTask]:
+) -> List[LearningTask]:
     return [task_to_learning_task(t, strategy=strategy, iteration=iteration) for t in tasks]

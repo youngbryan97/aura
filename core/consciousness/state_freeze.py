@@ -4,8 +4,8 @@ Global state freeze manager. Provides a context manager (sync/async)
 to freeze continuous somatic/metabolic state updates during deep LLM inference.
 """
 
-import logging
 import threading
+import logging
 
 logger = logging.getLogger("Consciousness.StateFreeze")
 

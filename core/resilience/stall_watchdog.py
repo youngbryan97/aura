@@ -28,9 +28,8 @@ from core.governance_context import local_internal_governed_scope
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
-from core.runtime.flags import FlagKind as _FlagKind
-from core.runtime.flags import declare as _declare_flag
 from core.runtime.task_ownership import create_tracked_task
+from core.runtime.flags import FlagKind as _FlagKind, declare as _declare_flag
 
 # Declared flags (migrated from raw os.environ reads so the knobs are
 # inventoried and reportable). STRING kind with the original literal

@@ -1,13 +1,13 @@
 """core/welfare/welfare_policy.py
 Welfare policy mapping interoceptive states to action limits and tool risks.
 """
-from typing import Any
+from typing import Dict, Any
 
 
 class WelfarePolicy:
     """Enforces behavioral restrictions based on homeostatic state variables."""
 
-    def enforce_policy_limits(self, energy: float, distress: float) -> dict[str, Any]:
+    def enforce_policy_limits(self, energy: float, distress: float) -> Dict[str, Any]:
         """Calculates operation limits. If energy is low, restrict heavy tools."""
         limits = {
             "max_tool_risk": 5,        # Max risk level allowed (out of 10)

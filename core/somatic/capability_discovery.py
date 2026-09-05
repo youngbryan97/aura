@@ -26,7 +26,7 @@ import logging
 import shutil
 import threading
 import time
-from typing import Any
+from typing import Any, Dict, List, Optional, Set
 
 from core.container import ServiceContainer
 from core.runtime import resource_psutil as psutil
@@ -50,7 +50,7 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
 
     # Executables to watch for on $PATH.  This list is intentionally small
     # and security-conscious -- we only track tools Aura knows how to use.
-    TRACKED_EXECUTABLES: dict[str, str] = {
+    TRACKED_EXECUTABLES: Dict[str, str] = {
         "git": "Git version control",
         "docker": "Docker container runtime",
         "python3": "Python 3 interpreter",
@@ -71,7 +71,7 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
     }
 
     # Sensor libraries to probe (import name, human description)
-    TRACKED_SENSORS: dict[str, str] = {
+    TRACKED_SENSORS: Dict[str, str] = {
         "cv2": "Camera capture via OpenCV",
         "sounddevice": "Microphone input via sounddevice",
         "mss": "Screen capture via mss",
@@ -83,10 +83,10 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
         super().__init__("CapabilityDiscovery")
         self.interval = interval
         self._running = False
-        self._task: asyncio.Task | None = None
-        self._known_executables: set[str] = set()
-        self._known_interfaces: set[str] = set()
-        self._known_sensors: set[str] = set()
+        self._task: Optional[asyncio.Task] = None
+        self._known_executables: Set[str] = set()
+        self._known_interfaces: Set[str] = set()
+        self._known_sensors: Set[str] = set()
         self._scan_count = 0
 
         # Snapshot initial state so first delta is meaningful
@@ -157,8 +157,8 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
             logger.debug("BodySchema not available yet -- skipping scan.")
             return
 
-        discoveries: list[str] = []
-        losses: list[str] = []
+        discoveries: List[str] = []
+        losses: List[str] = []
 
         # Run the individual checks (CPU-bound work offloaded to executor)
         loop = asyncio.get_running_loop()
@@ -202,9 +202,9 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
         """Check $PATH for tracked executables; return (discoveries, losses)."""
         from core.somatic.body_schema import Limb, LimbType
 
-        discoveries: list[str] = []
-        losses: list[str] = []
-        current: set[str] = set()
+        discoveries: List[str] = []
+        losses: List[str] = []
+        current: Set[str] = set()
 
         for exe_name, description in self.TRACKED_EXECUTABLES.items():
             path = shutil.which(exe_name)
@@ -241,12 +241,12 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
         """Detect new or lost network interfaces."""
         from core.somatic.body_schema import Limb, LimbType
 
-        discoveries: list[str] = []
-        losses: list[str] = []
+        discoveries: List[str] = []
+        losses: List[str] = []
 
         try:
             addrs = psutil.net_if_addrs()
-            current_ifaces: set[str] = set(addrs.keys())
+            current_ifaces: Set[str] = set(addrs.keys())
         except (ImportError, OSError, AttributeError):
             return discoveries, losses
 
@@ -300,9 +300,9 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
 
         from core.somatic.body_schema import Limb, LimbType
 
-        discoveries: list[str] = []
-        losses: list[str] = []
-        current: set[str] = set()
+        discoveries: List[str] = []
+        losses: List[str] = []
+        current: Set[str] = set()
 
         # Map library names to the limb names used by BodySchema
         lib_to_limb = {
@@ -385,7 +385,7 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
     # ------------------------------------------------------------------
 
     def _emit_to_neural_stream(
-        self, discoveries: list[str], losses: list[str]
+        self, discoveries: List[str], losses: List[str]
     ) -> None:
         """Push capability changes to the neural feed for cognitive awareness."""
         try:
@@ -435,7 +435,7 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
         """Resolve the BodySchema from the container, or None."""
         return ServiceContainer.get("body_schema", default=None)
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         """Return daemon status for health checks."""
         return {
             "running": self._running,
@@ -451,7 +451,7 @@ class CapabilityDiscoveryDaemon(AuraBaseModule):
 # Module-level accessor and ServiceContainer wiring
 # ---------------------------------------------------------------------------
 
-_daemon: CapabilityDiscoveryDaemon | None = None
+_daemon: Optional[CapabilityDiscoveryDaemon] = None
 _init_lock = threading.Lock()
 
 

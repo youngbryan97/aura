@@ -119,9 +119,9 @@ class EnvironmentKernel:
         self.run_id = ""
         self.frames: list[EnvironmentFrame] = []
         # Cross-episode learning stores
-        from core.environment.outcome.ledger import OutcomeLedger
         from core.memory.procedural.store import ProceduralMemoryStore
-
+        from core.environment.outcome.ledger import OutcomeLedger
+        
         from .runtime_workspace import environment_runtime_dir
         aura_data_dir = environment_runtime_dir(self.environment_id, purpose="learning")
         self.causal_model = None       # set externally to CausalWorldModel if available

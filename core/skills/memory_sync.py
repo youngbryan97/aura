@@ -1,18 +1,19 @@
 """Aura Hive Mind Sync
 Enables memory synchronization between Home and Cloud variants via a private Git repository.
 """
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
+import sys
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Dict, Literal
 
 from pydantic import BaseModel, Field
 
-from core.runtime.errors import record_degradation
+from core.skills.base_skill import BaseSkill
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.subprocess_gateway import get_subprocess_gateway
-from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.MemorySync")
 
@@ -30,7 +31,7 @@ class MemorySyncSkill(BaseSkill):
         self.memory_path = Path("data/memory")
         self.repo_url = os.getenv("AURA_MEMORY_REPO")  # Private Git Repo URL
         
-    async def execute(self, params: MemorySyncParams, context: dict[str, Any]) -> dict[str, Any]:
+    async def execute(self, params: MemorySyncParams, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute memory synchronization.
         """
         # Legacy support
@@ -106,7 +107,7 @@ class MemorySyncSkill(BaseSkill):
                 )
                 data = event.get("data", {})
                 return data.get("approved", False)
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 return False
             finally:
                 await bus.unsubscribe("human_consent_response", confirmation_queue)

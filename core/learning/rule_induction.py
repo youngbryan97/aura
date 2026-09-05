@@ -13,6 +13,7 @@ from typing import Any
 
 from core.skills.base_skill import BaseSkill
 
+
 LOWERCASE_ALPHABET_SIZE = 26
 
 

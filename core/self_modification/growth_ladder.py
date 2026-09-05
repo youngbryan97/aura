@@ -12,12 +12,14 @@ regardless of who proposes them. This is an identity right.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
@@ -108,7 +110,7 @@ class ModificationProposal:
     domain: str
     description: str
     justification: str
-    diff_patch: str | None
+    diff_patch: Optional[str]
     proposed_by: str
     status: str = "pending"
     #: The ladder's verdict, stamped when the proposal is adjudicated. None
@@ -121,10 +123,10 @@ class ModificationProposal:
     #: BEHAVIOR, which always requires explicit user consent, so the live path
     #: was: ladder says pending_user and returns False, the False is dropped,
     #: and the skill is forged anyway.
-    decision: bool | None = None
-    aura_consent: bool | None = None
-    user_consent: bool | None = None
-    test_result: bool | None = None
+    decision: Optional[bool] = None
+    aura_consent: Optional[bool] = None
+    user_consent: Optional[bool] = None
+    test_result: Optional[bool] = None
 
     # Welfare and stability validation fields
     predicted_capability_gain: float = 0.0
@@ -157,16 +159,16 @@ class ModificationProposal:
 
 
 class GrowthLadder:
-    def __init__(self, orchestrator=None, state_path: Path | None = None):
+    def __init__(self, orchestrator=None, state_path: Optional[Path] = None):
         self.orchestrator = orchestrator
         self._state_path = state_path or state_root() / "growth_ladder.json"
         self._current_level = ModificationLevel.OBSERVATION
-        self._level_start_times: dict[int, float] = {0: time.time()}
-        self._proposals: list[ModificationProposal] = []
-        self._drift_history: list[float] = []
+        self._level_start_times: Dict[int, float] = {0: time.time()}
+        self._proposals: List[ModificationProposal] = []
+        self._drift_history: List[float] = []
         self._load()
 
-    async def evaluate_advancement(self) -> ModificationLevel | None:
+    async def evaluate_advancement(self) -> Optional[ModificationLevel]:
         current = self._current_level
         if current >= ModificationLevel.ARCHITECTURE: return None
         next_level = ModificationLevel(int(current) + 1)
@@ -197,7 +199,7 @@ class GrowthLadder:
         return criteria.get((current, next_level), False)
 
     async def propose_modification(self, proposal_id: str, modification_type: str, level: int | ModificationLevel | str,
-                                 description: str, justification: str = "", diff_patch: str | None = None,
+                                 description: str, justification: str = "", diff_patch: Optional[str] = None,
                                  proposed_by: str = "aura",
                                  predicted_capability_gain: float = 0.0,
                                  predicted_stability_risk: float = 0.0,
@@ -281,7 +283,7 @@ class GrowthLadder:
         return bool(proposal.aura_consent) and (proposal.user_consent is not False)
 
     async def submit_proposal(self, level: ModificationLevel, domain: str, description: str,
-                                justification: str, diff_patch: str | None = None,
+                                justification: str, diff_patch: Optional[str] = None,
                                 proposed_by: str = "aura") -> ModificationProposal:
         import uuid
         p_id = str(uuid.uuid4())[:8]

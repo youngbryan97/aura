@@ -35,7 +35,7 @@ import math
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Aura.AgencyComparator")
 
@@ -50,7 +50,7 @@ class EfferenceCopy:
     "motor command" projected forward through the forward model.
     """
     layer: str                              # Which subsystem generated this (e.g. "executive_authority")
-    predicted_state: dict[str, Any]         # Key-value predictions about the expected outcome
+    predicted_state: Dict[str, Any]         # Key-value predictions about the expected outcome
     emitted_at: float = field(default_factory=time.time)
     action_goal: str = ""                   # The goal that triggered this prediction
     action_source: str = ""                 # Source subsystem of the action
@@ -67,9 +67,9 @@ class AuthorshipTrace:
     Decomposes the prediction error into self-caused vs world-caused.
     """
     layer: str                              # Which subsystem
-    predicted_state: dict[str, Any]         # What was expected
-    actual_state: dict[str, Any]            # What actually happened
-    delta: dict[str, float]                 # Per-key absolute error
+    predicted_state: Dict[str, Any]         # What was expected
+    actual_state: Dict[str, Any]            # What actually happened
+    delta: Dict[str, float]                 # Per-key absolute error
     total_error: float                      # Sum of all deltas
     self_caused_fraction: float             # 0-1: how much was self-authored
     world_caused_fraction: float            # 0-1: how much was world-caused
@@ -110,7 +110,7 @@ class AgencyComparator:
 
     def __init__(self, max_traces: int = 100):
         self._traces: deque[AuthorshipTrace] = deque(maxlen=max_traces)
-        self._pending_efferences: dict[str, EfferenceCopy] = {}  # keyed by action_goal hash
+        self._pending_efferences: Dict[str, EfferenceCopy] = {}  # keyed by action_goal hash
         self._total_emissions: int = 0
         self._total_comparisons: int = 0
         logger.info("AgencyComparator initialized (buffer=%d)", max_traces)
@@ -171,7 +171,7 @@ class AgencyComparator:
 
     def compare_and_attribute(
         self,
-        efference: EfferenceCopy | None,
+        efference: Optional[EfferenceCopy],
         actual_state: dict,
         *,
         action_goal: str = "",
@@ -229,7 +229,7 @@ class AgencyComparator:
 
         # Compute per-key deltas between predicted and actual
         predicted = efference.predicted_state
-        delta: dict[str, float] = {}
+        delta: Dict[str, float] = {}
         all_keys = set(predicted.keys()) | set(actual_state.keys())
         matched_keys = set(predicted.keys()) & set(actual_state.keys())
 
@@ -286,7 +286,7 @@ class AgencyComparator:
 
     # ── Query Interface ───────────────────────────────────────────────────────
 
-    def get_recent_traces(self, limit: int = 10) -> list[AuthorshipTrace]:
+    def get_recent_traces(self, limit: int = 10) -> List[AuthorshipTrace]:
         """Return the most recent authorship traces."""
         traces = list(self._traces)
         return traces[-limit:]
@@ -325,7 +325,7 @@ class AgencyComparator:
         """Number of efference copies awaiting comparison."""
         return len(self._pending_efferences)
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         """Full status for diagnostics."""
         return {
             "agency_score": self.get_agency_score(),
@@ -398,7 +398,7 @@ class AgencyComparator:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_instance: AgencyComparator | None = None
+_instance: Optional[AgencyComparator] = None
 
 
 def get_agency_comparator() -> AgencyComparator:

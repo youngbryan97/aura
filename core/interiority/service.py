@@ -34,9 +34,11 @@ a consumer can call it on a hot path.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import asyncio
 import inspect
 import logging
+import threading
 import time
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import replace
@@ -51,7 +53,7 @@ from core.interiority.cleft import get_cleft
 from core.interiority.core_affect import core_affect
 from core.interiority.effects import BudgetDelta, GoalDelta, RetentionClaim
 from core.interiority.event import EventKind, InteriorEvent
-from core.interiority.evidence import Reading, reported
+from core.interiority.evidence import Reading, measured, reported
 from core.interiority.faculty import Activation, FacultyContext, registry
 from core.interiority.homes import HOMES
 from core.interiority.interoception import get_interoception
@@ -61,7 +63,6 @@ from core.interiority.receptors import get_receptor_bank
 from core.interiority.senses import availability, live_channels
 from core.interiority.stakes import StakeFeed
 from core.runtime.errors import record_degradation
-from core.runtime.lockdep import checked_lock
 
 
 def _key_covers(claim_key: str, memory_key: str) -> bool:

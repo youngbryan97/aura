@@ -27,12 +27,13 @@ report says which happened rather than assuming the first.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
+import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any
-
-from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Finding",

@@ -11,11 +11,11 @@ Tier 3: sealed; no runtime self-editing.
 """
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import IntEnum
 from fnmatch import fnmatch
 from pathlib import Path
+from typing import Iterable, Sequence
 
 
 class MutationTier(IntEnum):

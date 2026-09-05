@@ -11,13 +11,14 @@ Injection points:
 
 All entropy is budgeted per tick to prevent chaotic system state.
 """
+from core.runtime.errors import record_degradation
+import math
+from core.utils.exceptions import capture_and_log
 import logging
 import time
+from typing import Optional
 
 import numpy as np
-
-from core.runtime.errors import record_degradation
-from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Aura.ManagedEntropy")
 
@@ -162,8 +163,7 @@ class ManagedEntropy:
 
 
 import threading
-
-_instance: ManagedEntropy | None = None
+_instance: Optional[ManagedEntropy] = None
 _instance_lock = threading.Lock()
 
 

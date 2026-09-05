@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Any
+from typing import Any, Dict
 
 from core.body.motor_controller import BaseMotor
 from core.event_bus import EventPriority, get_event_bus
@@ -18,7 +18,7 @@ class GestureMotor(BaseMotor):
     def name(self) -> str:
         return "gesture"
 
-    async def actuate(self, params: dict[str, Any]) -> dict[str, Any]:
+    async def actuate(self, params: Dict[str, Any]) -> Dict[str, Any]:
         gesture_type = params.get("gesture", "pulse")
         logger.info("Executing visual gesture: %s", gesture_type)
         try:

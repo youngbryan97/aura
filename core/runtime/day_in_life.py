@@ -12,12 +12,14 @@ deterministically; in real mode they are spaced across the duration.
 """
 from __future__ import annotations
 
+
 import asyncio
 import time
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from typing import Awaitable, Callable, Dict, List, Optional
 
-SCENARIO_EVENTS: list[str] = [
+
+SCENARIO_EVENTS: List[str] = [
     "morning_greeting",
     "casual_conversation",
     "coding_task",
@@ -39,8 +41,8 @@ SCENARIO_EVENTS: list[str] = [
 @dataclass
 class DayInLifeReport:
     duration_s: float
-    events_fired: list[str] = field(default_factory=list)
-    failed_invariants: list[str] = field(default_factory=list)
+    events_fired: List[str] = field(default_factory=list)
+    failed_invariants: List[str] = field(default_factory=list)
 
     @property
     def passed(self) -> bool:
@@ -54,8 +56,8 @@ InvariantCheck = Callable[[], Awaitable[bool]]
 async def run_day_in_life(
     *,
     duration_s: float = 24 * 3600.0,
-    handler: EventHandler | None = None,
-    invariants_check: InvariantCheck | None = None,
+    handler: Optional[EventHandler] = None,
+    invariants_check: Optional[InvariantCheck] = None,
     fast: bool = False,
 ) -> DayInLifeReport:
     start = time.monotonic()

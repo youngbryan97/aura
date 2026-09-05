@@ -26,10 +26,9 @@ from __future__ import annotations
 
 import ast
 import itertools
-from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Any
+from typing import Any, Iterable, Mapping, Sequence
 
 from core.reasoning.proof_kernel import KernelVerdict, register_checker
 
@@ -67,7 +66,7 @@ class LinConstraint:
         }
 
     @staticmethod
-    def from_dict(data: Mapping[str, Any]) -> LinConstraint:
+    def from_dict(data: Mapping[str, Any]) -> "LinConstraint":
         return LinConstraint(
             coeffs=tuple((str(v), Fraction(c)) for v, c in data["coeffs"]),
             rhs=Fraction(data["rhs"]),
@@ -186,7 +185,7 @@ class FarkasCertificate:
         return {"multipliers": [[i, str(m)] for i, m in self.multipliers]}
 
     @staticmethod
-    def from_dict(data: Mapping[str, Any]) -> FarkasCertificate:
+    def from_dict(data: Mapping[str, Any]) -> "FarkasCertificate":
         return FarkasCertificate(
             multipliers=tuple((int(i), Fraction(m)) for i, m in data["multipliers"])
         )

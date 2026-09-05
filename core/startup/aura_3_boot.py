@@ -9,16 +9,18 @@ ZENITH Protocol compliance:
   - Zero-wait asynchronous ready checks.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
+import sys
+import os
 
-from core.consciousness.substrate_governor import SubstrateGovernor
 from core.container import ServiceContainer
 from core.intent.intent_gate import register_intent_gate
-from core.memory.black_hole import BlackHole
-from core.memory.cognitive_vault import CognitiveVault
 from core.memory.horcrux import HorcruxManager
-from core.runtime.errors import record_degradation
+from core.memory.cognitive_vault import CognitiveVault
+from core.consciousness.substrate_governor import SubstrateGovernor
+from core.memory.black_hole import BlackHole
 
 logger = logging.getLogger("Aura.Boot")
 

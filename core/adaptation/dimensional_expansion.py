@@ -21,16 +21,20 @@ Lifecycle of a dimension:
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import math
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 
+from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.DimensionalExpansion")

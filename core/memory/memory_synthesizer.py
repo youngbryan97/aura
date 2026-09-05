@@ -42,8 +42,8 @@ from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, record_degradation
-from core.runtime.state_ownership import state_root
 from core.utils.task_tracker import get_task_tracker
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.MemorySynthesizer")
 

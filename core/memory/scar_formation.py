@@ -452,7 +452,7 @@ class ScarFormationSystem:
             finally:
                 try:
                     Path(tmp_path).unlink(missing_ok=True)
-                except OSError as exc:
+                except (OSError, IOError) as exc:
                     record_degradation("scar_formation", exc)
                     logger.debug("Temporary scar persistence cleanup failed: %s", exc)
         except (json.JSONDecodeError, TypeError, ValueError) as exc:

@@ -22,10 +22,9 @@ import logging
 import os
 import threading
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 
@@ -55,22 +54,22 @@ _HOSTILE = (
 @dataclass
 class Observation:
     modality: Modality
-    descriptor: np.ndarray | None = None   # embedding / fingerprint (biometric or device)
-    identity_hint: str | None = None       # e.g. a device name / claimed identity
+    descriptor: Optional[np.ndarray] = None   # embedding / fingerprint (biometric or device)
+    identity_hint: Optional[str] = None       # e.g. a device name / claimed identity
     content: str = ""                         # transcript / pasted text / caption
-    context: dict[str, Any] = field(default_factory=dict)
+    context: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class PerceptionVerdict:
     recognized: bool
-    identity: str | None
+    identity: Optional[str]
     familiarity: float                # [0,1]
     threat: float                     # [0,1]
     action: str                       # welcome | observe | challenge | lock_down | alert
-    reasons: list[str] = field(default_factory=list)
+    reasons: List[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "recognized": self.recognized, "identity": self.identity,
             "familiarity": round(self.familiarity, 3), "threat": round(self.threat, 3),
@@ -79,7 +78,7 @@ class PerceptionVerdict:
 
 
 # A matcher returns (identity, similarity) for a descriptor, or (None, 0.0).
-Matcher = Callable[[np.ndarray], "tuple[str | None, float]"]
+Matcher = Callable[[np.ndarray], "tuple[Optional[str], float]"]
 
 
 class PerceptionSentinel:
@@ -89,8 +88,8 @@ class PerceptionSentinel:
         self._lock = threading.RLock()
         self._threshold = match_threshold
         # modality → identity → list of enrolled descriptors
-        self._known: dict[Modality, dict[str, list[np.ndarray]]] = {}
-        self._matchers: dict[Modality, Matcher] = {}
+        self._known: Dict[Modality, Dict[str, List[np.ndarray]]] = {}
+        self._matchers: Dict[Modality, Matcher] = {}
 
     @staticmethod
     def live_sensing_enabled() -> bool:
@@ -111,7 +110,7 @@ class PerceptionSentinel:
 
     # ── recognition ────────────────────────────────────────────────────────
 
-    def _recognize(self, obs: Observation) -> tuple[str | None, float]:
+    def _recognize(self, obs: Observation) -> "tuple[Optional[str], float]":
         # A registered backend wins (real face/voice models).
         matcher = self._matchers.get(obs.modality)
         if matcher is not None and obs.descriptor is not None:
@@ -154,13 +153,13 @@ class PerceptionSentinel:
         hits = sum(1 for m in _HOSTILE if m in c)
         return _clamp(0.5 + 0.25 * hits) if hits else 0.0
 
-    def assess(self, obs: Observation, *, now: float | None = None) -> PerceptionVerdict:
+    def assess(self, obs: Observation, *, now: Optional[float] = None) -> PerceptionVerdict:
         """Recognize the entity and reason about whether it's a threat."""
         now = time.time() if now is None else now
         identity, familiarity = self._recognize(obs)
         recognized = identity is not None and familiarity >= self._threshold
         hostile = self._hostile_intent(obs.content)
-        reasons: list[str] = []
+        reasons: List[str] = []
 
         # Threat rises with unfamiliarity and hostile intent.
         threat = _clamp((1.0 - familiarity) * 0.6 + hostile * 0.7)
@@ -192,7 +191,7 @@ class PerceptionSentinel:
         # Feed the immune system if this reads as a real threat (physical/social).
         if threat >= 0.5:
             try:
-                from core.security.immune_system import ThreatClass, get_immune_system
+                from core.security.immune_system import get_immune_system, ThreatClass
                 cls = (ThreatClass.PHYSICAL if obs.modality in (Modality.FACE, Modality.VOICE)
                        else ThreatClass.SOCIAL_ENGINEERING)
                 get_immune_system().assess(
@@ -214,7 +213,7 @@ def _unit(v: np.ndarray) -> np.ndarray:
     return v / n if n > 1e-12 else v
 
 
-_sentinel: PerceptionSentinel | None = None
+_sentinel: Optional[PerceptionSentinel] = None
 _lock = threading.Lock()
 
 

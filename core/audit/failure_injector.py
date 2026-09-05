@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any, Dict
 
 logger = logging.getLogger("Aura.FailureInjector")
 
@@ -10,7 +11,7 @@ class FailureInjector:
     """Injects simulated network lags, timeouts, and OS errors to verify resilience."""
 
     def __init__(self) -> None:
-        self.active_faults: dict[str, str] = {}
+        self.active_faults: Dict[str, str] = {}
 
     def inject_fault(self, system_name: str, fault_type: str) -> None:
         """Configures a temporary fault for the given system."""

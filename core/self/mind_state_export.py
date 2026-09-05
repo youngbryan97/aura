@@ -45,11 +45,10 @@ import json
 import logging
 import time
 import zipfile
-from collections.abc import Callable
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Dict, Optional
 
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
@@ -69,9 +68,9 @@ class Component:
 
     name: str
     service: str
-    export: Callable[[Any], dict | None]
+    export: Callable[[Any], Optional[Dict]]
     export_requires: tuple[str, ...] = ()
-    restore: Callable[[Any, dict], None] | None = None
+    restore: Optional[Callable[[Any, Dict], None]] = None
     restore_requires: tuple[str, ...] = ()
 
     @property
@@ -221,14 +220,14 @@ class MindStateExporter:
         except (ImportError, AttributeError, RuntimeError, KeyError):
             return None
 
-    def capability_report(self) -> dict[str, Any]:
+    def capability_report(self) -> Dict[str, Any]:
         """What this instance can actually round-trip, and why the rest cannot.
 
         The machine-checkable replacement for a docstring that listed eight
         subsystems it could not move.
         """
-        exportable: dict[str, str] = {}
-        restorable: dict[str, str] = {}
+        exportable: Dict[str, str] = {}
+        restorable: Dict[str, str] = {}
         for component in self._components:
             service = self._service(component.service)
             ok, reason = component.export_readiness(service)
@@ -249,7 +248,7 @@ class MindStateExporter:
             ],
         }
 
-    async def export_mind(self, output_path: str) -> dict[str, Any]:
+    async def export_mind(self, output_path: str) -> Dict[str, Any]:
         """Export a mind state to a .aura-mind archive.
 
         Unavailable components are named in the result and the manifest. They
@@ -259,7 +258,7 @@ class MindStateExporter:
         path = Path(output_path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        manifest: dict[str, Any] = {
+        manifest: Dict[str, Any] = {
             "version": "2.0",
             "format": "aura-mind",
             "exported_at": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -322,7 +321,7 @@ class MindStateExporter:
             "complete": not manifest["unavailable"],
         }
 
-    async def import_mind(self, archive_path: str) -> dict[str, Any]:
+    async def import_mind(self, archive_path: str) -> Dict[str, Any]:
         """Import a mind state from a .aura-mind archive.
 
         Returns ``imported`` *and* ``skipped``. The previous version returned
@@ -346,7 +345,7 @@ class MindStateExporter:
                     return verification
 
                 imported: list[str] = []
-                skipped: dict[str, str] = {}
+                skipped: Dict[str, str] = {}
 
                 for component in self._components:
                     if component.filename not in names:
@@ -388,9 +387,9 @@ class MindStateExporter:
     def _verify_members(
         zf: zipfile.ZipFile,
         names: set,
-        integrity: dict[str, str],
-        by_name: dict[str, Component],
-    ) -> dict[str, Any] | None:
+        integrity: Dict[str, str],
+        by_name: Dict[str, "Component"],
+    ) -> Optional[Dict[str, Any]]:
         """Refuse an archive whose contents do not match, or cannot be checked.
 
         An unhashed component is *unverified*, which is not the same as valid.
@@ -423,7 +422,7 @@ class MindStateExporter:
             }
         return None
 
-    async def verify_integrity(self, archive_path: str) -> dict[str, Any]:
+    async def verify_integrity(self, archive_path: str) -> Dict[str, Any]:
         """Verify every component in the archive is hashed and matches."""
         path = Path(archive_path)
         if not await asyncio.to_thread(path.exists):
@@ -436,7 +435,7 @@ class MindStateExporter:
                 manifest = json.loads(zf.read("manifest.json"))
                 integrity = manifest.get("integrity", {})
 
-                results: dict[str, Any] = {}
+                results: Dict[str, Any] = {}
                 all_ok = True
                 for component_name, expected in integrity.items():
                     component = by_name.get(component_name)
@@ -478,7 +477,7 @@ class MindStateExporter:
     # guard here would silently swallow the very gap the table exists to report.
     # ------------------------------------------------------------------
 
-    def _export_canonical_self(self, cs: Any) -> dict | None:
+    def _export_canonical_self(self, cs: Any) -> Optional[Dict]:
         try:
             data = cs.to_dict()
             for key in list(data.keys()):
@@ -489,7 +488,7 @@ class MindStateExporter:
             record_degradation("mind_export.canonical_self", exc)
         return None
 
-    def _export_substrate(self, sub: Any) -> dict | None:
+    def _export_substrate(self, sub: Any) -> Optional[Dict]:
         try:
             state_vec = sub.get_state_vector()
             return {
@@ -502,14 +501,14 @@ class MindStateExporter:
             record_degradation("mind_export.substrate", exc)
         return None
 
-    def _export_memory(self, mem: Any) -> dict | None:
+    def _export_memory(self, mem: Any) -> Optional[Dict]:
         try:
             return mem.export_snapshot()
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("mind_export.memory", exc)
         return None
 
-    def _export_beliefs(self, ws: Any) -> dict | None:
+    def _export_beliefs(self, ws: Any) -> Optional[Dict]:
         try:
             return {
                 k: {"value": str(b.value), "confidence": b.confidence, "source": b.source}
@@ -519,35 +518,35 @@ class MindStateExporter:
             record_degradation("mind_export.beliefs", exc)
         return None
 
-    def _export_values(self, hs: Any) -> dict | None:
+    def _export_values(self, hs: Any) -> Optional[Dict]:
         try:
             return hs.get_value_weights()
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("mind_export.values", exc)
         return None
 
-    def _export_goals(self, goal_mgr: Any) -> dict | None:
+    def _export_goals(self, goal_mgr: Any) -> Optional[Dict]:
         try:
             return goal_mgr.export_goals()
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("mind_export.goals", exc)
         return None
 
-    def _export_drives(self, de: Any) -> dict | None:
+    def _export_drives(self, de: Any) -> Optional[Dict]:
         try:
             return de.get_drive_state()
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("mind_export.drives", exc)
         return None
 
-    def _export_scars(self, cs: Any) -> dict | None:
+    def _export_scars(self, cs: Any) -> Optional[Dict]:
         try:
             return {"scars": [str(s) for s in cs.behavioral_scars]}
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("mind_export.scars", exc)
         return None
 
-    def _export_attachments(self, cs: Any) -> dict | None:
+    def _export_attachments(self, cs: Any) -> Optional[Dict]:
         try:
             return {"attachments": cs.attachment_history}
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
@@ -563,11 +562,11 @@ class MindStateExporter:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _restore_canonical_self(cs: Any, data: dict) -> None:
+    def _restore_canonical_self(cs: Any, data: Dict) -> None:
         cs.load_from_dict(data)
 
     @staticmethod
-    def _restore_substrate(sub: Any, data: dict) -> None:
+    def _restore_substrate(sub: Any, data: Dict) -> None:
         import numpy as np
 
         vec = data.get("state_vector", [])
@@ -582,11 +581,11 @@ class MindStateExporter:
         sub._state = state
 
     @staticmethod
-    def _restore_memory(mem: Any, data: dict) -> None:
+    def _restore_memory(mem: Any, data: Dict) -> None:
         mem.import_snapshot(data)
 
     @staticmethod
-    def _restore_beliefs(ws: Any, data: dict) -> None:
+    def _restore_beliefs(ws: Any, data: Dict) -> None:
         for key, belief in data.items():
             if not isinstance(belief, dict):
                 continue
@@ -598,32 +597,32 @@ class MindStateExporter:
             )
 
     @staticmethod
-    def _restore_values(hs: Any, data: dict) -> None:
+    def _restore_values(hs: Any, data: Dict) -> None:
         hs.set_value_weights(data)
 
     @staticmethod
-    def _restore_goals(gm: Any, data: dict) -> None:
+    def _restore_goals(gm: Any, data: Dict) -> None:
         gm.import_goals(data)
 
     @staticmethod
-    def _restore_drives(de: Any, data: dict) -> None:
+    def _restore_drives(de: Any, data: Dict) -> None:
         de.set_drive_state(data)
 
     @staticmethod
-    def _restore_scars(cs: Any, data: dict) -> None:
+    def _restore_scars(cs: Any, data: Dict) -> None:
         cs.behavioral_scars = list(data.get("scars", []))
 
     @staticmethod
-    def _restore_attachments(cs: Any, data: dict) -> None:
+    def _restore_attachments(cs: Any, data: Dict) -> None:
         cs.attachment_history = data.get("attachments", [])
 
     # ------------------------------------------------------------------
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {"started": self._started}
 
 
-_instance: MindStateExporter | None = None
+_instance: Optional[MindStateExporter] = None
 
 
 def get_mind_state_exporter() -> MindStateExporter:

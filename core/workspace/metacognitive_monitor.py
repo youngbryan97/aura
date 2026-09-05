@@ -1,6 +1,7 @@
 """core/workspace/metacognitive_monitor.py
 Metacognitive monitor identifying loop stalls and cognitive traps.
 """
+from typing import List, Dict, Any
 import logging
 
 logger = logging.getLogger("Workspace.MetacognitiveMonitor")
@@ -9,7 +10,7 @@ logger = logging.getLogger("Workspace.MetacognitiveMonitor")
 class MetacognitiveMonitor:
     """Verifies that active goal ticks do not get stuck in infinite execution loops."""
 
-    def audit_thought_traces(self, monologue_history: list[str]) -> bool:
+    def audit_thought_traces(self, monologue_history: List[str]) -> bool:
         """Audits recent monologue logs. Returns True if anomalies are detected."""
         if len(monologue_history) < 5:
             return False

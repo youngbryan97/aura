@@ -112,7 +112,7 @@ class Doing:
     """One action, in the same shape a word is in."""
 
     head: str
-    parts: tuple[Doing, ...] = ()
+    parts: tuple["Doing", ...] = ()
     value: Any = None
 
     @property

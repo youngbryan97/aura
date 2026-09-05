@@ -2,8 +2,9 @@ import logging
 import re
 import time
 import uuid
+from typing import Any, Dict, List, Optional
 
-from .structures import Synapse
+from .structures import Neuron, Synapse
 
 logger = logging.getLogger("NeuroWeb.GlueFactory")
 
@@ -16,7 +17,7 @@ class GlueFactory:
         self.neurons = [] # Active neurons in current context
         self.memory = memory_system
         
-    async def forge(self, intent) -> Synapse | None:
+    async def forge(self, intent) -> Optional[Synapse]:
         """Forge a synapse for the given intent using semantic search.
         """
         if not self.neurons:
@@ -98,7 +99,7 @@ class GlueFactory:
         logger.warning("GlueFactory could not find a neuron for intent: %s", intent.text)
         return None
 
-    async def forge_synapse(self, intent_text: str, neuron_id: str, strength: float = 0.5) -> Synapse | None:
+    async def forge_synapse(self, intent_text: str, neuron_id: str, strength: float = 0.5) -> Optional[Synapse]:
         """Creates a synapse and optionally persists it."""
         # Find the neuron to ensure it exists
         target_neuron = next((n for n in self.neurons if n.id == neuron_id), None)

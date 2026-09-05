@@ -6,8 +6,8 @@ poll, each one bounded and offloaded where the work is synchronous.
 
 from __future__ import annotations
 
-import asyncio
 import logging
+import asyncio
 import time
 from typing import Any
 
@@ -174,7 +174,7 @@ class TemporalDilationScheduler:
                 if snapshot.overloaded:
                     logger.debug("MIST: Skipping synthesis while cognition is overloaded.")
                     return
-            except (TimeoutError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            except (RuntimeError, AttributeError, TypeError, ValueError, asyncio.TimeoutError) as exc:
                 record_fictional_degradation(
                     exc,
                     severity="warning",

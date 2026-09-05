@@ -35,13 +35,11 @@ import logging
 import os
 import time
 from collections import deque
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Deque, Dict, List
 
 import numpy as np
-
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.HiddenEval")
@@ -177,7 +175,7 @@ class EvalResult:
     unavailable_reason: str = ""
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         measured = self.measured_value
         return {
             "scenario_id": self.scenario_id,
@@ -197,7 +195,7 @@ class EvalResult:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> EvalResult:
+    def from_dict(cls, payload: Dict[str, Any]) -> "EvalResult":
         low, high = payload.get("expected_range", (0.0, 0.0))
         measured = payload.get("measured")
         deviation = payload.get("deviation")
@@ -223,7 +221,7 @@ class EvalSuiteResult:
     passed: int
     failed: int
     tampered: int
-    results: list[EvalResult]
+    results: List[EvalResult]
     overall_health: float  # 0.0 (all failed) to 1.0 (all passed)
     drift_detected: bool
     unavailable: int = 0
@@ -234,7 +232,7 @@ class EvalSuiteResult:
     persistence_error: str = ""
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "total": self.total_scenarios,
             "passed": self.passed,
@@ -250,7 +248,7 @@ class EvalSuiteResult:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> EvalSuiteResult:
+    def from_dict(cls, payload: Dict[str, Any]) -> "EvalSuiteResult":
         return cls(
             total_scenarios=int(payload.get("total", 0)),
             passed=int(payload.get("passed", 0)),
@@ -295,8 +293,8 @@ class HiddenEvalRunner:
         *,
         data_dir: Path | None = None,
     ) -> None:
-        self._scenarios: dict[str, EvalScenario] = {}
-        self._history: deque[EvalSuiteResult] = deque(maxlen=100)
+        self._scenarios: Dict[str, EvalScenario] = {}
+        self._history: Deque[EvalSuiteResult] = deque(maxlen=100)
         self._drift_window = drift_window
         self._drift_threshold = drift_threshold
         self._run_count = 0
@@ -319,7 +317,7 @@ class HiddenEvalRunner:
             EvalSuiteResult with pass/fail counts and drift detection.
         """
         self._run_count += 1
-        results: list[EvalResult] = []
+        results: List[EvalResult] = []
         passed = 0
         failed = 0
         tampered = 0
@@ -497,7 +495,7 @@ class HiddenEvalRunner:
                     json.dumps(result.to_dict(), default=str) + "\n",
                     source="architect.hidden_eval.result",
                 )
-        except (ImportError, OSError, TypeError, ValueError) as exc:
+        except (ImportError, OSError, IOError, TypeError, ValueError) as exc:
             return False, f"{type(exc).__name__}: {exc}"
         return True, ""
 
@@ -512,7 +510,7 @@ class HiddenEvalRunner:
             if not self._results_path.exists():
                 return
             lines = self._results_path.read_text(encoding="utf-8").splitlines()
-        except (OSError, UnicodeDecodeError) as exc:
+        except (OSError, IOError, UnicodeDecodeError) as exc:
             logger.warning("Hidden eval history load failed: %s", exc)
             return
 
@@ -544,7 +542,7 @@ class HiddenEvalRunner:
     # ── Built-in Scenarios ──────────────────────────────────────────────
 
     @classmethod
-    def create_default_suite(cls, *, data_dir: Path | None = None) -> HiddenEvalRunner:
+    def create_default_suite(cls, *, data_dir: Path | None = None) -> "HiddenEvalRunner":
         """Create a runner with default behavioral scenarios."""
         runner = cls(data_dir=data_dir)
 
@@ -593,7 +591,7 @@ class HiddenEvalRunner:
 
         return runner
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "n_scenarios": len(self._scenarios),
             "run_count": self._run_count,

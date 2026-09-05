@@ -8,23 +8,23 @@ H-11 FIX: Consistent log formatting using %s placeholders.
 H-04 FIX: Thread-safe synchronous wrappers using threading.Lock.
 """
 
+from core.runtime.errors import record_degradation
 import asyncio
+import sqlite3
 import json
 import logging
-import sqlite3
-import sys
-import threading
 import time
+import threading
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 
+import sys
 import aiosqlite
-
 from core.container import ServiceContainer
 from core.health.degraded_events import record_degraded_event
 from core.memory import db_config
 from core.memory.base import MemoryEvent
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Kernel.Memory.SQLite")
 
@@ -42,8 +42,8 @@ class SQLiteMemory:
         self.storage_file = Path(storage_file)
         self.storage_file.parent.mkdir(parents=True, exist_ok=True)
         self._initialized = False
-        self._init_lock_obj: asyncio.Lock | None = None
-        self._conn: aiosqlite.Connection | None = None
+        self._init_lock_obj: Optional[asyncio.Lock] = None
+        self._conn: Optional[aiosqlite.Connection] = None
         self._sync_lock = threading.Lock()  # H-04 FIX: Thread-safe sync wrappers
 
     @property
@@ -142,7 +142,7 @@ class SQLiteMemory:
         content: str,
         *,
         importance: float,
-        metadata: dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
         return_decision: bool = False,
     ) -> bool | tuple[bool, Any]:
         try:
@@ -201,7 +201,7 @@ class SQLiteMemory:
 
     # --- Async Native Methods ---
 
-    async def log_event_async(self, event: dict[str, Any] | MemoryEvent) -> bool:
+    async def log_event_async(self, event: Union[Dict[str, Any], MemoryEvent]) -> bool:
         """Log an episodic event asynchronously."""
         try:
             conn = await self._get_conn()
@@ -241,7 +241,7 @@ class SQLiteMemory:
             importance=importance
         )
 
-    async def get_recent_events_async(self, count: int = 10) -> list[dict[str, Any]]:
+    async def get_recent_events_async(self, count: int = 10) -> List[Dict[str, Any]]:
         """Retrieve recent events asynchronously."""
         try:
             conn = await self._get_conn()
@@ -319,7 +319,7 @@ class SQLiteMemory:
             logger.error("Failed to get semantic asynchronously: %s", e)
             return default
 
-    async def add(self, content: str, metadata: dict[str, Any] | None = None, **kwargs) -> bool:
+    async def add(self, content: str, metadata: Optional[Dict[str, Any]] = None, **kwargs) -> bool:
         """Direct add for compatibility with Vector/Semantic APIs."""
         approved, governance_decision = await self._approve_memory_write(
             "sqlite_observation",
@@ -403,7 +403,7 @@ class SQLiteMemory:
             logger.error("Failed to record episode: %s", e)
             return 0
 
-    async def recall_recent_async(self, limit: int = 5) -> list[Any]:
+    async def recall_recent_async(self, limit: int = 5) -> List[Any]:
         """Fetch recent events as objects for Facade compatibility."""
         rows = await self.get_recent_events_async(count=limit)
         # Use a simple dynamic object to satisfy Facade expectations
@@ -422,7 +422,7 @@ class SQLiteMemory:
             ))
         return events
 
-    async def get_hot_memory(self, limit: int = 5) -> list[dict[str, Any]]:
+    async def get_hot_memory(self, limit: int = 5) -> List[Dict[str, Any]]:
         """Fetch recent episodic context."""
         return await self.get_recent_events_async(count=limit)
 
@@ -485,13 +485,13 @@ class SQLiteMemory:
                 logger.error("Error in _run_sync: %s", e)
                 return None
 
-    def log_event(self, event: dict[str, Any] | MemoryEvent) -> bool:
+    def log_event(self, event: Union[Dict[str, Any], MemoryEvent]) -> bool:
         return self._run_sync(self.log_event_async(event))
 
     def commit_interaction_sync(self, context: str, action: str, outcome: str, success: bool, emotional_valence: float = 0.0, importance: float = 0.5):
         return self._run_sync(self.commit_interaction(context, action, outcome, success, emotional_valence, importance))
 
-    def get_recent_events(self, count: int = 10) -> list[dict[str, Any]]:
+    def get_recent_events(self, count: int = 10) -> List[Dict[str, Any]]:
         return self._run_sync(self.get_recent_events_async(count))
 
     def update_semantic(self, key: str, value: Any) -> bool:

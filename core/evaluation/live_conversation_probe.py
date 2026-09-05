@@ -8,9 +8,8 @@ consciousness/sentience language honest. It does not prove consciousness.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Iterable, Mapping, Sequence
 
 from core.conversation.response_reliability import assess_user_facing_reply
 

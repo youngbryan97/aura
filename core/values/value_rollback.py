@@ -1,8 +1,8 @@
 """core/values/value_rollback.py
 Rolls back preference calibrations if they lead to degradation or failures.
 """
+from typing import Dict, List, Any
 import logging
-from typing import Any
 
 logger = logging.getLogger("Values.ValueRollback")
 
@@ -10,7 +10,7 @@ logger = logging.getLogger("Values.ValueRollback")
 class ValueRollbackManager:
     """Manages restoration of prior stable preference snapshots."""
 
-    def rollback(self, current: dict[str, float], history: list[dict[str, Any]]) -> dict[str, float]:
+    def rollback(self, current: Dict[str, float], history: List[Dict[str, Any]]) -> Dict[str, float]:
         if not history:
             logger.info("No prior value snapshots available for rollback.")
             return current

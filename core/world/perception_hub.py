@@ -7,13 +7,13 @@ and writes them into the central ClaimStore.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from core.world.claim_store import ClaimStore
-from core.world.connectors.data_connector import DataConnector
-from core.world.connectors.github_connector import GitHubConnector
-from core.world.connectors.papers_connector import PapersConnector
 from core.world.connectors.web_connector import WebConnector
+from core.world.connectors.papers_connector import PapersConnector
+from core.world.connectors.github_connector import GitHubConnector
+from core.world.connectors.data_connector import DataConnector
 
 logger = logging.getLogger("Aura.PerceptionHub")
 
@@ -28,7 +28,7 @@ class PerceptionHub:
         self.github = GitHubConnector()
         self.data = DataConnector()
 
-    async def perceive(self, query: str) -> dict[str, Any]:
+    async def perceive(self, query: str) -> Dict[str, Any]:
         """Ingest claims related to the search query / objective."""
         logger.info("📡 Ingesting world knowledge for objective query: '%s'", query)
 

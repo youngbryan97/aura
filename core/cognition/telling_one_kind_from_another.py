@@ -146,7 +146,7 @@ class TellingThemApart:
         }
 
     @classmethod
-    def from_memory(cls, held: Any) -> TellingThemApart:
+    def from_memory(cls, held: Any) -> "TellingThemApart":
         if not isinstance(held, dict):
             return cls()
         return cls(

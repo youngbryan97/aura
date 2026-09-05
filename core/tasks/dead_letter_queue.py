@@ -8,7 +8,7 @@ import sqlite3
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from core.config import config
 from core.runtime.sqlite_support import connecting
@@ -32,7 +32,7 @@ CREATE INDEX IF NOT EXISTS idx_dlq_created ON dlq(created_at DESC);
 
 
 class DeadLetterQueue:
-    def __init__(self, db_path: str | None = None):
+    def __init__(self, db_path: Optional[str] = None):
         self._db = str(db_path or _DB_PATH)
         Path(self._db).parent.mkdir(parents=True, exist_ok=True)
         self._init()
@@ -48,7 +48,7 @@ class DeadLetterQueue:
             con.executescript(_SCHEMA)
             con.commit()
 
-    def push(self, skill_name: str, params: dict[str, Any], error: str) -> str:
+    def push(self, skill_name: str, params: Dict[str, Any], error: str) -> str:
         """Record a failed task."""
         entry_id = str(uuid.uuid4())[:8]
         with connecting(self._connect()) as con:
@@ -62,7 +62,7 @@ class DeadLetterQueue:
         )
         return entry_id
 
-    def get_failed(self, limit: int = 50) -> list[dict]:
+    def get_failed(self, limit: int = 50) -> List[Dict]:
         """List failed tasks."""
         with connecting(self._connect()) as con:
             rows = con.execute(
@@ -70,7 +70,7 @@ class DeadLetterQueue:
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def stats(self, *, recent_window_s: float = 900.0, limit: int = 10) -> dict[str, Any]:
+    def stats(self, *, recent_window_s: float = 900.0, limit: int = 10) -> Dict[str, Any]:
         """Return queue pressure without requiring callers to inspect SQLite."""
         cutoff = time.time() - float(recent_window_s)
         with connecting(self._connect()) as con:
@@ -97,7 +97,7 @@ class DeadLetterQueue:
         logger.info("DLQ: Entry %s marked resolved/removed.", entry_id)
 
 
-_dlq: DeadLetterQueue | None = None
+_dlq: Optional[DeadLetterQueue] = None
 
 
 def get_dlq() -> DeadLetterQueue:

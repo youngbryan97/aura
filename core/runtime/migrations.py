@@ -6,14 +6,18 @@ upgrade ``schema_version=N-1`` records to ``schema_version=N`` and keep
 a migration log so partial migrations can resume.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
 
+
+
+import json
 import logging
-from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Any
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 from core.runtime.atomic_writer import atomic_write_json, read_json_envelope
-from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Migrations")
@@ -25,22 +29,22 @@ CURRENT_SCHEMA_VERSION = 1
 class MigrationStep:
     from_version: int
     to_version: int
-    transform: Callable[[dict[str, Any]], dict[str, Any]]
+    transform: Callable[[Dict[str, Any]], Dict[str, Any]]
     description: str = ""
 
 
-_MIGRATION_REGISTRY: list[MigrationStep] = []
+_MIGRATION_REGISTRY: List[MigrationStep] = []
 
 
 def register_migration(step: MigrationStep) -> None:
     _MIGRATION_REGISTRY.append(step)
 
 
-def list_migrations() -> list[MigrationStep]:
+def list_migrations() -> List[MigrationStep]:
     return list(_MIGRATION_REGISTRY)
 
 
-def migrate_payload(payload: dict[str, Any], current_version: int, target_version: int) -> dict[str, Any]:
+def migrate_payload(payload: Dict[str, Any], current_version: int, target_version: int) -> Dict[str, Any]:
     if current_version > target_version:
         raise RuntimeError(
             f"refusing to downgrade schema from {current_version} to {target_version}"
@@ -59,13 +63,13 @@ def migrate_payload(payload: dict[str, Any], current_version: int, target_versio
     return payload
 
 
-def run_migrations(*, target_version: int | None = None, dry_run: bool = False) -> dict[str, Any]:
+def run_migrations(*, target_version: Optional[int] = None, dry_run: bool = False) -> Dict[str, Any]:
     target = target_version or CURRENT_SCHEMA_VERSION
     home = state_root()
     candidate_dirs = [home / "state", home / "memory", home / "workflows", home / "receipts"]
-    migrated: list[str] = []
-    skipped: list[str] = []
-    failed: list[dict[str, Any]] = []
+    migrated: List[str] = []
+    skipped: List[str] = []
+    failed: List[Dict[str, Any]] = []
     for d in candidate_dirs:
         if not d.exists():
             continue

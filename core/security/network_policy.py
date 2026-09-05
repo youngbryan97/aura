@@ -1,6 +1,7 @@
 """core/security/network_policy.py
 Network Policy engine enforcing egress domain boundaries.
 """
+from typing import List
 from core.config import get_config
 
 

@@ -3,20 +3,22 @@
 Bridges experience logging, pattern extraction, and autonomous research 
 to ensure Aura progressively evolves from every interaction.
 """
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
+import asyncio
 import hashlib
 import json
+import logging
 import sqlite3
 import time
-from dataclasses import dataclass, field
+from collections import defaultdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from core.config import config
 from core.runtime.base_module import AuraBaseModule
-from core.runtime.errors import record_degradation
+from core.config import config
 from core.runtime.sqlite_support import connecting
-from core.utils.task_tracker import get_task_tracker
-
 
 @dataclass
 class Experience:
@@ -41,8 +43,8 @@ class Experience:
     domain: str = "general"
     strategy: str = "default"
     context_hash: str = ""
-    corrections: list[str] = field(default_factory=list)
-    tags: list[str] = field(default_factory=list)
+    corrections: List[str] = field(default_factory=list)
+    tags: List[str] = field(default_factory=list)
 
 @dataclass
 class LearningPattern:
@@ -70,7 +72,7 @@ class LearningPattern:
 class ExperienceStore:
     """Persistent storage for experiences and learned patterns using SQLite."""
     
-    def __init__(self, db_path: Path | None = None):
+    def __init__(self, db_path: Optional[Path] = None):
         """Initializes the SQLite database.
         
         Args:
@@ -94,7 +96,7 @@ class ExperienceStore:
             conn.execute("INSERT OR REPLACE INTO experiences VALUES (?,?,?,?,?,?,?,?,?,?)",
                         (exp.id, exp.timestamp, exp.input_summary, exp.response_summary, exp.outcome_quality, exp.domain, exp.strategy, exp.context_hash, json.dumps(exp.corrections), json.dumps(exp.tags)))
 
-    def update_outcome(self, exp_id: str, quality: float, corrections: list[str] | None = None) -> None:
+    def update_outcome(self, exp_id: str, quality: float, corrections: Optional[List[str]] = None) -> None:
         """Updates the feedback quality and corrections for an existing experience."""
         with connecting(sqlite3.connect(self.db_path)) as conn:
             if corrections:
@@ -102,7 +104,7 @@ class ExperienceStore:
             else:
                 conn.execute("UPDATE experiences SET quality=? WHERE id=?", (quality, exp_id))
 
-    def get_experiences(self, limit: int = 500) -> list[Experience]:
+    def get_experiences(self, limit: int = 500) -> List[Experience]:
         """Retrieves recent experiences from the database."""
         with connecting(sqlite3.connect(self.db_path)) as conn:
             rows = conn.execute("SELECT * FROM experiences ORDER BY timestamp DESC LIMIT ?", (limit,)).fetchall()
@@ -114,7 +116,7 @@ class ExperienceStore:
             conn.execute("INSERT OR REPLACE INTO patterns VALUES (?,?,?,?,?,?,?,?)",
                         (p.id, p.description, p.trigger, p.recommendation, p.confidence, p.evidence, p.domain, p.last_updated))
 
-    def get_patterns(self) -> list[LearningPattern]:
+    def get_patterns(self) -> List[LearningPattern]:
         """Retrieves high-confidence patterns from the database."""
         with connecting(sqlite3.connect(self.db_path)) as conn:
             rows = conn.execute("SELECT * FROM patterns WHERE confidence > 0.6 ORDER BY confidence DESC").fetchall()
@@ -164,7 +166,7 @@ class ContinuousLearningEngine(AuraBaseModule):
             self.logger.debug("Knowledge Graph not available.")
 
     async def record_interaction(self, user_input: str = None, aura_response: str = None, 
-                                 user_name: str | None = None,
+                                 user_name: Optional[str] = None,
                                  domain: str = "general", strategy: str = "default", **kwargs) -> str:
         """Records an interaction and triggers asynchronous learning.
         
@@ -254,7 +256,7 @@ class ContinuousLearningEngine(AuraBaseModule):
             record_degradation('continuous_learning', e)
             self.logger.debug("Knowledge extraction failed: %s", e)
 
-    async def get_relevant_context(self, current_input: str, user_name: str | None = None) -> str:
+    async def get_relevant_context(self, current_input: str, user_name: Optional[str] = None) -> str:
         """Retrieves synthesized context (patterns + person info) for prompt augmentation.
         
         Args:
@@ -311,7 +313,7 @@ class ContinuousLearningEngine(AuraBaseModule):
                 self.logger.info("❓ Researching: %s", q)
                 # Future: Link to web_search skill automatically
 
-    async def consolidate_experiences(self) -> dict[str, Any]:
+    async def consolidate_experiences(self) -> Dict[str, Any]:
         """Distills high-level patterns from recent raw experiences.
         
         This is the core 'RE' consolidation step of the Dream Cycle.
@@ -362,7 +364,7 @@ class ContinuousLearningEngine(AuraBaseModule):
             self.logger.error("Consolidation failed: %s", e)
             return {"ok": False, "error": str(e)}
 
-    async def metabolic_compression(self) -> dict[str, Any]:
+    async def metabolic_compression(self) -> Dict[str, Any]:
         """Merges older raw experiences into persistent knowledge to prevent database bloat.
         
         This is the 'Strategic Forgetting' part of Digital Metabolism.
@@ -420,7 +422,7 @@ class ContinuousLearningEngine(AuraBaseModule):
         """Scheduled pattern extraction (delegates to consolidate_experiences)."""
         await self.consolidate_experiences()
 
-    def get_stats(self) -> dict[str, Any]:
+    def get_stats(self) -> Dict[str, Any]:
         """Calculates and returns learning system statistics."""
         exps = self.store.get_experiences(limit=1) # Just check count conceptually or use separate query
         patterns = self.store.get_patterns()
@@ -429,6 +431,6 @@ class ContinuousLearningEngine(AuraBaseModule):
             "knowledge_nodes": self.knowledge.get_stats().get("total_knowledge", 0) if self.knowledge else 0
         }
 
-    def get_health(self) -> dict[str, Any]:
+    def get_health(self) -> Dict[str, Any]:
         """Provides extended health data for the learning engine."""
         return {**super().get_health(), **self.get_stats()}

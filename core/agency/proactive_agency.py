@@ -16,8 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from core.runtime.errors import record_degradation
 

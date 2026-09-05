@@ -16,10 +16,11 @@ so the LLM speaks from state — not from instruction.
 """
 from __future__ import annotations
 
-import logging
 import re
 import time
+import logging
 from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("Aura.ConversationalDynamics")
 
@@ -33,7 +34,7 @@ class TopicAnchor:
     timestamp: float
     message_index: int
     salience: float          # 0.0–1.0: how prominent/emotionally loaded
-    keywords: list[str]      # Key words that can link back
+    keywords: List[str]      # Key words that can link back
     is_resolved: bool = False  # Was this thread picked up and closed?
 
 
@@ -57,16 +58,16 @@ class ConversationalDynamicsState:
 
     # ── System 3: Topic Trajectory ──
     current_topic: str = "general"
-    topic_anchors: list[TopicAnchor] = field(default_factory=list)
-    open_threads: list[OpenThread] = field(default_factory=list)
-    association_chain: list[str] = field(default_factory=list)  # Breadcrumb of how we got here
+    topic_anchors: List[TopicAnchor] = field(default_factory=list)
+    open_threads: List[OpenThread] = field(default_factory=list)
+    association_chain: List[str] = field(default_factory=list)  # Breadcrumb of how we got here
     drift_distance: float = 0.0          # Conceptual distance from last anchor (0.0–1.0)
     topic_exhaustion: float = 0.0        # 0.0=fresh, 1.0=nothing more to say here
 
     # ── System 1: Pragmatic / Illocutionary ──
     last_speech_act: str = "statement"   # "question", "statement", "request", "complaint", "joke", "vulnerable"
     conditional_relevance_open: bool = False  # Did user ask a question that NEEDS answering?
-    pending_question: str | None = None   # The actual question if one is pending
+    pending_question: Optional[str] = None   # The actual question if one is pending
     illocutionary_intent: str = "inform"     # What they're actually doing with words
 
     # ── System 5: Emotional Frame ──
@@ -85,7 +86,7 @@ class ConversationalDynamicsState:
     register: str = "casual"             # "formal", "casual", "intimate", "playful"
     face_threat_level: float = 0.0       # How threatening would a direct response be?
     in_group_active: bool = True         # Is in-group solidarity register appropriate?
-    accommodation_cues: list[str] = field(default_factory=list)  # Words/phrases to mirror
+    accommodation_cues: List[str] = field(default_factory=list)  # Words/phrases to mirror
 
     # ── Turn Management ──
     floor_state: str = "open"            # "user_holds", "aura_holds", "open", "transitioning"
@@ -95,7 +96,7 @@ class ConversationalDynamicsState:
 
     # ── Humor State ──
     humor_frame_active: bool = False
-    humor_type: str | None = None     # "hyperbole", "absurdist", "callback", "punchline", "understatement"
+    humor_type: Optional[str] = None     # "hyperbole", "absurdist", "callback", "punchline", "understatement"
     escalation_invited: bool = False     # Did the last message invite comedic escalation?
 
     # Timestamp
@@ -105,7 +106,7 @@ class ConversationalDynamicsState:
 # ── Speech Act Classifiers ─────────────────────────────────────────────────────
 
 # Pattern → (speech_act_type, illocutionary_intent)
-_SPEECH_ACT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
+_SPEECH_ACT_PATTERNS: List[Tuple[re.Pattern, str, str]] = [
     # Questions (conditional relevance — must answer)
     (re.compile(r'\?', re.IGNORECASE), "question", "request_info"),
     (re.compile(r'^(what|where|when|who|why|how|which|can you|could you|do you|did you|are you|is there|have you)\b', re.IGNORECASE), "question", "request_info"),
@@ -130,7 +131,7 @@ _SPEECH_ACT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
 ]
 
 # Emotional frame detection
-_FRAME_PATTERNS: dict[str, list[re.Pattern]] = {
+_FRAME_PATTERNS: Dict[str, List[re.Pattern]] = {
     "dread": [
         re.compile(r'\b(suck|terrible|worst|hate|ugh|hell|awful|nightmare|nightmare|dreading)\b', re.IGNORECASE),
         re.compile(r'\b(not looking forward|gonna be rough|horrible|exhausted|i\'m dying)\b', re.IGNORECASE),
@@ -158,7 +159,7 @@ _FRAME_PATTERNS: dict[str, list[re.Pattern]] = {
 }
 
 # Register detection
-_REGISTER_CUES: dict[str, list[str]] = {
+_REGISTER_CUES: Dict[str, List[str]] = {
     "intimate": ["honestly", "to be real", "just between us", "i feel like", "not gonna lie", "real talk"],
     "playful": ["lol", "lmao", "bruh", "bro", "dude", "ngl", "haha", "💀", "omg", "nah", "fr"],
     "formal": ["however", "furthermore", "in addition", "I would like to", "please be advised"],
@@ -166,7 +167,7 @@ _REGISTER_CUES: dict[str, list[str]] = {
 }
 
 # Humor signal detection
-_HUMOR_PATTERNS: dict[str, re.Pattern] = {
+_HUMOR_PATTERNS: Dict[str, re.Pattern] = {
     "hyperbole": re.compile(r'\b(literally|absolutely|completely|in hell|i am DEAD|worst.*ever|kill me)\b', re.IGNORECASE),
     "understatement": re.compile(r'\b(not (great|ideal|good|amazing)|a bit|slightly|kind of rough)\b', re.IGNORECASE),
     "absurdist": re.compile(r'\b(wait|hold on|actually|think about it|hear me out)\b', re.IGNORECASE),
@@ -195,7 +196,7 @@ class ConversationalDynamicsEngine:
         self._state = ConversationalDynamicsState()
         self._message_count = 0
 
-    def update(self, message: str, role: str, working_memory: list[dict]) -> ConversationalDynamicsState:
+    def update(self, message: str, role: str, working_memory: List[Dict]) -> ConversationalDynamicsState:
         """
         Process a new message and update conversational dynamics state.
 
@@ -243,7 +244,7 @@ class ConversationalDynamicsEngine:
         self._state = new_state
         return new_state
 
-    def _process_user_message(self, message: str, state: ConversationalDynamicsState, history: list[dict]):
+    def _process_user_message(self, message: str, state: ConversationalDynamicsState, history: List[Dict]):
         """Full analysis of a user message."""
 
         # 1. Floor management
@@ -360,16 +361,16 @@ class ConversationalDynamicsEngine:
         state.topic_anchors = list(self._state.topic_anchors)
         state.hedge_level = self._state.hedge_level
 
-    def _classify_speech_act(self, message: str) -> tuple[str, str]:
+    def _classify_speech_act(self, message: str) -> Tuple[str, str]:
         """Classify the speech act type and illocutionary intent."""
         for pattern, act_type, intent in _SPEECH_ACT_PATTERNS:
             if pattern.search(message):
                 return act_type, intent
         return "statement", "inform"
 
-    def _detect_emotional_frame(self, message: str) -> tuple[str, float]:
+    def _detect_emotional_frame(self, message: str) -> Tuple[str, float]:
         """Detect partner's current emotional frame and intensity."""
-        frame_scores: dict[str, int] = {}
+        frame_scores: Dict[str, int] = {}
         for frame, patterns in _FRAME_PATTERNS.items():
             score = sum(1 for p in patterns if p.search(message))
             if score > 0:
@@ -417,7 +418,7 @@ class ConversationalDynamicsEngine:
             return "formal"
         return "casual"
 
-    def _extract_accommodation_cues(self, message: str) -> list[str]:
+    def _extract_accommodation_cues(self, message: str) -> List[str]:
         """Extract specific words/phrases Aura should consider mirroring."""
         cues = []
         words = message.lower().split()
@@ -429,7 +430,7 @@ class ConversationalDynamicsEngine:
                 cues.append(clean)
         return list(set(cues))[:5]
 
-    def _detect_humor(self, message: str) -> str | None:
+    def _detect_humor(self, message: str) -> Optional[str]:
         """Detect type of humor being deployed, if any."""
         for humor_type, pattern in _HUMOR_PATTERNS.items():
             if pattern.search(message):
@@ -439,7 +440,7 @@ class ConversationalDynamicsEngine:
             return "hyperbole"
         return None
 
-    def _extract_keywords(self, message: str) -> list[str]:
+    def _extract_keywords(self, message: str) -> List[str]:
         """Extract semantic keywords for topic tracking."""
         stopwords = {"a", "an", "the", "is", "it", "i", "you", "and", "or", "but",
                      "to", "of", "in", "on", "at", "for", "with", "this", "that",
@@ -448,7 +449,7 @@ class ConversationalDynamicsEngine:
         words = re.findall(r'\b[a-z]{3,}\b', message.lower())
         return [w for w in words if w not in stopwords][:8]
 
-    def _infer_topic(self, message: str, keywords: list[str]) -> str:
+    def _infer_topic(self, message: str, keywords: List[str]) -> str:
         """Infer the current topic from message content."""
         msg_lower = message.lower()
 
@@ -616,7 +617,7 @@ class ConversationalDynamicsEngine:
 
 # ── Singleton ──────────────────────────────────────────────────────────────────
 
-_engine_instance: ConversationalDynamicsEngine | None = None
+_engine_instance: Optional[ConversationalDynamicsEngine] = None
 
 
 def get_dynamics_engine() -> ConversationalDynamicsEngine:

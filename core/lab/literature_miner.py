@@ -5,7 +5,7 @@ Extracts academic facts, benchmarks, and claims from papers and documentation.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Dict, List
 
 logger = logging.getLogger("Aura.LiteratureMiner")
 
@@ -13,7 +13,7 @@ logger = logging.getLogger("Aura.LiteratureMiner")
 class LiteratureMiner:
     """Extracts key claims, contradictions, and data tables from academic papers."""
 
-    def mine_documents(self, documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def mine_documents(self, documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         logger.info("🔬 Mining %d documents for claims...", len(documents))
         findings = []
 

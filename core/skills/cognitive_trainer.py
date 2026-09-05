@@ -1,11 +1,10 @@
+from core.runtime.errors import record_degradation
 import asyncio
 import logging
-from typing import Any
-
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from core.memory.memory_facade import MemoryFacade
-from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.CognitiveTrainer")
@@ -22,7 +21,7 @@ class CognitiveTrainerSkill(BaseSkill):
     description = "Ingest training data from MemoryAgentBench or AgentDrive to improve reasoning and memory."
     input_model = TrainingInput
     
-    def __init__(self, memory_facade: MemoryFacade | None = None):
+    def __init__(self, memory_facade: Optional[MemoryFacade] = None):
         super().__init__()
         self.facade = memory_facade
         self._initialized = False
@@ -32,7 +31,7 @@ class CognitiveTrainerSkill(BaseSkill):
         if not dry_run:
             await self.facade.add_memory(content, metadata={"source": source, "type": mtype})
 
-    async def execute(self, params: TrainingInput, context: dict[str, Any]) -> dict[str, Any]:
+    async def execute(self, params: TrainingInput, context: Dict[str, Any]) -> Dict[str, Any]:
         """Entry point for cognitive training."""
         if not self.facade:
             from core.container import ServiceContainer
@@ -53,7 +52,7 @@ class CognitiveTrainerSkill(BaseSkill):
             logger.error("Training failed: %s", e)
             return {"ok": False, "error": str(e)}
 
-    async def _ingest_memory_agent_bench(self, limit: int, dry_run: bool) -> dict[str, Any]:
+    async def _ingest_memory_agent_bench(self, limit: int, dry_run: bool) -> Dict[str, Any]:
         """Load and ingest MemoryAgentBench from HuggingFace."""
         logger.info("📚 Ingesting MemoryAgentBench (ICLR 2026)...")
         try:
@@ -92,11 +91,11 @@ class CognitiveTrainerSkill(BaseSkill):
             logger.error("HuggingFace ingestion failed: %s", e)
             return {"ok": False, "error": f"HF Load Error: {e}"}
 
-    async def _ingest_agent_drive(self, limit: int, dry_run: bool) -> dict[str, Any]:
+    async def _ingest_agent_drive(self, limit: int, dry_run: bool) -> Dict[str, Any]:
         """Ingest AgentDrive-MCQ from the locally unzipped repository."""
         logger.info("🚦 Ingesting AgentDrive-MCQ (2026 Reasoning Bench)...")
+        from pathlib import Path
         import json
-
         from core.config import config
         
         # Issue 60 Fix: Use config paths instead of hardcoded developer path

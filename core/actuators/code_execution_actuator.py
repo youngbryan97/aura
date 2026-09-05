@@ -3,13 +3,14 @@
 Runs arbitrary Python code inside the sandbox.
 Ensures safety by validating AST for banned imports/functions.
 """
+from core.runtime.numeric_guards import positive_float
+
 import ast
 import hashlib
 from typing import Any
 
 from core.actuators.actuator_registry import ActuatorResult, BaseActuator
 from core.actuators.authority import verify_actuator_authority
-from core.runtime.numeric_guards import positive_float
 
 _BANNED_MODULES = {
     "ctypes", "importlib", "os", "pathlib", "pty", "shutil", "subprocess", "sys",

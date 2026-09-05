@@ -48,10 +48,9 @@ import marshal
 import os
 import struct
 import sys
-from collections.abc import Iterable
+import threading
 from pathlib import Path
-from typing import Any
-
+from typing import Any, Iterable
 from core.governance_context import local_internal_governed_scope
 from core.runtime.dynamic_execution_gateway import get_dynamic_execution_gateway
 from core.runtime.lockdep import LockRank, checked_lock

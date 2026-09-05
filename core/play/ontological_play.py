@@ -24,6 +24,9 @@ Sessions are throttled by AgencyBus (``priority_class="boredom"``) so
 play never starves the foreground lane.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
+
 
 import asyncio
 import logging
@@ -31,9 +34,7 @@ import random
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
-from typing import Any
-
-from core.runtime.errors import record_degradation
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("Aura.OntologicalPlay")
 
@@ -71,19 +72,19 @@ class PlayCombination:
     proposal: str
     predicted_novelty: float
     predicted_consistency: float
-    notes: list[str] = field(default_factory=list)
+    notes: List[str] = field(default_factory=list)
 
 
 @dataclass
 class PlaySession:
     session_id: str
     started_at: float
-    seeds: tuple[str, str]
-    combinations: list[PlayCombination] = field(default_factory=list)
-    retained: list[str] = field(default_factory=list)  # combinations promoted to memory
-    completed_at: float | None = None
+    seeds: Tuple[str, str]
+    combinations: List[PlayCombination] = field(default_factory=list)
+    retained: List[str] = field(default_factory=list)  # combinations promoted to memory
+    completed_at: Optional[float] = None
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
@@ -91,9 +92,9 @@ class OntologicalPlayEngine:
     NOVELTY_PROMOTE_THRESHOLD = 0.78
 
     def __init__(self) -> None:
-        self._sessions: list[PlaySession] = []
+        self._sessions: List[PlaySession] = []
 
-    async def maybe_play(self) -> PlaySession | None:
+    async def maybe_play(self) -> Optional[PlaySession]:
         """Run a play session iff the curiosity drive is high and the
         boredom cooldown is open.
         """
@@ -108,7 +109,7 @@ class OntologicalPlayEngine:
 
     # ── concept sourcing ────────────────────────────────────────────────
 
-    def _sample_unrelated_concepts(self) -> tuple[str, str] | None:
+    def _sample_unrelated_concepts(self) -> Optional[Tuple[str, str]]:
         try:
             from core.container import ServiceContainer
             kg = ServiceContainer.get("knowledge_graph", default=None)
@@ -136,7 +137,7 @@ class OntologicalPlayEngine:
 
     # ── session execution ──────────────────────────────────────────────
 
-    async def _run(self, seeds: tuple[str, str]) -> PlaySession:
+    async def _run(self, seeds: Tuple[str, str]) -> PlaySession:
         sess = PlaySession(
             session_id=f"PLAY-{uuid.uuid4().hex[:8]}",
             started_at=time.time(),
@@ -154,7 +155,7 @@ class OntologicalPlayEngine:
         await self._emit_to_memory_if_novel(sess)
         return sess
 
-    def _propose_combination(self, seeds: tuple[str, str]) -> PlayCombination:
+    def _propose_combination(self, seeds: Tuple[str, str]) -> PlayCombination:
         a, b = seeds
         # The comment here used to promise "the lexical distance between the
         # seeds" and then score `abs(hash(a) ^ hash(b)) % 100`. Python's
@@ -175,7 +176,7 @@ class OntologicalPlayEngine:
         proposal = f"What if {a} were structured like {b}?"
         notes = [
             f"surface contrast: {a} vs {b}",
-            "shared dimension to test: continuity, scale, rhythm, persistence",
+            f"shared dimension to test: continuity, scale, rhythm, persistence",
         ]
         return PlayCombination(
             seed_a=a,
@@ -239,7 +240,7 @@ class OntologicalPlayEngine:
             return True
 
 
-_ENGINE: OntologicalPlayEngine | None = None
+_ENGINE: Optional[OntologicalPlayEngine] = None
 
 
 def get_play_engine() -> OntologicalPlayEngine:

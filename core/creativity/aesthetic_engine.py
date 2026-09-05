@@ -33,9 +33,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from core.memory.retention_policy import working_history_retention_policy
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
+from core.memory.retention_policy import working_history_retention_policy
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Creativity.AestheticEngine")

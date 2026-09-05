@@ -31,9 +31,8 @@ number in exchange for nothing at all.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, Sequence
 
 __all__ = [
     "Made",
@@ -177,6 +176,7 @@ def grow_at(
         # possible, never by being available when nothing was blocked.
         return None
     below = tuple(sorted(everything_makeable(max(0, int(level) - 1))))
+    from core.cognition.one_algebra import Term as PositionalTerm
 
     REGISTRY[said] = Maker(
         name=said,

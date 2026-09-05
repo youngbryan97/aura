@@ -2,9 +2,9 @@
 Defines the contract for extending the CognitiveEngine's reasoning process.
 """
 
-import logging
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Dict, Optional, List
+import logging
 
 logger = logging.getLogger("Aura.CognitiveInterface")
 
@@ -15,11 +15,11 @@ class AbstractCognitiveAugmentor(ABC):
     """
 
     @abstractmethod
-    def prepare_context(self, objective: str, context: dict[str, Any]) -> dict[str, Any]:
+    def prepare_context(self, objective: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Hook to inject data into the thinking context before prompt assembly."""
         return context
 
     @abstractmethod
-    def enrich_prompt(self, system_prompt: str, context: dict[str, Any]) -> str:
+    def enrich_prompt(self, system_prompt: str, context: Dict[str, Any]) -> str:
         """Hook to append content to the system prompt."""
         return system_prompt

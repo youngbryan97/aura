@@ -1,11 +1,10 @@
 from __future__ import annotations
-
-import asyncio
-import logging
-from typing import TYPE_CHECKING
-
-from core.kernel.bridge import Phase
 from core.runtime.errors import record_degradation
+
+import logging
+import asyncio
+from typing import Optional, TYPE_CHECKING
+from core.kernel.bridge import Phase
 from core.state.aura_state import AuraState
 
 if TYPE_CHECKING:
@@ -19,12 +18,12 @@ class SelfReviewPhase(Phase):
     Aura analyzes runtime performance, technical debt, and code health.
     """
 
-    def __init__(self, kernel: AuraKernel):
+    def __init__(self, kernel: "AuraKernel"):
         super().__init__(kernel)
         self._last_review_ts = 0.0
         self._review_interval = 600.0 # 10 minutes
 
-    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
         """
         Analyze current state for potential self-optimization.
         Does not block user interaction — performs meta-analysis on the side.

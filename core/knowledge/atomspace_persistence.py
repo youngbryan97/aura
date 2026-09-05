@@ -13,14 +13,14 @@ docs/evidence/atomspace_scale.json.
 
 from __future__ import annotations
 
+import json
 import os
 import time
-from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Mapping
 
 from core.knowledge.atomspace import (
-    Atom,
     AttentionValue,
+    Atom,
     Link,
     Node,
     TruthValue,
@@ -68,7 +68,7 @@ def decode_atom(row: Any) -> Atom:
 
 
 
-def snapshot(space: AtomSpace) -> dict[str, Any]:
+def snapshot(space: "AtomSpace") -> dict[str, Any]:
     """Everything the store holds, in a form that survives the process.
 
     Truth, attention and per-source attribution all travel. Dropping the
@@ -105,7 +105,7 @@ def snapshot(space: AtomSpace) -> dict[str, Any]:
             ],
         }
 
-def save(space: AtomSpace, path: os.PathLike[str] | str) -> int:
+def save(space: "AtomSpace", path: "os.PathLike[str] | str") -> int:
     """Write a snapshot atomically. Returns the atom count written.
 
     Blocking, and not only for the write: :func:`snapshot` holds the store's
@@ -129,7 +129,7 @@ def save(space: AtomSpace, path: os.PathLike[str] | str) -> int:
     )
     return len(payload["atoms"])
 
-async def save_async(space: AtomSpace, path: os.PathLike[str] | str) -> int:
+async def save_async(space: "AtomSpace", path: "os.PathLike[str] | str") -> int:
     """:func:`save` off the loop, both the snapshot and the write.
 
     The snapshot is the half that surprises: an on-loop fsync once froze this
@@ -150,7 +150,7 @@ async def save_async(space: AtomSpace, path: os.PathLike[str] | str) -> int:
     return len(payload["atoms"])
 
 
-def restore(space: AtomSpace, payload: Mapping[str, Any]) -> int:
+def restore(space: "AtomSpace", payload: Mapping[str, Any]) -> int:
     """Replace this store's contents with a snapshot. Returns atoms loaded.
 
     Refuses a payload it does not recognise rather than loading the part it
@@ -205,7 +205,7 @@ def restore(space: AtomSpace, payload: Mapping[str, Any]) -> int:
         )
         return len(rebuilt)
 
-def load(space: AtomSpace, path: os.PathLike[str] | str) -> int:
+def load(space: "AtomSpace", path: "os.PathLike[str] | str") -> int:
     """Read a snapshot written by :meth:`save`. Returns atoms loaded."""
     import json as _json
     from pathlib import Path as _Path

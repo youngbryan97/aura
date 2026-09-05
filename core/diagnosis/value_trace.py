@@ -28,8 +28,8 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 import tempfile
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -318,10 +318,12 @@ def trace_run(root: str | Path, entry: str) -> TracedRun:
 
 def _traced_in(base: Path, entry: str, workspace: Path) -> TracedRun:
     """Run the entry point with the tracer kept outside the project."""
+    import sys
 
     from core.governance_context import local_internal_governed_scope
-    from core.runtime.file_write_gateway import get_file_write_gateway
     from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+    from core.runtime.file_write_gateway import get_file_write_gateway
 
     tracer = workspace / "aura_value_trace.py"
     record = workspace / "aura_value_trace.json"

@@ -1,18 +1,18 @@
 """core/world/belief_revision.py
 Belief revision engine coordinating observations and updating LifeState beliefs.
 """
+from typing import Dict, Any, Optional
 import logging
-from typing import Any
 
-from core.world.affordance_model import AffordanceModel
-from core.world.causal_graph import CausalGraph
-from core.world.counterfactual_simulator import CounterfactualSimulator
 from core.world.entity_graph import EntityGraph
+from core.world.causal_graph import CausalGraph
+from core.world.temporal_graph import TemporalGraph
+from core.world.social_graph import SocialGraph
+from core.world.project_graph import ProjectGraph
 from core.world.location_graph import LocationGraph
 from core.world.object_permanence import ObjectPermanenceTracker
-from core.world.project_graph import ProjectGraph
-from core.world.social_graph import SocialGraph
-from core.world.temporal_graph import TemporalGraph
+from core.world.affordance_model import AffordanceModel
+from core.world.counterfactual_simulator import CounterfactualSimulator
 from core.world.uncertainty_model import UncertaintyModel
 
 logger = logging.getLogger("World.BeliefRevision")

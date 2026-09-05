@@ -1,9 +1,8 @@
+from core.runtime.errors import record_degradation
 import logging
 import os
-from typing import Any
-
-from core.runtime.errors import record_degradation
-
+import time
+from typing import Any, Dict
 from .orchestrator_types import OrchestratorState
 
 logger = logging.getLogger(__name__)
@@ -82,7 +81,7 @@ class OrchestratorStateMixin:
             _record_state_degradation(e, action="continued boot with fresh state after loading snapshot failed", severity="error")
             logger.error("Error loading state: %s", e)
 
-    def _restore_core_metrics(self, data: dict[str, Any]):
+    def _restore_core_metrics(self, data: Dict[str, Any]):
         """Restores core system metrics from snapshot."""
         try:
             metrics = data.get("metrics", {})
@@ -94,7 +93,7 @@ class OrchestratorStateMixin:
             _record_state_degradation(e, action="skipped core metrics restoration from snapshot")
             logger.warning("Failed to restore core metrics: %s", e)
 
-    def _restore_history(self, data: dict[str, Any]):
+    def _restore_history(self, data: Dict[str, Any]):
         """Restores conversation history from snapshot."""
         try:
             history = data.get("conversation_history", [])
@@ -107,7 +106,7 @@ class OrchestratorStateMixin:
             _record_state_degradation(e, action="skipped conversation history restoration from snapshot")
             logger.warning("Failed to restore history: %s", e)
 
-    def _restore_cognition(self, data: dict[str, Any]):
+    def _restore_cognition(self, data: Dict[str, Any]):
         """Restores cognitive thought state from a previous snapshot."""
         try:
             thoughts = data.get("thoughts_snapshot", [])
@@ -120,7 +119,7 @@ class OrchestratorStateMixin:
             _record_state_degradation(e, action="skipped cognitive thought restoration from snapshot")
             logger.warning("Failed to restore cognition: %s", e)
 
-    def _restore_active_plans(self, data: dict[str, Any]):
+    def _restore_active_plans(self, data: Dict[str, Any]):
         """Restores active goals and plans from snapshot (v13: implemented)."""
         try:
             # Restore goal hierarchy if present

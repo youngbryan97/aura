@@ -1,12 +1,13 @@
 """core/values/preference_conflict.py
 Detects and resolves internal preference conflicts.
 """
+from typing import Dict, Any, List
 
 
 class PreferenceConflictResolver:
     """Arbitrates conflicting preferences (e.g. speed vs accuracy)."""
 
-    def resolve(self, preferences: dict[str, float]) -> dict[str, float]:
+    def resolve(self, preferences: Dict[str, float]) -> Dict[str, float]:
         """Ensures conflicting preferences are balanced to prevent lockups."""
         resolved = preferences.copy()
         

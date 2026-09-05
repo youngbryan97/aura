@@ -13,7 +13,6 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Security.WorkspaceJail")

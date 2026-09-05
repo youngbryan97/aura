@@ -15,11 +15,11 @@ reasoning as wrong. This makes it safe to run on Aura's own draft replies.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from core.reasoning.belief_consistency import encode_belief
-from core.reasoning.natural_deduction import atoms, entails, is_consistent
+from core.reasoning.natural_deduction import Implies, atoms, entails, is_consistent
 
 Status = Literal["valid", "invalid", "undecidable"]
 

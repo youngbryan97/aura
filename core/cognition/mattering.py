@@ -20,11 +20,12 @@ it changes which content wins.
 from __future__ import annotations
 
 import logging
+import math
 import re
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("Cognition.Mattering")
 
@@ -41,16 +42,16 @@ _INTRINSIC = {
 }
 
 
-def _topics(text: str) -> list[str]:
+def _topics(text: str) -> List[str]:
     return [w for w in _WORD.findall(str(text or "").lower())][:12]
 
 
 @dataclass
 class MatteringScore:
     score: float
-    factors: dict[str, float] = field(default_factory=dict)
+    factors: Dict[str, float] = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {"score": round(self.score, 4), "factors": {k: round(v, 3) for k, v in self.factors.items()}}
 
 
@@ -61,7 +62,7 @@ class MatteringModel:
         self._half_life = max(1.0, half_life_s)
         self._lock = threading.RLock()
         # topic -> (weight, last_update_t)
-        self._weights: dict[str, tuple[float, float]] = {}
+        self._weights: Dict[str, tuple[float, float]] = {}
 
     # ── learning what matters ──────────────────────────────────────────────
 
@@ -69,7 +70,7 @@ class MatteringModel:
         w, t0 = self._weights.get(topic, (0.0, now))
         return w * (0.5 ** (max(0.0, now - t0) / self._half_life))
 
-    def note_mattered(self, text: str, weight: float = 0.3, *, now: float | None = None) -> None:
+    def note_mattered(self, text: str, weight: float = 0.3, *, now: Optional[float] = None) -> None:
         """Mark that something mattered (caused damage, carried an outcome, drew a reaction)."""
         now = time.time() if now is None else now
         weight = _clamp(weight)
@@ -78,7 +79,7 @@ class MatteringModel:
                 base = self._decayed(topic, now)
                 self._weights[topic] = (_clamp(base + weight * (1.0 - base)), now)
 
-    def learned_importance(self, text: str, *, now: float | None = None) -> float:
+    def learned_importance(self, text: str, *, now: Optional[float] = None) -> float:
         now = time.time() if now is None else now
         topics = _topics(text)
         if not topics:
@@ -103,7 +104,7 @@ class MatteringModel:
         action_relevance: float = 0.0,   # [0,1]
         novelty: float = 0.0,            # [0,1]
         person_relevant: float = 0.0,    # [0,1] tied to the person's active goals
-        now: float | None = None,
+        now: Optional[float] = None,
     ) -> MatteringScore:
         learned = self.learned_importance(description, now=now)
         charge = abs(_clamp(affective_charge, -1.0, 1.0))   # strong feeling (either sign) marks importance
@@ -129,7 +130,7 @@ class MatteringModel:
 
     # ── causal application: reweight what competes in the workspace ─────────
 
-    def reweight_contents(self, contents: list[Any], *, now: float | None = None) -> list[Any]:
+    def reweight_contents(self, contents: List[Any], *, now: Optional[float] = None) -> List[Any]:
         """Adjust each BoundContent's salience by how much it matters.
 
         Returns NEW contents (BoundContent is frozen). What matters rises; what doesn't,
@@ -157,7 +158,7 @@ class MatteringModel:
                 out.append(c)
         return out
 
-    def status(self, *, now: float | None = None) -> dict[str, Any]:
+    def status(self, *, now: Optional[float] = None) -> Dict[str, Any]:
         now = time.time() if now is None else now
         with self._lock:
             top = sorted(
@@ -167,7 +168,7 @@ class MatteringModel:
         return {"learned_topics": len(self._weights), "top": [(t, round(w, 3)) for t, w in top]}
 
 
-_model: MatteringModel | None = None
+_model: Optional[MatteringModel] = None
 _lock = threading.Lock()
 
 

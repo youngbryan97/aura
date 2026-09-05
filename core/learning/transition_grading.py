@@ -60,7 +60,7 @@ class Transition:
     preserved_completed_work: bool = True
     recovered_from_failure: bool = False
 
-    def validated(self) -> Transition:
+    def validated(self) -> "Transition":
         if type(self.index) is not int or self.index < 0:
             raise ValueError("transition index must be a non-negative integer")
         if not isinstance(self.action, str) or not self.action.strip():

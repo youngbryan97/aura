@@ -1,10 +1,9 @@
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
-from typing import Any
-
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger("Aura.HealingSwarm")
 
@@ -32,8 +31,8 @@ class HealingSwarmService:
     def __init__(self, orchestrator: Any):
         self.orchestrator = orchestrator
         self.is_running = False
-        self._monitor_task: asyncio.Task | None = None
-        self._repair_history: dict[str, float] = {}
+        self._monitor_task: Optional[asyncio.Task] = None
+        self._repair_history: Dict[str, float] = {}
         self._started_at: float = 0.0
 
     def start(self):
@@ -97,7 +96,7 @@ class HealingSwarmService:
                 continue
             await self.attempt_repair(name, info)
 
-    async def attempt_repair(self, subsystem_name: str, info: dict[str, Any]):
+    async def attempt_repair(self, subsystem_name: str, info: Dict[str, Any]):
         """Trigger an autonomous repair shard for a failing subsystem."""
         try:
             from core.runtime.background_policy import background_activity_reason

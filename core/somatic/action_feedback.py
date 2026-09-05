@@ -21,17 +21,18 @@ Design invariants:
   4. Limb health degrades on failure, recovers on success.
 """
 from __future__ import annotations
+from core.runtime.errors import record_degradation
+
 
 import hashlib
 import logging
 import time
-from collections import deque
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from core.container import ServiceContainer
-from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ActionFeedback")
 
@@ -64,7 +65,7 @@ class ActionFeedback:
     result_summary: str = ""       # Human-readable result summary
     error_detail: str = ""         # Error details on failure
     source: str = ""               # Who triggered the action
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
 
     @property
@@ -125,7 +126,7 @@ class LimbHealth:
             / self.total_executions
         )
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "health": round(self.health, 3),
@@ -156,8 +157,8 @@ class FeedbackProcessor:
     _MAX_FEEDBACK_TRAIL = 300
 
     def __init__(self) -> None:
-        self._limbs: dict[str, LimbHealth] = {}
-        self._feedback_trail: deque[ActionFeedback] = deque(maxlen=self._MAX_FEEDBACK_TRAIL)
+        self._limbs: Dict[str, LimbHealth] = {}
+        self._feedback_trail: Deque[ActionFeedback] = deque(maxlen=self._MAX_FEEDBACK_TRAIL)
         self._started = False
         self._boot_time = time.time()
         self._total_processed = 0
@@ -224,7 +225,7 @@ class FeedbackProcessor:
         error_detail: str = "",
         cost_tokens: int = 0,
         source: str = "",
-        metadata: dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> ActionFeedback:
         """Convenience method for tool execution results.
 
@@ -372,25 +373,25 @@ class FeedbackProcessor:
     # Public API
     # ------------------------------------------------------------------
 
-    def get_limb_health(self, name: str) -> LimbHealth | None:
+    def get_limb_health(self, name: str) -> Optional[LimbHealth]:
         """Get health state for a specific limb/tool."""
         return self._limbs.get(name)
 
-    def get_all_limb_health(self) -> dict[str, dict[str, Any]]:
+    def get_all_limb_health(self) -> Dict[str, Dict[str, Any]]:
         """Get health report for all limbs."""
         return {
             name: limb.to_dict()
             for name, limb in self._limbs.items()
         }
 
-    def get_unhealthy_limbs(self, threshold: float = 0.5) -> list[str]:
+    def get_unhealthy_limbs(self, threshold: float = 0.5) -> List[str]:
         """Get names of limbs below the health threshold."""
         return [
             name for name, limb in self._limbs.items()
             if limb.health < threshold
         ]
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         """Return current processor status."""
         return {
             "total_processed": self._total_processed,
@@ -400,7 +401,7 @@ class FeedbackProcessor:
             "uptime_s": round(time.time() - self._boot_time, 1),
         }
 
-    def get_recent_feedback(self, n: int = 20) -> list[dict[str, Any]]:
+    def get_recent_feedback(self, n: int = 20) -> List[Dict[str, Any]]:
         """Return recent feedback entries."""
         recent = list(self._feedback_trail)[-n:]
         return [
@@ -419,7 +420,7 @@ class FeedbackProcessor:
     # Action Stagnation Detection
     # ------------------------------------------------------------------
 
-    def detect_action_stagnation(self, window: int = 10) -> dict[str, Any]:
+    def detect_action_stagnation(self, window: int = 10) -> Dict[str, Any]:
         """Detect when recent actions are stuck in a repetitive failure loop.
 
         Analyzes the last ``window`` action feedbacks for:
@@ -508,7 +509,7 @@ class FeedbackProcessor:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_feedback_processor_instance: FeedbackProcessor | None = None
+_feedback_processor_instance: Optional[FeedbackProcessor] = None
 
 
 def get_feedback_processor() -> FeedbackProcessor:

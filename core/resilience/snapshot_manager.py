@@ -13,12 +13,14 @@ Features:
 - Coordinates extracting state from deeply entangled subsystems
 """
 
+from core.runtime.errors import record_degradation
 import json
 import logging
+import os
 import time
+from typing import Any
 
 from core.config import config
-from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 
 logger = logging.getLogger("Aura.SnapshotManager")
@@ -121,7 +123,7 @@ class SnapshotManager:
         function, and early boot is a known governance gap.
         """
         try:
-            from core.will import ActionDomain, get_will
+            from core.will import get_will, ActionDomain
             will = get_will()
             if will is None:
                 logger.warning(
@@ -182,7 +184,7 @@ class SnapshotManager:
         logger.info("🔥 Thawing cognitive state from disk...")
         
         try:
-            with open(self.snapshot_file) as f:
+            with open(self.snapshot_file, "r") as f:
                 state = json.load(f)
 
             if state.get("version") != self.VERSION:
@@ -234,7 +236,7 @@ class SnapshotManager:
             if engine and c_state:
                 logger.debug("Thawing Conversation context...")
                 try:
-                    from core.conversation.engine import ConversationMode, EmotionalState
+                    from core.conversation.engine import EmotionalState, ConversationMode
                     ctx = engine.get_context("default")
                     voice_ctx = engine.get_context("voice")
                     

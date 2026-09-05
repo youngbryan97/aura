@@ -43,7 +43,7 @@ class CommandSpec:
     steps: list[CommandStep]
     expected_effects: list[str]
     expected_modal: ModalState | None = None
-    rollback: CommandSpec | None = None
+    rollback: "CommandSpec | None" = None
     trace_id: str = ""
     receipt_id: str | None = None
     created_at: float = field(default_factory=time.time)

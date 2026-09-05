@@ -36,7 +36,7 @@ class QuarantineManifest:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> QuarantineManifest:
+    def from_dict(cls, payload: dict[str, Any]) -> "QuarantineManifest":
         return cls(
             quarantine_id=str(payload["quarantine_id"]),
             reason=str(payload["reason"]),
@@ -69,7 +69,7 @@ class QuarantineManager:
         source = self.config.repo_root / path
         data = content if content is not None else source.read_bytes()
         digest = hashlib.sha256(data).hexdigest()
-        quarantine_id = hashlib.sha256(f"{path}:{digest}:{proof_run}".encode()).hexdigest()[:16]
+        quarantine_id = hashlib.sha256(f"{path}:{digest}:{proof_run}".encode("utf-8")).hexdigest()[:16]
         item_dir = self.root / quarantine_id
         item_dir.mkdir(parents=True, exist_ok=True)
         atomic_write_bytes(item_dir / "artifact.bin", data)

@@ -3,14 +3,12 @@
 Tracks component health and adjusts capabilities when components fail.
 Allows Aura to continue operating even when some subsystems are unavailable.
 """
+from core.runtime.errors import record_degradation
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any
-
-from core.runtime.errors import record_degradation
+from typing import Any, Callable, Dict, Optional, Set
 
 logger = logging.getLogger("Aura.GracefulDegradation")
 
@@ -30,7 +28,7 @@ class ComponentState:
 
     name: str
     status: ComponentStatus = ComponentStatus.HEALTHY
-    last_error: str | None = None
+    last_error: Optional[str] = None
     failure_count: int = 0
     last_check: datetime = field(default_factory=datetime.now)
     recovery_attempts: int = 0
@@ -53,13 +51,13 @@ class GracefulDegradationManager:
     OPTIONAL_COMPONENTS = {"vision", "hearing", "speech", "browser"}
     
     def __init__(self):
-        self.components: dict[str, ComponentState] = {}
-        self.fallbacks: dict[str, Callable] = {}
-        self.capability_adjustments: dict[str, bool] = {}
-        self._failed_components: set[str] = set()
+        self.components: Dict[str, ComponentState] = {}
+        self.fallbacks: Dict[str, Callable] = {}
+        self.capability_adjustments: Dict[str, bool] = {}
+        self._failed_components: Set[str] = set()
         
     def register_component(self, name: str, 
-                          fallback: Callable | None = None,
+                          fallback: Optional[Callable] = None,
                           initial_status: ComponentStatus = ComponentStatus.HEALTHY):
         """Register a component for health tracking"""
         self.components[name] = ComponentState(
@@ -149,7 +147,7 @@ class GracefulDegradationManager:
         """Check if a capability is available"""
         return self.capability_adjustments.get(capability, True)
     
-    def get_status_summary(self) -> dict[str, Any]:
+    def get_status_summary(self) -> Dict[str, Any]:
         """Get summary of system health"""
         return {
             "healthy_count": sum(1 for c in self.components.values() 
@@ -176,7 +174,7 @@ class GracefulDegradationManager:
 
 
 # Singleton
-_degradation_manager: GracefulDegradationManager | None = None
+_degradation_manager: Optional[GracefulDegradationManager] = None
 
 
 def get_degradation_manager() -> GracefulDegradationManager:

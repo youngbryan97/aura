@@ -1,9 +1,8 @@
 import asyncio
+from collections import Counter
 import logging
 import time
-from collections import Counter
-from typing import Any
-
+from typing import Any, Dict, List, Optional
 from core.state.aura_state import AuraState
 
 logger = logging.getLogger("Aura.Autonomy.Cookie")
@@ -19,7 +18,7 @@ class ReflectiveCookie:
         self._is_active = False
         self._dilation_factor = 1.0
         self._subjective_cycles = 0
-        self._isolation_buffer: dict[str, Any] | None = None
+        self._isolation_buffer: Optional[Dict[str, Any]] = None
         self._event_bus = None
         
     async def load(self):
@@ -81,7 +80,7 @@ class ReflectiveCookie:
         
         return distillation
 
-    def _capture_reflection_buffer(self, state: AuraState, goal: str) -> dict[str, Any]:
+    def _capture_reflection_buffer(self, state: AuraState, goal: str) -> Dict[str, Any]:
         affect = getattr(state, "affect", None)
         cognition = getattr(state, "cognition", None)
         working_memory = list(getattr(cognition, "working_memory", []) or [])
@@ -107,7 +106,7 @@ class ReflectiveCookie:
         }
 
     @staticmethod
-    def _extract_keywords(text: str, limit: int = 4) -> list[str]:
+    def _extract_keywords(text: str, limit: int = 4) -> List[str]:
         tokens = [
             token.strip(".,:;!?()[]{}\"'").lower()
             for token in str(text or "").split()
@@ -145,7 +144,7 @@ class ReflectiveCookie:
             f"confidence {confidence:.2f}. For goal '{goal[:48]}', anchor on {anchor} and {vector}."
         )
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "is_active": self._is_active,
             "dilation_factor": self._dilation_factor,

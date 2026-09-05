@@ -1,13 +1,11 @@
 from __future__ import annotations
-
+import asyncio
 import logging
-import time
 import uuid
+import time
+from typing import Any, List, Dict, TYPE_CHECKING
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
-
 from core.state.aura_state import AuraState
-
 from .shadow_kernel import ShadowExecutionPhase, ShadowValidationReceipt
 
 if TYPE_CHECKING:
@@ -29,12 +27,12 @@ class SpeculativeArena:
     [ZENITH-v2] The Subconscious Parallelism Engine.
     Allows for high-throughput branching of the state tree to test multiple future-trajectories.
     """
-    def __init__(self, kernel: AuraKernel):
+    def __init__(self, kernel: "AuraKernel"):
         self.kernel = kernel
-        self.branches: dict[str, SpeculativeBranch] = {}
+        self.branches: Dict[str, SpeculativeBranch] = {}
         self._sandbox = ShadowExecutionPhase(kernel)
 
-    async def open_arena(self, base_state: AuraState, count: int = 3) -> list[str]:
+    async def open_arena(self, base_state: AuraState, count: int = 3) -> List[str]:
         """Creates N parallel branches from the base state."""
         branch_ids = []
         for i in range(count):

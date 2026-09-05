@@ -8,13 +8,13 @@ reactive loop.  It maintains a GoalStack and uses the WorldState +
 Neural Mesh readouts to determine when a subgoal is complete.
 """
 from __future__ import annotations
-
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Planning")
 
@@ -25,8 +25,8 @@ class Subgoal:
     id: str
     priority: float = 0.5
     status: str = "pending"  # pending, active, completed, failed
-    dependencies: list[str] = field(default_factory=list)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    dependencies: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
 
 @dataclass
@@ -34,7 +34,7 @@ class HierarchicalPlan:
     """A collection of subgoals targeting a high-level objective."""
     objective: str
     id: str
-    stack: list[Subgoal] = field(default_factory=list)
+    stack: List[Subgoal] = field(default_factory=list)
     priority: float = 0.5
     horizon: str = "short"  # short, medium, long
     created_at: float = field(default_factory=time.time)
@@ -43,7 +43,7 @@ class HierarchicalPlanner:
     """Manages multi-step plans and provides subgoals to the Synthesizer."""
 
     def __init__(self) -> None:
-        self._active_plans: list[HierarchicalPlan] = []
+        self._active_plans: List[HierarchicalPlan] = []
         self._started = False
 
     async def start(self) -> None:
@@ -53,7 +53,7 @@ class HierarchicalPlanner:
         self._started = True
         logger.info("HierarchicalPlanner ONLINE -- multi-step reasoning active")
 
-    def create_plan(self, objective: str, subgoals: list[str], priority: float = 0.5) -> str:
+    def create_plan(self, objective: str, subgoals: List[str], priority: float = 0.5) -> str:
         """Create a new hierarchical plan from a list of strings."""
         plan_id = f"plan_{int(time.time())}_{len(self._active_plans)}"
         plan = HierarchicalPlan(
@@ -69,7 +69,7 @@ class HierarchicalPlanner:
         logger.info("Created plan [%s]: %s (%d subgoals)", plan_id, objective, len(subgoals))
         return plan_id
 
-    def get_current_subgoal(self) -> Subgoal | None:
+    def get_current_subgoal(self) -> Optional[Subgoal]:
         """Return the next actionable subgoal from the highest priority plan."""
         if not self._active_plans:
             return None
@@ -119,7 +119,7 @@ class HierarchicalPlanner:
                     logger.warning("Current subgoal likely failed due to environment event: %s", desc)
                     subgoal.status = "failed"
 
-    def get_status(self) -> dict[str, Any]:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "active_plans": len(self._active_plans),
             "current_objective": self._active_plans[0].objective if self._active_plans else "None",
@@ -127,7 +127,7 @@ class HierarchicalPlanner:
         }
 
 # Singleton
-_planner_instance: HierarchicalPlanner | None = None
+_planner_instance: Optional[HierarchicalPlanner] = None
 
 def get_hierarchical_planner() -> HierarchicalPlanner:
     global _planner_instance

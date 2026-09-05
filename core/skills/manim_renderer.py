@@ -8,18 +8,19 @@ mathematical and explanatory animations into video files that can be sent to the
 import asyncio
 import logging
 import os
+import re
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 from pydantic import BaseModel, Field
 
 from core.config import config
-from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.skills.base_skill import BaseSkill
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Skills.Manim")
 
@@ -38,7 +39,7 @@ class ManimRendererSkill(BaseSkill):
     metabolic_cost = 3       # Heavy CPU task
     requires_approval = False
 
-    async def execute(self, params: ManimInput, context: dict[str, Any]) -> dict[str, Any]:
+    async def execute(self, params: ManimInput, context: Dict[str, Any]) -> Dict[str, Any]:
         # Validate that manim is installed
         try:
             import manim
@@ -90,7 +91,7 @@ class ManimRendererSkill(BaseSkill):
                     process.communicate(), 
                     timeout=self.timeout_seconds - 5
                 )
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 process.kill()
                 return {
                     "ok": False,

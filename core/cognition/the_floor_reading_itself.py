@@ -33,26 +33,25 @@ experiments, and they are the ones that can fail.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
+from typing import Any, Sequence
 
 from core.cognition.the_floor_she_stands_on import (
+    A,
     ARITHMETIC,
+    Code,
     ENOUGH_STEPS,
     FST,
     IF,
     ISPAIR,
+    L,
     LET,
+    N,
     NIL,
     PAIR,
     QUOTE,
     SAME,
     SIGNATURE,
     SND,
-    A,
-    Code,
-    L,
-    N,
     V,
     Y,
     _Named,

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import asyncio
 import inspect
 import logging
 import os
 import re
-from collections.abc import Sequence
-from dataclasses import dataclass
 from typing import Any
 
 from core.dialogue.referents import UNATTRIBUTED, attribute, speaker_of
@@ -18,6 +18,7 @@ from core.phases.response_contract import (
 )
 from core.runtime import service_access
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 

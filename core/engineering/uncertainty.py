@@ -26,7 +26,7 @@ from __future__ import annotations
 import math
 import random
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from core.engineering.units import Q, Quantity
@@ -70,8 +70,7 @@ def coverage_factor(confidence: int = 95) -> float:
 
 def _si(value: float, dimension: Any, unit: str) -> Quantity:
     """Wrap a value that is ALREADY in SI, without converting it again."""
-    from core.engineering.units import Quantity as _Quantity
-    from core.engineering.units import dimension_of
+    from core.engineering.units import Quantity as _Quantity, dimension_of
 
     return _Quantity(float(value), dimension or dimension_of(unit or "m"), unit or "m")
 

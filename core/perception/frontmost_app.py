@@ -14,11 +14,12 @@ unavailable (non-macOS, headless, or a stripped runtime).
 from __future__ import annotations
 
 import logging
+from typing import Optional
 
 logger = logging.getLogger("Perception.FrontmostApp")
 
 # Tri-state cache for the PyObjC probe: None = not yet probed, True/False = result.
-_PYOBJC_OK: bool | None = None
+_PYOBJC_OK: Optional[bool] = None
 _NSWorkspace = None  # cached class once the import succeeds
 
 
@@ -38,7 +39,7 @@ def _load_nsworkspace() -> bool:
     return _PYOBJC_OK
 
 
-def frontmost_app_name_fast() -> str | None:
+def frontmost_app_name_fast() -> Optional[str]:
     """Return the frontmost application's name via NSWorkspace, or None.
 
     Pure in-process Cocoa call — safe to invoke on a hot polling loop. Returns None if

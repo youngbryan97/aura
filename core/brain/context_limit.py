@@ -3,14 +3,13 @@ core/brain/context_limit.py
 ───────────────────────────
 Implements rolling memory compaction to prevent Context Window Collapse.
 """
-import logging
-from typing import Any
-
 from core.runtime.errors import record_degradation
+import logging
+from typing import List, Dict, Any
 
 logger = logging.getLogger("Aura.ContextLimit")
 
-async def compact_working_memory(chat_history: list[dict[str, Any]], max_raw_turns: int = 4) -> list[dict[str, Any]]:
+async def compact_working_memory(chat_history: List[Dict[str, Any]], max_raw_turns: int = 4) -> List[Dict[str, Any]]:
     """
     Keeps the most recent N messages raw, but compresses older history into a semantic summary.
     This keeps the token count flat indefinitely.
@@ -116,10 +115,10 @@ async def compact_working_memory(chat_history: list[dict[str, Any]], max_raw_tur
 
 
 def _fallback_history(
-    chat_history: list[dict[str, Any]],
-    system_prompt: dict[str, Any] | None,
+    chat_history: List[Dict[str, Any]],
+    system_prompt: Dict[str, Any] | None,
     max_messages: int,
-) -> list[dict[str, Any]]:
+) -> List[Dict[str, Any]]:
     """Drop the oldest turns, but never the system prompt.
 
     CP126 d990d839: the failure path returned ``chat_history[-10:]``, which

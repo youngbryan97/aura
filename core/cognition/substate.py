@@ -42,15 +42,16 @@ architecture assumed.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
+import threading
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
 from core.cognition.cognitive_event import Phase, cycle, get_event_graph
 from core.cognition.impasse import Impasse, ImpasseType
-from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "SubstateOutcome",
@@ -84,7 +85,7 @@ class SubstateBudget:
     seconds: float = 5.0
     work: int = 200
 
-    def child(self, *, spent_seconds: float = 0.0, spent_work: int = 0) -> SubstateBudget:
+    def child(self, *, spent_seconds: float = 0.0, spent_work: int = 0) -> "SubstateBudget":
         """The budget a nested substate gets: strictly less than this one."""
         return SubstateBudget(
             depth=self.depth - 1,

@@ -8,11 +8,11 @@ This module re-exports all elements to ensure complete backward-compatibility.
 from __future__ import annotations
 
 from core.memory.dual_memory import (
-    DualMemorySystem,
     Episode,
     EpisodicMemoryStore,
     SemanticFact,
     SemanticMemoryStore,
+    DualMemorySystem,
     retrieve_memories_sync,
 )
 

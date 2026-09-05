@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict
 
 from core.runtime.resource_observation import ResourceObserver, get_resource_observer
 
@@ -24,7 +24,7 @@ class ResourceSnapshot:
     observation_scenario_id: str = ""
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         return {
             "cpu_percent": round(float(self.cpu_percent), 3),
             "memory_percent": round(float(self.memory_percent), 3),
@@ -84,7 +84,7 @@ class MetabolismManager:
         self.recovery_per_tick = clamp01(recovery_per_tick)
         self.high_pressure_threshold = clamp01(high_pressure_threshold)
         self._observer = observer
-        self._budgets: dict[str, CellBudget] = {}
+        self._budgets: Dict[str, CellBudget] = {}
         self._last_snapshot = ResourceSnapshot()
 
     def ensure_budget(self, cell_id: str, *, priority: float = 0.5, baseline: float = 0.35, max_energy: float = 1.0) -> CellBudget:
@@ -161,7 +161,7 @@ class MetabolismManager:
     def high_pressure(self) -> bool:
         return self._last_snapshot.pressure >= self.high_pressure_threshold
 
-    def status(self) -> dict[str, Any]:
+    def status(self) -> Dict[str, Any]:
         return {
             "global_energy": round(float(self.global_energy), 5),
             "high_pressure": self.high_pressure,

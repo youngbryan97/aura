@@ -16,13 +16,12 @@ import logging
 import sqlite3
 import threading
 import time
-from collections.abc import Mapping
 from pathlib import Path
+from typing import Dict, Mapping, Optional
 
 import numpy as np
-
-from core.runtime.sqlite_support import connecting
 from core.runtime.state_ownership import state_root
+from core.runtime.sqlite_support import connecting
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ DEFAULT_CHEMICALS = (
 
 # Initial coefficients match the legacy formula so behavior is continuous at
 # startup but can adapt from there.
-_SEED_WEIGHTS: dict[str, dict[str, float]] = {
+_SEED_WEIGHTS: Dict[str, Dict[str, float]] = {
     "valence": {"dopamine": 0.25, "serotonin": 0.30, "endorphin": 0.20, "oxytocin": 0.10, "cortisol": -0.45},
     "arousal": {"norepinephrine": 0.30, "dopamine": 0.15, "cortisol": 0.20, "glutamate": 0.15, "orexin": 0.20, "gaba": -0.40, "serotonin": -0.10},
     "motivation": {"dopamine": 0.40, "norepinephrine": 0.15, "orexin": 0.20, "gaba": -0.25},
@@ -63,7 +62,7 @@ _SEED_WEIGHTS: dict[str, dict[str, float]] = {
     "wakefulness": {"orexin": 0.50, "norepinephrine": 0.20, "glutamate": 0.15, "gaba": -0.30},
 }
 
-_SEED_BIAS: dict[str, float] = {
+_SEED_BIAS: Dict[str, float] = {
     "valence": -0.10,
     "arousal": 0.0,
     "motivation": 0.0,
@@ -84,7 +83,7 @@ class AdaptiveMoodCoefficients:
 
     def __init__(
         self,
-        db_path: str | Path | None = None,
+        db_path: Optional[str | Path] = None,
         *,
         chemicals: tuple[str, ...] = DEFAULT_CHEMICALS,
         moods: tuple[str, ...] = DEFAULT_MOODS,
@@ -96,13 +95,13 @@ class AdaptiveMoodCoefficients:
         self.learning_rate = float(max(MIN_LR, min(MAX_LR, learning_rate)))
         self.weight_decay = float(max(0.0, min(1e-2, weight_decay)))
         self._lock = threading.RLock()
-        self._weights: dict[str, np.ndarray] = {
+        self._weights: Dict[str, np.ndarray] = {
             mood: np.array([_SEED_WEIGHTS.get(mood, {}).get(ch, 0.0) for ch in self.chemicals], dtype=np.float64)
             for mood in self.moods
         }
-        self._bias: dict[str, float] = {mood: float(_SEED_BIAS.get(mood, 0.0)) for mood in self.moods}
-        self._updates: dict[str, int] = {mood: 0 for mood in self.moods}
-        self._last_prediction: dict[str, float] = {mood: 0.0 for mood in self.moods}
+        self._bias: Dict[str, float] = {mood: float(_SEED_BIAS.get(mood, 0.0)) for mood in self.moods}
+        self._updates: Dict[str, int] = {mood: 0 for mood in self.moods}
+        self._last_prediction: Dict[str, float] = {mood: 0.0 for mood in self.moods}
 
         if db_path is not None:
             self._db_path = Path(db_path)
@@ -175,10 +174,10 @@ class AdaptiveMoodCoefficients:
         except sqlite3.Error as exc:
             logger.warning("Adaptive mood persistence failed for %s: %s", mood, exc)
 
-    def predict(self, chemicals: Mapping[str, float]) -> dict[str, float]:
+    def predict(self, chemicals: Mapping[str, float]) -> Dict[str, float]:
         """Current mood prediction from chemistry — the learned formula."""
         x = np.array([float(chemicals.get(ch, 0.0)) for ch in self.chemicals], dtype=np.float64)
-        out: dict[str, float] = {}
+        out: Dict[str, float] = {}
         with self._lock:
             for mood in self.moods:
                 value = float(np.dot(self._weights[mood], x) + self._bias[mood])
@@ -190,7 +189,7 @@ class AdaptiveMoodCoefficients:
         self,
         chemicals: Mapping[str, float],
         observed: Mapping[str, float],
-    ) -> dict[str, float]:
+    ) -> Dict[str, float]:
         """Gradient-descent step toward observed mood signal.
 
         ``observed`` is the empirical mood measure derived from behavior or
@@ -199,7 +198,7 @@ class AdaptiveMoodCoefficients:
         predicts the outcome, rather than being fixed by the author.
         """
         x = np.array([float(chemicals.get(ch, 0.0)) for ch in self.chemicals], dtype=np.float64)
-        residuals: dict[str, float] = {}
+        residuals: Dict[str, float] = {}
         with self._lock:
             for mood in self.moods:
                 target = float(observed.get(mood, float("nan")))
@@ -221,7 +220,7 @@ class AdaptiveMoodCoefficients:
                 self._save(mood)
         return residuals
 
-    def snapshot(self) -> dict[str, dict[str, float]]:
+    def snapshot(self) -> Dict[str, Dict[str, float]]:
         with self._lock:
             return {
                 mood: {
@@ -246,11 +245,11 @@ class AdaptiveMoodCoefficients:
             return total
 
 
-_singleton: AdaptiveMoodCoefficients | None = None
+_singleton: Optional[AdaptiveMoodCoefficients] = None
 _lock = threading.Lock()
 
 
-def get_adaptive_mood(db_path: str | Path | None = None) -> AdaptiveMoodCoefficients:
+def get_adaptive_mood(db_path: Optional[str | Path] = None) -> AdaptiveMoodCoefficients:
     global _singleton
     with _lock:
         if _singleton is None:

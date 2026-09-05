@@ -62,6 +62,7 @@ def _engine() -> object | None:
 )
 def _no_language_writeback() -> Iterator[Violation]:
     """The load-bearing one. State causes the report, never the reverse."""
+    import pkgutil
     import sys
     from pathlib import Path
 

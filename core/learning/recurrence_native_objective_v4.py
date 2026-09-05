@@ -36,8 +36,7 @@ v2/v3; only the loss composition changes.
 """
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
+from typing import Any, Sequence
 
 from core.brain.llm.latent_cortex.execution_spec import RLCExecutionSpec
 from core.learning.recurrence_native_objective_v2 import (
@@ -413,6 +412,7 @@ def depth_curriculum_loss_v4(
     separations, so a training step's width behavior is auditable rather
     than inferred.
     """
+    import mlx.core as mx
 
     if (
         len(depths) < 2
@@ -540,6 +540,7 @@ def trajectory_loss_v4(
     trained property instead of an assumption. Telemetry returns the full
     per-step curve so the property is auditable every step, not inferred.
     """
+    import mlx.core as mx
 
     improve_scale = _validate_scalar(
         "improvement_weight", improvement_weight, low=0.0, high=10.0

@@ -62,7 +62,7 @@ class Teacher:
     kind: str
     propose: Callable[[str], str | None]
 
-    def validated(self) -> Teacher:
+    def validated(self) -> "Teacher":
         if not self.name.strip():
             raise ValueError("teacher requires a name")
         if self.kind not in TEACHER_KINDS:

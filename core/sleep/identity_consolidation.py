@@ -1,8 +1,8 @@
 """core/sleep/identity_consolidation.py
 Offline identity consolidator checking self-coherence.
 """
+from typing import Dict, Any
 import logging
-from typing import Any
 
 logger = logging.getLogger("Sleep.IdentityConsolidation")
 
@@ -10,7 +10,7 @@ logger = logging.getLogger("Sleep.IdentityConsolidation")
 class IdentityConsolidator:
     """Verifies active identity variables align with self-contract prime directives."""
 
-    def consolidate_identity(self, identity: dict[str, Any], baseline: dict[str, Any]) -> dict[str, Any]:
+    def consolidate_identity(self, identity: Dict[str, Any], baseline: Dict[str, Any]) -> Dict[str, Any]:
         logger.info("IdentityConsolidator verifying identity state variables...")
         restored = identity.copy()
         

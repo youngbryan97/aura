@@ -58,20 +58,19 @@ everything after this is counted in reach.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, Iterator, Sequence
 
 from core.cognition.one_algebra import HEADS, Term, run
 from core.cognition.the_floor_she_stands_on import (
-    IF,
-    MINUS,
-    SAME,
-    TIMES,
     A,
     Code,
+    IF,
     L,
+    MINUS,
     N,
+    SAME,
+    TIMES,
     V,
     Y,
     build,

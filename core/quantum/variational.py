@@ -14,7 +14,7 @@ closed-form derivatives and against finite differences.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Sequence
+from typing import Callable, Sequence
 
 from core.quantum.statevector import QuantumCircuitError, Statevector
 

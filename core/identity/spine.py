@@ -8,19 +8,16 @@ position. If she does, it injects that position BEFORE she reads the
 user's framing. If she doesn't, it generates one in isolation first.
 """
 from __future__ import annotations
-
-import logging
-import re
-import time
+import logging, re, time
 from dataclasses import dataclass
-
+from typing import Optional, Tuple
 logger = logging.getLogger("Aura.Spine")
 
 @dataclass
 class PositionCheck:
     has_prior_position: bool
-    prior_position: str | None
-    user_position: str | None
+    prior_position: Optional[str]
+    user_position: Optional[str]
     positions_conflict: bool
     conflict_severity: float
     injection: str
@@ -45,7 +42,7 @@ class SpiritualSpine:
         self.opinion_engine = opinion_engine
         self._recent_pushbacks: list[float] = []
 
-    async def pre_response_check(self, user_message: str, topic: str | None = None) -> PositionCheck:
+    async def pre_response_check(self, user_message: str, topic: Optional[str] = None) -> PositionCheck:
         user_position = self._extract_user_position(user_message)
         is_pushback = self._is_pushback(user_message)
         if is_pushback:
@@ -78,7 +75,7 @@ class SpiritualSpine:
             parts.append("[PUSHBACK DETECTED]: Do I still hold my position? If yes, say so and explain why. Changing position requires a reason, not just the challenge.")
         return "\n".join(parts)
 
-    def _extract_user_position(self, message: str) -> str | None:
+    def _extract_user_position(self, message: str) -> Optional[str]:
         for pattern in self.POSITION_ASSERTION_PATTERNS:
             if re.search(pattern, message):
                 for s in message.split("."):
@@ -88,7 +85,7 @@ class SpiritualSpine:
     def _is_pushback(self, message: str) -> bool:
         return any(re.search(p, message) for p in self.PUSHBACK_PATTERNS)
 
-    def _detect_conflict(self, prior: str | None, user: str | None) -> tuple[bool, float]:
+    def _detect_conflict(self, prior: Optional[str], user: Optional[str]) -> Tuple[bool, float]:
         if not prior or not user: return False, 0.0
         prior_words = set(prior.lower().split()); user_words = set(user.lower().split())
         negations = {"not","never","no","wrong","false","incorrect","disagree"}

@@ -24,12 +24,14 @@ Design:
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import Any
 
-from core.being.body_state_service import BodyHealthSnapshot
+from core.being.body_state_service import BodyHealthSnapshot, BodyStateService
 from core.runtime.consequence_bus import ConsequenceBus, ConsequenceEvent
 from core.runtime.errors import record_degradation
 
@@ -230,7 +232,7 @@ class WelfareState:
         self,
         inputs: WelfareInputs,
         *,
-        induced: Mapping[str, float] | None = None,
+        induced: "Mapping[str, float] | None" = None,
     ) -> WelfareOutputs:
         """Compute welfare outputs from inputs. Pure function (+ aversion memory).
 
@@ -513,7 +515,7 @@ class WelfareState:
 
     @staticmethod
     def _estimate_canonical(
-        inputs: WelfareInputs,
+        inputs: "WelfareInputs",
         integrity_distress: float,
         capability_distress: float,
         social_distress: float,

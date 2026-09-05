@@ -12,10 +12,9 @@ import hashlib
 import json
 import math
 import time
-from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from core.evaluation.proof_acceptance import evaluate_proof_acceptance
 from core.learning.hidden_eval_repro import HiddenEvalPack, HiddenEvalResult

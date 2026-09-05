@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any, TYPE_CHECKING
 
 from core.epistemics.source_ranker import get_source_ranker
 
 if TYPE_CHECKING:
-    pass
+    from core.epistemics.claim_graph import ClaimGraph
 
 logger = logging.getLogger("Aura.ConfidenceCalibrator")
 

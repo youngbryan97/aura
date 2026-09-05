@@ -5,9 +5,9 @@ Extracts vitals, dungeon level, local map, and status flags (Blind, Hallu, etc.)
 """
 from __future__ import annotations
 
-import logging
 import re
-from typing import Any
+import logging
+from typing import Dict, List, Any, Tuple
 
 logger = logging.getLogger("Aura.Embodiment.NetHack.Parser")
 
@@ -21,7 +21,7 @@ class NetHackParser:
             r"Pw:(?P<pw>\d+)\((?P<maxpw>\d+)\)\s+AC:(?P<ac>-?\d+)\s+Exp:(?P<exp>\d+)"
         )
         
-    def parse(self, terminal_text: str) -> dict[str, Any]:
+    def parse(self, terminal_text: str) -> Dict[str, Any]:
         """Convert raw text to structured state."""
         lines = terminal_text.splitlines()
         if len(lines) < 24:
@@ -56,7 +56,7 @@ class NetHackParser:
             "sensory_reliability": 1.0 if "Hallu" not in status_line_2 and "Blind" not in status_line_2 else 0.0
         }
         
-    def _parse_status(self, line1: str, line2: str) -> dict[str, Any]:
+    def _parse_status(self, line1: str, line2: str) -> Dict[str, Any]:
         match = self.status_re.search(line1)
         if not match:
             # Try line 2 if line 1 didn't match (NetHack layout can vary)
@@ -77,14 +77,14 @@ class NetHackParser:
             }
         return {"dlvl": 1, "hp": 15, "maxhp": 15, "hp_percent": 1.0}
         
-    def _parse_flags(self, line: str) -> list[str]:
+    def _parse_flags(self, line: str) -> List[str]:
         flags = []
         for f in ["Hunger", "Weak", "Fainting", "Blind", "Hallu", "Conf", "Stun"]:
             if f in line:
                 flags.append(f)
         return flags
         
-    def _extract_monsters(self, grid: list[list[str]], player_pos: tuple[int, int]) -> list[dict[str, Any]]:
+    def _extract_monsters(self, grid: List[List[str]], player_pos: Tuple[int, int]) -> List[Dict[str, Any]]:
         monsters = []
         px, py = player_pos
         # Simple scan for common monster glyphs (a-z, A-Z)

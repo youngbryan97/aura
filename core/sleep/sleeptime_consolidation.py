@@ -42,10 +42,11 @@ Three further positions:
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from typing import Callable, Iterable, Sequence
 
 from core.memory.memory_blocks import (
+    BlockDerived,
     BlockImmutable,
     BlockOverflow,
     BlockVersionConflict,

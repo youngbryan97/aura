@@ -6,9 +6,9 @@ import re
 from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.service_access import optional_service
 from core.kernel.bridge import Phase
 from core.runtime.errors import FallbackClassification, record_degradation
-from core.runtime.service_access import optional_service
 from core.service_names import ServiceNames
 from core.state.aura_state import AuraState
 

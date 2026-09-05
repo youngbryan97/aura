@@ -27,12 +27,12 @@ from __future__ import annotations
 
 import random
 from collections import deque
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 from .graph import EdgeType, MorphGraph
-from .types import stable_digest
+from .types import json_safe, stable_digest
 
 #: The capability alphabet the scenarios draw from. Each is a port name, so
 #: a cell that provides ``retrieve`` emits ``retrieve`` and a cell that wants

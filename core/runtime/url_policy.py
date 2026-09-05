@@ -20,13 +20,13 @@ redirects should do so — see :func:`describe_decision`.
 """
 from __future__ import annotations
 
+from core.runtime.errors import record_degradation
+
 import ipaddress
 import os
 import socket
 import urllib.parse
 from typing import Any
-
-from core.runtime.errors import record_degradation
 
 #: Hosts that are always acceptable targets for observation.
 DEFAULT_FETCH_ALLOWLIST = {

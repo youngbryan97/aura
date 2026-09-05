@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
 logger = logging.getLogger("Aura.TimelineEngine")
 
@@ -15,20 +16,20 @@ class WorldEvent:
     title: str
     description: str
     timestamp: float = field(default_factory=time.time)
-    related_entities: list[str] = field(default_factory=list)
+    related_entities: List[str] = field(default_factory=list)
 
 
 class TimelineEngine:
     """Tracks historical sequences of external events and plans."""
 
     def __init__(self) -> None:
-        self.events: dict[str, WorldEvent] = {}
+        self.events: Dict[str, WorldEvent] = {}
 
     def record_event(self, event: WorldEvent) -> None:
         self.events[event.event_id] = event
         logger.info("📅 Event recorded: %s (Time: %.1f)", event.title, event.timestamp)
 
-    def get_timeline(self, entity_id: str | None = None) -> list[WorldEvent]:
+    def get_timeline(self, entity_id: Optional[str] = None) -> List[WorldEvent]:
         """Returns sorted chronologically list of events, optionally filtered by entity."""
         all_events = list(self.events.values())
         if entity_id:

@@ -209,7 +209,7 @@ class SourceBodySnapshot:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> SourceBodySnapshot:
+    def from_dict(cls, data: dict[str, Any]) -> "SourceBodySnapshot":
         return cls(
             boot_id=str(data.get("boot_id", "")),
             t=float(data.get("t", 0.0)),

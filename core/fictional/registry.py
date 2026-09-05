@@ -14,6 +14,8 @@ import logging
 import os
 from typing import Any
 
+from core.service_names import ServiceNames
+
 from core.fictional.ava import SocialModelingEngine
 from core.fictional.common import record_fictional_degradation
 from core.fictional.cortana import CognitiveHealthMonitor
@@ -21,7 +23,6 @@ from core.fictional.edi import ProgressiveAutonomySystem
 from core.fictional.jarvis import ProactiveAnticipationEngine
 from core.fictional.mist import TemporalDilationScheduler
 from core.fictional.skynet import DistributedResilienceCore
-from core.service_names import ServiceNames
 
 logger = logging.getLogger("Aura.FictionalSynthesis")
 

@@ -7,13 +7,13 @@ They are generic control primitives, not domain-specific scripts.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable, Dict, List, Optional
 
 from .environment_parser import EnvironmentState
 from .goal_manager import EmbodiedGoal
 from .reflex_layer import RiskProfile
+
 
 Predicate = Callable[[EnvironmentState, RiskProfile, EmbodiedGoal], bool]
 
@@ -22,17 +22,17 @@ Predicate = Callable[[EnvironmentState, RiskProfile, EmbodiedGoal], bool]
 class SkillOption:
     name: str
     description: str
-    preconditions: list[str] = field(default_factory=list)
-    success_conditions: list[str] = field(default_factory=list)
-    failure_conditions: list[str] = field(default_factory=list)
-    constraints: list[str] = field(default_factory=list)
-    action_hints: list[str] = field(default_factory=list)
+    preconditions: List[str] = field(default_factory=list)
+    success_conditions: List[str] = field(default_factory=list)
+    failure_conditions: List[str] = field(default_factory=list)
+    constraints: List[str] = field(default_factory=list)
+    action_hints: List[str] = field(default_factory=list)
     priority: float = 0.5
     reliability: float = 0.5
     interruptible: bool = True
-    tags: list[str] = field(default_factory=list)
-    metadata: dict[str, Any] = field(default_factory=dict)
-    predicate: Predicate | None = None
+    tags: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    predicate: Optional[Predicate] = None
     successes: int = 0
     failures: int = 0
     updated_at: float = field(default_factory=time.time)
@@ -72,7 +72,7 @@ class EnvironmentSkillGraph:
     """Selects the next option from the current goal/risk/state."""
 
     def __init__(self, macro_library: Any = None) -> None:
-        self.options: dict[str, SkillOption] = {}
+        self.options: Dict[str, SkillOption] = {}
         self._seed_generic_options()
         if macro_library is not None:
             self.load_from_macro_library(macro_library)
@@ -93,7 +93,7 @@ class EnvironmentSkillGraph:
             candidates = list(self.options.values())
         return max(candidates, key=lambda option: option.score(state, risk, goal))
 
-    def to_prompt(self, selected: SkillOption | None = None) -> str:
+    def to_prompt(self, selected: Optional[SkillOption] = None) -> str:
         lines = ["[SKILL GRAPH]"]
         if selected:
             lines.append(f"SELECTED OPTION: {selected.name} - {selected.description}")

@@ -58,7 +58,7 @@ import json
 import logging
 import random
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 logger = logging.getLogger("Aura.ProcedureInduction")
@@ -370,7 +370,7 @@ class ProcedureInducer:
 class _IdentityProgram(Program):
     """`in_k` — the input itself, with no instructions."""
 
-    def __new__(cls, n_inputs: int, slot: int) -> _IdentityProgram:
+    def __new__(cls, n_inputs: int, slot: int) -> "_IdentityProgram":
         obj = object.__new__(cls)
         object.__setattr__(obj, "n_inputs", n_inputs)
         object.__setattr__(obj, "instructions", ())
