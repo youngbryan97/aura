@@ -50,7 +50,9 @@ _MIN_MODEL_BACKED_RATE = 0.25
 
 
 
-def _latent_episode_seconds(objective: str, *, floor_s: float) -> float:
+def _latent_episode_seconds(
+    objective: str, *, floor_s: float, messages: list | None = None
+) -> float:
     """How long a complete answer to this actually needs.
 
     Measured where there are measurements: `measured_admission` keeps p90
@@ -64,11 +66,15 @@ def _latent_episode_seconds(objective: str, *, floor_s: float) -> float:
     try:
         from core.brain.llm.measured_admission import recommended_foreground_deadline
         from core.brain.llm.model_registry import runtime_model_measurement_key
+        from core.brain.memory_guard import estimate_tokens
         from core.runtime.structured_input import answer_surface_planning_tokens
 
         needed, _confidence, _samples = recommended_foreground_deadline(
             model=runtime_model_measurement_key(),
-            prompt_tokens=max(2048, 1800 + len(str(objective or "")) // 4),
+            prompt_tokens=max(
+                2048,
+                estimate_tokens(messages or [{"role": "user", "content": objective}]),
+            ),
             decode_tokens=max(1, answer_surface_planning_tokens(str(objective or ""))),
             minimum_seconds=float(floor_s),
             maximum_seconds=float(USER_FACING_COMPLETION_DEADLINE_MAX_S),
@@ -232,7 +238,9 @@ class DeepDeliberationEngine:
                     # old allowance as the floor and the runtime's own
                     # published deadline as the ceiling.
                     latent_timeout_s = _latent_episode_seconds(
-                        refined, floor_s=min(120.0, timeout_s * 2)
+                        refined,
+                        floor_s=min(120.0, timeout_s * 2),
+                        messages=episode_messages,
                     )
                     latent = await asyncio.wait_for(
                         get_latent_cortex_service(self.orchestrator).deep_reason(

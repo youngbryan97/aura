@@ -13120,14 +13120,13 @@ async def _stabilize_user_facing_reply(
                         memory_block,
                     )
                     raise RuntimeError(f"stabilizer_rewrite_memory_pressure:{memory_block}")
-                # Shorter rewrite budget: 20s blocked the foreground lane long
-                # enough that the next user turn was already typed. 12s gives
-                # the warm 32B time to rewrite without making the chat feel
-                # frozen, and the original text is still preferred over a
-                # static reflex if this fires the timeout path.
+                from core.brain.llm_health_router import _await_while_it_is_working
+
+                # Use the same completion owner as the original generation.
+                # An estimate is not permission to cancel an active repair.
                 strict_desktop_repair = bool(desktop_cognitive_engine_required)
                 stabilizer_timeout = 28.0 if strict_desktop_repair else 12.0
-                corrected = await asyncio.wait_for(
+                corrected = await _await_while_it_is_working(
                     inference_gate.think(
                         correction_prompt,
                         system_prompt=rewrite_system_prompt,
@@ -13150,7 +13149,9 @@ async def _stabilize_user_facing_reply(
                         clear_prompt_cache=True,
                         max_tokens=stabilizer_max_tokens,
                     ),
-                    timeout=stabilizer_timeout,
+                    budget_s=stabilizer_timeout,
+                    user_facing=True,
+                    person_is_waiting=strict_desktop_repair,
                 )
                 corrected_text = _apply_aura_voice_shaping_compat(
                     str(corrected or "").strip(), user_message

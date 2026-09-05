@@ -265,3 +265,56 @@ async def test_expired_cycle_without_renewal_does_not_commit(monkeypatch):
     )
     assert outcome == "cycle_deadline_expired"
     repository.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_owned_quick_reply_commits_after_generation_estimate_without_keeper():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from core.brain import cognitive_engine as engine
+
+    repository = SimpleNamespace(commit=AsyncMock())
+    state = object()
+    expired = engine.time.monotonic() - 10
+    with bind_turn(TurnOutcome("quick-commit", origin="desktop")):
+        outcome, committed = await engine._commit_the_thought_with_retries(
+            commit_outcome="not_attempted", cycle_deadline_at=expired,
+            runtime_context={"cognitive_cycle_deadline_monotonic": expired},
+            is_test_run=False, max_retries=1, origin="user", pre_turn_cognition={},
+            self=SimpleNamespace(state_repository=repository), should_bypass_commit=False,
+            state=state, temp_state=state,
+        )
+    assert outcome == "committed"
+    assert committed is state
+    repository.commit.assert_awaited_once_with(state, "cognitive_cycle")
+
+
+@pytest.mark.asyncio
+async def test_owned_commit_cancellation_reaches_repository():
+    from types import SimpleNamespace
+
+    from core.brain import cognitive_engine as engine
+
+    started, cleaned = asyncio.Event(), asyncio.Event()
+
+    async def commit(*args):
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cleaned.set()
+
+    with bind_turn(TurnOutcome("cancel-commit", origin="desktop")):
+        task = asyncio.create_task(engine._commit_the_thought_with_retries(
+            commit_outcome="not_attempted", cycle_deadline_at=0,
+            runtime_context={}, is_test_run=False, max_retries=1,
+            origin="user", pre_turn_cognition={},
+            self=SimpleNamespace(state_repository=SimpleNamespace(commit=commit)),
+            should_bypass_commit=False, state=object(), temp_state=object(),
+        ))
+        await asyncio.wait_for(started.wait(), timeout=1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    assert cleaned.is_set()

@@ -77,3 +77,19 @@ def test_the_desktop_transaction_identifies_the_waiting_person() -> None:
         assert "person_is_waiting=bool(require_engine)" in body
         return
     raise AssertionError("desktop cognitive transaction is gone")
+
+
+def test_identity_rewrite_uses_the_same_foreground_completion_owner() -> None:
+    tree = ast.parse(CHAT.read_text(encoding="utf-8"))
+    function = next(node for node in ast.walk(tree)
+                    if isinstance(node, ast.AsyncFunctionDef)
+                    and node.name == "_stabilize_user_facing_reply")
+    waits = [node for node in ast.walk(function)
+             if isinstance(node, ast.Call)
+             and isinstance(node.func, ast.Name)
+             and node.func.id == "_await_while_it_is_working"]
+    assert len(waits) == 1
+    keywords = {item.arg: ast.unparse(item.value) for item in waits[0].keywords}
+    assert keywords["person_is_waiting"] == "strict_desktop_repair"
+    assert keywords["user_facing"] == "True"
+    assert "inference_gate.think" in ast.unparse(waits[0].args[0])

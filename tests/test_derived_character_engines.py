@@ -214,6 +214,46 @@ def test_deep_thought_propagates_background_priority(monkeypatch):
     assert latent_calls and latent_calls[0]["foreground_request"] is False
 
 
+def test_deep_thought_prices_compiled_context_at_dispatch(monkeypatch):
+    import core.brain.latent_cortex_service as latent_service
+    import core.brain.llm.measured_admission as admission
+    import core.knowledge.compiled_understanding as compiled
+    from core.brain.deep_deliberation import DeepDeliberationEngine
+    from core.brain.memory_guard import estimate_tokens
+
+    measured = []
+    dispatched = []
+
+    class Brain:
+        async def think(self, prompt, **kwargs):
+            return "Explain the distinction between evidence and inference."
+
+    class Understanding:
+        async def understand(self, question):
+            return {"context": "Provenance-bearing context. " * 4000}
+
+    class LatentService:
+        async def deep_reason(self, question, **kwargs):
+            dispatched.append(kwargs)
+            return {"ok": True, "text": "A checked observation supports the inference."}
+
+    def deadline(**kwargs):
+        measured.append(kwargs)
+        return 420.0, "measured", 10
+
+    monkeypatch.setattr(admission, "recommended_foreground_deadline", deadline)
+    monkeypatch.setattr(compiled, "get_compiled_understanding", Understanding)
+    monkeypatch.setattr(latent_service, "get_latent_cortex_service", lambda *a: LatentService())
+    result = asyncio.run(DeepDeliberationEngine(SimpleNamespace(brain=Brain())).deliberate(
+        "Explain the distinction between evidence and inference."
+    ))
+    assert result.used_latent_cortex
+    assert len(measured) == len(dispatched) == 1
+    assert measured[0]["prompt_tokens"] == estimate_tokens(dispatched[0]["messages"])
+    assert measured[0]["prompt_tokens"] > 2048
+    assert dispatched[0]["timeout_s"] == 420.0
+
+
 def test_brainiac_bottles_and_retrieves(tmp_path, monkeypatch):
     import core.knowledge.bottling as bottling
     from core.knowledge.bottling import KnowledgeBottlingEngine

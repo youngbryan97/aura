@@ -52732,3 +52732,30 @@ estimator. This does not renew a caller deadline or prove live completion.
 Focused wiring, allocation and model-rate tests: 160 passed. Smoke: 163
 passed, one skipped. Lint, compile and layering passed. Next: source-matched
 replay while reading neural-stream events, replies and runtime logs together.
+
+## Checkpoint 2026-09-05: Foreground Completion Owns Persistence and Repair
+
+The source-matched 1092afbf0 live replay did not pass. The startup turn used
+the smaller fallback. The ready-state turn reached the 27B, prefilling 2938
+tokens in 21.51 seconds and decoding 921 in 82.07 seconds. Its quick path
+bypassed the cycle renewal task, then rejected persistence against the spent
+generation estimate. Exact hybrid cache continuation reused 3858/3859 tokens,
+but downstream repair ultimately replaced the answer with a failure message.
+Two identity rewrites were cancelled by an independent 28-second timer.
+
+Owned foreground persistence now awaits the repository's commit operation;
+unowned calls retain the cycle deadline. Cancellation reaches the repository
+and no closure is claimed before return. Identity rewrite waits use the same
+completion owner as original generation. Deep deliberation prices the compiled
+messages it actually dispatches through the existing token estimator.
+
+Focused checks: 45 derived-engine tests, 59 renewal/background-hardening tests,
+and 23 renewal/desktop-clock tests passed (overlapping suites). Live validation
+of these changes remains open. Other observed issues remain open: startup
+fallback attribution, repeated field saturation, scan deferral reported as an
+unknown error, sparse non-parametric memory refusal, steering liveness warning,
+and semantic completion/reliability repair replacing authored progress. This
+checkpoint establishes neither general RLC gain nor live reply completion.
+
+Smoke: 163 passed, one skipped. Lint, compile and layering passed after fixing
+import order. The live runtime still carries 1092afbf0, not this checkpoint.

@@ -1418,7 +1418,10 @@ async def _commit_the_thought_with_retries(
     writing. It reads 10 name(s) from the turn and hands back
     2.
     """
+    from core.runtime.turn_origin import a_person_is_waiting
     from core.state.state_repository import StateVersionConflictError
+
+    owned_foreground = current_turn() is not None and a_person_is_waiting(origin)
     for attempt in range(max_retries):
         if should_bypass_commit:
             commit_outcome = (
@@ -1433,7 +1436,7 @@ async def _commit_the_thought_with_retries(
             if runtime_context is not None else cycle_deadline_at
         )
         _commit_budget = max(0.0, commit_deadline - time.monotonic())
-        if _commit_budget <= 0.0:
+        if _commit_budget <= 0.0 and not owned_foreground:
             commit_outcome = "cycle_deadline_expired"
             record_degradation(
                 "cognitive_engine",
@@ -1451,19 +1454,28 @@ async def _commit_the_thought_with_retries(
             break
         try:
             # v14.2: Ensure the repository reference is correct (self.state_repository)
-            await asyncio.wait_for(
-                self.state_repository.commit(state, "cognitive_cycle"),
-                timeout=_commit_budget,
-            )
+            if owned_foreground:
+                # Generation estimates do not expire completed cognitive work.
+                # Storage owns transport/transaction failure; cancellation
+                # still reaches this await and prevents a closure receipt.
+                await self.state_repository.commit(state, "cognitive_cycle")
+            else:
+                await asyncio.wait_for(
+                    self.state_repository.commit(state, "cognitive_cycle"),
+                    timeout=_commit_budget,
+                )
             commit_outcome = "committed"
             break  # Success!
         except TimeoutError:
             commit_outcome = "commit_timeout"
             record_degradation(
                 "cognitive_engine",
-                TimeoutError(f"state commit exceeded {_commit_budget:.1f}s"),
+                TimeoutError(
+                    "state repository commit timed out" if owned_foreground
+                    else f"state commit exceeded {_commit_budget:.1f}s"
+                ),
                 severity="error",
-                action="abandoned the state commit at the cognitive cycle deadline",
+                action="state commit did not complete",
             )
             break
         except StateVersionConflictError as v_err:
