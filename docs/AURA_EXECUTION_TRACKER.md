@@ -52846,3 +52846,18 @@ rejected drafts and repeated repairs. The neural panel also reports unrun
 claim evidence, separately from behavioral failures. Source-matched replay
 of the committed repairs remains open. Claude's latest gate-nine evidence
 locates acquisition cost inside inversion; it does not show general transfer.
+
+## Live Replay 2026-09-05 13:03 Pacific
+
+Controlled SIGTERM shutdown of PID 77538 completed with logged exit code 0.
+Its recorded workers exited and port 8000 cleared before replacement launch.
+Canonical main fast-forwarded to 7389c08a9, preserving unrelated log deletions.
+Replacement PID 94319 is the sole desktop runtime. Boot reports matching
+expected/actual revision 7389c08a9 and became ready before the replay.
+
+The original fact-versus-inference question was submitted through the live
+chat UI at approximately 13:03:45. Worker logs at 13:03:53 show steering zero,
+one requested recurrent loop, and a 47,643-character input. Result is pending;
+no live receipt or answer-quality pass is claimed. The active continuation
+wakeup resumes this task every fifteen minutes from this tracker. Inspect
+the reply and neural stream before sending another turn or restarting again.
