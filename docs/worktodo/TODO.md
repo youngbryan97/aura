@@ -29,7 +29,7 @@ buildable thing. Status is measured, not asserted.
 | 10 | Causal credit assignment across thousands of mechanisms: counterfactual replay, causal graphs, Shapley-like attribution, eligibility traces, selective interventions | OPEN |
 | 11 | Epistemic independence: no important adaptive mechanism defines its own success criterion after observing its result | **DONE** — `core/verify/epistemic_independence.py` seals a criterion before the run and refuses a redefinition after it has judged; `make epistemic-independence` finds bars derived from what they judge; checked against its null, all three planted forms caught |
 | 12 | Model horizon: know when a simulation has left its trustworthy regime and must not drive irreversible choices | **DONE** — `core/verify/model_horizon.py` measures support and local calibration, model-agnostic; four standings keep "nothing near this was checked" separate from "the model is wrong here"; composed into the agency ceiling, which gives `turn_budget()` its first caller |
-| 13 | Resource rationality: value-of-computation decisions, including whether to spend on learning at all | OPEN |
+| 13 | Resource rationality: value-of-computation decisions, including whether to spend on learning at all | **DONE** — `core/cognition/value_of_computation.py`; more thinking is worth something only if it can change the decision, measured against a null arm of deliberations that spent nothing; `worth_learning` refuses a real gain that will be needed twice |
 
 ## Development
 

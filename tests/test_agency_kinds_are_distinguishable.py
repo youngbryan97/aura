@@ -322,3 +322,37 @@ def test_turn_budget_finally_has_a_caller():
     from core.agency.agency_kind import _irreversibility_ceiling
 
     assert "turn_budget()" in inspect.getsource(_irreversibility_ceiling)
+
+
+# ── is more thinking worth it ────────────────────────────────────────────
+
+
+def test_a_deliberation_knows_how_far_its_leader_is_ahead():
+    result = deliberate([
+        OptionEvidence("a", motive=0.9, affect=0.5, actions_available=2),
+        OptionEvidence("b", motive=0.2, affect=0.5, actions_available=2),
+    ])
+    assert result.margin > 0.0
+
+
+def test_one_eligible_option_settles_without_a_record():
+    """Nothing for more thinking to promote."""
+    from core.cognition.value_of_computation import Worth
+
+    result = deliberate([
+        OptionEvidence("a", motive=0.9, affect=0.5, actions_available=2),
+        OptionEvidence("b", motive=0.5, affect=0.5, actions_available=0),
+    ])
+    assert result.worth_more_thought(cost=0.1).worth is Worth.SETTLED
+
+
+def test_a_near_tie_asks_the_value_of_computation():
+    from core.cognition.value_of_computation import Worth
+
+    result = deliberate([
+        OptionEvidence("a", motive=0.50, affect=0.50, actions_available=2),
+        OptionEvidence("b", motive=0.49, affect=0.50, actions_available=2),
+    ])
+    judgement = result.worth_more_thought(cost=0.1)
+    assert judgement.worth in {Worth.UNMEASURED, Worth.WORTH, Worth.TOO_EXPENSIVE}
+    assert judgement.margin < 0.05

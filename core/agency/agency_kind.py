@@ -38,6 +38,7 @@ opinion, and there are enough of those.
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -194,6 +195,42 @@ class Deliberation:
     def cost(self) -> tuple[Verdict, ...]:
         """What she wanted and did not get. The only outcomes that cost her."""
         return tuple(v for v in self.verdicts if v.kind.costs_her)
+
+    @property
+    def margin(self) -> float:
+        """How far the taken option is ahead of the next eligible one."""
+        eligible = sorted(
+            (v.score for v in self.verdicts
+             if v.kind in {AgencyKind.CHOSEN, AgencyKind.OUTRANKED, AgencyKind.TIED}),
+            reverse=True,
+        )
+        if len(eligible) < 2:
+            return math.inf
+        return eligible[0] - eligible[1]
+
+    def worth_more_thought(self, *, cost: float, stakes: float = 1.0) -> Any:
+        """Whether another round of deliberation could change this outcome.
+
+        A deliberation already knows how far ahead its leader is, which is the
+        one number the question turns on. Asking here rather than leaving it to
+        a caller is what makes the answer available at the moment it is
+        actionable.
+        """
+        from core.cognition.value_of_computation import worth_continuing
+
+        lead = self.margin
+        if lead == math.inf:
+            from core.cognition.value_of_computation import Judgement, Worth
+
+            return Judgement(
+                worth=Worth.SETTLED,
+                margin=lead,
+                plausible_swing=None,
+                cost=float(cost),
+                expected_value=0.0,
+                because="there is no second eligible option for thinking to promote",
+            )
+        return worth_continuing(margin=lead, cost=cost, stakes=stakes)
 
     def to_dict(self) -> dict[str, Any]:
         return {
