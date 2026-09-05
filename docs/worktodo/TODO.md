@@ -18,7 +18,7 @@ buildable thing. Status is measured, not asserted.
 | :-- | :-- | :-- |
 | 5 | Canonical state ownership. Many systems own overlapping affect / self / attention / continuity / agency / welfare / goals / uncertainty. Modules become estimators and consumers of one authoritative state | **DONE** — `core/canonical` declares 19 channels across 8 domains with precision-weighted fusion; five subsystems that each owned affect are estimators; `make state-ownership` ratchets private copies (14 → 12, may only shrink) |
 | 6 | Disagreement becomes a cognitive event rather than a silent average. Three subsystems differing on uncertainty is metacognitive evidence | **DONE** — spread survives fusion, raises a `Disagreement` naming each position, and `reconcile()` turns it into evidence on epistemic.uncertainty and self.coherence, excluded from their own source set so it cannot drift |
-| 7 | One authoritative self. SelfObject, AuraNow.self_state, identity engine, continuity engine, workspace ownership, substrate self-representation become views over one state | OPEN |
+| 7 | One authoritative self. SelfObject, AuraNow.self_state, identity engine, continuity engine, workspace ownership, substrate self-representation become views over one state | **DONE** — SelfObject reads the canonical self and affect instead of one engine, defaults are flagged as defaults, attentional coherence renamed to say what it measures; private copies 14 → 5 |
 | 8 | Conation / welfare / affect / Will converge into a clean causal sequence that can distinguish dislikes-X from wants-but-refuses from judges-impossible from judges-unsafe from prefers-Y | OPEN |
 
 ## Evidence and epistemics

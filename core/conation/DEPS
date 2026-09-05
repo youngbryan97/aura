@@ -11,6 +11,7 @@ include_rules = [
     "+core.conation",
 
     # Service lookup, for reading the organs below at call time.
+    "+core.canonical",
     "+core.container",
     "+core.service_names",
 

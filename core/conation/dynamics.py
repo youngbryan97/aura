@@ -82,6 +82,11 @@ def half_life_decay(half_life_s: float, elapsed_s: float) -> float:
     return 0.5 ** (max(0.0, elapsed_s) / half_life_s)
 
 
+#: What motivational activation is worth as an estimate of arousal. Middling:
+#: it decays on a clock, so it can read high with nothing currently happening.
+_CANONICAL_CONATIVE_CONFIDENCE = 0.4
+
+
 @dataclass
 class SatiationState:
     """How thoroughly a motive has been consumed, and how it recovers.
@@ -297,6 +302,22 @@ class ConativeDynamics:
         self._arousal_updated = now
         if self._arousal < 1e-4:
             self._arousal = 0.0
+        # Motivational activation is one estimator of canonical arousal: how
+        # mobilised she is because something matters to her, as against the
+        # brainstem reading or the appraisal. Confidence is middling because
+        # it decays on a clock and can be high with nothing happening.
+        try:
+            from core.canonical.state import estimate
+
+            estimate(
+                "affect.arousal",
+                min(1.0, self._arousal),
+                confidence=_CANONICAL_CONATIVE_CONFIDENCE,
+                producer="conation",
+                note="decayed motive strength",
+            )
+        except (ImportError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("conation.dynamics", exc, action="canonical estimate skipped")
         return self._arousal
 
     def register_motive(

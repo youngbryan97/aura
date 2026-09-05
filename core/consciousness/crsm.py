@@ -49,6 +49,11 @@ PERSIST_PATH = state_root() / "data" / "crsm_state.json"
 
 # ── Minimal numpy GRU cell ────────────────────────────────────────────────────
 
+#: What the recurrent one-step error is worth as an estimate of prediction
+#: error. High: it is the model's own miss, measured rather than inferred.
+_CANONICAL_CRSM_CONFIDENCE = 0.7
+
+
 class _NumpyGRU:
     """Minimal single-cell GRU in numpy — no framework dependencies."""
 
@@ -161,6 +166,20 @@ class ContinuousRecurrentSelfModel:
             err = float(np.mean((pred - x) ** 2))
             self._prediction_error = err
             self._error_ema = 0.9 * self._error_ema + 0.1 * err
+            # The recurrent model's own miss is the most direct reading of
+            # how wrong she currently is about what happens next.
+            try:
+                from core.canonical.state import estimate
+
+                estimate(
+                    "world.prediction_error",
+                    min(1.0, err),
+                    confidence=_CANONICAL_CRSM_CONFIDENCE,
+                    producer="crsm",
+                    note="recurrent one-step error",
+                )
+            except (ImportError, KeyError, RuntimeError, TypeError, ValueError):
+                pass
 
             # Online learning when prediction error is meaningful
             if err > PRED_ERR_THRESHOLD:

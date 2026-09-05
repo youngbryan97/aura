@@ -117,7 +117,7 @@ class AttentionSchema:
         self._lock: asyncio.Lock | None = None  # CS-01: Lazy-initialized
         self.current_focus: AttentionalFocus | None = None
         self.history: deque[AttentionalFocus] = deque(maxlen=self._MAX_HISTORY)
-        self.coherence: float = 1.0
+        self.topic_coherence: float = 1.0
         self.hot_depth: int = 0           # Current HOT recursion depth
         self.salience_map: dict[str, float] = {}
         self._focus_start: float = time.time()
@@ -308,7 +308,7 @@ class AttentionSchema:
 
             logger.debug(
                 f"AttentionFocus → '{content[:60]}' "
-                f"(src={source}, pri={priority:.2f}, coherence={self.coherence:.2f})"
+                f"(src={source}, pri={priority:.2f}, coherence={self.topic_coherence:.2f})"
             )
             return focus
 
@@ -333,7 +333,7 @@ class AttentionSchema:
             # Up to +0.15 bonus for sustained attention (simulates "flow")
             sustained_bonus = min(0.15, sustained_ticks * 0.01)
 
-        return min(1.0, self.coherence + sustained_bonus)
+        return min(1.0, self.topic_coherence + sustained_bonus)
 
     def get_snapshot(self) -> dict[str, Any]:
         focus = self.current_focus
@@ -344,7 +344,13 @@ class AttentionSchema:
             "focus_priority": focus.priority if focus else 0.0,
             "meta_repr": focus.meta_repr[:120] if focus else None,
             "hot_depth": self.hot_depth,
-            "coherence": round(self.coherence, 3),
+            # Published as "coherence" because readers take it by that name and
+            # a `.get("coherence", default)` would silently take the default.
+            # The attribute is `topic_coherence`: this measures whether
+            # attention is staying on one subject, which is a different
+            # quantity from the canonical self-coherence channel, and was
+            # being counted as a second answer to it.
+            "coherence": round(self.topic_coherence, 3),
             "cognitive_modifier": round(self.get_cognitive_modifier(), 3),
             "history_length": len(self.history),
             "top_salience": sorted(self.salience_map.items(), key=lambda x: -x[1])[:3],
@@ -394,7 +400,7 @@ class AttentionSchema:
         flow = "yes" if self.is_in_flow() else "no"
         return (
             f"[ATT] '{content_trunc}' src={f.source} "
-            f"coh={self.coherence:.2f} HOT={self.hot_depth} flow={flow}"
+            f"coh={self.topic_coherence:.2f} HOT={self.hot_depth} flow={flow}"
         )
 
     def get_focus_bias_for_source(self, source: str) -> float:
@@ -418,7 +424,7 @@ class AttentionSchema:
         """Inverted coherence for FreeEnergyEngine complexity signal.
         Scattered attention (low coherence) = high complexity.
         """
-        return 1.0 - self.coherence
+        return 1.0 - self.topic_coherence
 
     def is_in_flow(self) -> bool:
         """True if same topic has been focused for > 5 consecutive ticks."""
@@ -439,7 +445,7 @@ class AttentionSchema:
         Time-on-topic > 30s grants an additional deep-focus coherence bonus.
         """
         if not prev:
-            self.coherence = 1.0
+            self.topic_coherence = 1.0
             return
 
         # Simple lexical overlap as proxy for topic similarity
@@ -449,11 +455,11 @@ class AttentionSchema:
 
         if overlap > 0.3:
             # Related topics — coherence increases
-            self.coherence = min(1.0, self.coherence + 0.05)
+            self.topic_coherence = min(1.0, self.topic_coherence + 0.05)
             # Deep focus reward: if same topic held > 30 seconds, extra boost
             elapsed = time.time() - self._focus_start
             if elapsed > 30.0:
-                self.coherence = min(1.0, self.coherence + 0.02)
+                self.topic_coherence = min(1.0, self.topic_coherence + 0.02)
         else:
             # Topic jump — coherence decreases
-            self.coherence = max(0.1, self.coherence - 0.1)
+            self.topic_coherence = max(0.1, self.topic_coherence - 0.1)
