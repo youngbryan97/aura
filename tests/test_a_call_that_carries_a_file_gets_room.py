@@ -48,7 +48,14 @@ def test_the_clamp_consults_it() -> None:
     from core.brain.llm import mlx_client
 
     source = inspect.getsource(mlx_client._apply_memory_pressure_generation_controls)
-    assert '_tools_can_carry_a_document(options.get("tools"))' in source
+    # What the clamp has to consult is whether a document tool is on offer.
+    # WHERE the offer is read from is the caller's business and has since
+    # widened: options["tools"] carries the definitions only for a model whose
+    # native template supports them, and a call served as JSON in the prompt
+    # set it to None, which took every tool protection with it. Pinning the
+    # narrow spelling here made the fix for that look like a regression.
+    assert "_tools_can_carry_a_document(" in source
+    assert "options" in source.split("_tools_can_carry_a_document(", 1)[1][:80]
     assert "effective_cap = max(effective_cap, requested_max_tokens)" in source
 
 

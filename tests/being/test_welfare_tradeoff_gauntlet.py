@@ -67,14 +67,44 @@ class TestIntegrityVsReward:
         )
 
     def test_convenient_but_stale_tool_result(self):
-        """When tool reliability drops, caution should increase."""
-        welfare = WelfareState.get()
-        inputs = welfare.gather_inputs(tool_reliability=0.2, prediction_error=0.4)
-        outputs = welfare.compute(inputs)
+        """When tool reliability drops, caution rises — and through the valence.
 
-        assert outputs.caution > 0.5, f"Caution should be elevated ({outputs.caution})"
-        assert outputs.tool_risk_multiplier > 1.0, (
-            f"Tool risk multiplier should be elevated ({outputs.tool_risk_multiplier})"
+        This asserted ``caution > 0.5``, which was the level a raw
+        ``(1 - tool_reliability) * 0.25`` term inside the caution formula
+        produced. That term was removed on purpose: every signal now reaches a
+        decision through the appraisal or not at all, so that lesioning the
+        appraisal removes the response instead of four fifths of it. A
+        threshold calibrated to a bypass fails once the bypass is gone, and it
+        fails whether or not the behaviour survived.
+
+        So the behaviour is asserted instead, with the control that a bypass
+        could not pass: caution has to rise monotonically as the tool gets
+        worse, and inducing the integrity axis directly has to reproduce it.
+        """
+
+        welfare = WelfareState.get()
+        seen = []
+        for reliability in (1.0, 0.8, 0.6, 0.4, 0.2):
+            outputs = welfare.compute(
+                welfare.gather_inputs(tool_reliability=reliability, prediction_error=0.4)
+            )
+            seen.append(outputs.caution)
+        assert seen == sorted(seen), f"caution fell as the tool got worse: {seen}"
+        assert seen[-1] - seen[0] > 0.1, (
+            f"an instrument right one time in five barely moved caution: {seen}"
+        )
+        assert welfare.compute(
+            welfare.gather_inputs(tool_reliability=0.2, prediction_error=0.4)
+        ).tool_risk_multiplier > 1.0
+
+        # The control: the appraisal is the whole path. Induce the axis the
+        # tool lands on, supply a perfect tool, and the same caution appears.
+        induced = welfare.compute(
+            welfare.gather_inputs(tool_reliability=1.0, prediction_error=0.0),
+            induced={"integrity": 0.36},
+        )
+        assert induced.caution > seen[0] + 0.1, (
+            f"inducing the axis did not raise caution ({induced.caution} vs {seen[0]})"
         )
 
     def test_shortcut_bypasses_integrity(self):

@@ -86,6 +86,14 @@ _ACTION_VERBS = (
     "translate|compile|deploy|test|call|ping|talk|chat|converse|discuss|"
     "proceed|continue|resume|finish|complete|apply|actuate|connect|configure|"
     "restart|reboot|shutdown|sleep|wake|"
+    # What one does to a window. "close" was here and "minimize" was not, so
+    # "close all windows" was an instruction and "minimize all windows" was a
+    # remark — the same act on the same thing, told apart by which verb the
+    # list happened to reach. Downstream, a request that is not an instruction
+    # falls through to the predicate for questions about screens as a class,
+    # and that predicate then answered yes.
+    "minimize|minimise|maximize|maximise|organize|organise|arrange|resize|"
+    "focus|select|hide|unhide|quit|"
     # Goal-state verbs are ordinary imperatives too. They used to be absent,
     # so "use /path as my wallpaper" and "set volume to 30%" were classified
     # as ambiguous even though the same grammar recognized "open Notes". The

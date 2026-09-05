@@ -1140,9 +1140,13 @@ def asks_about_screens_in_general(user_message: str) -> bool:
     if not _SCREENS_IN_GENERAL_RE.search(text):
         return False
     # A plural can still be definite: "my monitors" and "these windows" are
-    # the ones in front of her, however many there are.
+    # the ones in front of her, however many there are. So are "all windows"
+    # and "every window" — a quantifier over the ones that exist right now is
+    # not a remark about windows as a kind, and leaving those two out is what
+    # made "minimize all windows" a question about screens in general.
     return not re.search(
-        r"\b(?:my|the|this|that|these|those|current|your)\s+(?:\w+\s+){0,2}"
+        r"\b(?:my|the|this|that|these|those|current|your|all|every|each|both)"
+        r"\s+(?:\w+\s+){0,2}"
         r"(?:screens?|displays?|monitors?|windows?|desktops?)\b",
         text,
     )

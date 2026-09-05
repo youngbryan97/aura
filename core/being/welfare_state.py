@@ -308,17 +308,28 @@ class WelfareState:
             + (1.0 - inputs.truth_integrity) * 0.35
             + inputs.continuity_risk * 0.30
             + min(1.0, inputs.memory_conflict_count / 8.0) * 0.20
-            + inputs.prediction_error * 0.15
+            # Prediction error is the record being wrong, measured. It sat
+            # below the conflict count, which is a proxy for the same thing.
+            + inputs.prediction_error * 0.30
+            # A tool that is right one time in five is not a stiff limb, it is
+            # a source of false record. It reaches capability too, below.
+            + (1.0 - inputs.tool_reliability) * 0.35
         )
 
         # The hands do not work: whether she can act at all.
         capability_distress = _clip(
             (1.0 - inputs.resource_integrity) * 0.30
-            + (1.0 - inputs.tool_reliability) * 0.30
+            + (1.0 - inputs.tool_reliability) * 0.20
             + (1.0 - inputs.model_stability) * 0.25
             + inputs.body_pressure * 0.20
             + inputs.fatigue * 0.20
             + inputs.recovery_debt * 0.15
+            # The one channel here that is an outcome rather than a
+            # precondition: every other term says acting may not work, and
+            # this one says it already did not. It carried the largest weight
+            # on the social axis, where it read as the other party not wanting
+            # the thing, which is a different situation entirely.
+            + inputs.goal_frustration * 0.35
         )
 
         # The other party, or the standing to act: whether doing anything is
@@ -328,7 +339,6 @@ class WelfareState:
             (1.0 - inputs.social_trust) * 0.40
             + (1.0 - inputs.permission_confidence) * 0.35
             + inputs.unresolved_conflict * 0.25
-            + inputs.goal_frustration * 0.20
         )
 
         # An induced axis replaces what the inputs computed for it. Applied
@@ -453,10 +463,21 @@ class WelfareState:
             + (1.0 - inputs.memory_coherence) * 0.20
             + distress * 0.10
         )
+        # One of these at alarm is a reason to guard. Averaging a firing
+        # alarm with two quiet ones means no single channel can ever trip the
+        # guard on its own: the record 80% untrustworthy, and nothing else
+        # wrong, came to 0.49 against a threshold of 0.5. Same shape as
+        # distress above, and for the same reason — the dangerous case is the
+        # one where something is badly wrong, not the one where everything is
+        # a little wrong.
         integrity_guard = _clip(
-            truth_protection * 0.5
-            + continuity_protection * 0.25
-            + caution * 0.25
+            max(truth_protection, continuity_protection, caution) * 0.6
+            + (
+                truth_protection * 0.5
+                + continuity_protection * 0.25
+                + caution * 0.25
+            )
+            * 0.4
         )
 
         # ── Composite welfare score ──

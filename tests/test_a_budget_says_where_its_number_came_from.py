@@ -133,8 +133,18 @@ def test_zero_and_negative_counts_are_refused():
 
 
 def test_the_assembler_no_longer_multiplies_by_four():
+    """A char limit derived from tokens goes through the measurement.
+
+    This required EVERY assignment to char_limit to mention tokens_to_chars,
+    which also forbids clamping one char limit against another — and that is
+    what went red when a prefill ceiling, already expressed in characters,
+    was applied here. Converting and clamping are different operations and
+    only one of them can invent a chars-per-token constant.
+    """
+
     source = (ROOT / "core" / "brain" / "llm" / "context_assembler.py").read_text("utf-8")
     tree = ast.parse(source)
+    converted = 0
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Assign):
@@ -142,8 +152,20 @@ def test_the_assembler_no_longer_multiplies_by_four():
         targets = [t.id for t in node.targets if isinstance(t, ast.Name)]
         if "char_limit" not in targets:
             continue
-        rendered = ast.dump(node.value)
-        assert "tokens_to_chars" in rendered, ast.unparse(node)
+        if "tokens_to_chars" in ast.dump(node.value):
+            converted += 1
+            continue
+        # Not a conversion, so it must not be one in disguise: a literal
+        # multiplication is the four this test is named for.
+        for sub in ast.walk(node.value):
+            if isinstance(sub, ast.BinOp) and isinstance(sub.op, ast.Mult):
+                literal = any(
+                    isinstance(side, ast.Constant) and isinstance(side.value, int | float)
+                    for side in (sub.left, sub.right)
+                )
+                assert not literal, ast.unparse(node)
+
+    assert converted, "nothing converts tokens to characters through the measurement"
 
 
 def test_the_worker_reports_what_it_already_tokenized():

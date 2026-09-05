@@ -16,6 +16,32 @@ from pathlib import Path
 
 _GATE = Path("core/brain/inference_gate.py")
 
+def _code_after(anchor: str, *, lines: int) -> str:
+    """The next ``lines`` lines of CODE after an anchor comment.
+
+    These two contracts were checked inside a fixed count of CHARACTERS after
+    the anchor, which makes a comment added above the code the same event as
+    the code being deleted. Both went red for that reason and neither contract
+    had moved. Counting code lines says what was meant: the requirement is
+    applied here, near this, not somewhere else in a fourteen-thousand-line
+    file.
+    """
+
+    body = _GATE.read_text().splitlines()
+    start = next(
+        number for number, line in enumerate(body) if anchor in line
+    )
+    kept: list[str] = []
+    for line in body[start + 1 :]:
+        bare = line.strip()
+        if not bare or bare.startswith("#"):
+            continue
+        kept.append(line)
+        if len(kept) >= lines:
+            break
+    return "\n".join(kept)
+
+
 
 def _line_of(needle: str) -> int:
     for number, line in enumerate(_GATE.read_text().splitlines(), start=1):
@@ -114,15 +140,22 @@ def test_the_answer_floor_gets_the_last_word_at_dispatch() -> None:
 
 
 def test_the_last_word_yields_to_a_declared_requirement() -> None:
-    body = _GATE.read_text()
-    start = body.index("FINAL word on the budget for an answer turn")
-    window = body[start : start + 1600]
+    """Three declared requirements still win over the last word on the budget.
+
+    The requirement is that each one is consulted here. How it is consulted is
+    the gate's business: three separate reads and one loop over three names
+    are the same contract, and the earlier form of this test could only see
+    the first.
+    """
+
+    window = _code_after("FINAL word on the budget for an answer turn", lines=30)
     for guard in (
-        'context.get("hard_output_token_ceiling", False)',
-        'context.get("resource_stakes_blocked", False)',
-        'context.get("desktop_execution_contract", False)',
+        "hard_output_token_ceiling",
+        "resource_stakes_blocked",
+        "desktop_execution_contract",
     ):
         assert guard in window, guard
+    assert "context.get(" in window, "the requirements are read from the turn context"
 
 
 def test_the_execution_floor_still_owns_execution_turns() -> None:
@@ -139,8 +172,6 @@ def test_the_floor_in_context_is_the_entitlement() -> None:
     sent with 375 tokens.
     """
 
-    body = _GATE.read_text()
-    start = body.index("The presence of a floor is the entitlement")
-    window = body[start : start + 900]
+    window = _code_after("The presence of a floor is the entitlement", lines=40)
     assert "_foreground_answer_turn" not in window
     assert 'context.get("user_surface_completion_floor")' in window
