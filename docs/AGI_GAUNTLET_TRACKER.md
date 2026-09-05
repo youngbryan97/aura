@@ -19,7 +19,7 @@ the strength of an argument.
 | A9 | The developmental ledger receives evidence from one cognitive ecology | DONE |
 | A10 | Level 2 RSI: the chain runs, against its own null, and reports depth 0 | DONE (instrument) |
 | A11 | Native cognition needs a human-written grammar per family | DONE (measure invention is domain-general) |
-| A12 | Complexity ratchets above baseline; module-size regressions | PARTIAL — convergence-surface gate built and held; size ratchets still over |
+| A12 | Complexity ratchets above baseline; module-size regressions | PARTIAL — the surface gate is built and held, five dead edges removed (1929→1927), a gate stops more appearing; the four size ratchets are still over and are NOT re-baselined |
 
 ## B. The eighteen gates
 
@@ -103,3 +103,23 @@ On her own, between 0.76 and 0.93 depending on the draw. Carrying what the
 earlier instances taught her, between 0.92 and 1.00. The bar is 0.85 and the
 gate passes on the higher of the two, which is the score the protocol says
 matters more for a system built to learn.
+
+## A12, stated plainly
+
+Four ratchets are over and stay over: organs 120 against 117, cross-package
+edges 1927 against 1894, dependency entropy 9.10 against 9.08, kernel lines
+583,604 against 565,336. Almost none of it is this work — measured, the
+kernel packages gained 1,577 lines net here and the worst-forty convergence
+surface gained 1.15, all of it from another commit.
+
+They are not re-baselined. Writing a new mark is the one thing a ratchet must
+never do, and three of these four count size or number, which the criticism
+they are meant to answer says explicitly not to reduce by merging.
+
+What is added instead is the measurement that captures the actual complaint —
+fan-in times fan-out as a harmonic mean, so a module reached by fifty that
+also reaches sixty ranks above a utility a thousand modules import — plus a
+ratchet on it, plus a gate that refuses a new edge resting on an import
+nobody reads. The reduction so far is five such edges. The large one, cutting
+the cognitive engine's fan-out of sixty-four, is a refactor of a
+thirteen-thousand-line file and is not something to start half-way.
