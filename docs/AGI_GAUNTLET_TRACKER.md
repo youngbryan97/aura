@@ -213,3 +213,48 @@ the gate whose whole point is that the world says nothing.
 | D14 | DONE — two channel placements corrected, the integrity guard fixed, and the tests rewritten around behaviour with the control a bypass could not pass |
 | D15 | DONE — the reachability scan learned about a package that walks its own directory; it was calling the forty-three interiority faculties dead, exactly as the review found |
 | D17 | DONE — the summary line says what the number is and what it is not |
+
+## D3, measured: she does not acquire this class of skill
+
+Gate 9 now measures a step from nought. Eight sealed families whose rule reads
+two cells per position and combines them, which no positional shape can say,
+against the same families with the developmental registry emptied:
+
+| | |
+|---|---|
+| acquired, with everything to develop with | 0.25 |
+| acquired, with nothing to develop with | 0.25 |
+| what growing was worth | 0.00 |
+
+The gate fails, and the control says why: the one family she answered was
+already sayable, so growth contributed nothing. That is the measurement the
+old gate could not make, because it was running gate 3's code.
+
+Traced. The writer for these families is `a_rule_she_wrote`, and it does reach
+some of them — it wrote a rule for "the larger of two on round and the mirror
+of it", a non-invertible operation over two sources, in 18.9 seconds. What it
+did not reach were two families it spent exactly 20.0 and 20.8 seconds on,
+which is its wall-clock budget.
+
+### The clock is the defect, and counting readings is not the fix
+
+A wall clock cannot bound a search whose answer has to reproduce: the same
+family comes back solved on an idle host and unsolved on a busy one, and
+nothing records which happened. The obvious repair is to count what the search
+does instead of how long it takes, and that was tried and measured and does
+not work here. The cost is not in the number of readings, it is inside one of
+them — in the inversion `an_operation_that_generalises` performs, whose own
+docstring says it has no budget so that a refusal means "no rule of this
+depth" rather than "out of room". Twenty readings can take longer than twenty
+thousand, so a reading count bounds nothing.
+
+Bounding the inversion by terms built was tried at two hundred thousand and
+twenty thousand and neither returned in a workable time either, which says the
+count is also not proportional to the cost there.
+
+So this is recorded rather than papered over: the bound belongs where the cost
+is, the cost is inside the inversion, and no counter currently available is
+proportional to it. Both files are back at what they were. What is needed is a
+cost model for the inversion — probably the size of the leaf set, since that
+is what the docstring says grows with the constants in the data — and that is
+a piece of work, not a constant.
