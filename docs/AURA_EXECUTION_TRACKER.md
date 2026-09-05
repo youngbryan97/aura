@@ -52878,3 +52878,22 @@ new progress accounting prevented the earlier false retry-stall, but it does
 not establish successful RLC serving. The next diagnosis is the empty-answer
 boundary after episode completion, with the combined prefill/incumbent timing
 kept separate from ordinary decode timing.
+
+## Checkpoint 2026-09-05: Preserve RLC Stage Coordinates on the Parent Wire
+
+The recurrent engine already emitted bounded prefill coordinates
+(`processed_tokens`, `total_tokens`, `chunk_tokens` and
+`prefill_chunk_ceiling`) and decode coordinates (`decode_generated_tokens` and
+`decode_requested_tokens`). The MLX client retained neither set in its
+parent-side latent progress receipt because its allowlist used an older,
+different vocabulary. It still refreshed liveness, but the neural stream
+could not show where the episode was or distinguish prompt work from decoded
+tokens. The allowlist now carries the engine's existing names, plus the
+worker's `tokens_generated` counter, through the existing bounded-value
+sanitizer. Unknown fields remain excluded.
+
+Two end-to-end retention cases and four adjacent prefill/stall cases pass.
+Smoke: 163 passed, one skipped. Compile and diff checks pass. This is an
+observability and stall-diagnosis repair; it does not claim an RLC answer or
+relax an answer, timeout or scientific gate. The commit is `fee841dcf`, pushed
+to `origin/main`. A source-matched live replay is still required.
