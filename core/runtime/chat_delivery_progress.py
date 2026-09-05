@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import asyncio
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -35,6 +36,51 @@ _CURRENT_BINDING: ContextVar[ChatDeliveryProgressBinding | None] = ContextVar(
     "aura_chat_delivery_progress_binding",
     default=None,
 )
+
+
+def capture_generation_progress() -> Callable[..., None] | None:
+    """Capture delivery ownership before worker callbacks leave the turn context."""
+    binding = _CURRENT_BINDING.get()
+    if binding is None:
+        return None
+    loop = asyncio.get_running_loop()
+    pending = False
+    last_phase = ""
+    last_at = float("-inf")
+
+    async def publish(phase: str, completed: int, total: int) -> None:
+        nonlocal pending
+        try:
+            await binding.journal.publish_progress(
+                binding.admission,
+                phase=phase,
+                message=("Reading the conversation context." if phase == "prefill"
+                         else "Working through the response."),
+                details={"completed_tokens": completed, "total_tokens": total},
+            )
+        except (ChatDeliveryJournalError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Generation progress could not be published: %s", exc)
+        finally:
+            pending = False
+
+    def observe(phase: str, completed: int, total: int) -> None:
+        nonlocal pending, last_phase, last_at
+        now = loop.time()
+        if pending or (phase == last_phase and now - last_at < 2.0):
+            return
+        pending = True
+        last_phase, last_at = phase, now
+        from core.utils.task_tracker import get_task_tracker
+
+        get_task_tracker().create_task(
+            publish(phase, completed, total), name="ChatGenerationProgress"
+        )
+
+    def report(*, phase: str, completed: int, total: int = 0) -> None:
+        if not loop.is_closed():
+            loop.call_soon_threadsafe(observe, phase, completed, total)
+
+    return report
 
 
 @contextmanager

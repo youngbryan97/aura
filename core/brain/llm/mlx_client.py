@@ -6320,6 +6320,9 @@ class MLXLocalClient:
         from core.runtime.turn_progress import capture_progress
 
         self._current_turn_progress = capture_progress()
+        from core.runtime.chat_delivery_progress import capture_generation_progress
+
+        self._current_delivery_progress = capture_generation_progress()
         now = time.time()
         self._current_request_id = str(req_id or "")
         self._current_request_seq = max(0, int(request_seq or 0))
@@ -6449,6 +6452,9 @@ class MLXLocalClient:
             from core.runtime.turn_progress import note_progress
 
             note_progress(progress=self._current_turn_progress)
+        delivery_progress = getattr(self, "_current_delivery_progress", None)
+        if done > last_done and delivery_progress is not None:
+            delivery_progress(phase="prefill", completed=done, total=max(0, int(total or 0)))
         self._current_prefill_tokens_processed = done
         self._current_prefill_tokens_total = max(0, int(total or 0))
         self._mark_progress()
@@ -6481,6 +6487,9 @@ class MLXLocalClient:
             # Duplicate, reordered or malformed counters prove no new decoding.
             self._mark_progress()
             return
+        delivery_progress = getattr(self, "_current_delivery_progress", None)
+        if delivery_progress is not None:
+            delivery_progress(phase="generating", completed=previous_count + delta)
         # Decode measured the same way prefill is: between two observations,
         # so queueing before the first token is not charged to writing.
         previous_at = float(getattr(self, "_last_token_progress_at", 0.0) or 0.0)
@@ -6583,6 +6592,7 @@ class MLXLocalClient:
 
     def _clear_active_generation_tracking(self) -> None:
         self._current_turn_progress = None
+        self._current_delivery_progress = None
         self._current_request_started_at = 0.0
         self._current_first_token_at = 0.0
         self._last_token_progress_at = 0.0

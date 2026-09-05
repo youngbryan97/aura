@@ -82,7 +82,8 @@ def test_soft_cancel_refuses_when_no_generation_active():
 
 
 def test_new_generation_clears_stale_cancel_request():
-    client = _bare_client(active_seq=0, started=False)
+    client = MLXLocalClient("/models/test-small")
+    client._cancel_seq = _Value(0)
     # Minimal tracking fields _mark_generation_started touches.
     client._last_heartbeat = 0.0
     client._last_progress_at = 0.0

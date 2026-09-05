@@ -404,6 +404,40 @@ async def test_running_progress_is_durable_fenced_and_public(
         )
 
 
+@pytest.mark.asyncio
+async def test_generation_progress_keeps_owner_across_callback_contexts(journal) -> None:
+    from core.runtime.chat_delivery_progress import (
+        bind_chat_delivery_progress,
+        capture_generation_progress,
+    )
+
+    owner = await journal.reserve(_identity("generation-progress"), _request_hash(), wait_timeout_s=0)
+    with bind_chat_delivery_progress(journal, owner):
+        report = capture_generation_progress()
+    assert report is not None
+    assert capture_generation_progress() is None
+    await asyncio.to_thread(report, phase="prefill", completed=128, total=256)
+    for _ in range(100):
+        record = await journal.get(owner.record.identity)
+        if record.progress_sequence:
+            break
+        await asyncio.sleep(0.01)
+    assert record.progress["phase"] == "prefill"
+    assert record.progress["details"]["completed_tokens"] == 128
+    for count in range(129, 256):
+        report(phase="prefill", completed=count, total=256)
+    await asyncio.sleep(0.05)
+    record = await journal.get(owner.record.identity)
+    assert record.progress_sequence == 1
+    await journal.finalize(owner, state=DeliveryState.COMPLETED, http_status=200,
+                           response={"response": "done"})
+    report(phase="generating", completed=1)
+    await asyncio.sleep(0.05)
+    record = await journal.get(owner.record.identity)
+    assert record.response == {"response": "done"}
+    assert record.progress_sequence == 1
+
+
 def test_version_one_journal_migrates_progress_columns(tmp_path: Path) -> None:
     path = tmp_path / "chat.sqlite3"
     ChatDeliveryJournal(path)
