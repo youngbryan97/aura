@@ -52926,3 +52926,18 @@ Conversation persistence consequently omitted the interior appraisal. Repair
 of that shared telemetry allocation is next; RLC empty-answer diagnosis and
 general transfer remain open. One capability-engine probe exceeded five
 seconds during boot, and duplicate vital cards remain visible.
+
+## Checkpoint 2026-09-05: Separate Interiority Channel Identity
+
+The seven interiority channels reused phenomena channel IDs 0x1701-0x1707.
+Fresh-process tests reproduced both initialization orders: phenomena-first
+raised the observed import error; interiority-first left the identity reading
+unavailable. Interiority now uses 0x1801-0x1807. Existing phenomena and event
+IDs are unchanged; names and units are unchanged. Historical samples must be
+interpreted with their originating dictionary, not remapped to this allocation.
+
+Both initialization orders now write and read independent identity and
+interiority samples. The coexistence and adjacent suites passed 62 tests;
+smoke passed 164 with one skip; Ruff and diff checks passed. This repair is
+not yet loaded into the running desktop process, so live appraisal persistence
+still requires a source-matched restart and replay.
