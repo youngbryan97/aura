@@ -1,0 +1,93 @@
+{
+  "schema": "aura.semantic_program_frozen_path_replication_preregistration.v1",
+  "created_at": "2026-09-04T23:58:00Z",
+  "source_commit_before_preregistration": "601bea1be",
+  "purpose": "Replicate the frozen stable-register semantic transducer's causal transfer to a six-input five-step program geometry after the calibrated path ensemble failed its selector-specific lesion bar.",
+  "claim_boundary": "fresh bounded natural-language semantic-program transfer across the previously unseen six-input five-step branch-weave geometry by one frozen model-bound transducer; no selector gain, open-domain reasoning, frontier performance, or serving authority",
+  "discovery_evidence": {
+    "feature_manifest_sha256": "e4746916ffcefcefab6e1c2727e1e61886fe66c0870dfe8337e01accf1b1aa9c",
+    "result_sha256": "fcf72cc6d07b9b0e338c2facc23f8f32ace32b903ddf22fe1daa684d19a19c73",
+    "frozen_challenger_answer_exact": 23,
+    "frozen_incumbent_answer_exact": 0,
+    "calibrated_selector_verdict": "FAIL_PREREGISTERED_MECHANISM_BAR",
+    "calibrated_selector_failure": "Only one answer-exact win separated calibrated selection from the necessary-condition selector lesion; one-sided exact p=0.5.",
+    "causal_canary_selection": "lowest four construction-id SHA-256 values per topology",
+    "causal_canary": {
+      "tasks": 12,
+      "treatment_answer_exact": 6,
+      "coefficient_lesion_answer_exact": 0,
+      "hidden_token_shuffle_answer_exact": 0
+    }
+  },
+  "frozen_transducer": {
+    "container_path": "/Users/bryan/.aura/rlc-evidence/semantic-path-mixed-calibration-v1/ensemble.json",
+    "container_file_sha256": "ec88c575268e5bb86beebaaf924ac27b41779cb31699399719b0f5e2e80fd70a",
+    "container_receipt_sha256": "edc0072a7b8d870e80738355a9e394fddda1f8f8b7af5244337c088cc37281b9",
+    "path": "challenger",
+    "schema": "aura.semantic_program_transducer.v16",
+    "receipt_sha256": "a79674be5460d12e985efe406939e181e0b51bec6163bd3c2b4ae41db9c55c59",
+    "coefficient_sha256": "7dcab87b0573f9cc6852c2f03d5681d5586ec521e09bc2faca8d677168ade3cc",
+    "model_basis_sha256": "178def8469d79d6265fddad9b1de5a9b034d5772679f608fda4d46f327bbfbe9",
+    "coefficients_or_hyperparameters_may_change": false
+  },
+  "training_evidence": {
+    "manifest_path": "/Users/bryan/.aura/rlc-evidence/semantic-natural-alias-source-v1/manifest.json",
+    "manifest_file_sha256": "e964885f946688a503cd754e8ebb3824150f6b6cd9ab6a7513b6e15bc7e30851",
+    "manifest_sha256": "363dde7ba161f02720078dd6722cacff747bbe0540c93c4da1524b96a5bf613d",
+    "corpus_sha256": "7987951c4a91633aefaebded2221c5e37265208cecbd1b4b16ee06777ea5d8cf"
+  },
+  "replication_corpus": {
+    "builder": "build_semantic_program_natural_weave_replication_corpus",
+    "corpus_kind": "natural_weave_replication_6x5",
+    "seed": 2718281828,
+    "max_examples": 48,
+    "examples_per_schema_domain": 2,
+    "schemas": [
+      "scalar_branch_weave_five",
+      "lookup_branch_weave_five",
+      "count_branch_weave_five"
+    ],
+    "domain_count": 8,
+    "surface_construction_count": 2,
+    "inputs": 6,
+    "steps": 5,
+    "same_geometry_as_discovery": true,
+    "disjoint_value_seed_source_text_and_feature_session": true,
+    "generated_only_after_this_preregistration_is_committed": true
+  },
+  "arms": [
+    "frozen_transducer",
+    "coefficient_lesion",
+    "hidden_token_shuffle",
+    "ordinary_resident_27b_decode"
+  ],
+  "controls": {
+    "coefficient_lesion": "Zero every learned feature-dependent coefficient while preserving biases, decoder topology, inputs, and compute path.",
+    "hidden_token_shuffle": "Deterministically permute the captured resident hidden rows across source-token positions while preserving every vector and decoder coefficient.",
+    "ordinary_resident_27b_decode": "Decode the exact same natural-language tasks directly from the descriptor-bound fused 27B only after the neural mechanism bar passes."
+  },
+  "mechanism_success_bar": {
+    "all_required": true,
+    "criteria": [
+      "all 48 preregistered examples are evaluated in every neural arm",
+      "the frozen transducer emits at least 18 exact answers",
+      "the frozen transducer exceeds coefficient_lesion with paired one-sided exact p < 0.05",
+      "the frozen transducer exceeds hidden_token_shuffle with paired one-sided exact p < 0.05",
+      "every paired treatment-only win executes from an IR causally bound to the frozen transducer receipt",
+      "no target labels, expected answers, domain identity, or source text are available to the transducer",
+      "the feature cohort has zero source-text overlap with training and discovery cohorts"
+    ],
+    "ordinary_decode_disposition_on_failure": "ABORT_WITHOUT_MODEL_LOAD"
+  },
+  "product_success_bar": {
+    "evaluated_only_after_mechanism_success": true,
+    "criteria": [
+      "the frozen transducer exceeds ordinary resident 27B decode with paired one-sided exact p < 0.05",
+      "ordinary resident 27B has the same task texts and no smaller public answer budget",
+      "all exact ordinary answers remain available to a non-regressing runtime composition policy"
+    ]
+  },
+  "target_labels_available_to_transducer_or_controls": false,
+  "ordinary_decode_deferred_until_mechanism_pass": true,
+  "serving_authority": false
+}
