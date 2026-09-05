@@ -52633,3 +52633,17 @@ to investigate. The unrelated autonomous Reddit progress label, foreground
 event-loop stalls, optional-tool requiredness, and independent semantic
 source arbitration remain open. Parallel agents reached usage limits before
 their proposed integrations were implemented; their notes are not fixes.
+
+## Checkpoint 2026-09-05: One Foreground Wall-Clock Owner
+
+Four allocation regressions reproduced an internal cutoff below the caller's
+grant: a 300-second request received 105 seconds on the resident profile and
+20 seconds on the small profile when the first-token ceiling was 20 seconds.
+Foreground allocation now uses the caller's remaining allowance less the
+existing cleanup margin. Stakes still price optional layer applications;
+background allocation, explicit engine budgets, cancellation and resource
+limits remain unchanged. This removes a competing timer, not all deadlines.
+
+Allocation and service tests: 140 passed. Smoke: 163 passed, one skipped.
+Lint and compile passed. The earlier 366-second live result is still the most
+recent desktop timing; no latency improvement is claimed from these tests.

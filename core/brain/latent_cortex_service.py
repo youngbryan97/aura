@@ -1086,8 +1086,6 @@ class LatentCortexService:
                     "allow_vanilla_fallback": True,
                 }
             )
-            if owner_timeout_s is not None:
-                budget["wall_clock_s"] = max(105.0, budget["wall_clock_s"])
         # CP126 d607a287: the caller's deadline was applied ONLY inside the
         # foreground >=20B branch, so every other profile ignored it entirely
         # and planned against a budget the caller could not wait for. And the
@@ -1101,7 +1099,13 @@ class LatentCortexService:
         if owner_timeout_s is not None:
             reserve = min(_DEADLINE_RESERVE_S, owner_timeout_s * _DEADLINE_RESERVE_FRACTION)
             usable = max(_MIN_USABLE_WALL_CLOCK_S, owner_timeout_s - reserve)
-            budget["wall_clock_s"] = min(float(budget["wall_clock_s"]), usable)
+            # Foreground work already has a caller-owned deadline. Stakes
+            # govern optional computation, not a second cancellation clock.
+            budget["wall_clock_s"] = (
+                usable
+                if foreground_request
+                else min(float(budget["wall_clock_s"]), usable)
+            )
         if requested_decode_tokens is not None:
             # Answer-surface overrides are part of the allocation request, not
             # a post-hoc mutation. The adaptive plan must commit the same floor

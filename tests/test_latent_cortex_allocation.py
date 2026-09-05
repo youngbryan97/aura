@@ -79,6 +79,23 @@ def test_no_deadline_means_no_clamp(service):
     assert budget["wall_clock_s"] > 0.0
 
 
+@pytest.mark.parametrize("params", [SMALL, RESIDENT])
+@pytest.mark.parametrize("stakes", [0.0, 0.9])
+def test_foreground_uses_owner_time_not_a_second_watchdog(service, monkeypatch, params, stakes):
+    monkeypatch.setattr(
+        "core.brain.latent_cortex_service._runtime_bounded_wall_clock_s",
+        lambda *args, **kwargs: 20.0,
+    )
+    _, budget = service.allocate(
+        stakes=stakes,
+        uncertainty=0.5,
+        model_parameter_count=params,
+        foreground_request=True,
+        timeout_s=300.0,
+    )
+    assert budget["wall_clock_s"] == 292.0
+
+
 # --- the receipt says what this is ---------------------------------------
 
 
