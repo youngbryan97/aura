@@ -167,3 +167,30 @@ def test_dispose_removes_the_ecology(tmp_path):
     assert root.exists()
     e.dispose()
     assert not root.exists()
+
+
+def test_the_enclosure_writes_through_the_governed_path(tmp_path):
+    """A write nobody can audit is not isolated, it is unobserved."""
+    import inspect
+
+    from core.self_modification import lineage_enclosure
+
+    source = inspect.getsource(lineage_enclosure)
+    assert "shutil.rmtree" not in source
+    assert "root.mkdir" not in source
+    assert "get_file_write_gateway" in source
+    assert "local_internal_governed_scope" in source
+
+
+def test_it_refuses_to_exist_rather_than_write_ungoverned(tmp_path, monkeypatch):
+    """A fallback that bypasses governance is taken exactly when governance
+    is broken, which is the worst moment to create a directory for something
+    that reproduces."""
+    from core.self_modification import lineage_enclosure
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("the write gateway is down")
+
+    monkeypatch.setattr(lineage_enclosure, "_governed_mkdir", broken)
+    with pytest.raises(RuntimeError):
+        Enclosure(tmp_path / "ecology")

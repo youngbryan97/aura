@@ -46,7 +46,7 @@ different decision by a person, and it is not this module's to make.
 from __future__ import annotations
 
 import logging
-import shutil
+import pathlib
 import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -89,6 +89,45 @@ class EnclosureExhaustedError(EnclosureError):
 
 class AuthorityViolationError(EnclosureError):
     """Something tried to reach past the enclosure."""
+
+
+def _governed_mkdir(root: pathlib.Path) -> None:
+    """Create the enclosure's own directory through the write gateway.
+
+    Through the gateway rather than `Path.mkdir` because an enclosure is
+    exactly the thing that should be governed: it is where an experiment
+    writes, and a write nobody can audit is not isolated, it is unobserved.
+    """
+    try:
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        with local_internal_governed_scope("lineage_enclosure"):
+            get_file_write_gateway().ensure_directory(root, source="lineage_enclosure")
+    except (ImportError, RuntimeError, OSError, ValueError) as exc:
+        # No fallback to a raw mkdir. A fallback that bypasses governance is
+        # taken exactly when governance is broken, which is the worst moment
+        # to be creating a directory for something that reproduces. An
+        # enclosure that cannot be created through the governed path refuses
+        # to exist, the same way it refuses a root inside live state.
+        raise AuthorityViolationError(
+            f"cannot create {root} through the write gateway: {exc}. An "
+            "enclosure that writes ungoverned is not an enclosure"
+        ) from exc
+
+
+def _governed_rmtree(root: pathlib.Path) -> None:
+    """Remove everything the experiment wrote, through the same door."""
+    try:
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        with local_internal_governed_scope("lineage_enclosure"):
+            get_file_write_gateway().delete_path(
+                root, recursive=True, source="lineage_enclosure"
+            )
+    except (ImportError, RuntimeError, OSError, ValueError) as exc:
+        logger.warning("Could not remove enclosure %s: %s", root, exc)
 
 
 @dataclass(frozen=True)
@@ -190,7 +229,7 @@ class Enclosure:
                 f"{self._root} is inside the live state root; an enclosure "
                 "that writes there is not an enclosure"
             )
-        self._root.mkdir(parents=True, exist_ok=True)
+        _governed_mkdir(self._root)
         self._budget = budget or Budget()
         self._spend = Spend()
         self._now = now
@@ -332,10 +371,7 @@ class Enclosure:
         An ecology that outlives the study is a population nobody is watching.
         """
         self._manager = None
-        try:
-            shutil.rmtree(self._root)
-        except OSError as exc:
-            logger.warning("Could not remove enclosure %s: %s", self._root, exc)
+        _governed_rmtree(self._root)
 
     def __enter__(self) -> Enclosure:
         return self
