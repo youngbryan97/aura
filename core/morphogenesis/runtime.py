@@ -15,7 +15,7 @@ from core.runtime.task_ownership import create_tracked_task
 
 from .field import MorphogenField
 from .governor import MorphBounds, MorphGovernor
-from .graph import MorphGraph
+from .graph import EdgeType, MorphEdge, MorphGraph
 from .lineage import Lineage
 from .live_policy import LiveCoverageEvaluator, LiveObserverPolicy
 from .metabolism import MetabolismManager
@@ -136,6 +136,7 @@ class MorphogeneticRuntime:
             shadow_evaluator=LiveCoverageEvaluator(self),
             require_governance=self.config.require_governance_for_mutation,
             emit_receipts=True,
+            receipt_sink=self._write_receipt_off_loop,
         )
         self.goal_demand: dict[str, float] = {}
         # A registry that cannot hold the topology simply does not persist it.
@@ -458,7 +459,10 @@ class MorphogeneticRuntime:
         if self._tick % max(1, self.config.prune_every_ticks) == 0:
             self._prune_population()
 
-        if self._tick % max(1, self.config.telemetry_every_ticks) == 0:
+        # Publish on the first tick as well as on the cadence, so a runtime
+        # that has only just started does not read as one whose telemetry has
+        # never been written.
+        if self._tick == 1 or self._tick % max(1, self.config.telemetry_every_ticks) == 0:
             self._publish_telemetry()
 
         if self._tick % max(1, self.config.snapshot_every_ticks) == 0:
@@ -475,6 +479,24 @@ class MorphogeneticRuntime:
             "resources": resource.to_dict(),
             "registry": self.registry.status(),
         }
+
+    def _write_receipt_off_loop(self, receipt: Any) -> None:
+        """Hand a receipt to a worker thread.
+
+        The receipt store's write reaches Will.decide and from there a
+        CPU-bound memory search. Inline, one topology commit cost a 343ms tick.
+        """
+        try:
+            from core.runtime.task_ownership import fire_and_forget
+
+            async def _write() -> None:
+                from core.runtime.receipts import get_receipt_store
+
+                await asyncio.to_thread(get_receipt_store().emit, receipt)
+
+            fire_and_forget(_write(), name="morphogenesis.receipt", bounded=True)
+        except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
+            logger.debug("morphogenesis receipt not queued: %s", exc)
 
     def _on_spawn(self, cell_id: str, manifest: Mapping[str, Any]) -> None:
         """Make a committed SPAWN a real cell.
@@ -595,6 +617,22 @@ class MorphogeneticRuntime:
                         scratch.add_edge(edge)
 
             self.graph.transaction(sync, cause=f"population_sync@tick{self._tick}")
+
+            # Tell the substrate about the bindings the sync just made. The
+            # graph and the world disagreeing is the signature of a partial
+            # failure nobody cleaned up, and an invariant watches for exactly
+            # this — it caught these two edges before this line existed.
+            live_keys = {edge.key for edge in self.graph.edges()}
+            for edge in self.graph.edges():
+                if not self.substrate.bound(edge):
+                    self.substrate.bind(edge)
+            for key in self.substrate.bound_keys() - live_keys:
+                stale = MorphEdge(
+                    source=key[0], target=key[1],
+                    edge_type=EdgeType(key[2]), port=key[3],
+                )
+                self.substrate.unbind(stale)
+
             if gone:
                 # Whatever the graph recorded about these cells was decided
                 # under a world that no longer holds.

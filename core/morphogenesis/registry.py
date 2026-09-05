@@ -3,7 +3,6 @@ from core.runtime.errors import record_degradation
 
 
 import logging
-import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional
@@ -19,6 +18,7 @@ from .types import (
     json_safe,
     stable_digest,
 )
+from core.runtime.lockdep import checked_lock
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Morphogenesis.Registry")
@@ -92,7 +92,9 @@ class MorphogenesisRegistry:
         self.root = Path(root) if root is not None else _default_root()
         self.config = config or MorphogenesisConfig()
         self.state_path = self.root / "morphogenesis_state.json"
-        self._lock = threading.RLock()
+        # Taken before the graph lock on the persistence path; both are
+        # checked so the ordering is recorded rather than assumed.
+        self._lock = checked_lock("morphogenesis.registry", reentrant=True)
         self.cells: Dict[str, MorphogenCell] = {}
         self.organs: Dict[str, Organ] = {}
         #: Topology, lineage and the motif library, attached by the runtime.

@@ -25,12 +25,13 @@ Three properties the rest of the layer depends on:
 from __future__ import annotations
 
 import copy
-import threading
 import time
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 from .types import clamp01, json_safe, stable_digest
 
@@ -203,7 +204,10 @@ class MorphGraph:
         self._nodes: set[str] = set()
         self._edges: dict[tuple[str, str, str, str], MorphEdge] = {}
         self._version = 0
-        self._lock = threading.RLock()
+        # A checked lock rather than a raw RLock: lockdep only finds ABBA
+        # ordering bugs among locks it wraps, and this one is taken while the
+        # registry lock is already held on the persistence path.
+        self._lock = checked_lock("morphogenesis.graph", reentrant=True)
         self._history: list[tuple[int, str]] = []
 
     # ── reads ───────────────────────────────────────────────────────────
@@ -324,6 +328,29 @@ class MorphGraph:
                     seen.add(nxt)
                     stack.append(nxt)
         return False
+
+    def reachable_from(self, sources: Iterable[str]) -> set[str]:
+        """Everything reachable from any of ``sources``, in one sweep.
+
+        Asking ``path_exists`` for every source-target pair rebuilds the
+        adjacency each time and walks the graph once per pair. On the live
+        event loop, with a population allowed to reach 64 cells, that is a few
+        thousand traversals inside one tick — the shape of stall this runtime
+        has been bitten by before. One sweep answers the same question.
+        """
+        with self._lock:
+            adjacency: dict[str, list[str]] = {}
+            for edge in self._edges.values():
+                adjacency.setdefault(edge.source, []).append(edge.target)
+            seen = {str(s) for s in sources if str(s) in self._nodes}
+        stack = list(seen)
+        while stack:
+            current = stack.pop()
+            for nxt in adjacency.get(current, ()):
+                if nxt not in seen:
+                    seen.add(nxt)
+                    stack.append(nxt)
+        return seen
 
     def snapshot(self) -> GraphSnapshot:
         with self._lock:
@@ -468,6 +495,22 @@ class MorphGraph:
                 raise GraphIntegrityError(f"{edge.source} cannot send {edge.port!r}")
             if edge.port not in in_ports:
                 raise GraphIntegrityError(f"{edge.target} does not accept {edge.port!r}")
+
+    def copy(self) -> MorphGraph:
+        """A detached copy, without a serialization round trip.
+
+        The shadow evaluation makes one of these per proposal, on the event
+        loop. Going through to_dict/from_dict rebuilt every edge as a dict and
+        parsed it back, which at a couple of hundred edges is most of the cost
+        of adjudicating a proposal and all of it wasted: edges are frozen, so
+        the copy can share them.
+        """
+        twin = MorphGraph(max_nodes=self.max_nodes, max_edges=self.max_edges)
+        with self._lock:
+            twin._nodes = set(self._nodes)
+            twin._edges = dict(self._edges)
+            twin._version = self._version
+        return twin
 
     def restore(self, snapshot: GraphSnapshot, *, cause: str = "rollback") -> GraphDiff:
         """Put the graph back to a snapshot, bumping the version.

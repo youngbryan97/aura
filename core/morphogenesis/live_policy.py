@@ -137,19 +137,16 @@ class LiveCoverageEvaluator:
             # declined to score the case it exists for.
             return 0.0 - self.edge_cost * graph.edge_count
 
+        # One sweep from every actor, not a search per actor-target pair. This
+        # runs on the event loop twice per proposal.
+        reach = graph.reachable_from(actors)
+
         covered = 0.0
         total = 0.0
         for subsystem, need in troubled.items():
             total += need
             targets = [n for n in graph.nodes() if subsystem_of(n) == subsystem]
-            if not targets:
-                continue
-            reachable = any(
-                actor == target or graph.path_exists(actor, target)
-                for actor in actors
-                for target in targets
-            )
-            if reachable:
+            if targets and any(target in reach for target in targets):
                 covered += need
 
         coverage = covered / total if total else 0.0
@@ -241,6 +238,7 @@ class LiveObserverPolicy:
             if value in _ACTING_ROLES and float(cell.state.health) >= 0.35:
                 actors.append(cell_id)
 
+        reach = graph.reachable_from(actors)
         out: list[MorphProposal] = []
         for subsystem, members in sorted(by_subsystem.items()):
             try:
@@ -250,12 +248,7 @@ class LiveObserverPolicy:
             if need < DANGER_FLOOR:
                 continue
 
-            reachable = any(
-                actor in members or graph.path_exists(actor, member)
-                for actor in actors
-                for member in members
-            )
-            if reachable:
+            if any(member in reach for member in members):
                 continue
 
             if actors:

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import copy
-import threading
 import time
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Iterable, List, Mapping, Optional
+
+from core.runtime.lockdep import checked_lock
 
 from .types import MorphogenSignal, SignalKind, clamp01, json_safe
 
@@ -64,7 +65,7 @@ class MorphogenField:
         self.decay_rate = clamp01(decay)
         self._nodes: Dict[str, TissueNode] = {}
         self._edges: Dict[str, Dict[str, float]] = defaultdict(dict)
-        self._lock = threading.RLock()
+        self._lock = checked_lock("morphogenesis.field", reentrant=True)
 
     def ensure_node(self, subsystem: str) -> TissueNode:
         subsystem = str(subsystem or "generic")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -289,8 +290,55 @@ def _seed_topology(rt: MorphogeneticRuntime) -> None:
         )
 
 
+#: Modules the tick reaches for lazily. Importing one costs a few hundred
+#: milliseconds of compile and file I/O the first time, and the tick that
+#: happens to be first pays all of it on the event loop.
+#:
+#: Measured 2026-09-03: first tick after signals arrived 827ms, every tick
+#: after it under 23ms. Boot is where a few hundred milliseconds is already
+#: expected and where nothing is waiting on a turn.
+_WARM_IMPORTS: tuple[str, ...] = (
+    "core.runtime.receipts",
+    "core.memory.episodic_memory",
+    "core.adaptation.adaptive_immunity",
+    "core.resilience.stability_guardian",
+    "core.runtime.self_healing",
+    "core.morphogenesis.telemetry",
+    "core.morphogenesis.invariants",
+    "core.morphogenesis.live_policy",
+)
+
+
+def _warm_lazy_imports() -> list[str]:
+    """Import what the tick will need, so no tick is the one that pays."""
+    import importlib
+
+    warmed: list[str] = []
+    for name in _WARM_IMPORTS:
+        try:
+            importlib.import_module(name)
+            warmed.append(name)
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug("morphogenesis warm import skipped for %s: %s", name, exc)
+    return warmed
+
+
 async def start_morphogenesis_runtime(runtime: MorphogeneticRuntime | None = None) -> MorphogeneticRuntime:
     rt = register_morphogenesis_services(runtime)
+
+    # Off the loop: these are file reads and bytecode compilation, and doing
+    # them here is the difference between one 800ms stall on whichever tick
+    # happens to need them first and none at all.
+    try:
+        warmed = await asyncio.to_thread(_warm_lazy_imports)
+        logger.info("🧬 Morphogenesis warmed %d lazy import(s).", len(warmed))
+    except (ImportError, RuntimeError, TypeError) as exc:
+        _record_morphogenesis_integration_degradation(
+            exc,
+            action="started morphogenesis without warming its lazy imports",
+            severity="warning",
+        )
+
     await rt.start()
 
     # Wire bidirectional hooks into existing subsystems so that morphogenesis

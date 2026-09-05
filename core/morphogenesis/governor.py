@@ -195,6 +195,7 @@ class MorphGovernor:
         clock: Callable[[], float] = time.time,
         require_governance: bool = True,
         emit_receipts: bool = True,
+        receipt_sink: Callable[[Any], None] | None = None,
     ):
         self.graph = graph
         self.substrate = substrate
@@ -204,6 +205,10 @@ class MorphGovernor:
         self.clock = clock
         self.require_governance = bool(require_governance)
         self.emit_receipts = bool(emit_receipts)
+        #: Where a built receipt goes. Supplied by the runtime so the write
+        #: happens off the event loop; absent one, it is emitted inline, which
+        #: is correct for a sandbox that has no loop to block.
+        self._receipt_sink = receipt_sink
         self.stats = GovernorStats()
         self.transactions: list[MorphTransaction] = []
         self._recent: deque[float] = deque(maxlen=512)
@@ -261,10 +266,21 @@ class MorphGovernor:
 
     # ── adjudication ────────────────────────────────────────────────────
 
+    #: Proposals adjudicated in one batch. Adjudication is not free — each
+    #: non-routine one copies the graph and evaluates it twice — and this runs
+    #: on the live event loop. The rate window bounds what may be *applied*;
+    #: without this, a round that proposes forty changes still pays for forty,
+    #: and pays it in one tick.
+    max_batch = 8
+
     def submit(self, proposals: Sequence[MorphProposal]) -> list[MorphTransaction]:
-        """Adjudicate a batch. Returns one transaction per proposal seen."""
+        """Adjudicate a batch, best-ranked first, up to :attr:`max_batch`.
+
+        Anything past the cap is not rejected — it was never looked at, and a
+        later round will rank it again against whatever is true then.
+        """
         out: list[MorphTransaction] = []
-        for proposal in rank_proposals(list(proposals)):
+        for proposal in rank_proposals(list(proposals))[: self.max_batch]:
             out.append(self.adjudicate(proposal))
         return out
 
@@ -599,7 +615,7 @@ class MorphGovernor:
         """
         scope = frozenset(self.graph.nodes())
         before = self._fragmentation(self.graph, scope)
-        candidate = MorphGraph.from_dict(self.graph.to_dict())
+        candidate = self.graph.copy()
         try:
             candidate.transaction(
                 lambda scratch: self._apply_to_scratch(scratch, proposal, dry_run=True),
@@ -843,27 +859,40 @@ class MorphGovernor:
             return None
 
     def _emit_receipt(self, proposal: MorphProposal) -> str:
+        """Build the receipt here; write it wherever the sink says.
+
+        Measured 2026-09-03: emitting inline cost a 343ms tick against 13ms
+        with it off. The receipt store's write path reaches Will.decide, and
+        Will.decide reaches memory search — a CPU-bound embedding forward pass,
+        on the event loop, inside a topology commit. This runtime has been
+        stalled by that exact chain before through a different caller.
+
+        The id is deterministic and computed synchronously, so a caller still
+        gets an identifier to correlate on whether or not the write has landed.
+        """
         try:
             from core.runtime.receipts import StateMutationReceipt, get_receipt_store
         except ImportError:
             return ""
         receipt_id = f"morph-{stable_digest(proposal.proposal_id, self.graph.version, length=16)}"
         try:
-            get_receipt_store().emit(
-                StateMutationReceipt(
-                    receipt_id=receipt_id,
-                    cause=f"morphogenesis.topology.{proposal.risk}",
-                    domain="morphogenesis",
-                    key=f"graph.v{self.graph.version}",
-                    schema_version=1,
-                    metadata={
-                        "proposal_id": proposal.proposal_id,
-                        "proposer": proposal.proposer,
-                        "transitions": [str(t.kind) for t in proposal.transitions],
-                        "graph_digest": self.graph.snapshot().digest(),
-                    },
-                )
+            receipt = StateMutationReceipt(
+                receipt_id=receipt_id,
+                cause=f"morphogenesis.topology.{proposal.risk}",
+                domain="morphogenesis",
+                key=f"graph.v{self.graph.version}",
+                schema_version=1,
+                metadata={
+                    "proposal_id": proposal.proposal_id,
+                    "proposer": proposal.proposer,
+                    "transitions": [str(t.kind) for t in proposal.transitions],
+                    "graph_digest": self.graph.snapshot().digest(),
+                },
             )
+            if self._receipt_sink is not None:
+                self._receipt_sink(receipt)
+            else:
+                get_receipt_store().emit(receipt)
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("morphogenesis receipt skipped: %s", exc)
             return ""
