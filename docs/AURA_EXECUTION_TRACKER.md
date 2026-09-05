@@ -52857,7 +52857,16 @@ expected/actual revision 7389c08a9 and became ready before the replay.
 
 The original fact-versus-inference question was submitted through the live
 chat UI at approximately 13:03:45. Worker logs at 13:03:53 show steering zero,
-one requested recurrent loop, and a 47,643-character input. Result is pending;
-no live receipt or answer-quality pass is claimed. The active continuation
-wakeup resumes this task every fifteen minutes from this tracker. Inspect
-the reply and neural stream before sending another turn or restarting again.
+one requested recurrent loop, and a 47,643-character input. It eventually
+returned a complete answer: the checked example was a repeatable character
+count, the inference example was explicitly marked as inferred from wording,
+and memory was distinguished as a third, unchecked category. The old smaller-
+model fallback and exposed critique fragment did not recur. This is a live
+conversation improvement, not proof of an RLC gain; the answer's RLC receipt
+still needs independent inspection.
+
+During the same live window, background autonomous fix generation failed five
+times, health briefly reported stale inference readiness while foreground work
+was active, and duplicate vital cards remained visible. These are open runtime
+observations, not folded into the answer verdict. The active continuation
+wakeup resumes this task every fifteen minutes from this tracker.
