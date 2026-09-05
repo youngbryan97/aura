@@ -1662,6 +1662,7 @@ def install_runtime_validation() -> dict[str, Any]:
     _install_morphogenesis_claims(suite)
 
     _install_suite_tail(suite)
+    _install_phenomena_claims(suite)
 
     # Graded honestly. Both mechanisms are proven by construction and by
     # test, and neither has yet run against live traffic — the work ledger
@@ -4579,6 +4580,259 @@ def _install_suite_tail(suite):
     ):
         suite.add_claim(
             Claim(statement=statement, test=test_name, owner=asserted_in, asserted_in=asserted_in)
+        )
+
+
+def _phenomena_reachable() -> int:
+    """How many of the fourteen dispositions the live container resolves."""
+
+    try:
+        from core.container import get_container
+        from core.phenomena_wiring import SERVICE_NAMES
+
+        container = get_container()
+        found = 0
+        for name in SERVICE_NAMES:
+            try:
+                if container.get(name) is not None:
+                    found += 1
+            except (ImportError, AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+                continue
+        return found
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return 0
+
+
+def _declaring_an_identity_moves_its_coherence() -> bool:
+    """Whether asserting an identity changes the measurement of it."""
+
+    try:
+        from core.identity.constitutive_identity import ConstitutiveIdentity
+
+        identity = ConstitutiveIdentity("probe")
+        identity.enact("make", at=0.0)
+        identity.enact("make", at=100.0)
+        before = identity.coherence(at=200.0, record=False).r
+        for _ in range(50):
+            identity.declare("a maker", source="probe", at=150.0)
+        after = identity.coherence(at=200.0, record=False).r
+        return abs(after - before) > 1e-12
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return True
+
+
+def _care_floor_survives_an_overwhelming_need() -> bool:
+    """Whether a large enough need can buy the carer's own floor."""
+
+    try:
+        from core.ethics.care_allocation import CareAllocator
+
+        allocator = CareAllocator(priority=1.0, self_floor=3.0)
+        return all(
+            allocator.allocate(10.0, needs={"one": need}, record=False).spent
+            <= 7.0 + 1e-9
+            for need in (1e3, 1e6, 1e12)
+        )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+
+
+def _pooling_signal_yields_no_type() -> bool:
+    """Whether a signal that costs every sender the same still implies a type."""
+
+    try:
+        from core.social.costly_signaling import SignalChannel
+
+        free = SignalChannel(benefit=2.0, cost_slope=0.0)
+        reading = free.receive(free.send("anyone", 5.0))
+        return reading.implied_type is None and not reading.informative
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+
+
+def _arbitration_abstains_without_evidence() -> bool:
+    """Whether the arbiter answers a domain it has no calibration in."""
+
+    try:
+        from core.affect.dual_process_arbiter import DualProcessArbiter
+
+        result = DualProcessArbiter().arbitrate("untested", 0.9, 0.1, record=False)
+        return (
+            result.abstained
+            and result.probability is None
+            and result.weight_affective == result.weight_deliberate
+        )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+
+
+def _install_phenomena_claims(suite) -> None:
+    """Fourteen dispositions, and the five statements about them worth binding.
+
+    Only the reachability claim is measured live; it reads the running
+    container and nothing else. The other four run their mechanism against a
+    constructed case with a known answer, which establishes the mechanism and
+    not any behaviour of the live system, and they say so.
+    """
+
+    for name, description, capability, observation, predict, score, owner in (
+        (
+            "phenomena_dispositions_are_reachable",
+            "every disposition resolves from the live container rather than "
+            "existing as a module nothing can reach",
+            "phenomena_wiring",
+            Observation(
+                name="dispositions_resolving",
+                value=14,
+                source="core/phenomena_wiring.py and tests/test_phenomena_wiring.py",
+                units="services",
+            ),
+            lambda _m: _phenomena_reachable(),
+            lambda p, o: threshold_score(
+                float(p), float(o.value), direction="at_least", units=" services"
+            ),
+            "core/phenomena_wiring.py",
+        ),
+        (
+            "declaring_an_identity_does_not_establish_it",
+            "coherence is computed from the enactment record, and a label "
+            "recorded fifty times does not move it",
+            "constitutive_identity",
+            Observation(
+                name="coherence_moved_by_declaration",
+                value=False,
+                source="core/identity/constitutive_identity.py and "
+                "tests/test_phenomena_mechanisms.py",
+            ),
+            lambda _m: _declaring_an_identity_moves_its_coherence(),
+            lambda p, o: boolean_score(
+                bool(p), expected=bool(o.value), subject="declaration moved coherence"
+            ),
+            "core/identity/constitutive_identity.py",
+        ),
+        (
+            "the_care_floor_is_not_for_sale",
+            "the reserve held back for the carer survives a need twelve orders "
+            "of magnitude above the budget",
+            "care_allocation",
+            Observation(
+                name="floor_held",
+                value=True,
+                source="core/ethics/care_allocation.py and "
+                "tests/test_phenomena_mechanisms.py",
+            ),
+            lambda _m: _care_floor_survives_an_overwhelming_need(),
+            lambda p, o: boolean_score(
+                bool(p), expected=bool(o.value), subject="floor held against any need"
+            ),
+            "core/ethics/care_allocation.py",
+        ),
+        (
+            "a_free_signal_supports_no_inference",
+            "a presentation whose effort costs every sender the same returns no "
+            "implied type rather than a plausible one",
+            "costly_signaling",
+            Observation(
+                name="pooling_signal_declines_to_infer",
+                value=True,
+                source="core/social/costly_signaling.py and "
+                "tests/test_phenomena_mechanisms.py",
+            ),
+            lambda _m: _pooling_signal_yields_no_type(),
+            lambda p, o: boolean_score(
+                bool(p), expected=bool(o.value), subject="pooling signal declined to infer"
+            ),
+            "core/social/costly_signaling.py",
+        ),
+        (
+            "arbitration_abstains_where_it_has_no_calibration",
+            "with no resolved outcome in a domain the arbiter returns no answer "
+            "and equal weights, rather than falling back on either channel",
+            "dual_process_arbitration",
+            Observation(
+                name="abstains_without_evidence",
+                value=True,
+                source="core/affect/dual_process_arbiter.py and "
+                "tests/test_phenomena_mechanisms.py",
+            ),
+            lambda _m: _arbitration_abstains_without_evidence(),
+            lambda p, o: boolean_score(
+                bool(p), expected=bool(o.value), subject="arbiter abstained"
+            ),
+            "core/affect/dual_process_arbiter.py",
+        ),
+    ):
+        suite.add_test(
+            ValidationTest(
+                name=name, description=description, required_capability=capability,
+                observation=observation, predict=predict, score=score, owner=owner,
+            )
+        )
+
+    suite.add_claim(
+        Claim(
+            statement=(
+                "Fourteen dispositions built as separate mechanisms are each "
+                "reachable from the running container."
+            ),
+            test="phenomena_dispositions_are_reachable",
+            owner="core/phenomena_wiring.py",
+            asserted_in="docs/PHENOMENA_AS_MECHANISMS.md",
+            evidence=Evidence.MEASURED_LIVE,
+            live_channels=("empathy.autonomy", "care.depleted"),
+            evidence_note=(
+                "reads the live container. It establishes that each disposition "
+                "resolves and reports, and nothing about whether anything in the "
+                "running system drives them"
+            ),
+        )
+    )
+    for statement, test_name, owner, note in (
+        (
+            "An identity held as the coherence of its practices cannot be "
+            "established by declaring it.",
+            "declaring_an_identity_does_not_establish_it",
+            "core/identity/constitutive_identity.py",
+            "run against a constructed identity with two enactments. It "
+            "establishes the one-way direction of the mechanism, not that any "
+            "identity in the live system is held this way",
+        ),
+        (
+            "The reserve held back for the carer is a constraint on the "
+            "allocation rather than a term in it, so no level of need elsewhere "
+            "can buy it.",
+            "the_care_floor_is_not_for_sale",
+            "core/ethics/care_allocation.py",
+            "run against constructed needs up to 1e12 against a budget of 10. "
+            "It establishes that the floor is in the feasible set, not that any "
+            "live care allocation has gone through this allocator",
+        ),
+        (
+            "A presentation whose effort is the same for every sender yields no "
+            "inference about the sender.",
+            "a_free_signal_supports_no_inference",
+            "core/social/costly_signaling.py",
+            "run against a constructed channel with the cost slope set to zero. "
+            "It establishes the refusal, not that any live presentation has "
+            "been read through this channel",
+        ),
+        (
+            "Arbitration between an affective and a deliberate judgement "
+            "abstains in a domain where neither has shown skill.",
+            "arbitration_abstains_where_it_has_no_calibration",
+            "core/affect/dual_process_arbiter.py",
+            "run against a fresh arbiter with no resolved outcomes. It "
+            "establishes the abstention, not that any live decision has been "
+            "arbitrated this way",
+        ),
+    ):
+        suite.add_claim(
+            Claim(
+                statement=statement, test=test_name, owner=owner,
+                asserted_in="docs/PHENOMENA_AS_MECHANISMS.md",
+                evidence=Evidence.MEASURED_SYNTHETIC,
+                evidence_note=note,
+            )
         )
 
 

@@ -25,6 +25,7 @@ include_rules = [
     "+core.container",
     "+core.conversation",
     "+core.epistemics",
+    "+core.ethics",
     "+core.event_bus",
     "+core.executive",
     "+core.fsw",
@@ -37,12 +38,18 @@ include_rules = [
     "+core.memory",
     "+core.morphogenesis",
     "+core.organism",
+    # The claim registry validates claims about these organs by running them,
+    # so it reaches whatever it is asked to make a claim about. Three edges
+    # arrived with the fourteen dispositions: the care allocator, the
+    # signalling channel, and the seam that says which of them are reachable.
+    "+core.phenomena_wiring",
     "+core.reality_reach",
     "+core.resilience",
     "+core.runtime",
     "+core.sandbox",
     "+core.security",
     "+core.sleep",
+    "+core.social",
     "+core.utils",
     "+core.values",
     "+core.verify",
