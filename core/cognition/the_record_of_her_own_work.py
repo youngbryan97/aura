@@ -473,6 +473,19 @@ def _remember_what_she_had() -> None:
             len(_RECORD.families),
             _RECORD.seen,
         )
+    # Everything else she is made of, heard from at the same moment. The
+    # intake used to be one cognitive ecology — rule and sequence induction
+    # — because those were the only paths that called note_an_episode, so a
+    # policy with a universal language was choosing from a single library's
+    # evidence.
+    try:
+        from core.cognition.what_the_whole_organism_costs import (
+            hear_from_every_subsystem,
+        )
+
+        hear_from_every_subsystem()
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        logger.debug("the whole organism is not reporting: %s", exc)
     with _WRITING:
         if _WRITER is None:
             _WRITER = threading.Thread(

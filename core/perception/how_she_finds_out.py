@@ -44,7 +44,8 @@ import logging
 import random
 import threading
 import time
-from collections.abc import Callable, Mapping, Sequence
+from contextlib import contextmanager
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -290,6 +291,38 @@ def find_out(
     nothing worth looking at" are different answers.
     """
 
+    with _reported(subject) as spent:
+        return _find_out(
+            subject, beliefs, value_per_bit=value_per_bit, draw=draw, spent=spent
+        )
+
+
+@contextmanager
+def _reported(subject: str) -> Iterator[dict[str, Any]]:
+    """What this cost, told to the developmental record.
+
+    Perception is one of the parts of her the developmental policy had no
+    evidence about, so a slow or useless way of finding out could never be
+    the thing it chose to fix.
+    """
+
+    try:
+        from core.cognition.what_the_whole_organism_costs import while_doing
+    except ImportError:
+        yield {}
+        return
+    with while_doing("perception", f"finding out about {subject}") as said:
+        yield said
+
+
+def _find_out(
+    subject: str,
+    beliefs: Mapping[str, float],
+    *,
+    value_per_bit: float,
+    draw: Callable[[float, float], float] | None,
+    spent: dict[str, Any],
+) -> Finding:
     ranked = what_to_look_at(
         beliefs, about=subject, value_per_bit=value_per_bit, draw=draw
     )
@@ -356,6 +389,7 @@ def find_out(
         )
     hypotheses = sorted(beliefs)
     updated = _after_seeing(beliefs, hypotheses, way, saw)
+    spent["admitted"] = f"{way.name} said {saw}"
     return Finding(
         subject=subject,
         way=way.name,

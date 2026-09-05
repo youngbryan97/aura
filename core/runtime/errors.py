@@ -127,6 +127,24 @@ class DegradationTracker:
         self._records: list[DegradationRecord] = []
         self._max = max_records
         self._counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        # Listeners fire OUTSIDE the lock, guarded, and must be O(1).
+        # Bounded, so the one sink every subsystem already reports failures
+        # to cannot grow a queue of expensive observers.
+        self._listeners: list[Any] = []
+
+    def add_listener(self, listener: Any) -> bool:
+        """Watch every degradation this process records (max 8, O(1) only).
+
+        This tracker is the one place in the tree that hears from every
+        subsystem. Anything that needs organism-wide evidence of what is
+        failing reads it here rather than being wired to each subsystem in
+        turn — which is the wiring that never gets finished.
+        """
+        with self._lock:
+            if len(self._listeners) >= 8 or listener in self._listeners:
+                return False
+            self._listeners.append(listener)
+            return True
 
     def record(self, rec: DegradationRecord) -> None:
         with self._lock:
@@ -134,6 +152,12 @@ class DegradationTracker:
             if len(self._records) > self._max:
                 self._records = self._records[-self._max:]
             self._counts[rec.subsystem][rec.severity] += 1
+            listeners = list(self._listeners)
+        for listener in listeners:
+            try:
+                listener(rec)
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("Degradation listener failed: %s", exc)
 
     def status(self) -> dict[str, Any]:
         with self._lock:
