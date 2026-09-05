@@ -72,6 +72,21 @@ def load_production_vectors(
         norm = float(np.linalg.norm(mean))
         if norm > 1e-6:
             combined[layer] = (mean / norm).astype(np.float32)
+
+    # An empty result is indistinguishable from a successful load of nothing,
+    # and a caller that injects an empty dict injects nothing while reporting
+    # a steered condition. CP947 bound vectors to the exact descriptor and did
+    # not re-stamp the files, so every vector was skipped for three days
+    # without a single line of output. Say so.
+    if not combined:
+        candidates = sorted(Path(vectors_dir).glob("*.npz"))
+        logger.warning(
+            "No steering vectors matched descriptor %s in %s "
+            "(%d .npz files present, %d requested dimensions %s). "
+            "A steered arm loaded from this returns nothing and injects nothing.",
+            model_descriptor_sha256[:12], vectors_dir, len(candidates),
+            len(dimensions), dimensions,
+        )
     return combined
 
 
