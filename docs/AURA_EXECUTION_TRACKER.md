@@ -52825,3 +52825,24 @@ progress now includes decoded tokens from prior attempts in the same request.
 Per-attempt generation limits and the parent's stale-message checks remain
 unchanged. Six focused tests pass; smoke passed 163 tests with one skipped.
 Lint, compile and layering pass. Restarted live replay is still required.
+
+## Checkpoint 2026-09-05: Validate the Requested Steering Intervention
+
+The foreground policy requests zero steering while model-specific steering
+remains unqualified. Receipt validation nevertheless demanded active, applied
+steering. It now requires that evidence only for a nonzero request, while
+still checking the observed strength against the requested strength. Invalid,
+nonfinite and out-of-range strengths remain rejected. This does not qualify
+steering or establish a steering gain.
+
+Ten focused cases and the full 142-test receipt suite pass. Smoke: 163 passed,
+one skipped. Lint, compile and layering pass. Two earlier test processes
+received SIGTERM before completion; the sender is not established. Their
+partial outputs were not counted as passes.
+
+Live e97f831b7 still failed the follow-up: the visible fatigue fragment came
+from ProactivePresence, not a useful answer to the user's question. Logs show
+rejected drafts and repeated repairs. The neural panel also reports unrun
+claim evidence, separately from behavioral failures. Source-matched replay
+of the committed repairs remains open. Claude's latest gate-nine evidence
+locates acquisition cost inside inversion; it does not show general transfer.

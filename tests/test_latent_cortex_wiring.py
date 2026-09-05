@@ -3895,6 +3895,41 @@ def test_service_routes_through_client_and_records_receipt(monkeypatch):
     )
 
 
+@pytest.mark.parametrize(
+    "requested,observed,active,applied,expected",
+    [
+        (0.0, 0.0, False, False, set()),
+        (0.0, 0.0, True, True, set()),
+        (0.0, 0.3, True, True, {"affective_steering_alpha_mismatch"}),
+        (0.3, 0.3, True, True, set()),
+        (0.3, 0.3, False, False,
+         {"affective_steering_inactive", "episode_affective_steering_unapplied"}),
+        (False, 0.0, False, False, {"affective_steering_alpha_mismatch"}),
+        (float("nan"), 0.0, False, False, {"affective_steering_alpha_mismatch"}),
+        (float("inf"), float("inf"), False, False,
+         {"affective_steering_alpha_mismatch"}),
+        (-0.1, -0.1, False, False, {"affective_steering_alpha_mismatch"}),
+        (0.0, None, False, False, {"affective_steering_alpha_mismatch"}),
+    ],
+)
+def test_steering_receipt_requires_only_the_requested_intervention(
+    requested, observed, active, applied, expected
+):
+    errors = LatentCortexService._receipt_contract_errors(
+        {
+            "worker_affective_steering_active": active,
+            "episode_affective_steering_applied": applied,
+            "episode_affective_steering_alpha": observed,
+        },
+        {},
+        runtime_controls={
+            "clean_user_surface_steering_alpha": requested,
+            "clean_user_surface_recurrent_loops": 1,
+        },
+    )
+    assert {error for error in errors if "affective_steering" in error} == expected
+
+
 def test_service_rejects_nominal_full_stack_without_accepted_optimization():
     config = {
         "n_slots": 16,

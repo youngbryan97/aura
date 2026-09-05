@@ -1806,15 +1806,25 @@ class LatentCortexService:
         if controls:
             expected_alpha = controls.get("clean_user_surface_steering_alpha")
             expected_loops = controls.get("clean_user_surface_recurrent_loops")
-            if receipt.get("worker_affective_steering_active") is not True:
-                errors.append("affective_steering_inactive")
-            if receipt.get("episode_affective_steering_applied") is not True:
-                errors.append("episode_affective_steering_unapplied")
+            steering_requested = (
+                not isinstance(expected_alpha, bool)
+                and isinstance(expected_alpha, (int, float))
+                and math.isfinite(expected_alpha)
+                and expected_alpha > 0
+            )
+            if steering_requested:
+                if receipt.get("worker_affective_steering_active") is not True:
+                    errors.append("affective_steering_inactive")
+                if receipt.get("episode_affective_steering_applied") is not True:
+                    errors.append("episode_affective_steering_unapplied")
             if (
                 isinstance(expected_alpha, bool)
                 or not isinstance(expected_alpha, (int, float))
+                or not math.isfinite(expected_alpha)
+                or not 0.0 <= expected_alpha <= 1.0
                 or isinstance(receipt.get("episode_affective_steering_alpha"), bool)
                 or not isinstance(receipt.get("episode_affective_steering_alpha"), (int, float))
+                or not math.isfinite(receipt["episode_affective_steering_alpha"])
                 or not math.isclose(
                     float(receipt["episode_affective_steering_alpha"]),
                     float(expected_alpha),
