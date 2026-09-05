@@ -8,9 +8,9 @@ an interface module or a particular UI transport.
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import logging
-import asyncio
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
