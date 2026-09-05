@@ -37,6 +37,7 @@ def test_a_rendering_is_not_evidence_for_its_own_state():
 def test_a_rendering_of_an_earlier_state_is_evidence_about_that_state():
     log = RenderingLog()
     rendering = log.record("It was quiet then.", {"valence": 0.0}, "narrative")
+    assert evidence_grade(rendering, digest({"valence": 0.6})) is Grade.PRIOR
     assert usable_as_evidence(rendering, digest({"valence": 0.6})) is True
 
 

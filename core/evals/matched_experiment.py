@@ -383,7 +383,8 @@ def run_matched(
     _declare_criterion()
 
     admissible = [t for t in tasks if t.admissible]
-    refused = len(tasks) - len(admissible)
+    inadmissible = [t for t in tasks if not t.admissible]
+    refused = len(inadmissible)
     if refused:
         logger.warning(
             "Matched experiment refused %d task(s): not externally authored or "
@@ -399,6 +400,25 @@ def run_matched(
 
     trials: list[Trial] = []
     correct_by_arm: dict[str, dict[str, bool]] = {a.name: {} for a in arms}
+
+    # A refused task is recorded rather than only counted, so the report names
+    # which ones and why. Filtering them out before any trial existed left
+    # VOID_PROVENANCE as an outcome nothing could produce.
+    for task in inadmissible:
+        trials.append(
+            Trial(
+                arm="",
+                task_id=task.task_id,
+                outcome=Outcome.VOID_PROVENANCE,
+                spend=Spend(),
+                answer_digest="",
+                note=(
+                    f"author {task.author!r} is not external"
+                    if task.author not in ADMISSIBLE_AUTHORS
+                    else "already seen by this system"
+                ),
+            )
+        )
 
     for arm in arms:
         for task in order:
@@ -448,7 +468,7 @@ def run_matched(
 
     results = []
     for arm in arms:
-        arm_trials = [t for t in trials if t.arm == arm.name]
+        arm_trials = [t for t in trials if t.arm == arm.name and t.arm]
         results.append(
             ArmResult(
                 arm=arm.name,

@@ -220,3 +220,29 @@ def test_an_arm_that_raises_is_void_rather_than_wrong():
 def test_too_few_admissible_tasks_is_inconclusive_not_a_verdict():
     report = run_matched([Arm("base", _arm_at(0.5, 1))], _tasks(3), budget=BUDGET)
     assert "inconclusive" in report.verdict
+
+
+def test_a_refused_task_is_recorded_not_only_counted():
+    """VOID_PROVENANCE was an outcome nothing could produce: inadmissible
+    tasks were filtered out before any trial existed."""
+    tasks = _tasks(10) + _tasks(1, author="aura") + _tasks(1, seen=True)
+    report = run_matched([Arm("base", _arm_at(0.5, 1))], tasks, budget=BUDGET)
+    refused = [t for t in report.trials if t.outcome is Outcome.VOID_PROVENANCE]
+    assert len(refused) == 2
+    assert any("not external" in t.note for t in refused)
+    assert any("already seen" in t.note for t in refused)
+
+
+def test_a_refused_task_belongs_to_no_arm():
+    tasks = _tasks(10) + _tasks(1, author="aura")
+    report = run_matched([Arm("base", _arm_at(0.5, 1))], tasks, budget=BUDGET)
+    assert next(a for a in report.arms if a.arm == "base").void == 0
+    assert all(t.arm == "" for t in report.trials if t.outcome is Outcome.VOID_PROVENANCE)
+
+
+def test_an_arm_error_is_recorded_as_void_error():
+    def broken(prompt, budget):
+        raise RuntimeError("the model was not loaded")
+
+    report = run_matched([Arm("broken", broken)], _tasks(5), budget=BUDGET)
+    assert all(t.outcome is Outcome.VOID_ERROR for t in report.trials)

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.cognition.primitive_invention import (
+from core.cognition.invention_depth import (
     MIN_PROBES,
     Verdict,
     Vocabulary,
