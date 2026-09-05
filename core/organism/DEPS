@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 35 outbound edges when this was generated.
+# 38 outbound edges when this was generated.
 
 description = "core.organism: may import only what it already imports; every new edge is an edit here."
 
@@ -38,10 +38,6 @@ include_rules = [
     "+core.memory",
     "+core.morphogenesis",
     "+core.organism",
-    # The claim registry validates claims about these organs by running them,
-    # so it reaches whatever it is asked to make a claim about. Three edges
-    # arrived with the fourteen dispositions: the care allocator, the
-    # signalling channel, and the seam that says which of them are reachable.
     "+core.phenomena_wiring",
     "+core.reality_reach",
     "+core.resilience",

@@ -962,16 +962,17 @@ def register_interiority(orchestrator: Any = None) -> InteriorityService:
     wrong in the only case that matters.
     """
     service = get_interiority()
-    # An empty ledger makes every relevance check read zero, so the layer
-    # declines everything and looks calm. Give it what the runtime already
-    # knows she is trying to do.
+    # The ledger is filled by StakeFeed, which this service already refreshes
+    # on every tick. A second harvester used to run here as well, and two
+    # writers with two independent caps put seventy-six goals in a ledger
+    # whose declared bound was twenty-four. Neither cap was wrong; there were
+    # simply two of them, which is the same defect this codebase has a test
+    # for elsewhere under the name of one canonical engine.
     try:
-        from core.interiority.hydrate import hydrate
-
-        hydrate(service)
-    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        service.stakes.refresh()
+    except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
         record_degradation(
-            "interiority.service", exc, action="ledger not hydrated at registration"
+            "interiority.service", exc, action="ledger not filled at registration"
         )
     registered = False
     try:

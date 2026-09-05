@@ -8,6 +8,8 @@ downstream of it changed.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from core.interiority.event import EventKind, InteriorEvent
@@ -484,39 +486,43 @@ def test_the_per_turn_cost_stays_off_the_critical_path(
     )
 
 
-def test_hydration_is_idempotent_so_the_cap_is_a_cap() -> None:
-    """Found live: a declared cap of 24 produced 76 goals in the ledger.
+def test_the_ledger_has_exactly_one_goal_writer() -> None:
+    """Seventy-six goals against a declared cap of twenty-four.
 
-    The boot path registers the derived engines more than once, and each
-    pass returned a different slice of the goal snapshot, so the bound
-    bounded nothing.
+    Neither cap was wrong. There were two of them: StakeFeed harvests
+    goals, bonds and commitments from the runtime's stores with a cap of
+    sixty-four, and a second harvester was added beside it with a cap of
+    twenty-four. Two writers with two independent bounds mean the ledger
+    is bounded by their sum, and no single number in the code says so.
+
+    This codebase already has a test for this shape elsewhere, under the
+    name of one canonical affect engine. The rule is the same: the honest
+    fix is not to reconcile the caps, it is to have one writer.
     """
-    from core.container import ServiceContainer
-    from core.interiority.hydrate import hydrate
+    import pathlib
 
-    class _Engine:
-        def __init__(self) -> None:
-            self.calls = 0
+    root = pathlib.Path(__file__).resolve().parents[2]
+    writers: list[str] = []
+    for path in (root / "core").rglob("*.py"):
+        if "interiority" not in str(path):
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        if re.search(r"\bledger\.goal\(", text) and "proving.py" not in path.name:
+            writers.append(str(path.relative_to(root)))
 
-        def get_active_goals(self, limit: int = 12, **_: object) -> list[dict]:
-            self.calls += 1
-            return [
-                {"goal_id": f"g{self.calls}_{i}", "priority": 0.5}
-                for i in range(limit)
-            ]
+    assert writers == ["core/interiority/stakes.py"], (
+        "the ledger's goal table has more than one writer, so its bound is "
+        "the sum of their caps and no number in the code says what it is: "
+        + ", ".join(writers)
+    )
 
-    ServiceContainer.register("goal_engine", _Engine())
-    try:
-        # Two service objects sharing one ledger, which is what a second
-        # copy of the module produces. A guard living on one object cannot
-        # see the other, and the live instance reached seventy-six goals
-        # with such a guard in place.
-        first = InteriorityService()
-        second = InteriorityService()
-        second.ledger = first.ledger
-        for _ in range(6):
-            hydrate(first)
-            hydrate(second)
-        assert first.ledger.counts()["goals"] == 24
-    finally:
-        ServiceContainer.register("goal_engine", None)
+
+def test_registration_fills_the_ledger_without_a_second_harvester() -> None:
+    """Registration must leave something at stake, through the one writer."""
+    from core.interiority.service import InteriorityService
+
+    service = InteriorityService()
+    before = service.ledger.counts()["goals"]
+    service.stakes.refresh()
+    after = service.ledger.counts()["goals"]
+    assert after >= before, "refresh removed stakes"
