@@ -111,6 +111,69 @@ def tiny_model():
     return _model()
 
 
+@pytest.mark.parametrize(
+    ("generated", "expected"),
+    [
+        ("Private draft.</think>\nThe answer is 42.", "The answer is 42."),
+        ("<think>Private draft.</think>\nThe answer is 42.", "The answer is 42."),
+        ("An ordinary answer.", "An ordinary answer."),
+        ('FINAL_ANSWER {"answer": 9}</think>\nStill answering', "Still answering"),
+    ],
+)
+def test_public_decode_uses_native_channel_boundary(tiny_model, generated, expected):
+    class Tokenizer:
+        def decode(self, tokens):
+            assert tokens == [17]
+            return generated
+
+    engine = LatentCortexEngine(tiny_model, Tokenizer(), config=_config())
+    assert engine._decode_public_text([17]) == expected
+
+
+def test_open_native_channel_is_not_a_public_answer(tiny_model):
+    class Tokenizer:
+        def decode(self, tokens):
+            return 'FINAL_ANSWER {"answer": 9}'
+
+    engine = LatentCortexEngine(tiny_model, Tokenizer(), config=_config())
+    engine._episode_native_thinking = True
+    assert engine._decode_public_text([17]) == ""
+    # A fresh verifier has its own prefix, independent of the parent channel.
+    assert engine._decode_public_text([17], native_thinking=False) == (
+        'FINAL_ANSWER {"answer": 9}'
+    )
+
+
+def test_private_contract_does_not_terminate_native_decode(tiny_model):
+    fragments = {
+        17: 'FINAL_ANSWER: {"answer": 9}',
+        18: "</think>\n",
+        19: 'FINAL_ANSWER: {"answer": 42}',
+    }
+
+    class Tokenizer:
+        eos_token_id = 0
+
+        def decode(self, tokens):
+            return "".join(fragments.get(int(token), "x") for token in tokens)
+
+    def logits(token):
+        values = mx.full((128,), -30.0)
+        values[token] = 30.0
+        return values
+
+    engine = LatentCortexEngine(tiny_model, Tokenizer(), config=_config())
+    engine._episode_native_thinking = True
+    out, termination = engine._decode(
+        engine._fresh_cache(), ComputeBudget(), logits(17),
+        max_tokens=8, temperature=0.0, final_answer_contract=True,
+        external_step_logits=lambda token: logits(token + 1),
+    )
+    assert out == [17, 18, 19]
+    assert termination == "contract_complete"
+    assert engine._decode_public_text(out) == 'FINAL_ANSWER: {"answer": 42}'
+
+
 def test_engine_resolves_hybrid_language_model_layers():
     class HybridModel:
         def __init__(self, language_model):

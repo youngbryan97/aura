@@ -1085,6 +1085,7 @@ class LatentCortexEngine:
         # A later recoverable latent failure must serve this exact floor
         # without asking an exhausted budget to perform the same work twice.
         self._episode_incumbent_tokens: tuple[int, ...] | None = None
+        self._episode_native_thinking = False
         self._episode_incumbent_termination = ""
         self._episode_incumbent_logprobs: tuple[float, ...] = ()
         # The in-flight receipt, published so the outer result boundary
@@ -1576,12 +1577,24 @@ class LatentCortexEngine:
         tokens,
         *,
         receipt: EpisodeReceipt | None = None,
+        native_thinking: bool | None = None,
     ) -> str:
         """Decode model tokens through the auditable public-text boundary."""
 
         if self.tokenizer is None:
             return ""
-        rendered, normalized = _normalize_decoded_text(self.tokenizer.decode(list(tokens)))
+        from core.brain.llm.chat_format import split_native_thinking_generation
+
+        channels = split_native_thinking_generation(
+            self.tokenizer.decode(list(tokens)),
+            native_thinking=(
+                self._episode_native_thinking
+                if native_thinking is None else native_thinking
+            ),
+        )
+        if receipt is not None and not channels.boundary_closed:
+            receipt.flag("native_thinking_boundary_incomplete")
+        rendered, normalized = _normalize_decoded_text(channels.surface)
         if normalized and receipt is not None:
             receipt.flag("decoded_text_control_characters_normalized")
         return rendered
@@ -2250,6 +2263,7 @@ class LatentCortexEngine:
                 final_answer_contract=final_answer_contract,
                 sentence_grace_tokens=0,
                 contract_grace_tokens=contract_extension,
+                native_thinking=False,
             )
             text = self.tokenizer.decode(generated)
             final_offsets = [
@@ -2492,6 +2506,7 @@ class LatentCortexEngine:
         sample_seed: int | None = None,
         final_answer_contract: bool | None = None,
         coda_adapter_active: bool = False,
+        native_thinking: bool | None = None,
     ) -> tuple[list[int], str]:
         """Minimal sampler: first token from ``initial_logits`` (the logits of
         the last persisted position — prompt tail or final thought slot), then
@@ -2693,7 +2708,7 @@ class LatentCortexEngine:
             )
 
             try:
-                text = self.tokenizer.decode(out)
+                text = self._decode_public_text(out, native_thinking=native_thinking)
             except (TypeError, ValueError, KeyError, AttributeError):
                 return None
             return contract_decode_disposition(text)
@@ -3738,6 +3753,15 @@ class LatentCortexEngine:
         # the one-call contract.
         self._episode_receipt = receipt
         tokens = self._encode(prompt, messages, token_ids)
+        # Read the actual serialized prefix; model names and requested modes
+        # do not establish which channel the tokenizer left open.
+        decode_prefix = getattr(self.tokenizer, "decode", None)
+        self._episode_native_thinking = bool(
+            callable(decode_prefix)
+            and str(decode_prefix(tokens)).rstrip().endswith("<think>")
+        )
+        if self._episode_native_thinking:
+            receipt.flag("native_thinking_prefix_open")
         verification_objective = str(prompt or "")
         if not verification_objective and messages:
             for message in reversed(messages):
@@ -4257,6 +4281,7 @@ class LatentCortexEngine:
                     reason=_public_reason("latent_admission_failed", exc),
                 )
             finally:
+                self._episode_native_thinking = False
                 self._episode_receipt = None
                 self._episode_incumbent_tokens = None
                 self._episode_incumbent_termination = ""

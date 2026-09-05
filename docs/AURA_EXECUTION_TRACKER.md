@@ -52678,3 +52678,25 @@ No frozen result was rescored and no model was loaded. Focused adapter tests:
 48 passed in the integration tree. Default smoke: 163 passed, one skipped;
 lint, compile and layering passed. Next is source-witness integration against
 the frozen semantic failure cases, not promotion from API existence.
+
+## Checkpoint 2026-09-05: Respect the Native Answer Channel in RLC
+
+The source-matched 11f70f1c1 browser replay failed. Its pristine incumbent
+ended inside private reasoning after the 174.231-second episode budget ran
+out. The reply path rejected that text. A subsequent runtime termination
+had SIGTERM followed by SIGKILL; the sender remains unidentified. This is
+not evidence of an OOM or a successful live repair.
+
+RLC now uses the ordinary worker's native thinking-channel splitter at its
+public text and answer-contract termination boundaries. The actual encoded
+prefix establishes an open thinking channel. Fresh verifier decodes retain
+their independent prefix contract. Token streams and compute counts remain
+unchanged. A completed private answer object cannot terminate the public
+answer, and unfinished private text cannot become its surface.
+
+Engine tests: 82 passed, including a scripted native-channel termination
+regression. Smoke: 163 passed, one skipped. Lint, compile and layering passed.
+Live validation remains open. Answer allocation still needs repair: the
+resident profile caps simple replies at 256 and compound replies at 1536
+before accounting for native reasoning. No latency or live-success claim
+is made by this checkpoint.
