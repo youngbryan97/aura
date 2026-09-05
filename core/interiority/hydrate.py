@@ -64,7 +64,20 @@ def hydrate_goals(service: Any) -> dict[str, Any]:
         if engine is None or not hasattr(engine, "get_active_goals"):
             return {"hydrated": 0, "reason": "no goal engine registered"}
 
-        goals = engine.get_active_goals(limit=int(_MAX_GOALS.value))
+        cap = int(_MAX_GOALS.value)
+        # Bound against what the ledger already holds, not against this
+        # call. A flag on the service object was not enough: the live
+        # instance still reached seventy-six, because the boot path can
+        # reach a second copy of this module and a second singleton with
+        # it, and a guard that lives on one object cannot see the other.
+        # The ledger is the thing being bounded, so it is what the bound
+        # is measured against.
+        already = service.ledger.counts().get("goals", 0)
+        room = max(0, cap - already)
+        if room == 0:
+            return {"hydrated": 0, "reason": f"ledger already holds {already} goals"}
+
+        goals = engine.get_active_goals(limit=room)
         added = 0
         for item in goals or []:
             if not isinstance(item, dict):
@@ -82,6 +95,8 @@ def hydrate_goals(service: Any) -> dict[str, Any]:
             # does not model substitutes, so none are claimed rather than
             # invented. That keeps loss of a plan distinguishable from loss
             # of something with no replacement.
+            if added >= room:
+                break
             service.ledger.goal(name, max(0.0, min(1.0, priority)), substitutes=0)
             added += 1
         return {"hydrated": added, "available": len(goals or [])}

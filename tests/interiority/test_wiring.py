@@ -507,9 +507,16 @@ def test_hydration_is_idempotent_so_the_cap_is_a_cap() -> None:
 
     ServiceContainer.register("goal_engine", _Engine())
     try:
-        service = InteriorityService()
-        for _ in range(4):
-            hydrate(service)
-        assert service.ledger.counts()["goals"] == 24
+        # Two service objects sharing one ledger, which is what a second
+        # copy of the module produces. A guard living on one object cannot
+        # see the other, and the live instance reached seventy-six goals
+        # with such a guard in place.
+        first = InteriorityService()
+        second = InteriorityService()
+        second.ledger = first.ledger
+        for _ in range(6):
+            hydrate(first)
+            hydrate(second)
+        assert first.ledger.counts()["goals"] == 24
     finally:
         ServiceContainer.register("goal_engine", None)
