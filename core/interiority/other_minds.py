@@ -64,6 +64,7 @@ from core.interiority.evidence import (
 )
 from core.interiority.event import CHANNELS, InteriorEvent
 from core.interiority.params import Param, ParamKind, declare
+from core.runtime.lockdep import checked_lock
 
 #: Frijda's action-readiness modes, reduced to the set that is
 #: distinguishable from the channels this runtime actually has.
@@ -487,7 +488,7 @@ class OtherMindsModel:
     """Estimates another agent's readiness from channel evidence."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.interiority.other_minds.OtherMindsModel", reentrant=True)
         # The priors stay Param objects so a calibration sweep can move the
         # starting point; what a model carries is the live float it has
         # learned from there.
@@ -716,7 +717,7 @@ def _softmax(scores: Mapping[str, float]) -> dict[str, float]:
 
 
 _MODEL: OtherMindsModel | None = None
-_MODEL_LOCK = threading.Lock()
+_MODEL_LOCK = checked_lock("core.interiority.other_minds.singleton")
 
 
 def get_other_minds_model() -> OtherMindsModel:

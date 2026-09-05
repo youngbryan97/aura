@@ -36,6 +36,7 @@ committed instance behind it:
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import hashlib
 import json
 import threading
@@ -167,7 +168,7 @@ class ExperimentRegistry:
     """Where a quantitative claim goes to be checkable."""
 
     def __init__(self, *, max_records: int = 10_000) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.science.experiment_registry.ExperimentRegistry", reentrant=True)
         self._records: dict[str, ExperimentRecord] = {}
         self._max = int(max_records)
         self._refused: list[str] = []
@@ -289,7 +290,7 @@ class ExperimentRegistry:
         }
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.science.experiment_registry.singleton")
 _registry: ExperimentRegistry | None = None
 
 

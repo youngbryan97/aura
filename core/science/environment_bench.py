@@ -30,6 +30,7 @@ which is what an agent looks like when it has no model of what it just did.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import ast
 import hashlib
 import math
@@ -273,7 +274,7 @@ class EnvironmentBench:
     """Families, a frozen split, and the episodes run against it."""
 
     def __init__(self, *, seed: int = 0) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.science.environment_bench.EnvironmentBench", reentrant=True)
         self._families: dict[str, Family] = {}
         self._results: list[EpisodeResult] = []
         self._split: dict[str, str] | None = None

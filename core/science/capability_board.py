@@ -32,6 +32,7 @@ looks for.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import hashlib
 import json
 import threading
@@ -146,7 +147,7 @@ class Board:
     """A frozen suite, every arm on it, and what may be said about the result."""
 
     def __init__(self, tasks: Mapping[str, Sequence[str]]) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.science.capability_board.Board", reentrant=True)
         self._tasks = {k: tuple(v) for k, v in tasks.items()}
         self._hash = self._hash_of(self._tasks)
         self._scores: list[Score] = []

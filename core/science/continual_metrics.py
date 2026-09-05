@@ -40,6 +40,7 @@ she stop being able to do" is exactly the question a lifetime run has to answer.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 import time
 from collections.abc import Mapping, Sequence
@@ -75,7 +76,7 @@ class ContinualLedger:
     """Every task's score after every block, and what each block cost."""
 
     def __init__(self, *, forgetting_budget: float = DEFAULT_FORGETTING_BUDGET) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.science.continual_metrics.ContinualLedger", reentrant=True)
         self._scores: dict[tuple[str, int], TaskScore] = {}
         self._trained_at: dict[str, int] = {}
         self._budget = float(forgetting_budget)
@@ -210,7 +211,7 @@ class ArtifactEcology:
     """Every learned artifact, priced for keeping, across every store."""
 
     def __init__(self, *, min_uses_before_retiring: int = 3) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.science.continual_metrics.ArtifactEcology", reentrant=True)
         self._artifacts: dict[str, Artifact] = {}
         self._min_uses = int(min_uses_before_retiring)
 

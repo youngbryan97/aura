@@ -34,6 +34,7 @@ a consumer can call it on a hot path.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import asyncio
 import inspect
 import logging
@@ -87,7 +88,7 @@ class InteriorityService:
     """Runs the faculties and lands their effects on the runtime."""
 
     def __init__(self, *, ledger: RelationalLedger | None = None) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.interiority.service.InteriorityService", reentrant=True)
         #: Scheduled apply() tasks, held so the loop does not garbage-collect
         #: a push before it runs.
         self._pending: set[asyncio.Task[Any]] = set()
@@ -937,7 +938,7 @@ _KIND_FOR_SOURCE: Mapping[str, EventKind] = {
 
 
 _SERVICE: InteriorityService | None = None
-_SERVICE_LOCK = threading.Lock()
+_SERVICE_LOCK = checked_lock("core.interiority.service.singleton")
 
 
 def get_interiority() -> InteriorityService:

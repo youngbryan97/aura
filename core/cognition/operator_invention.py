@@ -43,6 +43,7 @@ clause and the thing that makes the loop recursive rather than a single step.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -203,7 +204,7 @@ class OperatorKernel:
     """The evaluator's operator set, and the only way to extend it."""
 
     def __init__(self, base: Mapping[str, Callable[..., Any]] | None = None) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.operator_invention.OperatorKernel", reentrant=True)
         self._operators: dict[str, Operator] = {
             name: Operator(name=name, fn=fn) for name, fn in (base or {}).items()
         }

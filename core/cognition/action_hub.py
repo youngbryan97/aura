@@ -33,6 +33,7 @@ sources do not have types yet and refusing them would turn the hub off.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -139,7 +140,7 @@ class ActionHub:
     """One door for proposals. It decides nothing about authority."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.action_hub.ActionHub", reentrant=True)
         self._taken: dict[str, int] = {}
         self._proposed: dict[str, int] = {}
         self._counterfactual_changes: dict[str, int] = {}
@@ -220,7 +221,7 @@ class ActionHub:
         }
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.cognition.action_hub.singleton")
 _hub: ActionHub | None = None
 
 

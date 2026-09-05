@@ -47,6 +47,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from core.runtime.lockdep import checked_lock
+
 logger = logging.getLogger("Aura.Verify")
 
 
@@ -339,7 +341,7 @@ def verify(
 
 
 _LAST_REPORT: VerifyReport | None = None
-_LAST_RESULTS_LOCK = threading.Lock()
+_LAST_RESULTS_LOCK = checked_lock("core.verify.invariants.singleton")
 _LAST_RESULTS: dict[str, tuple[float, tuple[Violation, ...]]] = {}
 
 

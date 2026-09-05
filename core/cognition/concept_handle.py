@@ -40,6 +40,7 @@ how a kettle becomes a kestrel.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import hashlib
 import threading
 import time
@@ -228,7 +229,7 @@ class ConceptRegistry:
     """The handles, and the index from any substrate reference back to one."""
 
     def __init__(self, *, max_handles: int = 100_000) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.concept_handle.ConceptRegistry", reentrant=True)
         self._handles: dict[str, ConceptHandle] = {}
         self._index: dict[tuple[Substrate, str], str] = {}
         self._max_handles = int(max_handles)
@@ -345,7 +346,7 @@ class ConceptRegistry:
             return list(self._handles.values())
 
 
-_registry_lock = threading.Lock()
+_registry_lock = checked_lock("core.cognition.concept_handle.singleton")
 _registry: ConceptRegistry | None = None
 
 

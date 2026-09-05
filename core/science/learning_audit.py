@@ -27,6 +27,7 @@ an incomplete link, not as a small effect.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 import time
 from collections.abc import Sequence
@@ -127,7 +128,7 @@ class LearningAudit:
     """Every claim that something was learned, and whether its chain closes."""
 
     def __init__(self, *, max_claims: int = 8192) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.science.learning_audit.LearningAudit", reentrant=True)
         self._claims: dict[str, LearningClaim] = {}
         self._max = int(max_claims)
 
@@ -184,7 +185,7 @@ class LearningAudit:
         }
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.science.learning_audit.singleton")
 _audit: LearningAudit | None = None
 
 

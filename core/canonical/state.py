@@ -28,6 +28,7 @@ keeps it from growing opinions of its own.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
 import threading
 import time
@@ -179,7 +180,7 @@ class CanonicalState:
 
     def __init__(self, *, now: Any = time.time) -> None:
         self._now = now
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.canonical.state.CanonicalState", reentrant=True)
         #: channel id → producer → that producer's latest estimate. One per
         #: producer, because a subsystem estimating twice has changed its
         #: mind, not gained a second vote.
@@ -399,7 +400,7 @@ class CanonicalState:
 
 
 _STATE: CanonicalState | None = None
-_STATE_LOCK = threading.Lock()
+_STATE_LOCK = checked_lock("core.canonical.state.singleton")
 
 
 def get_canonical_state() -> CanonicalState:

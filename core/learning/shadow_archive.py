@@ -41,6 +41,7 @@ thing in this module that touches her.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import hashlib
 import json
 import math
@@ -147,7 +148,7 @@ class ShadowArchive:
         seed: int = 0,
         novelty_weight: float = 0.5,
     ) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.learning.shadow_archive.ShadowArchive", reentrant=True)
         self._evaluator = evaluator
         self._fingerprint = evaluator.fingerprint
         self._variants: dict[str, Variant] = {}

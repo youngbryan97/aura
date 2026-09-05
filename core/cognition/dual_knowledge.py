@@ -42,6 +42,7 @@ rather than by presence.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -221,7 +222,7 @@ class KnowledgeRegistry:
     """Every skill that exists in more than one form, and what the crossings cost."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.dual_knowledge.KnowledgeRegistry", reentrant=True)
         self._skills: dict[str, DualKnowledge] = {}
         self._conversions: list[ConversionResult] = []
         self._max_history = 2048
@@ -340,7 +341,7 @@ class CreditAssignment:
     """
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.dual_knowledge.CreditAssignment", reentrant=True)
         self._credit: dict[str, dict[str, float]] = {}
 
     def assign(
@@ -379,7 +380,7 @@ class CreditAssignment:
         }
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.cognition.dual_knowledge.singleton")
 _registry: KnowledgeRegistry | None = None
 
 

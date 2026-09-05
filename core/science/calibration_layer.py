@@ -31,6 +31,7 @@ sixty observations would look better and mean less.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
 import threading
 from collections.abc import Sequence
@@ -160,7 +161,7 @@ class CalibrationLayer:
     """The one place a confidence becomes comparable to another confidence."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.science.calibration_layer.CalibrationLayer", reentrant=True)
         self._sources: dict[str, SourceCalibration] = {}
 
     def observe(self, source: str, raw: float, outcome: bool) -> None:
@@ -224,7 +225,7 @@ class CalibrationLayer:
         }
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.science.calibration_layer.singleton")
 _layer: CalibrationLayer | None = None
 
 

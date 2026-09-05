@@ -53,6 +53,7 @@ had once.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import logging
 import math
 import threading
@@ -339,7 +340,7 @@ class EventNotes:
         touch: "Callable[[], None]",
         record: "Callable[[str, Mapping[str, Any]], None]",
     ) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.interiority.ledger.EventNotes", reentrant=True)
         self._touch = touch
         self._record = record
         self._goal_deltas: dict[str, float] = {}
@@ -482,7 +483,7 @@ class MakingRegister:
         touch: "Callable[[], None]",
         record: "Callable[[str, Mapping[str, Any]], None]",
     ) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.interiority.ledger.MakingRegister", reentrant=True)
         self._touch = touch
         self._record = record
         self._works: dict[str, Work] = {}
@@ -573,7 +574,7 @@ class StandingRegister:
         touch: "Callable[[], None]",
         record: "Callable[[str, Mapping[str, Any]], None]",
     ) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.interiority.ledger.StandingRegister", reentrant=True)
         self._touch = touch
         self._record = record
         self._rivalries: dict[str, Rivalry] = {}
@@ -667,7 +668,7 @@ class RelationalLedger:
     """The standing set of things this agent holds."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.interiority.ledger.RelationalLedger", reentrant=True)
         self.revision = 0
         #: Observations about particular events, which have a different
         #: lifetime from a stake and are kept apart from one.

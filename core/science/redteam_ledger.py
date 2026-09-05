@@ -23,6 +23,7 @@ rising means they are being closed rather than fixed.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -90,7 +91,7 @@ class RedTeamLedger:
     """Every finding, its fix, and the test that stops it returning."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.science.redteam_ledger.RedTeamLedger", reentrant=True)
         self._findings: dict[str, Finding] = {}
 
     def record(

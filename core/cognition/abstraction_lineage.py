@@ -25,6 +25,7 @@ much of the building was resting on it.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
@@ -66,7 +67,7 @@ class Lineage:
     """Which episodes each abstraction rests on, and what falls if they go."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.abstraction_lineage.Lineage", reentrant=True)
         self._nodes: dict[str, Node] = {}
         self._children: dict[str, set[str]] = {}
 

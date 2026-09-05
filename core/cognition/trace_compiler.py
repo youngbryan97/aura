@@ -50,6 +50,7 @@ from core.cognition.procedure import (
     ProcedureRegistry,
     Signature,
 )
+from core.runtime.lockdep import checked_lock
 
 __all__ = ["Trace", "CompilationResult", "TraceCompiler", "MIN_OCCURRENCES"]
 
@@ -105,7 +106,7 @@ class TraceCompiler:
         *,
         min_occurrences: int = MIN_OCCURRENCES,
     ) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.trace_compiler.TraceCompiler", reentrant=True)
         self._registry = registry
         self._traces: dict[str, list[Trace]] = {}
         self._min = int(min_occurrences)

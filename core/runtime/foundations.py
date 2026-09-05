@@ -34,12 +34,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.runtime.lockdep import checked_lock
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Foundations")
@@ -57,7 +57,7 @@ SENTINEL_INTERVAL_S = 5.0
 #: means the wall clock jumped (NTP step, sleep/wake, VM migration).
 CLOCK_JUMP_TOLERANCE_S = 5.0
 
-_COGNITION_VALIDATION_LOCK = threading.Lock()
+_COGNITION_VALIDATION_LOCK = checked_lock("core.runtime.foundations.singleton")
 _COGNITION_VALIDATION_STATUS: dict[str, Any] = {
     "state": "not_started",
     "started_at": None,

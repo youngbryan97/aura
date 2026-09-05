@@ -31,6 +31,7 @@ whether the campaign could have found a different answer.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import contextlib
 import threading
 from collections.abc import Iterator, Sequence
@@ -141,7 +142,7 @@ class ParameterRegistry:
     """Every declared constant, and whether a claim may lean on it."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.science.parameter_registry.ParameterRegistry", reentrant=True)
         self._parameters: dict[str, Parameter] = {}
 
     def declare(self, parameter: Parameter) -> Parameter:
@@ -232,7 +233,7 @@ class ParameterRegistry:
             return sorted(self._parameters.values(), key=lambda p: p.name)
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.science.parameter_registry.singleton")
 _registry: ParameterRegistry | None = None
 
 

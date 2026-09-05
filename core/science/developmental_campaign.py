@@ -39,6 +39,7 @@ claims.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
 import random
 import threading
@@ -195,7 +196,7 @@ class DevelopmentalCampaign:
     """Grown against reset, over blocks, with the confounds refused."""
 
     def __init__(self, *, seed: int = 0) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.science.developmental_campaign.DevelopmentalCampaign", reentrant=True)
         self._blocks: dict[int, Block] = {}
         self._rng = random.Random(seed)
         #: answer key -> the first block it appeared in. Contamination is

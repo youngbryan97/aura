@@ -40,6 +40,7 @@ nothing.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import itertools
 import threading
 import time
@@ -200,7 +201,7 @@ class EventGraph:
     """The events, their causal edges, and the questions worth asking of them."""
 
     def __init__(self, *, capacity: int = _DEFAULT_CAPACITY, clock=time.time) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.cognitive_event.EventGraph", reentrant=True)
         self._events: dict[int, CognitiveEvent] = {}
         self._order: list[int] = []
         self._children: dict[int, set[int]] = {}
@@ -396,7 +397,7 @@ class EventGraph:
             return iter([self._events[s] for s in self._order if s in self._events])
 
 
-_graph_lock = threading.Lock()
+_graph_lock = checked_lock("core.cognition.cognitive_event.singleton")
 _graph: EventGraph | None = None
 
 

@@ -31,6 +31,7 @@ get the same answer.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -78,7 +79,7 @@ class AttentionPolicy:
     """What to process, learned from what processing it returned."""
 
     def __init__(self, *, floor: float = FLOOR, rate: float = RATE) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.attention_policy.AttentionPolicy", reentrant=True)
         self._channels: dict[str, Channel] = {}
         self._floor = float(floor)
         self._rate = float(rate)
@@ -183,7 +184,7 @@ class AttentionPolicy:
         }
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.cognition.attention_policy.singleton")
 _policy: AttentionPolicy | None = None
 
 

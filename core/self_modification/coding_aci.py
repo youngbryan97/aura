@@ -33,6 +33,7 @@ a second way to run a command is how a bypass gets built.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import ast
 import re
 import threading
@@ -115,7 +116,7 @@ class CodingSurface:
     """A bounded, structural view of a repository."""
 
     def __init__(self, root: Path, *, view_budget: int = VIEW_BUDGET_LINES) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.self_modification.coding_aci.CodingSurface", reentrant=True)
         self.root = Path(root).resolve()
         self._budget = int(view_budget)
         self._edits: list[Edit] = []

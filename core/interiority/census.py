@@ -33,6 +33,7 @@ compared.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import logging
 import threading
 import time
@@ -54,7 +55,7 @@ class Census:
     """A running tally of what the interior actually did."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.interiority.census.Census", reentrant=True)
         self.started_at = time.time()
         self._turns = 0
         self._fired: Counter[str] = Counter()
@@ -199,7 +200,7 @@ class Census:
 
 
 _CENSUS: Census | None = None
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.interiority.census.singleton")
 
 
 def get_census() -> Census:

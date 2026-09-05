@@ -44,6 +44,7 @@ from, rather than from a depth parameter.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -166,7 +167,7 @@ class LibraryCompressor:
         evaluate: Callable[[Any], Any] | None = None,
         min_abstraction_size: int = REFERENCE_COST + 1,
     ) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.library_compression.LibraryCompressor", reentrant=True)
         self._solutions: dict[str, tuple[Expression, str]] = {}
         self._library: dict[str, Abstraction] = {}
         self._rounds: list[CompressionRound] = []

@@ -42,6 +42,7 @@ forty-two use, which is the honest reading of what a synapse is.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
 import random
 import threading
@@ -184,7 +185,7 @@ class SynapticCleft:
         bank: ReceptorBank | None = None,
         rng: random.Random | None = None,
     ) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.interiority.cleft.SynapticCleft", reentrant=True)
         self._terminals: dict[str, _Terminal] = {}
         self._bank = bank or get_receptor_bank()
         self._rng = rng or random.Random()
@@ -315,7 +316,7 @@ class SynapticCleft:
 
 
 _CLEFT: SynapticCleft | None = None
-_CLEFT_LOCK = threading.Lock()
+_CLEFT_LOCK = checked_lock("core.interiority.cleft.singleton")
 
 
 def get_cleft() -> SynapticCleft:

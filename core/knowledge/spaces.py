@@ -32,6 +32,7 @@ reason this is here rather than in the invention module.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -208,7 +209,7 @@ class PackageRegistry:
     """Load and unload rule packages, exactly, so a change can be undone."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.knowledge.spaces.PackageRegistry", reentrant=True)
         self._packages: dict[tuple[str, str], Package] = {}
 
     def load(self, package: Package, space: Space) -> Package:

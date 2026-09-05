@@ -42,6 +42,7 @@ architecture assumed.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -159,7 +160,7 @@ class ImpasseBus:
     """
 
     def __init__(self, *, default_budget: SubstateBudget | None = None, clock=time.monotonic) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.substate.ImpasseBus", reentrant=True)
         self._handlers: dict[ImpasseType, list[tuple[str, Handler]]] = {}
         self._substates: dict[str, CognitiveSubstate] = {}
         self._counter = 0
@@ -303,7 +304,7 @@ class ImpasseBus:
             }
 
 
-_bus_lock = threading.Lock()
+_bus_lock = checked_lock("core.cognition.substate.singleton")
 _bus: ImpasseBus | None = None
 
 

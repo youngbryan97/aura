@@ -31,6 +31,7 @@ things it may not have.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -97,7 +98,7 @@ class Curriculum:
         information_weight: float = 0.2,
         governance: Callable[[Task], tuple[bool, str]] | None = None,
     ) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.curriculum_optimiser.Curriculum", reentrant=True)
         self._tasks: dict[str, Task] = {}
         self._recent: list[str] = []
         self._diversity = float(diversity_weight)
@@ -181,7 +182,7 @@ class Curriculum:
         }
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.cognition.curriculum_optimiser.singleton")
 _curriculum: Curriculum | None = None
 
 

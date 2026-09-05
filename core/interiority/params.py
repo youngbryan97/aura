@@ -33,6 +33,7 @@ range.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
 import threading
 from contextlib import contextmanager
@@ -166,7 +167,7 @@ class ParamRegistry:
     """Every parameter declared anywhere in the package."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.interiority.params.ParamRegistry", reentrant=True)
         self._params: dict[str, Param] = {}
 
     def declare(self, param: Param) -> Param:

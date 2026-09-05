@@ -35,6 +35,7 @@ a cost function nobody can see is a cost function nobody can argue with.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 import time
 from collections.abc import Mapping, Sequence
@@ -138,7 +139,7 @@ class Automaticity:
     """Executive cost per recurring task, and what it does under practice."""
 
     def __init__(self, *, weights: CostWeights | None = None, max_tasks: int = 2048) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.automaticity.Automaticity", reentrant=True)
         self._weights = weights or CostWeights()
         self._curves: dict[str, TaskCurve] = {}
         self._max_tasks = int(max_tasks)
@@ -258,7 +259,7 @@ class Automaticity:
             }
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.cognition.automaticity.singleton")
 _index: Automaticity | None = None
 
 

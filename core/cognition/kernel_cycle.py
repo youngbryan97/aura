@@ -40,6 +40,7 @@ to the log line nearest in time.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -178,7 +179,7 @@ class CognitiveKernel:
     """The one cycle. Loops differ by configuration, not by implementation."""
 
     def __init__(self, *, clock: Callable[[], float] = time.monotonic) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.kernel_cycle.CognitiveKernel", reentrant=True)
         self._clock = clock
         self._turns: dict[str, int] = {}
         self._impasses: dict[str, int] = {}

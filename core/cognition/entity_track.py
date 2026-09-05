@@ -30,6 +30,7 @@ with the confidence of a geometric match.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
 import threading
 import time
@@ -217,7 +218,7 @@ class TrackStore:
     """Association across frames, refusing the associations it cannot justify."""
 
     def __init__(self, *, match_threshold: float = 0.35, max_tracks: int = 4096) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.entity_track.TrackStore", reentrant=True)
         self._tracks: dict[str, EntityTrack] = {}
         self._counter = 0
         self._match_threshold = float(match_threshold)
@@ -353,7 +354,7 @@ class TrackStore:
             return list(self._tracks.values())
 
 
-_store_lock = threading.Lock()
+_store_lock = checked_lock("core.cognition.entity_track.singleton")
 _store: TrackStore | None = None
 
 

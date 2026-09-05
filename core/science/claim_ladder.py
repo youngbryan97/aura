@@ -38,6 +38,7 @@ to a number is what the ladder exists to stop.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import contextlib
 import json
 import threading
@@ -162,7 +163,7 @@ class ClaimLadder:
     """Every claim, and the rung its artifacts actually reach."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.science.claim_ladder.ClaimLadder", reentrant=True)
         self._claims: dict[str, LadderClaim] = {}
 
     def register(
@@ -269,7 +270,7 @@ class ClaimLadder:
         )
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.science.claim_ladder.singleton")
 _ladder: ClaimLadder | None = None
 
 

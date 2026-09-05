@@ -44,6 +44,7 @@ reads this state rather than modelling it a second time.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
 import threading
 import time
@@ -263,7 +264,7 @@ class ReceptorBank:
     """One receptor per faculty channel, in the path of every activation."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.interiority.receptors.ReceptorBank", reentrant=True)
         self._receptors: dict[str, Receptor] = {}
         self._passes = 0
 
@@ -315,7 +316,7 @@ class ReceptorBank:
 
 
 _BANK: ReceptorBank | None = None
-_BANK_LOCK = threading.Lock()
+_BANK_LOCK = checked_lock("core.interiority.receptors.singleton")
 
 
 def get_receptor_bank() -> ReceptorBank:

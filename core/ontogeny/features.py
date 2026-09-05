@@ -25,13 +25,14 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import threading
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Ontogeny.Features")
 
@@ -238,7 +239,7 @@ _SCHEMAS: dict[str, FeatureSchema] = {EXECUTIVE_ADMISSION.control_point: EXECUTI
 #: change under it — an edit reaches the runtime only through a restart — so a
 #: revision pinned at first use is the revision the evidence is actually about.
 _REVISIONS: dict[str, str] = {}
-_REVISIONS_LOCK = threading.Lock()
+_REVISIONS_LOCK = checked_lock("core.ontogeny.features.singleton")
 
 
 def decision_revision(control_point: str, *, fallback: str) -> str:

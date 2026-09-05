@@ -42,6 +42,7 @@ measurements.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
 import threading
 import time
@@ -264,7 +265,7 @@ class ValueOfComputation:
     TRIAL_COST = 1.0
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.cognitive_cost.ValueOfComputation", reentrant=True)
         self._stats: dict[str, MethodStats] = {}
 
     def observe(self, method: str, *, cost: float, gain: float) -> None:
@@ -334,7 +335,7 @@ class ValueOfComputation:
         }
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.cognition.cognitive_cost.singleton")
 _controller: ValueOfComputation | None = None
 
 

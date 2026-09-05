@@ -27,6 +27,7 @@ report says which happened rather than assuming the first.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -102,7 +103,7 @@ class Conductor:
     """Spawns specialists, isolates them, and reconciles what they return."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.runtime.governed_subagent.Conductor", reentrant=True)
         self._findings: list[Finding] = []
         self._fanouts: list[dict[str, Any]] = []
 

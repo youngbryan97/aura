@@ -27,6 +27,7 @@ assertion rather than the code.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -114,7 +115,7 @@ class AutoDoc:
     """Describe a library, then find out whether the descriptions earned it."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.autodoc.AutoDoc", reentrant=True)
         self._namings: dict[str, Naming] = {}
         self._trial: NamingTrial | None = None
 

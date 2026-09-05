@@ -30,6 +30,7 @@ weaker one. A boolean cannot hold that distinction.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import hashlib
 import json
 import threading
@@ -174,7 +175,7 @@ class ReplicationRegistry:
     """Packs, the attempts against them, and what each claim has earned."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.science.replication_pack.ReplicationRegistry", reentrant=True)
         self._packs: dict[str, ReplicationPack] = {}
         self._attempts: list[Replication] = []
 

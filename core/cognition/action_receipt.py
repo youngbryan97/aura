@@ -42,6 +42,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -224,7 +225,7 @@ class ReceiptLedger:
     """What the environment learners have been fed, and what was refused."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = checked_lock("core.cognition.action_receipt.ReceiptLedger")
         self._by_verdict: dict[str, int] = {}
         self._by_learner: dict[str, dict[str, int]] = {}
 
@@ -250,7 +251,7 @@ class ReceiptLedger:
             }
 
 
-_ledger_lock = threading.Lock()
+_ledger_lock = checked_lock("core.cognition.action_receipt.singleton")
 _ledger: ReceiptLedger | None = None
 
 

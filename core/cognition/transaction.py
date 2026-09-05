@@ -33,6 +33,7 @@ could not be undone is exactly the thing an operator has to know about.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 import time
 from collections.abc import Callable, Sequence
@@ -197,7 +198,7 @@ def transaction(evidence_id: str) -> _TransactionScope:
     return _TransactionScope(evidence_id)
 
 
-_ledger_lock = threading.Lock()
+_ledger_lock = checked_lock("core.cognition.transaction.singleton")
 _counts: dict[str, int] = {}
 
 

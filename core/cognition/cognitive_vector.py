@@ -40,6 +40,7 @@ the embedding store knows" becomes a measurement. Card 082.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import hashlib
 import math
 import threading
@@ -192,7 +193,7 @@ class CleanupMemory:
     """
 
     def __init__(self, *, threshold: float = 0.25, margin: float = 0.05) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.cognitive_vector.CleanupMemory", reentrant=True)
         self._items: dict[str, Vector] = {}
         self._threshold = float(threshold)
         self._margin = float(margin)
@@ -274,7 +275,7 @@ class VectorRegistry:
     """The canonical space, its cleanup memory, and every substrate's projection."""
 
     def __init__(self, *, dimension: int = DEFAULT_DIMENSION) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.cognitive_vector.VectorRegistry", reentrant=True)
         self.dimension = int(dimension)
         self.cleanup = CleanupMemory()
         self._projections: dict[str, Projection] = {}
@@ -416,7 +417,7 @@ def subspace_angle(a: Sequence[Sequence[float]], b: Sequence[Sequence[float]]) -
     return math.acos(max(-1.0, min(1.0, similarity(superpose(*a), superpose(*b)))))
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.cognition.cognitive_vector.singleton")
 _registry: VectorRegistry | None = None
 
 

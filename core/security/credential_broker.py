@@ -28,6 +28,7 @@ passes the value into it.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import secrets
 import threading
 import time
@@ -74,7 +75,7 @@ class CredentialBroker:
         clock: Callable[[], float] = time.time,
         default_ttl: float = 60.0,
     ) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.security.credential_broker.CredentialBroker", reentrant=True)
         self._vault = dict(vault)
         self._clock = clock
         self._default_ttl = float(default_ttl)

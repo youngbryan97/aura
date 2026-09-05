@@ -31,6 +31,7 @@ tracked per topic and the aggregate is reported as a range rather than a mean.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 import time
 from collections.abc import Mapping, Sequence
@@ -214,7 +215,7 @@ class AgentRegistry:
     """Every other agent Aura has a model of."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.agent_model.AgentRegistry", reentrant=True)
         self._agents: dict[str, AgentModel] = {}
 
     def model(self, name: str) -> AgentModel:
@@ -239,7 +240,7 @@ class AgentRegistry:
         }
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.cognition.agent_model.singleton")
 _registry: AgentRegistry | None = None
 
 

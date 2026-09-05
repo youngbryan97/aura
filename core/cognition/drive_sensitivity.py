@@ -24,6 +24,7 @@ reported, and when they disagree the natural estimate is the suspect one.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import statistics
 import threading
 from collections.abc import Sequence
@@ -138,7 +139,7 @@ class DriveSensitivities:
     """Every drive, its hand weight, and what the evidence says it should be."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.drive_sensitivity.DriveSensitivities", reentrant=True)
         self._drives: dict[str, DriveModel] = {}
 
     def drive(self, name: str, *, hand_weight: float = 1.0) -> DriveModel:

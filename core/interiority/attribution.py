@@ -32,6 +32,7 @@ leaves nothing behind but a counter.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
 import threading
 import time
@@ -148,7 +149,7 @@ class Attribution:
     """Delayed credit assignment from outcomes back to the faculties."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.interiority.attribution.Attribution", reentrant=True)
         self._traces: list[Trace] = []
         self._standing: dict[str, Standing] = {}
         self._outcomes_seen = 0
@@ -300,7 +301,7 @@ class Attribution:
 
 
 _ATTRIBUTION: Attribution | None = None
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.interiority.attribution.singleton")
 
 
 def get_attribution() -> Attribution:

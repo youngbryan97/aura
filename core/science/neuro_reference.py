@@ -39,6 +39,7 @@ is running.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -174,7 +175,7 @@ class NeuroReference:
     """Every biological name, its grade, and what a claim may lean on it for."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.science.neuro_reference.NeuroReference", reentrant=True)
         self._mappings: dict[str, Mapping] = {}
 
     def declare(self, mapping: Mapping) -> Mapping:
@@ -253,7 +254,7 @@ class NeuroReference:
             return sorted(self._mappings.values(), key=lambda m: m.label)
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.science.neuro_reference.singleton")
 _reference: NeuroReference | None = None
 
 

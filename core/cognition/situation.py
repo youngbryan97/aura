@@ -39,6 +39,7 @@ from typing import Any
 
 from core.cognition.cognitive_event import current_cycle
 from core.evidence.packet import EvidencePacket
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "SituationSnapshot",
@@ -155,7 +156,7 @@ class ConsolidationCoordinator:
     """Which learners hear about an event, and the proof that they did."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.situation.ConsolidationCoordinator", reentrant=True)
         self._subscribers: dict[str, _Subscriber] = {}
         self._deliveries: dict[str, set[str]] = {}
         self._broadcasts = 0
@@ -236,7 +237,7 @@ class ConsolidationCoordinator:
             }
 
 
-_coordinator_lock = threading.Lock()
+_coordinator_lock = checked_lock("core.cognition.situation.singleton")
 _coordinator: ConsolidationCoordinator | None = None
 
 

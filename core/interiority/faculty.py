@@ -42,6 +42,7 @@ produced it rather than to the author's intent.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import logging
 import math
 import threading
@@ -376,7 +377,7 @@ class FacultyRegistry:
     """The forty-three, in the order they were asked for."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.interiority.faculty.FacultyRegistry", reentrant=True)
         self._faculties: dict[str, Faculty] = {}
 
     def register(self, faculty: Faculty) -> Faculty:

@@ -37,6 +37,7 @@ and it is measured against the thing it replaced rather than against nothing.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
 import random
 import threading
@@ -80,7 +81,7 @@ class Recogniser:
     """
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.wake_sleep.Recogniser", reentrant=True)
         self._joint: dict[tuple[str, str], int] = {}
         self._feature_counts: dict[str, int] = {}
         self._abstraction_counts: dict[str, int] = {}
@@ -136,7 +137,7 @@ class WakeSleep:
     """The cycle, and the measurement that says whether the recogniser earns it."""
 
     def __init__(self, compressor: LibraryCompressor, *, seed: int = 0) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.cognition.wake_sleep.WakeSleep", reentrant=True)
         self._compressor = compressor
         self._recogniser = Recogniser()
         self._rng = random.Random(seed)

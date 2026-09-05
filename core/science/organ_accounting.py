@@ -40,6 +40,7 @@ of those two situations they are in.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
 import threading
 from collections.abc import Mapping, Sequence
@@ -158,7 +159,7 @@ class OrganAccounting:
     """Every organ, its arms, and what it is entitled to be kept for."""
 
     def __init__(self, *, minimum_effect: float = DEFAULT_MINIMUM_EFFECT) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.science.organ_accounting.OrganAccounting", reentrant=True)
         self._measurements: dict[str, OrganMeasurement] = {}
         self._synergies: dict[tuple[str, str], float] = {}
         self._minimum = float(minimum_effect)
@@ -256,7 +257,7 @@ class OrganAccounting:
         }
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.science.organ_accounting.singleton")
 _accounting: OrganAccounting | None = None
 
 

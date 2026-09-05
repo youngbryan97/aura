@@ -37,6 +37,7 @@ same free-for-all the many stores were.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import json
 import threading
 import time
@@ -123,7 +124,7 @@ class EventLog:
     """Append-only. The only mutator is append, and there is no delete."""
 
     def __init__(self, *, capacity: int = 200_000) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.runtime.event_spine.EventLog", reentrant=True)
         self._events: list[Event] = []
         self._offset = 0
         self._snapshot: dict[str, Any] = {}
@@ -203,7 +204,7 @@ class Projection:
     """The one authoritative mutable state, and it is a fold over the log."""
 
     def __init__(self, log: EventLog) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.runtime.event_spine.Projection", reentrant=True)
         self._log = log
         self._reducers: dict[str, Reducer] = {}
         self._state: dict[str, Any] = {}
@@ -414,7 +415,7 @@ class Spine:
         return {"log": self.log.report(), "projection": self.projection.report()}
 
 
-_lock = threading.Lock()
+_lock = checked_lock("core.runtime.event_spine.singleton")
 _spine: Spine | None = None
 
 

@@ -34,6 +34,7 @@ contract is real rather than declared.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import hashlib
 import threading
 import time
@@ -149,7 +150,7 @@ class CognitiveStateRef:
 #
 # A contract nobody uses is a docstring. These count what actually flows.
 
-_ledger_lock = threading.Lock()
+_ledger_lock = checked_lock("core.evidence.state_ref.singleton")
 _registered: dict[str, str] = {}
 _wrapped: dict[str, int] = {}
 _bare: dict[str, int] = {}

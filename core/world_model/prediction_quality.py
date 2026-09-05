@@ -38,6 +38,7 @@ bad world model.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import math
 import threading
 from collections.abc import Callable, Mapping, Sequence
@@ -210,7 +211,7 @@ class MultiTimescalePrediction:
     """Where the model stops being useful, by horizon."""
 
     def __init__(self, *, horizons: Sequence[int] = (1, 10, 100)) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.world_model.prediction_quality.MultiTimescalePrediction", reentrant=True)
         self._errors: dict[int, list[float]] = {h: [] for h in horizons}
         self._baseline: dict[int, list[float]] = {h: [] for h in horizons}
 

@@ -15,6 +15,7 @@ serenity while it is on fire.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import logging
 import threading
 import time
@@ -33,7 +34,7 @@ class Interoception:
     """Collects Aura's own interior readings from the services that produce them."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.interiority.interoception.Interoception", reentrant=True)
         self._trace: deque[float] = deque(maxlen=_TRACE_LEN)
         self._extra: dict[str, Any] = {}
         self._reads = 0
@@ -123,7 +124,7 @@ class Interoception:
 
 
 _INTEROCEPTION: Interoception | None = None
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.interiority.interoception.singleton")
 
 
 def get_interoception() -> Interoception:

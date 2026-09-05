@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import asyncio
 import hashlib
 import json
@@ -70,7 +71,7 @@ _FLAG_LIVE_SHADOW = declare(
     owner="core.brain.llm.compositional_semantic_shadow",
 )
 _OBSERVATIONS: deque[dict[str, Any]] = deque(maxlen=64)
-_OBSERVATIONS_LOCK = threading.Lock()
+_OBSERVATIONS_LOCK = checked_lock("core.brain.llm.compositional_semantic_shadow.singleton")
 
 
 def _sha(value: Any) -> str:

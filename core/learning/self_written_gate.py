@@ -31,6 +31,7 @@ weaker-sounding and stronger property.
 
 from __future__ import annotations
 
+from core.runtime.lockdep import checked_lock
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -82,7 +83,7 @@ class SelfWrittenGate:
     """Run the test against the unmodified code, then against the change."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.learning.self_written_gate.SelfWrittenGate", reentrant=True)
         self._verdicts: list[GateVerdict] = []
 
     def admit(self, change: Change) -> GateVerdict:
