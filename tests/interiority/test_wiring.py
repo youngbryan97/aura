@@ -337,3 +337,45 @@ def test_a_silent_microphone_is_not_a_silent_person() -> None:
     assert "prosody" not in channels, (
         "a ten-minute-old voice sample was read as the present"
     )
+
+
+def test_the_census_can_answer_what_the_constructed_proofs_cannot(
+    service: InteriorityService,
+) -> None:
+    """N2: how often anything fires in ordinary use.
+
+    Every other measurement here runs in a world the harness builds. This
+    is the instrument that answers the question the constructed proofs
+    cannot, and it has to be running before the first real turn or the
+    answer is lost.
+    """
+    from core.interiority.faculty import registry
+
+    service.census.reset_for_test()
+    assert service.census.report()["turns"] == 0
+
+    service.ledger.goal("g", 0.9)
+    service.ledger.notes.note_goal_delta("g", -0.8)
+    for step in range(6):
+        service.tick(
+            InteriorEvent(
+                kind=EventKind.GOAL, object="g", source="goal",
+                observations={"timing": measured(0.4 + step * 0.05)},
+            ),
+            dt=0.1,
+        )
+
+    report = service.census.report()
+    assert report["turns"] == 6
+    assert report["firing_rate"], "no faculty was recorded as firing"
+    assert report["decline_reasons"], "declining is normal and must be counted"
+    assert report["channel_availability"].get("timing") == 1.0
+
+    # Both halves of the judgement are reported: a rate alone cannot tell a
+    # mechanism firing hard every turn from one emitting almost nothing.
+    for faculty, rate, mean in service.census.always_fires():
+        assert 0.0 <= rate <= 1.0
+        assert 0.0 <= mean <= 1.0
+
+    never = service.census.never_fired(registry().ids())
+    assert len(never) < 43, "nothing fired at all"

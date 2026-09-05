@@ -47,6 +47,7 @@ from core.interiority.appraisal import AppraisalEngine, AppraisalFrame
 from core.interiority.arbitration import Arbitrated, arbitrate
 from core.interiority.arbitration import permitted as _permitted
 from core.interiority.attribution import get_attribution
+from core.interiority.census import get_census
 from core.interiority.cleft import get_cleft
 from core.interiority.core_affect import core_affect
 from core.interiority.effects import BudgetDelta, GoalDelta, RetentionClaim
@@ -105,6 +106,9 @@ class InteriorityService:
         self.interoception = get_interoception()
         #: Delayed credit assignment from outcomes back to the faculties.
         self.attribution = get_attribution()
+        #: What actually happens once she is running, which no
+        #: constructed proof can report.
+        self.census = get_census()
         self._last: Arbitrated | None = None
         self._last_frame: AppraisalFrame | None = None
         self._last_activations: tuple[Activation, ...] = ()
@@ -212,6 +216,9 @@ class InteriorityService:
         # this the faculties are frozen at the values they were written
         # with and no amount of living moves them.
         self.attribution.note_activations(state)
+        self.census.observe(
+            state, channels=tuple(sorted(event.present_channels()))
+        )
 
         # The interior reports itself on declared channels. A state that
         # ran and left no trace cannot be understood afterwards, and this
@@ -836,6 +843,7 @@ class InteriorityService:
             "other_minds": self.other_minds.status(),
             "interoception": self.interoception.status(),
             "senses": availability(),
+            "census": self.census.report(),
             "attribution": self.attribution.snapshot(),
             "state": state.to_dict() if state else None,
         }
