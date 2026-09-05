@@ -152,11 +152,21 @@ def fluid_intelligence(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any
     total = len(rules) or 1
     p0, pl = alone / total, carried / total
     refused = sum(1 for one in trajectories if not one["answered"])
+    # The interval, because a share is an estimate and a bar is a line. On
+    # forty instances the two overlap so far that the same solver passes and
+    # fails on consecutive freezes.
+    spread = compare(
+        "how sure this share is",
+        [1.0 if one["right"] else 0.0 for one in trajectories],
+        [0.0] * len(trajectories),
+        seed=freeze.seed % 6151,
+    )
     return {
         "instances": len(rules),
         "right": alone,
         "share": round(p0, 4),
         "P0": round(p0, 4),
+        "P0_interval": [round(spread.low, 4), round(spread.high, 4)],
         "PL": round(pl, 4),
         "learned": round(pl - p0, 4),
         "refused": refused,

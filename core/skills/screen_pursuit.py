@@ -3047,17 +3047,7 @@ async def pursue_on_screen(
             and not blocker_attempts["dismissed"]
         ):
             already["value"] = True
-        if reached:
-            return True
-        # And stop when there is a reason it cannot go on.
-        #
-        # A blocker that would not clear was reported — at the end, after the
-        # whole budget had run. The attempts were bounded and the LOOP was
-        # not: once they were spent every cycle read the same dialog, decided
-        # there was nothing to do, and came round again, for ten minutes.
-        # "Reported rather than pressed forever" was true of the pressing and
-        # not of the waiting, and from the outside those are the same thing.
-        return blocker_attempts["count"] >= MAX_BLOCKER_ATTEMPTS
+        return reached
 
     async def clear_blocker(observation: dict[str, Any]) -> Step | None:
         """A Step that clears whatever is covering the content, or None.

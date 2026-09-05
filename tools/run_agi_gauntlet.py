@@ -38,7 +38,14 @@ QUICK = {
     "questions": 12,
 }
 FULL = {
-    "instances": 40,
+    # Two hundred, because forty is not enough to decide an 0.85 bar.
+    #
+    # The standard error at that share on forty instances is about 0.056, so
+    # an ordinary run swings by a tenth either way — and it did: across six
+    # freezes the same solver measured 0.65, 0.77, 0.80, 0.825, 0.85 and
+    # 0.925. Any one of those read as a verdict is a coin landing. At two
+    # hundred the interval is about 0.05 wide and the number means something.
+    "instances": 200,
     "worlds": 30,
     "trajectories": 30,
     "episodes": 12,

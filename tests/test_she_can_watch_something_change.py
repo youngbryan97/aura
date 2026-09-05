@@ -514,6 +514,21 @@ def _nothing_above_her_work(monkeypatch):
         sp, "_bring_the_thing_back_to_the_front", to_the_front, raising=False
     )
 
+    # And the wait for a screen that is not locked.
+    #
+    # This is the one that actually held the test: the loop waits for the
+    # session to be unlocked before it starts, which is right — a locked
+    # screen is a condition that passes, not a fault — and on a machine
+    # running a suite it never passes. So the run spent its entire ten-minute
+    # budget before reading anything at all, and the assertion about what it
+    # does with an unbeatable dialog was never reached.
+    async def a_screen_is_there(_ends_at):
+        return True
+
+    monkeypatch.setattr(
+        sp, "wait_for_a_screen_to_look_at", a_screen_is_there, raising=False
+    )
+
 
 def test_a_blocker_that_will_not_clear_is_reported_not_repeated(monkeypatch):
     """A dismissal that does not work must not be tried forever.
