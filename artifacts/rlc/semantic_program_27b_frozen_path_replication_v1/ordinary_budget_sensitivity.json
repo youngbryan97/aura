@@ -1,0 +1,53 @@
+{
+  "schema": "aura.semantic_program_ordinary_budget_sensitivity_preregistration.v1",
+  "created_at": "2026-09-05T01:29:00Z",
+  "source_commit_at_preregistration": "cf498cadd",
+  "status": "FROZEN_BEFORE_SENSITIVITY_DECODE",
+  "purpose": "Test whether the frozen semantic transducer's preregistered product win survives a much larger native-thinking allowance for the ordinary fused 27B.",
+  "claim_boundary": "post-primary budget sensitivity for the already-passed bounded product comparison; no new mechanism, open-domain, frontier, serving, or global reasoning claim",
+  "primary_result": {
+    "path": "/Users/bryan/.aura/rlc-evidence/semantic-natural-weave-replication-v2-results/ordinary_resident_27b_result.json",
+    "result_sha256": "7bb4a84767fb944504abd1d12e325f421b97004d58c61cbe14aebc582413f262",
+    "verdict": "PASS_PREREGISTERED_PRODUCT_BAR",
+    "treatment_answer_exact": 21,
+    "ordinary_answer_exact": 1,
+    "treatment_only": 20,
+    "ordinary_only": 0,
+    "one_sided_exact_p": 9.5367431640625e-07,
+    "ordinary_max_tokens": 768,
+    "ordinary_native_thinking_incomplete": 27,
+    "ordinary_length_terminated_after_public_boundary": 9
+  },
+  "model": {
+    "descriptor_path": "artifacts/migration/27b/active_descriptor.json",
+    "descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "canonical_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"
+  },
+  "execution": {
+    "runner": "tools/run_semantic_program_ordinary_baseline.py",
+    "tasks": 48,
+    "task_selection": "all primary-control tasks in their receipt-bound order",
+    "prompt": "native_chat_template_single_user_task_text_only",
+    "sampling": "greedy_argmax",
+    "native_thinking": true,
+    "rlc": false,
+    "steering": false,
+    "max_tokens": 2048,
+    "prefill_chunk_tokens": 512,
+    "canary_tasks": 3,
+    "coefficients_or_prompts_may_change": false,
+    "output": "/Users/bryan/.aura/rlc-evidence/semantic-natural-weave-replication-v2-results/ordinary_resident_27b_2048_sensitivity.json"
+  },
+  "adjudication": {
+    "pass_all_required": [
+      "all 48 task identities equal the primary treatment cohort",
+      "the 2048-token ordinary control completes without post-selection",
+      "the frozen transducer exceeds the 2048-token ordinary control with paired one-sided exact p less than 0.05",
+      "all exact 2048-token ordinary responses remain immutable incumbents",
+      "model descriptor and evaluator source identities remain valid"
+    ],
+    "failure_disposition": "retain the preregistered 768-token product result, reject a budget-robust product claim, and diagnose the recovered ordinary-only cases before any serving decision",
+    "early_stop": "only when the committed evaluator proves the paired product bar mathematically unreachable"
+  },
+  "serving_authority": false
+}
