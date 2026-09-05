@@ -1414,6 +1414,52 @@ def test_handler_rejects_external_offer_without_full_authority_tuple(
     assert "requires operation authority" in body["message"]
 
 
+@pytest.mark.parametrize("foreground", [True, False])
+@pytest.mark.parametrize("closed", [True, False])
+def test_handler_records_native_reasoning_cost_without_training_on_lab_arms(
+    monkeypatch, foreground, closed,
+):
+    from core.brain.llm import thinking_reserve
+    from core.brain.llm.latent_cortex import worker_handler as handler_mod
+    from core.brain.llm.latent_cortex.types import LatentReasoningResult
+
+    observations = []
+    monkeypatch.delenv("AURA_LATENT_CORTEX", raising=False)
+    monkeypatch.setattr(thinking_reserve, "record_reasoning_cost", lambda **kw: observations.append(kw))
+    monkeypatch.setattr(thinking_reserve, "record_budget_that_ran_out_thinking", lambda **kw: observations.append(kw))
+
+    class Tokenizer:
+        def decode(self, tokens):
+            assert tokens == [17, 18, 19]
+            return "private</think>public" if closed else "private"
+
+    class Engine:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def reason(self, **kwargs):
+            receipt = _measured_episode_receipt("native-cost")
+            receipt.flag("native_thinking_prefix_open")
+            return LatentReasoningResult(
+                ok=True, text="public" if closed else "", receipt=receipt,
+                tokens=[17, 18, 19],
+            )
+
+    monkeypatch.setattr(handler_mod, "LatentCortexEngine", Engine)
+    result = handle_latent_reason(
+        {"prompt": "reason", "foreground_request": foreground},
+        model=object(), tokenizer=Tokenizer(), model_path="/models/resident-27b",
+        worker_identity=dict(_WORKER_IDENTITY),
+    )
+    assert result["status"] == "ok"
+    expected = (
+        {"reasoning_chars": 7, "surface_chars": 6, "generated_tokens": 3,
+         "model": "/models/resident-27b"}
+        if closed else {"budget_tokens": 3, "model": "/models/resident-27b"}
+    )
+    assert observations == ([expected] if foreground else [])
+
+
 def test_handler_wires_response_contract_into_config_and_verifier(monkeypatch):
     from core.brain.llm.latent_cortex.types import LatentReasoningResult
 
@@ -2015,6 +2061,7 @@ async def test_client_latent_reason_owns_and_releases_resident_lane(monkeypatch)
 
     result = await task
     assert request["action"] == "latent_reason"
+    assert request["foreground_request"] is False
     assert request["seq"] > 0
     assert request["clean_user_surface_contract"] is True
     assert request["clean_user_surface_recurrent_loops"] == 2
@@ -3108,6 +3155,20 @@ def test_allocation_scales_with_stakes_and_uncertainty():
     assert high_cfg["fast_weights_max_layers"] >= low_cfg["fast_weights_max_layers"]
 
 
+def test_reasoning_reserve_cannot_shrink_answer_or_exceed_output_ceiling():
+    svc = LatentCortexService()
+    config, _budget = svc.allocate(
+        stakes=0.5, uncertainty=0.5, requested_decode_tokens=8000,
+        private_reasoning_tokens=1000,
+    )
+    assert config["decode_max_tokens"] == 8192
+    assert svc._last_allocation["native_reasoning_allowance"] == {
+        "answer_capacity_tokens": 8000,
+        "requested_private_tokens": 1000,
+        "admitted_private_tokens": 192,
+    }
+
+
 def test_resident_32b_interactive_allocation_keeps_full_stack_inside_live_budget(
     monkeypatch,
 ):
@@ -3221,29 +3282,46 @@ def test_service_applies_resident_identity_profile_before_worker_ipc(monkeypatch
     "Hello.",
     "Compare the designs, choose one and explain how to verify it.",
 ])
-def test_resident_surface_preserves_requested_decode_capacity(monkeypatch, question):
+@pytest.mark.parametrize("private_tokens", [0, 200])
+@pytest.mark.parametrize("foreground", [True, False])
+def test_resident_surface_preserves_requested_decode_capacity(
+    monkeypatch, question, private_tokens, foreground,
+):
     svc = LatentCortexService()
     captured = {}
 
     class Client:
         def get_worker_identity_snapshot(self):
-            return {"worker_model_parameter_count": 27_000_000_000}
+            return {
+                "worker_model_parameter_count": 27_000_000_000,
+                "worker_model_path": "/models/resident-27b",
+            }
 
         async def latent_reason_async(self, **kwargs):
             captured.update(kwargs)
             return {"ok": False, "reason": "profile_observed"}
 
     import core.brain.llm.mlx_client as mlx_client_mod
+    from core.brain.llm import chat_format, thinking_reserve
 
     monkeypatch.setattr(mlx_client_mod, "get_mlx_client", lambda *a, **kw: Client())
+    monkeypatch.setattr(chat_format, "thinking_enabled_for_generation", lambda *a, **kw: True)
+
+    def reserve(model):
+        assert model == "/models/resident-27b"
+        return private_tokens
+
+    monkeypatch.setattr(thinking_reserve, "reserve_tokens", reserve)
     result = asyncio.run(svc.deep_reason(
         question,
         config_overrides={"decode_max_tokens": 4096},
         timeout_s=1800.0,
-        foreground_request=True,
+        foreground_request=foreground,
     ))
     assert result["reason"] == "profile_observed"
-    assert captured["config"]["decode_max_tokens"] == 4096
+    expected = 4096 + (private_tokens if foreground else 0)
+    assert captured["config"]["decode_max_tokens"] == expected
+    assert svc._last_allocation["adaptive_compute"]["answer_surface"]["minimum_decode_tokens"] == expected
 
 
 def test_compound_objective_expands_answer_surface(monkeypatch):

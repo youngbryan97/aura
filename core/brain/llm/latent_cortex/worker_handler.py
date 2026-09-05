@@ -1235,6 +1235,39 @@ def handle_latent_reason(
         result.tokens = []
         result.reason = result.reason or "runtime integrity is unproven"
 
+    if (
+        integrity_safe
+        and job.get("foreground_request") is True
+        and result.tokens
+        and "native_thinking_prefix_open" in receipt.honest_flags
+    ):
+        from core.brain.llm.chat_format import split_native_thinking_generation
+        from core.brain.llm.thinking_reserve import (
+            record_budget_that_ran_out_thinking,
+            record_reasoning_cost,
+        )
+
+        try:
+            channels = split_native_thinking_generation(
+                tokenizer.decode(result.tokens), native_thinking=True,
+            )
+            if channels.boundary_closed:
+                record_reasoning_cost(
+                    reasoning_chars=len(channels.reasoning),
+                    surface_chars=len(channels.surface),
+                    generated_tokens=len(result.tokens),
+                    model=model_path,
+                )
+            else:
+                # This is a censored observation: all observed tokens were
+                # private, regardless of which resource ended generation.
+                record_budget_that_ran_out_thinking(
+                    budget_tokens=len(result.tokens), model=model_path,
+                )
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            receipt.flag("native_thinking_cost_observation_failed")
+            logger.warning("Could not retain latent reasoning cost: %s", exc)
+
     # The client performs the final causal-envelope reconstruction after it
     # captures runtime/app provenance, but the worker boundary itself must
     # already be complete and independently reconstructable.

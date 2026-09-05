@@ -888,6 +888,7 @@ class LatentCortexService:
         foreground_request: bool = False,
         timeout_s: float | None = None,
         requested_decode_tokens: int | None = None,
+        private_reasoning_tokens: int = 0,
     ) -> tuple[dict, dict]:
         """(config, budget) for one episode: a POLICY allocation.
 
@@ -934,6 +935,8 @@ class LatentCortexService:
             or requested_decode_tokens <= 0
         ):
             raise ValueError("requested_decode_tokens must be a positive integer")
+        if type(private_reasoning_tokens) is not int or private_reasoning_tokens < 0:
+            raise ValueError("private_reasoning_tokens must be a non-negative integer")
         owner_timeout_s: float | None = None
         if timeout_s is not None:
             try:
@@ -1111,6 +1114,12 @@ class LatentCortexService:
             # a post-hoc mutation. The adaptive plan must commit the same floor
             # that its learned-controller and worker stages will enforce.
             config["decode_max_tokens"] = requested_decode_tokens
+        answer_capacity = int(config["decode_max_tokens"])
+        if private_reasoning_tokens:
+            config["decode_max_tokens"] = max(
+                answer_capacity, min(8192, answer_capacity + private_reasoning_tokens),
+            )
+        private_allowance = int(config["decode_max_tokens"]) - answer_capacity
         from core.brain.llm.latent_cortex.adaptive_compute import (
             apply_adaptive_compute_plan,
             build_adaptive_compute_plan,
@@ -1167,6 +1176,11 @@ class LatentCortexService:
                 "uncertainty interval, or control-policy comparison"
             ),
             "adaptive_compute": adaptive_plan,
+            "native_reasoning_allowance": {
+                "answer_capacity_tokens": answer_capacity,
+                "requested_private_tokens": private_reasoning_tokens,
+                "admitted_private_tokens": private_allowance,
+            },
             "config": dict(config),
             "budget": dict(budget),
         }
@@ -4935,6 +4949,16 @@ class LatentCortexService:
             model_parameter_count = 0
         try:
             visible_objective = self._visible_objective(question, messages)
+            private_reasoning_tokens = 0
+            model_path = str(worker_identity.get("worker_model_path") or "")
+            if foreground_request and model_path and _controller_accepts_overrides(config_overrides):
+                from core.brain.llm.chat_format import thinking_enabled_for_generation
+                from core.brain.llm.thinking_reserve import reserve_tokens
+
+                if thinking_enabled_for_generation(
+                    model_path, answer_is_derived_here=True,
+                ) is True:
+                    private_reasoning_tokens = max(0, int(reserve_tokens(model_path)))
             requested_decode_tokens = None
             if (
                 config_overrides is not None
@@ -4955,6 +4979,7 @@ class LatentCortexService:
                 foreground_request=foreground_request,
                 timeout_s=timeout_s,
                 requested_decode_tokens=requested_decode_tokens,
+                private_reasoning_tokens=private_reasoning_tokens,
             )
         except (TypeError, ValueError, OverflowError):
             return self._record_failure("invalid_cognitive_economy")
@@ -4967,7 +4992,12 @@ class LatentCortexService:
             self._last_allocation.get("adaptive_compute") or {}
         )
         if config_overrides is not None:
+            allocated_decode_capacity = config["decode_max_tokens"]
             config.update(dict(config_overrides))
+            if private_reasoning_tokens:
+                config["decode_max_tokens"] = max(
+                    config["decode_max_tokens"], allocated_decode_capacity,
+                )
         if not _controller_accepts_overrides(config_overrides):
             adaptive_plan = None
             self._last_allocation["adaptive_compute_execution"] = (
@@ -5220,12 +5250,15 @@ class LatentCortexService:
             self._last_allocation["objective_facets"] = list(objective_facets)
             self._last_allocation["objective_prompt_shape"] = objective_shape
             self._last_allocation["compound_objective"] = compound_objective
+            admitted_private_tokens = self._last_allocation[
+                "native_reasoning_allowance"
+            ]["admitted_private_tokens"]
             if compound_objective:
                 structural_answer_floor = answer_surface_token_floor(
                     visible_objective
                 )
                 config["decode_max_tokens"] = max(
-                    structural_answer_floor,
+                    min(8192, structural_answer_floor + admitted_private_tokens),
                     requested_decode_tokens,
                     320,
                 )
@@ -5281,7 +5314,7 @@ class LatentCortexService:
                 capacity_decode_tokens = int(config["decode_max_tokens"])
                 target_decode_tokens = answer_surface_planning_tokens(
                     visible_objective
-                )
+                ) + admitted_private_tokens
                 try:
                     from core.brain.llm.measured_admission import (
                         recommended_completion_tokens,

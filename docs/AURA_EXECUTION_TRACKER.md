@@ -52713,3 +52713,22 @@ Allocation and wiring tests: 142 passed. Smoke: 163 passed, one skipped.
 Lint, compile and layering passed. Native reasoning reserve integration and
 source-matched live replay remain open; this checkpoint does not claim a
 completed live response or a latency improvement.
+
+## Checkpoint 2026-09-05: Close the RLC Reasoning-Cost Feedback Path
+
+Foreground RLC reads the existing checkpoint-specific thinking reserve before
+building its adaptive allocation. The requested answer capacity stays intact;
+private capacity is additional within the existing 8192-token ceiling. The
+allocation reports requested and admitted private room. Compound planning
+includes that room. Lab and structural-override requests do not acquire it.
+
+The client now carries its foreground flag to the worker. After runtime
+integrity validation, native-channel foreground results update the shared
+cost estimator. Closed channels contribute the existing character-ratio
+estimate; open channels contribute only their observed-token lower bound.
+Observation failures cannot discard an answer. Lab arms do not update this
+estimator. This does not renew a caller deadline or prove live completion.
+
+Focused wiring, allocation and model-rate tests: 160 passed. Smoke: 163
+passed, one skipped. Lint, compile and layering passed. Next: source-matched
+replay while reading neural-stream events, replies and runtime logs together.

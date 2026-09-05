@@ -10850,6 +10850,7 @@ class MLXLocalClient:
                 "seq": request_seq,
                 "action": "latent_reason",
                 "domain": str(domain or "general"),
+                "foreground_request": foreground_request,
             }
             # Exactly the values bound into expected_request_sha256 above.
             if wire_verifier_guidance:
