@@ -291,3 +291,16 @@ The supplied arm still passes and still means something: six verdicts right
 out of six, with a macro and a duplicate correctly refused, and a second
 generation standing on the first. A vocabulary that admits everything is not
 inventing, and that is what the refusals establish.
+
+## What is still open
+
+| # | What | Why it is not done |
+|---|---|---|
+| D5 | A runtime probe beside gate 16's static scan | The static check stands and passes; the dynamic one is unbuilt |
+| D7 | GAIA, OSWorld, post-cutoff SWE, hours-long autonomy, humans | ARC-AGI is now the outside family for gate 1. The rest need images, VMs, repositories dated after the weight cutoff, and people |
+| D9 | Grounding an invention in more than seven authored destinations | The belonging family added a member inside an existing destination, not a new destination |
+| D10 | Generational compounding, currently depth 0 | The instrument is right and says nought. More budget and more families is a run, not a fix |
+| D11 | Native development and source development in one verified loop | Not started |
+| D13 | 110 modules over the size threshold, 36 active size regressions | The four size ratchets are documented and deliberately not re-baselined |
+| — | The clock inside `a_rule_she_wrote` | Diagnosed above. The repair needs a cost model for the inversion |
+| — | 28 modules whose only importer is their own test | Three wired this session — the two theorem modules and the coalition credit. The rest are named in `make reachability` |
