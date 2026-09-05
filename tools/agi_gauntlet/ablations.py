@@ -31,12 +31,17 @@ cheaper wearing its name.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["Lesion", "THE_LESIONS", "what_each_part_is_worth"]
+__all__ = [
+    "Lesion",
+    "THE_LESIONS",
+    "what_each_part_is_worth",
+    "what_each_part_is_worth_in_company",
+]
 
 
 @dataclass(frozen=True)
@@ -213,6 +218,52 @@ def what_each_part_is_worth(
             "gap": _gap(whole, hurt),
         }
     return found
+
+
+def what_each_part_is_worth_in_company(
+    channels: Sequence[str],
+    measure: Callable[[], float],
+    *,
+    permutations: int = 0,
+) -> dict[str, Any]:
+    """The same question, asked of every part at once instead of one at a time.
+
+    One-at-a-time is wrong in a way that shows up here every run. A part with a
+    duplicate costs nothing to remove — the twin covers — so it reads as doing
+    nothing, and so does its twin, while the pair is essential. Two parts that
+    only work together read as doing nothing too, for the opposite reason. The
+    reading above says "a gap of zero is the only way to tell a component that
+    matters from one that is present", and a gap of zero is exactly what both
+    of those cases produce.
+
+    ``core.verify.coalition_credit`` already solves this — a marginal
+    contribution averaged over many backgrounds, with the interaction term
+    saying which of the two cases a zero gap is — and nothing outside its own
+    test had ever called it. It lesions through the real registry, so this
+    measures the organism rather than a model of it.
+    """
+
+    from core.verify.coalition_credit import DEFAULT_PERMUTATIONS, attribute_registered
+
+    found = attribute_registered(
+        list(channels),
+        measure,
+        permutations=permutations or DEFAULT_PERMUTATIONS,
+    )
+    return {
+        "trials": found.trials,
+        "credits": [
+            {
+                "channel": one.channel,
+                "leave_one_out": round(one.leave_one_out, 4),
+                "marginal": round(one.marginal, 4),
+                "interaction": round(one.interaction, 4),
+                "role": str(one.role),
+                "error": round(one.standard_error, 4),
+            }
+            for one in found.credits
+        ],
+    }
 
 
 def _gap(whole: dict[str, Any], hurt: dict[str, Any]) -> dict[str, Any]:

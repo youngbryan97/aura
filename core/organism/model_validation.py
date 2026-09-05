@@ -3068,6 +3068,68 @@ def _universality_certificates_that_fail() -> int:
     return failed
 
 
+def _the_four_walls_growth_runs_into() -> int:
+    """Run the four limits on growing a language. Failures must be none.
+
+    The companion to the theorem below, and it had the same problem: imported
+    by its own test and by nothing else, so four arguments about what
+    self-improvement cannot do sat in a file that only ran when somebody ran
+    the test for it.
+
+    Each is executed. A universal language cannot be made more expressive by
+    naming things in it, checked on a word. No update rule improves everywhere,
+    checked by building the environment that beats one. "This language cannot
+    say that" is assertable only where the language was walked end to end, so
+    in a universal one it never is. And a question above computation is
+    answered by saying so, not by trying.
+    """
+    from core.cognition.what_growth_cannot_do import (
+        BOUNDED,
+        UNIVERSAL,
+        UNKNOWN,
+        can_be_decided,
+        how_expressive,
+        naming_cannot_add_a_meaning,
+        no_updater_wins_everywhere,
+        what_verification_is_available,
+        what_would_need_an_oracle,
+    )
+
+    failed = 0
+    everything = how_expressive(
+        repeats_without_bound=True, branches_on_its_own_values=True
+    )
+    failed += 0 if everything.verdict == UNIVERSAL else 1
+    small = how_expressive(
+        repeats_without_bound=False, branches_on_its_own_values=False, meanings=64
+    )
+    failed += 0 if small.verdict == BOUNDED else 1
+    failed += (
+        0
+        if naming_cannot_add_a_meaning(
+            lambda made: tuple(made((1, 2, 3))) == (2, 4, 6),
+            a_word_she_made=lambda row: tuple(one * 2 for one in row),
+            unfolds_to=lambda: (lambda row: tuple(one + one for one in row)),
+        )
+        else 1
+    )
+    beaten = no_updater_wins_everywhere(lambda _seen: 0)
+    failed += 0 if beaten.holds and beaten.the_other_scored > beaten.scored else 1
+    failed += (
+        0
+        if can_be_decided(language=everything, exhaustive_search_finished=False) == UNKNOWN
+        else 1
+    )
+    failed += (
+        0
+        if can_be_decided(language=small, exhaustive_search_finished=True) is True
+        else 1
+    )
+    failed += 0 if len(what_verification_is_available(change_is_arbitrary=True)) == 4 else 1
+    failed += 0 if what_would_need_an_oracle("does this halt on every input") else 1
+    return failed
+
+
 def _the_tower_with_no_top() -> int:
     """Run the theorem that says where the regress ends. Failures must be none.
 
@@ -3834,6 +3896,16 @@ def _install_language_growth_claims(suite: Any) -> None:
             "exhausts its meter rather than returning",
             _universality_certificates_that_fail,
             "core/cognition/what_the_floor_can_say.py",
+        ),
+        (
+            "test_growth_runs_into_four_walls_and_they_are_run_not_cited",
+            "a universal language gains no meaning from a name, no update rule "
+            "improves everywhere and the environment that beats one is built, "
+            "unexpressibility is assertable only where the language was walked "
+            "end to end, and a question above computation is answered by saying "
+            "so",
+            _the_four_walls_growth_runs_into,
+            "core/cognition/what_growth_cannot_do.py",
         ),
         (
             "test_the_tower_ends_at_universality_and_nowhere_else",
