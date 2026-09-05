@@ -361,22 +361,59 @@ def _inner(state):
     return tuple(row)
 
 
-def _outside_the_winners(state):
-    """A world outside three languages: blank, whole-winners, and neither.
+#: The moves a target is built from. Small and named, so a failure says what
+#: the world was rather than printing a permutation.
+_THE_MOVES = {
+    "rotate one": _rot1,
+    "rotate two": lambda s: s[2:] + s[:2],
+    "swap the ends": _ends,
+    "swap one in": _inner,
+    "mirror": _mirror_of,
+}
 
-    The target has to sit outside all three, and choosing it by eye got it
-    wrong twice. The world first written here was the extracted run applied
-    twice, which collapses to a single member of the affine family, so a
-    blank language solved it. The second was three shapes deep, and then the
-    base search gained a rung that reaches three, so a blank language solved
-    that one too.
 
-    Both times the test said so rather than passing, which is what the
-    assertions below are for: a null that has quietly become false is worth
-    more as a red test than as a green one.
+def _a_world_only_the_refactored_library_reaches():
+    """Find a target outside three languages, rather than naming one.
+
+    Named by hand this had to be re-chosen three times, and each time for the
+    same reason: the base search got better and the world it could not reach
+    became a world it could. That is the search improving, and a test that
+    hard-codes an instance turns it into a failure.
+
+    So the instance is found here. What is being checked is the property —
+    that refactoring reaches something the whole winners cannot — and if no
+    such world exists in this space, that is a finding about the refactoring
+    step rather than a broken test, and it is said out loud.
     """
 
-    return _ends(_rot1(_inner(_ends(state))))
+    from itertools import product
+
+    blank = RelationLanguage()
+    winners = _library(refactor=False)
+    refactored = _library(refactor=True)
+    for depth in (3, 4, 5):
+        for names in product(_THE_MOVES, repeat=depth):
+
+            def apply(state, names=names):
+                for name in reversed(names):
+                    state = _THE_MOVES[name](state)
+                return state
+
+            world = _applied(apply, (5, 6, 7))
+            if blank.explain(world) is not None:
+                continue
+            if winners.explain(world) is not None:
+                continue
+            found = refactored.explain(world)
+            if found is None:
+                continue
+            if not all(
+                tuple(found.apply(tuple(range(length)))) == apply(tuple(range(length)))
+                for length in (9, 11)
+            ):
+                continue
+            return apply, " then ".join(names)
+    return None, ""
 
 
 def test_refactoring_reaches_a_world_the_winners_could_not() -> None:
@@ -389,15 +426,20 @@ def test_refactoring_reaches_a_world_the_winners_could_not() -> None:
     is now a part it can compose with.
     """
 
-    world = _applied(_outside_the_winners, (5, 6, 7))
-    assert RelationLanguage().explain(world) is None, "the blank null is false"
-    assert _library(refactor=False).explain(world) is None, "a winner already had it"
+    apply, said = _a_world_only_the_refactored_library_reaches()
+    assert apply is not None, (
+        "no world in this space is outside a blank language and outside the "
+        "whole winners and inside the refactored library. That is a finding "
+        "about the refactoring step, not a broken test: the base search may "
+        "have caught up with it"
+    )
+    world = _applied(apply, (5, 6, 7))
+    assert RelationLanguage().explain(world) is None, said
+    assert _library(refactor=False).explain(world) is None, said
     found = _library(refactor=True).explain(world)
-    assert found is not None
+    assert found is not None, said
     for length in (9, 11):
-        assert tuple(found.apply(tuple(range(length)))) == _outside_the_winners(
-            tuple(range(length))
-        )
+        assert tuple(found.apply(tuple(range(length)))) == apply(tuple(range(length)))
 
 
 def test_nothing_is_extracted_from_one_solution() -> None:
@@ -465,21 +507,22 @@ def test_the_expanded_language_survives_a_restart(tmp_path) -> None:
 def test_a_restarted_library_still_reaches_what_a_blank_one_cannot(tmp_path) -> None:
     """The measurement, not the mechanism: it can still do the thing."""
 
+    apply, said = _a_world_only_the_refactored_library_reaches()
+    assert apply is not None, "no world separates the three languages here"
+
     store = tmp_path / "language.json"
     language = _library(refactor=True)
     language.path = store
     language.save()
 
-    world = _applied(_outside_the_winners, (5, 6, 7))
-    assert RelationLanguage().explain(world) is None
-    assert _library(refactor=False).explain(world) is None
+    world = _applied(apply, (5, 6, 7))
+    assert RelationLanguage().explain(world) is None, said
+    assert _library(refactor=False).explain(world) is None, said
     restarted = RelationLanguage.load(store)
     found = restarted.explain(world)
-    assert found is not None
+    assert found is not None, said
     for length in (9, 11):
-        assert tuple(found.apply(tuple(range(length)))) == _outside_the_winners(
-            tuple(range(length))
-        )
+        assert tuple(found.apply(tuple(range(length)))) == apply(tuple(range(length)))
 
 
 def test_a_corrupt_store_loads_as_an_empty_language(tmp_path) -> None:

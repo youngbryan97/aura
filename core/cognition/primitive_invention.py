@@ -36,6 +36,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any
 
 __all__ = [
@@ -429,13 +430,26 @@ def _grouped_source(index: int, size: int, span: int, first: int = 0) -> int:
 
     if span <= 1 or size <= 0:
         return index
-    classes = [(residue + first) % span for residue in range(span)]
-    order = [
-        position for residue in classes for position in range(residue, size, span)
-    ]
+    order = _grouping_order(size, span, first)
     if index < 0 or index >= len(order):
         return index
     return order[index]
+
+
+@lru_cache(maxsize=4096)
+def _grouping_order(size: int, span: int, first: int) -> tuple[int, ...]:
+    """Where each place comes from under one grouping. Worked out once.
+
+    This was rebuilt inside every index lookup, so reading one grouping over
+    a state of length n cost n² rather than n — and the search asks it three
+    million times on the battery. It depends on the three numbers and nothing
+    else, so it is worked out once for each triple.
+    """
+
+    classes = [(residue + first) % span for residue in range(span)]
+    return tuple(
+        position for residue in classes for position in range(residue, size, span)
+    )
 
 
 def _parts_of(
@@ -699,10 +713,35 @@ def _fits(
     options: Sequence[Sequence[int]],
     size: int,
 ) -> bool:
+    """Whether this shape is right about every position.
+
+    The inner loop of the whole module: the three-deep rung calls it twelve
+    thousand times per observation, and `in` over a tuple is linear, so the
+    check was quadratic in the length of the state for no reason. Membership
+    is asked of a set, cached by identity of the options — they are rebuilt
+    per observation and read thousands of times.
+    """
+
+    wanted = _as_sets(options)
     try:
-        return all(rule(index, size) in options[index] for index in range(size))
+        return all(rule(index, size) in wanted[index] for index in range(size))
     except (IndexError, TypeError, ZeroDivisionError):
         return False
+
+
+#: The last options turned into sets, keyed by identity. One entry, because
+#: every caller works through one observation before moving to the next.
+_AS_SETS: dict[int, tuple[Any, tuple[frozenset[int], ...]]] = {}
+
+
+def _as_sets(options: Sequence[Sequence[int]]) -> tuple[frozenset[int], ...]:
+    held = _AS_SETS.get(id(options))
+    if held is not None and held[0] is options:
+        return held[1]
+    made = tuple(frozenset(one) for one in options)
+    _AS_SETS.clear()
+    _AS_SETS[id(options)] = (options, made)
+    return made
 
 
 def _affine_value_map(
