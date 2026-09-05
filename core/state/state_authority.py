@@ -51,24 +51,41 @@ class StateAuthority:
     # Public API
     # ------------------------------------------------------------------
 
-    def get_truth(self, topic: str, context: dict | None = None) -> tuple[Any, TruthTier]:
+    def get_truth(
+        self,
+        topic: str,
+        context: dict | None = None,
+        *,
+        max_tier: TruthTier = TruthTier.INFERENCE,
+    ) -> tuple[Any, TruthTier]:
         """Get the authoritative truth about a topic.
-        Queries layers in order of precedence (highest tier wins).
+
+        Stop before evidence the caller cannot use. The default retains full
+        retrieval; a hard-fact consumer does not pay for neural inference it
+        would discard. Absence retains the existing unverified sentinel.
         """
+        if not isinstance(max_tier, TruthTier):
+            raise TypeError("max_tier must be a TruthTier")
         # 1. Tier 0: Prime Directives (Codebase / Immutable)
         pd_truth = self._check_prime_directives(topic)
         if pd_truth:
             return pd_truth, TruthTier.IMMUTABLE
+        if max_tier.value < TruthTier.HARD_FACT.value:
+            return None, TruthTier.HALLUCINATION
 
         # 2. Tier 1: Hard Facts (Knowledge Graph / MemoryNexus)
         fact = self._check_knowledge_base(topic)
         if fact:
             return fact, TruthTier.HARD_FACT
+        if max_tier.value < TruthTier.OBSERVATION.value:
+            return None, TruthTier.HALLUCINATION
 
         # 3. Tier 2: Recent Observation (Short Term Context)
         obs = self._check_runtime_context(topic, context)
         if obs:
             return obs, TruthTier.OBSERVATION
+        if max_tier.value < TruthTier.INFERENCE.value:
+            return None, TruthTier.HALLUCINATION
 
         # 4. Tier 3: Inference (Vector Search)
         inference = self._check_vector_memory(topic)
@@ -97,7 +114,7 @@ class StateAuthority:
     def resolve_conflict(self, topic: str, conflicting_data: Any) -> Any:
         """Force resolution of a conflict by deferring to the highest tier.
         """
-        truth, tier = self.get_truth(topic)
+        truth, tier = self.get_truth(topic, max_tier=TruthTier.OBSERVATION)
         if tier.value < TruthTier.INFERENCE.value:
             logger.info("Conflict on '%s': Overruling new data with Tier %s.", topic, tier.name)
             return truth

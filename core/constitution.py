@@ -183,7 +183,11 @@ class BeliefAuthority:
 
         if state_authority is not None and normalized_key:
             try:
-                authoritative, tier = state_authority.get_truth(normalized_key)
+                from core.state.state_authority import TruthTier
+
+                authoritative, tier = state_authority.get_truth(
+                    normalized_key, max_tier=TruthTier.HARD_FACT
+                )
                 if authoritative is not None and getattr(tier, "name", "") in {"IMMUTABLE", "HARD_FACT"}:
                     normalized_value = authoritative
                     reason = f"resolved_by_state_authority:{tier.name.lower()}"

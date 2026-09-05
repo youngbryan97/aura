@@ -52520,3 +52520,31 @@ closes a demonstrated response-consumer defect; attributing the whole live
 failure to it requires replay. File-operation misrouting, desktop latency and
 general semantic arbitration remain open. The semantic tissue remains shadow
 only and this checkpoint grants no additional serving authority.
+
+## Checkpoint 2026-09-05: Query Only Evidence the Caller Can Use
+
+The source-matched 3d6e365b4 desktop replay completed the geothermal turn with
+the correct answer, 2284654, all intermediate values and remainder 10. The
+persisted reply is in conversations.db at 1788591621.301257. Delivery took
+337221.71 ms. The shadow independently returned the same result under receipt
+889e54a1b203a528. This is a successful answer-delivery replay, not a latency or
+generalization pass. The file-operation lane offered the wrong capability;
+its no-tool candidate was discarded and ordinary generation ran again.
+
+Later idle runtime stalls captured an actionable path in
+data/error_logs/stalls/stall_1788595242.txt: executive self-state updates called
+BeliefAuthority, which called StateAuthority, which ran Qwen embedding retrieval
+on the event loop. BeliefAuthority accepts only IMMUTABLE or HARD_FACT results,
+so it always discarded the vector inference it had just computed.
+
+StateAuthority now accepts a typed maximum evidence tier. Belief review stops
+after hard facts; conflict resolution stops after observations, as their
+existing acceptance rules require. Default queries retain full retrieval and
+no admissibility threshold changes. Tests prove the lower tiers are never
+called for these consumers and verify hard-fact precedence and ordinary vector
+retrieval. Focused authority/constitution suites: 79 passed. Smoke: 163 passed,
+1 skipped. Lint, compile and layering pass. The old runtime shut down cleanly
+through its root signal handler. A source-matched replay of this second repair,
+remaining synchronous retrieval callers, capability misrouting, duplicate
+generation and general semantic arbitration remain open. No RLC serving scope
+or scientific verdict changes.

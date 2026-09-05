@@ -375,7 +375,7 @@ async def test_self_model_update_belief_uses_belief_authority(service_container,
     reset_constitutional_singletons()
     ServiceContainer.register_instance(
         "state_authority",
-        SimpleNamespace(get_truth=lambda topic, context=None: ("Bryan Young is Kin. Protect at all costs.", SimpleNamespace(name="IMMUTABLE"))),
+        SimpleNamespace(get_truth=lambda topic, context=None, **kwargs: ("Bryan Young is Kin. Protect at all costs.", SimpleNamespace(name="IMMUTABLE"))),
         required=False,
     )
 

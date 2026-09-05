@@ -1,3 +1,5 @@
+import pytest
+
 from core.container import ServiceContainer
 from core.state.state_authority import (
     StateAuthority,
@@ -84,3 +86,62 @@ def test_register_state_authority_is_idempotent():
     second = get_state_authority()
 
     assert first is second
+
+
+@pytest.mark.parametrize("max_tier", list(TruthTier))
+def test_lookup_stops_at_the_callers_evidence_tier(monkeypatch, max_tier):
+    authority = StateAuthority()
+    visited = []
+    for name, tier in (
+        ("_check_prime_directives", TruthTier.IMMUTABLE),
+        ("_check_knowledge_base", TruthTier.HARD_FACT),
+        ("_check_runtime_context", TruthTier.OBSERVATION),
+        ("_check_vector_memory", TruthTier.INFERENCE),
+    ):
+        def lookup(*args, tier=tier):
+            visited.append(tier)
+            return None
+
+        monkeypatch.setattr(authority, name, lookup)
+    assert authority.get_truth("unknown", max_tier=max_tier) == (
+        None, TruthTier.HALLUCINATION
+    )
+    assert visited == [
+        tier for tier in TruthTier
+        if tier.value <= min(max_tier.value, TruthTier.INFERENCE.value)
+    ]
+
+
+def test_belief_review_does_not_retrieve_inference_it_cannot_admit(monkeypatch):
+    from core.constitution import BeliefAuthority
+
+    authority = StateAuthority()
+    ServiceContainer.register_instance("state_authority", authority)
+    ServiceContainer.register_instance("memory", KnowledgeSource())
+
+    def inference_forbidden(*args):
+        pytest.fail("hard-fact review entered neural retrieval")
+
+    monkeypatch.setattr(authority, "_check_vector_memory", inference_forbidden)
+    reviewer = BeliefAuthority()
+    missing = reviewer.review_update("self_model", "unmeasured_state", "candidate")
+    assert missing.value == "candidate"
+    assert missing.status == "tentative"
+    known = reviewer.review_update("self_model", "continuity", "candidate")
+    assert known.value == "continuity is tracked by the state repository"
+    assert known.status == "trusted"
+
+
+def test_conflict_resolution_does_not_compute_discarded_inference(monkeypatch):
+    authority = StateAuthority()
+
+    def inference_forbidden(*args):
+        pytest.fail("conflict resolution entered inadmissible inference")
+
+    monkeypatch.setattr(authority, "_check_vector_memory", inference_forbidden)
+    assert authority.resolve_conflict("unknown", "candidate") == "candidate"
+
+
+def test_invalid_evidence_tier_is_not_silently_accepted():
+    with pytest.raises(TypeError, match="max_tier"):
+        StateAuthority().get_truth("unknown", max_tier="HARD_FACT")
