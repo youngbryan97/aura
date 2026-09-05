@@ -14,17 +14,19 @@ or as a standalone maintenance pass via `make seal`.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
 import sqlite3
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from collections.abc import Callable
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Persistence.Maintenance")
@@ -116,6 +118,8 @@ class MaintenanceResult:
     wal_size_bytes: int = 0
     errors: list[str] = field(default_factory=list)
     skipped_policies: list[str] = field(default_factory=list)
+    deferred_phases: list[str] = field(default_factory=list)
+    integrity_check_kind: str = ""
 
     @property
     def duration_s(self) -> float:
@@ -143,6 +147,8 @@ class MaintenanceResult:
             "wal_size_bytes": self.wal_size_bytes,
             "errors": self.errors,
             "skipped_policies": self.skipped_policies,
+            "deferred_phases": self.deferred_phases,
+            "integrity_check_kind": self.integrity_check_kind,
         }
 
 
@@ -181,8 +187,10 @@ class DatabaseMaintenance:
         self._last_vacuum_time: float = 0.0
         self._last_checkpoint_time: float = 0.0
         self._last_integrity_time: float = 0.0
+        self._last_vacuum_attempt_time: float = 0.0
         self._last_result: MaintenanceResult | None = None
         self._total_passes: int = 0
+        self._run_lock = checked_lock("core.persistence.db_maintenance.run")
 
     def _get_connection(self) -> sqlite3.Connection | None:
         """Get a maintenance connection with appropriate settings."""
@@ -369,11 +377,18 @@ class DatabaseMaintenance:
                 )
             result.errors.append(f"retention_commit: {exc}")
 
-    def run_vacuum(self, conn: sqlite3.Connection, result: MaintenanceResult) -> None:
-        """Run incremental auto-vacuum if due."""
+    def run_vacuum(
+        self,
+        conn: sqlite3.Connection,
+        result: MaintenanceResult,
+        *,
+        allow_full_vacuum: bool = False,
+    ) -> None:
+        """Reclaim pages without turning routine care into an offline migration."""
         now = time.time()
-        if now - self._last_vacuum_time < self._vacuum_interval_s:
+        if now - self._last_vacuum_attempt_time < self._vacuum_interval_s:
             return
+        self._last_vacuum_attempt_time = now
 
         try:
             # Check current auto_vacuum mode
@@ -382,8 +397,11 @@ class DatabaseMaintenance:
             current_mode = mode[0] if mode else 0
 
             if current_mode == 0:
-                # Switch to incremental auto_vacuum (mode 2)
-                # This requires a VACUUM to take effect
+                if not allow_full_vacuum:
+                    result.deferred_phases.append("full_vacuum_requires_explicit_maintenance")
+                    return
+                # Changing auto_vacuum mode rewrites the entire database.  Only
+                # an explicit maintenance command may request that operation.
                 conn.execute("PRAGMA auto_vacuum=INCREMENTAL;")
                 conn.execute("VACUUM;")
                 logger.info("Maintenance: Switched to INCREMENTAL auto_vacuum.")
@@ -392,8 +410,12 @@ class DatabaseMaintenance:
                 conn.execute("PRAGMA incremental_vacuum(100);")
                 logger.debug("Maintenance: Incremental vacuum completed (100 pages).")
 
+            else:
+                result.deferred_phases.append("full_auto_vacuum_managed_on_commit")
+                return
+
             result.vacuum_run = True
-            self._last_vacuum_time = now
+            self._last_vacuum_time = time.time()
         except sqlite3.Error as exc:
             _record_db_degradation(
                 exc,
@@ -402,15 +424,21 @@ class DatabaseMaintenance:
             result.errors.append(f"vacuum: {exc}")
 
     def run_integrity_check(
-        self, conn: sqlite3.Connection, result: MaintenanceResult
+        self,
+        conn: sqlite3.Connection,
+        result: MaintenanceResult,
+        *,
+        thorough: bool = False,
     ) -> None:
-        """Run periodic integrity check (weekly by default)."""
+        """Run a bounded online check or an explicit thorough check."""
         now = time.time()
         if now - self._last_integrity_time < self._integrity_interval_s:
             return
 
         try:
-            cursor = conn.execute("PRAGMA integrity_check(1);")
+            result.integrity_check_kind = "integrity_check" if thorough else "quick_check"
+            pragma = "PRAGMA integrity_check(1);" if thorough else "PRAGMA quick_check(1);"
+            cursor = conn.execute(pragma)
             row = cursor.fetchone()
             ok = row is not None and row[0] == "ok"
             result.integrity_ok = ok
@@ -521,42 +549,58 @@ class DatabaseMaintenance:
 
         if force:
             self._last_vacuum_time = 0.0
+            self._last_vacuum_attempt_time = 0.0
             self._last_checkpoint_time = 0.0
             self._last_integrity_time = 0.0
 
-        conn = self._get_connection()
-        if conn is None:
-            result.errors.append("no_connection")
-            result.completed_at = time.time()
-            return result
+        with self._run_lock:
+            conn = self._get_connection()
+            if conn is None:
+                result.errors.append("no_connection")
+                result.completed_at = time.time()
+                return result
 
-        phases: tuple[tuple[str, Callable[[], None]], ...] = (
-            ("checkpoint", lambda: self.run_checkpoint(conn, result)),
-            ("retention", lambda: self.run_retention(conn, result)),
-            ("vacuum", lambda: self.run_vacuum(conn, result)),
-            ("integrity", lambda: self.run_integrity_check(conn, result)),
-            ("size", lambda: self.check_size(result)),
-        )
-        try:
-            for phase_name, phase in phases:
+            phases: tuple[tuple[str, Callable[[], None]], ...] = (
+                ("checkpoint", lambda: self.run_checkpoint(conn, result)),
+                ("retention", lambda: self.run_retention(conn, result)),
+                (
+                    "vacuum",
+                    lambda: self.run_vacuum(
+                        conn,
+                        result,
+                        allow_full_vacuum=force,
+                    ),
+                ),
+                (
+                    "integrity",
+                    lambda: self.run_integrity_check(
+                        conn,
+                        result,
+                        thorough=force,
+                    ),
+                ),
+                ("size", lambda: self.check_size(result)),
+            )
+            try:
+                for phase_name, phase in phases:
+                    try:
+                        phase()
+                    except (sqlite3.Error, OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                        _record_db_degradation(
+                            exc,
+                            action=f"continued database maintenance pass after {phase_name} phase failed",
+                            severity="degraded",
+                        )
+                        result.errors.append(f"{phase_name}_phase: {exc}")
+            finally:
                 try:
-                    phase()
-                except (sqlite3.Error, OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                    conn.close()
+                except sqlite3.Error as exc:
                     _record_db_degradation(
                         exc,
-                        action=f"continued database maintenance pass after {phase_name} phase failed",
-                        severity="degraded",
+                        severity="warning",
+                        action="completed database maintenance pass after connection close failed",
                     )
-                    result.errors.append(f"{phase_name}_phase: {exc}")
-        finally:
-            try:
-                conn.close()
-            except sqlite3.Error as exc:
-                _record_db_degradation(
-                    exc,
-                    severity="warning",
-                    action="completed database maintenance pass after connection close failed",
-                )
 
         result.completed_at = time.time()
         self._last_result = result
@@ -581,6 +625,32 @@ class DatabaseMaintenance:
             )
 
         return result
+
+    async def run_maintenance_async(self, *, force: bool = False) -> MaintenanceResult:
+        """Run SQLite work off the event loop and defer routine work during chat."""
+
+        if not force:
+            try:
+                from core.runtime.foreground_guard import foreground_activity_reason
+
+                if foreground_activity_reason() == "foreground_chat_active":
+                    result = MaintenanceResult(
+                        completed_at=time.time(),
+                        deferred_phases=["foreground_chat_active"],
+                    )
+                    return result
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                _record_db_degradation(
+                    exc,
+                    action="deferred routine database maintenance because foreground state was unavailable",
+                )
+                result = MaintenanceResult(
+                    completed_at=time.time(),
+                    deferred_phases=["foreground_state_unavailable"],
+                )
+                return result
+
+        return await asyncio.to_thread(self.run_maintenance, force=force)
 
     def get_status(self) -> dict[str, Any]:
         """Return current maintenance status for observability."""

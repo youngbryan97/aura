@@ -267,13 +267,8 @@ def test_reading_the_prompt_counts_as_working() -> None:
     assert still_producing(within_s=5.0)
 
 
-def test_the_wall_clock_watchdog_re_arms_while_work_is_arriving() -> None:
-    """It exists for a blocked event loop, and a blocked loop reports nothing.
-
-    So the same signal that says a turn is alive is the one that says this
-    watchdog is needed, and firing on elapsed time alone could not tell the
-    two apart. The case it kept meeting was the healthy one.
-    """
+def test_unowned_wall_clock_watchdog_cannot_borrow_foreground_progress() -> None:
+    """A probe remains bounded even if an unrelated turn reports progress."""
 
     import time as _time
 
@@ -291,12 +286,11 @@ def test_the_wall_clock_watchdog_re_arms_while_work_is_arriving() -> None:
         client, reason="test", timeout_s=0.15, user_facing=True
     )
     try:
-        # Keep reporting work for longer than the original budget.
+        # Unbound progress must not grant an unowned endpoint more time.
         for _ in range(6):
             _time.sleep(0.05)
             note_progress()
-        assert fired.is_set() is False
-        assert aborted["value"] is False
+        assert fired.is_set() is True
     finally:
         handle.cancel()
 

@@ -31,26 +31,19 @@ async def test_owned_answer_finishes_beyond_former_hard_ceiling(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_other_turn_cannot_extend_a_silent_foreground():
-    foreground = TurnOutcome("silent", origin="desktop")
-    other = TurnOutcome("other", origin="autonomous")
-    cleaned = asyncio.Event()
+async def test_owned_silence_is_not_invented_as_a_terminal_state():
+    async def native_work_that_cannot_publish_parent_progress():
+        await asyncio.sleep(0.05)
+        return "complete after native work"
 
-    async def unrelated_work():
-        with bind_turn(other):
-            try:
-                while True:
-                    progress.note_progress()
-                    await asyncio.sleep(0.005)
-            finally:
-                cleaned.set()
-
-    with bind_turn(foreground):
-        with pytest.raises(TimeoutError):
-            await router._await_while_it_is_working(
-                unrelated_work(), budget_s=0.025, user_facing=True, person_is_waiting=True
-            )
-    assert cleaned.is_set()
+    with bind_turn(TurnOutcome("silent-native-work", origin="desktop")):
+        result = await router._await_while_it_is_working(
+            native_work_that_cannot_publish_parent_progress(),
+            budget_s=0.01,
+            user_facing=True,
+            person_is_waiting=True,
+        )
+    assert result == "complete after native work"
 
 
 @pytest.mark.asyncio
@@ -114,7 +107,7 @@ async def test_endpoint_timeout_is_not_misread_as_wait_expiry():
             )
 
 
-def test_watchdog_thread_reads_captured_owner_past_ceiling(monkeypatch):
+def test_watchdog_thread_has_no_cancellation_authority_over_owned_turn(monkeypatch):
     now = [100.0]
     monkeypatch.setattr(progress.time, "monotonic", lambda: now[0])
     callbacks = []
@@ -141,17 +134,9 @@ def test_watchdog_thread_reads_captured_owner_past_ceiling(monkeypatch):
             user_facing=True, person_is_waiting=True,
         )
     now[0] = 1000.0
-    with bind_turn(owner):
-        progress.note_progress()
-    with bind_turn(TurnOutcome("timer-context")):
-        callbacks.pop(0)()
     assert not fired.is_set()
     assert not aborts
-    assert len(callbacks) == 1
-    now[0] += 40
-    callbacks.pop(0)()
-    assert fired.is_set()
-    assert aborts == ["client"]
+    assert callbacks == []
     handle.cancel()
 
 

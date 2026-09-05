@@ -581,7 +581,7 @@ class MetabolicCoordinator:
                 try:
                     from core.persistence.db_maintenance import get_db_maintenance
                     maint = get_db_maintenance()
-                    maint_result = maint.run_maintenance()
+                    maint_result = await maint.run_maintenance_async()
                     if maint_result.total_rows_deleted > 0:
                         logger.info(
                             "🗄️ DB Maintenance: deleted %d expired rows.",

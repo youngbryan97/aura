@@ -547,6 +547,19 @@ async def _await_while_it_is_working(
         if not user_facing:
             raise TimeoutError
 
+        if owned_foreground:
+            # The endpoint owns first-token, token-livelock, worker-heartbeat,
+            # memory-pressure and cancellation decisions.  This outer estimate
+            # cannot observe native MLX work while the event loop or response
+            # queue is delayed, so silence here is not evidence that the owned
+            # request stopped.  Wait for an explicit endpoint terminal state or
+            # for the caller to cancel the turn.
+            logger.info(
+                "Endpoint past its %.1fs estimate; waiting for its owned terminal state.",
+                budget_s,
+            )
+            return await task
+
         try:
             from core.brain.llm.thinking_reserve import seconds_to_decode
 
@@ -567,7 +580,7 @@ async def _await_while_it_is_working(
         overrun = ceiling if person_is_waiting else min(ceiling, max(0.0, float(budget_s) * 3.0))
         ends_at = time.monotonic() + overrun
         said_it_once = False
-        while owned_foreground or time.monotonic() < ends_at:
+        while time.monotonic() < ends_at:
             if task.done():
                 return task.result()
             if not still_producing(within_s=quiet_for, progress=progress):
@@ -578,7 +591,7 @@ async def _await_while_it_is_working(
                     "Endpoint past its %.1fs estimate; owned work is still advancing.",
                     budget_s,
                 )
-            interval = 2.0 if owned_foreground else min(2.0, max(0.0, ends_at - time.monotonic()))
+            interval = min(2.0, max(0.0, ends_at - time.monotonic()))
             done, _ = await asyncio.wait({task}, timeout=interval)
             if done:
                 return task.result()
@@ -774,11 +787,6 @@ class _WatchdogHandle:
             timer.cancel()
 
 
-#: The longest a user-facing turn may run, mirrored here so the watchdog can be
-#: bounded without importing a policy module into a hot path.
-_USER_FACING_COMPLETION_CEILING_S = 480.0
-
-
 def _start_endpoint_wall_clock_watchdog(
     client: Any,
     *,
@@ -786,7 +794,7 @@ def _start_endpoint_wall_clock_watchdog(
     timeout_s: float,
     user_facing: bool = False,
     person_is_waiting: bool = False,
-) -> tuple[threading.Event, dict[str, bool], "_WatchdogHandle"]:
+) -> tuple[threading.Event, dict[str, bool], _WatchdogHandle]:
     """Abort non-cooperative local inference on wall-clock time.
 
     ``asyncio.wait_for`` only fires when the awaited coroutine yields. The local
@@ -796,44 +804,27 @@ def _start_endpoint_wall_clock_watchdog(
     """
 
     from core.runtime.turn_outcome import current_turn
-    from core.runtime.turn_progress import capture_progress
-
-    progress = capture_progress()
     owned_foreground = user_facing and person_is_waiting and current_turn() is not None
     fired = threading.Event()
     aborted = {"value": False}
     holder: dict[str, Any] = {}
-    ends_at = time.monotonic() + max(
-        float(timeout_s), float(_USER_FACING_COMPLETION_CEILING_S)
-    )
+
+    if owned_foreground:
+        # A second clock cannot diagnose an endpoint that already owns worker
+        # liveness and generation cancellation.  In particular, this thread
+        # cannot receive parent-side progress while the event loop is blocked;
+        # killing the worker then destroys healthy work because the observer
+        # was delayed.  Caller cancellation still propagates through the
+        # awaited endpoint task and the MLX client's own watchdogs remain live.
+        return fired, aborted, _WatchdogHandle(holder)
 
     def _abort() -> None:
         if holder.get("cancelled"):
             return
-        # The reason this watchdog exists is a blocked event loop, and a
-        # blocked loop reports no tokens — so the same signal that says a
-        # turn is alive is exactly the one that says this watchdog is needed.
-        # Firing on elapsed time alone could not tell the two apart, and the
-        # case it kept meeting was the healthy one: a generation still writing
-        # the answer, killed for taking longer than a number set before anyone
-        # knew what the answer was.
-        if user_facing and (owned_foreground or time.monotonic() < ends_at):
-            try:
-                from core.runtime.turn_progress import (
-                    normal_gap_between_tokens,
-                    still_producing,
-                )
-
-                if still_producing(
-                    within_s=normal_gap_between_tokens(), progress=progress
-                ) and not holder.get("cancelled"):
-                    again = threading.Timer(5.0, _abort)
-                    again.daemon = True
-                    holder["timer"] = again
-                    again.start()
-                    return
-            except (ImportError, AttributeError, TypeError, ValueError):
-                pass
+        # Unowned calls are probes or bounded internal work.  They cannot
+        # borrow progress from an unrelated foreground turn to renew a blocked
+        # call.  Owned foreground calls returned above and are governed by the
+        # endpoint's correlated worker state instead.
         fired.set()
         aborted["value"] = _force_abort_endpoint_client(client, reason=reason)
 
