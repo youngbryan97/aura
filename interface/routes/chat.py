@@ -18228,7 +18228,7 @@ async def _admit_to_foreground_lane(
             # deferral if it is still true when that budget is gone.
             if _lane_warmup_is_deliberately_deferred(
                 {"last_failure_reason": str(admission_exc or "")}
-            ):
+            ) or str(admission_exc).strip() == "chat_dependencies_warming":
                 retry_deadline = time.monotonic() + max(0.0, admission_budget - 2.0)
                 logger.info(
                     "⏳ Foreground lane deferred (%s); waiting up to %.0fs "
