@@ -34,6 +34,8 @@ representation is formed here.
 
 from __future__ import annotations
 
+import time
+
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -609,7 +611,10 @@ def _forms_that_fit(
         key=lambda row: -row[1],
     )
     landing = [entry for entry, right in landing if right]
+    began = time.monotonic()
     for _fa, first_text, first in singles:
+        if time.monotonic() - began > LONGEST_THIRD_LEVEL_S:
+            break
         for _fb, second_text, second in landing[:MOST_TWO_DEEP_TO_EXTEND]:
             composed = IndexProgram("compose", (), (first, second))
             if _fits(composed, options, size):
@@ -624,10 +629,29 @@ def _forms_that_fit(
 
 
 #: How many two-deep shapes the three-deep search will extend. Bounded
-#: because the search is cubic in the basis, and ordered by whether the
-#: two-deep shape lands inside the possibilities anywhere, so the ones kept
-#: are the ones with any chance of being half of the answer.
+#: because the search is cubic in the basis, and ordered by how much of the
+#: answer each already has, so the ones kept are the ones with a chance of
+#: being half of it.
+#:
+#: What it costs, measured on three observations at lengths five, seven and
+#: nine: nothing at all where something cheaper fits, because the rung only
+#: runs when everything above it found nothing shared — a plain mirror and a
+#: two-deep composition both still answer in 24ms. A world nothing explains
+#: takes 1.2 seconds to refuse instead of a tenth of that, and buys eight of
+#: forty sealed rules that were refused before it existed. The cost is
+#: counted into the record like every other search, so what it is worth is
+#: something her own developmental policy can decide rather than something
+#: settled here.
 MOST_TWO_DEEP_TO_EXTEND = 400
+
+#: And a clock on it, because the count alone does not bound the cost: the
+#: basis grows with the length of the state, so the same four hundred cost
+#: more at eleven than at five. Read off what a refusal cost before this rung
+#: existed — about a tenth of a second — and set so the worst case is a small
+#: multiple of that rather than the twelve times it reached unbounded. The
+#: candidates are ordered by how much of the answer they already have, so
+#: what a clock cuts off is the least promising end.
+LONGEST_THIRD_LEVEL_S = 0.25
 
 
 def _how_much_it_gets_right(

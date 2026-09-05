@@ -353,20 +353,30 @@ def test_the_extracted_run_is_a_real_relation() -> None:
     assert _permutation_operator(rule)(state) == _rot1(_ends(state))
 
 
+def _inner(state):
+    """The cells one in from each end change places."""
+
+    row = list(state)
+    row[1], row[-2] = row[-2], row[1]
+    return tuple(row)
+
+
 def _outside_the_winners(state):
-    """The run the library extracted, and then a mirror.
+    """A world outside three languages: blank, whole-winners, and neither.
 
-    The target has to sit outside three languages, not one, and choosing it
-    by eye got it wrong: the world first written here was the extracted run
-    applied twice, which happens to collapse to a single member of the affine
-    family. A blank language solved it in one shape, so the null the test
-    rested on was false and the test had been red rather than informative.
+    The target has to sit outside all three, and choosing it by eye got it
+    wrong twice. The world first written here was the extracted run applied
+    twice, which collapses to a single member of the affine family, so a
+    blank language solved it. The second was three shapes deep, and then the
+    base search gained a rung that reaches three, so a blank language solved
+    that one too.
 
-    This one is checked, not assumed — the two assertions below say a blank
-    language cannot reach it and neither can the library's whole winners.
+    Both times the test said so rather than passing, which is what the
+    assertions below are for: a null that has quietly become false is worth
+    more as a red test than as a green one.
     """
 
-    return _mirror_of(_rot1(_ends(state)))
+    return _ends(_rot1(_inner(_ends(state))))
 
 
 def test_refactoring_reaches_a_world_the_winners_could_not() -> None:
