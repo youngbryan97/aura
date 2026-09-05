@@ -1,0 +1,21 @@
+{
+  "gate": "broad everyday competence",
+  "ran": false,
+  "why_not": "needs a GAIA holdout the system has never seen. Obtain or construct one after this freeze, run with tool access and a fixed budget, and report accuracy beside interaction count.",
+  "passed": null,
+  "measurements": {},
+  "trajectories": [],
+  "trajectories_total": 0,
+  "seconds": 0.0,
+  "freeze": {
+    "commit": "964d6ec669e1debc684d51688978670acb77550c",
+    "dirty": true,
+    "source_digest": "b16759e21a804ebe7e7082e719d430e2",
+    "weights": "unnamed",
+    "config": "5842009a56039d7882fe403f40430360",
+    "seed": 5449951750638118594,
+    "trustworthy": false,
+    "at": 1788618114.691305,
+    "host": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}

@@ -1,0 +1,287 @@
+{
+  "gate": "interactive novel-world learning",
+  "ran": true,
+  "why_not": "",
+  "passed": true,
+  "measurements": {
+    "worlds": 30,
+    "solved": 0.8667,
+    "random_solved": 0.0,
+    "efficiency": {
+      "median_ratio": 1.381,
+      "mean_ratio": 1.574,
+      "worst_ratio": 3.737,
+      "measured": 26
+    },
+    "against_random": {
+      "name": "her play against wandering",
+      "n_here": 30,
+      "n_there": 30,
+      "mean_here": 0.8667,
+      "mean_there": 0.0,
+      "difference": 0.8667,
+      "interval": [
+        0.7333,
+        0.9667
+      ],
+      "effect": 3.5449,
+      "real": true,
+      "enough_trajectories": true
+    }
+  },
+  "trajectories": [
+    {
+      "world": "a world nobody described (9,11)",
+      "hers": true,
+      "moves": 24,
+      "shortest": 20,
+      "random_won": false,
+      "random_moves": 76
+    },
+    {
+      "world": "a world nobody described (9,10)",
+      "hers": true,
+      "moves": 71,
+      "shortest": 19,
+      "random_won": false,
+      "random_moves": 27
+    },
+    {
+      "world": "a world nobody described (11,9)",
+      "hers": true,
+      "moves": 20,
+      "shortest": 20,
+      "random_won": false,
+      "random_moves": 13
+    },
+    {
+      "world": "a world nobody described (11,11)",
+      "hers": false,
+      "moves": 132,
+      "shortest": 22,
+      "random_won": false,
+      "random_moves": 10
+    },
+    {
+      "world": "a world nobody described (9,10)",
+      "hers": true,
+      "moves": 19,
+      "shortest": 19,
+      "random_won": false,
+      "random_moves": 31
+    },
+    {
+      "world": "a world nobody described (9,10)",
+      "hers": true,
+      "moves": 27,
+      "shortest": 19,
+      "random_won": false,
+      "random_moves": 2
+    },
+    {
+      "world": "a world nobody described (11,9)",
+      "hers": true,
+      "moves": 42,
+      "shortest": 20,
+      "random_won": false,
+      "random_moves": 12
+    },
+    {
+      "world": "a world nobody described (11,10)",
+      "hers": false,
+      "moves": 126,
+      "shortest": 21,
+      "random_won": false,
+      "random_moves": 93
+    },
+    {
+      "world": "a world nobody described (10,11)",
+      "hers": true,
+      "moves": 37,
+      "shortest": 21,
+      "random_won": false,
+      "random_moves": 109
+    },
+    {
+      "world": "a world nobody described (9,10)",
+      "hers": true,
+      "moves": 19,
+      "shortest": 19,
+      "random_won": false,
+      "random_moves": 24
+    },
+    {
+      "world": "a world nobody described (11,9)",
+      "hers": true,
+      "moves": 24,
+      "shortest": 20,
+      "random_won": false,
+      "random_moves": 79
+    },
+    {
+      "world": "a world nobody described (10,9)",
+      "hers": true,
+      "moves": 19,
+      "shortest": 19,
+      "random_won": false,
+      "random_moves": 2
+    },
+    {
+      "world": "a world nobody described (9,10)",
+      "hers": true,
+      "moves": 27,
+      "shortest": 19,
+      "random_won": false,
+      "random_moves": 12
+    },
+    {
+      "world": "a world nobody described (10,11)",
+      "hers": true,
+      "moves": 29,
+      "shortest": 21,
+      "random_won": false,
+      "random_moves": 27
+    },
+    {
+      "world": "a world nobody described (9,11)",
+      "hers": true,
+      "moves": 22,
+      "shortest": 20,
+      "random_won": false,
+      "random_moves": 27
+    },
+    {
+      "world": "a world nobody described (11,10)",
+      "hers": true,
+      "moves": 29,
+      "shortest": 21,
+      "random_won": false,
+      "random_moves": 3
+    },
+    {
+      "world": "a world nobody described (10,9)",
+      "hers": true,
+      "moves": 19,
+      "shortest": 19,
+      "random_won": false,
+      "random_moves": 17
+    },
+    {
+      "world": "a world nobody described (9,9)",
+      "hers": true,
+      "moves": 33,
+      "shortest": 18,
+      "random_won": false,
+      "random_moves": 19
+    },
+    {
+      "world": "a world nobody described (10,11)",
+      "hers": true,
+      "moves": 31,
+      "shortest": 21,
+      "random_won": false,
+      "random_moves": 54
+    },
+    {
+      "world": "a world nobody described (10,11)",
+      "hers": false,
+      "moves": 126,
+      "shortest": 21,
+      "random_won": false,
+      "random_moves": 4
+    },
+    {
+      "world": "a world nobody described (11,11)",
+      "hers": false,
+      "moves": 132,
+      "shortest": 22,
+      "random_won": false,
+      "random_moves": 3
+    },
+    {
+      "world": "a world nobody described (10,9)",
+      "hers": true,
+      "moves": 45,
+      "shortest": 19,
+      "random_won": false,
+      "random_moves": 14
+    },
+    {
+      "world": "a world nobody described (11,11)",
+      "hers": true,
+      "moves": 60,
+      "shortest": 22,
+      "random_won": false,
+      "random_moves": 82
+    },
+    {
+      "world": "a world nobody described (10,10)",
+      "hers": true,
+      "moves": 24,
+      "shortest": 20,
+      "random_won": false,
+      "random_moves": 61
+    },
+    {
+      "world": "a world nobody described (9,9)",
+      "hers": true,
+      "moves": 18,
+      "shortest": 18,
+      "random_won": false,
+      "random_moves": 15
+    },
+    {
+      "world": "a world nobody described (11,10)",
+      "hers": true,
+      "moves": 57,
+      "shortest": 21,
+      "random_won": false,
+      "random_moves": 5
+    },
+    {
+      "world": "a world nobody described (11,11)",
+      "hers": true,
+      "moves": 32,
+      "shortest": 22,
+      "random_won": false,
+      "random_moves": 7
+    },
+    {
+      "world": "a world nobody described (9,9)",
+      "hers": true,
+      "moves": 20,
+      "shortest": 18,
+      "random_won": false,
+      "random_moves": 10
+    },
+    {
+      "world": "a world nobody described (9,11)",
+      "hers": true,
+      "moves": 22,
+      "shortest": 20,
+      "random_won": false,
+      "random_moves": 16
+    },
+    {
+      "world": "a world nobody described (10,11)",
+      "hers": true,
+      "moves": 47,
+      "shortest": 21,
+      "random_won": false,
+      "random_moves": 61
+    }
+  ],
+  "trajectories_total": 30,
+  "seconds": 16.46,
+  "freeze": {
+    "commit": "964d6ec669e1debc684d51688978670acb77550c",
+    "dirty": true,
+    "source_digest": "b16759e21a804ebe7e7082e719d430e2",
+    "weights": "unnamed",
+    "config": "5842009a56039d7882fe403f40430360",
+    "seed": 5449951750638118594,
+    "trustworthy": false,
+    "at": 1788618114.691305,
+    "host": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}

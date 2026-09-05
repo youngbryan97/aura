@@ -34,8 +34,6 @@ representation is formed here.
 
 from __future__ import annotations
 
-import time
-
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -568,19 +566,30 @@ def _forms_that_fit(
     ]
     if not compose or (fitting and not force_compose):
         return fitting
-    two: list[tuple[str, str, IndexProgram]] = []
+    # The two-deep terms, and how much of the answer each already has. Kept
+    # as they are built rather than built and then sorted: the sort was over
+    # every pair of singles — seven thousand at length nine — and scoring all
+    # of them cost more than the search it was ordering. The battery went
+    # from 1.1 seconds to over two minutes, and the clock below could not see
+    # it, because the clock bounds the search and this was the setup.
+    two: list[tuple[float, int, tuple[str, str, IndexProgram]]] = []
+    scored = 0
     for _fa, first_text, first in singles:
         for _fb, second_text, second in singles:
             composed = IndexProgram("compose", (), (first, second))
-            two.append(("composition", f"{second_text}, then {first_text}", composed))
+            said = f"{second_text}, then {first_text}"
             if _fits(composed, options, size):
-                fitting.append(
-                    (
-                        "composition",
-                        f"{second_text}, then {first_text}",
-                        composed,
+                fitting.append(("composition", said, composed))
+                continue
+            if three_deep and scored < MOST_PAIRS_SCORED:
+                scored += 1
+                right = _how_much_it_gets_right(composed, options, size)
+                if right:
+                    # The index keeps the order total, so two shapes right
+                    # about equally much always come back in the same order.
+                    two.append(
+                        (-float(right), len(two), ("composition", said, composed))
                     )
-                )
     if fitting and not three_deep:
         return fitting
     # Three deep, when two found nothing here or when the caller has already
@@ -606,16 +615,14 @@ def _forms_that_fit(
     # Taken in generation order instead, the cap fell on whichever four
     # hundred happened to be built first, and a world three shapes deep was
     # unreachable because its first two were late in a list.
-    landing = sorted(
-        ((entry, _how_much_it_gets_right(entry[2], options, size)) for entry in two),
-        key=lambda row: -row[1],
-    )
-    landing = [entry for entry, right in landing if right]
-    began = time.monotonic()
+    two.sort()
+    landing = [entry for _right, _index, entry in two]
+    tried = 0
     for _fa, first_text, first in singles:
-        if time.monotonic() - began > LONGEST_THIRD_LEVEL_S:
+        if tried >= MOST_THREE_DEEP_TRIED:
             break
         for _fb, second_text, second in landing[:MOST_TWO_DEEP_TO_EXTEND]:
+            tried += 1
             composed = IndexProgram("compose", (), (first, second))
             if _fits(composed, options, size):
                 fitting.append(
@@ -633,25 +640,38 @@ def _forms_that_fit(
 #: answer each already has, so the ones kept are the ones with a chance of
 #: being half of it.
 #:
-#: What it costs, measured on three observations at lengths five, seven and
-#: nine: nothing at all where something cheaper fits, because the rung only
-#: runs when everything above it found nothing shared — a plain mirror and a
-#: two-deep composition both still answer in 24ms. A world nothing explains
-#: takes 1.2 seconds to refuse instead of a tenth of that, and buys eight of
-#: forty sealed rules that were refused before it existed. The cost is
-#: counted into the record like every other search, so what it is worth is
-#: something her own developmental policy can decide rather than something
-#: settled here.
+#: How many two-deep shapes each single extends. The other half of the bound
+#: below, and the one that decides which candidates are reached rather than
+#: how many.
 MOST_TWO_DEEP_TO_EXTEND = 400
 
-#: And a clock on it, because the count alone does not bound the cost: the
-#: basis grows with the length of the state, so the same four hundred cost
-#: more at eleven than at five. Read off what a refusal cost before this rung
-#: existed — about a tenth of a second — and set so the worst case is a small
-#: multiple of that rather than the twelve times it reached unbounded. The
-#: candidates are ordered by how much of the answer they already have, so
-#: what a clock cuts off is the least promising end.
-LONGEST_THIRD_LEVEL_S = 0.25
+#: Counted, not timed.
+#:
+#: This was a wall clock, and a wall clock makes the answer depend on how
+#: busy the machine is: the same battery came back with eight deep shapes
+#: reachable and then with seven, on identical code. Gate eighteen of the
+#: proof gauntlet asks for the same answers on a re-run, and a clock cannot
+#: give that. So the bound is a count of candidates, which is the same
+#: number on any machine on any day.
+#:
+#: Both halves are bounded, which is why the first version was useless: the
+#: ordering was computed over every pair of singles — seven thousand at
+#: length nine — before the bound was consulted at all, and the battery went
+#: from 1.1 seconds to over two minutes without the bound seeing it.
+#: Set where the reach stops changing, measured on the battery:
+#:
+#:     pairs scored   candidates tried   deep shapes   battery   time
+#:            2,500             30,000          8/20   114/130   15.0s
+#:            1,200             12,000          8/20   114/130   10.6s
+#:              600              6,000          7/20   113/130    7.6s
+#:              300              3,000          7/20   113/130    6.1s
+#:
+#: Against 106 in 1.1s before the rung existed. So the rung buys eight
+#: problems for about ten times the time, the curve is flat above twelve
+#: hundred, and below it a problem goes. Nothing above these numbers is free
+#: and nothing below them is safe.
+MOST_PAIRS_SCORED = 1200
+MOST_THREE_DEEP_TRIED = 12_000
 
 
 def _how_much_it_gets_right(

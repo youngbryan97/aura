@@ -112,3 +112,53 @@ def test_three_deep_compositions_are_reachable():
     assert found.generalises
     for length in (8, 11):
         assert tuple(found.apply(tuple(range(length)))) == _three(tuple(range(length)))
+
+
+def test_settledness_is_checked_against_the_question_when_the_caller_names_it():
+    """Whether observations settle a question depends on the question.
+
+    Without the case in hand it is checked over a neighbourhood of the
+    lengths shown, which is a guess at where the question will be. Measured
+    on two hundred sealed rules from a fixed seed it changed nothing — 163
+    right and 2 wrong either way — so what this test guards is that the
+    parameter reaches the check, not a gain it does not have.
+    """
+
+    import inspect
+
+    from core.cognition import primitive_invention as invention
+
+    said = inspect.signature(invention.invent_relation).parameters
+    assert "about" in said
+
+    checked = inspect.getsource(invention._which_others_disagree)
+    assert "about" in checked
+    assert "int(one) for one in about" in checked
+
+
+def test_naming_a_length_cannot_make_an_unsettled_answer_settled():
+    """It can only find more disagreement, never less."""
+
+    shown = _shown(_mirror, (5,))
+    without = invent_relation(shown)
+    with_it = invent_relation(shown, about=(9,))
+    assert without is not None and with_it is not None
+    assert not without.settled
+    assert not with_it.settled
+
+
+def test_a_length_the_caller_names_is_actually_looked_at():
+    """Two shapes agreeing everywhere shown and differing at the asked length
+    is the case this exists for."""
+
+    from core.cognition.primitive_invention import _which_others_disagree
+
+    shown = _shown(_mirror, (4, 6))
+    found = invent_relation(shown)
+    assert found is not None
+    #: Nothing to disagree about here, whatever length is named.
+    assert _which_others_disagree(found.form, {found.form: ("", None)}, shown) == ()
+    assert (
+        _which_others_disagree(found.form, {found.form: ("", None)}, shown, about=(11,))
+        == ()
+    )

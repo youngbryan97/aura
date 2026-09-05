@@ -1,0 +1,251 @@
+{
+  "gate": "planning under novelty",
+  "ran": true,
+  "why_not": "",
+  "passed": true,
+  "measurements": {
+    "worlds": 30,
+    "recovered": 0.6333,
+    "persisted_and_survived": 0.0667,
+    "against_persisting": {
+      "name": "rebuilding against persisting",
+      "n_here": 30,
+      "n_there": 30,
+      "mean_here": 0.6333,
+      "mean_there": 0.0667,
+      "difference": 0.5667,
+      "interval": [
+        0.3667,
+        0.7667
+      ],
+      "effect": 1.452,
+      "real": true,
+      "enough_trajectories": true
+    }
+  },
+  "trajectories": [
+    {
+      "world": "a world nobody described (9,11)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9747
+    },
+    {
+      "world": "a world nobody described (9,10)",
+      "rules_changed": true,
+      "rebuilt_and_won": false,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9979
+    },
+    {
+      "world": "a world nobody described (11,9)",
+      "rules_changed": true,
+      "rebuilt_and_won": false,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9985
+    },
+    {
+      "world": "a world nobody described (11,11)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9714
+    },
+    {
+      "world": "a world nobody described (9,10)",
+      "rules_changed": true,
+      "rebuilt_and_won": false,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9975
+    },
+    {
+      "world": "a world nobody described (9,10)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.967
+    },
+    {
+      "world": "a world nobody described (11,9)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": true,
+      "confidence_after": 0.9796
+    },
+    {
+      "world": "a world nobody described (11,10)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9697
+    },
+    {
+      "world": "a world nobody described (10,11)",
+      "rules_changed": true,
+      "rebuilt_and_won": false,
+      "kept_to_the_plan_and_won": true,
+      "confidence_after": 0.9985
+    },
+    {
+      "world": "a world nobody described (9,10)",
+      "rules_changed": true,
+      "rebuilt_and_won": false,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9985
+    },
+    {
+      "world": "a world nobody described (11,9)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9825
+    },
+    {
+      "world": "a world nobody described (10,9)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9531
+    },
+    {
+      "world": "a world nobody described (9,10)",
+      "rules_changed": true,
+      "rebuilt_and_won": false,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9993
+    },
+    {
+      "world": "a world nobody described (10,11)",
+      "rules_changed": true,
+      "rebuilt_and_won": false,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9987
+    },
+    {
+      "world": "a world nobody described (9,11)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9518
+    },
+    {
+      "world": "a world nobody described (11,10)",
+      "rules_changed": true,
+      "rebuilt_and_won": false,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9987
+    },
+    {
+      "world": "a world nobody described (10,9)",
+      "rules_changed": true,
+      "rebuilt_and_won": false,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9985
+    },
+    {
+      "world": "a world nobody described (9,9)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9714
+    },
+    {
+      "world": "a world nobody described (10,11)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9683
+    },
+    {
+      "world": "a world nobody described (10,11)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9899
+    },
+    {
+      "world": "a world nobody described (11,11)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9651
+    },
+    {
+      "world": "a world nobody described (10,9)",
+      "rules_changed": true,
+      "rebuilt_and_won": false,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9971
+    },
+    {
+      "world": "a world nobody described (11,11)",
+      "rules_changed": false,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.997
+    },
+    {
+      "world": "a world nobody described (10,10)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 1.0
+    },
+    {
+      "world": "a world nobody described (9,9)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9438
+    },
+    {
+      "world": "a world nobody described (11,10)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9848
+    },
+    {
+      "world": "a world nobody described (11,11)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9906
+    },
+    {
+      "world": "a world nobody described (9,9)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9714
+    },
+    {
+      "world": "a world nobody described (9,11)",
+      "rules_changed": true,
+      "rebuilt_and_won": true,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9398
+    },
+    {
+      "world": "a world nobody described (10,11)",
+      "rules_changed": true,
+      "rebuilt_and_won": false,
+      "kept_to_the_plan_and_won": false,
+      "confidence_after": 0.9981
+    }
+  ],
+  "trajectories_total": 30,
+  "seconds": 71.37,
+  "freeze": {
+    "commit": "964d6ec669e1debc684d51688978670acb77550c",
+    "dirty": true,
+    "source_digest": "b16759e21a804ebe7e7082e719d430e2",
+    "weights": "unnamed",
+    "config": "5842009a56039d7882fe403f40430360",
+    "seed": 5449951750638118594,
+    "trustworthy": false,
+    "at": 1788618114.691305,
+    "host": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}

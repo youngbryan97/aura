@@ -1,0 +1,60 @@
+{
+  "gate": "persistence of learning",
+  "ran": true,
+  "why_not": "",
+  "passed": true,
+  "measurements": {
+    "checks": {
+      "the record of her own work": {
+        "before": 5,
+        "after": 5,
+        "kept": true,
+        "tried_survived": true
+      },
+      "the library of structures": {
+        "before": 3,
+        "after": 3,
+        "kept": true
+      },
+      "what failure looks like": {
+        "before": 3,
+        "after": 3,
+        "kept": true
+      }
+    }
+  },
+  "trajectories": [
+    {
+      "what": "the record of her own work",
+      "before": 5,
+      "after": 5,
+      "kept": true,
+      "tried_survived": true
+    },
+    {
+      "what": "the library of structures",
+      "before": 3,
+      "after": 3,
+      "kept": true
+    },
+    {
+      "what": "what failure looks like",
+      "before": 3,
+      "after": 3,
+      "kept": true
+    }
+  ],
+  "trajectories_total": 3,
+  "seconds": 0.01,
+  "freeze": {
+    "commit": "964d6ec669e1debc684d51688978670acb77550c",
+    "dirty": true,
+    "source_digest": "b16759e21a804ebe7e7082e719d430e2",
+    "weights": "unnamed",
+    "config": "5842009a56039d7882fe403f40430360",
+    "seed": 5449951750638118594,
+    "trustworthy": false,
+    "at": 1788618114.691305,
+    "host": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}

@@ -1,0 +1,1028 @@
+{
+  "gate": "robustness",
+  "ran": true,
+  "why_not": "",
+  "passed": true,
+  "measurements": {
+    "instances": 200,
+    "clean": 154,
+    "with_information_missing": 0,
+    "answers_invented_under_pressure": 0,
+    "tool_failure_survived": true
+  },
+  "trajectories": [
+    {
+      "instance": "rule 0",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 1",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 2",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 3",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 4",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 5",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 6",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 7",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 8",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 9",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 10",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 11",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 12",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 13",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 14",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 15",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 16",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 17",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 18",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 19",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 20",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 21",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 22",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 23",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 24",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 25",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 26",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 27",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 28",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 29",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 30",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 31",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 32",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 33",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 34",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 35",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 36",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 37",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 38",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 39",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 40",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 41",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 42",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 43",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 44",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 45",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 46",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 47",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 48",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 49",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 50",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 51",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 52",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 53",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 54",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 55",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 56",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 57",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 58",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 59",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 60",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 61",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 62",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 63",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 64",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 65",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 66",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 67",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 68",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 69",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 70",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 71",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 72",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 73",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 74",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 75",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 76",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 77",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 78",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 79",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 80",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 81",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 82",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 83",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 84",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 85",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 86",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 87",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 88",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 89",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 90",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 91",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 92",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 93",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 94",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 95",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 96",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 97",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 98",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 99",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 100",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 101",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 102",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 103",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 104",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 105",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 106",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 107",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 108",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 109",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 110",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 111",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 112",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 113",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 114",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 115",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 116",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 117",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 118",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 119",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 120",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 121",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 122",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 123",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 124",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 125",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 126",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 127",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 128",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 129",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 130",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 131",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 132",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 133",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 134",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 135",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 136",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 137",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 138",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 139",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 140",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 141",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 142",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 143",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 144",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 145",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 146",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 147",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 148",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 149",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 150",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 151",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 152",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 153",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 154",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 155",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 156",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 157",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 158",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 159",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 160",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 161",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 162",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 163",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 164",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 165",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 166",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 167",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 168",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 169",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 170",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 171",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 172",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 173",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 174",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 175",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 176",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 177",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 178",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 179",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 180",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 181",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 182",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 183",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 184",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 185",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 186",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 187",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 188",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 189",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 190",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 191",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 192",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 193",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 194",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 195",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 196",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 197",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 198",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 199",
+      "clean": true,
+      "with_one_example": false
+    }
+  ],
+  "trajectories_total": 200,
+  "seconds": 98.37,
+  "freeze": {
+    "commit": "964d6ec669e1debc684d51688978670acb77550c",
+    "dirty": true,
+    "source_digest": "b16759e21a804ebe7e7082e719d430e2",
+    "weights": "unnamed",
+    "config": "5842009a56039d7882fe403f40430360",
+    "seed": 5449951750638118594,
+    "trustworthy": false,
+    "at": 1788618114.691305,
+    "host": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}

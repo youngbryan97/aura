@@ -1,0 +1,1325 @@
+{
+  "gate": "cross-domain transfer",
+  "ran": true,
+  "why_not": "",
+  "passed": true,
+  "measurements": {
+    "pairs": 107,
+    "controls": 45,
+    "outside_the_language": 68,
+    "reachable_share": 0.6909,
+    "transfer": {
+      "pairs": 107,
+      "controls": 45,
+      "mean_gain": 0.1682,
+      "control_gain": 0.0,
+      "transferred": true,
+      "comparison": {
+        "name": "transfer against its controls",
+        "n_here": 107,
+        "n_there": 45,
+        "mean_here": 0.1682,
+        "mean_there": 0.0,
+        "difference": 0.1682,
+        "interval": [
+          0.0935,
+          0.243
+        ],
+        "effect": 0.633,
+        "real": true,
+        "enough_trajectories": true
+      }
+    }
+  },
+  "trajectories": [
+    {
+      "pair": "pair 0",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 1 (control)",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 2 (control)",
+      "structure": "everything moves one place away from the middle",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 3 (control)",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 4 (control)",
+      "structure": "everything moves one place away from the middle",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 5",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 6 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 7 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 8",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 9",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 10 (control)",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 11",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 12",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 13 (control)",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 14",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 15",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 16",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 17 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 18",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 19",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 20",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 21 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 22",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 23 (control)",
+      "structure": "the two ends change places",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 24 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 25 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 26",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 27 (control)",
+      "structure": "everything shifts one along, wrapping",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 28",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 29",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 30",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 31",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 32",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 33",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 34 (control)",
+      "structure": "everything shifts one along, wrapping",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 35",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 36",
+      "structure": "everything moves one place away from the middle",
+      "control": false,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 37",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 38",
+      "structure": "everything moves one place away from the middle",
+      "control": false,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 39",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 40",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 41",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 42 (control)",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 43 (control)",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 44 (control)",
+      "structure": "the two ends change places",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 45",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 46",
+      "structure": "everything moves one place away from the middle",
+      "control": false,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 47",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 48 (control)",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 49",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 50",
+      "structure": "everything moves one place away from the middle",
+      "control": false,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 51",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 52",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 53",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 54",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 55",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 56",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 57",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 58",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 59",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 60",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 61 (control)",
+      "structure": "the two ends change places",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 62",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 63",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 64 (control)",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 65",
+      "structure": "everything moves one place away from the middle",
+      "control": false,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 66",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 67",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 68",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 69",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 70",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 71",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 72 (control)",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 73",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 74 (control)",
+      "structure": "the two ends change places",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 75",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 76",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 77 (control)",
+      "structure": "the two ends change places",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 78",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 79",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 80",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 81",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 82",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 83",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 84",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 85 (control)",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 86 (control)",
+      "structure": "everything shifts one along, wrapping",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 87 (control)",
+      "structure": "everything shifts one along, wrapping",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 88",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 89",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 90",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 91",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 92",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 93",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 94 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 95",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 96",
+      "structure": "neighbours change places in twos",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 97 (control)",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 98 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 99",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 100",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 101",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 102",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 103",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 104",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 105",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 106",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 107 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 108",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 109",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 110",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 111",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 112",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 113",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 114",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 115",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 116 (control)",
+      "structure": "the two ends change places",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 117",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 118 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 119",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 120",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 121 (control)",
+      "structure": "everything shifts one along, wrapping",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 122",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 123 (control)",
+      "structure": "the two ends change places",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 124",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 125",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 126",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 127",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 128 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 129",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 130",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 131",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 132 (control)",
+      "structure": "the two ends change places",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 133 (control)",
+      "structure": "everything shifts one along, wrapping",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 134 (control)",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 135 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 136 (control)",
+      "structure": "the two ends change places",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 137",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 138 (control)",
+      "structure": "everything shifts one along, wrapping",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 139",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 140",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 141",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 142",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 143",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 144",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 145 (control)",
+      "structure": "the two ends change places",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 146",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 147 (control)",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 148",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 149",
+      "structure": "everything moves one place away from the middle",
+      "control": false,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 150",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 151",
+      "structure": "neighbours change places in twos",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 152",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 153 (control)",
+      "structure": "everything moves one place away from the middle",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 154",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 155",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 156 (control)",
+      "structure": "the two ends change places",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 157",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 158",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 159",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 160",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 161 (control)",
+      "structure": "the two ends change places",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 162",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 163",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 164",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 165",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 166 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 167",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 168 (control)",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 169",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 170",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 171",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 172 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 173 (control)",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 174",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 175 (control)",
+      "structure": "the two ends change places",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 176",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 177",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 178",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 179",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 180",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 181 (control)",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 182",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 183",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 184",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 185",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 186 (control)",
+      "structure": "the order is turned around",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 187",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 188",
+      "structure": "the two ends change places",
+      "control": false,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 189 (control)",
+      "structure": "the two ends change places",
+      "control": true,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 190",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 191",
+      "structure": "everything shifts one along, wrapping",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 192",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 193 (control)",
+      "structure": "everything shifts one along, wrapping",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 194 (control)",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 195",
+      "structure": "the order is turned around",
+      "control": false,
+      "after_learning": 1.0,
+      "from_scratch": 1.0
+    },
+    {
+      "pair": "pair 196",
+      "structure": "everything moves one place away from the middle",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 197",
+      "structure": "neighbours change places in twos",
+      "outside_the_language": true
+    },
+    {
+      "pair": "pair 198",
+      "structure": "neighbours change places in twos",
+      "control": false,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    },
+    {
+      "pair": "pair 199 (control)",
+      "structure": "everything moves one place away from the middle",
+      "control": true,
+      "after_learning": 0.0,
+      "from_scratch": 0.0
+    }
+  ],
+  "trajectories_total": 220,
+  "seconds": 64.47,
+  "freeze": {
+    "commit": "964d6ec669e1debc684d51688978670acb77550c",
+    "dirty": true,
+    "source_digest": "b16759e21a804ebe7e7082e719d430e2",
+    "weights": "unnamed",
+    "config": "5842009a56039d7882fe403f40430360",
+    "seed": 5449951750638118594,
+    "trustworthy": false,
+    "at": 1788618114.691305,
+    "host": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}
