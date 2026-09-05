@@ -286,6 +286,36 @@ def _atom():
 def test_a_structural_analogy_is_found_across_a_shared_vocabulary_of_none():
     alignment = map_structures(_solar(), _atom())
     assert alignment.mapping == {"sun": "nucleus", "planet": "electron"}
+    # Nothing in an atom is called `sun`. Both DO say `attracts`, which is a
+    # different and easier thing — the two used to be one property under the
+    # name `shares_no_vocabulary`, and only the object half was ever checked.
+    assert alignment.shares_no_object_names
+    assert not alignment.shares_no_vocabulary
+    assert alignment.predicate_mapping == {
+        "attracts": "attracts",
+        "hotter": "hotter",
+        "revolves": "revolves",
+    }
+
+
+def test_a_domain_sharing_no_words_at_all_still_aligns():
+    """The claim the module's description makes, which it could not meet.
+
+    Predicates were matched as strings, so two domains with the same shape and
+    different relation words scored exactly zero.
+    """
+    queue = Graph("queue", (
+        Relation("waits_behind", ("b", "a")),
+        Relation("waits_behind", ("c", "b")),
+        Relation("served_first", ("a",)),
+    ))
+    traffic = Graph("traffic", (
+        Relation("follows", ("car2", "car1")),
+        Relation("follows", ("car3", "car2")),
+        Relation("exits_first", ("car1",)),
+    ))
+    alignment = map_structures(queue, traffic)
+    assert alignment.score == 1.0
     assert alignment.shares_no_vocabulary
 
 
@@ -296,8 +326,17 @@ def test_the_scrambled_control_scores_lower_than_the_real_structure():
 
 
 def test_an_unrelated_domain_aligns_with_nothing():
+    """No better than its own scrambled control, which is what "nothing" means.
+
+    This asserted a raw score of zero, which held only because predicates were
+    matched as strings: an unrelated domain scored zero for having different
+    words rather than a different shape. Once relations can be read as one
+    another, one shared two-place relation does align — and the null is what
+    says the alignment is worth nothing.
+    """
     unrelated = Graph("u", (Relation("foo", ("a", "b")), Relation("bar", ("b", "c"))))
-    assert shuffled_null(_solar(), unrelated, trials=10)["score"] == 0.0
+    result = shuffled_null(_solar(), unrelated, trials=40)
+    assert result["separation"] < 0.2
 
 
 def test_a_domain_too_big_for_the_exhaustive_search_refuses_rather_than_failing_quietly():

@@ -39,7 +39,7 @@ buildable thing. Status is measured, not asserted.
 | 15 | Self-repair under unknown failures: recognise a failure the ontology does not contain, infer the broken invariant, localise, invent a repair, verify, integrate the new failure concept | **DONE** — `core/resilience/unknown_failure.py`; signatures are learned from instances rather than read off catalogue prose, so the recogniser has a null: a repeat of a known fault must come back KNOWN |
 | 16 | Architectural self-discovery: shadow architectures, forked trials, compatibility interfaces, migration proofs | OPEN |
 | 17 | Primitive invention that feeds later invention, rather than composition of human-supplied primitives | OPEN |
-| 18 | Autonomous transfer: discover the invariant without anyone tagging both domains | OPEN |
+| 18 | Autonomous transfer: discover the invariant without anyone tagging both domains | **DONE** — `core/cognition/transfer_search.py` retrieves by naming-invariant shape and verifies each candidate against its shuffled null; the mapper itself had to stop matching relations as strings, which was scoring genuine cross-vocabulary analogies at exactly zero |
 | 19 | Identity relation under deep modification: causal continuity, not a hash | OPEN |
 | 20 | Value development levels: separate what may change from what may not, and which learning touches which | OPEN |
 | 21 | Social cognition over years: trust, attachment, norms, shared history, repair after conflict, nested beliefs | OPEN |

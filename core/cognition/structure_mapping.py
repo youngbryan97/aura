@@ -71,11 +71,35 @@ class Alignment:
     matched: tuple[tuple[Relation, Relation], ...]
     score: float
     systematicity: float
+    #: How each source predicate was read in the target. Empty when the two
+    #: domains happened to use the same words, which is the easy case and not
+    #: the one the module is for.
+    predicate_mapping: Mapping[str, str] = field(default_factory=dict)
+
+    @property
+    def shares_no_object_names(self) -> bool:
+        """Whether the two domains name their objects differently throughout.
+
+        The solar system and the atom share this: nothing is called `sun` in
+        an atom. They do share their relation words — both say `attracts` —
+        which is a different and easier thing, and the two used to be the same
+        property under this name.
+        """
+        return all(source != target for source, target in self.mapping.items())
 
     @property
     def shares_no_vocabulary(self) -> bool:
-        """Whether the two domains name their objects differently throughout."""
-        return all(source != target for source, target in self.mapping.items())
+        """Whether the two domains share no words at all — objects or relations.
+
+        The strong claim, and the one the module's description makes. Queues
+        say `waits_behind` and traffic says `follows`; matching predicates as
+        strings scored that pair at exactly zero, so nothing could satisfy
+        this until predicates could be read as one another.
+        """
+        if not self.predicate_mapping:
+            return False
+        predicates_differ = all(a != b for a, b in self.predicate_mapping.items())
+        return self.shares_no_object_names and predicates_differ
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -83,22 +107,115 @@ class Alignment:
             "matched_relations": len(self.matched),
             "score": self.score,
             "systematicity": self.systematicity,
+            "shares_no_object_names": self.shares_no_object_names,
             "shares_no_vocabulary": self.shares_no_vocabulary,
+            "predicate_mapping": dict(self.predicate_mapping),
         }
 
 
-def _score(source: Graph, target: Graph, mapping: Mapping[str, str]) -> tuple[float, float, list]:
+def _score(
+    source: Graph,
+    target: Graph,
+    mapping: Mapping[str, str],
+    predicates: Mapping[str, str] | None = None,
+) -> tuple[float, float, list]:
     matched = []
     depth = 0.0
     for relation in source.relations:
         projected = tuple(mapping.get(a, a) for a in relation.args)
-        for candidate in target.relations_with(relation.predicate):
+        read_as = (
+            predicates.get(relation.predicate, relation.predicate)
+            if predicates
+            else relation.predicate
+        )
+        for candidate in target.relations_with(read_as):
             if candidate.args == projected:
                 matched.append((relation, candidate))
                 depth += relation.order
                 break
     total = len(source.relations) or 1
     return len(matched) / total, depth / total, matched
+
+
+def _predicate_candidates(source: Graph, target: Graph) -> list[dict[str, str]]:
+    """Every way of reading the source's relation words as the target's.
+
+    Only arity-compatible pairings: a two-place relation cannot be read as a
+    one-place one whatever the words are. That is what keeps this from being a
+    search over every possible renaming.
+    """
+    source_predicates = sorted({r.predicate for r in source.relations})
+    by_arity: dict[int, list[str]] = {}
+    for relation in target.relations:
+        by_arity.setdefault(len(relation.args), []).append(relation.predicate)
+    for arity in by_arity:
+        by_arity[arity] = sorted(set(by_arity[arity]))
+
+    arities = {
+        predicate: {
+            len(r.args) for r in source.relations if r.predicate == predicate
+        }
+        for predicate in source_predicates
+    }
+    options: list[list[str]] = []
+    for predicate in source_predicates:
+        allowed: set[str] = set()
+        for arity in arities[predicate]:
+            allowed |= set(by_arity.get(arity, ()))
+        # None means "this relation has no counterpart here". Without it, a
+        # target with fewer distinct relations than the source admits no
+        # injective reading at all and the whole alignment returns None —
+        # which reads as "no analogy" when the truth is "a partial one".
+        options.append([*sorted(allowed), None])
+    if not options:
+        return [{}]
+    total = 1
+    for choices in options:
+        total *= len(choices)
+        if total > _MAX_PREDICATE_READINGS:
+            # Too many readings to enumerate. Fall back to matching the words
+            # exactly, which is the old behaviour, rather than searching a
+            # fraction of the space and reporting the best of it as the best.
+            return [{p: p for p in source_predicates}]
+    readings = [
+        {
+            source: target
+            for source, target in zip(source_predicates, combination, strict=True)
+            if target is not None
+        }
+        for combination in itertools.product(*options)
+        # One-to-one on predicates for the same reason it is one-to-one on
+        # objects: a reading that lets two different source relations both
+        # become the same target relation can align anything with anything.
+        # Without it, an unrelated domain with two relations matched two
+        # thirds of the solar system.
+        if _injective(combination)
+    ]
+    # The identity reading first, so a pair of domains that happen to share
+    # their vocabulary keeps the mapping it had before predicates could be
+    # renamed. Renaming nothing is the better explanation when it scores the
+    # same, and ties here are common.
+    readings.sort(
+        key=lambda reading: (
+            # Most relations accounted for first: a reading that leaves a
+            # source relation unmapped explains less than one that does not.
+            -len(reading),
+            sum(1 for k, v in reading.items() if k != v),
+        )
+    )
+    return readings
+
+
+def _injective(combination: Sequence[str | None]) -> bool:
+    """One-to-one over the predicates that are mapped at all."""
+    mapped = [name for name in combination if name is not None]
+    return len(set(mapped)) == len(mapped)
+
+
+#: Predicate readings enumerated before the search gives up and matches words
+#: exactly. Bounded for the same reason `max_objects` is: a partial search
+#: whose failures look like "no analogy" is worse than a refusal.
+_MAX_PREDICATE_READINGS = 4096
 
 
 def map_structures(
@@ -120,14 +237,22 @@ def map_structures(
             f"{max_objects} this exhaustive search will attempt; a bigger domain needs "
             "a heuristic search, and pretending to have found nothing would be worse"
         )
+    readings = _predicate_candidates(source, target)
     best: Alignment | None = None
     for permutation in itertools.permutations(target_objects, len(source_objects)):
         mapping = dict(zip(source_objects, permutation, strict=True))
-        score, systematicity, matched = _score(source, target, mapping)
-        if best is None or (score, systematicity) > (best.score, best.systematicity):
-            best = Alignment(
-                mapping=mapping, matched=tuple(matched), score=score, systematicity=systematicity
-            )
+        for reading in readings:
+            score, systematicity, matched = _score(source, target, mapping, reading)
+            # Strictly better only. Readings arrive with the fewest renamings
+            # first, so an equal score keeps the more conservative one.
+            if best is None or (score, systematicity) > (best.score, best.systematicity):
+                best = Alignment(
+                    mapping=mapping,
+                    matched=tuple(matched),
+                    score=score,
+                    systematicity=systematicity,
+                    predicate_mapping=dict(reading),
+                )
     return best
 
 
