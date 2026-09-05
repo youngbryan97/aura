@@ -1,6 +1,4 @@
 {
-  "schema": "aura.lockdep_baseline.v1",
-  "note": "Lock primitives lockdep cannot see, frozen when the coverage gate was introduced. This list may only SHRINK \u2014 migrate a lock to checked_lock/checked_async_lock, or adopt its critical section with instrument(name), then delete its entry. See core/runtime/lockdep_coverage.py.",
   "entries": [
     "core/actuators/actuator_registry.py::::threading.Lock",
     "core/actuators/actuator_registry.py::ActuatorRegistry.__init__::threading.RLock",
@@ -353,9 +351,6 @@
     "core/memory/sqlite_storage.py::SQLiteMemory._init_lock::asyncio.Lock",
     "core/memory/user_profile.py::UserProfile.__init__::threading.RLock",
     "core/memory/user_profile.py::UserProfile::asyncio.Lock",
-    "core/morphogenesis/field.py::MorphogenField.__init__::threading.RLock",
-    "core/morphogenesis/registry.py::MorphogenesisRegistry.__init__::threading.RLock",
-    "core/morphogenesis/runtime.py::MorphogeneticRuntime.__init__::asyncio.Lock",
     "core/motivation/drives.py::DriveSystem.__init__::threading.Lock",
     "core/motivation/engine.py::MotivationEngine.__init__::asyncio.Lock",
     "core/multimodal/coordinator.py::StreamingCoordinator.__init__::asyncio.Lock",
@@ -639,5 +634,7 @@
     "interface/routes/voice_duplex.py::voice_duplex_endpoint::asyncio.Lock",
     "interface/websocket_manager.py::MessageBroadcastBus.__init__::asyncio.Lock",
     "interface/websocket_manager.py::WebSocketManager.__init__::asyncio.Lock"
-  ]
+  ],
+  "note": "Lock primitives lockdep cannot see, frozen when the coverage gate was introduced. This list may only SHRINK \u2014 migrate a lock to checked_lock/checked_async_lock, or adopt its critical section with instrument(name), then delete its entry. See core/runtime/lockdep_coverage.py.",
+  "schema": "aura.lockdep_baseline.v1"
 }

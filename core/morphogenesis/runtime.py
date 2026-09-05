@@ -11,6 +11,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.lockdep import checked_async_lock
 from core.runtime.task_ownership import create_tracked_task
 
 from .field import MorphogenField
@@ -165,8 +166,11 @@ class MorphogeneticRuntime:
         self._last_degradation_at = 0.0
         self._hooks_wired = False
         self._last_hook_results: dict[str, Any] = {}
-        self._stop_lock = asyncio.Lock()
-        self._restart_lock = asyncio.Lock()
+        # Checked, like the graph, registry and field locks: lockdep only
+        # finds ordering bugs among locks it wraps, and these two bracket
+        # shutdown and restart, which is where an ordering bug would hurt most.
+        self._stop_lock = checked_async_lock("morphogenesis.stop")
+        self._restart_lock = checked_async_lock("morphogenesis.restart")
         self._persisted_on_stop = False
         queue_capacity = max(1, int(self.config.immunity_bridge_queue_capacity))
         self._immunity_queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue(
