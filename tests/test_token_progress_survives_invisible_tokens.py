@@ -29,11 +29,34 @@ IPC writer's backpressure shedding.
 """
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
 WORKER = Path("core/brain/llm/mlx_worker.py")
 CLIENT = Path("core/brain/llm/mlx_client.py")
+
+
+def test_generate_retries_report_cumulative_decoded_work():
+    tree = ast.parse(WORKER.read_text())
+    loop = next(node for node in ast.walk(tree) if isinstance(node, ast.For)
+                and isinstance(node.target, ast.Name) and node.target.id == "internal_attempt")
+    advance = loop.body[0]
+    assert isinstance(advance, ast.If)
+    progress = next(node for node in ast.walk(loop) if isinstance(node, ast.Dict)
+                    and any(isinstance(k, ast.Constant) and k.value == "tokens_generated"
+                            for k in node.keys))
+    count = next(v for k, v in zip(progress.keys, progress.values, strict=True)
+                 if isinstance(k, ast.Constant) and k.value == "tokens_generated")
+    scope = {"decoded_before_attempt": 0}
+    observed = []
+    for attempt, size in enumerate((397, 244, 12)):
+        scope["internal_attempt"] = attempt
+        exec(compile(ast.Module(body=[advance], type_ignores=[]), "retry", "exec"), scope)
+        for token in range(1, size + 1):
+            scope["token_count"] = token
+            observed.append(eval(compile(ast.Expression(count), "progress", "eval"), scope))
+    assert observed == list(range(1, 654))
 
 
 def _emit_block() -> str:

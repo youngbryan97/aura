@@ -8548,7 +8548,11 @@ def _mlx_worker_loop(
                             ontology_retry_count = 0
                             schema_validation_failed = ""
 
+                            decoded_before_attempt = 0
+                            token_count = 0
                             for internal_attempt in range(max_internal_retries + 1):
+                                if internal_attempt:
+                                    decoded_before_attempt += token_count
                                 surface_control_state["generation_max_tokens_applied"] = max(
                                     1,
                                     _safe_int(kwargs.get("max_tokens"), max_tokens),
@@ -9461,7 +9465,7 @@ def _mlx_worker_loop(
                                                 "id": job.get("id"),
                                                 "action": "generate",
                                                 "status": "progress",
-                                                "tokens_generated": token_count,
+                                                "tokens_generated": decoded_before_attempt + token_count,
                                                 "timestamp": progress_now,
                                             }
                                             if intero_tap is not None:

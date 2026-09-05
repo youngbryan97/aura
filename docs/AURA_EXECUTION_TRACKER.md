@@ -52815,3 +52815,13 @@ message exposed a critique fragment. The follow-up remains under repair;
 its worker was actively decoding when the parent declared a token stall.
 These observations do not establish live closure. Steering request semantics,
 progress across internal retries, and source-witness integration remain open.
+
+## Checkpoint 2026-09-05: Preserve Progress Across Internal Retries
+
+The live worker completed 397 tokens, then restarted its per-attempt counter.
+The parent requires monotonic per-request progress, so it ignored the next
+attempt's lower counts and cancelled active decoding as stalled. Worker
+progress now includes decoded tokens from prior attempts in the same request.
+Per-attempt generation limits and the parent's stale-message checks remain
+unchanged. Six focused tests pass; smoke passed 163 tests with one skipped.
+Lint, compile and layering pass. Restarted live replay is still required.
