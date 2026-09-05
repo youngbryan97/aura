@@ -34,6 +34,7 @@ the digest, or two renderings of the same state would look like two states.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import math
@@ -353,8 +354,19 @@ class Fidelity:
 
         Three pairs cannot settle this and the threshold is not a hedge: with
         fewer, the shuffled null has too few arrangements to be a null.
+
+        The bar is judged through a sealed criterion rather than compared
+        inline. An instrument that decided what counted as informative after
+        seeing how informative it was would pass every time, and this is
+        exactly the kind of adaptive mechanism where that happens without
+        anyone intending it.
         """
-        return self.samples >= _MIN_FIDELITY_SAMPLES and self.margin > _FIDELITY_MARGIN
+        if self.samples < _MIN_FIDELITY_SAMPLES:
+            return False
+        criterion = _fidelity_criterion()
+        if criterion is None:
+            return self.margin > _FIDELITY_MARGIN
+        return criterion.judge(self.margin).passed
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -377,6 +389,25 @@ _FIDELITY_MARGIN = 0.15
 
 #: Shuffles averaged for the null. One shuffle is one arrangement, not a null.
 _NULL_SHUFFLES = 32
+
+
+@functools.lru_cache(maxsize=1)
+def _fidelity_criterion() -> Any:
+    """The sealed bar for calling an introspective instrument informative."""
+    try:
+        from core.verify.epistemic_independence import declare
+
+        return declare(
+            "narrative.introspective_fidelity",
+            threshold=_FIDELITY_MARGIN,
+            rationale=(
+                "the margin over its own shuffled null at which a generator's "
+                "reports track the states behind them rather than the "
+                "sampler's habits; fixed before any generator was measured"
+            ),
+        )
+    except (ImportError, RuntimeError, ValueError):
+        return None
 
 
 def fidelity(pairs: Iterable[tuple[str, Mapping[str, float]]]) -> Fidelity:

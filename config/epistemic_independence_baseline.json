@@ -1,0 +1,22 @@
+{
+  "description": "Comparisons whose threshold is derived, in the same function, from the value being compared. May only SHRINK. Every entry here was read and is a legitimate data-derived threshold rather than a defect: median binarisation, a threshold taken from a baseline window and applied to a response window, clustering tolerance from typical spacing, adaptive noise floors, a cut position inside a string, and a first-half against second-half trend test \u2014 which is how a trend test SHOULD be written and looks exactly like the defect. Do not 'fix' these. The gate exists to catch the shape when it is real: a bar set from the result it judges.",
+  "count": 16,
+  "sites": [
+    "core/consciousness/closed_loop.py::SelfPredictiveCore.free_energy_trend:596 [first_half is an aggregate or rescaling of h]",
+    "core/consciousness/closed_loop.py::SelfPredictiveCore.free_energy_trend:596 [second_half is an aggregate or rescaling of h]",
+    "core/consciousness/closed_loop.py::SelfPredictiveCore.free_energy_trend:598 [first_half is an aggregate or rescaling of h]",
+    "core/consciousness/closed_loop.py::SelfPredictiveCore.free_energy_trend:598 [second_half is an aggregate or rescaling of h]",
+    "core/consciousness/integrated_information.py::exact_state_phi:657 [med is an aggregate or rescaling of Xk]",
+    "core/consciousness/perturbational_probe.py::PerturbationalProbe.run:373 [med is an aggregate or rescaling of baseline]",
+    "core/engineering/draw/sheet.py::_findings_panel:286 [size is an aggregate or rescaling of canvas]",
+    "core/engineering/geometry.py::Tube.of:429 [outer is an aggregate or rescaling of _length]",
+    "core/perception/what_is_there.py::_column_edges:365 [tolerance is an aggregate or rescaling of ordered]",
+    "core/perception/what_is_there.py::arranged:310 [tolerance is an aggregate or rescaling of y]",
+    "core/runtime/field_trials.py::FieldTrials._expired_locked:227 [age_days is an aggregate or rescaling of trial]",
+    "core/voice/duplex/paralinguistics.py::analyze:176 [env is an aggregate or rescaling of hop]",
+    "core/voice/duplex/paralinguistics.py::analyze:176 [floor is an aggregate or rescaling of env]",
+    "core/voice/duplex/paralinguistics.py::estimate_f0:93 [voiced_floor is an aggregate or rescaling of energy]",
+    "core/voice/response_shaper.py::_enforce_word_budget:218 [cutoff_threshold is an aggregate or rescaling of truncated]",
+    "core/voice/response_shaper.py::_enforce_word_budget:220 [cutoff_threshold is an aggregate or rescaling of truncated]"
+  ]
+}
