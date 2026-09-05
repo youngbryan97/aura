@@ -5797,8 +5797,8 @@ def _runtime_integrity_public_payload(report: dict[str, Any] | None) -> dict[str
 async def api_interiority_state():
     """Diagnostic: the interiority layer's live state. Read-only.
 
-    The census is the part worth reading. Every other measurement of this
-    layer runs in a world the test harness builds; this one accumulates
+    The census reports what no other measurement of this layer can. The
+    rest run in a world the test harness builds; this one accumulates
     across real turns and reports a firing rate and a mean intensity per
     faculty, a histogram of why faculties declined, and which sense
     channels were actually carrying anything.
