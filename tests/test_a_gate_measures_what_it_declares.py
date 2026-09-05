@@ -45,6 +45,13 @@ def test_every_runnable_gate_returns_a_verdict_and_its_evidence():
     small = {
         "instances": 6, "worlds": 3, "trajectories": 3, "episodes": 2,
         "pairs": 8, "questions": 3, "lives": 3,
+        # Gate 9 grows the language once per family, and growing is the most
+        # expensive thing she does — one family runs the whole developmental
+        # ladder twice, with and without the registry, and takes minutes. What
+        # this test asserts is the SHAPE of what a gate returns, so it asks for
+        # no families and gets that shape without paying for the measurement.
+        # The measurement itself belongs to a gauntlet run.
+        "families": 0, "situations": 3,
     }
     for gate in THE_GATES:
         if not gate.runnable:

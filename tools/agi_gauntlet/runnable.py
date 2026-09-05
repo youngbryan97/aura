@@ -676,6 +676,7 @@ def concept_invention(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]
     words.note_applies("square", "geometry", worked=True)
     snapshot = words.snapshot()
     return {
+        "what_she_proposes_herself": _what_her_own_generator_offers(freeze, options),
         "verdicts_right": right,
         "verdicts": got,
         "depth": snapshot["depth"],
@@ -688,6 +689,91 @@ def concept_invention(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]
             and Verdict.INVENTED.grows_the_language
         ),
         "trajectories": trajectories,
+    }
+
+
+def _what_her_own_generator_offers(
+    freeze: Freeze, options: dict[str, Any]
+) -> dict[str, Any]:
+    """The candidates she produces, rather than the ones the gate hands her.
+
+    An external review said the proposals above are supplied — square, cube,
+    modulo and the second generation — so the gate tests admission and
+    composition discrimination and not autonomous generation. That is right,
+    and the interesting part is what happens when the proposals come from her
+    instead.
+
+    Her generator is the universal floor's shortest-first enumeration, with the
+    arithmetic offered as leaves. It is the only thing here that proposes
+    without being told what to propose. Everything it yields is run over a
+    fixed probe set and kept by BEHAVIOUR, so two spellings of the same
+    function count once.
+
+    The number is the finding. Universality is about what can be expressed;
+    this is what can be reached, and the floor's own docstring says the two are
+    different — "universal search only reaches a few dozen symbols and no
+    practical budget eliminates that fact". This puts a number on it for
+    one-argument integer functions at the depth a real budget allows.
+    """
+
+    import itertools
+
+    from core.cognition.the_floor_she_stands_on import (
+        LEFTOVER,
+        PLUS,
+        TIMES,
+        Code,
+        L,
+        V,
+        build,
+        every_code,
+        run,
+    )
+
+    # Two by default, three on request. Three walks 824 terms in about a
+    # minute and gives the SAME four behaviours as two, so the gate runs the
+    # cheap one and the number from the expensive one is recorded in
+    # docs/AGI_GAUNTLET_TRACKER.md rather than paid for on every run.
+    deepest = int(options.get("her_own_depth", 2))
+    most = int(options.get("her_own_terms", 400))
+    probe = (0, 1, 2, 3, 4)
+    also = tuple(
+        build(L("a", L("b", op(V("a"), V("b"))))) for op in (PLUS, TIMES, LEFTOVER)
+    )
+    walked = list(
+        itertools.islice(
+            every_code(deepest=deepest, variables=1, constants=(0, 1, 2), also=also),
+            most,
+        )
+    )
+    behaviours: dict[tuple[int, ...], str] = {}
+    functions = 0
+    for term in walked:
+        if term.head != "given a thing":
+            continue
+        functions += 1
+        try:
+            said = tuple(
+                run(Code("of", parts=(term, Code("a number", value=one))))
+                for one in probe
+            )
+        except Exception:  # noqa: BLE001 — a term that will not run proposes nothing
+            continue
+        if all(isinstance(one, int) for one in said):
+            behaviours.setdefault(said, repr(term)[:60])
+    return {
+        "terms_walked": len(walked),
+        "of_those_functions": functions,
+        "distinct_behaviours_over_the_probe": len(behaviours),
+        "what_they_are": [
+            {"term": spelling, "on_0_to_4": list(said)}
+            for said, spelling in list(behaviours.items())[:8]
+        ],
+        "deepest": deepest,
+        # Stated rather than left to be noticed: a generator whose whole output
+        # at this depth is the constants and the identity cannot be the source
+        # of the proposals above, and the gate says so instead of implying it.
+        "enough_to_propose_with": len(behaviours) > 4,
     }
 
 
@@ -1342,7 +1428,10 @@ def outside_the_ontology(freeze: Freeze, options: dict[str, Any]) -> dict[str, A
     #: length, so a cap is the honest alternative to a run that never ends.
     #: Reported, so the number is read as "within this budget".
     longest = int(options.get("longest", 400))
-    budget = int(options.get("pairs", 20_000))
+    # Named apart from the "pairs" a transfer gate counts: one is a budget and
+    # the other is a sample size, and a caller passing a small everything gave
+    # this search a budget of eight.
+    budget = int(options.get("outside_pairs", 20_000))
     most = int(options.get("tasks", 0))
 
     tasks, digest = read_the_outside_tasks(place, most=most)

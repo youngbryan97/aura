@@ -258,3 +258,36 @@ proportional to it. Both files are back at what they were. What is needed is a
 cost model for the inversion — probably the size of the leaf set, since that
 is what the docstring says grows with the constants in the data — and that is
 a piece of work, not a constant.
+
+## D4, measured: her own generator proposes four things
+
+The review said gate 10's candidates are supplied — square, cube, modulo, and
+the second generation — so it tests admission and composition discrimination
+rather than autonomous generation. Correct. The gate runs both arms now.
+
+Her generator is the floor's shortest-first enumeration with the arithmetic
+offered as leaves, which is the only thing here that proposes without being
+told what to propose. At depth three, within four thousand terms:
+
+| | |
+|---|---|
+| terms walked | 824 |
+| of those, functions of one argument | 51 |
+| distinct behaviours over the probe 0..4 | **4** |
+| what they are | the constants 0, 1 and 2, and the identity |
+
+Not x+1. Not 2x. Not x². So the proposals in the other arm are supplied
+because nothing endogenous reaches anything worth admitting at a depth any
+budget allows, and the gate says that in its own measurements rather than
+leaving it to be noticed.
+
+This is the review's first item with a number on it. Universality is about
+what can be expressed; this is what can be reached, and the floor's own
+docstring already said the two are different — "universal search only reaches
+a few dozen symbols and no practical budget eliminates that fact". Four
+behaviours is what that means here.
+
+The supplied arm still passes and still means something: six verdicts right
+out of six, with a macro and a duplicate correctly refused, and a second
+generation standing on the first. A vocabulary that admits everything is not
+inventing, and that is what the refusals establish.
