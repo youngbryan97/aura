@@ -52661,3 +52661,20 @@ the expected rejection, and proves exact restoration of every parent cache.
 Cache/probe tests: 36 passed. Engine tests: 76 passed. Smoke: 163 passed,
 one skipped. This closes the shared-cache cleanup paths examined here;
 isolated candidate caches retain their separate discard protocol.
+
+## Checkpoint 2026-09-05: Reuse Experimental Arbitration for Semantic Programs
+
+Integrated a pure source-consistency diagnostic using the existing cognition
+experiment chooser and hypothesis eliminator. It binds candidate programs and
+observations to source tokens, ordered operand roles and finite interventions.
+Executable wrong programs can be contradicted; silent predictions, missing
+observations and conflicting observations remain unresolved. Equivalent but
+structurally different programs can both remain consistent on the tested scope.
+
+The adapter explicitly cannot authenticate caller-declared provenance and
+grants no serving authority. Candidate-derived witnesses are rejected when
+declared, but a trusted independent observation provider is still required.
+No frozen result was rescored and no model was loaded. Focused adapter tests:
+48 passed in the integration tree. Default smoke: 163 passed, one skipped;
+lint, compile and layering passed. Next is source-witness integration against
+the frozen semantic failure cases, not promotion from API existence.
