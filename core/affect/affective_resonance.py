@@ -192,12 +192,14 @@ class AffectiveResonance:
         readiness, _mass = estimate.top()
         margin = estimate.margin()
 
+        declined = ""
         if margin < 0.05:
             self._declines += 1
             tone = (
                 f"no read: the top two readinesses ({readiness} and the next) "
                 f"are within {margin:.2f} of each other"
             )
+            declined = "the posterior does not separate its top two readinesses"
             readiness = ""
         else:
             tone = (
@@ -214,6 +216,7 @@ class AffectiveResonance:
             readiness=readiness,
             margin=round(margin, 3),
             channels={k: round(v, 3) for k, v in estimate.channels_used.items()},
+            declined=declined,
         )
 
     async def deep_attune(self, message: str, *, timeout: float = 8.0) -> Resonance:

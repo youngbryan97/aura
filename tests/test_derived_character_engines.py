@@ -399,17 +399,60 @@ def test_daneel_aggregate_harm_scales_with_population():
     assert many > one
 
 
-def test_samantha_attunes_to_distress_and_joy():
+def test_samantha_reads_a_person_rather_than_scanning_for_words():
+    """The read comes from statistics the writer is not managing.
+
+    This test used to pin the opposite: that "alone" and "scared" produce
+    negative valence and that the tone string contains the word support.
+    That contract was a forty-word lookup table, and it could not be wrong
+    in an interesting way, carried no uncertainty, and emitted an
+    instruction about how to sound. What is pinned now is the property
+    that replaced it — the read is grounded in a person's own baseline and
+    says how sure it is.
+    """
     from core.affect.affective_resonance import AffectiveResonance
 
     res = AffectiveResonance()
-    distress = res.attune("i feel so alone and scared right now")
-    assert distress.valence < 0
-    assert distress.resonance > 0
-    assert "support" in distress.recommended_tone or "grounding" in distress.recommended_tone
 
-    joy = res.attune("this is amazing, I'm so happy and grateful!")
-    assert joy.valence > 0
+    # No baseline for this person yet, so no confident claim about them.
+    first = res.attune("i feel so alone and scared right now", subject="p")
+    assert first.declined or first.resonance < 0.25, first
+
+    # Establish what this person usually sounds like.
+    for message in (
+        "sounds good, thanks",
+        "ok that works for me",
+        "yeah lets do that tomorrow",
+        "fine by me",
+        "sure, go ahead",
+        "all good here",
+    ):
+        res.attune(message, subject="p")
+
+    read = res.attune(
+        "I never get anything right. Nothing works. I always mess it up.",
+        subject="p",
+    )
+    assert read.valence < 0, read
+    assert read.channels, "no channel carried evidence"
+    # The tone field reports a measurement, not an instruction to be warm.
+    assert "confidence" in read.recommended_tone or read.declined, read
+    # Whichever branch it took, the numbers are still there to be used.
+    assert read.channels
+
+
+def test_samantha_is_not_a_lexicon():
+    """Swap the feeling-words, hold the grammar: the channels do not move."""
+    from core.interiority.text_features import statistics
+
+    # Only the open-class words change. Every closed-class token — the
+    # negations, the quantifiers, the pronouns — is held fixed, because
+    # those are what the channel measures.
+    a = statistics("I never get anything right. Nothing works.")
+    b = statistics("I never get anything wrong. Nothing fails.")
+    assert a.negation_rate == b.negation_rate
+    assert a.first_singular_rate == b.first_singular_rate
+    assert a.absolute_rate == b.absolute_rate
 
 
 def test_daneel_deep_estimate_falls_back_without_model():
@@ -429,11 +472,27 @@ def test_the_machine_minimize_deep_falls_back_without_model():
     assert "full_address" in disc.withheld_fields  # static default-deny still protects sensitive
 
 
-def test_samantha_deep_attune_falls_back_without_model():
+def test_samantha_deep_attune_no_longer_asks_a_model_how_to_sound():
+    """A deeper read means more channels, not a style instruction.
+
+    The previous implementation asked a model "the real emotion behind
+    this message and how the listener should sound in reply" and wrote the
+    answer into the field that reaches the turn's context. That is an
+    instruction about style produced with no evidence about the person.
+    It now returns the same inference and names the channels that would
+    actually deepen it.
+    """
+    import inspect
+
     from core.affect.affective_resonance import AffectiveResonance
 
-    r = asyncio.run(AffectiveResonance().deep_attune("i feel so alone and scared"))
-    assert r.valence < 0
+    source = inspect.getsource(AffectiveResonance.deep_attune)
+    body = source.split('"""')[-1]  # past the docstring, which quotes the old prompt
+    assert "brain.think" not in body
+    assert "ThinkingMode" not in body
+
+    read = asyncio.run(AffectiveResonance().deep_attune("i feel so alone and scared"))
+    assert read.declined or read.resonance < 0.5, read
 
 
 def test_deep_honesty_flag_defaults_off(monkeypatch):
@@ -584,6 +643,7 @@ def test_derived_engines_register_without_background_tasks(monkeypatch):
         "latent_cortex",
         "safe_surf",
         "samantha",
+        "interiority",
         "the_machine",
         "tron",
     }
