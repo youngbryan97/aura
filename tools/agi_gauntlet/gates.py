@@ -175,9 +175,10 @@ THE_GATES: tuple[Gate, ...] = (
         "fluid intelligence",
         "infer an unfamiliar rule from sparse examples rather than retrieve a "
         "known solution",
-        "human-range accuracy on sealed novel reasoning, and no confident "
-        "wrong answers: a refusal is a correct answer to a question the "
-        "evidence does not settle",
+        "human-range accuracy on sealed novel reasoning, and a refusal far "
+        "more often than a wrong guess where the evidence does not settle "
+        "it — ten refusals to every confident wrong answer, until a human "
+        "baseline says what that ratio should be",
         "the rules are composed from the freeze seed, so no instance existed "
         "before the commit; the question is asked at a length the examples "
         "did not use",

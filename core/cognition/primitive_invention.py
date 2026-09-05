@@ -851,11 +851,19 @@ def _which_others_disagree(
 
     ``about`` is that case, when the caller knows it. Settledness is about
     the question being asked, and a window of plus two around the
-    observations is a guess at where the question will be: on two hundred
-    sealed rules, five answers came back settled and wrong because the length
-    asked about sat outside it. A caller that knows what it is going to apply
-    this to can say so, and then the check covers the actual case rather than
-    a neighbourhood of it.
+    observations is a guess at where the question will be.
+
+    Measured, and it changed nothing: on two hundred sealed rules from a
+    fixed seed, 163 right and 2 confidently wrong either way. The five wrong
+    answers that prompted this were a different draw of rules, not the window
+    being too narrow, and reading them as evidence for the fix would have
+    been reading the seed. It stays because it asks the right question rather
+    than a nearby one, and its worth here is nought.
+
+    What the remaining wrong answers are is a harder thing: every shape that
+    fits agrees, and all of them are wrong. There is no disagreement to find,
+    so no amount of checking for one helps — the true shape is not in the
+    fitting set in a form anything can tell apart.
     """
 
     lengths = sorted({len(one.before) for one in observed})
