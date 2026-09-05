@@ -122,6 +122,25 @@ def _how_it_stands(probe: Sequence[tuple[str, tuple]]) -> dict[str, tuple[int, b
     return {name: (_costs(cases), _sayable(cases)) for name, cases in probe}
 
 
+def _the_library_is_over_budget(parts: Sequence[Any]) -> bool:
+    """Whether she is carrying more entries than they are worth.
+
+    Every entry is a branch in every later search, so the tax of the nth entry
+    is n and the budget is where that exceeds what an entry saves. Both sides
+    come off the record; where the record cannot say, the budget is the number
+    of entries there are, which refuses to retire anything rather than guessing
+    a ceiling.
+    """
+
+    try:
+        from core.cognition.the_shape_of_her_library import where_the_budget_is
+
+        carried = sum(1 for one in parts if getattr(one, "term", None) is not None)
+        return carried > int(where_the_budget_is())
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+        return False
+
+
 def the_one_she_should_let_go(probe: Sequence[tuple[str, tuple]]) -> Any | None:
     """The part whose absence costs least, where that is nothing at all.
 
@@ -136,13 +155,32 @@ def the_one_she_should_let_go(probe: Sequence[tuple[str, tuple]]) -> Any | None:
 
     if not probe:
         return None
+    parts = what_she_is_made_of()
     idle = [
         one
-        for one in what_she_is_made_of()
+        for one in parts
         if one.kind in {"word", "what is done", "way of building", "way of computing", "rule"}
         and not one.holds_up
         and (one.idle is None or one.idle > 0)
     ]
+    # Disuse is one hint. Being over the library's budget is the other, and it
+    # is the question no per-entry gate can ask: two entries can each pay and
+    # still both be worse than one entry that generalises them.
+    #
+    # `core/cognition/the_shape_of_her_library.py` was written to ask it and
+    # nothing outside its own test ever called it, so every retirement decision
+    # here has been made one entry at a time since the argument for asking
+    # otherwise was written down. Over budget, the candidates widen to include
+    # parts that are used: a part being useful is not the same as the library
+    # being the right size.
+    if _the_library_is_over_budget(parts):
+        idle = [
+            one
+            for one in parts
+            if one.kind
+            in {"word", "what is done", "way of building", "way of computing", "rule"}
+            and not one.holds_up
+        ] or idle
     for part in sorted(idle, key=lambda one: -(one.idle or 0)):
         pays = what_a_part_is_worth(part, probe, costs=_costs)
         if pays is not None and pays <= 0:
