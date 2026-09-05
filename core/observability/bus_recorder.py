@@ -239,6 +239,20 @@ class BusRecorder:
             return None
         return path
 
+    def what_has_happened(self, *, most: int = 400) -> list[tuple[str, float]]:
+        """The ring as a stream of named moments, newest last.
+
+        The ring already holds what happened and when; nothing could read it
+        as a SEQUENCE. `core/knowledge/temporal.py` induces ordering and
+        recurrence from exactly this shape and had no live stream to read, so
+        a regularity she has lived through a hundred times could not become a
+        rule she can reason with.
+        """
+
+        with self._lock:
+            ring = list(self._ring)
+        return [(str(one.topic), float(one.at)) for one in ring[-max(1, int(most)) :]]
+
     def report(self) -> dict[str, Any]:
         with self._lock:
             ring = list(self._ring)

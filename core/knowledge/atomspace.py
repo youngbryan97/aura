@@ -1055,10 +1055,31 @@ def get_atomspace() -> AtomSpace:
     # Outside the lock: loading reaches back into the store, and a restore that
     # takes the same lock under the one that built it is how a boot wedges.
     _fill_it_from_disk(fresh)
-    import atexit
+    if _this_process_owns_the_state():
+        import atexit
 
-    atexit.register(keep_the_atomspace)
+        atexit.register(keep_the_atomspace)
     return fresh
+
+
+def _this_process_owns_the_state() -> bool:
+    """Whether this process may write the metagraph it just read.
+
+    Reading is safe from anywhere. Writing is not: a bare script or a test run
+    that touches the store and exits would put its handful of atoms into the
+    live instance's state root, and the next boot would load them as her own.
+    That happened once, from a probe, before this guard existed.
+
+    The profile is the answer already recorded elsewhere in the runtime — a
+    live profile writes, and anything else reads what it finds and leaves it.
+    """
+
+    try:
+        from core.runtime.state_ownership import RuntimeProfile, runtime_profile
+
+        return runtime_profile() is RuntimeProfile.LIVE
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+        return False
 
 
 def reset_atomspace_for_test(**kwargs: Any) -> AtomSpace:

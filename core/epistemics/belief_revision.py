@@ -62,6 +62,66 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
+#: How long a stretch of the event ring one revision cycle reads. Long enough
+#: that a pattern spanning a few turns is visible, short enough that the
+#: induction reports the structure rather than the session.
+HOW_FAR_BACK_TIME_IS_READ = 200
+
+#: The last moment already read, so a cycle over a ring nothing has been added
+#: to does no work. The induction is quadratic in the events inside its window
+#: and the revision loop runs often; without this it re-derived the same rules
+#: from the same ring every cycle.
+_TIME_READ_UP_TO: list[float] = [0.0]
+
+
+def _learn_when_things_happen(space: Any) -> int:
+    """Turn what has just happened into rules that say WHEN, not only what.
+
+    The space can say that one thing implies another and cannot say that one
+    precedes another, that the gap is about a minute, or that the pattern
+    recurs. `core/knowledge/temporal.py` induces exactly that from a stream of
+    named moments and had no live stream to read — nothing outside its own test
+    ever called it — so a regularity she has lived through a hundred times
+    could not become a rule she can reason with.
+
+    The ring is that stream. One induction pass is one observation of it,
+    however many rules come out, so re-running on the same ring cannot inflate
+    confidence — the temporal module asserts under one source identity for that
+    reason.
+    """
+
+    try:
+        from core.knowledge.temporal import (
+            Interval,
+            TimedEvent,
+            assert_temporal_rules,
+            induce_temporal_rules,
+        )
+        from core.observability.bus_recorder import get_bus_recorder
+
+        happened = get_bus_recorder().what_has_happened(most=HOW_FAR_BACK_TIME_IS_READ)
+        if len(happened) < 4:
+            return 0
+        newest = max(at for _name, at in happened)
+        if newest <= _TIME_READ_UP_TO[0]:
+            return 0
+        _TIME_READ_UP_TO[0] = newest
+        rules = induce_temporal_rules(
+            [
+                TimedEvent(name=name, interval=Interval(start=at))
+                for name, at in happened
+            ]
+        )
+        if not rules:
+            return 0
+        return len(assert_temporal_rules(space, rules, source="the event ring"))
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+        _record_belief_revision_degradation(
+            exc, action="did not learn when things happen this cycle", severity="debug"
+        )
+        return 0
+
+
 class BeliefDomain:
     TASK = "task"
     SELF = "self"
@@ -580,6 +640,7 @@ class BeliefRevisionEngine:
 
             space = get_atomspace()
             space.tick()
+            _learn_when_things_happen(space)
             derived = space.forward_chain(max_derivations=8, focus_only=True)
             derived_count = len(derived)
             if derived:

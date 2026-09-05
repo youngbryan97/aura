@@ -30,6 +30,7 @@ import logging
 import re
 import time
 from pathlib import Path
+from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Introspection.SelfForensics")
@@ -147,6 +148,30 @@ def _recent_faults() -> str:
         return ""
 
 
+def _what_the_outcome_record_says() -> str:
+    """Her own outcomes, read back, for a question about herself.
+
+    A thing that is registered is a thing somebody wrote down. A thing that is
+    available is one whose preconditions hold. A thing that has WORKED is one
+    there is a receipt for, and only the third is evidence — which is the
+    distinction a question about her own capabilities is asking for.
+
+    `core/self/what_has_ever_worked.py` reads the thirty-two thousand outcomes
+    she already keeps and was imported by nothing outside its own test. Asked
+    on 2026-08-27 how many of her skills had never once executed successfully,
+    she counted the .py files in a directory: an honest method for a different
+    question, and this is the answer to the one that was asked.
+    """
+
+    try:
+        from core.self.what_has_ever_worked import says
+
+        return says()
+    except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("self_forensics", exc, severity="debug")
+        return ""
+
+
 def build_self_forensics_context(max_chars: int = 3200) -> str:
     """Compose the grounded evidence block for a self-forensics question."""
     sections: list[tuple[str, str]] = [
@@ -156,6 +181,7 @@ def build_self_forensics_context(max_chars: int = 3200) -> str:
         ("STALL ARTIFACTS", _newest_artifacts("stalls")),
         ("LIVE INCIDENTS", _live_incidents()),
         ("FAULTS", _recent_faults()),
+        ("WHAT HAS EVER WORKED", _what_the_outcome_record_says()),
     ]
     body = "\n".join(f"- {name}: {value}" for name, value in sections if value)
     if not body:

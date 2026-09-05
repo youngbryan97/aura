@@ -644,6 +644,7 @@ class ContinuityEngine:
             and live_identity_hash
             and persisted_identity_hash != live_identity_hash
         )
+        what_the_hash_missed = self._what_the_hash_missed(not identity_mismatch)
         if self._record is None:
             return {
                 "current_objective": "",
@@ -655,6 +656,7 @@ class ContinuityEngine:
                 "identity_hash": live_identity_hash,
                 "persisted_identity_hash": "",
                 "identity_mismatch": False,
+                "what_the_hash_missed": "",
                 **reentry,
             }
         sanitized_pending = _sanitize_restored_objective_items(self._record.pending_initiative_details)
@@ -678,6 +680,9 @@ class ContinuityEngine:
             "identity_hash": live_identity_hash,
             "persisted_identity_hash": persisted_identity_hash,
             "identity_mismatch": identity_mismatch,
+            # What the flag above missed, where the relation disagrees with it.
+            # Empty when the two agree, which is most of the time.
+            "what_the_hash_missed": what_the_hash_missed,
             **reentry,
         }
 
@@ -863,6 +868,67 @@ class ContinuityEngine:
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('continuity', e)
             logger.error("Continuity failure obligation save failed: %s", e, exc_info=True)
+
+    def _what_the_hash_missed(self, hash_matches: bool) -> str:
+        """What the relation says where the hash comparison disagrees with it.
+
+        The hash gets both directions wrong. Any belief she changed makes the
+        hashes differ, so ordinary learning reads as an identity break; and a
+        backup restored from a month ago matches, so a state with no causal
+        path from the last one reads as continuous.
+
+        `core/identity/continuity_relation.py` was written to say exactly that
+        and nothing outside its own test ever called it, so the flag below has
+        been reported on its own since the day the argument against it was
+        written down. Empty string when the two agree, which is most of the
+        time and is not worth saying.
+        """
+
+        try:
+            from core.identity.continuity_relation import (
+                Step,
+                hash_disagrees_with_relation,
+                relate,
+            )
+
+            record = self._record
+            if record is None:
+                return ""
+            before = frozenset(
+                str(one) for one in (record.active_commitments or ()) if one
+            )
+            after = frozenset(
+                str(one) for one in self._live_commitments() if one
+            )
+            if not before and not after:
+                return ""
+            step = Step(
+                step_id="across-the-restart",
+                before=before,
+                after=after,
+                # What she is committed to is the load-bearing part by the
+                # relation's own definition, and it is what this record keeps.
+                load_bearing=before,
+                origin=str(getattr(record, "origin", "") or "self"),
+            )
+            return hash_disagrees_with_relation(hash_matches, relate([step]))
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("continuity", exc, severity="debug")
+            return ""
+
+    def _live_commitments(self) -> list[str]:
+        """What she is committed to now, for the relation above."""
+
+        try:
+            from core.container import ServiceContainer
+
+            will = ServiceContainer.get("will", default=None)
+            held = getattr(will, "active_commitments", None)
+            if callable(held):
+                held = held()
+            return [str(one) for one in (held or ()) if one]
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+            return []
 
     def _get_live_identity_hash(self) -> str:
         try:
