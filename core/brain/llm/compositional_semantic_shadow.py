@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
 import asyncio
 import hashlib
 import json
-import threading
+import os
 import time
 from collections import deque
 from copy import deepcopy
@@ -15,6 +14,10 @@ from pathlib import Path
 from typing import Any, Final
 
 from core.cognition.procedure import get_procedure_registry
+from core.learning.compositional_semantic_qualification import (
+    COMPOSITIONAL_SEMANTIC_SOURCE_CONTRACTS,
+    compositional_semantic_activation_errors,
+)
 from core.learning.semantic_program_compositional_transducer import (
     CompositionalSemanticProgramTransducer,
     compositional_semantic_program_transducer_from_dict,
@@ -33,19 +36,27 @@ from core.learning.semantic_program_runtime import (
 from core.learning.semantic_public_inputs import semantic_public_character_inputs
 from core.runtime.file_read_gateway import read_stable_bytes
 from core.runtime.flags import FlagKind, declare
+from core.runtime.lockdep import checked_lock
 
 COMPOSITIONAL_SEMANTIC_SHADOW_SCHEMA: Final = (
     "aura.compositional_semantic_shadow.v1"
 )
 REPO_ROOT: Final = Path(__file__).resolve().parents[3]
-ARTIFACT_DIRECTORY: Final = (
+LEGACY_ARTIFACT_DIRECTORY: Final = (
     REPO_ROOT / "artifacts/rlc/semantic_program_27b_compositional_v14"
 )
+ARTIFACT_DIRECTORY: Final = (
+    REPO_ROOT / "artifacts/rlc/semantic_program_27b_frozen_path_v1"
+)
+DEFAULT_ACTIVATION_PATH: Final = ARTIFACT_DIRECTORY / "activation.json"
+ACTIVE_ACTIVATION_PATH: Final = (
+    REPO_ROOT / "training/fused-model/compositional-semantic-active.json"
+)
 TRANSDUCER_PATH: Final = ARTIFACT_DIRECTORY / "transducer.json"
-SOURCE_REPORT_PATH: Final = ARTIFACT_DIRECTORY / "source_campaign.json"
-SOURCE_VERIFICATION_PATH: Final = ARTIFACT_DIRECTORY / "verification.json"
+SOURCE_REPORT_PATH: Final = LEGACY_ARTIFACT_DIRECTORY / "source_campaign.json"
+SOURCE_VERIFICATION_PATH: Final = LEGACY_ARTIFACT_DIRECTORY / "verification.json"
 ENDOGENOUS_VERIFICATION_PATH: Final = (
-    ARTIFACT_DIRECTORY / "endogenous_runtime_verification.json"
+    LEGACY_ARTIFACT_DIRECTORY / "endogenous_runtime_verification.json"
 )
 _TOKENIZER_IDENTITY_FILES: Final = (
     "tokenizer.json",
@@ -103,19 +114,6 @@ def _read_json(path: Path, *, max_bytes: int) -> tuple[dict[str, Any], bytes]:
     return value, payload
 
 
-def _file_sha(path: Path) -> str:
-    return hashlib.sha256(
-        read_stable_bytes(path.resolve(strict=True), max_bytes=512 * 1024 * 1024)
-    ).hexdigest()
-
-
-def _logical_hash_matches(value: dict[str, Any], field: str) -> bool:
-    expected = value.get(field)
-    return isinstance(expected, str) and expected == _sha(
-        {key: item for key, item in value.items() if key != field}
-    )
-
-
 def _dependency_signature(paths: tuple[Path, ...]) -> tuple[tuple[str, int, int, int], ...]:
     result = []
     for path in paths:
@@ -125,32 +123,43 @@ def _dependency_signature(paths: tuple[Path, ...]) -> tuple[tuple[str, int, int,
     return tuple(result)
 
 
-def _shadow_dependencies() -> tuple[Path, ...]:
+def active_compositional_semantic_activation_path() -> Path:
+    """Resolve an explicit candidate, then the operational or default package."""
+
+    candidate_value = str(os.getenv("AURA_COMPOSITIONAL_SEMANTIC_ACTIVATION", "")).strip()
+    if candidate_value:
+        requested = Path(candidate_value).expanduser()
+        if requested.is_symlink():
+            raise RuntimeError("compositional semantic activation cannot be a symlink")
+        candidate = requested.resolve(strict=True)
+        root = REPO_ROOT.resolve(strict=True)
+        if not candidate.is_file() or not candidate.is_relative_to(root):
+            raise RuntimeError("compositional semantic activation is outside the repository")
+        return candidate
+    return ACTIVE_ACTIVATION_PATH if ACTIVE_ACTIVATION_PATH.exists() else DEFAULT_ACTIVATION_PATH
+
+
+def _shadow_dependencies(activation_path: Path) -> tuple[Path, ...]:
     try:
-        verification, _raw = _read_json(
-            ENDOGENOUS_VERIFICATION_PATH,
+        activation, _raw = _read_json(
+            activation_path,
             max_bytes=4 * 1024 * 1024,
         )
     except (OSError, RuntimeError, TypeError, ValueError):
-        return (
-            TRANSDUCER_PATH,
-            SOURCE_REPORT_PATH,
-            SOURCE_VERIFICATION_PATH,
-            ENDOGENOUS_VERIFICATION_PATH,
+        return (activation_path,)
+    paths = [activation_path]
+    transducer = activation.get("transducer")
+    if isinstance(transducer, dict) and isinstance(transducer.get("path"), str):
+        paths.append(REPO_ROOT / transducer["path"])
+    evidence = activation.get("evidence")
+    if isinstance(evidence, dict):
+        paths.extend(
+            REPO_ROOT / record["path"]
+            for record in evidence.values()
+            if isinstance(record, dict) and isinstance(record.get("path"), str)
         )
-    source_paths = verification.get("source_sha256s")
-    extra = (
-        tuple(REPO_ROOT / relative for relative in source_paths)
-        if isinstance(source_paths, dict)
-        else ()
-    )
-    return (
-        TRANSDUCER_PATH,
-        SOURCE_REPORT_PATH,
-        SOURCE_VERIFICATION_PATH,
-        ENDOGENOUS_VERIFICATION_PATH,
-        *extra,
-    )
+    paths.extend(REPO_ROOT / relative for relative in COMPOSITIONAL_SEMANTIC_SOURCE_CONTRACTS)
+    return tuple(dict.fromkeys(paths))
 
 
 def _model_identity_dependencies(model_path: Path) -> tuple[Path, ...]:
@@ -164,97 +173,42 @@ def _model_identity_dependencies(model_path: Path) -> tuple[Path, ...]:
 @lru_cache(maxsize=2)
 def _cached_shadow_status(
     model_path: str,
+    activation_path: str,
     _signature: tuple[tuple[str, int, int, int], ...],
 ) -> dict[str, Any]:
-    from core.learning.semantic_program_endogenous_verification import (
-        ENDOGENOUS_SEMANTIC_VERIFICATION_SOURCES,
-    )
-
-    transducer, transducer_raw = _read_json(TRANSDUCER_PATH, max_bytes=32 * 1024 * 1024)
-    source_report, source_report_raw = _read_json(
-        SOURCE_REPORT_PATH,
-        max_bytes=32 * 1024 * 1024,
-    )
-    source_verification, _source_verification_raw = _read_json(
-        SOURCE_VERIFICATION_PATH,
-        max_bytes=8 * 1024 * 1024,
-    )
-    endogenous, endogenous_raw = _read_json(
-        ENDOGENOUS_VERIFICATION_PATH,
-        max_bytes=4 * 1024 * 1024,
-    )
-    stored_transducer_key = (
-        "transducer"
-        if source_verification.get("schema")
-        == "aura.semantic_program_family_withheld_verification.v1"
-        else "model"
-    )
-    source_body = {key: value for key, value in source_report.items() if key != "report_sha256"}
-    if (
-        source_report.get("report_sha256") != _sha(source_body)
-        or not _logical_hash_matches(source_verification, "verification_sha256")
-        or not _logical_hash_matches(endogenous, "verification_sha256")
-        or source_verification.get("verified") is not True
-        or endogenous.get("verified") is not True
-        or source_verification.get("serving_authority") is not False
-        or endogenous.get("serving_authority") is not False
-        or endogenous.get("source_verification_sha256")
-        != source_verification.get("verification_sha256")
-        or source_verification.get("transducer_receipt_sha256")
-        != transducer.get("training_receipt", {}).get("receipt_sha256")
-        or source_verification.get("stored_file_sha256s", {}).get(
-            stored_transducer_key
-        )
-        != hashlib.sha256(transducer_raw).hexdigest()
-        or source_verification.get("stored_file_sha256s", {}).get("source_report")
-        != hashlib.sha256(source_report_raw).hexdigest()
-        or set(endogenous.get("source_sha256s", {}))
-        != set(ENDOGENOUS_SEMANTIC_VERIFICATION_SOURCES)
-        or any(
-            endogenous["source_sha256s"].get(relative)
-            != _file_sha(REPO_ROOT / relative)
-            for relative in ENDOGENOUS_SEMANTIC_VERIFICATION_SOURCES
-        )
-    ):
-        raise RuntimeError("compositional semantic frozen evidence differs")
-
+    activation, _activation_raw = _read_json(Path(activation_path), max_bytes=4 * 1024 * 1024)
     selected_model = Path(model_path).expanduser().resolve(strict=True)
-    expected_model = Path(str(source_verification.get("model_path") or "")).resolve(
-        strict=True
+    errors = compositional_semantic_activation_errors(
+        activation,
+        repo_root=REPO_ROOT,
+        selected_model_path=selected_model,
     )
-    if selected_model != expected_model:
-        raise RuntimeError("compositional semantic resident model differs")
+    if errors:
+        raise RuntimeError(",".join(errors))
     tokenizer_identity = tokenizer_checkpoint_identity(selected_model)
     if (
         tokenizer_identity.get("identity_sha256")
-        != source_verification.get("tokenizer_identity_sha256")
+        != activation.get("model", {}).get("tokenizer_identity_sha256")
     ):
         raise RuntimeError("compositional semantic tokenizer differs")
-    compatibility = source_report.get("representation_compatibility")
-    if (
-        not isinstance(compatibility, dict)
-        or compatibility.get("hidden_states_changed") is not False
-        or compatibility.get("serving_authority") is not False
-        or compatibility.get("representation_basis_sha256")
-        != endogenous.get("representation_basis_sha256")
-    ):
-        raise RuntimeError("compositional semantic representation evidence differs")
+    transducer = activation["transducer"]
+    model = activation["model"]
     body = {
         "schema": COMPOSITIONAL_SEMANTIC_SHADOW_SCHEMA,
         "available": True,
         "mode": "shadow",
         "serving_authority": False,
+        "package_id": activation["package_id"],
+        "activation_sha256": activation["activation_sha256"],
+        "activation_path": str(Path(activation_path).resolve(strict=True)),
         "model_path": str(selected_model),
         "tokenizer_identity_sha256": tokenizer_identity["identity_sha256"],
-        "representation_basis_sha256": endogenous["representation_basis_sha256"],
-        "transducer_receipt_sha256": source_verification[
-            "transducer_receipt_sha256"
-        ],
-        "source_verification_sha256": source_verification["verification_sha256"],
-        "endogenous_verification_sha256": endogenous["verification_sha256"],
-        "endogenous_verification_file_sha256": hashlib.sha256(endogenous_raw).hexdigest(),
-        "qualified_cohorts": sorted(endogenous["cohorts"]),
-        "claim_boundary": endogenous["claim_boundary"],
+        "representation_basis_sha256": model["representation_basis_sha256"],
+        "transducer_path": str((REPO_ROOT / transducer["path"]).resolve(strict=True)),
+        "transducer_receipt_sha256": transducer["receipt_sha256"],
+        "measured": activation["measured"],
+        "composition_policy": activation["composition_policy"],
+        "claim_boundary": activation["claim_boundary"],
     }
     return {**body, "receipt_sha256": _sha(body)}
 
@@ -267,18 +221,26 @@ def compositional_semantic_shadow_status(model_path: str | Path) -> dict[str, An
     try:
         selected_model = Path(model_path).expanduser().resolve(strict=True)
         resolved = str(selected_model)
+        activation_path = active_compositional_semantic_activation_path().resolve(strict=True)
         return deepcopy(
             _cached_shadow_status(
                 resolved,
+                str(activation_path),
                 _dependency_signature(
-                    (*_shadow_dependencies(), *_model_identity_dependencies(selected_model))
+                    (
+                        *_shadow_dependencies(activation_path),
+                        *_model_identity_dependencies(selected_model),
+                    )
                 ),
             )
         )
     except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
         return {
             "available": False,
-            "reason": f"compositional_semantic_shadow_unavailable:{type(exc).__name__}",
+            "reason": (
+                "compositional_semantic_shadow_unavailable:"
+                f"{type(exc).__name__}:{exc}"
+            ),
         }
 
 
@@ -420,10 +382,10 @@ async def execute_compositional_semantic_shadow(
             "reason": str(status.get("reason") or "compositional_semantic_shadow_unavailable"),
         }
     model = _load_transducer(
-        str(TRANSDUCER_PATH.resolve(strict=True)),
+        str(status["transducer_path"]),
         str(status["transducer_receipt_sha256"]),
     )
-    if len(character_inputs.literals) > model.max_inputs:
+    if model.inference_step_limit(len(character_inputs.literals)) is None:
         return {
             "eligible": False,
             "attempted": False,
@@ -510,8 +472,11 @@ async def execute_compositional_semantic_shadow(
 
 
 __all__ = [
+    "ACTIVE_ACTIVATION_PATH",
     "COMPOSITIONAL_SEMANTIC_SHADOW_SCHEMA",
+    "DEFAULT_ACTIVATION_PATH",
     "ENDOGENOUS_VERIFICATION_PATH",
+    "active_compositional_semantic_activation_path",
     "compositional_semantic_live_shadow_enabled",
     "compositional_semantic_shadow_observations",
     "execute_compositional_semantic_shadow",

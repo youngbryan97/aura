@@ -28,6 +28,7 @@ def _status():
         "mode": "shadow",
         "serving_authority": False,
         "representation_basis_sha256": "a" * 64,
+        "transducer_path": "/artifacts/transducer.json",
         "transducer_receipt_sha256": "b" * 64,
         "receipt_sha256": "c" * 64,
     }
@@ -57,7 +58,10 @@ def _install_runtime_stubs(monkeypatch, *, token_ids=None):
     monkeypatch.setattr(
         shadow,
         "_load_transducer",
-        lambda *_args: SimpleNamespace(max_inputs=4),
+        lambda *_args: SimpleNamespace(
+            max_inputs=4,
+            inference_step_limit=lambda input_count: input_count + 1,
+        ),
     )
 
 
@@ -110,6 +114,45 @@ async def test_shadow_executes_on_the_existing_worker_without_answer_authority(m
     assert result["text"] == "7"
     assert result["mode"] == "shadow"
     assert result["serving_authority"] is False
+
+
+@pytest.mark.asyncio
+async def test_shadow_uses_the_qualified_recurrent_limit_beyond_training_width(
+    monkeypatch,
+):
+    prompt = "Combine 1, 2, 3, 4, 5, and 6."
+    token_ids = [10, 11, 12]
+    client = _Client(_observation(token_ids))
+    _install_runtime_stubs(monkeypatch, token_ids=token_ids)
+    observed_counts = []
+
+    class _Transducer:
+        max_inputs = 4
+
+        @staticmethod
+        def inference_step_limit(input_count):
+            observed_counts.append(input_count)
+            return 7 if input_count == 6 else None
+
+    monkeypatch.setattr(shadow, "_load_transducer", lambda *_args: _Transducer())
+    outcome = SimpleNamespace(
+        execution=SimpleNamespace(result=21),
+        receipt={"receipt_sha256": "e" * 64},
+    )
+    monkeypatch.setattr(
+        shadow,
+        "execute_compositional_semantic_observation",
+        lambda **_kwargs: outcome,
+    )
+
+    result = await shadow.execute_compositional_semantic_shadow(
+        client=client,
+        prompt=prompt,
+    )
+
+    assert observed_counts == [6]
+    assert result["ok"] is True
+    assert result["result"] == 21
 
 
 @pytest.mark.asyncio

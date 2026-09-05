@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 import hashlib
 import json
 import os
@@ -20,6 +19,7 @@ from core.learning.recovery_package_identity import (
 from core.learning.recovery_package_identity import (
     package_id as recovery_package_id,
 )
+from core.runtime.source_contract import source_contract_sha256, source_contract_sha256s
 
 SEMANTIC_NEURAL_SERVING_SCHEMA: Final = "aura.semantic_neural_serving.v2"
 SEMANTIC_NEURAL_RUNTIME_VERIFICATION_SCHEMA: Final = (
@@ -115,7 +115,6 @@ MODEL_BOUND_ADJUDICATION_CLAIM: Final = (
     "ordinary decode on the frozen four-domain semantic cohort"
 )
 _FALSE_VALUES: Final = frozenset({"0", "false", "no", "off", "disabled"})
-_OPTIONAL_AST_FIELDS: Final = frozenset({"type_params"})
 
 
 def _sha(value: Any) -> str:
@@ -138,93 +137,12 @@ def _file_sha(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _call_name(node: ast.Call) -> str:
-    function = node.func
-    if isinstance(function, ast.Name):
-        return function.id
-    if isinstance(function, ast.Attribute):
-        return function.attr
-    return ""
-
-
-def _symbol_node(tree: ast.Module, qualified_name: str) -> ast.AST:
-    body: list[ast.stmt] = tree.body
-    current: ast.AST | None = None
-    for part in qualified_name.split("."):
-        current = next(
-            (
-                node
-                for node in body
-                if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
-                and node.name == part
-            ),
-            None,
-        )
-        if current is None:
-            raise RuntimeError(f"semantic integration symbol is missing: {qualified_name}")
-        body = list(getattr(current, "body", ()))
-    assert current is not None
-    return current
-
-
-def _canonical_ast(value: Any) -> Any:
-    """Serialize Python syntax without binding seals to an interpreter AST schema."""
-
-    if isinstance(value, ast.AST):
-        fields = {}
-        for name, child in ast.iter_fields(value):
-            # Python 3.12 and 3.14 expose different AST field inventories.
-            # Empty optional syntax carries no program semantics, so omit it;
-            # non-empty generic parameters remain part of the contract.
-            if name in _OPTIONAL_AST_FIELDS and not child:
-                continue
-            fields[name] = _canonical_ast(child)
-        return {"node": type(value).__name__, "fields": fields}
-    if isinstance(value, list):
-        return [_canonical_ast(item) for item in value]
-    if isinstance(value, tuple):
-        return {"tuple": [_canonical_ast(item) for item in value]}
-    if isinstance(value, bytes):
-        return {"bytes_hex": value.hex()}
-    if isinstance(value, complex):
-        return {"complex": [value.real, value.imag]}
-    if value is Ellipsis:
-        return {"ellipsis": True}
-    if value is None or isinstance(value, (bool, int, float, str)):
-        return value
-    raise RuntimeError(f"unsupported semantic integration AST value: {type(value).__name__}")
-
-
 def _integration_contract_sha(path: Path, selector: str) -> str:
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    kind, separator, target = selector.partition(":")
-    if not separator or not target:
-        raise RuntimeError(f"semantic integration selector is invalid: {selector}")
-    if kind == "symbol":
-        payload: Any = _canonical_ast(_symbol_node(tree, target))
-    elif kind == "call":
-        calls = sorted(
-            _sha(_canonical_ast(node))
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call) and _call_name(node) == target
-        )
-        if not calls:
-            raise RuntimeError(f"semantic integration call is missing: {target}")
-        payload = calls
-    else:
-        raise RuntimeError(f"semantic integration selector kind is invalid: {kind}")
-    return _sha(payload)
+    return source_contract_sha256(path, selector)
 
 
 def _integration_contract_hashes(repo_root: Path) -> dict[str, str]:
-    return {
-        f"{relative}::{selector}": _integration_contract_sha(
-            repo_root / relative,
-            selector,
-        )
-        for relative, selectors in INTEGRATION_SOURCE_CONTRACTS.items()
-        for selector in selectors
-    }
+    return source_contract_sha256s(repo_root, INTEGRATION_SOURCE_CONTRACTS)
 
 
 def _read_bounded_json(path: Path, *, maximum_bytes: int) -> tuple[dict[str, Any], bytes]:
