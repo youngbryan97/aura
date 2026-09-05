@@ -31,6 +31,18 @@ class _Router:
         return self.answer
 
 
+def test_finished_code_uses_the_callers_generation_receipt(monkeypatch):
+    class Router(_Router):
+        async def think(self, text, **kwargs):
+            kwargs["_generation_metadata_sink"].update(generation_stop_reason="eos")
+            return "```python\nvalue = 7\n```"
+
+    monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: Router())
+    reply = _run(chat_module._answer_from_fallback_ladder("show an assignment", reason="offline"))
+    assert "```python\nvalue = 7\n```" in reply
+    assert "fixed slice of time" not in reply
+
+
 def test_the_ladder_answers_instead_of_describing_the_lane(monkeypatch) -> None:
     router = _Router()
     monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)

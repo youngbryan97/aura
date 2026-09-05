@@ -10177,6 +10177,7 @@ async def _answer_from_fallback_ladder(
                 remaining = deadline - time.monotonic()
                 if remaining <= 1.0:
                     break
+                generation_metadata: dict[str, Any] = {}
                 try:
                     candidate = await asyncio.wait_for(
                         router.think(
@@ -10186,16 +10187,20 @@ async def _answer_from_fallback_ladder(
                             prefer_endpoint=endpoint,
                             foreground_request=True,
                             allow_cloud_fallback=False,
+                            _generation_metadata_sink=generation_metadata,
                         ),
                         timeout=remaining,
                     )
                 except (TimeoutError, *_CHAT_RECOVERABLE_ERRORS):
                     continue
+                stop_reason = str(generation_metadata.get("generation_stop_reason") or "")
+                ladder_chain = list(generation_metadata.get("fallback_chain") or [])
+                considered = considered or bool(ladder_chain)
                 if isinstance(candidate, dict):
                     chain = list(candidate.get("fallback_chain") or [])
                     considered = considered or bool(chain)
                     ladder_chain = chain or ladder_chain
-                    stop_reason = str(candidate.get("generation_stop_reason") or "")
+                    stop_reason = str(candidate.get("generation_stop_reason") or stop_reason)
                     candidate = candidate.get("content") or candidate.get("response") or ""
                 # A result with no text and no chain is nothing to ask having
                 # been asked. Counting it as an attempt is what kept the wait
