@@ -341,9 +341,9 @@ class TestAttentionSchemaDepth:
     async def test_coherence_drops_on_topic_change(self):
         schema = self._make_schema()
         await schema.set_focus("topic about cats", "source_a", 0.8)
-        initial_coherence = schema.coherence
+        initial_coherence = schema.get_topic_coherence()
         await schema.set_focus("completely different quantum physics", "source_b", 0.7)
-        assert schema.coherence < initial_coherence
+        assert schema.get_topic_coherence() < initial_coherence
 
 
 # ═════════════════════════════════════════════════════════════════════

@@ -1140,7 +1140,7 @@ class TestAttentionSchema:
                 priority=0.7,
             )
 
-        coherence_sustained = attn.coherence if hasattr(attn, 'coherence') else None
+        coherence_sustained = attn.get_topic_coherence()
 
         # Rapid topic switching
         topics = ["cooking recipes", "quantum physics", "basketball", "music theory", "gardening"]
@@ -1151,12 +1151,11 @@ class TestAttentionSchema:
                 priority=0.5,
             )
 
-        coherence_scattered = attn.coherence if hasattr(attn, 'coherence') else None
+        coherence_scattered = attn.get_topic_coherence()
 
-        if coherence_sustained is not None and coherence_scattered is not None:
-            assert coherence_scattered < coherence_sustained, \
-                f"Topic switching must reduce coherence. " \
-                f"Sustained={coherence_sustained:.3f}, scattered={coherence_scattered:.3f}"
+        assert coherence_scattered < coherence_sustained, \
+            f"Topic switching must reduce coherence. " \
+            f"Sustained={coherence_sustained:.3f}, scattered={coherence_scattered:.3f}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

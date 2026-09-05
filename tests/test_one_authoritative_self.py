@@ -102,7 +102,7 @@ def test_attentional_coherence_is_not_named_as_self_coherence():
     )
     # The published key stays, because readers take it by name and a
     # `.get("coherence", default)` would silently take the default.
-    assert '"coherence": round(self.topic_coherence, 3)' in source
+    assert '"coherence": round(self.get_topic_coherence(), 3)' in source
 
 
 def test_the_subsystems_that_answered_who_am_i_are_estimators_or_views():

@@ -423,6 +423,7 @@ def test_system_state_monitor_initializes_health_history():
 @pytest.mark.asyncio
 async def test_heartbeat_telemetry_clamps_negative_runtime_metrics(monkeypatch):
     import core.consciousness.heartbeat as heartbeat_module
+    from core.consciousness.attention_schema import AttentionSchema
     from core.consciousness.heartbeat import CognitiveHeartbeat
 
     published = {}
@@ -450,7 +451,8 @@ async def test_heartbeat_telemetry_clamps_negative_runtime_metrics(monkeypatch):
             )
         )
     )
-    hb.attention = SimpleNamespace(coherence=-0.5)
+    hb.attention = AttentionSchema()
+    hb.attention.topic_coherence = -0.5
     hb._integrity_cache = None
 
     monkeypatch.setattr(heartbeat_module, "get_event_bus", lambda: EventBus())

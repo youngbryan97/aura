@@ -333,7 +333,16 @@ class AttentionSchema:
             # Up to +0.15 bonus for sustained attention (simulates "flow")
             sustained_bonus = min(0.15, sustained_ticks * 0.01)
 
-        return min(1.0, self.topic_coherence + sustained_bonus)
+        return min(1.0, self.get_topic_coherence() + sustained_bonus)
+
+    def get_topic_coherence(self) -> float:
+        """Return the measured continuity of the current attentional topic.
+
+        This is deliberately distinct from canonical self-coherence.  Runtime
+        consumers use this method instead of coupling to the storage attribute,
+        so the semantic distinction is preserved across internal refactors.
+        """
+        return max(0.0, min(1.0, float(self.topic_coherence)))
 
     def get_snapshot(self) -> dict[str, Any]:
         focus = self.current_focus
@@ -350,7 +359,7 @@ class AttentionSchema:
             # attention is staying on one subject, which is a different
             # quantity from the canonical self-coherence channel, and was
             # being counted as a second answer to it.
-            "coherence": round(self.topic_coherence, 3),
+            "coherence": round(self.get_topic_coherence(), 3),
             "cognitive_modifier": round(self.get_cognitive_modifier(), 3),
             "history_length": len(self.history),
             "top_salience": sorted(self.salience_map.items(), key=lambda x: -x[1])[:3],
@@ -424,7 +433,7 @@ class AttentionSchema:
         """Inverted coherence for FreeEnergyEngine complexity signal.
         Scattered attention (low coherence) = high complexity.
         """
-        return 1.0 - self.topic_coherence
+        return 1.0 - self.get_topic_coherence()
 
     def is_in_flow(self) -> bool:
         """True if same topic has been focused for > 5 consecutive ticks."""

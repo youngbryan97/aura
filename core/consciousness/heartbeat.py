@@ -700,7 +700,7 @@ class CognitiveHeartbeat:
                 f"Heartbeat tick {tick} | "
                 f"vitality={mods.overall_vitality:.2f} | "
                 f"surprise={surprise:.2f} | "
-                f"coherence={self.attention.coherence:.2f} | "
+                f"coherence={self.attention.get_topic_coherence():.2f} | "
                 f"winner={winner.source if winner else 'none'}"
                 f"{dilation_str}"
             )
@@ -1002,7 +1002,7 @@ class CognitiveHeartbeat:
                 content=(
                     f"{winner.content} | "
                     f"vitality={mods.overall_vitality:.2f} | "
-                    f"coherence={self.attention.coherence:.2f}"
+                    f"coherence={self.attention.get_topic_coherence():.2f}"
                 ),
                 level="info" if not mods.urgency_flag else "warning",
             )
@@ -1110,7 +1110,7 @@ class CognitiveHeartbeat:
                 frustration=round(_percent(frustration, 0.0), 1),
                 confidence=round(_percent(confidence, 0.5), 1),
                 gwt_winner=winner.source if winner else "none",
-                coherence=round(max(0.0, float(self.attention.coherence)), 2),
+                coherence=round(self.attention.get_topic_coherence(), 2),
                 vitality=round(max(0.0, float(mods.overall_vitality)), 2),
                 surprise=round(max(0.0, float(surprise)), 2),
                 narrative=narrative,
