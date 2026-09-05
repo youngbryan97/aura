@@ -409,3 +409,27 @@ def test_the_service_is_retrievable_after_the_boot_path_registers_it() -> None:
         "consumer"
     )
     assert service.snapshot()["faculties"] == 43
+
+
+def test_a_callers_intensity_is_not_a_perceptual_measurement(
+    service: InteriorityService,
+) -> None:
+    """Found by running it, on the first live turn.
+
+    The affect engine's own magnitude for an event went on the `instrument`
+    channel, which means a measurement from a tool of the thing being
+    perceived. The abstract-form faculty gates on a perceptual form being
+    present, so it fired during a conversation about how she was feeling.
+    """
+    service.appraise(
+        "how are you feeling right now?",
+        {"source": "conversation", "object": "feeling", "intensity": 0.8},
+    )
+    state = service.last()
+    assert state is not None
+    assert "f04_abstract_form" not in state.transmitted, (
+        "the abstract-form faculty fired on a conversational turn with no "
+        "form in front of it"
+    )
+    declined = state.declines.get("f04_abstract_form", "")
+    assert "perceptual" in declined or "structure" in declined, declined

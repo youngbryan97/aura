@@ -52,7 +52,7 @@ from core.interiority.cleft import get_cleft
 from core.interiority.core_affect import core_affect
 from core.interiority.effects import BudgetDelta, GoalDelta, RetentionClaim
 from core.interiority.event import EventKind, InteriorEvent
-from core.interiority.evidence import Reading, measured
+from core.interiority.evidence import Reading, measured, reported
 from core.interiority.faculty import Activation, FacultyContext, registry
 from core.interiority.homes import HOMES
 from core.interiority.interoception import get_interoception
@@ -678,8 +678,16 @@ class InteriorityService:
         observations: dict[str, Reading] = {}
         intensity = payload.get("intensity")
         if isinstance(intensity, (int, float)):
-            observations["instrument"] = measured(
-                max(0.0, min(1.0, float(intensity))), source="affect_engine:intensity"
+            # The caller's own magnitude for the event, which is a report
+            # about it and not a sensor reading of anything. It went on the
+            # `instrument` channel, which means a measurement from a tool
+            # of the thing being perceived — so the abstract-form faculty,
+            # which gates on a perceptual form being present, fired on the
+            # first live turn of a conversation about how she was feeling.
+            # Running it found that in one turn.
+            observations["context"] = reported(
+                max(0.0, min(1.0, float(intensity))),
+                source="affect_engine:caller_intensity",
             )
         event = InteriorEvent(
             kind=kind,
