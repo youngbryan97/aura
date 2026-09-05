@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+from pathlib import Path
 
 import pytest
 
@@ -9,6 +11,7 @@ from core.learning.semantic_program_ordinary_baseline import (
     best_possible_product_test,
     parse_integral_numeric_claim,
     product_bar_is_reachable,
+    verify_ordinary_baseline_preflight,
 )
 
 
@@ -74,3 +77,44 @@ def test_product_bar_rejects_mismatched_task_order() -> None:
     ordinary[0]["source_text_sha256"] = "f" * 64
     with pytest.raises(ValueError, match="identities differ"):
         adjudicate_ordinary_product_bar(treatment, ordinary)
+
+
+def test_preflight_reorders_public_examples_to_mechanism_receipt_order() -> None:
+    root = Path(__file__).parents[1]
+    preregistration = json.loads(
+        (root / "artifacts/rlc/semantic_program_27b_frozen_path_replication_v1/preregistration.json")
+        .read_text(encoding="ascii")
+    )
+    from core.learning.semantic_program_ordinary_baseline import (
+        canonical_sha256,
+        target_examples,
+    )
+
+    source = target_examples(preregistration)
+    ordered = tuple(reversed(source))
+    rows = [
+        {
+            "source_text_sha256": hashlib.sha256(item.source_text.encode()).hexdigest(),
+            "answer_exact": False,
+        }
+        for item in ordered
+    ]
+    mechanism = {
+        "schema": "aura.semantic_program_frozen_path_replication.v1",
+        "verdict": "PASS_MECHANISM_READY_FOR_ORDINARY_BASELINE",
+        "ordinary_resident_27b_decode": {
+            "status": "DEFERRED_READY",
+            "model_load_or_decode_calls": 0,
+        },
+        "arms": {"frozen_transducer": {"rows": rows}},
+    }
+    mechanism["result_sha256"] = canonical_sha256(mechanism)
+    descriptor = {"schema": "aura.model_artifact_descriptor.v1"}
+    resolved, treatment = verify_ordinary_baseline_preflight(
+        preregistration=preregistration,
+        mechanism_result=mechanism,
+        descriptor=descriptor,
+        max_tokens=768,
+    )
+    assert resolved == ordered
+    assert treatment == tuple(rows)

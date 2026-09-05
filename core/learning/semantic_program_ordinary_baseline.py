@@ -145,13 +145,20 @@ def verify_ordinary_baseline_preflight(
         raise ValueError("mechanism treatment rows are missing")
     treatment_rows = tuple(dict(row) for row in treatment["rows"])
     examples = target_examples(preregistration)
-    expected_ids = tuple(
-        hashlib.sha256(item.source_text.encode("utf-8")).hexdigest() for item in examples
-    )
+    examples_by_id = {
+        hashlib.sha256(item.source_text.encode("utf-8")).hexdigest(): item
+        for item in examples
+    }
     observed_ids = tuple(str(row.get("source_text_sha256")) for row in treatment_rows)
-    if len(examples) != 48 or observed_ids != expected_ids or len(set(observed_ids)) != 48:
+    if (
+        len(examples_by_id) != 48
+        or len(observed_ids) != 48
+        or len(set(observed_ids)) != 48
+        or set(observed_ids) != set(examples_by_id)
+    ):
         raise ValueError("ordinary baseline task cohort differs from mechanism result")
-    return examples, treatment_rows
+    ordered_examples = tuple(examples_by_id[source_id] for source_id in observed_ids)
+    return ordered_examples, treatment_rows
 
 
 def ordinary_result_row(
