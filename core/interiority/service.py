@@ -58,6 +58,7 @@ from core.interiority.interoception import get_interoception
 from core.interiority.ledger import RelationalLedger
 from core.interiority.other_minds import OtherEstimate, get_other_minds_model
 from core.interiority.receptors import get_receptor_bank
+from core.interiority.senses import availability, live_channels
 from core.interiority.stakes import StakeFeed
 from core.runtime.errors import record_degradation
 
@@ -157,6 +158,16 @@ class InteriorityService:
         self.stakes.note_actions_for(event.object)
 
         if other is None and event.subject is not None:
+            # Whatever the senses are carrying joins the event's own
+            # observations, with the caller's winning where both exist. A
+            # read restricted to what a caller remembered to pass is a read
+            # on two text channels, which is why it kept refusing to be
+            # confident: the microphone and the camera were reporting the
+            # whole time and nothing was listening.
+            sensed = live_channels(now=event.at)
+            if sensed:
+                merged = {**sensed, **dict(event.observations)}
+                event = replace(event, observations=merged)
             other = self.other_minds.estimate(event, species=species)
 
         frame = self.appraisal.appraise(event, other)
@@ -679,11 +690,12 @@ class InteriorityService:
         observations: Mapping[str, Reading] | None = None,
     ) -> OtherEstimate:
         """A read on another agent. Replaces the resonance word lists."""
+        sensed = live_channels()
         event = InteriorEvent(
             kind=EventKind.SOCIAL,
             summary=str(message)[:200],
             subject=subject or "unknown",
-            observations=dict(observations or {}),
+            observations={**sensed, **dict(observations or {})},
             source="attune",
         )
         return self.other_minds.estimate(event, species=species)
@@ -823,6 +835,7 @@ class InteriorityService:
             "cleft": get_cleft().snapshot(),
             "other_minds": self.other_minds.status(),
             "interoception": self.interoception.status(),
+            "senses": availability(),
             "attribution": self.attribution.snapshot(),
             "state": state.to_dict() if state else None,
         }

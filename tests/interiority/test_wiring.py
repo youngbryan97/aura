@@ -264,3 +264,76 @@ def test_a_channel_can_learn_what_it_means_within_a_bound() -> None:
         "keep the finding this started from"
     )
     assert model.status()["learned_loadings"] > 0
+
+
+def test_a_read_uses_whatever_the_senses_are_carrying() -> None:
+    """N1: the channels were declared and nothing was connected to them.
+
+    core/senses/interaction_signals.py has been producing typing
+    hesitation, voice steadiness and gaze direction the whole time. A read
+    restricted to what a caller remembered to pass is a read on two text
+    channels, which is why it kept refusing to be confident.
+    """
+    import time
+
+    from core.container import ServiceContainer
+    from core.interiority.senses import channels_from, live_channels
+
+    now = time.time()
+    status = {
+        "typing": {
+            "updated_at": now, "active": True, "hesitation": 0.7,
+            "pause_before_submit_ms": 3200.0, "correction_rate": 0.4,
+        },
+        "voice": {
+            "updated_at": now, "activation": 0.8, "stress_cue": 0.6,
+            "steadiness": 0.2, "speech_ratio": 0.7,
+        },
+        "vision": {
+            "updated_at": now, "sample_available": True, "face_present": True,
+            "mouth_motion_score": 0.5, "face_area_ratio": 0.3,
+            "gaze_direction": "away", "attention_available": 0.3,
+        },
+    }
+    channels = channels_from(status, now=now)
+    assert set(channels) == {"timing", "prosody", "face", "posture"}
+
+    # The unmanaged channels enter as measurements; the rough one does not.
+    assert channels["timing"].provenance.name == "MEASURED"
+    assert channels["face"].provenance.name == "INFERRED"
+    assert channels["face"].confidence < channels["timing"].confidence, (
+        "a backend that calls its own output a rough attention indicator "
+        "should not enter at the strength of an unmanaged measurement"
+    )
+
+    class _Engine:
+        def get_status(self):
+            return status
+
+    ServiceContainer.register("interaction_signals", _Engine())
+    try:
+        assert set(live_channels(now=now)) == set(channels)
+    finally:
+        ServiceContainer.register("interaction_signals", None)
+
+
+def test_a_silent_microphone_is_not_a_silent_person() -> None:
+    """Stale is absent, not zero.
+
+    A system that cannot tell those apart will describe a dead sensor as a
+    calm human being.
+    """
+    import time
+
+    from core.interiority.senses import channels_from
+
+    now = time.time()
+    status = {
+        "typing": {"updated_at": now, "active": True, "hesitation": 0.5},
+        "voice": {"updated_at": now - 600, "activation": 0.9, "stress_cue": 0.9},
+    }
+    channels = channels_from(status, now=now)
+    assert "timing" in channels
+    assert "prosody" not in channels, (
+        "a ten-minute-old voice sample was read as the present"
+    )

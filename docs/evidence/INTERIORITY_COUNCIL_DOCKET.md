@@ -94,5 +94,5 @@ instead.
 
 | # | Item | Note |
 |---|---|---|
-| N1 | Vision and audio channels carry nothing | The schema has `face`, `posture`, `prosody` and `autonomic`; the runtime has no sense feeding them. They are absent rather than zero, so a read declines rather than pretending, but the channels most worth having are the ones not connected |
+| ~~N1~~ | ~~Vision and audio channels carry nothing~~ | **Closed.** The senses were producing them the whole time and nothing was reading them: `core/senses/interaction_signals.py` has typing hesitation, pause-before-submit, voice steadiness and stress cue, gaze direction and head pose. `senses.py` translates them, and `tick` and `attune` merge whatever is carrying under the caller's own observations. Timing and prosody enter as measurements; the vision backend calls its own output a rough attention indicator, so its readings enter as inferences with a confidence ceiling. A stale sample is absent rather than zero, because a system that cannot tell a silent microphone from a silent person will describe the first as the second |
 | N2 | Nothing has run against live traffic | Every proof here runs in a constructed world. What none of them shows is how often each faculty fires in ordinary use, which needs the running instance and a period of it |
