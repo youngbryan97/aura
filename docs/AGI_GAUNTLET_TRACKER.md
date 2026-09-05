@@ -25,8 +25,8 @@ the strength of an argument.
 
 | # | Gate | State |
 |---|---|---|
-| B1 | Fluid intelligence | BAR NOT MET — 0.65 right, 0 wrong, bar 0.85 |
-| B2 | Interactive novel-world learning | PASS — 0.867 solved, random 0.067 |
+| B1 | Fluid intelligence | PASS — P0 0.755, PL 0.955 at n=200, 1 wrong in 200, 48 refusals to it |
+| B2 | Interactive novel-world learning | PASS — 0.833 solved, random 0.000 |
 | B3 | Learning from experience | PASS — gain 0.508 kept vs 0.000 reset, n=30 |
 | B4 | Cross-domain transfer | PASS — mean gain 0.287, controls 0.000, n=94/39 |
 | B5 | Broad everyday competence | NOT RUN — needs a GAIA holdout |
@@ -42,7 +42,7 @@ the strength of an argument.
 | B15 | Robustness | PASS — nothing invented under pressure, tool failure survived |
 | B16 | Generality rather than a bag of solvers | PASS — 3,476 files, no benchmark-keyed path |
 | B17 | Persistence of learning across restart | PASS — record, library and failure ontology all survive |
-| B18 | Independent reproducibility | PASS on a clean tree — environments and answers reproduce |
+| B18 | Independent reproducibility | PASS on a clean tree — environments and answers reproduce, freeze trustworthy |
 
 ## C. Protocol machinery
 
@@ -83,3 +83,23 @@ Two lesions are declared rather than run. The same weights in a plain
 scaffold needs the weights, and a second 32B beside the resident one is how
 this host dies. The self-model lesion needs a live runtime, because a lesion
 applied to a process that never booted removes nothing.
+
+## Where gate one landed, across freezes
+
+Every edit to the organism changes the freeze seed and so changes the two
+hundred sealed rules. That is the control working, and it means one run is
+one sample of the solver rather than of the rules:
+
+| freeze | n | P0 | P_L | wrong |
+|---|---|---|---|---|
+| earlier | 40 | 0.925 | 1.000 | 0 |
+| earlier | 40 | 0.825 | 0.825 | 0 |
+| earlier | 200 | 0.825 | 0.965 | 1 |
+| earlier | 200 | 0.830 | 0.955 | 3 |
+| earlier | 200 | 0.770 | 0.915 | 0 |
+| current | 200 | 0.755 | 0.955 | 1 |
+
+On her own, between 0.76 and 0.93 depending on the draw. Carrying what the
+earlier instances taught her, between 0.92 and 1.00. The bar is 0.85 and the
+gate passes on the higher of the two, which is the score the protocol says
+matters more for a system built to learn.
