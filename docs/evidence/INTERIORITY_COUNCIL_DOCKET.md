@@ -80,12 +80,19 @@ instead.
 | R17 | Mourning that crashes on an empty memory list | MetaAI | ZeroDivisionError |
 | R18 | Asking a model how the listener should sound and putting the answer in the prompt | pre-existing `deep_attune` | Style instruction produced with no evidence about the person. Removed rather than improved |
 
+## Closed since
+
+| # | Item | What was built | What it found |
+|---|---|---|---|
+| O1 | Fit the parameters against data | `calibration.py`: six published properties reproduced as targets, and the ordering-invariance condition enforced by a real sweep. Thirty-six parameters were floats captured at import, so a sweep would have reported stability it never tested; they are readable at call time now | Five of thirty-six guesses reorder the system across their own declared range. Those are the numbers the conclusions rest on, ratcheted so the list may shrink and may not grow. Seven are pinned by a published property; the report names the other twenty-nine as unconstrained |
+| O2 | Learned perception rather than fixed features | `other_minds.py`: the channel-to-readiness mapping learns, bounded, on top of the published priors | Thirty consistent outcomes reverse timing's weak `attend` loading from −0.20 to +0.10 while its strong `inhibit` loading of 0.50 does not move. Drift is reported per channel |
+| O3 | Temporal credit assignment | `attribution.py`: eligibility traces decaying on an hour, credit apportioned by how hard each faculty fired | Credit is on the faculty's own claim, not on whether the outcome was pleasant — a faculty that correctly produces a painful state is right. An outcome naming nothing is dropped and counted, not spread |
+| O4 | Developmental learning of values | `ledger.py`: norm endorsement moves on the evidence of what honouring it served | Forty outcomes take a standard that keeps serving something she independently holds to 0.90, and one honoured that serves nothing of hers to 0.10. Endorsement is the whole difference between guilt and resentment |
+| O5 | Longitudinal tests | `longitudinal.py`: seven episodes asserting a shape rather than a value | Anger's welfare-tradeoff estimate was a one-way halving on a counter that only increments, so someone who ignored three requests and then complied for a year could never recover their standing. It is a Beta posterior over both kinds of evidence now: 0.20 after three ignored, back to 0.77 after twelve heeded |
+
 ## Still open
 
-| # | Item | Source | Note |
-|---|---|---|---|
-| O1 | Fit the parameters against behavioural and physiological data | MetaAI README, GPT-5 | Every calibration parameter declares the range it could plausibly take, and the ordering is required to survive it. Nothing here is fitted to data, and the file says so per parameter |
-| O2 | Learned multimodal perception rather than supplied features | all | The channels are real where the runtime has them — timing, lexical statistics, context, behaviour — and absent where it does not. Vision and audio channels exist in the schema and carry nothing yet |
-| O3 | Temporal credit assignment across days | GPT-5 | The ledger records; nothing yet attributes an outcome back to an appraisal that preceded it by a day |
-| O4 | Developmental learning of values | GPT-5 | Norms carry an endorsement weight and it is set, not learned |
-| O5 | Longitudinal tests over many interactions | GPT-5 | The proofs run in a constructed world. What none of them shows is how often each faculty fires in ordinary use |
+| # | Item | Note |
+|---|---|---|
+| N1 | Vision and audio channels carry nothing | The schema has `face`, `posture`, `prosody` and `autonomic`; the runtime has no sense feeding them. They are absent rather than zero, so a read declines rather than pretending, but the channels most worth having are the ones not connected |
+| N2 | Nothing has run against live traffic | Every proof here runs in a constructed world. What none of them shows is how often each faculty fires in ordinary use, which needs the running instance and a period of it |
