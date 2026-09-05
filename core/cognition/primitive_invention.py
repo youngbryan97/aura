@@ -64,6 +64,7 @@ _KINDS_THIS_BUILD_INTERPRETS = frozenset(
         "ends",
         "grouping",
         "affine",
+        "shaped",
         "compose",
     }
 )
@@ -138,6 +139,40 @@ class IndexProgram:
             span = self.args[0] if self.args else 1
             first = self.args[1] if len(self.args) > 1 else 0
             return _grouped_source(index, size, span, first)
+        if kind == "shaped":
+            # A sequence whose length factors can be read as a grid, and then
+            # the moves that only exist in two dimensions become sayable.
+            #
+            # None of the forms above can express a vertical flip. A mirror
+            # reverses the whole sequence, which on a grid is the half turn;
+            # the quarter turns, the transpose and the flip about either axis
+            # are permutations of position that no offset, grouping or affine
+            # map over a single index produces. A board, a table, an image and
+            # a spreadsheet are all sequences with a stride, so this is not a
+            # form for one kind of problem — it is the arithmetic of a shape
+            # the language could not previously mention.
+            rows = self.args[0] if self.args else 1
+            cols = self.args[1] if len(self.args) > 1 else 1
+            mode = self.args[2] if len(self.args) > 2 else 0
+            step = self.args[3] if len(self.args) > 3 else 0
+            if rows < 1 or cols < 1 or rows * cols != size:
+                return index
+            row, col = divmod(index, cols)
+            if mode == 0:  # flip about the horizontal axis
+                return (rows - 1 - row) * cols + col
+            if mode == 1:  # flip about the vertical axis
+                return row * cols + (cols - 1 - col)
+            if mode == 2:  # transpose, read back at the transposed shape
+                return col * rows + row
+            if mode == 3:  # a quarter turn
+                return (cols - 1 - col) * rows + row
+            if mode == 4:  # three quarters
+                return col * rows + (rows - 1 - row)
+            if mode == 5:  # every row slides by the same amount
+                return row * cols + (col + step) % cols
+            if mode == 6:  # every column slides by the same amount
+                return ((row + step) % rows) * cols + col
+            return index
         if kind == "compose":
             # Innermost first: the parts are applied in the order they were
             # composed, which is the order refactoring reads them in.
@@ -357,6 +392,13 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
         ("identity", "identity", IndexProgram("identity")),
         ("mirror", "position i takes from n-1-i", IndexProgram("mirror")),
     ]
+    # Absolute pairs are quadratic in the length and are the least general
+    # thing here — the docstring above says why: {0<->3} is a fact about
+    # length four and says nothing at length eight. So they are built last and
+    # they are the first thing the budget drops. At length nine that changes
+    # nothing; at length nine hundred it is the difference between 814,428
+    # shapes and a search that finishes.
+    absolute: list[tuple[str, str, IndexProgram]] = []
     for step in range(1, max(2, size)):
         forms.append(
             (
@@ -367,13 +409,17 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
         )
     for left in range(size):
         for right in range(left + 1, size):
-            forms.append(
+            absolute.append(
                 (
                     "pairwise exchange",
                     f"positions exchange in pairs ({left}<->{right})",
                     IndexProgram("exchange", (left, right)),
                 )
             )
+            if len(absolute) >= MOST_FORMS_AT_A_LENGTH:
+                break
+        if len(absolute) >= MOST_FORMS_AT_A_LENGTH:
+            break
     for depth in range(max(1, size // 2)):
         forms.append(
             (
@@ -403,6 +449,8 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
     # shape was fine, one of the examples was short, and the answer was a
     # refusal. Twelve of forty sealed rules refused for exactly this.
     for span in range(2, max(3, size)):
+        if len(forms) >= MOST_FORMS_AT_A_LENGTH:
+            break
         for first in range(span):
             forms.append(
                 (
@@ -411,7 +459,55 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
                     IndexProgram("grouping", (span, first)),
                 )
             )
-    return forms
+    # Whatever shapes the length can be read at.
+    #
+    # Every form above is arithmetic on one index, and there is a whole class
+    # of moves that arithmetic cannot reach: reading nine cells as three rows
+    # of three makes a flip about the horizontal axis a permutation of
+    # positions, and no offset, grouping or affine map over i produces it.
+    # Checked rather than assumed — at length nine the vertical flip sends
+    # 2 to 8 while the closest affine map sends it to 1.
+    #
+    # The shapes come from the divisors of the length and from nothing else,
+    # so this says "a sequence of twelve might be three rows of four" and
+    # never "this is a picture". A row of a table and a rank of a board are
+    # the same fact about a stride.
+    for rows in range(2, size):
+        if rows * rows > size or len(forms) >= MOST_FORMS_AT_A_LENGTH:
+            break
+        if size % rows:
+            continue
+        for high, across in ((rows, size // rows), (size // rows, rows)):
+            if high < 2 or across < 2:
+                continue
+            shape = f"{high} rows of {across}"
+            for mode, said in (
+                (0, "flipped about its horizontal axis"),
+                (1, "flipped about its vertical axis"),
+                (2, "transposed"),
+                (3, "turned a quarter"),
+                (4, "turned three quarters"),
+            ):
+                forms.append(
+                    (
+                        "shaped",
+                        f"read as {shape}, {said}",
+                        IndexProgram("shaped", (high, across, mode)),
+                    )
+                )
+            # Rows sliding as a block is already sayable — on a grid of this
+            # shape it is the flat offset by a multiple of the width — so only
+            # the slide WITHIN each row is new here.
+            for step in range(1, across):
+                forms.append(
+                    (
+                        "shaped",
+                        f"read as {shape}, every row slides {step}",
+                        IndexProgram("shaped", (high, across, 5, step)),
+                    )
+                )
+    room = MOST_FORMS_AT_A_LENGTH - len(forms)
+    return forms + absolute[:room] if room > 0 else forms
 
 
 def _grouped_source(index: int, size: int, span: int, first: int = 0) -> int:
@@ -588,8 +684,14 @@ def _forms_that_fit(
     # it, because the clock bounds the search and this was the setup.
     two: list[tuple[float, int, tuple[str, str, IndexProgram]]] = []
     scored = 0
+    tried_pairs = 0
     for _fa, first_text, first in singles:
+        if tried_pairs >= MOST_PAIRS_TRIED:
+            break
         for _fb, second_text, second in singles:
+            tried_pairs += 1
+            if tried_pairs > MOST_PAIRS_TRIED:
+                break
             composed = IndexProgram("compose", (), (first, second))
             said = f"{second_text}, then {first_text}"
             if _fits(composed, options, size):
@@ -658,6 +760,15 @@ def _forms_that_fit(
 #: below, and the one that decides which candidates are reached rather than
 #: how many.
 MOST_TWO_DEEP_TO_EXTEND = 400
+#: How many single shapes are offered at one length. Below about forty this
+#: never binds and nothing changes. Above it, the quadratic families would
+#: make the search longer than any budget: 814,428 shapes at length nine
+#: hundred, and the two-deep pass over them is 663 billion pairs.
+MOST_FORMS_AT_A_LENGTH = 2000
+#: How many two-deep compositions are tried. The pass is |singles| squared and
+#: was unbounded, so the same length that made the shapes unbuildable made the
+#: compositions unrunnable.
+MOST_PAIRS_TRIED = 400_000
 
 #: Counted, not timed.
 #:

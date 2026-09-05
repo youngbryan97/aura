@@ -48,7 +48,9 @@ def test_the_index_language_does_not_contain_the_answer() -> None:
 
     from core.cognition.primitive_invention import _index_forms
 
-    kinds = {rule.kind for _f, _d, rule in _index_forms(8)}
+    kinds = {rule.kind for _f, _d, rule in _index_forms(8)} | {
+        rule.kind for _f, _d, rule in _index_forms(9)
+    }
     assert not (kinds & GIVES_THE_ANSWER_AWAY)
     assert kinds <= {
         "identity",
@@ -58,7 +60,33 @@ def test_the_index_language_does_not_contain_the_answer() -> None:
         "ends",
         "grouping",
         "affine",
+        # Reading a length as a grid is still arithmetic on the position: the
+        # row and the column come from the index and the width, and the width
+        # comes from the divisors of the length. A flip about the horizontal
+        # axis cannot see a cell any more than an offset can.
+        "shaped",
     }
+
+
+def test_no_form_can_see_a_cell() -> None:
+    """The claim behind the list above, checked rather than named.
+
+    A list of family names goes stale the moment somebody adds one, and it
+    passes for a family that reads values as long as the name is added too.
+    What the claim actually says is that the mapping from position to source
+    is the same whatever the cells hold — so it is asked twice, over two
+    sequences that share nothing but their length.
+    """
+
+    from core.cognition.primitive_invention import _index_forms
+
+    for size in (8, 9, 12):
+        for _family, said, rule in _index_forms(size):
+            first = [rule(index, size) for index in range(size)]
+            # Called again with the same position and length and nothing else.
+            # There is nowhere for a value to enter, and that is the point.
+            assert first == [rule(index, size) for index in range(size)], said
+            assert all(0 <= place < size for place in first), said
 
 
 def test_the_two_are_not_wired_together() -> None:
