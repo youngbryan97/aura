@@ -161,7 +161,7 @@ def fluid_intelligence(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any
         [0.0] * len(trajectories),
         seed=freeze.seed % 6151,
     )
-    return {
+    found = {
         "instances": len(rules),
         "right": alone,
         "share": round(p0, 4),
@@ -198,6 +198,20 @@ def fluid_intelligence(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any
         ),
         "trajectories": trajectories,
     }
+    # The control, reported here so the score above cannot be quoted alone.
+    #
+    # These rules are sealed after the freeze, so the instances are fresh. The
+    # ONTOLOGY is not: the generator composes offsets, mirrors, end exchanges,
+    # groupings and value maps, and the induction machinery represents offsets,
+    # mirrors, exchanges, ends, groupings and affine maps. A new instance is
+    # not a new hypothesis family. Beside it goes the same measurement on a
+    # family designed by somebody else, before this solver existed.
+    found["against_a_family_designed_elsewhere"] = {
+        key: value
+        for key, value in outside_the_ontology(freeze, options).items()
+        if key != "trajectories"
+    }
+    return found
 
 
 def _answer_a_rule_from(

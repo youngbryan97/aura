@@ -148,3 +148,53 @@ when a test that fails without the fix passes with it.
 | D15 | Static reachability called the 43 interiority faculties dead; they are dynamically enumerated | Correct — a blind spot in my own tool | TODO |
 | D16 | Not every foreground message passes through all 29 phases; foreground and background are rate-separated | Correct. Check what the claims registry asserts | TODO |
 | D17 | "12/12" means twelve internal mechanism gates on one freeze, not twelve AGI criteria established | Correct. The tracker says it; the summary line should too | TODO |
+
+## D1, measured: the ontology was the thing
+
+Gate 1's rules are sealed after the freeze, so the instances are fresh. The
+review said the ontology is not, and put a number on what that means. Here is
+the number.
+
+Her symbolic induction — no model, nothing that could recall an answer — run
+over the ARC-AGI evaluation set, 400 tasks published in 2019 by somebody who
+had never seen this code, whose primitives were chosen as a claim about core
+knowledge:
+
+| | |
+|---|---|
+| tasks | 400 |
+| her language could express at all (same-shape in and out) | 270 |
+| attempted, within 144 cells and a 20,000-pair budget | 87 |
+| a relation found | 1 |
+| exactly right | 1 (`66e6c45b`, "cells are grouped every 6, the group at 5 first") |
+
+Beside gate 1's own family, where P_L is 0.955. One in eighty-seven against
+nineteen in twenty. The review was right and the size of it is the finding:
+what gate 1 measures is composition and search inside a representational
+universe the evaluator shares with the solver, and outside that universe the
+same machinery scores about one per cent.
+
+Two things follow, and both are done rather than argued. The control is
+computed inside gate 1 and reported in its own measurements, so the 0.955
+cannot be quoted without the 0.011 beside it. And the language grew a family
+it did not have: a sequence whose length factors can be read as a grid, which
+makes flips, quarter turns and transposes sayable — none of which any offset,
+grouping or affine map over a single index can produce.
+
+## D2, measured: half of gate two was the gradient
+
+The world's visible number was two times the size minus the Manhattan distance
+to the goal, which orders every state by how close it is. Running the same
+worlds with a number that counts squares stood on instead — honest, moving,
+and pointing nowhere:
+
+| signal | solved | random |
+|---|---|---|
+| distance to the goal | 0.833 | 0.000 |
+| squares visited | 0.417 | 0.000 |
+
+Both arms run every time now. And the guess she extrapolates an unvisited
+reading with is measured from the readings she has, rather than assuming the
+number falls by at most one a step — which is true of a distance to a goal and
+of nothing else, and was a prior about the world supplied on her behalf inside
+the gate whose whole point is that the world says nothing.

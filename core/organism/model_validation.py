@@ -4141,6 +4141,47 @@ def _install_language_growth_claims(suite: Any) -> None:
     suite.add_claim(
         Claim(
             statement=(
+                "Growing the language she thinks in runs into four walls, and each "
+                "of them is executed here rather than cited: a name adds no "
+                "meaning to a universal language, no update rule improves "
+                "everywhere, unexpressibility may be asserted only where the "
+                "language was walked end to end, and a question above computation "
+                "is answered by saying so."
+            ),
+            test="test_growth_runs_into_four_walls_and_they_are_run_not_cited",
+            owner="core/cognition/what_growth_cannot_do.py",
+            asserted_in="core/cognition/what_growth_cannot_do.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "the substitution argument run on a word she made, the diagonal "
+                "environment built and scored against the rule it beats, and the "
+                "decidability verdict read off a language that was walked and one "
+                "that cannot be"
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "Universality is where the regress of authored primitives ends, "
+                "and it is the only place it can: a universal bedrock needs no "
+                "further authoring and admits none, and a smaller one needs "
+                "authoring again after every edit."
+            ),
+            test="test_the_tower_ends_at_universality_and_nowhere_else",
+            owner="core/cognition/where_the_tower_has_a_top.py",
+            asserted_in="core/cognition/where_the_tower_has_a_top.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "the three cases run — universal, smaller, and unknown — with the "
+                "gate made a candidate of its own space and the invariant it "
+                "checks stopping holding once it is"
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
                 "The floor reaches every computable behaviour, so nothing above it "
                 "will ever need a new primitive written by a person — and nothing "
                 "could add one."

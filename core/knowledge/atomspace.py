@@ -976,12 +976,89 @@ _space_lock = threading.Lock()
 _space: AtomSpace | None = None
 
 
+def _where_it_is_kept() -> Any:
+    from pathlib import Path as _Path
+
+    from core.runtime.state_ownership import state_root
+
+    return _Path(state_root()) / "atomspace.json"
+
+
+def _fill_it_from_disk(space: "AtomSpace") -> int:
+    """Load the last snapshot into a fresh store. Returns atoms loaded.
+
+    The store was built empty on every boot and never written, so the whole
+    metagraph — the claims, the attention values, and the per-source
+    attribution that stops a reload double-counting a witness — lasted exactly
+    as long as the process. The other half of this class has had a save and a
+    load in its own file the whole time and nothing outside its test called
+    either.
+    """
+
+    place = _where_it_is_kept()
+    if not place.exists():
+        return 0
+    try:
+        from core.knowledge.atomspace_persistence import load
+
+        return int(load(space, place))
+    except Exception as exc:  # noqa: BLE001 — a bad snapshot is not a dead boot
+        from core.runtime.errors import record_degradation
+
+        record_degradation(
+            "atomspace",
+            exc,
+            severity="warning",
+            action="started from an empty metagraph rather than the snapshot",
+        )
+        return 0
+
+
+def keep_the_atomspace() -> int:
+    """Write the store to disk. Returns atoms written, or -1 if it could not.
+
+    Blocking, deliberately: this is the shutdown path and the periodic one, and
+    both want the write finished before they move on. Never from the event loop
+    — ``atomspace_persistence.save_async`` is there for that.
+    """
+
+    with _space_lock:
+        space = _space
+    if space is None:
+        return 0
+    try:
+        from core.governance_context import local_internal_governed_scope
+        from core.knowledge.atomspace_persistence import save
+
+        with local_internal_governed_scope("atomspace.keep", domain="state_mutation"):
+            return int(save(space, _where_it_is_kept()))
+    except Exception as exc:  # noqa: BLE001 — losing a snapshot is not fatal
+        from core.runtime.errors import record_degradation
+
+        record_degradation(
+            "atomspace",
+            exc,
+            severity="warning",
+            action="the metagraph was not written and will not survive the restart",
+        )
+        return -1
+
+
 def get_atomspace() -> AtomSpace:
     global _space
     with _space_lock:
         if _space is None:
             _space = AtomSpace()
-        return _space
+            fresh = _space
+        else:
+            return _space
+    # Outside the lock: loading reaches back into the store, and a restore that
+    # takes the same lock under the one that built it is how a boot wedges.
+    _fill_it_from_disk(fresh)
+    import atexit
+
+    atexit.register(keep_the_atomspace)
+    return fresh
 
 
 def reset_atomspace_for_test(**kwargs: Any) -> AtomSpace:
@@ -994,6 +1071,7 @@ def reset_atomspace_for_test(**kwargs: Any) -> AtomSpace:
 __all__ = [
     "Atom",
     "AtomSpace",
+    "keep_the_atomspace",
     "AttentionValue",
     "Bindings",
     "CONCEPT",
