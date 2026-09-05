@@ -80,6 +80,9 @@ class Arbitrated:
     #: Faculties that fired but whose state did not cross the cleft.
     failed_to_cross: tuple[str, ...]
     declines: Mapping[str, str] = field(default_factory=dict)
+    #: The event this state was appraised from, so a later outcome can be
+    #: attributed back to the faculties that fired on it.
+    event_id: str = ""
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -96,6 +99,7 @@ class Arbitrated:
             "transmitted": dict(self.transmitted),
             "failed_to_cross": list(self.failed_to_cross),
             "declines": dict(self.declines),
+            "event_id": self.event_id,
         }
 
 
@@ -125,6 +129,7 @@ def arbitrate(
     *,
     cleft: SynapticCleft | None = None,
     dt: float | None = None,
+    event_id: str = "",
 ) -> Arbitrated:
     """Combine active faculties into one interior state."""
     medium = cleft or get_cleft()
@@ -214,6 +219,7 @@ def arbitrate(
         transmitted=transmitted,
         failed_to_cross=tuple(failed),
         declines=declines,
+        event_id=event_id,
     )
 
 

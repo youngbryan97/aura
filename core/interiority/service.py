@@ -46,6 +46,7 @@ from typing import Any
 from core.interiority.appraisal import AppraisalEngine, AppraisalFrame
 from core.interiority.arbitration import Arbitrated, arbitrate
 from core.interiority.arbitration import permitted as _permitted
+from core.interiority.attribution import get_attribution
 from core.interiority.cleft import get_cleft
 from core.interiority.core_affect import core_affect
 from core.interiority.effects import BudgetDelta, GoalDelta, RetentionClaim
@@ -101,6 +102,8 @@ class InteriorityService:
         self.stakes = StakeFeed(self.ledger)
         self.other_minds = get_other_minds_model()
         self.interoception = get_interoception()
+        #: Delayed credit assignment from outcomes back to the faculties.
+        self.attribution = get_attribution()
         self._last: Arbitrated | None = None
         self._last_frame: AppraisalFrame | None = None
         self._last_activations: tuple[Activation, ...] = ()
@@ -178,7 +181,7 @@ class InteriorityService:
                 continue
             activations.append(faculty.evaluate(ctx))
 
-        state = arbitrate(activations, dt=dt)
+        state = arbitrate(activations, dt=dt, event_id=event.event_id)
         # Core affect first, faculties on top. Without the general term an
         # event no faculty is about produces nothing, and a blocked
         # commitment with nobody to be angry at reads as neutral.
@@ -192,6 +195,12 @@ class InteriorityService:
             self._last = state
             self._last_frame = frame
             self._last_activations = tuple(activations)
+
+        # Leave an eligibility trace for every faculty that fired, so an
+        # outcome arriving later can be attributed back to it. Without
+        # this the faculties are frozen at the values they were written
+        # with and no amount of living moves them.
+        self.attribution.note_activations(state)
 
         # The interior reports itself on declared channels. A state that
         # ran and left no trace cannot be understood afterwards, and this
@@ -701,6 +710,56 @@ class InteriorityService:
                     continue
                 self._retention[claim.memory_key] = (claim, now + max(0.0, claim.ttl_s))
 
+    def record_outcome(
+        self,
+        *,
+        event_id: str = "",
+        goal: str = "",
+        claim_held: bool,
+        served_her_own: bool | None = None,
+        detail: str = "",
+    ) -> dict[str, Any]:
+        """Close the loop: tell the interior how a state it produced turned out.
+
+        One entry point, because the two things that learn from an outcome
+        have to see the same one. Credit goes back to the faculties that
+        were eligible, and any standard whose constraint was held on that
+        event moves toward endorsed or toward merely obeyed.
+
+        ``claim_held`` is the faculty's own claim — did the boundary hold,
+        did the repair happen — not whether the outcome was pleasant. A
+        faculty that correctly produced a painful state is right.
+
+        ``served_her_own`` says whether honouring the standard served
+        something she was independently holding. Left as None it is
+        inferred from ``claim_held``, which is the weaker reading and is
+        recorded as such.
+        """
+        credited = self.attribution.record_outcome(
+            event_id=event_id, goal=goal, claim_held=claim_held, detail=detail
+        )
+        served = claim_held if served_her_own is None else served_her_own
+
+        moved_norms: dict[str, float] = {}
+        state = self.last()
+        if state is not None and (not event_id or state.event_id == event_id):
+            for constraint in state.hard_constraints:
+                # The standard behind a constraint is named by the faculty
+                # that held it; a constraint with no norm on record moves
+                # nothing rather than inventing one.
+                for norm in self.ledger.standing.norms():
+                    if norm.name in constraint.reason or norm.name in constraint.action_class:
+                        delta = self.ledger.standing.reinforce_norm(
+                            norm.name, served_her_own=served
+                        )
+                        if delta is not None:
+                            moved_norms[norm.name] = delta
+        return {
+            "faculties_credited": credited,
+            "norms_moved": moved_norms,
+            "served_her_own_inferred": served_her_own is None,
+        }
+
     def retention_held(self, memory_key: str) -> tuple[bool, str]:
         """Whether a memory is held against deletion, and by which faculty."""
         now = time.time()
@@ -764,6 +823,7 @@ class InteriorityService:
             "cleft": get_cleft().snapshot(),
             "other_minds": self.other_minds.status(),
             "interoception": self.interoception.status(),
+            "attribution": self.attribution.snapshot(),
             "state": state.to_dict() if state else None,
         }
 

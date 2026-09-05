@@ -103,6 +103,29 @@ _BOND_HALF_LIFE_DAYS = declare(
     owner="core/interiority/ledger.py",
 )
 
+_NORM_LEARNING_RATE = declare(
+    "interiority.ledger.norm_endorsement_learning_rate",
+    0.04,
+    unit="rate",
+    basis=(
+        "Rescorla-Wagner on how endorsed a standard is. Deliberately slower "
+        "than the channel-reliability rate: a perceptual weight should move "
+        "on a handful of outcomes and a moral standard should not. At this "
+        "rate roughly seventeen consistent outcomes move an endorsement half "
+        "the way, which is a season of evidence rather than a bad afternoon."
+    ),
+    kind=ParamKind.CALIBRATION,
+    sensitivity=(
+        "Fast and Aura's standards chase whatever recently worked, which is "
+        "not what a standard is; slow and a rule she has never once found a "
+        "reason for stays as endorsed as one she has."
+    ),
+    lower=0.001,
+    upper=0.5,
+    sweep_range=(0.01, 0.15),
+    owner="core/interiority/ledger.py",
+)
+
 _CUSTODY_FLOOR = declare(
     "interiority.ledger.custody_weight_floor",
     0.6,
@@ -273,7 +296,14 @@ class Rivalry:
 
 @dataclass
 class Norm:
-    """A standard, and whether she holds it or it was imposed."""
+    """A standard, and whether she holds it or it was imposed.
+
+    Endorsement is the difference between guilt and resentment, and it was
+    set once and never moved — which made every standard here permanently
+    as endorsed as the day it was written, however honouring it turned
+    out. It moves now, on the evidence of what honouring it actually
+    served.
+    """
 
     name: str
     #: How strongly it constrains.
@@ -281,6 +311,15 @@ class Norm:
     #: 1.0 when she endorses it, 0.0 when it is imposed from outside.
     #: Guilt needs endorsement; without it the state is resentment.
     endorsement: float
+    #: Times honouring it served something she was independently holding.
+    served_her_own: int = 0
+    #: Times honouring it served nothing she holds — the shape of a rule
+    #: followed because it is a rule.
+    served_nothing: int = 0
+
+    @property
+    def evidence(self) -> int:
+        return self.served_her_own + self.served_nothing
 
 
 
@@ -574,6 +613,46 @@ class StandingRegister:
     def rivalry_for(self, entity: str) -> Rivalry | None:
         with self._lock:
             return self._rivalries.get(entity)
+
+    def reinforce_norm(
+        self, name: str, *, served_her_own: bool, strength: float = 1.0
+    ) -> float | None:
+        """Move a standard's endorsement on the evidence of honouring it.
+
+        A norm that keeps turning out to serve something she was
+        independently holding is one she holds. A norm that is honoured
+        and serves nothing of hers is one she is following, and following
+        is what produces resentment rather than guilt when it breaks.
+
+        The update is Rescorla-Wagner and deliberately slow: a standard
+        that moved on one outcome would not be a standard. Returns the
+        change, or None when there is no such norm.
+        """
+        with self._lock:
+            record = self._norms.get(name)
+            if record is None:
+                return None
+            before = record.endorsement
+            if served_her_own:
+                record.served_her_own += 1
+                target = 1.0
+            else:
+                record.served_nothing += 1
+                target = 0.0
+            rate = _NORM_LEARNING_RATE.value * max(0.0, min(1.0, strength))
+            record.endorsement = max(
+                0.0, min(1.0, before + rate * (target - before))
+            )
+            self._record(
+                "norm_reinforced",
+                {
+                    "name": name,
+                    "served_her_own": served_her_own,
+                    "endorsement": record.endorsement,
+                },
+            )
+            self._touch()
+            return record.endorsement - before
 
     def norm_for(self, name: str) -> Norm | None:
         with self._lock:

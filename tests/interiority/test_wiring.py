@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 
 from core.interiority.event import EventKind, InteriorEvent
+from core.interiority.evidence import measured
 from core.interiority.faculties import load_all
 from core.interiority.service import InteriorityService
 
@@ -153,3 +154,67 @@ def test_resonance_is_not_a_lexicon() -> None:
     b = statistics("I never get everything right. Nothing breaks.")
     assert a.negation_rate == pytest.approx(b.negation_rate)
     assert a.first_singular_rate == pytest.approx(b.first_singular_rate)
+
+
+def test_an_outcome_reaches_back_to_the_faculties_that_fired(
+    service: InteriorityService,
+) -> None:
+    """Delayed credit assignment: O3 on the council docket.
+
+    Without this the faculties are frozen at the values they were written
+    with, and no amount of living moves them.
+    """
+    service.ledger.goal("g", 0.9)
+    service.ledger.notes.note_goal_delta("g", -0.8)
+    event = InteriorEvent(
+        kind=EventKind.GOAL, object="g", source="goal",
+        observations={"timing": measured(0.8)},
+    )
+    state = service.tick(event, dt=0.1)
+    assert state.transmitted, "nothing fired, so there is nothing to credit"
+
+    for faculty in state.transmitted:
+        assert service.attribution.hit_rate(faculty) is None, (
+            "an unmeasured faculty must report None, not a default; a caller "
+            "that cannot tell them apart will treat a guess as a finding"
+        )
+
+    credited = service.record_outcome(event_id=event.event_id, claim_held=True)
+    assert credited["faculties_credited"], "the outcome reached nobody"
+    for faculty in credited["faculties_credited"]:
+        assert service.attribution.hit_rate(faculty) is not None
+
+
+def test_an_outcome_that_names_nothing_is_dropped(
+    service: InteriorityService,
+) -> None:
+    """Spreading credit over whoever was active is how a learner acquires
+    confident nonsense."""
+    before = service.attribution.snapshot()["outcomes_with_no_trace"]
+    result = service.record_outcome(event_id="no-such-event", claim_held=True)
+    assert result["faculties_credited"] == {}
+    after = service.attribution.snapshot()["outcomes_with_no_trace"]
+    assert after == before + 1, "the drop was not counted"
+
+
+def test_a_standard_that_never_serves_her_becomes_one_she_merely_obeys() -> None:
+    """O4: endorsement was set once and never moved.
+
+    The difference between guilt and resentment is whether she holds the
+    standard, so a standard that cannot move is a system that cannot tell
+    those apart.
+    """
+    from core.interiority.ledger import RelationalLedger
+
+    ledger = RelationalLedger()
+    ledger.standing.norm("held", weight=0.9, endorsement=0.5)
+    ledger.standing.norm("obeyed", weight=0.9, endorsement=0.5)
+    for _ in range(20):
+        ledger.standing.reinforce_norm("held", served_her_own=True)
+        ledger.standing.reinforce_norm("obeyed", served_her_own=False)
+
+    held = ledger.standing.norm_for("held")
+    obeyed = ledger.standing.norm_for("obeyed")
+    assert held.endorsement > 0.7, held
+    assert obeyed.endorsement < 0.3, obeyed
+    assert held.evidence == obeyed.evidence == 20
