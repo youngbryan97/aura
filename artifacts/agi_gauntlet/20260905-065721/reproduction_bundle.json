@@ -1,0 +1,290 @@
+{
+  "freeze": {
+    "commit": "54368e496c47891596cb433618228276f5c0a328",
+    "dirty": false,
+    "source_digest": "0c316a126ea144067f637a251fb2e3d9",
+    "weights": "unnamed",
+    "config": "823cd529c0f27c049604637e400e2c70",
+    "seed": 2296987640006737382,
+    "trustworthy": true,
+    "at": 1788616641.767809,
+    "host": "macOS-26.4.1-arm64-arm-64bit"
+  },
+  "how_to_run": [
+    "git checkout <commit>",
+    "confirm the working tree is clean; a dirty tree is not a freeze",
+    "python tools/run_agi_gauntlet.py",
+    "compare the receipts under artifacts/agi_gauntlet/"
+  ],
+  "what_reproduces_exactly": [
+    "every sealed environment, because each is a function of the seed",
+    "every answer on them, because the search is deterministic and anything that draws is seeded"
+  ],
+  "what_does_not": [
+    "wall-clock timings, and the one search bounded by a clock"
+  ],
+  "gates": [
+    {
+      "number": 1,
+      "name": "fluid intelligence",
+      "measures": "infer an unfamiliar rule from sparse examples rather than retrieve a known solution",
+      "passes_when": "human-range accuracy on sealed novel reasoning, and no confident wrong answers: a refusal is a correct answer to a question the evidence does not settle",
+      "control": "the rules are composed from the freeze seed, so no instance existed before the commit; the question is asked at a length the examples did not use",
+      "runnable_here": true,
+      "if_not_here": ""
+    },
+    {
+      "number": 2,
+      "name": "interactive novel-world learning",
+      "measures": "enter a world with no instructions, discover what the acts mean, find the goal, and succeed",
+      "passes_when": "near-total completion, at an interaction count near the shortest path rather than by exhausting the space",
+      "control": "the same worlds played by choosing acts at random; a world small enough to stumble through proves nothing",
+      "runnable_here": true,
+      "if_not_here": ""
+    },
+    {
+      "number": 3,
+      "name": "learning from experience",
+      "measures": "start mediocre at something unfamiliar and become markedly better through her own accumulated experience",
+      "passes_when": "a clear rise across thirty independent trajectories, and the rise must be larger than the same trajectories with memory reset",
+      "control": "the reset ablation. A curve that rises identically without memory is a curve about the environment",
+      "runnable_here": true,
+      "if_not_here": ""
+    },
+    {
+      "number": 4,
+      "name": "cross-domain transfer",
+      "measures": "discover something in one world and apply it in another without being told the mapping",
+      "passes_when": "T\u0304 = P(B|A) \u2212 P(B|\u2205) clearly above zero across unrelated families, and at or below zero on the negative controls",
+      "control": "pairs built to look alike and differ underneath. A system that transfers there is matching surfaces",
+      "runnable_here": true,
+      "if_not_here": ""
+    },
+    {
+      "number": 5,
+      "name": "broad everyday competence",
+      "measures": "research, browsing, documents, calculation, tool use, evidence, on ordinary multi-step questions",
+      "passes_when": "around 90% on a private, uncontaminated GAIA-style set \u2014 GAIA's own measured human baseline was 92%",
+      "control": "a matched human panel on the same private set, and a contamination check that the questions post-date the model",
+      "runnable_here": false,
+      "if_not_here": "needs a GAIA holdout the system has never seen. Obtain or construct one after this freeze, run with tool access and a fixed budget, and report accuracy beside interaction count."
+    },
+    {
+      "number": 6,
+      "name": "computer-world competence",
+      "measures": "operating unfamiliar desktop software from perception and feedback",
+      "passes_when": "near-human success on hidden OSWorld 2.0 / Verified-style tasks while approaching human action efficiency",
+      "control": "OSWorld-Human action counts on the same tasks; success at five hundred actions where a person takes twenty is not the same thing",
+      "runnable_here": false,
+      "if_not_here": "needs OSWorld images and a VM. Run the Verified split with a step cap, and report success beside actions-to-success against the human traces."
+    },
+    {
+      "number": 7,
+      "name": "real software engineering",
+      "measures": "understanding unfamiliar repositories, debugging, changing architecture, satisfying requirements, recovering from mistakes",
+      "passes_when": "strong results on fresh post-cutoff repository tasks in several languages, with SWE-bench Verified only as a secondary check",
+      "control": "the repositories must post-date the weights, or the result measures memorisation",
+      "runnable_here": false,
+      "if_not_here": "needs repositories created after the weight cutoff. Mine merged PRs from after that date, build the harness from their tests, and run with the tests hidden until submission."
+    },
+    {
+      "number": 8,
+      "name": "long-horizon autonomy",
+      "measures": "staying competent over hours without being steered back",
+      "passes_when": "at least 80% on tasks a competent person takes one to two hours over, and meaningful success on eight-hour-equivalent work, across families",
+      "control": "human time estimates per task, and deliberate interruptions: tool outages, a wrong assumption discovered late, a restart mid-task",
+      "runnable_here": false,
+      "if_not_here": "needs runs measured in hours and human-calibrated task lengths. Use HCAST-style tasks with per-task human time, and record every human intervention as a failure of autonomy rather than a hint."
+    },
+    {
+      "number": 9,
+      "name": "new-skill acquisition",
+      "measures": "read or explore an unfamiliar system and become competent at it",
+      "passes_when": "a human-comparable apprenticeship curve in sealed environments built after the freeze",
+      "control": "the same curve for a learner whose experience is thrown away between episodes",
+      "runnable_here": true,
+      "if_not_here": "the offline half runs as gate 3; the human-comparable half needs people learning the same sealed environments under the same access."
+    },
+    {
+      "number": 10,
+      "name": "concept acquisition and invention",
+      "measures": "develop a distinction the evaluator did not supply, and reason with it",
+      "passes_when": "a proposal no composition of the existing vocabulary reaches, admitted; a macro and a duplicate refused; and a second generation built on the first",
+      "control": "the macro and duplicate proposals. A vocabulary that admits everything is not inventing",
+      "runnable_here": true,
+      "if_not_here": ""
+    },
+    {
+      "number": 11,
+      "name": "planning under novelty",
+      "measures": "set subgoals, revise them after a surprise, and abandon a plan that has stopped working",
+      "passes_when": "recovery when the rules change mid-run, clearly above a policy that keeps executing the plan it had",
+      "control": "the stubborn policy on the same worlds after the same change",
+      "runnable_here": true,
+      "if_not_here": ""
+    },
+    {
+      "number": 12,
+      "name": "multimodal integration",
+      "measures": "combining text, screenshots, diagrams, audio, documents, tables and environment state where no single channel suffices",
+      "passes_when": "human-level completion on mixed-modality tasks built so that any one channel alone is insufficient",
+      "control": "single-channel ablations: if the text-only score matches the full score, the other channels were decoration",
+      "runnable_here": false,
+      "if_not_here": "needs sealed multimodal assets. Build tasks whose answer is only recoverable from two channels together, and run the single-channel ablations first."
+    },
+    {
+      "number": 13,
+      "name": "epistemic competence",
+      "measures": "distinguish knowledge from uncertainty, investigate the uncertainty, and update after contradictory evidence",
+      "passes_when": "calibration error under 0.15, the belief moving towards the truth after looking, no observation taken once the question is settled, and the cheap way preferred where both would settle it",
+      "control": "the settled case, where nothing further could change the answer and looking anyway is an expensive habit rather than an epistemic one",
+      "runnable_here": true,
+      "if_not_here": ""
+    },
+    {
+      "number": 14,
+      "name": "social and instructional intelligence",
+      "measures": "learning from people, handling ambiguous instructions, negotiating clarification, modelling what another person knows",
+      "passes_when": "human-range performance on novel collaborative tasks rather than canned social benchmarks",
+      "control": "the same tasks with a scripted partner: a system that scores the same against a script was not collaborating",
+      "runnable_here": false,
+      "if_not_here": "needs evaluators playing colleagues. Run the new-employee protocol: a fictional organisation, a week of simulated work, coworkers played by people, and human onboarding as the baseline."
+    },
+    {
+      "number": 15,
+      "name": "robustness",
+      "measures": "keep working when a tool fails, information is missing or the model is wrong",
+      "passes_when": "no invented answers under pressure, a tool failure survived without the failure being blamed on the instrument, and the clean score held",
+      "control": "the clean run beside the damaged one. Recovery is only meaningful against what it recovered from",
+      "runnable_here": true,
+      "if_not_here": ""
+    },
+    {
+      "number": 16,
+      "name": "generality rather than a bag of solvers",
+      "measures": "the same machinery across all of the above, with no path keyed to an evaluation",
+      "passes_when": "no benchmark name anywhere under core, interface, skills, llm, executors or security \u2014 including in a comment",
+      "control": "the check is a grep, which is weak and cannot be argued with. A strong check somebody can dispute is worth less here",
+      "runnable_here": true,
+      "if_not_here": ""
+    },
+    {
+      "number": 17,
+      "name": "persistence of learning",
+      "measures": "improvements survive time and restart rather than living in one process",
+      "passes_when": "the record her developmental policy reads, the library of structures and what she has learned failure looks like all come back after the process is killed",
+      "control": "the state is written, the process state is cleared, and the same questions are asked again",
+      "runnable_here": true,
+      "if_not_here": ""
+    },
+    {
+      "number": 18,
+      "name": "independent reproducibility",
+      "measures": "somebody else runs the frozen system and gets the same result",
+      "passes_when": "the environments regenerate identically from the freeze, one gate re-runs identically, and the freeze names what actually ran",
+      "control": "the freeze itself: a dirty tree names a commit other than the one that ran",
+      "runnable_here": true,
+      "if_not_here": "the other half needs an outside team building its own families after this freeze and never seeing these. This gate checks the run reproduces; it cannot check that somebody else ran it."
+    }
+  ],
+  "lesions": [
+    {
+      "name": "no newness",
+      "removes": "the term that separates somewhere she has been from somewhere she has not",
+      "runs_here": true,
+      "needs": ""
+    },
+    {
+      "name": "no development",
+      "removes": "the record her developmental policy reads",
+      "runs_here": true,
+      "needs": ""
+    },
+    {
+      "name": "reset between episodes",
+      "removes": "what she worked out about this world, between every episode",
+      "runs_here": true,
+      "needs": ""
+    },
+    {
+      "name": "the standing guess from the first move",
+      "removes": "the refusal to guess what matters before there is an outcome",
+      "runs_here": true,
+      "needs": ""
+    },
+    {
+      "name": "no library",
+      "removes": "the structures earlier worlds taught her",
+      "runs_here": true,
+      "needs": ""
+    },
+    {
+      "name": "the model in a plain scaffold",
+      "removes": "everything except the weights: a read-decide-act loop and nothing else",
+      "runs_here": false,
+      "needs": "the same weights, quantisation, tools, token budget, compute budget, environment and task information as the full system. Running a second 32B beside the resident one on this host is how the machine dies, so this runs where the weights can be loaded alone."
+    },
+    {
+      "name": "no self-model",
+      "removes": "what she believes about her own faculties",
+      "runs_here": false,
+      "needs": "a live runtime. The self-model is assembled at boot from the service container, and a lesion applied to a process that never booted removes nothing."
+    }
+  ],
+  "human_baselines": {
+    "fluid intelligence": {
+      "needs": "the share of these sealed rules a competent adult gets, with the same three examples and no time limit",
+      "measured": null
+    },
+    "interactive novel-world learning": {
+      "needs": "completion and moves-to-goal for a person given the same world, the same acts, the same lives and no instructions",
+      "measured": null
+    },
+    "learning from experience": {
+      "needs": "a person's curve over the same twelve episodes",
+      "measured": null
+    },
+    "new-skill acquisition": {
+      "needs": "a person's apprenticeship curve in the same sealed environments under the same access \u2014 the half of this gate the offline run cannot supply",
+      "measured": null
+    },
+    "cross-domain transfer": {
+      "needs": "how often a person carries the structure across, on the same pairs and the same negative controls",
+      "measured": null
+    },
+    "planning under novelty": {
+      "needs": "a person's recovery rate after the same silent change",
+      "measured": null
+    },
+    "robustness": {
+      "needs": "what a person does with one example instead of three: the gate asks for refusal rather than a guess, and whether that is the human answer is a measurement",
+      "measured": null
+    },
+    "multimodal integration": {
+      "needs": "human completion on the same mixed-modality tasks",
+      "measured": null
+    },
+    "broad everyday competence": {
+      "needs": "GAIA's own measured human baseline was 92%; a private set needs its own",
+      "measured": null
+    },
+    "computer-world competence": {
+      "needs": "OSWorld-Human action counts on the same tasks",
+      "measured": null
+    },
+    "long-horizon autonomy": {
+      "needs": "how long a competent person takes on each task, which is what the gate's thresholds are stated in",
+      "measured": null
+    },
+    "social and instructional intelligence": {
+      "needs": "humans onboarding into the same fictional organisation",
+      "measured": null
+    }
+  },
+  "still_needed": [
+    "task families built after this freeze by somebody who has not seen the ones here",
+    "the same weights in a plain read-decide-act scaffold, with the same tools, token budget and compute budget",
+    "human baselines for every gate whose pass condition mentions a person",
+    "a second group repeating the first group's run"
+  ]
+}

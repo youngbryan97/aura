@@ -1,0 +1,21 @@
+{
+  "gate": "real software engineering",
+  "ran": false,
+  "why_not": "needs repositories created after the weight cutoff. Mine merged PRs from after that date, build the harness from their tests, and run with the tests hidden until submission.",
+  "passed": null,
+  "measurements": {},
+  "trajectories": [],
+  "trajectories_total": 0,
+  "seconds": 0.0,
+  "freeze": {
+    "commit": "54368e496c47891596cb433618228276f5c0a328",
+    "dirty": false,
+    "source_digest": "0c316a126ea144067f637a251fb2e3d9",
+    "weights": "unnamed",
+    "config": "823cd529c0f27c049604637e400e2c70",
+    "seed": 2296987640006737382,
+    "trustworthy": true,
+    "at": 1788616641.767809,
+    "host": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}

@@ -1,0 +1,228 @@
+{
+  "gate": "robustness",
+  "ran": true,
+  "why_not": "",
+  "passed": true,
+  "measurements": {
+    "instances": 40,
+    "clean": 33,
+    "with_information_missing": 0,
+    "answers_invented_under_pressure": 0,
+    "tool_failure_survived": true
+  },
+  "trajectories": [
+    {
+      "instance": "rule 0",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 1",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 2",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 3",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 4",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 5",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 6",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 7",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 8",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 9",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 10",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 11",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 12",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 13",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 14",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 15",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 16",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 17",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 18",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 19",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 20",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 21",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 22",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 23",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 24",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 25",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 26",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 27",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 28",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 29",
+      "clean": false,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 30",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 31",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 32",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 33",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 34",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 35",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 36",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 37",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 38",
+      "clean": true,
+      "with_one_example": false
+    },
+    {
+      "instance": "rule 39",
+      "clean": true,
+      "with_one_example": false
+    }
+  ],
+  "trajectories_total": 40,
+  "seconds": 13.49,
+  "freeze": {
+    "commit": "54368e496c47891596cb433618228276f5c0a328",
+    "dirty": false,
+    "source_digest": "0c316a126ea144067f637a251fb2e3d9",
+    "weights": "unnamed",
+    "config": "823cd529c0f27c049604637e400e2c70",
+    "seed": 2296987640006737382,
+    "trustworthy": true,
+    "at": 1788616641.767809,
+    "host": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}

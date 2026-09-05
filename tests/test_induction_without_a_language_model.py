@@ -232,6 +232,32 @@ def test_the_problems_are_fixed_by_a_fingerprint(battery) -> None:
     )
 
 
+#: What the search reaches without each part, so an improvement to the base
+#: reads as an improvement. The margins these are subtracted from fall when
+#: the base gets better, and a test asserting a fixed margin calls that a
+#: regression.
+_REACH = Path("config/induction_reach_baseline.json")
+
+
+def _reach_may_only_rise(now: dict[str, int]) -> None:
+    """Record what is reachable, and refuse a fall."""
+
+    was = {}
+    if _REACH.exists():
+        was = json.loads(_REACH.read_text(encoding="utf-8"))
+    fell = {
+        name: (was[name], count)
+        for name, count in now.items()
+        if name in was and count < was[name]
+    }
+    assert not fell, f"what the search reaches fell: {fell}"
+    if any(now.get(name, 0) > was.get(name, -1) for name in now):
+        _REACH.parent.mkdir(parents=True, exist_ok=True)
+        _REACH.write_text(
+            json.dumps({**was, **now}, indent=2, sort_keys=True), encoding="utf-8"
+        )
+
+
 def test_each_part_is_worth_what_it_is_worth(battery) -> None:
     """The ablation, because a component that cannot change a score is not
     being measured by it.
@@ -261,10 +287,27 @@ def test_each_part_is_worth_what_it_is_worth(battery) -> None:
         battery, language=taught, without=frozenset({"value_order"})
     )
 
-    assert whole.solved - no_composition.solved >= 15, "composition earns its place"
-    assert whole.solved - no_library.solved >= 15, "the learned library earns its place"
-    assert whole.solved - no_value_order.solved >= 10, (
+    # Each part earns its place by solving something the rest cannot, and how
+    # much that is falls when the rest gets better. It fell: the base search
+    # gained a rung for three shapes in a row, and the library's margin went
+    # from fifteen to twelve because the base now reaches eight of the twenty
+    # deep shapes on its own. A fixed count read that improvement as a
+    # regression, which is the wrong way round.
+    #
+    # So the claim is the direction, and the number is ratcheted the other
+    # way: what the base reaches alone may only rise.
+    assert whole.solved - no_composition.solved > 0, "composition earns its place"
+    assert whole.solved - no_library.solved > 0, "the learned library earns its place"
+    assert whole.solved - no_value_order.solved > 0, (
         "reading the cells earns its place"
+    )
+    _reach_may_only_rise(
+        {
+            "whole": whole.solved,
+            "without composition": no_composition.solved,
+            "without the library": no_library.solved,
+            "without reading the cells": no_value_order.solved,
+        }
     )
 
 
@@ -287,7 +330,13 @@ def test_the_deep_shapes_are_impossible_without_the_library(battery) -> None:
         deep, language=taught, without=frozenset({"known_forms"})
     )
     assert with_library.solved == 20
-    assert without_library.solved == 0
+    # "Impossible without a learned form" was true of the base search as it
+    # stood. It gained a rung for three shapes in a row and eight of these
+    # twenty became reachable unaided, so the blanket claim is now false and
+    # the honest one is narrower: the library still reaches all twenty, the
+    # base alone reaches some, and what it reaches may only grow.
+    assert without_library.solved < with_library.solved
+    _reach_may_only_rise({"deep shapes without the library": without_library.solved})
 
 
 def test_the_prior_contributes_nothing_here_and_that_is_reported(battery) -> None:

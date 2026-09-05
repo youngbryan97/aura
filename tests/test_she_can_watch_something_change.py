@@ -494,6 +494,26 @@ def _nothing_above_her_work(monkeypatch):
     # loop that had stopped waiting.
     monkeypatch.setattr(sp, "_how_long_to_wait", lambda: 0.05)
 
+    # And the host, for every test in this file rather than for the ones that
+    # remembered. A test naming a target application sent the loop to bring
+    # that application to the front on this machine — so it spent its whole
+    # budget failing to find a screen, on a desktop it was also disturbing,
+    # and the assertion it was written for never ran.
+    async def frontmost():
+        return "TheThing"
+
+    async def ensure_frontmost(_app=""):
+        return True
+
+    async def to_the_front(_app=""):
+        return True
+
+    monkeypatch.setattr(sp, "_frontmost", frontmost, raising=False)
+    monkeypatch.setattr(sp, "_ensure_frontmost", ensure_frontmost, raising=False)
+    monkeypatch.setattr(
+        sp, "_bring_the_thing_back_to_the_front", to_the_front, raising=False
+    )
+
 
 def test_a_blocker_that_will_not_clear_is_reported_not_repeated(monkeypatch):
     """A dismissal that does not work must not be tried forever.

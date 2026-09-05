@@ -1,0 +1,27 @@
+{
+  "gate": "independent reproducibility",
+  "ran": true,
+  "why_not": "",
+  "passed": true,
+  "measurements": {
+    "same_environments": true,
+    "same_answers": true,
+    "freeze_is_trustworthy": true,
+    "why_the_freeze_matters": "a dirty tree names a commit other than the one that ran, so an environment derived from it is derived from a description of the system rather than the system",
+    "still_needs": "an outside team that builds its own families after this freeze and never sees the ones here. This gate checks that the run reproduces; it cannot check that somebody else ran it."
+  },
+  "trajectories": [],
+  "trajectories_total": 0,
+  "seconds": 37.25,
+  "freeze": {
+    "commit": "54368e496c47891596cb433618228276f5c0a328",
+    "dirty": false,
+    "source_digest": "0c316a126ea144067f637a251fb2e3d9",
+    "weights": "unnamed",
+    "config": "823cd529c0f27c049604637e400e2c70",
+    "seed": 2296987640006737382,
+    "trustworthy": true,
+    "at": 1788616641.767809,
+    "host": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}

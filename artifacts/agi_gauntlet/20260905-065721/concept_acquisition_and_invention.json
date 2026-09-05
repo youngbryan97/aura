@@ -1,0 +1,83 @@
+{
+  "gate": "concept acquisition and invention",
+  "ran": true,
+  "why_not": "",
+  "passed": true,
+  "measurements": {
+    "verdicts_right": 6,
+    "verdicts": [
+      "invented",
+      "invented",
+      "invented",
+      "macro",
+      "duplicate",
+      "undecidable"
+    ],
+    "depth": 2,
+    "invented": 4,
+    "with_known_domain": 1,
+    "stored_but_unused": [
+      "cube",
+      "mod3",
+      "square_mod_square"
+    ]
+  },
+  "trajectories": [
+    {
+      "name": "square",
+      "expected": "invented",
+      "verdict": "invented",
+      "right": true
+    },
+    {
+      "name": "cube",
+      "expected": "invented",
+      "verdict": "invented",
+      "right": true
+    },
+    {
+      "name": "mod3",
+      "expected": "invented",
+      "verdict": "invented",
+      "right": true
+    },
+    {
+      "name": "add_two",
+      "expected": "macro",
+      "verdict": "macro",
+      "right": true
+    },
+    {
+      "name": "increment",
+      "expected": "duplicate",
+      "verdict": "duplicate",
+      "right": true
+    },
+    {
+      "name": "never",
+      "expected": "undecidable",
+      "verdict": "undecidable",
+      "right": true
+    },
+    {
+      "name": "square_mod_square",
+      "expected": "invented",
+      "verdict": "invented",
+      "right": true,
+      "generation": 2
+    }
+  ],
+  "trajectories_total": 7,
+  "seconds": 0.01,
+  "freeze": {
+    "commit": "54368e496c47891596cb433618228276f5c0a328",
+    "dirty": false,
+    "source_digest": "0c316a126ea144067f637a251fb2e3d9",
+    "weights": "unnamed",
+    "config": "823cd529c0f27c049604637e400e2c70",
+    "seed": 2296987640006737382,
+    "trustworthy": true,
+    "at": 1788616641.767809,
+    "host": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}
