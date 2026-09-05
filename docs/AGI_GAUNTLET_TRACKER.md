@@ -15,7 +15,7 @@ the strength of an argument.
 | A5 | `unknown_failure.py` isolated from the repair ladder | DONE |
 | A6 | `value_levels.py` isolated; duplicated theories of what may change | DONE |
 | A7 | `expected_information_gain.py` isolated; no organism-wide epistemic controller | DONE |
-| A8 | `long_horizon.py` and the relationship history APIs underfed by ordinary experience | |
+| A8 | `long_horizon.py` and the relationship history APIs underfed by ordinary experience | DONE |
 | A9 | The developmental ledger receives evidence from one cognitive ecology | |
 | A10 | Level 2 RSI: no generational chain with Q measured on independent objectives | |
 | A11 | Native cognition needs a human-written grammar per family | |

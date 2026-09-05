@@ -729,8 +729,9 @@ class PersonModel:
         taxonomy becoming unusable.
         """
         now = time.time() if now is None else now
-        return [
+        readings = [
             self._trust(now),
+            self._what_it_has_been_through(now),
             self._safety(now),
             self._comfort(now),
             self._connection(now),
@@ -738,6 +739,52 @@ class PersonModel:
             self._novelty(now),
             self._investment(now),
         ]
+        # A reading with nothing to say is left out rather than saying so.
+        # Every dynamic here carries the evidence that produced it, and one
+        # that reports the absence of evidence breaks that and fills the
+        # block with the absence of things.
+        return [one for one in readings if one.standing]
+
+    def _what_it_has_been_through(self, now: float) -> Dynamic:
+        """Trust read in the order it happened, which counts cannot do.
+
+        `_trust` above counts: so many kept, so many repaired, so many not. A
+        count has no order, and the order is where the interesting fact
+        lives. A bond that broke, was repaired, and then held through four
+        more commitments is not the same as one repaired and never tested
+        again, and the two produce identical counts.
+
+        The long horizon computes this and had nothing to compute it from —
+        it wanted a history and the store held a set. This is the bridge, and
+        it reads what living already wrote; it never writes anything to make
+        the reading nicer.
+        """
+
+        try:
+            from core.social.what_the_years_add_up_to import how_they_stand
+
+            where = how_they_stand(self.person, model=self, now=now)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return Dynamic(name="what it has been through", standing="", basis=())
+        if not where.tested:
+            # Nothing has strained it, and `trust` above already says
+            # untested. A second line saying the same absence is noise.
+            return Dynamic(name="what it has been through", standing="", basis=())
+        if where.unrepaired:
+            standing = f"{where.unrepaired} thing(s) still open between us"
+        elif where.stronger_for_it:
+            standing = "strained, repaired, and held since — stronger for it"
+        else:
+            standing = "repaired, and not tested since"
+        return Dynamic(
+            name="what it has been through",
+            standing=standing,
+            basis=(
+                f"{where.breaks} rupture(s), {where.repairs} repaired",
+                f"proved {where.proved:.0%} of the way by what followed",
+                f"trust from the history: {where.trust:.2f}",
+            ),
+        )
 
     def _count(self, facet: Facet, *, resolved: bool | None = None) -> int:
         return sum(
