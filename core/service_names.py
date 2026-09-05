@@ -37,6 +37,7 @@ class ServiceNames:
     DATA = "data_honesty_governor"          # core/morality/honesty_governor.py
     DANEEL = "daneel_aggregate_harm"        # core/morality/aggregate_harm.py
     SAMANTHA = "samantha_affective_resonance"  # core/affect/affective_resonance.py
+    INTERIORITY = "interiority"             # core/interiority/service.py — 43 appraisal faculties
 
     # Functional Subsystems
     PROOF_KERNEL = "proof_kernel"        # core/reasoning/proof_kernel.py — trusted checker + theorem ledger

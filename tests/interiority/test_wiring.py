@@ -379,3 +379,33 @@ def test_the_census_can_answer_what_the_constructed_proofs_cannot(
 
     never = service.census.never_fired(registry().ids())
     assert len(never) < 43, "nothing fired at all"
+
+
+def test_the_service_is_retrievable_after_the_boot_path_registers_it() -> None:
+    """The registrar is handed the orchestrator, not a container.
+
+    An earlier version called `orchestrator.register(...)`, so on a booting
+    runtime the service went somewhere nothing reads and every lookup
+    returned None — while the boot log still said the engine had
+    registered. It passed a test that handed it None and was wrong in the
+    only case that matters, which is why this test hands it an object that
+    fails if it is used as a container.
+    """
+    from core.container import ServiceContainer
+    from core.orchestrator.initializers.derived_engines import (
+        register_derived_engines,
+    )
+
+    class _Orchestrator:
+        def register(self, *args: object, **kwargs: object) -> None:
+            raise AssertionError(
+                "the registrar used the orchestrator as a service container"
+            )
+
+    register_derived_engines(_Orchestrator())
+    service = ServiceContainer.get("interiority", default=None)
+    assert service is not None, (
+        "registered according to the boot log, and unreachable to every "
+        "consumer"
+    )
+    assert service.snapshot()["faculties"] == 43

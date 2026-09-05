@@ -923,19 +923,43 @@ def get_interiority() -> InteriorityService:
         return _SERVICE
 
 
-def register_interiority(container: Any = None) -> InteriorityService:
-    """Register the service so the rest of the runtime can reach it."""
+def register_interiority(orchestrator: Any = None) -> InteriorityService:
+    """Register the service so the rest of the runtime can reach it.
+
+    The argument is the orchestrator, which is what
+    ``register_derived_engines`` hands every registrar, and it is ignored
+    here as it is by the others. An earlier version treated it as a
+    container and called ``orchestrator.register(...)``, so on a booting
+    runtime the service went somewhere nothing reads and every lookup
+    returned None — while the boot log still said the engine had
+    registered. It looked correct in a test that passed None and was
+    wrong in the only case that matters.
+    """
     service = get_interiority()
+    registered = False
     try:
         from core.container import ServiceContainer
 
-        target = container or ServiceContainer
-        register = getattr(target, "register", None)
-        if callable(register):
-            register(SERVICE_NAME, service)
+        ServiceContainer.register(SERVICE_NAME, service)
+        registered = ServiceContainer.get(SERVICE_NAME, default=None) is service
     except (ImportError, RuntimeError, AttributeError, TypeError) as exc:
         record_degradation(
             "interiority.service", exc, action="service not registered in container"
+        )
+    try:
+        from core.runtime.service_registry import register_runtime_service
+
+        register_runtime_service(SERVICE_NAME, service, required=False)
+    except (ImportError, RuntimeError, AttributeError, TypeError) as exc:
+        record_degradation(
+            "interiority.service", exc, action="service not published to the registry"
+        )
+    if not registered:
+        # Saying so is the point. A registrar that reports success while the
+        # lookup returns None is how a subsystem stays dark for a week.
+        logger.warning(
+            "interiority registered but is not retrievable from the container; "
+            "every consumer will read None"
         )
     return service
 
