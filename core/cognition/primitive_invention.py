@@ -1033,6 +1033,121 @@ def _value_map(
     )
 
 
+def _a_rule_about_what_a_cell_belongs_to(
+    transitions: Sequence[Transition],
+) -> tuple[str, str, Callable[[tuple[Any, ...]], tuple[Any, ...]], tuple[str, ...]] | None:
+    """A value map keyed on something other than the value.
+
+    The value side asks what each value becomes. That is one property of a
+    cell, and the module's own opening says which one is missing: "no way to
+    say that some cells belong together and travel as a set". A cell is also in
+    a row, a column, a distance from the edge, and a connected region of cells
+    like it — and the region is the one that is objecthood rather than
+    arithmetic on the position.
+
+    So the table is fitted against each property in turn rather than against
+    the value alone. Nothing here names a kind of problem: the properties are
+    computed from the position, the length and the state, the shapes come from
+    the divisors of the length, and a table that turns out to be a transcript
+    is refused by the same rule the value table is refused by — an abstraction
+    has to be smaller than what it accounts for.
+
+    Ordered so that the value comes first and the derived properties after, so
+    a world that IS a plain value map is never explained as a fact about
+    regions. Every property that fits is collected rather than the first one
+    returned: two examples where the largest region happens to have four cells
+    are fitted equally well by "the largest region" and "the cells there are
+    four of", and those disagree on the next grid. The caller is told which
+    others fit, and the answer is unsettled while more than one does.
+    """
+
+    from core.cognition.what_a_cell_is_part_of import (
+        THE_PROPERTIES,
+        shapes_of,
+        what_is_true_of_each_cell,
+    )
+
+    observed = [one for one in transitions if len(one.before) == len(one.after)]
+    if not observed:
+        return None
+    fitting: list[tuple[str, Callable[[tuple[Any, ...]], tuple[Any, ...]]]] = []
+    lengths = {len(one.before) for one in observed}
+    shapes: dict[int, list[tuple[int, int]]] = {n: shapes_of(n) for n in lengths}
+    for what in THE_PROPERTIES:
+        for shape in [(0, 0), *sorted({s for n in lengths for s in shapes[n]})]:
+            table: dict[Any, Any] = {}
+            #: Keys whose cells were left alone. A key cannot both take a new
+            #: value and stay as it was, and the table is partial — everything
+            #: it does not mention keeps what it had, the same shape as the
+            #: substitution table over values.
+            untouched: set[Any] = set()
+            changed = 0
+            ok = True
+            for one in observed:
+                rows, cols = shape
+                if rows and rows * cols != len(one.before):
+                    ok = False
+                    break
+                said = what_is_true_of_each_cell(one.before, rows=rows, cols=cols)
+                keys = said.get(what)
+                if keys is None:
+                    ok = False
+                    break
+                for key, was, became in zip(keys, one.before, one.after, strict=False):
+                    if was == became:
+                        untouched.add(key)
+                        continue
+                    changed += 1
+                    if key in table and table[key] != became:
+                        ok = False
+                        break
+                    table[key] = became
+                if not ok:
+                    break
+            if not ok or not table or table.keys() & untouched:
+                continue
+            seen = changed
+            # The same guard the value table gets: every entry has to carry two
+            # observations on average, or it is a record of occasions.
+            if len(table) * 2 > seen:
+                continue
+            if what == "value":
+                # Already the value side's business, and it says it better.
+                continue
+            rows, cols = shape
+            where = f" read as {rows} rows of {cols}" if rows else ""
+            shown = ", ".join(f"{a!r}->{b!r}" for a, b in sorted(table.items(), key=repr)[:4])
+
+            def operator(
+                state: tuple[Any, ...],
+                _what: str = what,
+                _rows: int = rows,
+                _cols: int = cols,
+                _table: dict[Any, Any] = dict(table),
+            ) -> tuple[Any, ...]:
+                said = what_is_true_of_each_cell(state, rows=_rows, cols=_cols)
+                keys = said.get(_what)
+                if keys is None:
+                    raise ValueError(f"no {_what} at this length")
+                return tuple(
+                    _table[key] if key in _table else value
+                    for key, value in zip(keys, state, strict=False)
+                )
+
+            fitting.append(
+                (f"{what}{where} ({shown})", operator)
+            )
+    if not fitting:
+        return None
+    said, operator = fitting[0]
+    return (
+        "a property of the cell",
+        f"each cell takes a value from {said}",
+        operator,
+        tuple(one for one, _op in fitting[1:]),
+    )
+
+
 def _permutation_operator(
     rule: Callable[[int, int], int],
 ) -> Callable[[tuple[Any, ...]], tuple[Any, ...]]:
@@ -1468,6 +1583,40 @@ def invent_relation(
                 learned_from=len(observed),
                 held_out_checked=len(held_out),
                 settled=len(observed) >= ENOUGH_TO_SETTLE,
+            )
+
+    # And a rule about what a cell BELONGS to, rather than what it holds.
+    #
+    # Tried after the value side and before the composition, because a world
+    # that is a plain value map should be read as one, and because this is
+    # cheaper than solving a move and a map together.
+    belonging = (
+        None
+        if "cell_properties" in without
+        else _a_rule_about_what_a_cell_belongs_to(observed)
+    )
+    if belonging is not None:
+        family, description, operator, also_fits = belonging
+        if explains(operator, observed) and (not held_out or explains(operator, held_out)):
+            return InventedRelation(
+                kind="belonging",
+                family=family,
+                form=description,
+                # A table over a property applies to any state where the
+                # property takes a value it has seen, which is a wider claim
+                # than a table over the values themselves and a narrower one
+                # than a closed form. Reported as not generalising, because
+                # what it does outside the keys it knows is leave cells alone.
+                generalises=False,
+                apply=operator,
+                learned_from=len(observed),
+                held_out_checked=len(held_out),
+                # Two properties that both fit disagree about the next state,
+                # and the search returned the first in generation order. That
+                # is an answer where a refusal was correct, and the caller had
+                # no way to tell the two apart.
+                settled=len(observed) >= ENOUGH_TO_SETTLE and not also_fits,
+                also_fits=also_fits,
             )
 
     # A move AND a map, where neither alone accounts for it.
