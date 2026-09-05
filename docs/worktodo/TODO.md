@@ -41,7 +41,7 @@ buildable thing. Status is measured, not asserted.
 | 17 | Primitive invention that feeds later invention, rather than composition of human-supplied primitives | OPEN |
 | 18 | Autonomous transfer: discover the invariant without anyone tagging both domains | **DONE** — `core/cognition/transfer_search.py` retrieves by naming-invariant shape and verifies each candidate against its shuffled null; the mapper itself had to stop matching relations as strings, which was scoring genuine cross-vocabulary analogies at exactly zero |
 | 19 | Identity relation under deep modification: causal continuity, not a hash | **DONE** — `core/identity/continuity_relation.py`; gradual total replacement is continuous, instantaneous is not, and the two end in the same bytes; a restored backup matches the hash and breaks the chain |
-| 20 | Value development levels: separate what may change from what may not, and which learning touches which | OPEN |
+| 20 | Value development levels: separate what may change from what may not, and which learning touches which | **DONE** — `core/governance/value_levels.py`; four levels, an authority table with no setter, and nothing in it reaches constitutive — absent rather than set low, so adding one is a visible act |
 | 21 | Social cognition over years: trust, attachment, norms, shared history, repair after conflict, nested beliefs | OPEN |
 | 22 | Embodied epistemic agency: choose observations by expected information gain | **DONE** — `core/perception/expected_information_gain.py`; an observation every hypothesis predicts alike scores zero however interesting it looks, and gain is separated from worth |
 | 23 | Native cognitive medium: internal representations optimised for computation rather than communication | OPEN |
