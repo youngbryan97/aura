@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import threading
+
+import pytest
+
 from core.brain.inference_gate import InferenceGate
 
 
@@ -42,3 +46,27 @@ def test_chat_dependencies_release_same_resident_lane_without_reloading_model():
     assert public["conversation_ready"] is True
     assert public["chat_dependencies_ready"] is True
     assert "chat_dependencies_warming" not in public["readiness_blockers"]
+
+
+@pytest.mark.parametrize("ready", [True, False])
+def test_dependency_publication_does_not_wait_for_model_operation_owner(ready):
+    gate = InferenceGate()
+    gate._mlx_client = _ReadyClient()
+    published = threading.Event()
+
+    def publish():
+        gate.set_chat_dependencies_ready(ready, blocker="chat_dependencies_failed")
+        published.set()
+
+    with gate._foreground_ready_lock:
+        publisher = threading.Thread(target=publish)
+        publisher.start()
+        completed_while_owned = published.wait(1.0)
+    publisher.join(timeout=2.0)
+
+    assert not publisher.is_alive()
+    assert completed_while_owned
+    public = gate.get_conversation_status()
+    assert public["chat_dependencies_ready"] is ready
+    assert public["conversation_ready"] is ready
+    assert ("chat_dependencies_failed" in public["readiness_blockers"]) is not ready

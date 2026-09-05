@@ -511,11 +511,14 @@ class WindowRunner:
             if snaps is not None:
                 try:
                     if kv_transaction is not None:
-                        kv_transaction.observe_mutation(
-                            cache,
-                            execution_failed=execution_failed,
-                        )
-                        kv_transaction.restore_parent(cache)
+                        try:
+                            kv_transaction.observe_mutation(
+                                cache,
+                                execution_failed=execution_failed,
+                            )
+                        finally:
+                            # Invalid speculative work must still release its cache writes.
+                            kv_transaction.restore_parent(cache)
                     else:
                         _restore_recurrent_caches(cache, start, end, snaps)
                     if kv_transaction is None and not _cache_matches_snapshot(

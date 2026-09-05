@@ -2638,8 +2638,7 @@ class InferenceGate:
         # ``None`` means the server has not bound the foreground dependency
         # owner yet.  This keeps the model lane independently usable in
         # headless/proof processes that do not host the desktop chat surface.
-        self._chat_dependencies_ready: bool | None = None
-        self._chat_dependencies_blocker: str = ""
+        self._chat_dependencies_snapshot: tuple[bool | None, str] = (None, "")
         self._last_background_memory_shed_at: float = 0.0
         self._last_spare_maintenance_at: float = 0.0
         self._last_cortex_warmup_deferral_log_at: float = 0.0
@@ -2680,12 +2679,14 @@ class InferenceGate:
     ) -> None:
         """Publish whether non-model foreground dependencies are materialized."""
 
-        with self._foreground_ready_lock:
-            self._chat_dependencies_ready = bool(ready)
-            self._chat_dependencies_blocker = "" if ready else (
-                str(blocker or "chat_dependencies_warming").strip()[:160]
-                or "chat_dependencies_warming"
-            )
+        # Foreground warmup can hold its operation lock while awaiting these
+        # dependencies. Publish one immutable value without joining that wait.
+        ready = bool(ready)
+        reason = "" if ready else (
+            str(blocker or "chat_dependencies_warming").strip()[:160]
+            or "chat_dependencies_warming"
+        )
+        self._chat_dependencies_snapshot = (ready, reason)
 
     def get_cortex_readiness_status(self) -> dict[str, Any]:
         """Read model-lane readiness without the chat-dependency overlay.
@@ -5681,16 +5682,11 @@ class InferenceGate:
             lane["foreground_endpoint"] = PRIMARY_ENDPOINT
         elif lane_state != "ready":
             lane["conversation_ready"] = False
-        chat_dependencies_state = getattr(self, "_chat_dependencies_ready", None)
+        chat_dependencies_state, dependency_blocker = getattr(
+            self, "_chat_dependencies_snapshot", (None, "")
+        )
         if chat_dependencies_state is False:
-            blocker = str(
-                getattr(
-                    self,
-                    "_chat_dependencies_blocker",
-                    "chat_dependencies_warming",
-                )
-                or "chat_dependencies_warming"
-            )
+            blocker = dependency_blocker or "chat_dependencies_warming"
             blockers = list(lane.get("readiness_blockers") or ())
             if blocker not in blockers:
                 blockers.append(blocker)

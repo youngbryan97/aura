@@ -52584,3 +52584,28 @@ Checkpoint gates: smoke 163 passed, 1 skipped; lint, compile, layering and
 writing passed. Smoke took 145.41 seconds while another agent's test process
 and the live runtime were active. This duration is a gate-run measurement,
 not a model latency measurement.
+
+## Checkpoint 2026-09-05: Release Readiness Without Waiting on Its Consumer
+
+The a49365744 desktop replay accepted the checked-fact/inference question at
+09:28:47 local but remained warming. A SIGUSR1 stack sample located the API
+thread in set_chat_dependencies_ready while acquiring the foreground model
+operation lock. The foreground readiness path can own that lock across async
+waits, preventing the API loop from publishing the dependency completion that
+would let the turn proceed. Two thread regressions reproduced the blocked
+publication for both success and failure. Dependency readiness now publishes
+one immutable (state, reason) snapshot independently of model ownership.
+The model-operation exclusion and dependency admission requirements remain.
+
+A separate real-MLX regression showed that a mutation audit exception skipped
+parent cache restoration. The speculative window now restores in a finally
+block while preserving the audit exception. Cache-lineage tests: 23 passed.
+Readiness, embedding warmup and lock cancellation tests: 16 passed. Smoke:
+163 passed, 1 skipped. Lint, compile, layering and writing passed. The failed
+live turn is not evidence of a successful RLC replay; source-matched replay
+of these changes remains next.
+
+Claude's deterministic search and repeated-scan fixes through a49365744 are
+incorporated. Native cognition gauntlet improvements remain distinct from
+resident neural transfer. Parallel follow-up now covers capability selection
+and existing semantic arbitration reuse; the resident lane has one owner.

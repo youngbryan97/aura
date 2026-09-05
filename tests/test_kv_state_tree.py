@@ -493,6 +493,35 @@ def test_real_qwen_rejected_work_cannot_change_regenerated_window():
     assert all(event["pruned"] for event in receipt["events"])
 
 
+def test_window_restores_parent_when_mutation_audit_raises(monkeypatch):
+    from core.brain.llm.latent_cortex.kv_mutation_transaction import KVMutationTransaction
+    from core.brain.llm.latent_cortex.recurrence import _cache_matches_snapshot
+    from core.brain.llm.recurrent_depth import _snapshot_recurrent_caches
+
+    model = _tiny_model()
+    cache, hidden = _prefill(model, PROMPT)
+    snapshots = _snapshot_recurrent_caches(cache, 0, N_LAYERS)
+    tree = KVStateTree(
+        cache,
+        n_layers=N_LAYERS,
+        episode_id="episode-test",
+        input_tokens_sha256=_sha("prompt"),
+    )
+    runner = WindowRunner(model.model, ComputeBudget())
+    runner.attach_kv_state_tree(tree)
+
+    def reject_mutation(self, cache, *, execution_failed):
+        assert not execution_failed
+        assert not _cache_matches_snapshot(cache, 0, N_LAYERS, snapshots)
+        raise KVStateTreeError("injected mutation audit failure")
+
+    monkeypatch.setattr(KVMutationTransaction, "observe_mutation", reject_mutation)
+    with pytest.raises(KVStateTreeError, match="injected mutation audit failure"):
+        runner.run(hidden[:, -2:, :], cache, 1, 5, persist=False)
+
+    assert _cache_matches_snapshot(cache, 0, N_LAYERS, snapshots)
+
+
 def test_full_real_episode_emits_valid_final_tree():
     model = _tiny_model()
     config = CortexConfig(
