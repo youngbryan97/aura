@@ -36,7 +36,7 @@ buildable thing. Status is measured, not asserted.
 | # | Item | Status |
 | :-- | :-- | :-- |
 | 14 | Memory allocation across representational substrates: symbolic vs adapter vs weights, by expected lifetime usefulness, confidence and interference cost | **DONE** — `core/memory/substrate_allocation.py`; confidence gates come before value, and adapter capacity contention is what makes the weights ever the right answer (without it that branch is unreachable) |
-| 15 | Self-repair under unknown failures: recognise a failure the ontology does not contain, infer the broken invariant, localise, invent a repair, verify, integrate the new failure concept | OPEN |
+| 15 | Self-repair under unknown failures: recognise a failure the ontology does not contain, infer the broken invariant, localise, invent a repair, verify, integrate the new failure concept | **DONE** — `core/resilience/unknown_failure.py`; signatures are learned from instances rather than read off catalogue prose, so the recogniser has a null: a repeat of a known fault must come back KNOWN |
 | 16 | Architectural self-discovery: shadow architectures, forked trials, compatibility interfaces, migration proofs | OPEN |
 | 17 | Primitive invention that feeds later invention, rather than composition of human-supplied primitives | OPEN |
 | 18 | Autonomous transfer: discover the invariant without anyone tagging both domains | OPEN |
