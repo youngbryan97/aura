@@ -3608,6 +3608,37 @@ async def pursue_on_screen(
                 pending["arranged"], pending["whole"], pending.setdefault("shapes", {})
             ),
         )
+        # A frame to work in while the one she will believe is still settling.
+        #
+        # The grid she trusts is built from the places that answer to her,
+        # gathered over acts, and it is right to make that wait until the set
+        # has stopped growing. What it costs is the whole of the beginning:
+        # the set takes on about a place an act, so it is rarely still, and
+        # until it is there is no frame — so no two readings are comparable,
+        # so nothing is learned from the moves she is making meanwhile.
+        # Measured on a run through her own reasoning: three of twenty-nine
+        # moves reached the rule.
+        #
+        # The crop is a second source and a better-behaved one. It sees the
+        # whole of a thing laid out in one glance rather than accumulating it,
+        # so two glances of a steady board offer the same lines and it settles
+        # in a couple of cycles. Offered through the same settling rule, and
+        # replaced the moment the places that answer settle into something
+        # else, because that one is about what she can act on and this one is
+        # only about what is drawn.
+        if not lattice.held and _is_a_thing_laid_out(laid_out):
+            down, across = laid_out.down_at, laid_out.across_at
+            if len(down) >= 2 and len(across) >= 2:
+                corners = [
+                    (int(round(x * 100)), int(round(y * 100)))
+                    for y in down
+                    for x in across
+                ]
+                if lattice.built_from(corners, len(moves)):
+                    logger.info(
+                        "holding the frame she can see, for now: %dx%d",
+                        lattice.rows, lattice.columns,
+                    )
 
         # Is this the thing she was asked to act in.
         #
