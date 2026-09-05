@@ -141,6 +141,14 @@ replies — is checked against [docs/WRITING_RULES.md](docs/WRITING_RULES.md).
   `get_tracer().write()` writes a Perfetto-loadable trace;
   `get_memory_infra().diff(a, b).narrative()` names what grew.
 - Full map: [docs/ENGINEERING_ADOPTION.md](docs/ENGINEERING_ADOPTION.md).
+- **Morphogenesis** holds the runtime topology as state: which cell can reach
+  which, changed only through a governor that measures the change and can undo
+  it. `runtime_health_report()` and the system route carry the shape — version,
+  bindings, components, whether it is partitioned. The experiments are offline
+  and deterministic: `tools/run_morphogenesis_sandbox.py --scenario all
+  --ablations`, and `--audit` prints every seam to the rest of the system
+  including what is deliberately not wired. See
+  [docs/MORPHOGENESIS.md](docs/MORPHOGENESIS.md).
 - **Design and drawing** is a separate thing from the above:
   `core/engineering/` computes a physical design and draws it, and its
   `DEPS` forbids it reaching anything that generates a number. A value
