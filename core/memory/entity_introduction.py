@@ -392,7 +392,7 @@ class DiscourseSalience:
         self._capacity = max(4, int(capacity))
         self._entities: dict[str, _SalientEntity] = {}
         self._turn = 0
-        self._lock = checked_lock("entity_introduction", reentrant=True)
+        self._lock = checked_lock("entity_introduction.instance", reentrant=True)
 
     def begin_turn(self) -> None:
         with self._lock:
@@ -471,7 +471,7 @@ class DiscourseSalience:
 
 
 _SALIENCE: DiscourseSalience | None = None
-_SALIENCE_LOCK = checked_lock("entity_introduction")
+_SALIENCE_LOCK = checked_lock("entity_introduction.salience")
 
 
 def get_discourse_salience() -> DiscourseSalience:

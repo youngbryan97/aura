@@ -262,7 +262,7 @@ class ThroughputEstimator:
     """
 
     def __init__(self) -> None:
-        self._lock = checked_lock("measured_admission", reentrant=True)
+        self._lock = checked_lock("measured_admission.instance", reentrant=True)
         self._shapes: dict[str, _Samples] = {}
 
     def record(
@@ -386,7 +386,7 @@ class ThroughputEstimator:
 
 
 _ESTIMATOR: ThroughputEstimator | None = None
-_ESTIMATOR_LOCK = checked_lock("measured_admission")
+_ESTIMATOR_LOCK = checked_lock("measured_admission.estimator")
 
 
 def get_throughput_estimator() -> ThroughputEstimator:

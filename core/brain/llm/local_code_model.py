@@ -159,7 +159,7 @@ class _FairAsyncGate:
     """FIFO cross-event-loop gate with cancellation-safe waiter removal."""
 
     def __init__(self) -> None:
-        self._lock = checked_lock("local_code_model")
+        self._lock = checked_lock("local_code_model.instance")
         self._waiters: deque[tuple[object, threading.Event]] = deque()
         self._owner: object | None = None
 
@@ -653,7 +653,7 @@ class LocalCodeModel:
         self.model_path = model_path or _resolve_model_path()
         self._readiness = ReadinessReceipt(ReadinessState.UNVERIFIED, "not_probed")
         self._last_result: CodeGenerationResult | None = None
-        self._state_lock = checked_lock("local_code_model")
+        self._state_lock = checked_lock("local_code_model.state")
 
     def readiness(self) -> ReadinessReceipt:
         with self._state_lock:

@@ -799,7 +799,7 @@ class RootedFlowHandle:
 #: How long a telemetry pulse may wait for the topology lock. Short on purpose:
 #: the pulse is worth far less than the latency of waiting for it.
 _PULSE_LOCK_TIMEOUT_S = 0.05
-_DEFERRED_PULSE_LOCK = checked_lock("mycelium")
+_DEFERRED_PULSE_LOCK = checked_lock("mycelium.deferred_pulse")
 
 
 def _drain_deferred_pulse_handoff_locked(network: "MycelialNetwork") -> None:
@@ -870,7 +870,7 @@ def _take_deferred_pulses(
 #: of a sweep without ever being collected. Capped because an unacknowledged
 #: absorption is a defect report, not a queue: past the cap the count still
 #: rises but no further handles are retained.
-_ABSORBED_FLOW_LOCK = checked_lock("mycelium")
+_ABSORBED_FLOW_LOCK = checked_lock("mycelium.absorbed_flow")
 _MAX_TRACKED_ABSORPTIONS = 256
 
 

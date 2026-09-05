@@ -242,7 +242,7 @@ class CuriosityExplorer:
         self._failures: list[dict[str, Any]] = []
         self._total_explorations = 0
         self._total_attempts = 0
-        self._state_lock = checked_lock("curiosity_explorer", reentrant=True)
+        self._state_lock = checked_lock("curiosity_explorer.state", reentrant=True)
         # Exploration is a bounded work lane, not a state critical section.
         # A checked lock here used to remain registered across constitutional
         # receipts, search, model inference, and durable heuristic writes.  The
@@ -849,7 +849,7 @@ class CuriosityExplorer:
 
 
 _explorer: CuriosityExplorer | None = None
-_explorer_lock = checked_lock("curiosity_explorer")
+_explorer_lock = checked_lock("curiosity_explorer.explorer")
 
 
 def get_curiosity_explorer() -> CuriosityExplorer:

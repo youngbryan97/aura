@@ -73,7 +73,7 @@ class BlackHoleVault:
         self._dirty = False
         self._fallback_mode = False
         self._collection = self  # Compatibility surface, not a Chroma collection.
-        self._mutation_lock = checked_lock("black_hole_vault.mutation", reentrant=True)
+        self._mutation_lock = checked_lock("black_hole_vault.mutation.mutation", reentrant=True)
         self._initialized = False
         self._init_error: Optional[str] = None
         self._ensure_ready()
@@ -186,7 +186,7 @@ class BlackHoleVault:
         """Return the one lock that owns the in-memory collection."""
         lock = getattr(self, "_mutation_lock", None)
         if lock is None:
-            lock = checked_lock("black_hole_vault.mutation", reentrant=True)
+            lock = checked_lock("black_hole_vault.mutation.lock", reentrant=True)
             self._mutation_lock = lock
         return lock
 

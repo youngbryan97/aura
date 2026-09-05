@@ -113,7 +113,7 @@ class AuditLog:
         # CP126 48b8237f: check_same_thread=False permitted concurrent
         # callers while connection creation, execute, commit, heal, close
         # and query were all unsynchronised.
-        self._lock = checked_lock("audit", reentrant=True)
+        self._lock = checked_lock("audit.instance", reentrant=True)
         self._unavailable = False
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         self._init()
@@ -564,7 +564,7 @@ class AuditLog:
 
 
 _audit: Optional[AuditLog] = None
-_audit_lock = checked_lock("audit")
+_audit_lock = checked_lock("audit.module")
 
 
 def get_audit() -> AuditLog:

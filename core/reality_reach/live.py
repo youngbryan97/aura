@@ -374,8 +374,8 @@ class RealityReachService:
         monotonic_clock_ns: Any = time.monotonic_ns,
         session_id: str | None = None,
     ) -> None:
-        self._lock = checked_lock("live", reentrant=True)
-        self._refresh_lock = checked_lock("live")
+        self._lock = checked_lock("live.instance", reentrant=True)
+        self._refresh_lock = checked_lock("live.refresh")
         self._clock_ns = clock_ns
         self._monotonic_clock_ns = monotonic_clock_ns
         self._session_id = session_id or str(uuid.uuid4())
@@ -974,7 +974,7 @@ class RealityReachService:
 
 
 _SERVICE: RealityReachService | None = None
-_SERVICE_LOCK = checked_lock("live")
+_SERVICE_LOCK = checked_lock("live.service")
 
 
 def get_reality_reach_service() -> RealityReachService:

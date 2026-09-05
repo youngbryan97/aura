@@ -223,7 +223,7 @@ class DurableLearningGate:
     """
 
     def __init__(self, *, ledger_path: Path | str | None = None) -> None:
-        self._lock = checked_lock("durable_learning", reentrant=True)
+        self._lock = checked_lock("durable_learning.instance", reentrant=True)
         self._ledger: list[dict[str, Any]] = []
         self._by_evidence: dict[str, list[str]] = {}
         self._invalidated: set[str] = set()
@@ -510,7 +510,7 @@ class DurableLearningGate:
 
 
 _GATE: DurableLearningGate | None = None
-_GATE_LOCK = checked_lock("durable_learning")
+_GATE_LOCK = checked_lock("durable_learning.gate")
 
 
 def get_durable_learning_gate() -> DurableLearningGate:

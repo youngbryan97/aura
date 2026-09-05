@@ -390,7 +390,7 @@ class AssociativeEntityMemory:
         self._db_path = Path(db_path)
         self._cal = calibration or Calibration()
         self._attachment = attachment_system
-        self._lock = checked_lock("associative_entity_memory", reentrant=True)
+        self._lock = checked_lock("associative_entity_memory.instance", reentrant=True)
         self._conn: sqlite3.Connection | None = None
         self._degraded = False
         self._init_db()
@@ -1085,7 +1085,7 @@ class AssociativeEntityMemory:
 # ── singleton ───────────────────────────────────────────────────────────────
 
 _INSTANCE: AssociativeEntityMemory | None = None
-_INSTANCE_LOCK = checked_lock("associative_entity_memory")
+_INSTANCE_LOCK = checked_lock("associative_entity_memory.instance2")
 
 
 def reset_associative_entity_memory_for_test() -> None:

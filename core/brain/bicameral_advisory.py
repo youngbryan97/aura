@@ -49,7 +49,7 @@ from core.runtime.lockdep import checked_lock
 from core.runtime.turn_analysis import canonical_turn_text
 from core.security.structural_redaction import redact_text
 
-_SINGLETON_LOCK = checked_lock("bicameral_advisory")
+_SINGLETON_LOCK = checked_lock("bicameral_advisory.singleton")
 
 
 class BicameralAdvisory:
@@ -57,7 +57,7 @@ class BicameralAdvisory:
 
     def __init__(self, history_limit: int = 128):
         bounded_limit = max(1, min(MAX_HISTORY_LIMIT, int(history_limit)))
-        self._lock = checked_lock("bicameral_advisory", reentrant=True)
+        self._lock = checked_lock("bicameral_advisory.instance", reentrant=True)
         self._history: deque[dict[str, Any]] = deque(maxlen=bounded_limit)
         self._issued_frames: dict[str, BicameralFrame] = {}
         self._feedback_applied: set[str] = set()
