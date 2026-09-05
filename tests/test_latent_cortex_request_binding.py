@@ -84,6 +84,28 @@ def test_the_client_still_refuses_a_mismatch_itself():
     assert 'identity_errors.append("request_payload_sha256_mismatch")' in source
 
 
+@pytest.mark.parametrize("evidence", [{}, {"baseline_text": "private", "baseline_tokens": [1]}, None])
+def test_client_success_mapping_preserves_private_validation_evidence(evidence):
+    import ast
+    from pathlib import Path
+
+    source = Path("core/brain/llm/mlx_client.py").read_text()
+    tree = ast.parse(source)
+    mappings = [
+        node for node in ast.walk(tree) if isinstance(node, ast.Dict)
+        and any(isinstance(key, ast.Constant) and key.value == "request_payload_sha256_bound"
+                for key in node.keys)
+    ]
+    assert len(mappings) == 1
+    values = [value for key, value in zip(mappings[0].keys, mappings[0].values)
+              if isinstance(key, ast.Constant) and key.value == "answer_replacement_private"]
+    assert len(values) == 1
+    expression = ast.Expression(body=values[0])
+    actual = eval(compile(expression, "client-success-mapping", "eval"),
+                  {"res": {"answer_replacement_private": evidence}})
+    assert actual is evidence
+
+
 def test_the_facade_does_not_recompute_the_digest():
     """Duplicating the wire normalization would drift and reject valid
     receipts on the live path."""

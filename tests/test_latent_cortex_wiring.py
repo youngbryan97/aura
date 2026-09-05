@@ -4447,6 +4447,45 @@ def test_service_uses_executed_default_branch_count_for_learned_evidence():
     assert "mistake_locator_unproven" not in errors
 
 
+def test_service_validates_zero_exchange_trace_and_accounting():
+    from core.brain.latent_cortex_service import _check_the_exchange_count_contract
+    from core.brain.llm.latent_cortex.branch_exchange import build_branch_exchange_trace
+
+    config = {
+        "n_branches": 2, "n_slots": 4, "comm_slot": 0,
+        "exchange_gamma": 0.35, "exchange_interval": 2,
+    }
+    receipt = {
+        "branch_isolation": {}, "cognitive_slots": [], "schedule_hash": "test",
+        "bytecode_events": [], "cognitive_action_trace": [],
+    }
+    receipt["branch_exchange"] = build_branch_exchange_trace(
+        exchanges=[], **config, **receipt,
+    )
+
+    def check(value, accounting=None):
+        errors = []
+        _check_the_exchange_count_contract(
+            config=config, errors=errors, exchanges=0, receipt=value,
+            resource_accounting=accounting,
+        )
+        return errors
+
+    assert check(receipt) == []
+    forged = copy.deepcopy(receipt)
+    forged["branch_exchange"]["exchange_count"] = 1
+    assert check(forged) == ["branch_exchange_provenance_unproven"]
+    declared = copy.deepcopy(receipt)
+    declared["bytecode_events"] = [{"kind": "exchange", "done": True, "op": 0}]
+    assert check(declared) == ["branch_exchange_provenance_unproven"]
+    assert check(receipt, {"operations": {"branch_exchange": {
+        "tensor_element_reads": 1, "tensor_element_writes": 0, "tensor_scalar_ops": 0,
+    }}}) == ["branch_exchange_resource_binding_unproven"]
+    assert check(receipt, {"operations": {"branch_exchange": {
+        "tensor_element_reads": 0, "tensor_element_writes": 0, "tensor_scalar_ops": 0,
+    }}}) == []
+
+
 def test_service_reconstructs_and_rejects_branch_exchange_tampering():
     config = {
         "n_branches": 2,

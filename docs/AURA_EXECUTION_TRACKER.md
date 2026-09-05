@@ -52793,3 +52793,25 @@ answer_replacement_unproven. Ordinary generation is still in progress. No
 live RLC success is claimed. The neural stream also exposed repeated field
 saturation, duplicate vitals, Reddit session failures and dropped autonomous
 tool custody receipts; these remain separate open observations.
+
+## Checkpoint 2026-09-05: Carry and Validate RLC Evidence Across Boundaries
+
+The live engine emits a signed empty branch-exchange trace when no exchange
+occurs. The service rejected that trace by object shape. It now reconstructs
+zero-exchange traces with the same validator used for nonzero traces, rejects
+missing declared synchronization events and forged counts, and requires zero
+resource operations if accounting is present.
+
+The worker's answer-replacement private evidence was also omitted from the
+client success mapping. The client now carries it to the service, which
+already consumes and removes it before publishing product results. Missing
+evidence remains missing; no evidence is fabricated or gate bypassed.
+
+Receipt wiring and request-binding tests: 143 passed. Smoke: 163 passed,
+one skipped. Lint, compile and layering passed. Live remains on e97f831b7.
+The first replay delivered a smaller-model-labelled answer after six minutes,
+with an illustrative temperature presented as verified. A later spontaneous
+message exposed a critique fragment. The follow-up remains under repair;
+its worker was actively decoding when the parent declared a token stall.
+These observations do not establish live closure. Steering request semantics,
+progress across internal retries, and source-witness integration remain open.

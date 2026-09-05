@@ -11364,6 +11364,8 @@ class MLXLocalClient:
                     # happened instead of shape-checking the receipt's own
                     # claim about itself.
                     "request_payload_sha256_bound": expected_request_sha256,
+                    # The service consumes this evidence before publishing its result.
+                    "answer_replacement_private": res.get("answer_replacement_private"),
                     **(
                         {
                             "action_state_capture_receipt": action_capture_receipt,

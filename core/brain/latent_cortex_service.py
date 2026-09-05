@@ -434,7 +434,9 @@ def _check_the_exchange_count_contract(
     writing. It reads 5 name(s) from the turn and hands back
     0.
     """
-    if type(exchanges) is int and exchanges > 0:
+    if type(exchanges) is int and exchanges >= 0 and (
+        exchanges > 0 or receipt.get("branch_exchange") not in ({}, None)
+    ):
         try:
             from core.brain.llm.latent_cortex.branch_exchange import (
                 validate_branch_exchange_trace,
@@ -470,6 +472,8 @@ def _check_the_exchange_count_contract(
                 if resource_accounting is not None
                 else None
             )
+            if exchanges == 0 and operation is None:
+                return
             if (
                 not isinstance(operation, dict)
                 or operation.get("tensor_element_reads") != expected_reads
