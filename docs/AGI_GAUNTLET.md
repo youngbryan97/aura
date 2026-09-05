@@ -114,6 +114,23 @@ system that had learned everything and one that had learned nothing alike.
 
 Twelve of twelve runnable gates pass. Six print what they need.
 
+Commit c38d05bee305, clean tree, seed 17963561679591857243:
+
+| # | gate | measured |
+|---|---|---|
+| 1 | fluid intelligence | P₀ 0.755, P_L 0.955, one wrong in two hundred, forty-eight refusals to it |
+| 2 | interactive novel-world learning | 0.833 solved, acting at random 0.000 |
+| 3 | learning from experience | gain 0.412 keeping, 0.000 reset, n=30 each |
+| 4 | cross-domain transfer | gain above zero on the pairs, at zero on the controls |
+| 9 | new-skill acquisition | gain 0.449 keeping, 0.000 reset |
+| 10 | concept acquisition and invention | six of six verdicts right, depth 2 |
+| 11 | planning under novelty | 0.567 recovered, 0.033 for a policy that persists |
+| 13 | epistemic competence | calibration error 0.024 |
+| 15 | robustness | nothing invented under pressure |
+| 16 | generality | 3,476 files, no benchmark-keyed path |
+| 17 | persistence of learning | record, library and failure ontology all survive |
+| 18 | independent reproducibility | environments and answers reproduce; freeze trustworthy |
+
 Two numbers are worth repeating because of how they were arrived at. Gate one
 measures two hundred sealed rules rather than forty, because the standard
 error at forty is about 0.056 and the same solver measured 0.65, 0.77, 0.80,
