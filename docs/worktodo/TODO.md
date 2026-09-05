@@ -43,5 +43,5 @@ buildable thing. Status is measured, not asserted.
 | 19 | Identity relation under deep modification: causal continuity, not a hash | **DONE** — `core/identity/continuity_relation.py`; gradual total replacement is continuous, instantaneous is not, and the two end in the same bytes; a restored backup matches the hash and breaks the chain |
 | 20 | Value development levels: separate what may change from what may not, and which learning touches which | OPEN |
 | 21 | Social cognition over years: trust, attachment, norms, shared history, repair after conflict, nested beliefs | OPEN |
-| 22 | Embodied epistemic agency: choose observations by expected information gain | OPEN |
+| 22 | Embodied epistemic agency: choose observations by expected information gain | **DONE** — `core/perception/expected_information_gain.py`; an observation every hypothesis predicts alike scores zero however interesting it looks, and gain is separated from worth |
 | 23 | Native cognitive medium: internal representations optimised for computation rather than communication | OPEN |
