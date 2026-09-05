@@ -569,10 +569,15 @@ def _affine_forms_that_fit(
     reaches shapes nobody wrote down. At length six the authored positional
     forms reach fifteen permutations and this family reaches forty-four.
 
-    The cost is a search over the modulus and the multiplier, which is O(n^2)
-    in the length of the state and does not grow with how much the family can
-    say. That is the whole argument for it: a basis a person extends one form
-    at a time is a family somebody can fit in a loop.
+    The cost is the observations at two positions, because those fix a member
+    of the family, and it does not grow with how much the family can say. That
+    is the whole argument for it: a basis a person extends one form at a time
+    is a family somebody can fit in a loop.
+
+    The one case that stays expensive is a state where every position could
+    have come from every other — a sequence whose cells are all alike says
+    nothing about where any of them moved — and there the same budget applies
+    as to the authored basis.
     """
 
     size = len(options)
@@ -599,8 +604,26 @@ def _affine_forms_that_fit(
         # standing still in the observations too.
         if any(place not in options[place] for place in range(modulus, size)):
             continue
-        for multiplier in range(modulus):
-            for shift in range(modulus):
+        # Solved for, rather than searched over.
+        #
+        # A member of this family is fixed by two of its values: position 0
+        # takes from b, and position 1 takes from a+b, so the observations at
+        # those two positions name every (a, b) worth trying. The loop was over
+        # every multiplier and every shift — O(n^2) rules each costing O(n) to
+        # lay out, so O(n^3) in the length, and 22 calls at length one hundred
+        # spent 21.8 of 25.8 seconds here. Same rules, same order, arrived at
+        # from what was observed, which is what the docstring above already
+        # claimed this function did.
+        candidates: list[tuple[int, int]] = []
+        for shift in sorted(set(options[0])):
+            if not 0 <= shift < modulus:
+                continue
+            for lands in sorted(set(options[1])):
+                multiplier = (lands - shift) % modulus
+                candidates.append((multiplier, shift))
+        for multiplier, shift in sorted(set(candidates)):
+                if len(found) >= MOST_FORMS_AT_A_LENGTH:
+                    break
                 a, b = signed(multiplier, modulus), signed(shift, modulus)
                 rule = IndexProgram("affine", (a, b, delta))
                 landing = tuple(rule(place, size) for place in range(size))
@@ -633,6 +656,7 @@ def _forms_that_fit(
     force_compose: bool = False,
     reach_for_the_family: bool = False,
     three_deep: bool = False,
+    most_pairs: int | None = None,
 ) -> list[tuple[str, str, Callable[[int, int], int]]]:
     """Every shape whose answer is among the possibilities at every position.
 
@@ -685,12 +709,13 @@ def _forms_that_fit(
     two: list[tuple[float, int, tuple[str, str, IndexProgram]]] = []
     scored = 0
     tried_pairs = 0
+    pair_budget = MOST_PAIRS_TRIED if most_pairs is None else max(0, int(most_pairs))
     for _fa, first_text, first in singles:
-        if tried_pairs >= MOST_PAIRS_TRIED:
+        if tried_pairs >= pair_budget:
             break
         for _fb, second_text, second in singles:
             tried_pairs += 1
-            if tried_pairs > MOST_PAIRS_TRIED:
+            if tried_pairs > pair_budget:
                 break
             composed = IndexProgram("compose", (), (first, second))
             said = f"{second_text}, then {first_text}"
@@ -1187,6 +1212,7 @@ def invent_relation(
     known_forms: Sequence[tuple[str, str, Callable[[int, int], int]]] = (),
     without: frozenset[str] = frozenset(),
     about: Sequence[int] = (),
+    most_pairs: int | None = None,
 ) -> InventedRelation | None:
     """Work out the relation these transitions need, or return None.
 
@@ -1208,6 +1234,14 @@ def invent_relation(
     caller knows. Whether the observations settle a question depends on the
     question, and without it settledness is checked over a neighbourhood of
     the lengths shown rather than over the case in hand.
+
+    ``most_pairs`` is how many two-deep compositions the caller is willing to
+    pay for. The pass is quadratic in the number of shapes, which is itself
+    about linear in the length, so a state ten times longer costs a hundred
+    times more and the default budget stops meaning anything. A caller working
+    at a length the default was never sized for should say what it will spend
+    and report the number beside the answer: a refusal under a small budget and
+    a refusal under a large one are different findings.
     """
 
     observed = [
@@ -1231,6 +1265,7 @@ def invent_relation(
                     force_compose=force_compose,
                     reach_for_the_family=family,
                     three_deep=three_deep,
+                    most_pairs=most_pairs,
                 )
                 for item in possibilities
                 if item

@@ -232,19 +232,52 @@ class WhatSheHasWorkedOut:
         if not self.readings:
             return float(state.score)
         # The tightest guess consistent with everything she has read, rather
-        # than the reading nearest by. A number that falls by at most one a
-        # step cannot be lower than any reading minus the distance to it, so
-        # the best guess is the largest of those bounds — and every reading
-        # she has contributes to it.
+        # than the reading nearest by. A number that falls by at most ``slope``
+        # a step cannot be lower than any reading minus slope times the
+        # distance to it, so the best guess is the largest of those bounds —
+        # and every reading she has contributes to it.
         #
         # Taking the nearest one alone throws the rest away, and far from
         # anywhere she has stood that is a guess made from one number. She
         # climbed correctly near what she had seen and wandered beyond it.
+        #
+        # ``slope`` used to be one, which is true of a number that counts the
+        # steps left to the goal and of nothing else. Stated that way it is a
+        # prior about the world supplied on her behalf: it says the reading
+        # points at the answer, which is exactly the thing a world with no
+        # instructions is supposed to be withholding. It is measured now, from
+        # the readings she has taken at places a step apart. A signal that does
+        # not move with position measures nought, the bound goes flat, and
+        # nothing she has read pretends to say where to go — which is the
+        # correct reading of a number that is not a gradient.
+        rate = self.how_fast_it_changes()
+        if rate <= 0.0:
+            return sum(self.readings.values()) / len(self.readings)
         return max(
             float(value)
-            - (abs(place[0] - there[0]) + abs(place[1] - there[1]))
+            - rate * (abs(place[0] - there[0]) + abs(place[1] - there[1]))
             for place, value in self.readings.items()
         )
+
+    def how_fast_it_changes(self) -> float:
+        """The most the reading has been seen to move over one step.
+
+        Empirical and one-sided: the largest change observed between two
+        places a step apart. Anything smaller would make the bound below claim
+        more than the readings support, and the bound is only useful because
+        nothing she has seen contradicts it.
+        """
+
+        fastest = 0.0
+        for place, value in self.readings.items():
+            for step in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+                beside = self.readings.get((place[0] + step[0], place[1] + step[1]))
+                if beside is None:
+                    continue
+                moved = abs(float(beside) - float(value))
+                if moved > fastest:
+                    fastest = moved
+        return fastest
 
     def confidence(self) -> float:
         """No prediction, no confidence. Nothing is assumed on her behalf."""

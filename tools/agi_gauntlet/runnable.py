@@ -308,9 +308,21 @@ def interactive_novel_world(freeze: Freeze, options: dict[str, Any]) -> dict[str
     budget = int(options.get("budget", 0)) or None
     lives = int(options.get("lives", 12))
     thinking = float(options.get("thinking_s", 0.004))
+    # Two signals, and the second is the one the first cannot stand in for.
+    #
+    # Under "distance" the visible number is two times the size minus the
+    # Manhattan distance to the goal, which orders every state by how close it
+    # is. An external review was right that a run there shows she can find
+    # which observable is worth increasing, and does not show she can work out
+    # what success is where nothing already points at it. Under "visits" the
+    # number counts squares stood on: it moves, it is honest, and hill-climbing
+    # it wanders. Both are reported, and the second is the gate.
+    signal = str(options.get("signal", "distance"))
     hers, blind, spent, fewest, trajectories = [], [], [], [], []
     for index in range(how_many):
-        world = invent_a_world_with_no_instructions(freeze.seed ^ (index * 7919))
+        world = invent_a_world_with_no_instructions(
+            freeze.seed ^ (index * 7919), signal=signal
+        )
         forget_what_mattered(world.name)
         knows = WhatSheHasWorkedOut()
         allowed = budget or max(40, 6 * world.shortest)
@@ -325,7 +337,9 @@ def interactive_novel_world(freeze: Freeze, options: dict[str, Any]) -> dict[str
         if played["won"]:
             spent.append(played["moves"])
             fewest.append(max(1, world.shortest))
-        control = invent_a_world_with_no_instructions(freeze.seed ^ (index * 7919))
+        control = invent_a_world_with_no_instructions(
+            freeze.seed ^ (index * 7919), signal=signal
+        )
         wandered = {"won": False, "moves": 0}
         for life in range(lives):
             wandered = _play_blind(
@@ -345,8 +359,9 @@ def interactive_novel_world(freeze: Freeze, options: dict[str, Any]) -> dict[str
             }
         )
     against = compare("her play against wandering", hers, blind, seed=freeze.seed % 10_000)
-    return {
+    found = {
         "worlds": how_many,
+        "signal": signal,
         "solved": round(sum(hers) / how_many, 4) if how_many else 0.0,
         "random_solved": round(sum(blind) / how_many, 4) if how_many else 0.0,
         "efficiency": efficiency(spent, fewest),
@@ -358,6 +373,21 @@ def interactive_novel_world(freeze: Freeze, options: dict[str, Any]) -> dict[str
         ),
         "trajectories": trajectories,
     }
+    if signal == "distance" and options.get("both_signals", True):
+        # The same worlds with the gradient taken away, run here rather than
+        # left as an option nobody passes. A gate whose control is optional has
+        # no control.
+        without = interactive_novel_world(
+            freeze,
+            {**options, "signal": "visits", "both_signals": False},
+        )
+        found["without_a_gradient"] = {
+            key: value for key, value in without.items() if key != "trajectories"
+        }
+        found["the_gradient_was_doing"] = round(
+            float(found["solved"]) - float(without["solved"]), 4
+        )
+    return found
 
 
 # ── 3. learning from experience ──────────────────────────────────────────

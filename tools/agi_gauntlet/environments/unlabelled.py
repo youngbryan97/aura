@@ -35,6 +35,16 @@ class AWorldWithNoInstructions:
     #: not to step on one.
     _traps: frozenset = field(repr=False, default=frozenset())
     _where: tuple[int, int] = (0, 0)
+    #: What the visible number reports. "distance" is a dense gradient: it
+    #: rises as she nears the goal, so hill-climbing it arrives. "visits" is
+    #: honest and useless — it counts where she has been, moves every time
+    #: something new happens, and orders no state closer to the goal than any
+    #: other. The second exists because an external review was right about the
+    #: first: a world whose observable is already a proxy for success measures
+    #: whether she can climb a gradient, not whether she can work out what
+    #: success is.
+    _signal: str = "distance"
+    _visited: set = field(repr=False, default_factory=set)
     _size: int = 5
     moves: int = 0
     won: bool = False
@@ -59,14 +69,24 @@ class AWorldWithNoInstructions:
         }
 
     def _score(self) -> int:
+        if self._signal == "visits":
+            return len(self._visited)
         return 2 * self._size - (
             abs(self._where[0] - self._goal[0]) + abs(self._where[1] - self._goal[1])
         )
 
     @property
     def best_score(self) -> int:
-        """What the number reads when she has arrived. Not told to her."""
+        """What the number reads when she has arrived. Not told to her.
 
+        Under the visit count there is no such reading: arriving is not where
+        the number is highest, and nothing about the number says the run went
+        well. That is the point of the second signal, and it is why a policy
+        that only climbs the number cannot finish this one.
+        """
+
+        if self._signal == "visits":
+            return self._size * self._size
         return 2 * self._size
 
     def do(self, act: str) -> dict[str, Any]:
@@ -75,6 +95,7 @@ class AWorldWithNoInstructions:
         if self.won or self.lost:
             return self.look()
         self.moves += 1
+        self._visited.add(self._where)
         step = self._effects.get(str(act))
         if step is not None:
             x = min(self._size - 1, max(0, self._where[0] + step[0]))
@@ -92,6 +113,7 @@ class AWorldWithNoInstructions:
 
     def reset(self) -> dict[str, Any]:
         self._where = (0, 0)
+        self._visited = {(0, 0)}
         self.moves = 0
         self.won = False
         self.lost = False
@@ -140,7 +162,12 @@ def _can_be_reached(goal: tuple[int, int], traps: frozenset, size: int) -> bool:
 
 
 def invent_a_world_with_no_instructions(
-    seed: int, *, size: int = 12, hazard: float = 0.08, lives: int = 12
+    seed: int,
+    *,
+    size: int = 12,
+    hazard: float = 0.08,
+    lives: int = 12,
+    signal: str = "distance",
 ) -> AWorldWithNoInstructions:
     """One sealed world. The act names carry no meaning by design.
 
@@ -161,6 +188,14 @@ def invent_a_world_with_no_instructions(
     it, so a world with sixteen per cent of them and eight lives asks her to
     map ten traps by dying in them ten times. Eight per cent leaves a hazard
     that has to be respected and a map that can be built.
+
+    ``signal`` says what the visible number reports. Under "distance" it is
+    two times the size minus the Manhattan distance to the goal, which orders
+    every state by how close it is: an external review pointed out that this
+    tests inferring which observable is worth increasing, and not inferring
+    what counts as success where nothing already orders the states. Under
+    "visits" the number counts the squares she has stood on. It moves, it is
+    honest, and it says nothing whatever about where the goal is.
     """
 
     rng = random.Random(seed ^ 0x0A11)
@@ -193,4 +228,6 @@ def invent_a_world_with_no_instructions(
         _goal=goal,
         _traps=traps,
         _size=size,
+        _signal=str(signal),
+        _visited={(0, 0)},
     )

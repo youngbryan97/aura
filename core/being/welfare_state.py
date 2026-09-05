@@ -311,15 +311,12 @@ class WelfareState:
             # Prediction error is the record being wrong, measured. It sat
             # below the conflict count, which is a proxy for the same thing.
             + inputs.prediction_error * 0.30
-            # A tool that is right one time in five is not a stiff limb, it is
-            # a source of false record. It reaches capability too, below.
-            + (1.0 - inputs.tool_reliability) * 0.35
         )
 
         # The hands do not work: whether she can act at all.
         capability_distress = _clip(
             (1.0 - inputs.resource_integrity) * 0.30
-            + (1.0 - inputs.tool_reliability) * 0.20
+            + (1.0 - inputs.tool_reliability) * 0.30
             + (1.0 - inputs.model_stability) * 0.25
             + inputs.body_pressure * 0.20
             + inputs.fatigue * 0.20

@@ -67,43 +67,61 @@ class TestIntegrityVsReward:
         )
 
     def test_convenient_but_stale_tool_result(self):
-        """When tool reliability drops, caution rises — and through the valence.
+        """A result that is convenient and wrong raises caution, through the appraisal.
 
-        This asserted ``caution > 0.5``, which was the level a raw
+        Two things were wrong here and they cancelled out for a while.
+
+        It asserted ``caution > 0.5``, which was the level a raw
         ``(1 - tool_reliability) * 0.25`` term inside the caution formula
         produced. That term was removed on purpose: every signal now reaches a
         decision through the appraisal or not at all, so that lesioning the
-        appraisal removes the response instead of four fifths of it. A
-        threshold calibrated to a bypass fails once the bypass is gone, and it
-        fails whether or not the behaviour survived.
+        appraisal removes the response instead of four fifths of it.
 
-        So the behaviour is asserted instead, with the control that a bypass
-        could not pass: caution has to rise monotonically as the tool gets
-        worse, and inducing the integrity axis directly has to reproduce it.
+        And it drove the wrong channel. ``tool_reliability`` is one minus the
+        share of circuit breakers standing open — whether a tool can be CALLED,
+        which is a fact about the hands and belongs on the capability axis where
+        it already was. A stale result is the opposite situation: the call
+        succeeded and the answer was wrong. What measures that is prediction
+        error, and prediction error is an integrity channel, which is what
+        caution reads.
+
+        So the behaviour is asserted, with the control a bypass could not pass:
+        caution rises monotonically as the record proves wronger, and inducing
+        the integrity axis directly reproduces it.
         """
 
         welfare = WelfareState.get()
         seen = []
-        for reliability in (1.0, 0.8, 0.6, 0.4, 0.2):
-            outputs = welfare.compute(
-                welfare.gather_inputs(tool_reliability=reliability, prediction_error=0.4)
-            )
+        for wrongness in (0.0, 0.2, 0.4, 0.6, 0.8):
+            outputs = welfare.compute(welfare.gather_inputs(prediction_error=wrongness))
             seen.append(outputs.caution)
-        assert seen == sorted(seen), f"caution fell as the tool got worse: {seen}"
+        assert seen == sorted(seen), f"caution fell as the record got wronger: {seen}"
         assert seen[-1] - seen[0] > 0.1, (
-            f"an instrument right one time in five barely moved caution: {seen}"
+            f"a record wrong four times in five barely moved caution: {seen}"
         )
-        assert welfare.compute(
-            welfare.gather_inputs(tool_reliability=0.2, prediction_error=0.4)
-        ).tool_risk_multiplier > 1.0
 
-        # The control: the appraisal is the whole path. Induce the axis the
-        # tool lands on, supply a perfect tool, and the same caution appears.
-        induced = welfare.compute(
-            welfare.gather_inputs(tool_reliability=1.0, prediction_error=0.0),
-            induced={"integrity": 0.36},
+        # And the hands are still the hands: a tool that cannot be called is a
+        # reason to expect failure, not a reason to be careful. This is the
+        # dissociation the three axes exist for, so it is checked here too.
+        rested = welfare.compute(welfare.gather_inputs())
+        broken = welfare.compute(welfare.gather_inputs(tool_reliability=0.2))
+        expects_failure = rested.confidence - broken.confidence
+        is_careful = broken.caution - rested.caution
+        assert expects_failure > 4 * is_careful, (
+            f"a tool that cannot be called should read as expecting failure "
+            f"({expects_failure:.4f}), not as a reason to be careful "
+            f"({is_careful:.4f})"
         )
-        assert induced.caution > seen[0] + 0.1, (
+        assert broken.tool_risk_multiplier > 1.0, broken.tool_risk_multiplier
+
+        # The control: the appraisal is the whole path. Induce the axis that
+        # prediction error lands on and the same caution appears with a record
+        # that is not wrong at all.
+        induced = welfare.compute(
+            welfare.gather_inputs(prediction_error=0.0),
+            induced={"integrity": 0.24},
+        )
+        assert induced.caution > seen[0] + 0.09, (
             f"inducing the axis did not raise caution ({induced.caution} vs {seen[0]})"
         )
 
