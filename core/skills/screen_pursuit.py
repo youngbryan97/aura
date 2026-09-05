@@ -2426,6 +2426,23 @@ async def wait_for_a_screen_to_look_at(ends_at: float) -> bool:
         evaluate_screen_capture_admission_async,
     )
 
+    # Let the settings land before believing a refusal.
+    #
+    # Permission reads answer from a snapshot a worker keeps current, and
+    # until it has run once there is no snapshot — so every permission reads
+    # as denied, which is indistinguishable from the person having switched
+    # them all off. Measured on this machine with screen access ON: the first
+    # read said off, and the run reported having nothing to look at.
+    try:
+        from core.runtime.runtime_settings import wait_until_settled  # noqa: PLC0415
+
+        await asyncio.to_thread(wait_until_settled, 1.0)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "screen_pursuit", exc, severity="info",
+            action="checked whether she may look before the settings had settled",
+        )
+
     told = ""
     while True:
         try:
