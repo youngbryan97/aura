@@ -10177,8 +10177,11 @@ async def _answer_from_fallback_ladder(
                 remaining = deadline - time.monotonic()
                 if remaining <= 1.0:
                     break
+                generation_metadata: dict[str, Any] = {}
                 try:
-                    candidate = await asyncio.wait_for(
+                    from core.brain.llm_health_router import _await_while_it_is_working
+
+                    candidate = await _await_while_it_is_working(
                         router.think(
                             text,
                             system_prompt=identity,
@@ -10186,16 +10189,22 @@ async def _answer_from_fallback_ladder(
                             prefer_endpoint=endpoint,
                             foreground_request=True,
                             allow_cloud_fallback=False,
+                            _generation_metadata_sink=generation_metadata,
                         ),
-                        timeout=remaining,
+                        budget_s=remaining,
+                        user_facing=True,
+                        person_is_waiting=True,
                     )
                 except (TimeoutError, *_CHAT_RECOVERABLE_ERRORS):
                     continue
+                stop_reason = str(generation_metadata.get("generation_stop_reason") or "")
+                ladder_chain = list(generation_metadata.get("fallback_chain") or [])
+                considered = considered or bool(ladder_chain)
                 if isinstance(candidate, dict):
                     chain = list(candidate.get("fallback_chain") or [])
                     considered = considered or bool(chain)
                     ladder_chain = chain or ladder_chain
-                    stop_reason = str(candidate.get("generation_stop_reason") or "")
+                    stop_reason = str(candidate.get("generation_stop_reason") or stop_reason)
                     candidate = candidate.get("content") or candidate.get("response") or ""
                 # A result with no text and no chain is nothing to ask having
                 # been asked. Counting it as an attempt is what kept the wait
@@ -18228,7 +18237,7 @@ async def _admit_to_foreground_lane(
             # deferral if it is still true when that budget is gone.
             if _lane_warmup_is_deliberately_deferred(
                 {"last_failure_reason": str(admission_exc or "")}
-            ):
+            ) or str(admission_exc).strip() == "chat_dependencies_warming":
                 retry_deadline = time.monotonic() + max(0.0, admission_budget - 2.0)
                 logger.info(
                     "⏳ Foreground lane deferred (%s); waiting up to %.0fs "
