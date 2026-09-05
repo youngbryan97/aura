@@ -386,6 +386,34 @@ class CRSMLoopMonitor:
             and last_train > 0.0
         )
 
+        # Trained in, and not yet the model she is running.
+        #
+        # A cycle ends by writing a fused candidate and marking the captures
+        # consumed against it. It deliberately does not move the active
+        # pointer — activation is a separate, staged act. So the marker names
+        # the candidate and the pointer names the incumbent, and they do not
+        # match by design.
+        #
+        # Closure was defined as those two matching, which nothing in the
+        # autonomous pipeline can bring about: it prepares a dataset and
+        # trains, and has no evaluate or activate phase at all. The loop could
+        # therefore never report itself closed however well it ran, and the
+        # test that covered it faked a monitor whose active model changed when
+        # training returned zero, so the mismatch never showed.
+        #
+        # The closure test is left exactly as strict as it was — saying closed
+        # when nothing was activated would be a claim about the running model
+        # that is not true. What was missing is the state that actually
+        # happens, which is this one.
+        trained_not_active = bool(
+            marker_matches_dataset
+            and marker_counts_reconcile
+            and marker_consumed_at > 0.0
+            and last_train > 0.0
+            and marker_model_path
+            and not marker_model_matches_active
+        )
+
         if lines == 0:
             state, reason = "idle", "no captured moments yet"
         elif verified_consumption:
@@ -396,6 +424,12 @@ class CRSMLoopMonitor:
                 )
             else:
                 state, reason = "closed", "dataset trained in and weights persisted"
+        elif trained_not_active:
+            state, reason = (
+                "qualified",
+                "dataset trained into a candidate that is not the active model; "
+                "closing it needs an activation this pipeline does not perform",
+            )
         elif unconsumed == 0 and consumed >= lines:
             state, reason = (
                 "pending",
@@ -477,12 +511,14 @@ class CRSMLoopMonitor:
             "--tag",
             "crsm-closeout",
         ]
-        if state in {"closed", "idle"}:
+        if state in {"closed", "qualified", "idle"}:
             return {
                 "required": False,
                 "reason": (
                     "CRSM captures already consumed by active training marker"
                     if state == "closed"
+                    else "CRSM captures trained into a candidate awaiting activation"
+                    if state == "qualified"
                     else "No eligible CRSM captures require training"
                 ),
             }
