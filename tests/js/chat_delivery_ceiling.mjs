@@ -116,5 +116,6 @@ function check(label, condition) {
   check("progress observation does not replace terminal delivery", outcome.ok === true);
 }
 
+await import('./tool_progress_ownership.mjs');
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

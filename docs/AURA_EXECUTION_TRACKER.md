@@ -52897,3 +52897,73 @@ Smoke: 163 passed, one skipped. Compile and diff checks pass. This is an
 observability and stall-diagnosis repair; it does not claim an RLC answer or
 relax an answer, timeout or scientific gate. The commit is `fee841dcf`, pushed
 to `origin/main`. A source-matched live replay is still required.
+
+## Checkpoint 2026-09-05: Keep Background Tool Progress Out of Chat
+
+Live PID 51909 launched canonical revision 8bc3445a2 after the prior runtime
+had exited cleanly. No competing model/training process was present; available
+RAM was 42.58 GiB. Foreground dependency warmup completed in 77.92 seconds
+after Cortex readiness. The chat UI accepted the validation question at
+16:13:05 and delivered a 3,283-character Cortex response at 16:15:14; server
+request timing was 128,061 ms. The turn-scoped generation label was visible.
+The earlier warmup fallback and mid-sentence cutoff did not recur on this turn.
+
+Answer correctness did not pass: the response confused lock contention with
+blocking unrelated threads and the entire asyncio event loop. It also used
+an unnecessarily complicated polling queue example. This is completion-path
+evidence, not an RLC gain or a technical-answer quality pass.
+
+An autonomous email tool event overwrote the foreground typing label before
+generation progress arrived. Global tool events now update tool telemetry
+only; the existing delivery-owned channel controls foreground progress. The
+JavaScript regression executes every tool lifecycle stage and rejects any
+chat label/state write while checking that skill status and fault cards remain.
+Delivery-loop checks pass; smoke passed 164 tests with one skip.
+
+The live neural stream also exposed a concrete persistence failure: interiority
+and phenomena both declare channel 0x1701 (and overlapping following IDs).
+Conversation persistence consequently omitted the interior appraisal. Repair
+of that shared telemetry allocation is next; RLC empty-answer diagnosis and
+general transfer remain open. One capability-engine probe exceeded five
+seconds during boot, and duplicate vital cards remain visible.
+
+## Checkpoint 2026-09-05: Separate Interiority Channel Identity
+
+The seven interiority channels reused phenomena channel IDs 0x1701-0x1707.
+Fresh-process tests reproduced both initialization orders: phenomena-first
+raised the observed import error; interiority-first left the identity reading
+unavailable. Interiority now uses 0x1801-0x1807. Existing phenomena and event
+IDs are unchanged; names and units are unchanged. Historical samples must be
+interpreted with their originating dictionary, not remapped to this allocation.
+
+Both initialization orders now write and read independent identity and
+interiority samples. The coexistence and adjacent suites passed 62 tests;
+smoke passed 164 with one skip; Ruff and diff checks passed. This repair is
+not yet loaded into the running desktop process, so live appraisal persistence
+still requires a source-matched restart and replay.
+
+## Checkpoint 2026-09-05: Fund Reading Before Recurrent Generation
+
+The empty-answer receipt for turn ea75b097fed8484098d4ae2542553aa9 spent
+158.69 seconds in prefill against a 171.18-second worker allowance. Its
+private thinking boundary remained open when the budget ended. This was not
+an answer rejected after successful completion.
+
+The live response owner now uses the existing model-specific decode rate,
+private-token reserve, and prompt-reading estimates before calling RLC. Both
+bridge cleanup reserves sit outside that measured work. Unmeasured rates
+retain the initial allowance. Proof, benchmark, secondary and background
+lanes do not borrow this resident estimate. The general allocator still obeys
+its caller; the qualified mechanism and its source contracts are unchanged.
+
+The kernel's foreground response wait now uses the same owned-completion
+mechanism as chat and the inference router. Explicit cancellation drains the
+task. Background, benchmark and non-response phase waits remain bounded.
+Focused tests cover completion beyond the initial estimate, cancellation,
+and unchanged other-lane waits. Live replay remains pending; no reasoning-gain
+claim follows from these timing repairs.
+
+The neural feed still shows duplicate vital cards, a warning paraphrased as
+"Health check passed", and background first-token cancellations. A boot health
+read returned 503 then recovered on the next read. These remain open runtime
+observations; the complete lock explanation also remains a correctness failure.

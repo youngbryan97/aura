@@ -332,6 +332,22 @@ class AuraKernel:
                 receipt.get("objective_digest") or "foreground turn",
             )
 
+    @staticmethod
+    async def _await_phase_completion(task, *, phase_name, priority, origin, budget_s):
+        from core.runtime.turn_origin import a_person_is_waiting
+
+        if (
+            priority
+            and phase_name in {"UnitaryResponsePhase", "ResponseGenerationPhase"}
+            and a_person_is_waiting(origin)
+        ):
+            from core.brain.llm_health_router import _await_while_it_is_working
+
+            return await _await_while_it_is_working(
+                task, budget_s=budget_s, user_facing=True, person_is_waiting=True,
+            )
+        return await asyncio.wait_for(task, timeout=budget_s)
+
     def _phase_timeout_seconds(self, phase_name: str, *, priority: bool) -> float:
         """Give foreground response generation enough headroom without letting background stalls monopolize the lock.
 
@@ -1331,7 +1347,10 @@ class AuraKernel:
                             else:
                                 phase_timeout = min(phase_timeout, 8.0)
 
-                        result = await asyncio.wait_for(phase_task, timeout=phase_timeout)
+                        result = await self._await_phase_completion(
+                            phase_task, phase_name=phase_name, priority=priority,
+                            origin=turn_origin, budget_s=phase_timeout,
+                        )
                         self.state = result
                     except TimeoutError:
                         logger.error(

@@ -61,13 +61,15 @@ logger = logging.getLogger("Aura.Interiority.Telemetry")
 _OWNER = "core/interiority/service.py"
 _GROUP = "interiority"
 
+# 0x1701-0x1715 belongs to phenomena. Interiority channels use 0x1801-0x1807;
+# event IDs are a separate dictionary and retain their existing allocation.
 FACULTIES_FIRED = channel(
-    0x1701, "interiority.faculties_fired", type=ChannelType.INT, unit="faculties",
+    0x1801, "interiority.faculties_fired", type=ChannelType.INT, unit="faculties",
     description="Faculties that produced an activation on the last appraisal.",
     owner=_OWNER, group=_GROUP, yellow_high=20, red_high=35,
 )
 DECLINES = channel(
-    0x1702, "interiority.declines", type=ChannelType.INT, unit="faculties",
+    0x1802, "interiority.declines", type=ChannelType.INT, unit="faculties",
     description=(
         "Faculties that declined for want of evidence. Healthy; all "
         "forty-three at once means the frame is arriving empty."
@@ -75,7 +77,7 @@ DECLINES = channel(
     owner=_OWNER, group=_GROUP, yellow_high=42, red_high=43,
 )
 TENDENCY_CONFLICT = channel(
-    0x1703, "interiority.tendency_conflict", type=ChannelType.FLOAT, unit="ratio",
+    0x1803, "interiority.tendency_conflict", type=ChannelType.FLOAT, unit="ratio",
     description=(
         "Normalised entropy over active action readinesses. The input "
         "upheaval reads."
@@ -83,22 +85,22 @@ TENDENCY_CONFLICT = channel(
     owner=_OWNER, group=_GROUP, yellow_high=0.75, red_high=0.92,
 )
 TRANSMISSION_FIDELITY = channel(
-    0x1704, "interiority.transmission_fidelity", type=ChannelType.FLOAT, unit="ratio",
+    0x1804, "interiority.transmission_fidelity", type=ChannelType.FLOAT, unit="ratio",
     description="Fraction of released quanta that reached a consumer.",
     owner=_OWNER, group=_GROUP, yellow_low=0.5, red_low=0.25,
 )
 WORST_TOLERANCE = channel(
-    0x1705, "interiority.worst_tolerance", type=ChannelType.FLOAT, unit="ratio",
+    0x1805, "interiority.worst_tolerance", type=ChannelType.FLOAT, unit="ratio",
     description="Gain the most-adapted channel has lost to sustained input.",
     owner=_OWNER, group=_GROUP, yellow_high=0.7, red_high=0.9,
 )
 HARD_CONSTRAINTS = channel(
-    0x1706, "interiority.hard_constraints", type=ChannelType.INT, unit="classes",
+    0x1806, "interiority.hard_constraints", type=ChannelType.INT, unit="classes",
     description="Action classes removed from the candidate set before scoring.",
     owner=_OWNER, group=_GROUP, yellow_high=8, red_high=16,
 )
 RETENTION_CLAIMS = channel(
-    0x1707, "interiority.retention_claims", type=ChannelType.INT, unit="memories",
+    0x1807, "interiority.retention_claims", type=ChannelType.INT, unit="memories",
     description="Memories held against compaction by a faculty.",
     owner=_OWNER, group=_GROUP, yellow_high=64, red_high=256,
 )
