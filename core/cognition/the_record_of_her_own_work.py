@@ -31,8 +31,10 @@ is the shape finite memory forces: keep the statistics, forget the instances.
 
 from __future__ import annotations
 
+import atexit
 import json
 import logging
+import threading
 import time
 from collections import Counter
 from dataclasses import dataclass, field
@@ -49,6 +51,7 @@ __all__ = [
     "episodes",
     "forget_the_record",
     "how_long_since",
+    "how_much_is_unwritten",
     "how_often",
     "keep_the_record",
     "note_a_step",
@@ -56,6 +59,7 @@ __all__ = [
     "other_families",
     "note_a_use",
     "recall_the_record",
+    "remember_what_she_had",
     "start_counting_again",
     "steps_walked",
     "the_record",
@@ -160,6 +164,12 @@ class Record:
                 walked=old.walked,
                 used=old.used,
                 admitted=old.admitted,
+                # Dropped here once, which turned every compacted episode
+                # from "everything was tried and nothing held" into "nothing
+                # was ever tried" — the two states this field exists to keep
+                # apart, and they call for opposite actions.
+                tried=old.tried,
+                when=old.when,
             )
         if len(self.kept) > HOW_MANY_EPISODES_ARE_KEPT:
             # The instance goes, the counts stay. That is what finite memory
@@ -199,10 +209,12 @@ def start_counting_again() -> int:
 
 def the_record() -> Record:
     """The record itself, for anything that needs more than a statistic."""
+    _remember_what_she_had()
     return _RECORD
 
 
 def episodes() -> tuple[Episode, ...]:
+    _remember_what_she_had()
     return tuple(_RECORD.kept)
 
 
@@ -228,7 +240,9 @@ def note_an_episode(
             (tuple(before), tuple(after)) for before, after in (about or ())
         ),
     )
+    _remember_what_she_had()
     _RECORD.note(made)
+    _maybe_write()
     return made
 
 
@@ -238,17 +252,20 @@ def note_a_use(name: str) -> None:
     A library entry used inside ordinary cognition is used, and counting it
     only when an episode is written would make everything look disused.
     """
+    _remember_what_she_had()
     _RECORD.uses[str(name)] += 1
     _RECORD.last_used[str(name)] = _RECORD.seen
 
 
 def how_often(family: str) -> int:
     """How many times this shape has come up. The recurrence estimate."""
+    _remember_what_she_had()
     return int(_RECORD.families.get(str(family), 0))
 
 
 def how_long_since(name: str) -> int | None:
     """Episodes since this entry was last used, or nothing if it never was."""
+    _remember_what_she_had()
     at = _RECORD.last_used.get(str(name))
     return None if at is None else max(0, _RECORD.seen - at)
 
@@ -259,6 +276,7 @@ def what_it_has_cost(route: str) -> int | None:
     The measured cost of a developmental action, so nothing has to estimate
     what has already been observed.
     """
+    _remember_what_she_had()
     spent = [one.walked for one in _RECORD.kept if one.route == route]
     return int(round(sum(spent) / len(spent))) if spent else None
 
@@ -270,6 +288,7 @@ def other_families(than: str) -> list[tuple[str, tuple]]:
     hand will help the family in hand; whether it helps anything else is the
     question, and this is what answers it.
     """
+    _remember_what_she_had()
     found: dict[str, tuple] = {}
     for one in _RECORD.kept:
         if one.family != than and one.about and one.family not in found:
@@ -285,6 +304,7 @@ def attribution() -> dict[str, dict[str, Any]]:
     A route that answers rarely and costs much is a bottleneck, and that is
     readable here without anything having to say the word.
     """
+    _remember_what_she_had()
     spent: Counter = Counter()
     answered: Counter = Counter()
     tried: Counter = Counter()
@@ -319,6 +339,7 @@ def keep_the_record() -> bool:
                 "walked": one.walked,
                 "used": list(one.used),
                 "admitted": one.admitted,
+                "tried": one.tried,
                 "about": [
                     [list(before), list(after)] for before, after in one.about
                 ],
@@ -377,6 +398,7 @@ def recall_the_record() -> int:
                 walked=int(row.get("walked") or 0),
                 used=tuple(str(one) for one in row.get("used") or ()),
                 admitted=row.get("admitted"),
+                tried=row.get("tried"),
                 about=tuple(
                     (tuple(pair[0]), tuple(pair[1]))
                     for pair in row.get("about") or ()
@@ -394,3 +416,122 @@ def forget_the_record() -> None:
     _RECORD.uses.clear()
     _RECORD.last_used.clear()
     _RECORD.seen = 0
+    with _WRITING:
+        _RESTORED[0] = True
+        _UNWRITTEN[0] = 0
+
+
+# ── surviving a restart, without anybody remembering to ask ──────────────
+#
+# Both halves above existed and were correct, and nothing called either of
+# them. So the developmental policy chose its next self-change from H_t, the
+# accumulated evidence about her own performance, and every process restart
+# set H_t back to the empty set — not all learning, because other artefacts
+# persist by other means, but this one, the metacognitive history the policy
+# is a function OF.
+#
+# The fix is not a boot caller. A seam that needs somebody to remember it is a
+# seam that loses its caller again the next time the boot sequence is
+# rewritten, and this one had never had a caller at all. So the record
+# restores itself the first time anything asks it a question, and writes
+# itself back on a cadence and at exit.
+#
+# The write goes to a daemon thread. The record is noted from the answering
+# path, and an fsync taken there once froze the live event loop for twenty
+# minutes; a thread that coalesces its work and holds nothing the answer needs
+# cannot do that.
+
+#: Episodes between write-backs. Small enough that a hard kill loses an
+#: afternoon rather than a history, large enough that answering is never
+#: waiting on a file.
+HOW_OFTEN_IT_IS_WRITTEN = 16
+
+_RESTORED = [False]
+_UNWRITTEN = [0]
+_WRITING = threading.Lock()
+_WRITER: threading.Thread | None = None
+
+
+def _remember_what_she_had() -> None:
+    """Read the record back, once, before the first question about it.
+
+    Idempotent and quiet. A restart with no file is a first run, which is a
+    normal state and not a degradation.
+    """
+
+    global _WRITER
+    with _WRITING:
+        if _RESTORED[0]:
+            return
+        _RESTORED[0] = True
+    came_back = recall_the_record()
+    if came_back:
+        logger.info(
+            "The record of her own work came back: %d episodes, %d families, "
+            "%d in total seen",
+            came_back,
+            len(_RECORD.families),
+            _RECORD.seen,
+        )
+    with _WRITING:
+        if _WRITER is None:
+            _WRITER = threading.Thread(
+                target=_write_when_asked,
+                name="the-record-of-her-own-work",
+                daemon=True,
+            )
+            _WRITER.start()
+    atexit.register(_write_it_out_now)
+
+
+def _write_when_asked() -> None:
+    """One writer, coalescing. Never more than one save in flight."""
+
+    while True:
+        _ASKED_TO_WRITE.wait()
+        _ASKED_TO_WRITE.clear()
+        try:
+            keep_the_record()
+        except Exception as exc:  # noqa: BLE001 - a writer thread may not die
+            record_degradation(
+                "the_record_of_her_own_work", exc, severity="info",
+                action="write the record of her own work in the background",
+            )
+
+
+_ASKED_TO_WRITE = threading.Event()
+
+
+def _write_it_out_now() -> bool:
+    """Save on this thread. Used at exit, where there is no later."""
+
+    return keep_the_record()
+
+
+def _maybe_write() -> None:
+    """Ask the writer to run, at most once every HOW_OFTEN_IT_IS_WRITTEN."""
+
+    with _WRITING:
+        _UNWRITTEN[0] += 1
+        if _UNWRITTEN[0] < HOW_OFTEN_IT_IS_WRITTEN:
+            return
+        _UNWRITTEN[0] = 0
+    _ASKED_TO_WRITE.set()
+
+
+def remember_what_she_had() -> None:
+    """Restore the record now, for a boot that would rather not wait.
+
+    Nothing has to call this. Every reader and writer above does it already;
+    this is the same thing said out loud, so a boot sequence can pay the read
+    once rather than on the first question.
+    """
+
+    _remember_what_she_had()
+
+
+def how_much_is_unwritten() -> int:
+    """Episodes noted since the last write-back was asked for."""
+
+    with _WRITING:
+        return int(_UNWRITTEN[0])
