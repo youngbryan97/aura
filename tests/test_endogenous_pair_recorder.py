@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -66,6 +67,7 @@ def test_async_response_claims_pending_state_and_writes_off_loop(tmp_path, monke
 
 def test_rotation_accounts_for_the_record_about_to_be_appended(tmp_path, monkeypatch):
     monkeypatch.setenv("AURA_ENDOGENOUS_PAIR_DIR", str(tmp_path))
+    monkeypatch.setattr(recorder.time, "time", lambda: 1788590347.125)
     first = "a"
     assert recorder.record_pair(_state(), first)
     active = tmp_path / "pairs.jsonl"
@@ -95,3 +97,27 @@ def test_rotation_generation_names_do_not_replace_each_other(tmp_path, monkeypat
     assert len(names) == 2
     assert any(name.endswith("-101.jsonl") for name in names)
     assert any(name.endswith("-102.jsonl") for name in names)
+
+
+def test_terminal_observers_run_off_loop_in_receipt_pair_absorption_order(monkeypatch):
+    from core.brain.llm import endogenous_client_hooks as hooks
+
+    loop_thread = threading.get_ident()
+    calls = []
+
+    def observe(_response):
+        assert threading.get_ident() != loop_thread
+        calls.append("receipt")
+
+    async def pair(_response):
+        calls.append("pair")
+
+    def absorb(_response):
+        assert threading.get_ident() != loop_thread
+        calls.append("absorption")
+
+    monkeypatch.setattr(hooks, "observe_endogenous_receipt", observe)
+    monkeypatch.setattr(hooks, "record_endogenous_pair", pair)
+    monkeypatch.setattr(hooks, "absorb_endogenous_outcome", absorb)
+    asyncio.run(hooks.process_endogenous_terminal_response({"id": "one"}))
+    assert calls == ["receipt", "pair", "absorption"]

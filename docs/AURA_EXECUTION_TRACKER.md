@@ -52498,3 +52498,25 @@ natural-language compilation, open-domain reasoning, unrestricted serving,
 static fusion or frontier performance. The remaining generalization hinge is a
 learned token-level language-to-typed-IR transducer plus cross-procedure and
 cross-construction replication.
+
+## Checkpoint 2026-09-04: Model Responses Do Not Wait for Learning Storage
+
+The sole MLX response listener called endogenous learning hooks before
+classifying token, progress and terminal frames. Stream tokens contain text,
+so the first fragment could claim the pending state-to-reply pair. Persistence
+then held the response consumer while later frames queued behind it.
+
+Only correlated terminal frames now reach those hooks. Answer delivery is
+issued first; the existing TaskTracker owns post-response learning. Synchronous
+receipt observation and absorption run off the event loop. Scheduler failure
+cannot replace the completed answer. Regression tests hold learning open while
+another request makes progress, reject partial-token learning, verify scheduler
+failure isolation, and check receipt/pair/absorption order.
+
+The earlier live geothermal turn produced a successful compositional semantic
+shadow result, 2284654, receipt 889e54a1b203a528. Ordinary generation then failed
+with token_progress_stalled amid event-loop lag and lease failures. This repair
+closes a demonstrated response-consumer defect; attributing the whole live
+failure to it requires replay. File-operation misrouting, desktop latency and
+general semantic arbitration remain open. The semantic tissue remains shadow
+only and this checkpoint grants no additional serving authority.

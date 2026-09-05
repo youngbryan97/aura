@@ -11,6 +11,7 @@ client calls four names; everything they do is here.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Mapping
 from typing import Any
@@ -89,6 +90,19 @@ async def record_endogenous_pair(response: Mapping[str, Any]) -> None:
     ) as exc:
         logger.debug("endogenous pair not recorded: %s", exc)
 
+
+async def process_endogenous_terminal_response(response: Mapping[str, Any]) -> None:
+    """Finish optional learning work after a terminal reply is deliverable.
+
+    This coroutine must never be awaited by the worker response consumer. Pair
+    persistence can wait on filesystem pressure, and absorption can consult
+    several state organs. Both are useful after a turn; neither owns inference
+    liveness or the user's answer.
+    """
+    await asyncio.to_thread(observe_endogenous_receipt, response)
+    await record_endogenous_pair(response)
+    await asyncio.to_thread(absorb_endogenous_outcome, response)
+
 def attach_endogenous_state(
     req: dict[str, Any],
     *,
@@ -145,5 +159,6 @@ __all__ = [
     "absorb_endogenous_outcome",
     "attach_endogenous_state",
     "observe_endogenous_receipt",
+    "process_endogenous_terminal_response",
     "record_endogenous_pair",
 ]

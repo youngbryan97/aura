@@ -4978,10 +4978,8 @@ def _build_the_generation_request(
 
 
 from core.brain.llm.endogenous_client_hooks import (  # noqa: E402
-    absorb_endogenous_outcome,
     attach_endogenous_state,
-    observe_endogenous_receipt,
-    record_endogenous_pair,
+    process_endogenous_terminal_response,
 )
 
 
@@ -13080,6 +13078,33 @@ class MLXLocalClient:
         else:
             self._mark_progress()
 
+    def _schedule_endogenous_terminal_response(
+        self,
+        response: Mapping[str, Any],
+    ) -> None:
+        """Hand post-response learning to its own supervised lifecycle.
+
+        The response listener is the only consumer of the model worker's IPC
+        queue. Corpus persistence must not delay terminal delivery or the
+        heartbeats behind it. Learning observes a copy after correlation and
+        delivery; the response pump never waits for it.
+        """
+        request_id = str(response.get("id") or "")
+        work = process_endogenous_terminal_response(dict(response))
+        try:
+            get_task_tracker().bounded_track(
+                work,
+                name=f"MLXEndogenousOutcome:{request_id[:12] or 'unknown'}",
+                owner="mlx_client",
+            )
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            work.close()
+            _record_mlx_degradation(
+                exc,
+                action="could not schedule post-response learning; reply already delivered",
+                severity="warning",
+            )
+
     async def _response_listener_loop(
         self,
         response_queue: Any | None = None,
@@ -13208,20 +13233,16 @@ class MLXLocalClient:
                             )
                     continue
 
-                # Only a terminal frame correlated to work this parent owns
-                # may shape its budget evidence. A stale/unknown worker frame
-                # is dropped below and must not bias every later prompt.
-                if (
+                # Remember correlation before a terminal route removes the
+                # pending future. Only a terminal frame this parent owns may
+                # shape budget or learning evidence.
+                owned_response = bool(
                     req_id
                     and (
                         req_id in self._pending_generations
                         or req_id == self._current_request_id
                     )
-                ):
-                    _observe_worker_prompt_tokenization(res)
-                    observe_endogenous_receipt(res)
-                    await record_endogenous_pair(res)
-                    absorb_endogenous_outcome(res)
+                )
 
                 # 1. Update SubsystemAudit Heartbeat
                 if status == "heartbeat":
@@ -13331,13 +13352,11 @@ class MLXLocalClient:
                     if isinstance(res, dict):
                         self._note_soft_cancel_acknowledgement(res)
                     future = self._pending_generations.pop(req_id, None) if req_id else None
-                    if future and await self._route_terminal_worker_response(
-                        str(req_id),
-                        future,
-                        res,
-                    ):
-                        self._mark_progress()
-                        continue
+                    delivered = bool(
+                        future and await self._route_terminal_worker_response(
+                            str(req_id), future, res,
+                        )
+                    )
                     # A generation can finish after the caller has already
                     # abandoned it and started another turn. Never hand a
                     # response with an old request id to the current future.
@@ -13349,13 +13368,18 @@ class MLXLocalClient:
                     # terminal frame is malformed by construction — the error
                     # route already rejects it, and so does this one now.
                     if (
-                        self._current_gen_future
+                        not delivered
+                        and self._current_gen_future
                         and not self._current_gen_future.done()
                         and req_id
                         and req_id == self._current_request_id
                     ):
+                        delivered = _set_shared_future_result(self._current_gen_future, res)
+                    if owned_response:
+                        _observe_worker_prompt_tokenization(res)
+                        self._schedule_endogenous_terminal_response(res)
+                    if delivered:
                         self._mark_progress()
-                        _set_shared_future_result(self._current_gen_future, res)
                         continue
                     if not req_id:
                         _record_mlx_degradation(

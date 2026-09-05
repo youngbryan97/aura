@@ -2750,6 +2750,113 @@ class TestMLXWorkerProgress(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(client._current_first_token_at, 0.0)
         self.assertGreater(client._last_token_progress_at, 0.0)
 
+    async def test_terminal_learning_cannot_block_delivery_or_response_drain(self):
+        import core.brain.llm.mlx_client as mlx_module
+
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
+        client._req_q = queue.Queue()
+        client._res_q = queue.Queue()
+        client._mark_generation_started(
+            "learning-isolation",
+            prompt_chars=4096,
+            first_token_hard_ceiling_s=153.0,
+        )
+        future = asyncio.get_running_loop().create_future()
+        client._pending_generations["learning-isolation"] = future
+
+        learning_started = asyncio.Event()
+        release_learning = asyncio.Event()
+        observed = []
+
+        async def blocked_learning(response):
+            observed.append(response)
+            learning_started.set()
+            await release_learning.wait()
+
+        with ReplaceAttr(
+            mlx_module,
+            "process_endogenous_terminal_response",
+            blocked_learning,
+        ):
+            listener = asyncio.create_task(client._response_listener_loop())
+            try:
+                client._res_q.put(
+                    {
+                        "status": "token",
+                        "action": "stream",
+                        "id": "learning-isolation",
+                        "text": "complete",
+                        "tokens_generated": 1,
+                    }
+                )
+                client._res_q.put(
+                    {
+                        "status": "ok",
+                        "action": "generate",
+                        "id": "learning-isolation",
+                        "text": "complete answer",
+                    }
+                )
+                await asyncio.wait_for(learning_started.wait(), timeout=1.0)
+
+                self.assertTrue(future.done())
+                self.assertEqual(future.result()["text"], "complete answer")
+                self.assertEqual([r["status"] for r in observed], ["ok"])
+
+                client._mark_generation_started("next-request", prompt_chars=100)
+                previous_progress = client._last_token_progress_at
+                client._res_q.put(
+                    {
+                        "status": "token",
+                        "action": "stream",
+                        "id": "next-request",
+                        "tokens_generated": 1,
+                    }
+                )
+                for _ in range(20):
+                    if client._last_token_progress_at > previous_progress:
+                        break
+                    await asyncio.sleep(0.01)
+                self.assertGreater(client._last_token_progress_at, previous_progress)
+            finally:
+                release_learning.set()
+                listener.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await listener
+
+    async def test_learning_scheduler_failure_preserves_terminal_answer(self):
+        import core.brain.llm.mlx_client as mlx_module
+
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
+        client._res_q = queue.Queue()
+        future = mlx_module._new_shared_future()
+        client._pending_generations["completed"] = future
+        closed = []
+
+        class BrokenTracker:
+            def bounded_track(self, work, **_kwargs):
+                self_test.assertTrue(future.done())
+                closed.append(work)
+                raise RuntimeError("tracker unavailable")
+
+        self_test = self
+        with ReplaceAttr(mlx_module, "get_task_tracker", BrokenTracker):
+            listener = asyncio.create_task(client._response_listener_loop())
+            try:
+                client._res_q.put({
+                    "id": "completed", "action": "generate", "status": "ok",
+                    "text": "answer survives",
+                })
+                response = await mlx_module._await_shared_future(future, timeout_s=1.0)
+                self.assertEqual(response["text"], "answer survives")
+                self.assertTrue(closed)
+                self.assertIsNone(closed[0].cr_frame)
+                self.assertFalse(listener.done())
+            finally:
+                listener.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await listener
+
 
 class TestMLXRuntimeProbeFailure(unittest.IsolatedAsyncioTestCase):
     async def test_runtime_probe_failure_marks_lane_failed_without_spawn_loop(self):
