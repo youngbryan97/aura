@@ -726,6 +726,27 @@ def get_suite() -> ValidationSuite:
     return _SUITE
 
 
+def _interiority_decorative_faculties() -> int:
+    """Faculties that change nothing any subsystem reads when removed.
+
+    Runs the ablation: each of the forty-three is evaluated with and
+    without itself in an activating world, and the affect delta, option
+    biases, removed action classes, turn budget, retention claims and goal
+    weights are differenced. A faculty that moves none of them is a
+    description rather than a mechanism, and this counts them.
+    """
+    try:
+        from core.interiority.faculties import load_all
+        from core.interiority.proving import ablation_report
+
+        load_all()
+        return sum(1 for result in ablation_report() if not result.reaches_behaviour)
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        raise NothingMeasured(
+            f"the interiority ablation could not run: {type(exc).__name__}: {exc}"
+        ) from exc
+
+
 def install_runtime_validation() -> dict[str, Any]:
     """Bind Aura's claims about its own runtime to tests over live telemetry.
 
@@ -1647,6 +1668,57 @@ def install_runtime_validation() -> dict[str, Any]:
     # has recorded no production turns and no canary has been evaluated on
     # a real request. Every previous claim in this file that skipped that
     # distinction had to be walked back later, so these say it up front.
+    suite.add_test(
+        ValidationTest(
+            name="every_interiority_faculty_reaches_behaviour",
+            description=(
+                "removing any one of the forty-three appraisal faculties "
+                "changes a quantity another subsystem reads, so none of them "
+                "is a description of a state nothing acts on"
+            ),
+            required_capability="appraisal_faculties",
+            observation=Observation(
+                name="decorative_faculties",
+                value=0,
+                source=(
+                    "core/interiority/proving.py and "
+                    "tests/interiority/test_proofs.py"
+                ),
+                units="faculties",
+            ),
+            predict=lambda _m: _interiority_decorative_faculties(),
+            score=lambda p, o: threshold_score(float(p), float(o.value), units=" faculties"),
+            owner="core/interiority/proving.py",
+        )
+    )
+    # Graded as measured-synthetic on purpose. The ablation is real and
+    # repeatable, and it runs in the harness's activating world rather than
+    # against live traffic, so it shows that each mechanism reaches the
+    # consumers it names and not how often it fires in ordinary use.
+    suite.add_claim(
+        Claim(
+            statement=(
+                "Each of the forty-three appraisal faculties changes a quantity "
+                "another subsystem reads; removing any one of them is "
+                "detectable downstream."
+            ),
+            test="every_interiority_faculty_reaches_behaviour",
+            owner="core/interiority/proving.py",
+            asserted_in="docs/evidence/INTERIORITY_ABLATION.md",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "make interiority runs every faculty with and without itself in "
+                "an activating world and differences the affect delta the engine "
+                "receives, the option biases the somatic gate receives, the "
+                "action classes removed from the candidate set, the turn budget, "
+                "the retention claims and the goal weights. 43/43 move at least "
+                "one; none is decorative. The same gate runs 89 declared "
+                "interventions and checks each produces its declared direction, "
+                "and 43 null worlds in which no faculty may fire. Measured in a "
+                "constructed world, not on live turns."
+            ),
+        )
+    )
     suite.add_claim(
         Claim(
             statement=(

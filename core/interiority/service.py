@@ -192,6 +192,17 @@ class InteriorityService:
             self._last = state
             self._last_frame = frame
             self._last_activations = tuple(activations)
+
+        # The interior reports itself on declared channels. A state that
+        # ran and left no trace cannot be understood afterwards, and this
+        # subsystem cannot be stepped through while it is running.
+        from core.interiority import telemetry as _telemetry
+
+        _telemetry.publish(
+            state,
+            faculties=len(state.transmitted),
+            declines=len(state.declines),
+        )
         return state
 
     def _absorb_ledger_writes(self, state: Arbitrated) -> None:
