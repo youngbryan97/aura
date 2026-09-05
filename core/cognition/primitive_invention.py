@@ -522,6 +522,7 @@ def _forms_that_fit(
     without: frozenset[str] = frozenset(),
     force_compose: bool = False,
     reach_for_the_family: bool = False,
+    three_deep: bool = False,
 ) -> list[tuple[str, str, Callable[[int, int], int]]]:
     """Every shape whose answer is among the possibilities at every position.
 
@@ -578,9 +579,17 @@ def _forms_that_fit(
                         composed,
                     )
                 )
-    if fitting:
+    if fitting and not three_deep:
         return fitting
-    # Three deep, and only where two found nothing.
+    # Three deep, when two found nothing here or when the caller has already
+    # seen that what two found does not hold across every observation.
+    #
+    # Deciding this inside one observation was the same mistake the two-deep
+    # rung was written to fix, one level up: a two-deep form fitting length
+    # five on its own stopped the three-deep search that was the only thing
+    # fitting five, seven and nine together, and the world scored zero with
+    # the answer never generated. Eight of forty sealed rules, every one of
+    # them three shapes in a row.
     #
     # Two was the whole of it, so a world that is three shapes one after
     # another was unreachable however many observations were offered — and
@@ -590,7 +599,16 @@ def _forms_that_fit(
     # third level is built from the two-deep terms that at least land inside
     # the possibilities somewhere, which is a far smaller set than all of
     # them.
-    landing = [entry for entry in two if _lands_anywhere(entry[2], options, size)]
+    # Ordered by how much of the answer each two-deep term already has, so
+    # the ones extended first are the ones with a chance of being half of it.
+    # Taken in generation order instead, the cap fell on whichever four
+    # hundred happened to be built first, and a world three shapes deep was
+    # unreachable because its first two were late in a list.
+    landing = sorted(
+        ((entry, _how_much_it_gets_right(entry[2], options, size)) for entry in two),
+        key=lambda row: -row[1],
+    )
+    landing = [entry for entry, right in landing if right]
     for _fa, first_text, first in singles:
         for _fb, second_text, second in landing[:MOST_TWO_DEEP_TO_EXTEND]:
             composed = IndexProgram("compose", (), (first, second))
@@ -612,21 +630,24 @@ def _forms_that_fit(
 MOST_TWO_DEEP_TO_EXTEND = 400
 
 
-def _lands_anywhere(
+def _how_much_it_gets_right(
     rule: Callable[[int, int], int],
     options: Sequence[Sequence[int]],
     size: int,
-) -> bool:
-    """Whether this shape is right about at least one position.
+) -> int:
+    """How many positions this shape is already right about.
 
-    The filter on what is worth extending. A shape wrong everywhere is not
-    half of an answer, and a shape right somewhere might be.
+    The ordering on what is worth extending, and the filter: a shape wrong
+    everywhere is not half of an answer, and one right about most of it very
+    likely is.
     """
 
     try:
-        return any(rule(index, size) in options[index] for index in range(size))
+        return sum(
+            1 for index in range(size) if rule(index, size) in options[index]
+        )
     except (IndexError, TypeError, ZeroDivisionError):
-        return False
+        return 0
 
 
 def _fits(
@@ -974,7 +995,9 @@ def invent_relation(
     # Did anything move, or did the values themselves change?
     possibilities = [_possible_sources(item.before, item.after) for item in observed]
     if all(item is not None for item in possibilities):
-        def read(*, force_compose: bool, family: bool = False) -> list:
+        def read(
+            *, force_compose: bool, family: bool = False, three_deep: bool = False
+        ) -> list:
             return [
                 _forms_that_fit(
                     item,
@@ -983,6 +1006,7 @@ def invent_relation(
                     without=without,
                     force_compose=force_compose,
                     reach_for_the_family=family,
+                    three_deep=three_deep,
                 )
                 for item in possibilities
                 if item
@@ -1034,6 +1058,13 @@ def invent_relation(
                 shared = agreed(fitted)
                 if shared:
                     break
+        if not shared and "composition" not in without:
+            # The last rung: three shapes one after another, searched across
+            # every observation rather than inside one. It is the dearest and
+            # it is last for that reason; everything above it is cheaper and
+            # answers most worlds.
+            fitted = read(force_compose=True, three_deep=True)
+            shared = agreed(fitted)
         # The prior chooses among shapes the observations do not separate.
         # With no prior this is the order the shapes are generated in, which is
         # what the measurement compares against.

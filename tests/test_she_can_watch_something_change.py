@@ -483,6 +483,17 @@ def _nothing_above_her_work(monkeypatch):
     monkeypatch.setattr(sp, "_everything_on_top", above, raising=False)
     monkeypatch.setattr(sp, "_whats_on_top", on_top, raising=False)
 
+    # And the wait for the screen to answer.
+    #
+    # An act that moves a surface is done when the surface says so, not when
+    # the keystroke returns, so the loop waits for the reading to change and
+    # then to stop changing. A double whose screen never changes waits the
+    # whole patience every cycle: forty cycles at four seconds is ten minutes
+    # for a test about what the loop decides. Shortened, not removed — the
+    # waiting is the behaviour, and a test that skipped it would pass on a
+    # loop that had stopped waiting.
+    monkeypatch.setattr(sp, "_how_long_to_wait", lambda: 0.05)
+
 
 def test_a_blocker_that_will_not_clear_is_reported_not_repeated(monkeypatch):
     """A dismissal that does not work must not be tried forever.

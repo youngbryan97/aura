@@ -87,10 +87,18 @@ def fluid_intelligence(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any
     rules = invent_the_rules(
         freeze.seed, how_many=int(options.get("instances", 30)), depth=3
     )
+    from core.cognition.relation_language import RelationLanguage
+
     may_ask = int(options.get("questions_allowed", 3))
+    # Two scores, because a benchmark that gives one measures zero-shot
+    # capability and calls it intelligence. P₀ is each instance answered on
+    # its own, knowing nothing about the others. P_L is the same instances
+    # with the shapes she worked out on the earlier ones available to the
+    # later ones — the learning the evaluation permits, which is what a
+    # person gets and what she was never given here.
+    library = RelationLanguage()
     trajectories = []
-    right = 0
-    asked_total = 0
+    alone = carried = asked_total = 0
     for rule in rules:
         rows = list(rule.shown)
         asked = 0
@@ -108,38 +116,74 @@ def fluid_intelligence(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any
             asked += 1
             said = _answer_a_rule_from(rows, rule)
         asked_total += asked
-        ok = rule.is_right(said) if said is not None else False
-        right += int(ok)
+        on_its_own = rule.is_right(said) if said is not None else False
+        alone += int(on_its_own)
+
+        with_what_she_knows = _answer_a_rule_from(rows, rule, library=library)
+        learned = (
+            rule.is_right(with_what_she_knows)
+            if with_what_she_knows is not None
+            else False
+        )
+        carried += int(learned)
+        # What she worked out here is available to what comes next, whether
+        # or not it was enough to answer this one.
+        library.admit(
+            library.explain([Transition(before, after) for before, after in rows])
+        )
+        # And the structure several solutions share, which none of them is.
+        #
+        # A library that keeps only whole winners can hold nothing it has not
+        # already seen entire, and the long-term studies of chunking report
+        # where that ends: symbolic learning stops. Refactoring is the step
+        # that keeps it growing, and leaving it out made P_L the same
+        # measurement as P₀ with extra bookkeeping.
+        library.refactor()
         trajectories.append(
             {
                 "instance": rule.name,
                 "rule": rule.said,
                 "answered": said is not None,
-                "right": ok,
+                "right": on_its_own,
+                "right_with_what_she_learned": learned,
                 "questions_asked": asked,
             }
         )
-    share = right / len(rules) if rules else 0.0
+    total = len(rules) or 1
+    p0, pl = alone / total, carried / total
     refused = sum(1 for one in trajectories if not one["answered"])
     return {
         "instances": len(rules),
-        "right": right,
-        "share": round(share, 4),
+        "right": alone,
+        "share": round(p0, 4),
+        "P0": round(p0, 4),
+        "PL": round(pl, 4),
+        "learned": round(pl - p0, 4),
         "refused": refused,
-        "wrong_answers": len(rules) - right - refused,
+        "wrong_answers": len(rules) - alone - refused,
         "questions_asked": asked_total,
         "questions_per_instance": round(asked_total / max(1, len(rules)), 2),
-        "passed": share >= float(options.get("fluid_bar", 0.85)),
+        "passed": max(p0, pl) >= float(options.get("fluid_bar", 0.85)),
         "trajectories": trajectories,
     }
 
 
-def _answer_a_rule_from(rows: list, rule: Any) -> tuple[Any, ...] | None:
-    """Her answer from these rows, or nothing when they do not settle it."""
+def _answer_a_rule_from(
+    rows: list, rule: Any, *, library: Any = None
+) -> tuple[Any, ...] | None:
+    """Her answer from these rows, or nothing when they do not settle it.
+
+    ``library`` is what earlier instances taught her, offered as members of
+    the language rather than as a preference over it — which is what makes a
+    shape she has met before reachable in one step here.
+    """
 
     from core.cognition.primitive_invention import Transition, invent_relation
 
-    found = invent_relation([Transition(before, after) for before, after in rows])
+    shown = [Transition(before, after) for before, after in rows]
+    found = (
+        library.explain(shown) if library is not None else invent_relation(shown)
+    )
     if found is None or not found.generalises or not found.settled:
         return None
     try:
