@@ -87,5 +87,34 @@ function check(label, condition) {
   check("the turn completes normally", outcome.ok === true);
 }
 
+// 3. Progress is visible while the original POST is still open. The
+// terminal response remains owned by the POST; the observer is telemetry.
+{
+  let releasePost;
+  const progress = [];
+  const outcomePromise = mod.resolveChatDelivery({}, "hello", {
+    post: () => new Promise(resolve => {
+      releasePost = () => resolve({ httpStatus: 200, payload: { response: "done" }, response: null });
+    }),
+    status: async () => ({
+      httpStatus: 202,
+      payload: {
+        terminal: false,
+        delivery_status: "pending",
+        progress: { sequence: 1, message: "Prefilling the request." },
+      },
+      response: null,
+    }),
+    wait: async () => { await new Promise(resolve => setTimeout(resolve, 0)); },
+    shouldDefer: () => false,
+    onProgress: packet => progress.push(packet),
+  });
+  await new Promise(resolve => setTimeout(resolve, 15));
+  check("open POST exposes durable progress", progress.length > 0);
+  releasePost();
+  const outcome = await outcomePromise;
+  check("progress observation does not replace terminal delivery", outcome.ok === true);
+}
+
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

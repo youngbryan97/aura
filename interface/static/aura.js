@@ -4808,14 +4808,61 @@ async function resolveChatDelivery(
         wait = waitForChatDelivery,
         shouldDefer = () => state.chatHandoffPending,
         onPending = () => {},
+        onProgress = null,
     } = {}
 ) {
     let source = resumeFirst ? 'status' : 'post';
     let retryDelay = CHAT_DELIVERY_POLL_BASE_MS;
     let lastError = null;
     let unreachableSince = 0;
+    let progressObserverStopped = false;
+
+    // The POST is intentionally allowed to remain open for a real turn, but
+    // an open HTTP response is not evidence that the runtime is silent. The
+    // same fenced journal that makes retries safe also exposes factual phase
+    // progress. Observe it while the initial POST is in flight so prefill and
+    // long reasoning are visible without inventing token-level thought.
+    if (!resumeFirst && typeof onProgress === 'function') {
+        (async () => {
+            let observerDelay = CHAT_DELIVERY_POLL_BASE_MS;
+            while (!progressObserverStopped) {
+                await wait(observerDelay);
+                if (progressObserverStopped) return;
+                try {
+                    const packet = await status(item);
+                    if (progressObserverStopped) return;
+                    onProgress(packet);
+                    const payload = packet && packet.payload;
+                    const stateName = String(
+                        payload && (payload.state || payload.delivery_state) || ''
+                    ).toLowerCase();
+                    if (
+                        payload && (
+                            payload.terminal === true
+                            || payload.delivery_status === 'terminal'
+                            || CHAT_DELIVERY_TERMINAL_STATES.has(stateName)
+                        )
+                    ) return;
+                } catch (_error) {
+                    // The foreground state machine owns transport recovery. A
+                    // telemetry poll must never turn a healthy turn into a
+                    // failure or compete with the terminal replay path.
+                }
+                observerDelay = Math.min(
+                    CHAT_DELIVERY_POLL_MAX_MS,
+                    observerDelay * 1.5
+                );
+            }
+        })().catch(() => {
+            // Progress is advisory; terminal delivery remains authoritative.
+        });
+    }
+
     while (true) {
-        if (shouldDefer()) return { deferred: true, lastError };
+        if (shouldDefer()) {
+            progressObserverStopped = true;
+            return { deferred: true, lastError };
+        }
         let packet = null;
         try {
             packet = source === 'post'
@@ -4826,6 +4873,7 @@ async function resolveChatDelivery(
             source = 'status';
             if (!unreachableSince) unreachableSince = Date.now();
             if (Date.now() - unreachableSince >= CHAT_DELIVERY_UNREACHABLE_MS) {
+                progressObserverStopped = true;
                 item.deliveryState = 'failed';
                 item.resumePending = true;
                 item.resumeDeadline = 0;
@@ -4859,9 +4907,17 @@ async function resolveChatDelivery(
             packet.httpStatus,
             packet.payload
         );
+        if (typeof onProgress === 'function') {
+            try {
+                onProgress(packet);
+            } catch (_error) {
+                // A display callback cannot affect delivery correctness.
+            }
+        }
         const { envelope } = decision;
         if (envelope.turnId) item.turnId = envelope.turnId;
         if (decision.action === 'terminal') {
+            progressObserverStopped = true;
             item.deliveryState = envelope.deliveryState || (
                 envelope.ok ? 'completed' : 'failed'
             );
@@ -4948,6 +5004,35 @@ async function runChatRequest(value, { messageAlreadyRendered = false } = {}) {
                     });
                     applyConversationLane(recoveringLane, 'degraded');
                 }
+            },
+            onProgress: ({ payload } = {}) => {
+                const outer = payload && typeof payload === 'object' ? payload : {};
+                const result = (
+                    outer.result
+                    && typeof outer.result === 'object'
+                    && outer.delivery_status === 'terminal'
+                ) ? outer.result : outer;
+                const progress = (
+                    outer.progress && typeof outer.progress === 'object'
+                        ? outer.progress
+                        : result.progress && typeof result.progress === 'object'
+                            ? result.progress
+                            : null
+                );
+                const message = String(progress && progress.message || '').trim();
+                if (!message) return;
+                const sequence = Number(progress.sequence || 0);
+                if (
+                    Number.isFinite(sequence)
+                    && sequence > 0
+                    && sequence <= Number(item.progressSequence || 0)
+                ) return;
+                if (Number.isFinite(sequence) && sequence > 0) {
+                    item.progressSequence = sequence;
+                }
+                item.progressMessage = message;
+                persistChatHandoff({ force: true });
+                updateTypingLabel(message);
             },
         });
         if (outcome.deferred) return;

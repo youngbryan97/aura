@@ -123,6 +123,33 @@
     throw error;
   }
 
+  // The admitted POST may spend a long time in prompt prefill or verified
+  // execution before it can return a JSON body. Observe the same durable
+  // delivery journal concurrently so this surface shows real phase progress
+  // instead of appearing frozen until the POST timeout.
+  async function observeDeliveryProgress(item, stop) {
+    let delay = DELIVERY_POLL_MS;
+    while (!stop()) {
+      await new Promise((resolve) => window.setTimeout(resolve, delay));
+      if (stop()) return;
+      try {
+        const { payload } = await deliveryStatus(item.key);
+        if (stop()) return;
+        updateProgress(payload);
+        const state = String(payload?.state || payload?.delivery_state || "").toLowerCase();
+        if (
+          payload?.terminal === true
+          || payload?.delivery_status === "terminal"
+          || ["awaiting_approval", "completed", "failed", "ambiguous"].includes(state)
+        ) return;
+      } catch (_error) {
+        // The durable send/replay loop owns transport recovery. This observer
+        // is presentation-only and must never cancel or duplicate the turn.
+      }
+      delay = Math.min(5000, Math.round(delay * 1.5));
+    }
+  }
+
   async function awaitDelivery(item) {
     let missingPolls = 0;
     let transportFailures = 0;
@@ -168,6 +195,8 @@
   }
 
   async function sendDurably(item) {
+    let observing = true;
+    observeDeliveryProgress(item, () => !observing).catch(() => {});
     try {
       const posted = await postChat(item);
       if (posted.terminal) return posted.payload;
@@ -175,6 +204,8 @@
       if (error?.fatal) throw error;
       // A timed-out or interrupted POST says nothing about the admitted turn.
       // The status loop safely reuses the key if admission never happened.
+    } finally {
+      observing = false;
     }
     return awaitDelivery(item);
   }
