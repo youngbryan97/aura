@@ -1,0 +1,11 @@
+{
+  "schema": "aura.interiority.order_sensitive_parameters.v1",
+  "description": "Calibration parameters whose movement across their own declared range reorders the system's conclusions. A guess is allowed here only when the ordering survives it, so these are the numbers that need measuring rather than guessing. The list may shrink and may not grow: a new entry means a conclusion has become dependent on a number nobody has measured.",
+  "parameters": [
+    "interiority.f02.progress_width",
+    "interiority.f08.welfare_tradeoff_floor",
+    "interiority.f09.suppression_cost_per_unit",
+    "interiority.receptor.dephosphorylation_rate",
+    "interiority.receptor.internalisation_rate"
+  ]
+}

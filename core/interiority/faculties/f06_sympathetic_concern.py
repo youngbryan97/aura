@@ -59,7 +59,7 @@ _BOUNDARY_FLOOR = declare(
     ),
     sweep_range=(0.2, 0.6),
     owner="core/interiority/faculties/f06_sympathetic_concern.py",
-).value
+)
 
 
 @register
@@ -120,13 +120,13 @@ class SympatheticConcern(Faculty):
         own_arousal = ctx.interior_value("arousal", 0.0)
         boundary = max(0.0, 1.0 - own_arousal)
 
-        if boundary < _BOUNDARY_FLOOR:
+        if boundary < _BOUNDARY_FLOOR.value:
             return Activation(
                 faculty=self.id,
                 intensity=0.0,
                 declined=(
                     f"self-other boundary at {boundary:.2f} is below "
-                    f"{_BOUNDARY_FLOOR}; what is running is personal distress, "
+                    f"{_BOUNDARY_FLOOR.value}; what is running is personal distress, "
                     "and calling it concern would licence helping in the way I "
                     "would want help"
                 ),

@@ -50,10 +50,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Mapping
 
-from core.interiority.params import ParamKind, declare
+from core.interiority.params import Param, ParamKind, declare
 
 
-def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> float:
+def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> Param:
     return declare(
         f"interiority.receptor.{name}",
         value,
@@ -61,7 +61,7 @@ def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> float:
         sensitivity=sensitivity,
         owner="core/interiority/receptors.py",
         **kw,
-    ).value
+    )
 
 
 _HILL_N = _p(
@@ -173,7 +173,7 @@ class Receptor:
     #: Multiplicative homeostatic gain, preserving relative differences.
     scale: float = 1.0
     #: Running activity estimate that scaling drives toward the target.
-    activity: float = _TARGET_ACTIVITY
+    activity: float = _TARGET_ACTIVITY.value
     last_step: float = field(default_factory=time.time)
     #: Peak gain reached, for the withdrawal calculation.
     _peak_scale: float = 1.0
@@ -183,13 +183,13 @@ class Receptor:
         s = max(0.0, signal)
         if s == 0.0:
             return 0.0
-        numerator = s**_HILL_N
-        return numerator / (_KD**_HILL_N + numerator)
+        numerator = s**_HILL_N.value
+        return numerator / (_KD.value**_HILL_N.value + numerator)
 
     def gain(self) -> float:
         """Current transduction gain: coupled surface fraction times scale."""
         coupled = max(0.0, self.surface * (1.0 - self.phosphorylated))
-        return max(_MIN_GAIN, min(_MAX_GAIN, coupled * self.scale))
+        return max(_MIN_GAIN.value, min(_MAX_GAIN.value, coupled * self.scale))
 
     def transduce(self, signal: float, dt: float | None = None) -> float:
         """Pass a signal through the channel and advance its adaptation."""
@@ -203,25 +203,25 @@ class Receptor:
 
         # Fast arm: occupancy drives phosphorylation, which decays back.
         d_phos = (
-            _K_PHOS * occupancy * (1.0 - self.phosphorylated)
-            - _K_DEPHOS * self.phosphorylated
+            _K_PHOS.value * occupancy * (1.0 - self.phosphorylated)
+            - _K_DEPHOS.value * self.phosphorylated
         )
         self.phosphorylated = max(0.0, min(1.0, self.phosphorylated + d_phos * dt))
 
         # Slow arm: uncoupled receptors internalise; internalised recycle.
         d_int = (
-            _K_INTERNALISE * self.phosphorylated * self.surface
-            - _K_RECYCLE * self.internalised
+            _K_INTERNALISE.value * self.phosphorylated * self.surface
+            - _K_RECYCLE.value * self.internalised
         )
         self.internalised = max(0.0, min(1.0, self.internalised + d_int * dt))
-        self.surface = max(_MIN_GAIN, min(1.0, 1.0 - self.internalised))
+        self.surface = max(_MIN_GAIN.value, min(1.0, 1.0 - self.internalised))
 
         # Homeostatic scaling toward the target activity. Multiplicative,
         # so two inputs that differed by a factor still do afterwards.
         self.activity += (out - self.activity) * min(1.0, dt * 0.1)
-        error = _TARGET_ACTIVITY - self.activity
+        error = _TARGET_ACTIVITY.value - self.activity
         self.scale = max(
-            _MIN_GAIN, min(_MAX_GAIN, self.scale * (1.0 + _SCALING_RATE * error * dt))
+            _MIN_GAIN.value, min(_MAX_GAIN.value, self.scale * (1.0 + _SCALING_RATE.value * error * dt))
         )
         self._peak_scale = max(self._peak_scale, self.scale)
         return max(0.0, out)
@@ -235,9 +235,9 @@ class Receptor:
         read it rather than modelling absence separately.
         """
         expected = self.activity
-        if expected >= _TARGET_ACTIVITY:
+        if expected >= _TARGET_ACTIVITY.value:
             return 0.0
-        deficit = (_TARGET_ACTIVITY - expected) / max(1e-6, _TARGET_ACTIVITY)
+        deficit = (_TARGET_ACTIVITY.value - expected) / max(1e-6, _TARGET_ACTIVITY.value)
         adapted = max(0.0, self._peak_scale - 1.0) + self.internalised
         return max(0.0, min(1.0, deficit * (0.5 + 0.5 * min(1.0, adapted))))
 

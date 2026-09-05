@@ -19,6 +19,7 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from core.interiority.faculties import load_all  # noqa: E402
+from core.interiority.calibration import report as calibration_report  # noqa: E402
 from core.interiority.longitudinal import summary as longitudinal_summary  # noqa: E402
 from core.interiority.proving import summary  # noqa: E402
 
@@ -48,6 +49,15 @@ def main() -> int:
     print(
         f"long-running properties       {longitudinal['held']}/{longitudinal['episodes']}"
     )
+    calibration = calibration_report()
+    targets = calibration["targets"]
+    sensitivity = calibration["order_sensitivity"]
+    print(f"published targets reproduced  {targets['held']}/{targets['declared']}")
+    print(
+        "numbers the conclusions rest on "
+        f"{len(sensitivity['order_sensitive'])} of "
+        f"{calibration['calibration']['total']} guesses reorder the system"
+    )
 
     if args.verbose:
         print("\nwhat each faculty moves when it is removed:")
@@ -63,6 +73,7 @@ def main() -> int:
             print(f"  {faculty:<32} {moved}{extra}")
 
     report["longitudinal"] = longitudinal
+    report["calibration"] = calibration
 
     if args.json:
         args.json.parent.mkdir(parents=True, exist_ok=True)
@@ -86,6 +97,17 @@ def main() -> int:
         )
     for failure in longitudinal["failed"]:
         problems.append(f"{failure['episode']}: {failure['detail']}")
+    for failure in targets["failed"]:
+        problems.append(
+            f"published target {failure['target']} no longer holds: "
+            f"{failure['detail']}"
+        )
+    for parameter in sensitivity["new"]:
+        problems.append(
+            f"{parameter} now reorders the system when moved across its own "
+            "declared range: a conclusion has become dependent on a number "
+            "nobody has measured"
+        )
 
     if problems:
         print("\nFAILED:")

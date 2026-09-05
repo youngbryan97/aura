@@ -63,7 +63,7 @@ _TRACE_HALF_LIFE = declare(
     upper=604800.0,
     sweep_range=(600.0, 86400.0),
     owner="core/interiority/attribution.py",
-).value
+)
 
 _LEARNING_RATE = declare(
     "interiority.attribution.credit_learning_rate",
@@ -78,7 +78,7 @@ _LEARNING_RATE = declare(
     sensitivity="How fast a faculty's measured reliability moves after an outcome.",
     sweep_range=(0.01, 0.3),
     owner="core/interiority/attribution.py",
-).value
+)
 
 _MAX_TRACES = declare(
     "interiority.attribution.max_traces",
@@ -94,7 +94,7 @@ _MAX_TRACES = declare(
     lower=64.0,
     upper=65536.0,
     owner="core/interiority/attribution.py",
-).value
+)
 
 
 @dataclass
@@ -112,7 +112,7 @@ class Trace:
 
     def eligibility(self, now: float) -> float:
         age = max(0.0, now - self.at)
-        return math.exp(-age * math.log(2.0) / _TRACE_HALF_LIFE)
+        return math.exp(-age * math.log(2.0) / _TRACE_HALF_LIFE.value)
 
 
 @dataclass
@@ -173,7 +173,7 @@ class Attribution:
                 goals_touched=tuple(goals_touched),
             )
             self._traces.append(trace)
-            limit = int(_MAX_TRACES)
+            limit = int(_MAX_TRACES.value)
             if len(self._traces) > limit:
                 del self._traces[: len(self._traces) - limit]
             self._standing.setdefault(faculty, Standing(faculty)).unresolved += 1
@@ -243,7 +243,7 @@ class Attribution:
                 )
                 before = standing.hit_rate
                 target = 1.0 if claim_held else 0.0
-                standing.hit_rate += _LEARNING_RATE * share * (target - before)
+                standing.hit_rate += _LEARNING_RATE.value * share * (target - before)
                 standing.hit_rate = max(0.0, min(1.0, standing.hit_rate))
                 standing.resolved += 1
                 standing.unresolved = max(0, standing.unresolved - 1)

@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import math
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Iterator
@@ -114,6 +115,28 @@ class Param:
                     f"{self.name}: value {self.value} is outside its own sweep "
                     "range, so the declared range is not the range in use"
                 )
+
+    @contextmanager
+    def override(self, value: float) -> "Iterator[None]":
+        """Hold a different value for the duration of the block.
+
+        Every call site reads ``PARAM.value`` rather than a float captured
+        at import, so a temporary change is visible to the running system.
+        That is what makes the ordering-invariance condition in
+        :mod:`core.interiority.calibration` a check rather than a promise:
+        without it a sweep would recompute the same numbers at every point
+        and report stability it never tested.
+
+        Not for production. Nothing outside the calibration harness should
+        move a declared parameter at runtime.
+        """
+        previous = self.value
+        object.__setattr__(self, "value", float(value))
+        try:
+            yield
+        finally:
+            object.__setattr__(self, "previous", previous)
+            object.__setattr__(self, "value", previous)
 
     def sweep(self, steps: int = 7) -> tuple[float, ...]:
         """Values across the plausible range, for an ordering-invariance test."""

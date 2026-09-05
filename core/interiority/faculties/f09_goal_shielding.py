@@ -61,7 +61,7 @@ _SUPPRESSION_COST = declare(
     ),
     sweep_range=(0.1, 0.6),
     owner="core/interiority/faculties/f09_goal_shielding.py",
-).value
+)
 
 
 @register
@@ -133,7 +133,7 @@ class GoalShielding(Faculty):
         shield = max(0.0, min(1.0, shield))
 
         held = pressure * shield
-        cost = held * _SUPPRESSION_COST
+        cost = held * _SUPPRESSION_COST.value
 
         effects = Effects(
             # The state is not reduced. Only its expression is blocked, and

@@ -68,7 +68,7 @@ _FRACTAL_PEAK = declare(
     lower=1.0,
     upper=2.0,
     owner="core/interiority/faculties/f04_abstract_form.py",
-).value
+)
 
 _FRACTAL_WIDTH = declare(
     "interiority.f04.fractal_preference_width",
@@ -84,7 +84,7 @@ _FRACTAL_WIDTH = declare(
     lower=0.01,
     upper=1.0,
     owner="core/interiority/faculties/f04_abstract_form.py",
-).value
+)
 
 
 @register
@@ -162,8 +162,8 @@ class AbstractForm(Faculty):
         fractal = ctx.frame.event.channel("instrument")
         band = 1.0
         if fractal.present:
-            offset = fractal.value - _FRACTAL_PEAK
-            band = math.exp(-(offset * offset) / (2.0 * _FRACTAL_WIDTH**2))
+            offset = fractal.value - _FRACTAL_PEAK.value
+            band = math.exp(-(offset * offset) / (2.0 * _FRACTAL_WIDTH.value**2))
 
         appreciation = reduction_rate * band
 

@@ -50,7 +50,7 @@ _MARGIN_FLOOR = declare(
         "state when the evidence supports two."
     ),
     owner="core/interiority/faculties/f01_reading_others.py",
-).value
+)
 
 
 @register
@@ -114,14 +114,14 @@ class ReadingOthers(Faculty):
 
         tendency, mass = other.top()
         margin = other.margin()
-        if margin < _MARGIN_FLOOR:
+        if margin < _MARGIN_FLOOR.value:
             return Activation(
                 faculty=self.id,
                 intensity=0.0,
                 tendency="",
                 declined=(
                     f"posterior does not separate its top two readinesses "
-                    f"(margin {margin:.3f} < {_MARGIN_FLOOR}); naming one would "
+                    f"(margin {margin:.3f} < {_MARGIN_FLOOR.value}); naming one would "
                     "be reporting noise"
                 ),
                 receipt={"margin": margin, "top": tendency, "mass": mass},

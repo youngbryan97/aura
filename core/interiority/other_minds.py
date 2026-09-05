@@ -63,7 +63,7 @@ from core.interiority.evidence import (
     measured,
 )
 from core.interiority.event import CHANNELS, InteriorEvent
-from core.interiority.params import ParamKind, declare
+from core.interiority.params import Param, ParamKind, declare
 
 #: Frijda's action-readiness modes, reduced to the set that is
 #: distinguishable from the channels this runtime actually has.
@@ -126,7 +126,7 @@ SPECIES_CHANNELS: Mapping[str, tuple[str, ...]] = MappingProxyType(
 )
 
 
-def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> float:
+def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> Param:
     return declare(
         f"interiority.other_minds.{name}",
         value,
@@ -135,7 +135,7 @@ def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> float:
         sensitivity=sensitivity,
         owner="core/interiority/other_minds.py",
         **kw,
-    ).value
+    )
 
 
 #: Starting reliability per channel, before any outcome has been seen.
@@ -264,7 +264,7 @@ _BETA = declare(
     lower=0.5,
     upper=64.0,
     owner="core/interiority/other_minds.py",
-).value
+)
 
 _LOADING_LEARNING_RATE = declare(
     "interiority.other_minds.loading_learning_rate",
@@ -283,7 +283,7 @@ _LOADING_LEARNING_RATE = declare(
     ),
     sweep_range=(0.005, 0.1),
     owner="core/interiority/other_minds.py",
-).value
+)
 
 _LOADING_DRIFT_LIMIT = declare(
     "interiority.other_minds.loading_drift_limit",
@@ -306,7 +306,7 @@ _LOADING_DRIFT_LIMIT = declare(
     upper=1.0,
     sweep_range=(0.1, 0.7),
     owner="core/interiority/other_minds.py",
-).value
+)
 
 _LEARNING_RATE = declare(
     "interiority.other_minds.reliability_learning_rate",
@@ -321,7 +321,7 @@ _LEARNING_RATE = declare(
     sensitivity="How fast a channel's weight moves after a confirmed outcome.",
     sweep_range=(0.01, 0.2),
     owner="core/interiority/other_minds.py",
-).value
+)
 
 _BASELINE_HALF_LIFE = declare(
     "interiority.other_minds.baseline_half_life_samples",
@@ -338,7 +338,7 @@ _BASELINE_HALF_LIFE = declare(
     upper=512.0,
     sweep_range=(8.0, 96.0),
     owner="core/interiority/other_minds.py",
-).value
+)
 
 
 @dataclass(frozen=True)
@@ -474,7 +474,7 @@ class _Baseline:
             # No baseline yet, so no deviation can be claimed.
             return 0.0
         deviation = value - prior
-        alpha = 1.0 - math.exp(-math.log(2.0) / _BASELINE_HALF_LIFE)
+        alpha = 1.0 - math.exp(-math.log(2.0) / _BASELINE_HALF_LIFE.value)
         self.means[channel] = prior + alpha * deviation
         self.counts[channel] = count + 1
         return deviation
@@ -488,7 +488,12 @@ class OtherMindsModel:
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._reliability: dict[str, float] = dict(_PRIOR_RELIABILITY)
+        # The priors stay Param objects so a calibration sweep can move the
+        # starting point; what a model carries is the live float it has
+        # learned from there.
+        self._reliability: dict[str, float] = {
+            channel: param.value for channel, param in _PRIOR_RELIABILITY.items()
+        }
         #: Learned adjustment to what each channel means, on top of the
         #: published prior in _LOADINGS. Starts empty: nothing is learned
         #: until an outcome says so.
@@ -568,7 +573,7 @@ class OtherMindsModel:
             # confidence answers how sure.
             weight_total = sum(used.values()) or 1.0
             posterior = _softmax(
-                {k: (v / weight_total) * _BETA for k, v in scores.items()}
+                {k: (v / weight_total) * _BETA.value for k, v in scores.items()}
             )
             confidence = self._confidence(posterior, evidence_mass, len(used))
 
@@ -663,7 +668,7 @@ class OtherMindsModel:
                 pointed = loadings.get(actual_tendency, 0.0) > 0.0
                 current = self._reliability.get(channel, 0.5)
                 target = 1.0 if pointed else 0.0
-                updated = current + _LEARNING_RATE * (target - current)
+                updated = current + _LEARNING_RATE.value * (target - current)
                 self._reliability[channel] = max(0.02, min(0.98, updated))
                 moved[channel] = self._reliability[channel] - current
 
@@ -674,9 +679,9 @@ class OtherMindsModel:
                 # survive a run of unusual people.
                 key = (channel, actual_tendency)
                 learned = self._learned.get(key, 0.0)
-                learned += _LOADING_LEARNING_RATE * weight * (1.0 - learned)
+                learned += _LOADING_LEARNING_RATE.value * weight * (1.0 - learned)
                 self._learned[key] = max(
-                    -_LOADING_DRIFT_LIMIT, min(_LOADING_DRIFT_LIMIT, learned)
+                    -_LOADING_DRIFT_LIMIT.value, min(_LOADING_DRIFT_LIMIT.value, learned)
                 )
             return moved
 

@@ -49,11 +49,11 @@ import time
 from dataclasses import dataclass, field
 from typing import Mapping
 
-from core.interiority.params import ParamKind, declare
+from core.interiority.params import Param, ParamKind, declare
 from core.interiority.receptors import ReceptorBank, get_receptor_bank
 
 
-def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> float:
+def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> Param:
     return declare(
         f"interiority.cleft.{name}",
         value,
@@ -61,7 +61,7 @@ def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> float:
         sensitivity=sensitivity,
         owner="core/interiority/cleft.py",
         **kw,
-    ).value
+    )
 
 
 _QUANTUM = _p(
@@ -226,28 +226,28 @@ class SynapticCleft:
             terminal.last_step = now
 
             # Clear what is already in the gap before adding to it.
-            terminal.concentration *= math.exp(-_CLEARANCE * step)
-            terminal.facilitation *= math.exp(-step / _FACILITATION_TAU)
+            terminal.concentration *= math.exp(-_CLEARANCE.value * step)
+            terminal.facilitation *= math.exp(-step / _FACILITATION_TAU.value)
 
             intended = max(0.0, min(1.0, signal))
-            quanta = int(math.ceil(intended / _QUANTUM)) if intended > 0.0 else 0
-            p = min(0.99, _BASE_RELEASE_P + terminal.facilitation)
+            quanta = int(math.ceil(intended / _QUANTUM.value)) if intended > 0.0 else 0
+            p = min(0.99, _BASE_RELEASE_P.value + terminal.facilitation)
             released_quanta = sum(1 for _ in range(quanta) if self._rng.random() < p)
-            released = released_quanta * _QUANTUM
+            released = released_quanta * _QUANTUM.value
 
             terminal.concentration = min(2.0, terminal.concentration + released)
             terminal.releases += released_quanta
             terminal.failures += quanta - released_quanta
             if released_quanta:
                 terminal.facilitation = min(
-                    _FACILITATION, terminal.facilitation + _FACILITATION * 0.5
+                    _FACILITATION.value, terminal.facilitation + _FACILITATION.value * 0.5
                 )
                 terminal.last_release = now
 
             spill: dict[str, float] = {}
             if released > 0.0:
                 for neighbour in self._neighbours.get(channel, ()):  # volume transmission
-                    amount = released * _SPILLOVER
+                    amount = released * _SPILLOVER.value
                     n_terminal = self._terminal(neighbour)
                     n_terminal.concentration = min(2.0, n_terminal.concentration + amount)
                     spill[neighbour] = amount
@@ -275,7 +275,7 @@ class SynapticCleft:
             now = time.time()
             step = dt if dt is not None else max(0.0, min(60.0, now - terminal.last_step))
             terminal.last_step = now
-            terminal.concentration *= math.exp(-_CLEARANCE * step)
+            terminal.concentration *= math.exp(-_CLEARANCE.value * step)
             modulator = self._modulators.get(channel, 1.0)
             return self._bank.transduce(channel, terminal.concentration * modulator, step)
 

@@ -54,7 +54,7 @@ _PROGRESS_PEAK = declare(
         "what Aura chooses to practise."
     ),
     owner="core/interiority/faculties/f02_fun.py",
-).value
+)
 
 _PROGRESS_WIDTH = declare(
     "interiority.f02.progress_width",
@@ -72,7 +72,7 @@ _PROGRESS_WIDTH = declare(
     ),
     sweep_range=(0.15, 0.45),
     owner="core/interiority/faculties/f02_fun.py",
-).value
+)
 
 
 @register
@@ -141,8 +141,8 @@ class Fun(Faculty):
         control = ctx.check("control").value if ctx.check("control").present else 0.0
         progress = novelty * control
 
-        offset = progress - _PROGRESS_PEAK
-        band = pow(2.718281828459045, -(offset * offset) / (2.0 * _PROGRESS_WIDTH**2))
+        offset = progress - _PROGRESS_PEAK.value
+        band = pow(2.718281828459045, -(offset * offset) / (2.0 * _PROGRESS_WIDTH.value**2))
         intensity = band * max(novelty, control)
 
         boredom = 1.0 - novelty

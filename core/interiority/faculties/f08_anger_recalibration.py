@@ -59,7 +59,7 @@ _WTR_FLOOR = declare(
     ),
     sweep_range=(0.1, 0.45),
     owner="core/interiority/faculties/f08_anger_recalibration.py",
-).value
+)
 
 
 @register
@@ -154,7 +154,7 @@ class AngerRecalibration(Faculty):
         # response available against someone who could not have complied —
         # which is the exact injustice this faculty exists to prevent, and
         # the proving harness caught it firing at 0.55 on both nulls.
-        snapped = pressure > 0.0 and wtr < _WTR_FLOOR and ignored >= 1
+        snapped = pressure > 0.0 and wtr < _WTR_FLOOR.value and ignored >= 1
 
         # Discontinuity. Below the threshold the state is a request; at it
         # the intensity jumps, because a signal that fades in is not a
@@ -201,6 +201,6 @@ class AngerRecalibration(Faculty):
                 "ignored_requests": ignored,
                 "heeded_requests": heeded,
                 "snapped": snapped,
-                "threshold": _WTR_FLOOR,
+                "threshold": _WTR_FLOOR.value,
             },
         )

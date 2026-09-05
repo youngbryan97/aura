@@ -42,10 +42,10 @@ from __future__ import annotations
 
 from core.interiority.appraisal import AppraisalFrame
 from core.interiority.effects import AffectDelta
-from core.interiority.params import ParamKind, declare
+from core.interiority.params import Param, ParamKind, declare
 
 
-def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> float:
+def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> Param:
     return declare(
         f"interiority.core_affect.{name}",
         value,
@@ -53,7 +53,7 @@ def _p(name: str, value: float, basis: str, sensitivity: str, **kw) -> float:
         sensitivity=sensitivity,
         owner="core/interiority/core_affect.py",
         **kw,
-    ).value
+    )
 
 
 _AROUSAL_NOVELTY = _p(
@@ -117,10 +117,10 @@ def core_affect(frame: AppraisalFrame) -> AffectDelta:
 
     valence = relevance * congruence * certainty
     arousal = certainty * (
-        _AROUSAL_NOVELTY * novelty
-        + _AROUSAL_IMPLICATION * implication
-        + _AROUSAL_UNCONTROLLABILITY * uncontrollability * relevance
-        + _AROUSAL_URGENCY * urgency
+        _AROUSAL_NOVELTY.value * novelty
+        + _AROUSAL_IMPLICATION.value * implication
+        + _AROUSAL_UNCONTROLLABILITY.value * uncontrollability * relevance
+        + _AROUSAL_URGENCY.value * urgency
     )
     # Occupation: what is at stake times what is still open.
     unresolved = max(novelty, 1.0 - certainty, urgency)
