@@ -81,8 +81,12 @@ def test_the_answering_path_asks_before_it_writes():
     from core.cognition import sequence_induction
 
     source = inspect.getsource(sequence_induction)
-    asked = source.index("why_nothing_fits(pairs)")
-    wrote = source.index("a_maker_she_wrote(pairs")
+    # By name, not by argument list. Both calls took a bare ``pairs`` when this
+    # was written and both take a field off a situation object now, which is
+    # the same contract with a different spelling — and pinning the spelling
+    # reported the refactor as the writer having been removed.
+    asked = source.index("why_nothing_fits(")
+    wrote = source.index("a_maker_she_wrote(")
     assert asked < wrote
     assert "if not why.is_the_language" in source
 

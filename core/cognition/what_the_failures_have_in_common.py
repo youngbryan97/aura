@@ -231,10 +231,12 @@ def why_nothing_fits(
         hypotheses = list(every_meaning())
 
     covered: list[tuple[frozenset[int], Any]] = []
+    tried = 0
     for one in hypotheses:
         read = getattr(one, "read", None)
         if not callable(read):
             continue
+        tried += 1
         right: set[int] = set()
         for at, (before, after) in enumerate(pairs):
             try:
@@ -246,6 +248,31 @@ def why_nothing_fits(
             return WhyNothingFits(NOTHING_FAILED, considered=len(hypotheses))
         if right:
             covered.append((frozenset(right), one))
+    if not covered and tried >= 2:
+        # Every reading the language admits, wrong about every case.
+        #
+        # This counted how many hypotheses got SOMETHING right and called
+        # fewer than two "not enough fitted to tell". That reads the strongest
+        # evidence there is as the weakest: a language missing something is
+        # missing it from all of its readings at once, and the limit of "they
+        # fail on the same things" is that they fail on everything.
+        #
+        # It also closed the loop that grows the language. Eighty meanings ran
+        # against a family needing a maximum of two sources, none got a single
+        # case right, the verdict was undecided, and the path that writes a way
+        # of building words is gated on this verdict — so the one situation the
+        # writer exists for is the one situation it could never be reached in.
+        # The precondition was kept true by its own failure.
+        #
+        # Two readable hypotheses is the floor, not a threshold: with fewer
+        # than that there is no language to be short of anything. There is no
+        # rival verdict available here either — a search that went badly means
+        # one reading came closer, and nothing came closer than nothing.
+        return WhyNothingFits(
+            A_REPRESENTATION_FAILURE,
+            considered=tried,
+            together_on=len(pairs),
+        )
     if len(covered) < 2:
         return WhyNothingFits(UNDECIDED, considered=len(covered))
 

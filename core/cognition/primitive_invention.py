@@ -375,6 +375,47 @@ def _a_consistent_source(options: Sequence[Sequence[int]]) -> tuple[int, ...] | 
     return tuple(chosen)
 
 
+#: How many column slides one shape offers. Rows sliding as a block is the
+#: flat offset already, and a slide of more than a few columns within a row is
+#: rare enough that the budget is better spent elsewhere.
+SLIDES_PER_SHAPE = 8
+
+
+def _the_shapes_of(size: int) -> list[tuple[int, int]]:
+    """Every way this length reads as a grid, from its divisors."""
+
+    shapes: list[tuple[int, int]] = []
+    for rows in range(2, size):
+        if rows * rows > size:
+            break
+        if size % rows:
+            continue
+        for high, across in ((rows, size // rows), (size // rows, rows)):
+            if high >= 2 and across >= 2:
+                shapes.append((high, across))
+    return shapes
+
+
+def _room_for_the_pairs(size: int) -> int:
+    """What the budget leaves for the absolute pairs, counted not built.
+
+    The linear families and the shapes are kept whatever the length: one says
+    something at every length and the other is the only way a stride can be
+    mentioned at all. The pairs are quadratic and the least general thing here,
+    so they take what is left — which below about forty is all of them, so
+    every length generates exactly the shapes it did before this budget
+    existed, in the same order. A budget that reorders what it does not need
+    to drop changes answers it was never asked to change.
+    """
+
+    linear = 2 + max(1, size - 1) + max(1, size // 2)
+    shaped = sum(
+        5 + min(SLIDES_PER_SHAPE, max(0, across - 1))
+        for _high, across in _the_shapes_of(size)
+    )
+    return max(0, MOST_FORMS_AT_A_LENGTH - linear - shaped)
+
+
 def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
     """Every shape of "position i takes from f(i)" this can express, at this size.
 
@@ -398,7 +439,6 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
     # they are the first thing the budget drops. At length nine that changes
     # nothing; at length nine hundred it is the difference between 814,428
     # shapes and a search that finishes.
-    absolute: list[tuple[str, str, IndexProgram]] = []
     for step in range(1, max(2, size)):
         forms.append(
             (
@@ -407,19 +447,28 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
                 IndexProgram("offset", (step,)),
             )
         )
+    # How many absolute pairs there is room for, worked out before any are
+    # built. They are quadratic in the length and the least general thing here
+    # — {0<->3} is a fact about length four and says nothing at length eight —
+    # so they are what the budget spends last. Below about forty the whole
+    # family fits and every length generates exactly the shapes it did before
+    # this budget existed, in the same order: a budget that reorders what it
+    # does not need to drop changes answers it was never asked to change.
+    room = _room_for_the_pairs(size)
     for left in range(size):
+        if room <= 0:
+            break
         for right in range(left + 1, size):
-            absolute.append(
+            if room <= 0:
+                break
+            room -= 1
+            forms.append(
                 (
                     "pairwise exchange",
                     f"positions exchange in pairs ({left}<->{right})",
                     IndexProgram("exchange", (left, right)),
                 )
             )
-            if len(absolute) >= MOST_FORMS_AT_A_LENGTH:
-                break
-        if len(absolute) >= MOST_FORMS_AT_A_LENGTH:
-            break
     for depth in range(max(1, size // 2)):
         forms.append(
             (
@@ -472,14 +521,7 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
     # so this says "a sequence of twelve might be three rows of four" and
     # never "this is a picture". A row of a table and a rank of a board are
     # the same fact about a stride.
-    for rows in range(2, size):
-        if rows * rows > size or len(forms) >= MOST_FORMS_AT_A_LENGTH:
-            break
-        if size % rows:
-            continue
-        for high, across in ((rows, size // rows), (size // rows, rows)):
-            if high < 2 or across < 2:
-                continue
+    for high, across in _the_shapes_of(size):
             shape = f"{high} rows of {across}"
             for mode, said in (
                 (0, "flipped about its horizontal axis"),
@@ -498,7 +540,7 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
             # Rows sliding as a block is already sayable — on a grid of this
             # shape it is the flat offset by a multiple of the width — so only
             # the slide WITHIN each row is new here.
-            for step in range(1, across):
+            for step in range(1, min(across, SLIDES_PER_SHAPE + 1)):
                 forms.append(
                     (
                         "shaped",
@@ -506,8 +548,7 @@ def _index_forms(size: int) -> list[tuple[str, str, Callable[[int, int], int]]]:
                         IndexProgram("shaped", (high, across, 5, step)),
                     )
                 )
-    room = MOST_FORMS_AT_A_LENGTH - len(forms)
-    return forms + absolute[:room] if room > 0 else forms
+    return forms
 
 
 def _grouped_source(index: int, size: int, span: int, first: int = 0) -> int:

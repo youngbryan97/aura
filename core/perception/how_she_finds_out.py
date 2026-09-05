@@ -212,9 +212,51 @@ def register_a_way(way: WayOfFindingOut) -> WayOfFindingOut:
     return way
 
 
+#: Whether the body has been asked what it can do, in this process. Emptying
+#: the inventory counts as having asked: a caller that clears it is saying it
+#: will supply the ways itself, and re-declaring underneath that would hand it
+#: an inventory it did not ask for.
+_THE_BODY_HAS_SPOKEN = False
+
+
+def whatever_the_body_can_do() -> None:
+    """Ask the senses to declare themselves, once per process.
+
+    The controller ranks the ways she has. If nothing declared any, it ranks
+    nothing, takes nothing, and reports "there was nothing worth looking at" —
+    which is indistinguishable from a considered refusal and is what the live
+    runtime did: ``declare_the_ways_she_has`` had no caller outside its own
+    test, so every epistemic decision in production was made over an empty
+    inventory.
+
+    Called from the two readers rather than from a boot hook, because a boot
+    hook is one path and these are every path.
+    """
+
+    global _THE_BODY_HAS_SPOKEN
+    with _LOCK:
+        if _THE_BODY_HAS_SPOKEN:
+            return
+        _THE_BODY_HAS_SPOKEN = True
+    try:
+        from core.perception.the_ways_she_has import declare_the_ways_she_has
+
+        declare_the_ways_she_has()
+    except Exception as exc:  # noqa: BLE001 - a sense that cannot declare is not fatal
+        from core.runtime.errors import record_degradation
+
+        record_degradation(
+            "how_she_finds_out",
+            exc,
+            severity="warning",
+            action="ranked only the ways that had already been declared",
+        )
+
+
 def the_inventory(about: str = "") -> tuple[WayOfFindingOut, ...]:
     """Every way she has of finding out, or every one that covers this."""
 
+    whatever_the_body_can_do()
     with _LOCK:
         ways = tuple(_INVENTORY.values())
     if not about:
@@ -228,8 +270,10 @@ def the_inventory(about: str = "") -> tuple[WayOfFindingOut, ...]:
 
 
 def clear_the_inventory() -> None:
+    global _THE_BODY_HAS_SPOKEN
     with _LOCK:
         _INVENTORY.clear()
+        _THE_BODY_HAS_SPOKEN = True
 
 
 def _instrument(way: WayOfFindingOut, hypotheses: Sequence[str], reliability: float) -> Observation:

@@ -1272,3 +1272,120 @@ def reproducibility(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]:
         "passed": bool(same_worlds and same_answers and freeze.trustworthy),
         "trajectories": [],
     }
+
+
+# ── 1b. the same measurement, on a family somebody else designed ──────────
+
+
+def outside_the_ontology(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]:
+    """Gate 1's control: tasks whose primitives were not chosen here.
+
+    Gate 1 seals its rules after the freeze, so the instances are fresh. What
+    an external review pointed out is that the ONTOLOGY is not: the generator
+    composes offsets, mirrors, end exchanges, groupings and value maps, and the
+    induction machinery represents offsets, mirrors, exchanges, ends, groupings
+    and affine maps. A new instance is not a new hypothesis family, and a score
+    there is evidence about search inside a universe the evaluator shares with
+    the solver.
+
+    That control cannot be written here, because anything written here is
+    written by the same hand. ARC-AGI is the nearest thing that exists: 400
+    evaluation tasks published in 2019, whose primitives — objectness,
+    counting, containment, symmetry — were chosen as a claim about core
+    knowledge and not as a claim about any program.
+
+    The tasks are public, so this runs the SYMBOLIC induction and no model at
+    all. Nothing here can recall an answer, so a solved task was searched for.
+
+    Three numbers, and the interesting one is the first. How many of the tasks
+    her language can even EXPRESS: a task whose output is a different size from
+    its input is not a rearrangement of cells, and no index program says it. Of
+    those, how many she finds a relation for. And of those, how many are right.
+    A ceiling below one is the measurement — it is what "the ontology is not
+    hers" looks like when you count it.
+    """
+
+    from core.cognition.primitive_invention import Transition, invent_relation
+    from tools.agi_gauntlet.environments.outside_the_ontology import (
+        read_the_outside_tasks,
+        where_they_live,
+    )
+
+    place = where_they_live()
+    if place is None:
+        return {
+            "ran": False,
+            "needs": (
+                "a task family designed by somebody else. Point "
+                "AGI_GAUNTLET_OUTSIDE_TASKS at a directory of ARC-style task "
+                "JSON — each file a list of worked input/output grids under "
+                "'train' and one held out under 'test'."
+            ),
+        }
+
+    #: How long a flattened grid may be. Not a claim about her: the pair pass
+    #: is quadratic in the number of shapes and the shapes grow with the
+    #: length, so a cap is the honest alternative to a run that never ends.
+    #: Reported, so the number is read as "within this budget".
+    longest = int(options.get("longest", 400))
+    budget = int(options.get("pairs", 20_000))
+    most = int(options.get("tasks", 0))
+
+    tasks, digest = read_the_outside_tasks(place, most=most)
+    expressible = attempted = found = unsettled = right = 0
+    too_long = 0
+    trajectories = []
+    for task in tasks:
+        if not task.same_shape:
+            continue
+        expressible += 1
+        if len(task.asked) > longest:
+            too_long += 1
+            continue
+        attempted += 1
+        relation = invent_relation(
+            [Transition(before, after) for before, after in task.shown],
+            about=(len(task.asked),),
+            most_pairs=budget,
+        )
+        if relation is None:
+            trajectories.append({"task": task.name, "found": False})
+            continue
+        found += 1
+        if not relation.settled:
+            unsettled += 1
+            trajectories.append(
+                {"task": task.name, "found": True, "settled": False,
+                 "form": relation.form, "also_fits": list(relation.also_fits)[:4]}
+            )
+            continue
+        try:
+            said = tuple(relation.apply(task.asked))
+        except (IndexError, TypeError, ValueError, ZeroDivisionError):
+            said = ()
+        correct = said == task.answer
+        right += int(correct)
+        trajectories.append(
+            {"task": task.name, "found": True, "settled": True,
+             "form": relation.form, "right": correct}
+        )
+    return {
+        "ran": True,
+        "source": str(place),
+        "digest": digest,
+        "tasks": len(tasks),
+        # The ceiling. A task whose grid changes size is not a rearrangement
+        # of cells, and nothing in an index language over positions can say it.
+        "her_language_could_express": expressible,
+        "share_expressible": round(expressible / len(tasks), 4) if tasks else 0.0,
+        "too_long_for_the_budget": too_long,
+        "attempted": attempted,
+        "relation_found": found,
+        "refused_as_unsettled": unsettled,
+        "exactly_right": right,
+        "right_of_attempted": round(right / attempted, 4) if attempted else 0.0,
+        "right_of_all": round(right / len(tasks), 4) if tasks else 0.0,
+        "pairs_budget": budget,
+        "longest_grid": longest,
+        "trajectories": trajectories,
+    }

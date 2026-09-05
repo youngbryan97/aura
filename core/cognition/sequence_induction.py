@@ -59,7 +59,18 @@ _SEQUENCE = re.compile(r"[\[(]\s*([^\[\]()]{1,300}?)\s*[\])]")
 #: What keeps prose out is not the brackets, it is everything after this: three
 #: runs at least, an odd number of them, and something meaning "becomes"
 #: between each pair. A sentence with numbers loose in it fails all three.
-_BARE_RUN = re.compile(r"(?<![\w.,])(-?\d+(?:[ \t]*,?[ \t]+-?\d+)+)(?!\w)(?!\.\d)")
+_BARE_RUN = re.compile(
+    r"(?<![\w.,])(-?\d+(?:(?:[ \t]*,[ \t]*|[ \t]+)-?\d+)+)(?!\w)(?!\.\d)"
+)
+
+#: A number written with thousands separators, which the run pattern above
+#: cannot tell from a short list. "1,000" is not the sequence [1, 0], and the
+#: shape that separates them is that every group after the first is exactly
+#: three digits. A list whose every element happens to be three digits is
+#: refused with it, which is the safe way round: a question that is not
+#: answered here goes to the model, and a number read as a list corrupts a
+#: question that was never about sequences.
+_THOUSANDS = re.compile(r"^-?\d{1,3}(?:,\d{3})+$")
 
 #: What sits between an example and its result. Any of them, or nothing at all
 #: when the examples are simply listed in order.
@@ -1093,6 +1104,8 @@ def read_sequence_question(text: Any) -> SequenceQuestion | None:
             found.append((hit.start(), cells))
             covered.append((hit.start(), hit.end()))
     for hit in _BARE_RUN.finditer(body):
+        if _THOUSANDS.match(hit.group(1).replace(" ", "")):
+            continue
         if any(start <= hit.start() < end for start, end in covered):
             # Already read as a bracketed run. Counting it twice would make an
             # even number of runs out of an odd one and lose the question.

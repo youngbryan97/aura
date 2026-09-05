@@ -21,6 +21,11 @@ Reachability here means either:
 * the dotted module path appearing in a string literal — how ``importlib``,
   plugin registries and config-driven factories reach a module. A module
   referenced only that way is reachable, and calling it dead would be wrong.
+* membership of a package that walks its own directory and imports what it
+  finds. The path is built at run time from a filename, so it appears in no
+  import statement and no string literal. An external review's static pass
+  concluded the forty-three interiority faculties were dead on exactly this
+  ground, and they run on every boot.
 
 Run: ``python tools/lint_module_reachability.py`` / ``--write-baseline`` /
 ``--list``
@@ -99,6 +104,60 @@ def _catalog_reachable(core_modules: dict[str, Path]) -> set[str]:
         if str(getattr(declaration, "module_path", "")) in core_modules
     }
     return reachable
+
+
+#: How a package walks its own directory and imports what it finds. The module
+#: path is BUILT at run time out of the package name and a filename read off
+#: the disk, so it exists in no import statement and in no string literal, and
+#: a scan looking for either calls every member dead.
+_SELF_ENUMERATION = (
+    "pkgutil.iter_modules",
+    "pkgutil.walk_packages",
+    "iter_modules(__path__",
+    "walk_packages(__path__",
+)
+
+
+def _reached_by_self_enumeration(
+    sources: list[Path], core_modules: dict[str, Path]
+) -> set[str]:
+    """Members of a package that imports whatever is in its own directory.
+
+    An external review ran a static reachability pass over this tree and
+    concluded the forty-three interiority faculties were dead. They are not:
+    ``core/interiority/faculties/__init__.py`` walks its own directory with
+    ``pkgutil.iter_modules`` and imports every file whose name starts with f,
+    and the service calls that on boot. Nothing in the repository ever writes
+    ``core.interiority.faculties.f01_reading_others``, so a scan that looks for
+    the dotted path finds nothing, and this tool would have said the same.
+
+    That is the failure mode this whole file exists to prevent, made by the
+    file itself. A tool that reports live code as dead is worse than no tool,
+    because the number it produces is the one somebody deletes from.
+
+    A package counts as self-enumerating when its ``__init__`` both walks its
+    own path and imports by a built name. Walking without importing is a
+    listing, and this does not treat a listing as a use.
+    """
+
+    reached: set[str] = set()
+    for path in sources:
+        if path.name != "__init__.py":
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        walks = any(marker in text for marker in _SELF_ENUMERATION)
+        if not walks or "import_module" not in text:
+            continue
+        package = _module_name(path)
+        if package not in core_modules and not package.startswith("core."):
+            continue
+        for name in core_modules:
+            if name.startswith(f"{package}."):
+                reached.add(name)
+    return reached
 
 
 def _with_ancestor_packages(name: str, core_modules: dict[str, Any]) -> list[str]:
@@ -190,6 +249,7 @@ def scan() -> dict[str, object]:
                         importers[candidate].add(me)
 
     referenced |= _catalog_reachable(core_modules)
+    referenced |= _reached_by_self_enumeration(sources, core_modules)
 
     orphans = sorted(set(core_modules) - referenced)
     lines = 0

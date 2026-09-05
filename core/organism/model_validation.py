@@ -3068,6 +3068,60 @@ def _universality_certificates_that_fail() -> int:
     return failed
 
 
+def _the_tower_with_no_top() -> int:
+    """Run the theorem that says where the regress ends. Failures must be none.
+
+    The claim about the floor was ``asserted_in`` this module and nothing
+    imported it, so the argument sat in a file that never ran — which is the
+    one shape of dead code this codebase keeps finding, and a theorem is the
+    worst thing to leave in it, because a proof nobody executes reads exactly
+    like one that holds.
+
+    Three things, each executed rather than cited. Naming a thing does not
+    change what it denotes, on an actual word. A universal bedrock puts the
+    number of further authoring events at nought, and a bedrock that is not
+    universal puts it beyond any bound — the second is the regress, stated. And
+    the gate stays outside, because an invariant of the form "everything
+    admitted is harmless" survives only while the thing checking it cannot
+    itself be admitted.
+    """
+    from core.cognition.where_the_tower_has_a_top import (
+        AUTHORED_FOREVER,
+        NEVER_AGAIN,
+        UNDECIDED,
+        a_gate_inside_the_space_cannot_hold,
+        naming_adds_no_meaning,
+        what_is_still_authored,
+        where_the_tower_ends,
+    )
+
+    failed = 0
+    # A word she made, and the same thing written out with the name gone.
+    doubled = {"twice": lambda row: tuple(one * 2 for one in row)}
+    failed += (
+        0
+        if naming_adds_no_meaning(
+            lambda made: tuple(made((1, 2, 3))) == (2, 4, 6),
+            the_name=doubled["twice"],
+            written_out=lambda: (lambda row: tuple(one + one for one in row)),
+        )
+        else 1
+    )
+    universal = where_the_tower_ends(
+        universal=True,
+        certificate="Kleene's constructors, each exhibited as a term on the floor",
+    )
+    failed += 0 if universal.verdict == NEVER_AGAIN and universal.has_a_top else 1
+    smaller = where_the_tower_ends(
+        universal=False, a_behaviour_outside="the least k where a predicate holds"
+    )
+    failed += 0 if smaller.verdict == AUTHORED_FOREVER and not smaller.has_a_top else 1
+    failed += 0 if where_the_tower_ends(universal=None).verdict == UNDECIDED else 1
+    failed += 0 if a_gate_inside_the_space_cannot_hold().shows_the_gate_must_stay_out else 1
+    failed += 0 if len(what_is_still_authored()) == 3 else 1
+    return failed
+
+
 def _a_way_of_computing_she_cannot_keep() -> int:
     """Steps between writing a head and using it after a restart. Must be none.
 
@@ -3780,6 +3834,16 @@ def _install_language_growth_claims(suite: Any) -> None:
             "exhausts its meter rather than returning",
             _universality_certificates_that_fail,
             "core/cognition/what_the_floor_can_say.py",
+        ),
+        (
+            "test_the_tower_ends_at_universality_and_nowhere_else",
+            "a name can be substituted away without changing what it denotes, a "
+            "universal bedrock puts the number of further authoring events at "
+            "nought while a smaller one puts it beyond any bound, and an "
+            "invariant checked by something that can itself be admitted stops "
+            "holding once it is",
+            _the_tower_with_no_top,
+            "core/cognition/where_the_tower_has_a_top.py",
         ),
         (
             "test_she_writes_an_order_that_holds_on_episodes_it_never_saw",
