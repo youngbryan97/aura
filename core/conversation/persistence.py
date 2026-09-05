@@ -1149,6 +1149,34 @@ class ConversationPersistence:
                 },
             )
 
+    @staticmethod
+    def _appraise_turn(content: str, *, session_id: str, turn_id: str) -> None:
+        """Run the interiority layer on a turn that actually happened.
+
+        Every turn is recorded here, whichever lane produced it, which is
+        why the hook is here rather than in the context builder. Six live
+        turns produced two appraisals when the layer was reached only
+        through the per-turn context bridge: the repair and protected
+        lanes never build one, and a conversation ran past forty-three
+        faculties that never saw it.
+
+        Synchronous and about three milliseconds. Failures are recorded
+        and swallowed, because an interior that can fail a turn is worse
+        than one that occasionally misses it.
+        """
+        try:
+            from core.interiority.service import get_interiority
+
+            get_interiority().attune(content, subject=session_id or "user")
+        except Exception as exc:  # noqa: BLE001 — a turn must not fail for this
+            from core.runtime.errors import record_degradation
+
+            record_degradation(
+                "conversation.persistence",
+                exc,
+                action="turn recorded without an interior appraisal",
+            )
+
     def _publish_turn_recorded(
         self,
         *,
@@ -1159,6 +1187,8 @@ class ConversationPersistence:
         session_id: str,
         turn_id: str,
     ) -> None:
+        if role == "user":
+            self._appraise_turn(content, session_id=session_id, turn_id=turn_id)
         try:
             from core.event_bus import get_event_bus
 
