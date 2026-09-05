@@ -442,11 +442,13 @@ class MorphogeneticRuntime:
                         from core.morphogenesis.hooks import record_organ_formation_episode
                         from core.runtime.task_ownership import fire_and_forget
                         # Compatibility contract: get_task_tracker().create_task(record_organ_formation_episode...)
-                        fire_and_forget(
-                            record_organ_formation_episode(organ.to_dict()),
+                        organ_episode = record_organ_formation_episode(organ.to_dict())
+                        if fire_and_forget(
+                            organ_episode,
                             name="morphogenesis.organ_episode",
                             bounded=True,
-                        )
+                        ) is None:
+                            organ_episode.close()
                     except (ImportError, AttributeError, RuntimeError):
                         pass  # no-op: intentional
 
@@ -1090,10 +1092,20 @@ class MorphogeneticRuntime:
             if mem is None or not hasattr(mem, "record_episode_async"):
                 return
             failures = [r for r in self._episode_buffer if not r.get("success", True)]
-            await mem.record_episode_async(
+            # Not awaited inside the tick. An episodic write reaches storage
+            # and, through Will, a memory search; awaiting it made the tick as
+            # slow as the slowest thing memory happened to be doing. Measured
+            # over a 400-tick soak: two ticks past 100ms, the worst 507ms, both
+            # of them here.
+            #
+            # The buffer is cleared before handing the coroutine off, so a slow
+            # write cannot cause the same events to be recorded twice.
+            buffered = list(self._episode_buffer)
+            self._episode_buffer.clear()
+            coroutine = mem.record_episode_async(
                 context="MorphogeneticRuntime self-organization cycle",
                 action="cellular_tick_and_organ_stabilization",
-                outcome=f"{len(self._episode_buffer)} cell activations, failures={len(failures)}",
+                outcome=f"{len(buffered)} cell activations, failures={len(failures)}",
                 success=not failures,
                 emotional_valence=-0.25 if failures else 0.18,
                 tools_used=["morphogenesis_runtime"],
@@ -1105,7 +1117,15 @@ class MorphogeneticRuntime:
                 source="morphogenesis",
                 metadata={"tick": self._tick, "failure_count": len(failures)},
             )
-            self._episode_buffer.clear()
+            from core.runtime.task_ownership import fire_and_forget
+
+            if fire_and_forget(coroutine, name="morphogenesis.episode", bounded=True) is None:
+                # Refused — shutting down, or the bounded lane is full. Close
+                # the coroutine rather than leaving it unawaited: a dropped
+                # episode is a lost record, and a leaked coroutine is a warning
+                # nobody traces back to here.
+                coroutine.close()
+                logger.debug("morphogenesis episode dropped: background lane refused it")
         except (ImportError, AttributeError, RuntimeError) as exc:
             self._last_degradation_at = time.time()
             _record_morphogenesis_runtime_degradation(

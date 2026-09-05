@@ -306,11 +306,18 @@ _WARM_IMPORTS: tuple[str, ...] = (
     "core.morphogenesis.telemetry",
     "core.morphogenesis.invariants",
     "core.morphogenesis.live_policy",
+    "core.runtime.resource_observation",
+    "core.fsw.telemetry_dictionary",
+    "core.verify.invariants",
 )
 
 
 def _warm_lazy_imports() -> list[str]:
-    """Import what the tick will need, so no tick is the one that pays."""
+    """Import what the tick will need, so no tick is the one that pays.
+
+    Also takes the first resource reading. psutil's first sample opens and
+    parses the host's counters, and the tick that takes it wears the cost.
+    """
     import importlib
 
     warmed: list[str] = []
@@ -320,6 +327,15 @@ def _warm_lazy_imports() -> list[str]:
             warmed.append(name)
         except (ImportError, AttributeError, RuntimeError) as exc:
             logger.debug("morphogenesis warm import skipped for %s: %s", name, exc)
+    try:
+        from core.runtime.resource_observation import get_resource_observer
+
+        observer = get_resource_observer()
+        observer.memory()
+        observer.compute()
+        warmed.append("resource_observation:first_sample")
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("morphogenesis resource warm-up skipped: %s", exc)
     return warmed
 
 
