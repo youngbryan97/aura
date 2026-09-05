@@ -352,6 +352,38 @@ def _load_settings() -> dict[str, Any]:
     return settings
 
 
+def wait_until_settled(timeout_s: float = 1.0) -> bool:
+    """Wait for the first real read of the settings file. True when it landed.
+
+    Reads never touch the filesystem — they answer from a snapshot a worker
+    keeps current. Until that worker has run once there is no snapshot, and a
+    read falls back to the fail-closed values, which is the right answer to
+    give and the wrong one to believe: it is indistinguishable from every
+    permission genuinely being switched off.
+
+    So a short-lived process, or anything that asks once at startup, reads
+    every permission as denied however the person actually set them. Measured:
+    screen access read as off with the setting on, and the run reported having
+    nothing to look at.
+
+    For a caller that can afford to wait — one about to do the thing the
+    permission governs — this is the difference between a refusal and not
+    knowing yet. Bounded, and false when it did not settle in time, so nothing
+    waits on this forever and nobody has to treat a timeout as a yes.
+    """
+    _ensure_refresh_worker()
+    if _cache_initialized:
+        return True
+    _refresh_wakeup.set()
+    ends_at = time.monotonic() + max(0.0, float(timeout_s))
+    while not _cache_initialized:
+        left = ends_at - time.monotonic()
+        if left <= 0.0:
+            return False
+        time.sleep(min(0.02, left))
+    return True
+
+
 def get_runtime_setting(key: str, default: Any = None) -> Any:
     """Read a user runtime setting by dotted key, falling back to ``default``.
 
