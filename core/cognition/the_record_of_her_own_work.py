@@ -170,9 +170,21 @@ class Record:
             self.last_used[name] = self.seen
         self.kept.append(episode)
         # Only the newest few keep their cases; the rest keep their numbers.
-        holding = [one for one in self.kept if one.about]
-        for old in holding[:-HOW_MANY_CASES_ARE_KEPT]:
-            self.kept[self.kept.index(old)] = Episode(
+        #
+        # By position, not by value. This walked the whole ring, built the
+        # list of episodes still carrying cases, and then asked `index` for
+        # each one it wanted to compact — a linear scan inside a loop over a
+        # linear scan, five hundred entries deep. That was affordable while
+        # an episode was written once per answered question. It stopped being
+        # affordable the moment every degradation in the process wrote one:
+        # a test file that had run in ten seconds ran for a quarter of an
+        # hour, and nothing about it had changed.
+        holding = [
+            place for place, one in enumerate(self.kept) if one.about
+        ]
+        for place in holding[:-HOW_MANY_CASES_ARE_KEPT]:
+            old = self.kept[place]
+            self.kept[place] = Episode(
                 family=old.family,
                 route=old.route,
                 walked=old.walked,
