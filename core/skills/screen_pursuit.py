@@ -2350,6 +2350,65 @@ async def _the_best_reading_available(
     return from_page
 
 
+#: What each way of being refused a look means for her, and what it takes to
+#: change it.
+#:
+#: Seven distinct refusals were reported as one sentence — "your screen is
+#: locked" — whatever had actually happened. A setting switched off was a
+#: locked screen. Something private in front was a locked screen. Not being
+#: able to tell what was in front was a locked screen. The person was told to
+#: unlock a screen that was not locked, and the one thing that would have
+#: helped went unsaid.
+#:
+#: Waiting is right for a condition that passes on its own: a person unlocks a
+#: screen, closes a private window, brings something forward. It is wrong for
+#: one that does not, and waiting out the whole budget on a setting nobody is
+#: going to change during the task is the same as failing, slower.
+PASSES_ON_ITS_OWN = frozenset({
+    "session_locked",
+    "private_foreground",
+    "private_visible",
+    "foreground_unknown",
+    "browser_title_unknown",
+})
+
+#: The refusals that mean there IS a screen and she cannot tell what is on it,
+#: which is a different situation from having nothing to look at: the thing
+#: she wants may simply not be in front, and going to get it is hers to do.
+SOMETHING_ELSE_IS_IN_FRONT = frozenset({"foreground_unknown", "browser_title_unknown"})
+
+
+def _what_being_refused_a_look_means(why: str) -> str:
+    """The refusal in her own words, and what would change it."""
+    return {
+        "session_locked": (
+            "your screen is locked, so there is nothing for me to look at yet"
+        ),
+        "runtime_setting_disabled": (
+            "I am not allowed to read the screen at the moment — the setting "
+            "that lets me is switched off"
+        ),
+        "private_foreground": (
+            "something private is in front, so I am not reading the screen "
+            "while it is there"
+        ),
+        "private_visible": (
+            "something private is on screen, so I am not reading it while it "
+            "is showing"
+        ),
+        "foreground_unknown": (
+            "I cannot tell what is in front of me, so I will not act on it"
+        ),
+        "browser_title_unknown": (
+            "I cannot tell which page is in front, so I will not act on it"
+        ),
+        "policy_unavailable": (
+            "I could not check whether I am allowed to read the screen, so I "
+            "am not going to"
+        ),
+    }.get(str(why or ""), f"I am not able to read the screen ({why or 'no reason given'})")
+
+
 async def wait_for_a_screen_to_look_at(ends_at: float) -> bool:
     """Wait for a locked screen, rather than failing at one.
 
@@ -2367,32 +2426,47 @@ async def wait_for_a_screen_to_look_at(ends_at: float) -> bool:
         evaluate_screen_capture_admission_async,
     )
 
-    told = False
+    told = ""
     while True:
         try:
             admission = await evaluate_screen_capture_admission_async()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            _WHY_SHE_CANNOT_LOOK["value"] = ""
             return True
-        if admission.allowed or admission.reason.value != "session_locked":
+        why = str(getattr(admission.reason, "value", admission.reason) or "")
+        if admission.allowed:
             if told:
-                logger.info("the screen is back; carrying on")
-            return admission.allowed
+                logger.info("she can see the screen again; carrying on")
+            _WHY_SHE_CANNOT_LOOK["value"] = ""
+            return True
+        _WHY_SHE_CANNOT_LOOK["value"] = why
+        if why not in PASSES_ON_ITS_OWN:
+            # Nothing about waiting changes this one, and waiting out the
+            # whole budget on it is failing slowly.
+            logger.info("she cannot look and waiting will not help: %s", why)
+            return False
         left = ends_at - time.monotonic()
         if left <= 0.0:
-            logger.info("the screen stayed locked for the whole of this task")
+            logger.info("she could not look for the whole of this task: %s", why)
             return False
-        if not told:
-            logger.info("the screen is locked; waiting for it rather than failing")
+        if told != why:
+            logger.info("she cannot look yet (%s); waiting rather than failing", why)
             # Say it. Waiting in silence for the whole deadline and then
             # explaining is the same information delivered too late to act
-            # on — the person is the one who can unlock it, and they cannot
+            # on — the person is the one who can change it, and they cannot
             # do that if nothing tells them.
             await _narrate(
-                "Your screen is locked, so there is nothing for me to look at "
-                "yet. I will start the moment it is unlocked."
+                f"{_what_being_refused_a_look_means(why).capitalize()}. "
+                "I will start the moment that changes."
             )
-            told = True
+            told = why
         await asyncio.sleep(min(max(1.0, left / 60.0), left))
+
+
+#: Why the last look was refused, for the caller that has to say so. Kept
+#: beside the wait rather than returned, so every existing caller keeps its
+#: boolean and none of them has to learn a new shape to stop lying.
+_WHY_SHE_CANNOT_LOOK: dict[str, str] = {"value": ""}
 
 
 async def clear_what_is_in_front(on_top: str) -> bool:
@@ -2753,10 +2827,20 @@ async def pursue_on_screen(
     if deadline_at > 0.0:
         ends_at = min(ends_at, float(deadline_at))
     if not await wait_for_a_screen_to_look_at(ends_at):
+        why = _WHY_SHE_CANNOT_LOOK["value"]
         return {
             "ok": False,
-            "outcome": "no_screen_to_look_at",
-            "error": "the screen is locked, so there is nothing for me to look at yet",
+            # Which of them it was, because they do not have the same remedy
+            # and the person is the one who can apply it.
+            "outcome": (
+                "something_else_is_in_front"
+                if why in SOMETHING_ELSE_IS_IN_FRONT
+                else "not_allowed_to_look"
+                if why and why not in PASSES_ON_ITS_OWN
+                else "no_screen_to_look_at"
+            ),
+            "refused_because": why,
+            "error": _what_being_refused_a_look_means(why),
             "moves": [],
         }
     moves: list[dict[str, Any]] = []
