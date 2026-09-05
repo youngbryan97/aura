@@ -2921,23 +2921,26 @@ def _bounded_generation_max_tokens(
     user_surface_completion_floor: Any = None,
     preserve_user_surface_completion_floor: bool = False,
     tool_call_floor: Any = None,
+    preserve_admitted_capacity: bool = False,
 ) -> int:
     """Apply adaptive shrinkage without making an admitted contract impossible.
 
     A CALL is one of those contracts, and it had no floor.
 
-    The adaptive suggestion scales a generation by felt vitality, which is
-    right for prose — she says less when depleted — and wrong for a structured
-    call, which is a fixed-size object. Half a call is not a shorter call; it
-    is no call, and the loop reports "none called" while the model had emitted
-    exactly the right thing.
+    Adaptive suggestions remain available for unowned work. An owned
+    foreground answer retains its admitted capacity: stopping generation
+    early cannot make either prose or a structured call more concise.
 
     LIVE, 2026-08-28: "read the docs, then use it" was granted 2048 tokens by
     its own clock and generated with 399, because vitality had scaled it down.
     The argument stopped inside ``from ledgerkit imp``.
     """
 
-    bounded = _bounded_max_tokens(requested, bridged, fallback)
+    # Resource admission has already bounded the request. Affective state
+    # cannot reduce an owned answer's capacity after that decision.
+    bounded = _bounded_max_tokens(
+        requested, requested if preserve_admitted_capacity else bridged, fallback
+    )
     if hard_output_ceiling is not None and hard_output_ceiling != "":
         bounded = _bounded_max_tokens(bounded, hard_output_ceiling, fallback)
 
@@ -16050,6 +16053,9 @@ class MLXLocalClient:
             ),
             preserve_user_surface_completion_floor=bool(
                 kwargs.get("clean_user_surface_contract", False)
+            ),
+            preserve_admitted_capacity=bool(
+                progress_owned_completion and foreground_request
             ),
             # A call that carries a program is sized by what it has to say,
             # not by how depleted she is.

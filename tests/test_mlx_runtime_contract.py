@@ -216,6 +216,21 @@ def test_adaptive_bridge_cannot_erase_clean_user_surface_completion_reserve():
     )
 
 
+def test_owned_answer_preserves_admitted_capacity_but_not_past_hard_ceiling():
+    from core.brain.llm.mlx_client import _bounded_generation_max_tokens
+
+    assert _bounded_generation_max_tokens(
+        2048, 921, None, 512, preserve_admitted_capacity=True
+    ) == 2048
+    assert _bounded_generation_max_tokens(
+        2048, 921, 128, 512, preserve_admitted_capacity=True
+    ) == 128
+    assert _bounded_generation_max_tokens(
+        64, 32, None, 512, preserve_admitted_capacity=True
+    ) == 64
+    assert _bounded_generation_max_tokens(2048, 921, None, 512) == 921
+
+
 def test_mlx_main_generation_builds_contract_cap_after_bridge_lookup():
     import inspect
 
@@ -232,6 +247,8 @@ def test_mlx_main_generation_builds_contract_cap_after_bridge_lookup():
     request_index = source.index('"max_tokens": generation_max_tokens')
 
     assert bridge_index < contract_index < request_index
+    assert "preserve_admitted_capacity=bool(" in source
+    assert "progress_owned_completion and foreground_request" in source
     assert "requested_output_contract" not in inspect.getsource(
         MLXLocalClient.generate_batch_async
     )

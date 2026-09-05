@@ -52759,3 +52759,16 @@ checkpoint establishes neither general RLC gain nor live reply completion.
 
 Smoke: 163 passed, one skipped. Lint, compile and layering passed after fixing
 import order. The live runtime still carries 1092afbf0, not this checkpoint.
+
+## Checkpoint 2026-09-05: Preserve Owned Answer Capacity Through the Bridge
+
+The adaptive bridge could shrink an admitted foreground token allowance by
+felt vitality. Owned foreground generations now retain their post-admission
+capacity at this boundary. Explicit hard output ceilings still apply; resource
+admission still precedes it. Unowned generations retain adaptive budgeting.
+This changes capacity, not the generated text or its natural EOS behavior.
+
+Contract and tool-protocol tests: 58 passed. Smoke: 163 passed, one skipped.
+Lint, compile and layering passed. The running 1092afbf0 instance has not loaded
+this change. A source-matched replay remains required before claiming the
+observed 2048-to-921-token truncation or the full reply path is repaired live.
