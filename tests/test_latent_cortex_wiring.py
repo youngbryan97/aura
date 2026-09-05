@@ -3203,7 +3203,7 @@ def test_service_applies_resident_identity_profile_before_worker_ipc(monkeypatch
     # CP126 5879d2b5: a refusal now carries a bounded receipt tying
     # it to this call, so exact-dict equality is no longer the contract.
     assert result["refusal_receipt"]["reason"] == result["reason"]
-    assert captured["config"]["decode_max_tokens"] == 256
+    assert captured["config"]["decode_max_tokens"] == 2048
     assert captured["config"]["decode_bridge_policy"] == "assistant_answer_v1"
     assert captured["config"]["verifier_probe_max_tokens"] == 24
     assert captured["config"]["verifier_accept_non_regression"] is True
@@ -3215,6 +3215,35 @@ def test_service_applies_resident_identity_profile_before_worker_ipc(monkeypatch
     adaptive = svc._last_allocation["adaptive_compute"]
     assert adaptive["routing"]["recurrence"]["max_steps"] == 3
     assert svc._last_allocation["adaptive_compute_execution"] == "enforced"
+
+
+@pytest.mark.parametrize("question", [
+    "Hello.",
+    "Compare the designs, choose one and explain how to verify it.",
+])
+def test_resident_surface_preserves_requested_decode_capacity(monkeypatch, question):
+    svc = LatentCortexService()
+    captured = {}
+
+    class Client:
+        def get_worker_identity_snapshot(self):
+            return {"worker_model_parameter_count": 27_000_000_000}
+
+        async def latent_reason_async(self, **kwargs):
+            captured.update(kwargs)
+            return {"ok": False, "reason": "profile_observed"}
+
+    import core.brain.llm.mlx_client as mlx_client_mod
+
+    monkeypatch.setattr(mlx_client_mod, "get_mlx_client", lambda *a, **kw: Client())
+    result = asyncio.run(svc.deep_reason(
+        question,
+        config_overrides={"decode_max_tokens": 4096},
+        timeout_s=1800.0,
+        foreground_request=True,
+    ))
+    assert result["reason"] == "profile_observed"
+    assert captured["config"]["decode_max_tokens"] == 4096
 
 
 def test_compound_objective_expands_answer_surface(monkeypatch):

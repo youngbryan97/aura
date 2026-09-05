@@ -52700,3 +52700,16 @@ Live validation remains open. Answer allocation still needs repair: the
 resident profile caps simple replies at 256 and compound replies at 1536
 before accounting for native reasoning. No latency or live-success claim
 is made by this checkpoint.
+
+## Checkpoint 2026-09-05: Preserve the Requested Answer Capacity
+
+The resident service no longer reduces an admitted decode allowance to 256
+tokens for simple objectives or 1536 for compound objectives. Structural
+answer floors can still increase capacity; the existing compute and resource
+admission remains in force. Tests cover both objective shapes with 4096
+requested tokens and preserve an existing 2048-token request at worker IPC.
+
+Allocation and wiring tests: 142 passed. Smoke: 163 passed, one skipped.
+Lint, compile and layering passed. Native reasoning reserve integration and
+source-matched live replay remain open; this checkpoint does not claim a
+completed live response or a latency improvement.

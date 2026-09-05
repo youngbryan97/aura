@@ -5226,7 +5226,8 @@ class LatentCortexService:
                 )
                 config["decode_max_tokens"] = max(
                     structural_answer_floor,
-                    min(1536, max(requested_decode_tokens, 320)),
+                    requested_decode_tokens,
+                    320,
                 )
                 config["decode_bridge_policy"] = "assistant_answer_v3"
                 # EOS floor: a compound answer abandoned 16 tokens in is
@@ -5247,7 +5248,7 @@ class LatentCortexService:
             else:
                 config["decode_max_tokens"] = max(
                     64,
-                    min(256, requested_decode_tokens),
+                    requested_decode_tokens,
                 )
                 config["decode_bridge_policy"] = "assistant_answer_v1"
                 config["decode_min_tokens"] = 48
