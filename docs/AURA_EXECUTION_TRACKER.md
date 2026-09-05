@@ -52870,3 +52870,11 @@ times, health briefly reported stale inference readiness while foreground work
 was active, and duplicate vital cards remained visible. These are open runtime
 observations, not folded into the answer verdict. The active continuation
 wakeup resumes this task every fifteen minutes from this tracker.
+
+The replay's RLC episode later completed its internal work but returned an
+empty string after 174.0 seconds, so the client correctly refused it as
+`latent_answer_invalid` and used the ordinary answer path. This confirms the
+new progress accounting prevented the earlier false retry-stall, but it does
+not establish successful RLC serving. The next diagnosis is the empty-answer
+boundary after episode completion, with the combined prefill/incumbent timing
+kept separate from ordinary decode timing.
