@@ -52897,3 +52897,32 @@ Smoke: 163 passed, one skipped. Compile and diff checks pass. This is an
 observability and stall-diagnosis repair; it does not claim an RLC answer or
 relax an answer, timeout or scientific gate. The commit is `fee841dcf`, pushed
 to `origin/main`. A source-matched live replay is still required.
+
+## Checkpoint 2026-09-05: Keep Background Tool Progress Out of Chat
+
+Live PID 51909 launched canonical revision 8bc3445a2 after the prior runtime
+had exited cleanly. No competing model/training process was present; available
+RAM was 42.58 GiB. Foreground dependency warmup completed in 77.92 seconds
+after Cortex readiness. The chat UI accepted the validation question at
+16:13:05 and delivered a 3,283-character Cortex response at 16:15:14; server
+request timing was 128,061 ms. The turn-scoped generation label was visible.
+The earlier warmup fallback and mid-sentence cutoff did not recur on this turn.
+
+Answer correctness did not pass: the response confused lock contention with
+blocking unrelated threads and the entire asyncio event loop. It also used
+an unnecessarily complicated polling queue example. This is completion-path
+evidence, not an RLC gain or a technical-answer quality pass.
+
+An autonomous email tool event overwrote the foreground typing label before
+generation progress arrived. Global tool events now update tool telemetry
+only; the existing delivery-owned channel controls foreground progress. The
+JavaScript regression executes every tool lifecycle stage and rejects any
+chat label/state write while checking that skill status and fault cards remain.
+Delivery-loop checks pass; smoke passed 164 tests with one skip.
+
+The live neural stream also exposed a concrete persistence failure: interiority
+and phenomena both declare channel 0x1701 (and overlapping following IDs).
+Conversation persistence consequently omitted the interior appraisal. Repair
+of that shared telemetry allocation is next; RLC empty-answer diagnosis and
+general transfer remain open. One capability-engine probe exceeded five
+seconds during boot, and duplicate vital cards remain visible.

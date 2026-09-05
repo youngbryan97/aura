@@ -2010,16 +2010,8 @@ function applyToolEvent(event) {
             '';
         if (stageForCard) updateSkillUI(event.tool, stageForCard);
 
-        // Update the typing indicator label to show tool activity
-        if (event.stage === 'started') {
-            const action = formatToolAction(event.tool);
-            updateTypingLabel(`Aura is ${action}…`);
-            const typingInd = $('typing-ind');
-            if (typingInd) typingInd.classList.add('show');
-            setChatPanelState('thinking');
-        } else if (deferred || ['completed', 'failed', 'rejected', 'degraded'].includes(String(event.stage))) {
-            updateTypingLabel('Aura is thinking…');
-        }
+        // Global tool events also include autonomous work. Only the current
+        // delivery's progress channel may attribute work to the chat turn.
     }
 
     if (!deferred && event && ['failed', 'rejected', 'degraded'].includes(String(event.stage))) {
