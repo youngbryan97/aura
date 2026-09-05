@@ -124,6 +124,20 @@ class KVMutationTransaction:
         self._appended_min = min(positive, default=0) if window_deltas else None
         self._appended_max = max(positive, default=0) if window_deltas else None
 
+    def observe_and_restore(
+        self,
+        cache: Sequence[Any] | None = None,
+        *,
+        execution_failed: bool = False,
+    ) -> None:
+        """Restore speculative writes even when their audit fails."""
+        if self.isolated:
+            raise _tree_error("isolated KV transaction must be discarded explicitly")
+        try:
+            self.observe_mutation(cache, execution_failed=execution_failed)
+        finally:
+            self.restore_parent(cache)
+
     def reject_after_restore(self, cache: Sequence[Any] | None = None) -> dict[str, Any]:
         if self.isolated:
             raise _tree_error("isolated KV transaction must be discarded explicitly")

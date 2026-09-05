@@ -522,6 +522,31 @@ def test_window_restores_parent_when_mutation_audit_raises(monkeypatch):
     assert _cache_matches_snapshot(cache, 0, N_LAYERS, snapshots)
 
 
+def test_transaction_restores_real_cache_after_invalid_window_mutation():
+    from core.brain.llm.latent_cortex.recurrence import _cache_matches_snapshot
+    from core.brain.llm.recurrent_depth import _snapshot_recurrent_caches
+
+    model = _tiny_model()
+    cache, _ = _prefill(model, PROMPT)
+    snapshots = _snapshot_recurrent_caches(cache, 0, N_LAYERS)
+    tree = KVStateTree(
+        cache,
+        n_layers=N_LAYERS,
+        episode_id="restore-invalid-child",
+        input_tokens_sha256=_sha("prompt"),
+    )
+    transaction = tree.begin_speculation(
+        cache, start=1, end=5, purpose="verifier_probe", branch_index=0,
+        parent_sha256=tree.root_sha256,
+    )
+    model(mx.array([[7]]), cache=cache)
+    mx.eval([entry.state for entry in cache])
+    with pytest.raises(KVStateTreeError, match="escaped its declared layer window"):
+        transaction.observe_and_restore(cache)
+    assert _cache_matches_snapshot(cache, 0, N_LAYERS, snapshots)
+    assert not transaction.closed
+
+
 def test_full_real_episode_emits_valid_final_tree():
     model = _tiny_model()
     config = CortexConfig(

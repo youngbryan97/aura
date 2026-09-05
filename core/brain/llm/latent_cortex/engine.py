@@ -2922,11 +2922,10 @@ class LatentCortexEngine:
             execution_failed = False
         finally:
             if kv_transaction is not None:
-                kv_transaction.observe_mutation(
+                kv_transaction.observe_and_restore(
                     cache,
                     execution_failed=execution_failed,
                 )
-                kv_transaction.restore_parent(cache)
             else:
                 _restore_recurrent_caches(cache, 0, self.n_layers, snaps)
             if kv_transaction is not None:
@@ -4662,11 +4661,10 @@ class LatentCortexEngine:
                 )
                 capture_failed = False
             finally:
-                incumbent_capture.observe_mutation(
+                incumbent_capture.observe_and_restore(
                     cache,
                     execution_failed=capture_failed,
                 )
-                incumbent_capture.restore_parent(cache)
                 incumbent_capture.reject_after_restore(cache)
             # Publish only after the speculative cache is proven restored.
             # Tuples prevent later decode bookkeeping from mutating the floor.

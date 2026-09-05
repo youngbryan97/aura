@@ -52647,3 +52647,17 @@ limits remain unchanged. This removes a competing timer, not all deadlines.
 Allocation and service tests: 140 passed. Smoke: 163 passed, one skipped.
 Lint and compile passed. The earlier 366-second live result is still the most
 recent desktop timing; no latency improvement is claimed from these tests.
+
+## Checkpoint 2026-09-05: Restore Before Propagating a Cache Audit Failure
+
+Verifier probes and pristine incumbent capture still performed mutation audit
+before restoration without a finally guarantee. They could leave speculative
+writes behind when the audit rejected them. KVMutationTransaction now owns
+observe_and_restore; both engine callers and WindowRunner use that operation.
+An audit exception still propagates and cannot create an accepted receipt.
+
+A real-MLX regression changes layers outside the declared window, observes
+the expected rejection, and proves exact restoration of every parent cache.
+Cache/probe tests: 36 passed. Engine tests: 76 passed. Smoke: 163 passed,
+one skipped. This closes the shared-cache cleanup paths examined here;
+isolated candidate caches retain their separate discard protocol.
