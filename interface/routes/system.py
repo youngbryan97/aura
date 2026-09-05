@@ -5793,6 +5793,67 @@ def _runtime_integrity_public_payload(report: dict[str, Any] | None) -> dict[str
     }
 
 
+@router.get("/health/interiority")
+async def api_interiority_state():
+    """Diagnostic: the interiority layer's live state. Read-only.
+
+    The census is the part worth reading. Every other measurement of this
+    layer runs in a world the test harness builds; this one accumulates
+    across real turns and reports a firing rate and a mean intensity per
+    faculty, a histogram of why faculties declined, and which sense
+    channels were actually carrying anything.
+
+    A mechanism for a specific relational situation that fires on nine
+    turns in ten is matching something it should not, and this is where
+    that shows.
+    """
+    from core.container import ServiceContainer
+
+    service = ServiceContainer.get("interiority", default=None)
+    if service is None:
+        return {
+            "available": False,
+            "reason": "the interiority service is not registered in this runtime",
+        }
+    try:
+        snapshot = service.snapshot()
+    except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "interface.system", exc, action="interiority snapshot unavailable"
+        )
+        return {"available": False, "error": type(exc).__name__}
+
+    census = snapshot.get("census") or {}
+    return {
+        "available": True,
+        "faculties": snapshot.get("faculties"),
+        "ticks": snapshot.get("ticks"),
+        "census": census,
+        "senses": snapshot.get("senses"),
+        "attribution": snapshot.get("attribution"),
+        "ledger": snapshot.get("ledger"),
+        "never_fired": (
+            list(service.census.never_fired(tuple(_interiority_faculty_ids())))
+            if census.get("turns")
+            else []
+        ),
+        "fires_on_almost_every_turn": (
+            [list(row) for row in service.census.always_fires()]
+            if census.get("turns")
+            else []
+        ),
+    }
+
+
+def _interiority_faculty_ids() -> tuple[str, ...]:
+    try:
+        from core.interiority.faculty import registry
+
+        return registry().ids()
+    except (ImportError, RuntimeError, AttributeError):
+        return ()
+
+
 @router.get("/health/mind_tick")
 async def api_mind_tick_diagnostics():
     """Diagnostic: MindTick's internal liveness state — is the supervised loop

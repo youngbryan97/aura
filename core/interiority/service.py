@@ -109,6 +109,9 @@ class InteriorityService:
         #: What actually happens once she is running, which no
         #: constructed proof can report.
         self.census = get_census()
+        #: Turns between census writes. A record only in memory is lost on
+        #: the restart that most needs explaining.
+        self._census_every = 25
         self._last: Arbitrated | None = None
         self._last_frame: AppraisalFrame | None = None
         self._last_activations: tuple[Activation, ...] = ()
@@ -219,6 +222,8 @@ class InteriorityService:
         self.census.observe(
             state, channels=tuple(sorted(event.present_channels()))
         )
+        if self._ticks % self._census_every == 0:
+            self.census.persist()
 
         # The interior reports itself on declared channels. A state that
         # ran and left no trace cannot be understood afterwards, and this
