@@ -218,3 +218,49 @@ def test_a_standard_that_never_serves_her_becomes_one_she_merely_obeys() -> None
     assert held.endorsement > 0.7, held
     assert obeyed.endorsement < 0.3, obeyed
     assert held.evidence == obeyed.evidence == 20
+
+
+def test_a_channel_can_learn_what_it_means_within_a_bound() -> None:
+    """O2: the mapping from channel to readiness was fixed forever.
+
+    The priors are measured asymmetries — a face is controllable, a pause
+    is not — so learning has to be able to adjust them without
+    overwriting them. The parameter claims the bound is wide enough to
+    reverse a weak prior and not a strong one, and this measures both
+    rather than taking the number on faith.
+    """
+    from core.interiority.other_minds import _LOADINGS, OtherMindsModel
+
+    model = OtherMindsModel()
+
+    def read(value: float):
+        model.estimate(
+            InteriorEvent(
+                kind=EventKind.SOCIAL, subject="p",
+                observations={"timing": measured(0.2)},
+            )
+        )
+        return model.estimate(
+            InteriorEvent(
+                kind=EventKind.SOCIAL, subject="p",
+                observations={"timing": measured(value)},
+            )
+        )
+
+    weak_before = _LOADINGS["timing"]["attend"]
+    strong_before = _LOADINGS["timing"]["inhibit"]
+    assert weak_before < 0 < strong_before
+
+    for _ in range(30):
+        model.record_outcome(read(0.9), actual_tendency="attend")
+
+    effective = model._effective_loadings("timing")
+    assert effective["attend"] > 0, (
+        "a weak prior did not reverse under thirty consistent outcomes, so "
+        "nothing is being learned"
+    )
+    assert effective["inhibit"] == strong_before, (
+        "a strong published asymmetry moved; the drift bound is supposed to "
+        "keep the finding this started from"
+    )
+    assert model.status()["learned_loadings"] > 0

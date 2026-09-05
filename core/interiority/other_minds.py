@@ -266,6 +266,48 @@ _BETA = declare(
     owner="core/interiority/other_minds.py",
 ).value
 
+_LOADING_LEARNING_RATE = declare(
+    "interiority.other_minds.loading_learning_rate",
+    0.03,
+    unit="rate",
+    basis=(
+        "How fast the channel-to-readiness mapping moves on a confirmed "
+        "outcome. Slower than the reliability rate, because a reliability is "
+        "how much to trust a channel and a loading is what the channel means; "
+        "the second should need more evidence than the first."
+    ),
+    kind=ParamKind.CALIBRATION,
+    sensitivity=(
+        "Fast and one surprising person rewrites what a pause means; zero and "
+        "the mapping is whatever it was written with, forever."
+    ),
+    sweep_range=(0.005, 0.1),
+    owner="core/interiority/other_minds.py",
+).value
+
+_LOADING_DRIFT_LIMIT = declare(
+    "interiority.other_minds.loading_drift_limit",
+    0.4,
+    unit="loading",
+    basis=(
+        "How far a learned loading may move from its published prior. Bounded "
+        "rather than free because the priors are measured asymmetries — a face "
+        "is controllable, a pause is not — and a mapping that can drift "
+        "without limit will eventually learn whatever the last few people "
+        "happened to do. Wide enough to reverse a weak prior, not wide enough "
+        "to reverse a strong one."
+    ),
+    kind=ParamKind.CALIBRATION,
+    sensitivity=(
+        "At zero nothing is learned; unbounded, a run of unusual people "
+        "overwrites the published ordering and nothing reports that it did."
+    ),
+    lower=0.0,
+    upper=1.0,
+    sweep_range=(0.1, 0.7),
+    owner="core/interiority/other_minds.py",
+).value
+
 _LEARNING_RATE = declare(
     "interiority.other_minds.reliability_learning_rate",
     0.05,
@@ -447,6 +489,10 @@ class OtherMindsModel:
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._reliability: dict[str, float] = dict(_PRIOR_RELIABILITY)
+        #: Learned adjustment to what each channel means, on top of the
+        #: published prior in _LOADINGS. Starts empty: nothing is learned
+        #: until an outcome says so.
+        self._learned: dict[tuple[str, str], float] = {}
         self._baselines: dict[str, _Baseline] = {}
         self._reads = 0
         self._outcomes = 0
@@ -503,7 +549,7 @@ class OtherMindsModel:
                 weight = self._reliability.get(channel, 0.0) * reading.confidence
                 if weight <= 0.0:
                     continue
-                loadings = _LOADINGS.get(channel, {})
+                loadings = self._effective_loadings(channel)
                 if not loadings:
                     continue
                 used[channel] = weight
@@ -574,6 +620,30 @@ class OtherMindsModel:
         return max(0.0, min(1.0, (sharpness * strength * breadth) ** (1.0 / 3.0)))
 
     # ── learning ──────────────────────────────────────────────────────
+    def _effective_loadings(self, channel: str) -> dict[str, float]:
+        """The published prior for this channel plus whatever has been learned.
+
+        The priors are measured asymmetries and the learned part is
+        bounded, so a run of unusual people can adjust what a channel
+        means without overwriting the finding it started from.
+        """
+        prior = _LOADINGS.get(channel, {})
+        if not prior and not any(k[0] == channel for k in self._learned):
+            return {}
+        out = dict(prior)
+        for (chan, tendency), delta in self._learned.items():
+            if chan == channel:
+                out[tendency] = out.get(tendency, 0.0) + delta
+        return out
+
+    def loading_drift(self) -> dict[str, float]:
+        """How far each channel's meaning has moved from its published prior."""
+        drift: dict[str, float] = {}
+        with self._lock:
+            for (channel, _tendency), delta in self._learned.items():
+                drift[channel] = drift.get(channel, 0.0) + abs(delta)
+        return drift
+
     def record_outcome(
         self, estimate: OtherEstimate, *, actual_tendency: str
     ) -> dict[str, float]:
@@ -589,13 +659,25 @@ class OtherMindsModel:
             self._outcomes += 1
             moved: dict[str, float] = {}
             for channel, weight in estimate.channels_used.items():
-                loadings = _LOADINGS.get(channel, {})
+                loadings = self._effective_loadings(channel)
                 pointed = loadings.get(actual_tendency, 0.0) > 0.0
                 current = self._reliability.get(channel, 0.5)
                 target = 1.0 if pointed else 0.0
                 updated = current + _LEARNING_RATE * (target - current)
                 self._reliability[channel] = max(0.02, min(0.98, updated))
                 moved[channel] = self._reliability[channel] - current
+
+                # And what the channel *means*, not only how much to trust
+                # it. A channel that carried evidence when this readiness
+                # turned out to be the real one loads a little more on it;
+                # the movement is bounded so the published asymmetries
+                # survive a run of unusual people.
+                key = (channel, actual_tendency)
+                learned = self._learned.get(key, 0.0)
+                learned += _LOADING_LEARNING_RATE * weight * (1.0 - learned)
+                self._learned[key] = max(
+                    -_LOADING_DRIFT_LIMIT, min(_LOADING_DRIFT_LIMIT, learned)
+                )
             return moved
 
     def reliability(self) -> dict[str, float]:
@@ -609,6 +691,10 @@ class OtherMindsModel:
                 "outcomes_recorded": self._outcomes,
                 "people_with_baselines": len(self._baselines),
                 "reliability": dict(self._reliability),
+                "loading_drift": {
+                    c: round(d, 4) for c, d in sorted(self.loading_drift().items())
+                },
+                "learned_loadings": len(self._learned),
             }
 
 
