@@ -25,7 +25,7 @@ buildable thing. Status is measured, not asserted.
 
 | # | Item | Status |
 | :-- | :-- | :-- |
-| 9 | Matched independent experiment: frozen Aura vs the base model, equal compute, tokens, tools, time, information, on externally authored unseen tasks, with an ablation ladder | OPEN |
+| 9 | Matched independent experiment: frozen Aura vs the base model, equal compute, tokens, tools, time, information, on externally authored unseen tasks, with an ablation ladder | **DONE** — `core/evals/matched_experiment.py`; ran on both real 27B models, 24 tasks: +0.042 delta, p=1.0, 1 discordant of 24, correctly reported as not attributable. See `docs/evidence/matched_experiment/` |
 | 10 | Causal credit assignment across thousands of mechanisms: counterfactual replay, causal graphs, Shapley-like attribution, eligibility traces, selective interventions | **DONE** — `core/verify/coalition_credit.py` adds coalition attribution over the existing lesion registry, so redundancy stops reading as irrelevance; checked against constructed ground truth where the answer is known |
 | 11 | Epistemic independence: no important adaptive mechanism defines its own success criterion after observing its result | **DONE** — `core/verify/epistemic_independence.py` seals a criterion before the run and refuses a redefinition after it has judged; `make epistemic-independence` finds bars derived from what they judge; checked against its null, all three planted forms caught |
 | 12 | Model horizon: know when a simulation has left its trustworthy regime and must not drive irreversible choices | **DONE** — `core/verify/model_horizon.py` measures support and local calibration, model-agnostic; four standings keep "nothing near this was checked" separate from "the model is wrong here"; composed into the agency ceiling, which gives `turn_budget()` its first caller |
@@ -35,7 +35,7 @@ buildable thing. Status is measured, not asserted.
 
 | # | Item | Status |
 | :-- | :-- | :-- |
-| 14 | Memory allocation across representational substrates: symbolic vs adapter vs weights, by expected lifetime usefulness, confidence and interference cost | OPEN |
+| 14 | Memory allocation across representational substrates: symbolic vs adapter vs weights, by expected lifetime usefulness, confidence and interference cost | **DONE** — `core/memory/substrate_allocation.py`; confidence gates come before value, and adapter capacity contention is what makes the weights ever the right answer (without it that branch is unreachable) |
 | 15 | Self-repair under unknown failures: recognise a failure the ontology does not contain, infer the broken invariant, localise, invent a repair, verify, integrate the new failure concept | OPEN |
 | 16 | Architectural self-discovery: shadow architectures, forked trials, compatibility interfaces, migration proofs | OPEN |
 | 17 | Primitive invention that feeds later invention, rather than composition of human-supplied primitives | OPEN |

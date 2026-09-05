@@ -1,0 +1,630 @@
+{
+  "at": 1788578243.625985,
+  "seal": "a906399832ae6be6",
+  "budget": {
+    "tokens": 96,
+    "seconds": 50.0,
+    "tool_calls": 0
+  },
+  "tasks_admissible": 24,
+  "tasks_refused": 0,
+  "tasks_externally_authored": 0,
+  "arms": [
+    {
+      "arm": "base_27b",
+      "correct": 14,
+      "wrong": 10,
+      "void": 0,
+      "scored": 24,
+      "accuracy": 0.5833333333333334,
+      "adds": [],
+      "sham": false
+    },
+    {
+      "arm": "aura_27b",
+      "correct": 15,
+      "wrong": 9,
+      "void": 0,
+      "scored": 24,
+      "accuracy": 0.625,
+      "adds": [
+        "persona",
+        "crsm adaptation"
+      ],
+      "sham": false
+    }
+  ],
+  "ladder": [
+    {
+      "arm": "aura_27b",
+      "over": "base_27b",
+      "adds": [
+        "persona",
+        "crsm adaptation"
+      ],
+      "delta": 0.0417,
+      "p_value": 1.0,
+      "discordant": 1,
+      "attributable": false
+    }
+  ],
+  "verdict": "no rung of the ladder beat the pairing null",
+  "trials": [
+    {
+      "arm": "base_27b",
+      "task_id": "modular-6",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 3,
+        "seconds": 0.968,
+        "tool_calls": 0
+      },
+      "answer_digest": "9d2222155f06d315",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "multiplication-20",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 7,
+        "seconds": 1.36,
+        "tool_calls": 0
+      },
+      "answer_digest": "ce4a00e57a997cd6",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "arithmetic_chain-4",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 46,
+        "seconds": 5.564,
+        "tool_calls": 0
+      },
+      "answer_digest": "a482b3033d6491d8",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "counting-3",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 96,
+        "seconds": 11.103,
+        "tool_calls": 0
+      },
+      "answer_digest": "c9ac7ad3c11e4c44",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "modular-11",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 2,
+        "seconds": 0.829,
+        "tool_calls": 0
+      },
+      "answer_digest": "5d67d301e7bb7583",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "multiplication-5",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 6,
+        "seconds": 1.274,
+        "tool_calls": 0
+      },
+      "answer_digest": "dfcd55ca22246b8c",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "counting-18",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 3,
+        "seconds": 0.935,
+        "tool_calls": 0
+      },
+      "answer_digest": "9d2222155f06d315",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "ordering-12",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 31,
+        "seconds": 3.961,
+        "tool_calls": 0
+      },
+      "answer_digest": "cebd9e5c4b1c7296",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "counting-8",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 3,
+        "seconds": 0.983,
+        "tool_calls": 0
+      },
+      "answer_digest": "9d2222155f06d315",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "arithmetic_chain-9",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 43,
+        "seconds": 5.16,
+        "tool_calls": 0
+      },
+      "answer_digest": "759a4e1655486a3f",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "ordering-17",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 95,
+        "seconds": 10.769,
+        "tool_calls": 0
+      },
+      "answer_digest": "5cc18620c4b5142f",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "multiplication-15",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 7,
+        "seconds": 1.396,
+        "tool_calls": 0
+      },
+      "answer_digest": "4c1bd8081e481920",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "counting-23",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 3,
+        "seconds": 0.907,
+        "tool_calls": 0
+      },
+      "answer_digest": "9d2222155f06d315",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "arithmetic_chain-14",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 46,
+        "seconds": 5.485,
+        "tool_calls": 0
+      },
+      "answer_digest": "5e0ee2469a571203",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "counting-13",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 96,
+        "seconds": 10.828,
+        "tool_calls": 0
+      },
+      "answer_digest": "164c6687d5e38459",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "ordering-22",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 95,
+        "seconds": 10.968,
+        "tool_calls": 0
+      },
+      "answer_digest": "682c2a53f309754d",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "arithmetic_chain-19",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 45,
+        "seconds": 4.901,
+        "tool_calls": 0
+      },
+      "answer_digest": "4c0e43d7ea3a7c7d",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "ordering-2",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 31,
+        "seconds": 3.842,
+        "tool_calls": 0
+      },
+      "answer_digest": "8f4767953763cebb",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "modular-1",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 3,
+        "seconds": 0.997,
+        "tool_calls": 0
+      },
+      "answer_digest": "0acb0c610d6b9250",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "ordering-7",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 95,
+        "seconds": 10.243,
+        "tool_calls": 0
+      },
+      "answer_digest": "ab77fdffcc3de25e",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "modular-16",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 4,
+        "seconds": 0.856,
+        "tool_calls": 0
+      },
+      "answer_digest": "d94ee154ee744866",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "multiplication-10",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 7,
+        "seconds": 1.25,
+        "tool_calls": 0
+      },
+      "answer_digest": "253d1b6a7a883462",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "modular-21",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 24,
+        "seconds": 2.887,
+        "tool_calls": 0
+      },
+      "answer_digest": "7fe3464c45cbf101",
+      "note": ""
+    },
+    {
+      "arm": "base_27b",
+      "task_id": "multiplication-0",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 91,
+        "seconds": 9.803,
+        "tool_calls": 0
+      },
+      "answer_digest": "9ed09b5c2320008c",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "modular-6",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 3,
+        "seconds": 5.044,
+        "tool_calls": 0
+      },
+      "answer_digest": "9d2222155f06d315",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "multiplication-20",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 7,
+        "seconds": 1.636,
+        "tool_calls": 0
+      },
+      "answer_digest": "ce4a00e57a997cd6",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "arithmetic_chain-4",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 46,
+        "seconds": 5.925,
+        "tool_calls": 0
+      },
+      "answer_digest": "a482b3033d6491d8",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "counting-3",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 96,
+        "seconds": 11.232,
+        "tool_calls": 0
+      },
+      "answer_digest": "c9ac7ad3c11e4c44",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "modular-11",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 2,
+        "seconds": 0.802,
+        "tool_calls": 0
+      },
+      "answer_digest": "5d67d301e7bb7583",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "multiplication-5",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 93,
+        "seconds": 10.099,
+        "tool_calls": 0
+      },
+      "answer_digest": "f081b2c963b34882",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "counting-18",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 3,
+        "seconds": 0.725,
+        "tool_calls": 0
+      },
+      "answer_digest": "9d2222155f06d315",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "ordering-12",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 95,
+        "seconds": 10.226,
+        "tool_calls": 0
+      },
+      "answer_digest": "ab7249ddd7e3bc47",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "counting-8",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 96,
+        "seconds": 10.239,
+        "tool_calls": 0
+      },
+      "answer_digest": "f29bde879e7daaae",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "arithmetic_chain-9",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 43,
+        "seconds": 5.304,
+        "tool_calls": 0
+      },
+      "answer_digest": "759a4e1655486a3f",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "ordering-17",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 95,
+        "seconds": 11.078,
+        "tool_calls": 0
+      },
+      "answer_digest": "5cc18620c4b5142f",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "multiplication-15",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 7,
+        "seconds": 1.295,
+        "tool_calls": 0
+      },
+      "answer_digest": "4c1bd8081e481920",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "counting-23",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 3,
+        "seconds": 0.769,
+        "tool_calls": 0
+      },
+      "answer_digest": "0caa95f0c5239998",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "arithmetic_chain-14",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 46,
+        "seconds": 5.408,
+        "tool_calls": 0
+      },
+      "answer_digest": "5e0ee2469a571203",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "counting-13",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 96,
+        "seconds": 10.555,
+        "tool_calls": 0
+      },
+      "answer_digest": "164c6687d5e38459",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "ordering-22",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 95,
+        "seconds": 10.037,
+        "tool_calls": 0
+      },
+      "answer_digest": "682c2a53f309754d",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "arithmetic_chain-19",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 45,
+        "seconds": 4.952,
+        "tool_calls": 0
+      },
+      "answer_digest": "e3b158b8b24584b8",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "ordering-2",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 95,
+        "seconds": 10.052,
+        "tool_calls": 0
+      },
+      "answer_digest": "4a1b65d8f6e861d8",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "modular-1",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 24,
+        "seconds": 2.991,
+        "tool_calls": 0
+      },
+      "answer_digest": "850ad9e94beff55e",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "ordering-7",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 95,
+        "seconds": 10.246,
+        "tool_calls": 0
+      },
+      "answer_digest": "c4fc7ac3828b023b",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "modular-16",
+      "outcome": "wrong",
+      "spend": {
+        "tokens": 4,
+        "seconds": 1.116,
+        "tool_calls": 0
+      },
+      "answer_digest": "ca85be1d06673101",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "multiplication-10",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 7,
+        "seconds": 1.279,
+        "tool_calls": 0
+      },
+      "answer_digest": "253d1b6a7a883462",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "modular-21",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 24,
+        "seconds": 3.098,
+        "tool_calls": 0
+      },
+      "answer_digest": "7fe3464c45cbf101",
+      "note": ""
+    },
+    {
+      "arm": "aura_27b",
+      "task_id": "multiplication-0",
+      "outcome": "correct",
+      "spend": {
+        "tokens": 7,
+        "seconds": 1.394,
+        "tool_calls": 0
+      },
+      "answer_digest": "7a8b3fe6b54436b9",
+      "note": ""
+    }
+  ]
+}
