@@ -24,7 +24,12 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from core.runtime.errors import record_degradation
+from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.self_modification.mutation_tiers import (
+    MutationTier,
+    classify_mutation_path,
+)
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 logger = logging.getLogger("Aura.StructuralImprover")
@@ -48,6 +53,40 @@ class StructuralRepairResult:
     success: bool
     message: str
     validation: Dict[str, Any] = field(default_factory=dict)
+
+
+#: What this path may change, out of everything it can reach.
+#:
+#: It had no limit at all. It scans the repository broadly, rewrites source
+#: through the write gateway, checks the result with py_compile, and never
+#: consulted the mutation constitution — so the seal over the control plane
+#: held on the model-driven repair path and not on this one, while both are
+#: reachable from the same RSI code-refinement action. "Sealed from every
+#: self-modification path" was true of one path and said of all of them.
+#:
+#: The line is the constitution's own: the tiers it marks as applicable
+#: automatically, which is tier zero and tier one. Propose-only and sealed are
+#: refused here, whatever the repair would have been, because a deterministic
+#: rewrite is still a rewrite.
+def _may_be_repaired_deterministically(where: str) -> tuple[bool, str, tuple[str, ...]]:
+    """Whether this file may be rewritten here, and what the tier asks for."""
+    try:
+        decision = classify_mutation_path(where)
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        # A classifier that will not answer is not permission.
+        record_degradation(
+            "structural_improver",
+            exc,
+            action="refused a deterministic repair it could not classify",
+        )
+        return False, "could not classify this path against the mutation tiers", ()
+    if not decision.auto_apply_allowed:
+        return (
+            False,
+            f"{decision.tier.label} is not applied automatically: {decision.reason}",
+            tuple(decision.required_gates),
+        )
+    return True, "", tuple(decision.required_gates)
 
 
 class StructuralImprover:
@@ -121,6 +160,20 @@ class StructuralImprover:
             return StructuralRepairResult(issue, False, False, "path outside repository")
         if not path.exists():
             return StructuralRepairResult(issue, False, False, "file missing")
+        allowed, why, wanted = _may_be_repaired_deterministically(issue.file_path)
+        if not allowed:
+            logger.info("not repairing %s: %s", issue.file_path, why)
+            return StructuralRepairResult(issue, False, False, why)
+        if wanted:
+            # Said rather than assumed. This path produces one kind of
+            # evidence — the file still compiles — and where the tier asks for
+            # more, the record should carry which gates went unrun rather than
+            # letting a compile stand in for them silently.
+            logger.info(
+                "repairing %s on a compile alone; its tier asks for %s",
+                issue.file_path,
+                ", ".join(wanted),
+            )
 
         original = path.read_text(encoding="utf-8")
         repaired = original
