@@ -269,6 +269,12 @@ export AURA_FORCE_CAMERA
 export AURA_ENABLE_UVLOOP
 export AURA_ATTACH_LAUNCHER
 export AURA_LOCAL_BACKEND=mlx        # Aura's in-process fine-tuned MLX mind.
+# Model and tokenizer artifacts are resident local dependencies. Keep every
+# launch path offline at that boundary; governed web/research capabilities use
+# their own explicit transports and are not affected by these library flags.
+export HF_HUB_OFFLINE=1
+export HF_HUB_DISABLE_TELEMETRY=1
+export TRANSFORMERS_OFFLINE=1
 # ── Substrate interoception + epistemic reach (felt thought) ─────────────────
 : "${AURA_INTEROCEPTION:=1}"             # Feel the decode: per-token surprisal/entropy tap
 : "${AURA_EPISTEMIC_REACH:=1}"           # Felt doubt may verify claims externally (governed)

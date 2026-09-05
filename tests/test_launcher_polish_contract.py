@@ -225,6 +225,9 @@ def test_launch_script_supports_gui_window_mode():
     assert "AURA_EAGER_CORTEX_WARMUP" in shell
     assert "AURA_DEFERRED_CORTEX_PREWARM" in shell
     assert "export AURA_LOCAL_BACKEND=mlx" in shell
+    assert "export HF_HUB_OFFLINE=1" in shell
+    assert "export HF_HUB_DISABLE_TELEMETRY=1" in shell
+    assert "export TRANSFORMERS_OFFLINE=1" in shell
     assert "AURA_BACKGROUND_BOOT_GRACE_S:=60" in shell
     assert "export AURA_BACKGROUND_BOOT_GRACE_S" in shell
     assert "AURA_ENABLE_PERMANENT_SWARM:=0" in shell
