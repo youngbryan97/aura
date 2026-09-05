@@ -188,3 +188,90 @@ def test_the_fidelity_bar_is_judged_through_a_sealed_criterion():
     assert criterion.name == "narrative.introspective_fidelity"
     assert criterion.rationale
     _fidelity_criterion.cache_clear()
+
+
+# ── independent evidence channels ────────────────────────────────────────
+#
+# Sealing the criterion fixes WHEN success is defined. It says nothing about
+# WHO says it was met, and for an important change those are different
+# questions. A mechanism that proposes a change, runs the check and reports
+# the result has supplied all three, and the seal is satisfied throughout.
+
+
+def test_a_mechanism_cannot_evidence_its_own_important_change():
+    from core.verify.epistemic_independence import Channel, Evidence, support_for
+
+    assert support_for([Evidence(Channel.SELF, True)]).sufficient is False
+
+
+def test_one_independent_channel_is_not_enough():
+    """One that is wrong looks exactly like one that is right."""
+    from core.verify.epistemic_independence import Channel, Evidence, support_for
+
+    support = support_for(
+        [Evidence(Channel.SELF, True), Evidence(Channel.HELD_OUT, True)]
+    )
+    assert support.sufficient is False
+    assert support.independent == 1
+
+
+def test_two_channels_the_mechanism_does_not_control_are_enough():
+    from core.verify.epistemic_independence import Channel, Evidence, support_for
+
+    assert support_for(
+        [
+            Evidence(Channel.SELF, True),
+            Evidence(Channel.HELD_OUT, True),
+            Evidence(Channel.ALTERNATE_MODEL, True),
+        ]
+    ).sufficient is True
+
+
+def test_any_independent_disagreement_withholds_support():
+    """The mechanism's own check passing while something else does not is
+    exactly the case this exists for."""
+    from core.verify.epistemic_independence import Channel, Evidence, support_for
+
+    support = support_for(
+        [
+            Evidence(Channel.HELD_OUT, True),
+            Evidence(Channel.ALTERNATE_MODEL, True),
+            Evidence(Channel.EXTERNAL_REALITY, False),
+        ]
+    )
+    assert support.sufficient is False
+    assert support.disagreeing == 1
+
+
+def test_two_of_the_same_channel_are_not_two_channels():
+    from core.verify.epistemic_independence import Channel, Evidence, support_for
+
+    support = support_for(
+        [Evidence(Channel.HELD_OUT, True), Evidence(Channel.HELD_OUT, True)]
+    )
+    assert support.independent == 1 and support.sufficient is False
+
+
+def test_an_unimportant_change_may_be_evidenced_by_its_author():
+    """Not everything needs this, which is the point of the distinction."""
+    from core.verify.epistemic_independence import Channel, Evidence, support_for
+
+    assert support_for(
+        [Evidence(Channel.SELF, True)], important=False
+    ).sufficient is True
+
+
+def test_only_self_is_not_independent():
+    from core.verify.epistemic_independence import Channel
+
+    assert Channel.SELF.independent is False
+    for channel in Channel:
+        if channel is not Channel.SELF:
+            assert channel.independent is True
+
+
+def test_no_evidence_at_all_is_not_support():
+    from core.verify.epistemic_independence import support_for
+
+    assert support_for([]).sufficient is False
+    assert support_for([], important=False).sufficient is False

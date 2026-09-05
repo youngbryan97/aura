@@ -31,8 +31,9 @@ import json
 import logging
 import threading
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger("Aura.Verify.Independence")
@@ -246,11 +247,158 @@ def declare(
 
 
 __all__ = [
+    "INDEPENDENT_CHANNELS_REQUIRED",
+    "Channel",
     "Criterion",
     "CriterionRegistry",
     "IndependenceError",
+    "Evidence",
     "Judgement",
+    "Support",
     "SealBrokenError",
     "declare",
     "registry",
+    "support_for",
 ]
+
+
+# ── independent evidence channels ────────────────────────────────────────
+#
+# Sealing the criterion fixes WHEN success is defined. It says nothing about
+# WHO says it was met, and for an important change those are different
+# questions. A mechanism that proposes a change, runs the check, and reports
+# the result has supplied all three, and the seal is satisfied throughout.
+#
+# The principle is organism-wide: for an important change, the evidence has to
+# come from somewhere the mechanism does not control. External reality, a test
+# it has not seen, a model that is not it, or a person. Which of those, and
+# how many, is what `Channels` records — and a change evidenced only by its
+# own author is refused the same way a criterion edited after the run is.
+
+
+class Channel(StrEnum):
+    """Where a piece of evidence came from."""
+
+    #: The mechanism proposing the change. Never sufficient alone.
+    SELF = "self"
+    #: A test the mechanism did not have access to when it made the change.
+    HELD_OUT = "held_out"
+    #: A different model or implementation, scoring the same thing.
+    ALTERNATE_MODEL = "alternate_model"
+    #: The world: a measurement of what actually happened.
+    EXTERNAL_REALITY = "external_reality"
+    #: A person.
+    HUMAN = "human"
+
+    @property
+    def independent(self) -> bool:
+        return self is not Channel.SELF
+
+
+#: Independent channels an important change needs. Two rather than one,
+#: because a single independent channel that is wrong is indistinguishable
+#: from a single independent channel that is right.
+INDEPENDENT_CHANNELS_REQUIRED = 2
+
+
+@dataclass(frozen=True)
+class Evidence:
+    """One piece of evidence, and where it came from."""
+
+    channel: Channel
+    verdict: bool
+    detail: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "channel": str(self.channel),
+            "verdict": self.verdict,
+            "detail": self.detail,
+        }
+
+
+@dataclass(frozen=True)
+class Support:
+    """Whether a change is evidenced by anything but its own author."""
+
+    sufficient: bool
+    independent: int
+    agreeing: int
+    disagreeing: int
+    because: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "sufficient": self.sufficient,
+            "independent": self.independent,
+            "agreeing": self.agreeing,
+            "disagreeing": self.disagreeing,
+            "because": self.because,
+        }
+
+
+def support_for(
+    evidence: Sequence[Evidence], *, important: bool = True
+) -> Support:
+    """Whether the evidence comes from somewhere the mechanism does not control.
+
+    An unimportant change may be evidenced by its author; the whole point of
+    the distinction is that not everything needs this. An important one needs
+    agreement from at least two channels that are not it, and a disagreement
+    from any independent channel is enough to withhold support — because the
+    interesting case is exactly the one where the mechanism's own check passes
+    and something else does not.
+    """
+    independent = [e for e in evidence if e.channel.independent]
+    distinct = {e.channel for e in independent}
+    agreeing = [e for e in independent if e.verdict]
+    disagreeing = [e for e in independent if not e.verdict]
+
+    if not important:
+        own = [e for e in evidence if not e.channel.independent]
+        passed = all(e.verdict for e in evidence) and bool(evidence)
+        return Support(
+            sufficient=passed,
+            independent=len(distinct),
+            agreeing=len(agreeing),
+            disagreeing=len(disagreeing),
+            because=(
+                f"not an important change; {len(own)} self-report(s) and "
+                f"{len(independent)} independent"
+            ),
+        )
+    if disagreeing:
+        return Support(
+            sufficient=False,
+            independent=len(distinct),
+            agreeing=len(agreeing),
+            disagreeing=len(disagreeing),
+            because=(
+                f"{len(disagreeing)} independent channel(s) disagree "
+                f"({', '.join(sorted(str(e.channel) for e in disagreeing))}); "
+                "a mechanism's own check passing while something else does not "
+                "is the case this exists for"
+            ),
+        )
+    if len(distinct) < INDEPENDENT_CHANNELS_REQUIRED:
+        return Support(
+            sufficient=False,
+            independent=len(distinct),
+            agreeing=len(agreeing),
+            disagreeing=0,
+            because=(
+                f"{len(distinct)} independent channel(s); "
+                f"{INDEPENDENT_CHANNELS_REQUIRED} are needed, because one that "
+                "is wrong looks exactly like one that is right"
+            ),
+        )
+    return Support(
+        sufficient=True,
+        independent=len(distinct),
+        agreeing=len(agreeing),
+        disagreeing=0,
+        because=(
+            f"{len(distinct)} channels the mechanism does not control agree: "
+            f"{', '.join(sorted(str(c) for c in distinct))}"
+        ),
+    )
