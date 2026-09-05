@@ -210,3 +210,91 @@ def test_the_snapshot_separates_having_a_domain_from_being_invented(vocabulary):
     snapshot = vocabulary.snapshot()
     assert snapshot["invented"] == 2
     assert snapshot["with_known_domain"] == 1
+
+
+# ── silence is not agreement ─────────────────────────────────────────────
+
+
+def _always_fails(_value):
+    raise ValueError("this one never applies")
+
+
+def _also_always_fails(_value):
+    raise TypeError("neither does this one, for a different reason")
+
+
+def test_a_proposal_observed_nowhere_is_undecidable_not_invented(vocabulary):
+    """It raised on every probe, so nothing was seen. That is not novelty."""
+
+    proposal = vocabulary.judge("never", _always_fails)
+    assert proposal.verdict is Verdict.UNDECIDABLE
+    assert not proposal.accepted
+    assert "0 of" in proposal.because
+
+
+def test_two_unobserved_proposals_are_not_thereby_the_same(vocabulary):
+    """The defect: (⊥,⊥,⊥,⊥) == (⊥,⊥,⊥,⊥), so f and g were declared equal.
+
+    Failure to observe either function anywhere does not establish that they
+    are the same function. The honest verdict is that we do not know, and
+    neither of them may enter the vocabulary on the strength of it.
+    """
+
+    first = vocabulary.invent("never", _always_fails)
+    second = vocabulary.judge("also_never", _also_always_fails)
+    assert first.verdict is Verdict.UNDECIDABLE
+    assert second.verdict is Verdict.UNDECIDABLE
+    assert second.equivalent_to == (), "silence about two functions is not evidence"
+    assert "never" not in vocabulary.names
+
+
+def test_undefined_is_equal_to_nothing_including_itself():
+    from core.cognition.invention_depth import _UNDEFINED, _Undefined
+
+    assert _UNDEFINED != _UNDEFINED
+    assert not (_UNDEFINED == _Undefined())
+    assert not (_UNDEFINED == _UNDEFINED)
+
+
+def test_tuple_equality_cannot_be_used_to_compare_extensions():
+    """Why the comparison is a function and not ``==``.
+
+    Tuple comparison checks identity before equality, element by element.
+    Every undefined in an extension is the same singleton, so ``==`` on two
+    extensions returns true through the identity shortcut whatever ``__eq__``
+    says. Fixing the sentinel alone would have left the defect standing.
+    """
+
+    from core.cognition.invention_depth import _UNDEFINED, _same_extension
+
+    assert (_UNDEFINED,) == (_UNDEFINED,), "the shortcut is real, hence the helper"
+    assert not _same_extension((_UNDEFINED,) * 6, (_UNDEFINED,) * 6)
+    assert _same_extension((1, 2, 3, 4, 5), (1, 2, 3, 4, 5))
+    assert not _same_extension((1, 2, 3, 4, _UNDEFINED), (1, 2, 3, 4, 5))
+
+
+def test_a_mostly_undefined_proposal_cannot_agree_vacuously():
+    """Two functions surviving the same two probes have not been compared.
+
+    Agreement needs MIN_PROBES observations where both were defined. Without
+    that floor the equivalence check is the same mistake one layer up: a
+    small overlap of accidental agreement standing in for a comparison.
+    """
+
+    words = Vocabulary(probes=[0, 1, 2, 3, 5, 8])
+    words.supply("only_small", lambda x: x + 1 if x < 2 else _always_fails(x))
+    proposal = words.judge("also_only_small", lambda x: x + 1 if x < 2 else _also_always_fails(x))
+    assert proposal.verdict is Verdict.UNDECIDABLE
+    assert proposal.equivalent_to == ()
+
+
+def test_a_partly_defined_macro_is_still_caught(vocabulary):
+    """The fix must not turn every gap into a new invention.
+
+    A proposal that is a composition wherever both are defined, and undefined
+    at the same places, is still a macro. Only genuine differences and genuine
+    silence change the verdict.
+    """
+
+    proposal = vocabulary.judge("plus_two_again", lambda x: x + 2)
+    assert proposal.verdict is Verdict.MACRO

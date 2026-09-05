@@ -550,27 +550,47 @@ def _freedom(state: Any, knows: Any = None, acts: Sequence[str] = ()) -> float:
     nothing about any particular world: the share of her acts that lead
     somewhere, and somewhere DIFFERENT from each other. Two acts with the same
     result are one option wearing two names.
+
+    Both sides of that fraction have to count options, and one of them did
+    not. The numerator was distinct outcomes and the denominator was raw act
+    names, so listing one productive act twice halved the score — the same
+    world, the same single option, and freedom reported at 0.5 because the
+    list was written differently. Naming an act twice is not a loss of
+    freedom.
+
+    So acts are grouped by where they land. Everything that leads to the same
+    place is one option; everything that leads nowhere — refused, unmodelled,
+    or back to here — is the null option, counted once however many names it
+    wears. The score is the share of the options that go somewhere.
     """
     expect = getattr(knows, "expect", None)
     names = tuple(str(name) for name in acts or () if str(name or "").strip())
     if not callable(expect) or not names:
         return 0.0
+    was = getattr(state, "as_text", None)
+    here_now = was() if callable(was) else None
     reached: list[Any] = []
+    stayed = False
     for name in names:
         try:
             after = expect(state, name)
         except (AttributeError, TypeError, ValueError):
+            stayed = True
             continue
         if after is None:
+            stayed = True
             continue
         said = getattr(after, "as_text", None)
-        here = said() if callable(said) else repr(after)
-        was = getattr(state, "as_text", None)
-        if here == (was() if callable(was) else None):
+        there = said() if callable(said) else repr(after)
+        if there == here_now:
+            stayed = True
             continue
-        if here not in reached:
-            reached.append(here)
-    return len(reached) / len(names)
+        if there not in reached:
+            reached.append(there)
+    options = len(reached) + (1 if stayed else 0)
+    if not options:
+        return 0.0
+    return len(reached) / options
 
 
 def _room(state: Any) -> float:

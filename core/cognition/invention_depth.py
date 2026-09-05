@@ -38,6 +38,13 @@ that agrees with no composition of the existing vocabulary is genuinely new.
 That makes the refusal checkable rather than a matter of opinion, and it is
 why the probe set has to be fixed before the proposal rather than chosen with
 it.
+
+**Silence is not agreement.** A probe where a proposal raised says nothing
+about it, and the comparison has to carry that. It did not: undefined equalled
+undefined, so a function that failed on every probe was admitted as new, and
+the next unrelated function that also failed everywhere was declared a copy of
+it. Two things nobody has observed are not equal, they are unknown, and the
+verdict for unknown is undecidable.
 """
 
 from __future__ import annotations
@@ -70,7 +77,9 @@ class Verdict(StrEnum):
     MACRO = "macro"
     #: Agrees with an existing primitive everywhere probed.
     DUPLICATE = "duplicate"
-    #: Too few probes to tell any of these apart.
+    #: Nothing was observed. Either too few probes exist, or the proposal was
+    #: undefined on nearly all of them. Both are the same epistemic state and
+    #: neither is a finding about the proposal.
     UNDECIDABLE = "undecidable"
 
     @property
@@ -125,8 +134,20 @@ class Primitive:
 
 
 class _Undefined:
-    """What a primitive returns where it does not apply. Its own value, so two
-    primitives that both fail on a probe are not thereby the same."""
+    """What a primitive returns where it does not apply.
+
+    Not a value. The absence of one, which is why it is equal to nothing —
+    not to another undefined, and not to itself. A probe where a primitive
+    raised is a probe that says nothing about it, and the comparison has to
+    carry that or it turns silence into agreement.
+
+    It did exactly that. ``__eq__`` returned true for any other undefined, so
+    a function that failed on every probe had extension ``(⊥,⊥,⊥,⊥)``, a
+    second unrelated function that also failed everywhere had the same one,
+    and the two were declared the same primitive. Two things nobody has
+    observed are not thereby equal; the honest state is that we do not know.
+    Silence about f and silence about g is not evidence that f is g.
+    """
 
     __slots__ = ()
 
@@ -134,13 +155,70 @@ class _Undefined:
         return "<undefined>"
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, _Undefined)
+        return False
+
+    def __ne__(self, other: object) -> bool:
+        return True
+
+    def __bool__(self) -> bool:
+        return False
 
     def __hash__(self) -> int:
+        # Stable, so an extension containing one can still be a dict key.
+        # Equality still fails, which is the point: the hash groups, it does
+        # not decide.
         return hash("<undefined>")
 
 
 _UNDEFINED = _Undefined()
+
+
+def _observed(extension: Sequence[Any]) -> int:
+    """How many probes actually said something about this."""
+
+    return sum(1 for value in extension if not isinstance(value, _Undefined))
+
+
+def _same_extension(left: Sequence[Any], right: Sequence[Any]) -> bool:
+    """Whether two extensions were observed to agree, everywhere either spoke.
+
+    Three states per probe, not two. Both defined and equal is agreement;
+    both defined and unequal is a difference; exactly one defined is also a
+    difference, because one of them did something there and the other did
+    not. Both undefined is neither — it is a probe that was never run.
+
+    Agreement therefore needs enough probes where both were defined. Without
+    that floor, two functions that fail almost everywhere agree vacuously on
+    the two probes they survive, which is the same mistake one layer up.
+    """
+
+    if len(left) != len(right):
+        return False
+    shared = 0
+    for here, there in zip(left, right):
+        blank_here = isinstance(here, _Undefined)
+        blank_there = isinstance(there, _Undefined)
+        if blank_here and blank_there:
+            continue
+        if blank_here != blank_there:
+            return False
+        if here != there:
+            return False
+        shared += 1
+    return shared >= MIN_PROBES
+
+
+def _form_key(extension: Sequence[Any]) -> tuple[Any, ...]:
+    """A hashable stand-in used only to stop the closure storing duplicates.
+
+    Never used to decide equivalence — undefined compares equal to nothing,
+    and this deliberately does not.
+    """
+
+    return tuple(
+        "<undefined>" if isinstance(value, _Undefined) else (type(value).__name__, repr(value))
+        for value in extension
+    )
 
 
 @dataclass(frozen=True)
@@ -205,21 +283,35 @@ class Vocabulary:
 
     # ── the closure ──────────────────────────────────────────────────────
 
-    def _compositions(self, depth: int) -> dict[tuple[Any, ...], tuple[str, ...]]:
+    def _compositions(
+        self, depth: int
+    ) -> list[tuple[tuple[Any, ...], tuple[str, ...]]]:
         """Every extension reachable by composing up to `depth` primitives.
 
         The closure, not the base set. Checking a proposal against the
         primitives alone counts new syntax as new meaning, which is how a
         vocabulary grows while the expressible set stands still.
+
+        A list rather than a dictionary keyed on the extension, because an
+        extension containing an undefined is equal to nothing — including
+        another copy of itself — and a dictionary lookup would silently miss
+        every composition that fails on any probe. The duplicate filter uses
+        a form key, which groups; the match uses ``_same_extension``, which
+        decides.
         """
-        reachable: dict[tuple[Any, ...], tuple[str, ...]] = {}
+        reachable: list[tuple[tuple[Any, ...], tuple[str, ...]]] = []
+        seen: set[tuple[Any, ...]] = set()
         current: list[tuple[Callable[[Any], Any], tuple[str, ...]]] = [
             (p.fn, (p.name,)) for p in self._primitives.values()
         ]
         for _ in range(max(1, depth)):
             for fn, chain in current:
                 extension = Primitive(name="", fn=fn).extension(self._probes)
-                reachable.setdefault(extension, chain)
+                key = _form_key(extension)
+                if key in seen:
+                    continue
+                seen.add(key)
+                reachable.append((extension, chain))
             nxt: list[tuple[Callable[[Any], Any], tuple[str, ...]]] = []
             for outer in self._primitives.values():
                 for fn, chain in current:
@@ -247,8 +339,25 @@ class Vocabulary:
                 ),
             )
         candidate = Primitive(name=name, fn=fn).extension(self._probes)
+        spoke = _observed(candidate)
+        if spoke < MIN_PROBES:
+            # It failed, or was undefined, on all but a few probes. That is
+            # not novelty and it is not duplication; it is a proposal nobody
+            # has watched do anything. Admitting it here is how a function
+            # that raises everywhere entered the vocabulary and then made
+            # every other silent function look like a copy of it.
+            return Proposal(
+                name=name,
+                verdict=Verdict.UNDECIDABLE,
+                depth_searched=0,
+                because=(
+                    f"defined on {spoke} of {len(self._probes)} probes; "
+                    f"{MIN_PROBES} observations are needed before what it does "
+                    "is a fact about it rather than a gap"
+                ),
+            )
         for existing in self._primitives.values():
-            if existing.extension(self._probes) == candidate:
+            if _same_extension(existing.extension(self._probes), candidate):
                 return Proposal(
                     name=name,
                     verdict=Verdict.DUPLICATE,
@@ -257,7 +366,14 @@ class Vocabulary:
                     because=f"agrees with {existing.name} on every probe",
                 )
         reachable = self._compositions(depth)
-        chain = reachable.get(candidate)
+        chain = next(
+            (
+                chain
+                for extension, chain in reachable
+                if _same_extension(extension, candidate)
+            ),
+            None,
+        )
         if chain is not None:
             return Proposal(
                 name=name,

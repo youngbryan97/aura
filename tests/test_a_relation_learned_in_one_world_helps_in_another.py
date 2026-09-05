@@ -353,21 +353,41 @@ def test_the_extracted_run_is_a_real_relation() -> None:
     assert _permutation_operator(rule)(state) == _rot1(_ends(state))
 
 
+def _outside_the_winners(state):
+    """The run the library extracted, and then a mirror.
+
+    The target has to sit outside three languages, not one, and choosing it
+    by eye got it wrong: the world first written here was the extracted run
+    applied twice, which happens to collapse to a single member of the affine
+    family. A blank language solved it in one shape, so the null the test
+    rested on was false and the test had been red rather than informative.
+
+    This one is checked, not assumed — the two assertions below say a blank
+    language cannot reach it and neither can the library's whole winners.
+    """
+
+    return _mirror_of(_rot1(_ends(state)))
+
+
 def test_refactoring_reaches_a_world_the_winners_could_not() -> None:
-    """The point of the step, measured: unreachable, then reachable."""
+    """The point of the step, measured: unreachable, then reachable.
 
-    def run(state):
-        return _rot1(_ends(state))
+    Three claims, and the first two are the ones that make the third mean
+    anything. A blank language cannot express this world. A library holding
+    only the whole solutions it has won cannot either. The library that has
+    refactored those solutions into the run they share can, because the run
+    is now a part it can compose with.
+    """
 
-    def twice(state):
-        return run(run(state))
-
-    world = _applied(twice, (5, 6, 7))
-    assert _library(refactor=False).explain(world) is None
+    world = _applied(_outside_the_winners, (5, 6, 7))
+    assert RelationLanguage().explain(world) is None, "the blank null is false"
+    assert _library(refactor=False).explain(world) is None, "a winner already had it"
     found = _library(refactor=True).explain(world)
     assert found is not None
     for length in (9, 11):
-        assert tuple(found.apply(tuple(range(length)))) == twice(tuple(range(length)))
+        assert tuple(found.apply(tuple(range(length)))) == _outside_the_winners(
+            tuple(range(length))
+        )
 
 
 def test_nothing_is_extracted_from_one_solution() -> None:
@@ -435,24 +455,21 @@ def test_the_expanded_language_survives_a_restart(tmp_path) -> None:
 def test_a_restarted_library_still_reaches_what_a_blank_one_cannot(tmp_path) -> None:
     """The measurement, not the mechanism: it can still do the thing."""
 
-    def run(state):
-        return _rot1(_ends(state))
-
-    def twice(state):
-        return run(run(state))
-
     store = tmp_path / "language.json"
     language = _library(refactor=True)
     language.path = store
     language.save()
 
-    world = _applied(twice, (5, 6, 7))
+    world = _applied(_outside_the_winners, (5, 6, 7))
     assert RelationLanguage().explain(world) is None
+    assert _library(refactor=False).explain(world) is None
     restarted = RelationLanguage.load(store)
     found = restarted.explain(world)
     assert found is not None
     for length in (9, 11):
-        assert tuple(found.apply(tuple(range(length)))) == twice(tuple(range(length)))
+        assert tuple(found.apply(tuple(range(length)))) == _outside_the_winners(
+            tuple(range(length))
+        )
 
 
 def test_a_corrupt_store_loads_as_an_empty_language(tmp_path) -> None:

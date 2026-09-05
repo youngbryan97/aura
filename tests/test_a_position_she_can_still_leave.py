@@ -53,11 +53,46 @@ def test_a_position_nothing_can_be_done_from_scores_nothing():
 
 
 def test_two_acts_with_the_same_result_are_one_option():
-    """An option wearing two names is not two ways out."""
+    """An option wearing two names is not two ways out.
+
+    The act duplicated here has to be one that WORKS. The version of this
+    test that shipped duplicated an act that does nothing in the state it
+    chose, so both sides were zero and the invariant it names was never
+    exercised — while the implementation it guarded halved the score for a
+    repeated name, 1.0 down to 0.5, on a state where nothing had changed but
+    the spelling of the list.
+    """
     knows = _one_that_knows()
-    one = _board("2 . . .\n. . . .\n. . . .\n. . . .")
-    # Asked about the same act twice, she is no freer than asked once.
-    assert _freedom(one, knows, ("left", "left")) == _freedom(one, knows, ("left",))
+    # Sliding left moves this; nothing about the world changes when the list
+    # says so twice.
+    one = _board(". . . 2\n. . . .\n. . . .\n. . . .")
+    assert _freedom(one, knows, ("left",)) == 1.0
+    assert _freedom(one, knows, ("left", "left")) == 1.0
+    assert _freedom(one, knows, ("left", "left", "left")) == 1.0
+
+
+def test_a_dead_act_costs_freedom_and_a_second_dead_act_does_not():
+    """Going nowhere is one option too, however many names it wears."""
+    knows = _one_that_knows()
+    one = _board(". . . 2\n. . . .\n. . . .\n. . . .")
+    # Left moves it, right and up leave it exactly where it is.
+    assert _freedom(one, knows, ("left", "right")) == 0.5
+    assert _freedom(one, knows, ("left", "right", "up")) == 0.5
+
+
+def test_naming_an_alias_never_lowers_freedom():
+    """The property the fraction has to have, over every act in this world."""
+    knows = _one_that_knows()
+    for text in (
+        ". . . 2\n. . . .\n. . . .\n. . . .",
+        "2 2 4 8\n16 32 64 128\n256 512 1024 2\n4 8 16 32",
+        "2 . . .\n. 4 . .\n. . 8 .\n. . . 16",
+    ):
+        board = _board(text)
+        plain = _freedom(board, knows, ACTS)
+        for act in ACTS:
+            doubled = _freedom(board, knows, (*ACTS, act))
+            assert doubled == plain, f"{act} repeated changed freedom on {text!r}"
 
 
 def test_without_a_model_she_claims_nothing():
