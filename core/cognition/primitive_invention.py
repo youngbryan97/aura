@@ -839,7 +839,7 @@ def rule_for_description(description: str) -> IndexProgram | None:
 
 def _which_others_disagree(
     chosen: str,
-    shared: Mapping[str, tuple[str, Any]] | dict[str, tuple[str, Any]],
+    shared: dict[str, tuple[str, Any]],
     observed: Sequence[Transition],
 ) -> tuple[str, ...]:
     """Other shapes that fit everything shown and act differently anyway.

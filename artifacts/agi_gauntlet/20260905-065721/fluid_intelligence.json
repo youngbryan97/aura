@@ -1,0 +1,353 @@
+{
+  "gate": "fluid intelligence",
+  "ran": true,
+  "why_not": "",
+  "passed": false,
+  "measurements": {
+    "instances": 40,
+    "right": 33,
+    "share": 0.825,
+    "P0": 0.825,
+    "PL": 0.825,
+    "learned": 0.0,
+    "refused": 7,
+    "wrong_answers": 0,
+    "questions_asked": 0,
+    "questions_per_instance": 0.0
+  },
+  "trajectories": [
+    {
+      "instance": "rule 0",
+      "rule": "group every 3, then add 2 to each, then offset by 3",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 1",
+      "rule": "offset by 1, then offset by 2, then mirror",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 2",
+      "rule": "mirror, then group every 2, then mirror",
+      "answered": false,
+      "right": false,
+      "right_with_what_she_learned": false,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 3",
+      "rule": "add -3 to each, then add 1 to each, then offset by 2",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 4",
+      "rule": "swap the cells 0 in from each end, then offset by 2, then multiply each by 2",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 5",
+      "rule": "offset by 3, then group every 2, then swap the cells 1 in from each end",
+      "answered": false,
+      "right": false,
+      "right_with_what_she_learned": false,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 6",
+      "rule": "mirror, then multiply each by 3, then add 5 to each",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 7",
+      "rule": "mirror, then add 5 to each, then swap the cells 1 in from each end",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 8",
+      "rule": "group every 2, then add 1 to each, then multiply each by 2",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 9",
+      "rule": "group every 2, then offset by 2, then swap the cells 2 in from each end",
+      "answered": false,
+      "right": false,
+      "right_with_what_she_learned": false,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 10",
+      "rule": "add 5 to each, then multiply each by 3, then mirror",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 11",
+      "rule": "multiply each by 2, then add 5 to each, then swap the cells 0 in from each end",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 12",
+      "rule": "add -3 to each, then group every 3, then group every 3",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 13",
+      "rule": "offset by 1, then offset by 1, then multiply each by 2",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 14",
+      "rule": "multiply each by 2, then group every 2, then mirror",
+      "answered": false,
+      "right": false,
+      "right_with_what_she_learned": false,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 15",
+      "rule": "group every 2, then add 5 to each, then offset by 2",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 16",
+      "rule": "swap the cells 1 in from each end, then multiply each by 2, then mirror",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 17",
+      "rule": "offset by 3, then multiply each by 3, then group every 3",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 18",
+      "rule": "mirror, then add 2 to each, then offset by 2",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 19",
+      "rule": "group every 2, then mirror, then offset by 1",
+      "answered": false,
+      "right": false,
+      "right_with_what_she_learned": false,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 20",
+      "rule": "offset by 1, then group every 3, then multiply each by 3",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 21",
+      "rule": "mirror, then mirror, then multiply each by 3",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 22",
+      "rule": "group every 3, then group every 2, then add -3 to each",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 23",
+      "rule": "mirror, then group every 3, then multiply each by 3",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 24",
+      "rule": "group every 2, then swap the cells 1 in from each end, then swap the cells 0 in from each end",
+      "answered": false,
+      "right": false,
+      "right_with_what_she_learned": false,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 25",
+      "rule": "add 1 to each, then group every 3, then mirror",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 26",
+      "rule": "offset by 3, then mirror, then add 2 to each",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 27",
+      "rule": "add -3 to each, then multiply each by 2, then offset by 2",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 28",
+      "rule": "add 1 to each, then add 1 to each, then add 1 to each",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 29",
+      "rule": "group every 2, then swap the cells 1 in from each end, then group every 2",
+      "answered": false,
+      "right": false,
+      "right_with_what_she_learned": false,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 30",
+      "rule": "mirror, then add 1 to each, then offset by 1",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 31",
+      "rule": "multiply each by 3, then add 2 to each, then swap the cells 0 in from each end",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 32",
+      "rule": "group every 2, then offset by 1, then offset by 3",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 33",
+      "rule": "multiply each by 3, then add 1 to each, then add -3 to each",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 34",
+      "rule": "mirror, then swap the cells 1 in from each end, then add -3 to each",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 35",
+      "rule": "mirror, then multiply each by 3, then group every 2",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 36",
+      "rule": "add 2 to each, then add -3 to each, then group every 3",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 37",
+      "rule": "add -3 to each, then swap the cells 1 in from each end, then mirror",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 38",
+      "rule": "mirror, then multiply each by 2, then mirror",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    },
+    {
+      "instance": "rule 39",
+      "rule": "multiply each by 3, then offset by 1, then multiply each by 2",
+      "answered": true,
+      "right": true,
+      "right_with_what_she_learned": true,
+      "questions_asked": 0
+    }
+  ],
+  "trajectories_total": 40,
+  "seconds": 42.64,
+  "freeze": {
+    "commit": "54368e496c47891596cb433618228276f5c0a328",
+    "dirty": false,
+    "source_digest": "0c316a126ea144067f637a251fb2e3d9",
+    "weights": "unnamed",
+    "config": "823cd529c0f27c049604637e400e2c70",
+    "seed": 2296987640006737382,
+    "trustworthy": true,
+    "at": 1788616641.767809,
+    "host": "macOS-26.4.1-arm64-arm-64bit"
+  }
+}

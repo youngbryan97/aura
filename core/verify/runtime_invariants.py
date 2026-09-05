@@ -1372,12 +1372,12 @@ def _one_level_per_value() -> Iterator[Violation]:
     """
 
     try:
+        from core.governance.value_levels import registry
         from core.values.what_she_holds import (
             declare_what_she_holds,
             disagreements,
             what_she_holds,
         )
-        from core.governance.value_levels import registry
     except ImportError:
         return
     claims = what_she_holds()
