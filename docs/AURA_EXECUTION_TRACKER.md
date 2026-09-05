@@ -52941,3 +52941,29 @@ interiority samples. The coexistence and adjacent suites passed 62 tests;
 smoke passed 164 with one skip; Ruff and diff checks passed. This repair is
 not yet loaded into the running desktop process, so live appraisal persistence
 still requires a source-matched restart and replay.
+
+## Checkpoint 2026-09-05: Fund Reading Before Recurrent Generation
+
+The empty-answer receipt for turn ea75b097fed8484098d4ae2542553aa9 spent
+158.69 seconds in prefill against a 171.18-second worker allowance. Its
+private thinking boundary remained open when the budget ended. This was not
+an answer rejected after successful completion.
+
+The live response owner now uses the existing model-specific decode rate,
+private-token reserve, and prompt-reading estimates before calling RLC. Both
+bridge cleanup reserves sit outside that measured work. Unmeasured rates
+retain the initial allowance. Proof, benchmark, secondary and background
+lanes do not borrow this resident estimate. The general allocator still obeys
+its caller; the qualified mechanism and its source contracts are unchanged.
+
+The kernel's foreground response wait now uses the same owned-completion
+mechanism as chat and the inference router. Explicit cancellation drains the
+task. Background, benchmark and non-response phase waits remain bounded.
+Focused tests cover completion beyond the initial estimate, cancellation,
+and unchanged other-lane waits. Live replay remains pending; no reasoning-gain
+claim follows from these timing repairs.
+
+The neural feed still shows duplicate vital cards, a warning paraphrased as
+"Health check passed", and background first-token cancellations. A boot health
+read returned 503 then recovered on the next read. These remain open runtime
+observations; the complete lock explanation also remains a correctness failure.

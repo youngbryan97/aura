@@ -1217,12 +1217,46 @@ class UnitaryResponsePhase(Phase):
         return background_policy.is_user_facing_origin(origin)
 
     @staticmethod
-    def _timeout_for_request(*, is_user_facing: bool, model_tier: str, deep_handoff: bool) -> float:
+    def _timeout_for_request(
+        *, is_user_facing: bool, model_tier: str, deep_handoff: bool,
+        messages: list[dict] | None = None, decode_max_tokens: int = 768,
+    ) -> float:
         if not is_user_facing:
             return 15.0
         if deep_handoff or model_tier == "secondary":
             return 210.0
-        return 180.0
+        allowance = 180.0
+        if messages is None:
+            return allowance
+        from core.brain.llm.chat_format import thinking_enabled_for_generation
+        from core.brain.llm.mlx_client import get_mlx_client
+        from core.brain.llm.thinking_reserve import (
+            reserve_tokens,
+            seconds_to_decode,
+            seconds_to_read,
+        )
+
+        client = get_mlx_client()
+        identity = client.get_worker_identity_snapshot()
+        model = str(identity.get("worker_model_path") or "")
+        if not model:
+            return allowance
+        private_tokens = (
+            max(0, int(reserve_tokens(model)))
+            if thinking_enabled_for_generation(model, answer_is_derived_here=True)
+            else 0
+        )
+        capacity = max(decode_max_tokens, min(8192, decode_max_tokens + private_tokens))
+        decode_seconds = seconds_to_decode(capacity, model)
+        if decode_seconds <= 0.0:
+            return allowance
+        prompt_chars = sum(len(str(message.get("content") or "")) for message in messages)
+        read_seconds = max(
+            seconds_to_read(prompt_chars), client.least_time_to_read(prompt_chars),
+        )
+        # Both the foreground bridge and the service reserve eight seconds
+        # for delivery. Fund those outside the measured read/decode work.
+        return max(allowance, read_seconds + decode_seconds + 16.0)
 
     @staticmethod
     def _strict_proof_timeout_cap() -> float:
@@ -6311,6 +6345,25 @@ class UnitaryResponsePhase(Phase):
                 strict_proof_answer_request=strict_proof_answer_request,
                 worker_strict_answer_contract=worker_strict_answer_contract,
             )
+
+            if (
+                is_user_facing and not is_background
+                and not strict_proof_answer_request and not proof_evaluation_turn
+                and routing_origin != "benchmark" and not exact_format_required
+                and not operator_evidence_turn
+            ):
+                try:
+                    request_timeout = self._timeout_for_request(
+                        is_user_facing=True, model_tier=model_tier,
+                        deep_handoff=deep_handoff, messages=messages,
+                        decode_max_tokens=int(llm_kwargs.get("max_tokens") or 768),
+                    )
+                    llm_kwargs["timeout"] = request_timeout
+                except _RESPONSE_RECOVERABLE_ERRORS as allowance_error:
+                    _record_response_degradation(
+                        allowance_error,
+                        "UnitaryResponse: generation rate unavailable; retained allowance: %s",
+                    )
 
             # The sovereign kernel replaces ResponseGenerationPhase with this
             # phase.  The legacy phase had a complete foreground RLC route, but
