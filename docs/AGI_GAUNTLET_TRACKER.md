@@ -123,3 +123,28 @@ ratchet on it, plus a gate that refuses a new edge resting on an import
 nobody reads. The reduction so far is five such edges. The large one, cutting
 the cognitive engine's fan-out of sixty-four, is a refactor of a
 thirteen-thousand-line file and is not something to start half-way.
+
+## D. The second external review (NextSteps, 5 Sep) — every item
+
+Adjudicated against the code, not accepted on sight. State moves to DONE only
+when a test that fails without the fix passes with it.
+
+| # | What the review says | My verdict | State |
+|---|---|---|---|
+| D1 | Gate 1's sealed rules use mirror, offset, exchange, ends, grouping, affine — the same families her induction machinery authors. Fresh instances, familiar ontology. | Correct, and the most important item here | TODO |
+| D2 | Gate 2's "instructionless" world exposes `2s − (\|x−xg\|+\|y−yg\|)`, a dense monotone gradient to the goal. Not unconstrained goal discovery. | Correct | TODO |
+| D3 | Gate 9 invokes the same runner as Gate 3. | Correct | TODO |
+| D4 | Gate 10 supplies the candidate functions and the second generation. Tests admission, not generation. | Correct | TODO |
+| D5 | Gate 16 is a static AST search. | Correct, and it is what a static check can be. Strengthen with a runtime probe | TODO |
+| D6 | Gate 18 cannot establish that an outside party reproduced it. | Correct and inherent | DECLARED |
+| D7 | Take the six empty slots seriously — especially computer-world, post-freeze apprenticeship, and a genuinely external evaluator | Correct. Network is up here, so some of it is runnable | TODO |
+| D8 | Effective search over the universal substrate: learned priors that push reachable complexity outward | Correct — expressibility is solved, reach is not | TODO |
+| D9 | General grounding of inventions: seven authored installers is not architectural open-endedness | Correct | TODO |
+| D10 | Generational compounding is depth 0 | Correct, and it is the instrument working. Give it more budget and families, and report whatever it says | TODO |
+| D11 | Close native development and source development into one verified loop | Correct | TODO |
+| D12 | Reduce causal concentration: CognitiveEngine fan-in 52 × fan-out 64 | Correct — already in flight | IN PROGRESS |
+| D13 | 110 modules over threshold, 180,637 oversized lines against a 145,896 budget, 36 active size regressions | Correct | TODO |
+| D14 | The welfare model still has experimental trade-off failures | Correct — three of them are red right now | TODO |
+| D15 | Static reachability called the 43 interiority faculties dead; they are dynamically enumerated | Correct — a blind spot in my own tool | TODO |
+| D16 | Not every foreground message passes through all 29 phases; foreground and background are rate-separated | Correct. Check what the claims registry asserts | TODO |
+| D17 | "12/12" means twelve internal mechanism gates on one freeze, not twelve AGI criteria established | Correct. The tracker says it; the summary line should too | TODO |

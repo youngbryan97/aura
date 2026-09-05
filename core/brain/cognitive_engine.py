@@ -11,6 +11,7 @@ from collections import deque
 from contextlib import suppress
 from typing import Any
 
+from core.brain import advisory_passes
 from core.consciousness.executive_authority import get_executive_authority
 from core.conversation.continuation import (
     continuation_prompt_prefix,
@@ -767,9 +768,9 @@ def _apply_neurodynamic_sampling_bias(
     from the neurodynamics: ``temperature_delta``, ``top_p_delta`` and
     ``max_tokens_factor``. Only the last one was ever read. The first two were
     computed on every turn and dropped, so the spiking model's entire route to
-    behaviour was ``_compact_spiking_active_inference_directive`` — English
-    sentences appended to the prompt, "Neurodynamic advisory: Keep the reply
-    compact and stable because runtime load pressure is elevated."
+    behaviour was a sentence appended to the prompt: "Neurodynamic advisory:
+    Keep the reply compact and stable because runtime load pressure is
+    elevated."
 
     That is what "advisory-only, decoupled from the decision pipeline" meant in
     practice: a neurodynamic model whose only actuator was a sentence. Asking
@@ -1299,184 +1300,6 @@ def _time_the_answer_needs(objective: Any) -> float:
     except (ImportError, AttributeError, OSError, TypeError, ValueError):
         generations = 1
     return (needed * generations) + 8.0
-
-
-def _compact_spiking_active_inference_directive(advice: dict[str, Any] | None) -> str:
-    if not isinstance(advice, dict):
-        return ""
-    action = str(advice.get("action") or "").strip()
-    routing = advice.get("routing_bias") or {}
-    if not isinstance(routing, dict):
-        routing = {}
-    working_memory = advice.get("working_memory") or {}
-    if not isinstance(working_memory, dict):
-        working_memory = {}
-    uncertainty = advice.get("uncertainty", 0.0)
-    try:
-        uncertainty_value = float(uncertainty)
-    except (TypeError, ValueError):
-        uncertainty_value = 0.0
-
-    directives: list[str] = []
-    if bool(routing.get("ask_clarification")):
-        directives.append("If the request is underspecified, ask one precise clarifying question.")
-    if bool(routing.get("seek_information")):
-        directives.append("If current facts matter, explain what should be verified before acting.")
-    if bool(routing.get("use_tool_gateway")):
-        directives.append("For external effects, describe the governed tool path and do not claim tool completion without evidence.")
-    if bool(routing.get("reduce_load")):
-        directives.append("Keep the reply compact and stable because runtime load pressure is elevated.")
-    if working_memory.get("admission") == "compress_foreground":
-        directives.append("Preserve the user intent while compressing nonessential detail under working-memory pressure.")
-    if bool(routing.get("repair_first")):
-        directives.append("Prioritize diagnosis and repair steps before speculative explanation.")
-    if not directives and action:
-        directives.append(f"Current advisory tendency: {action.replace('_', ' ')}.")
-    if uncertainty_value >= 0.65:
-        directives.append("State uncertainty plainly rather than guessing.")
-
-    if not directives:
-        return ""
-    return "Neurodynamic advisory: " + " ".join(directives)
-
-
-def _compact_imagination_directive(frame: dict[str, Any] | None) -> str:
-    if not isinstance(frame, dict):
-        return ""
-    try:
-        salience = float(frame.get("salience", 0.0) or 0.0)
-    except (TypeError, ValueError):
-        salience = 0.0
-    if salience < 0.18:
-        return ""
-
-    routing = frame.get("routing_bias") or {}
-    if not isinstance(routing, dict):
-        routing = {}
-    directives = [
-        "Imagination workspace: use the internal hypothetical model to enrich the answer, but do not claim it is observed reality."
-    ]
-    visual = str(frame.get("visual_model") or "").strip()
-    bridge = str(frame.get("conceptual_bridge") or "").strip()
-    phrase = str(frame.get("phrase_model") or "").strip()
-    canvas = frame.get("mental_canvas") or {}
-    if not isinstance(canvas, dict):
-        canvas = {}
-    image_prompt = str(canvas.get("image_prompt") or "").strip()
-    novel_thoughts = frame.get("novel_thoughts") or []
-    if visual:
-        directives.append(f"Imagined visual model: {visual[:220]}")
-    if image_prompt:
-        directives.append(f"Mental canvas: {image_prompt[:220]}")
-    if bridge:
-        directives.append(f"Novel connection: {bridge[:220]}")
-    if phrase:
-        directives.append(f"Linguistic seed: {phrase[:160]}")
-    if isinstance(novel_thoughts, list) and novel_thoughts:
-        rendered = " | ".join(str(item)[:120] for item in novel_thoughts[:2] if item)
-        if rendered:
-            directives.append(f"Novel thought candidates: {rendered}")
-    attractor = frame.get("attractor_state") or {}
-    if isinstance(attractor, dict):
-        selected = str(attractor.get("selected") or "").strip()
-        recurrent_depth = attractor.get("recurrent_depth")
-        if selected:
-            directives.append(
-                f"Attractor state: center the reply on {selected.replace('_', ' ')}"
-                + (f" with recurrent_depth={recurrent_depth}." if recurrent_depth else ".")
-            )
-    working_memory = frame.get("working_memory") or {}
-    if isinstance(working_memory, dict):
-        admission = str(working_memory.get("admission") or "admit")
-        if admission != "admit":
-            directives.append(
-                f"Working-memory gate: {admission}; keep the response compact and stable while preserving intent."
-            )
-    causal_effects = frame.get("causal_effects") or {}
-    if isinstance(causal_effects, dict):
-        attention = causal_effects.get("attention_focus") or []
-        if isinstance(attention, list) and attention:
-            rendered_attention = ", ".join(str(item)[:40] for item in attention[:4] if item)
-            if rendered_attention:
-                directives.append(f"Attention targets: {rendered_attention}.")
-        memory_priority = _bounded_float(causal_effects.get("memory_priority"), 0.0)
-        if memory_priority >= 0.45:
-            directives.append("Let the model influence what should be remembered or compared against prior context.")
-        verify_pressure = _bounded_float(causal_effects.get("verification_pressure"), 0.0)
-        if verify_pressure >= 0.35:
-            directives.append("Mark which parts are hypothetical versus verified before acting.")
-    if bool(routing.get("seek_verification")):
-        directives.append("If the request needs real-world effects or facts, route through governed tools before claiming completion.")
-    return " ".join(directives)
-
-
-def _compact_bicameral_directive(frame: dict[str, Any] | None) -> str:
-    if not isinstance(frame, dict):
-        return ""
-    try:
-        from core.brain.bicameral_advisory import validate_bicameral_frame
-
-        if not validate_bicameral_frame(frame):
-            return ""
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        return ""
-    try:
-        salience = float(frame.get("salience", 0.0) or 0.0)
-    except (TypeError, ValueError):
-        salience = 0.0
-    if salience < 0.18:
-        return ""
-
-    routing = frame.get("routing_bias") or {}
-    causal = frame.get("causal_effects") or {}
-    attention = frame.get("attention_targets") or []
-    if not isinstance(routing, dict):
-        routing = {}
-    if not isinstance(causal, dict):
-        causal = {}
-    if not isinstance(attention, list):
-        attention = []
-
-    directives = [
-        "Bicameral advisory: reconcile internal proposals into one coherent answer; do not present them as voices or evidence of phenomenal experience."
-    ]
-    summary = " ".join(str(frame.get("narrator_summary") or "").split())
-    if summary:
-        directives.append(summary[:260])
-    if routing.get("use_tool_gateway"):
-        directives.append("External effects require governed tool execution and post-action evidence.")
-    if routing.get("seek_verification"):
-        directives.append("Verify before claiming facts, tool completion, or successful file/browser actions.")
-    if routing.get("raise_metacognition"):
-        directives.append("Check assumptions and resolve uncertainty before answering strongly.")
-    if routing.get("use_imagination") or routing.get("expand_options"):
-        directives.append("Use a novel option or analogy if it helps the user's actual request.")
-    rendered_attention = ", ".join(
-        " ".join(str(item).split())[:40] for item in attention[:4] if item
-    )
-    if rendered_attention:
-        directives.append(f"Attention: {rendered_attention}.")
-    if _bounded_float(causal.get("memory_priority"), 0.0) >= 0.45:
-        directives.append("Preserve continuity with relevant prior conversation or memory.")
-    return " ".join(directives)
-
-
-def _compact_cognitive_situation_directive(frame: dict[str, Any] | None) -> str:
-    if not isinstance(frame, dict):
-        return ""
-    try:
-        from core.brain.cognitive_situation import render_cognitive_situation_prompt_block
-
-        return render_cognitive_situation_prompt_block(frame, compact=True).strip()
-    except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
-        record_degradation(
-            "cognitive_engine",
-            exc,
-            severity="warning",
-            action="continued desktop quick reply without cognitive situation prompt block",
-        )
-        logger.debug("Cognitive situation directive unavailable: %s", exc)
-        return ""
 
 
 def _record_the_capability_inventory_miss(
@@ -2402,48 +2225,9 @@ class CognitiveEngine:
         *,
         is_background: bool,
     ) -> dict[str, Any] | None:
-        try:
-            from core.cognitive.spiking_active_inference import (
-                get_spiking_active_inference_advisor,
-            )
-
-            advisor = get_spiking_active_inference_advisor()
-            advice = advisor.advise(
-                objective,
-                context=context,
-                state=state,
-                origin=origin,
-                is_background=is_background,
-            )
-        except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
-            record_degradation(
-                "cognitive_engine",
-                exc,
-                severity="warning",
-                action="continued cognitive cycle without spiking active-inference advisory",
-            )
-            logger.debug("Spiking active-inference advisory unavailable: %s", exc)
-            return context
-
-        advice_dict = advice.to_dict()
-        routing = dict(advice.routing_bias or {})
-        sampling = dict(advice.sampling_bias or {})
-        state.response_modifiers["spiking_active_inference"] = advice_dict
-        state.response_modifiers["active_inference_action_tendency"] = advice.action
-        state.response_modifiers["epistemic_uncertainty"] = advice.uncertainty
-        state.response_modifiers["metacognition_depth"] = routing.get("metacognition_depth", 0.35)
-        state.response_modifiers["tool_governance_pressure"] = bool(
-            routing.get("use_tool_gateway")
+        return advisory_passes.apply_spiking_active_inference(
+            state, objective, origin, context, is_background=is_background
         )
-        state.response_modifiers["sampling_bias"] = sampling
-        if routing.get("reduce_load"):
-            state.response_modifiers["runtime_load_shed_requested"] = True
-        if routing.get("repair_first"):
-            state.response_modifiers["repair_first_pressure"] = True
-
-        merged_context = dict(context or {})
-        merged_context["spiking_active_inference"] = advice_dict
-        return merged_context
 
     def _apply_entity_memory(
         self,
@@ -2503,73 +2287,9 @@ class CognitiveEngine:
         *,
         is_background: bool,
     ) -> dict[str, Any] | None:
-        try:
-            from core.brain.imagination import get_imagination_engine
-
-            engine = get_imagination_engine()
-            frame = engine.imagine(
-                objective,
-                state=state,
-                context=context,
-                origin=origin,
-                is_background=is_background,
-            )
-        except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
-            record_degradation(
-                "cognitive_engine",
-                exc,
-                severity="warning",
-                action="continued cognitive cycle without imagination workspace",
-            )
-            logger.debug("Imagination workspace unavailable: %s", exc)
-            return context
-
-        frame_dict = frame.to_dict()
-        if frame.salience < 0.18:
-            return context
-
-        state.response_modifiers["imagination_workspace"] = frame_dict
-        state.response_modifiers["creative_pressure"] = frame.salience
-        state.response_modifiers["novelty_pressure"] = frame.novelty_pressure
-        state.response_modifiers["imagination_sampling_bias"] = dict(frame.sampling_bias)
-        state.response_modifiers["imagination_routing_bias"] = dict(frame.routing_bias)
-        state.response_modifiers["imagination_memory_pressure"] = frame.memory_pressure
-        state.response_modifiers["imagination_verification_pressure"] = frame.verification_pressure
-        state.response_modifiers["imagination_working_memory"] = dict(frame.working_memory)
-        state.response_modifiers["imagination_attractor_state"] = dict(frame.attractor_state)
-        state.response_modifiers["verification_pressure"] = max(
-            _bounded_float(state.response_modifiers.get("verification_pressure"), 0.0),
-            frame.verification_pressure,
+        return advisory_passes.apply_imagination_workspace(
+            state, objective, origin, context, is_background=is_background
         )
-        if frame.routing_bias.get("seek_verification") or frame.routing_bias.get("raise_metacognition"):
-            state.response_modifiers["tool_governance_pressure"] = True
-            state.response_modifiers["metacognition_depth"] = max(
-                _bounded_float(state.response_modifiers.get("metacognition_depth"), 0.35),
-                _bounded_float(frame.causal_effects.get("metacognition_depth"), 0.35),
-            )
-
-        cognition_mods = dict(getattr(state.cognition, "modifiers", {}) or {})
-        cognition_mods["imagination_workspace"] = frame_dict
-        cognition_mods["imagination_prompt_block_available"] = True
-        cognition_mods["imagination_attention_targets"] = list(frame.attention_targets)
-        cognition_mods["imagination_causal_effects"] = dict(frame.causal_effects)
-        cognition_mods["imagination_ablation_predictions"] = dict(frame.ablation_predictions)
-        cognition_mods["imagination_working_memory"] = dict(frame.working_memory)
-        cognition_mods["imagination_attractor_state"] = dict(frame.attractor_state)
-        if frame.routing_bias.get("requires_memory_grounding"):
-            cognition_mods["requires_memory_grounding"] = True
-        if frame.routing_bias.get("compress_imagination"):
-            state.response_modifiers["runtime_load_shed_requested"] = True
-            cognition_mods["runtime_load_shed_requested"] = True
-        state.cognition.modifiers = cognition_mods
-        if frame.attention_targets and not is_background:
-            state.cognition.attention_focus = (
-                f"{objective[:120]} | imagined focus: {', '.join(frame.attention_targets[:3])}"
-            )
-
-        merged_context = dict(context or {})
-        merged_context["imagination_workspace"] = frame_dict
-        return merged_context
 
     def _apply_bicameral_advisory(
         self,
@@ -2580,105 +2300,9 @@ class CognitiveEngine:
         *,
         is_background: bool,
     ) -> dict[str, Any] | None:
-        try:
-            from core.brain.bicameral_advisory import get_bicameral_advisory
-
-            advisor = get_bicameral_advisory()
-            frame = advisor.advise(
-                objective,
-                state=state,
-                context=context,
-                origin=origin,
-                is_background=is_background,
-            )
-        except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
-            record_degradation(
-                "cognitive_engine",
-                exc,
-                severity="warning",
-                action="continued cognitive cycle without bicameral advisory",
-            )
-            logger.debug("Bicameral advisory unavailable: %s", exc)
-            return context
-
-        if frame.salience < 0.18:
-            return context
-
-        frame_dict = frame.to_dict()
-        # The issued frame is deeply immutable. AuraState is intentionally
-        # deepcopy-able for phase retry/rebase, so only its fully materialized
-        # signed transport payload may cross into state modifiers.
-        causal = dict(frame_dict.get("causal_effects") or {})
-        routing = dict(frame_dict.get("routing_bias") or {})
-        sampling = dict(frame_dict.get("sampling_bias") or {})
-
-        state.response_modifiers["bicameral_advisory"] = frame_dict
-        state.response_modifiers["bicameral_consensus"] = frame.consensus
-        state.response_modifiers["bicameral_dissent"] = frame.dissent
-        state.response_modifiers["bicameral_sampling_bias"] = sampling
-        state.response_modifiers["bicameral_routing_bias"] = routing
-        state.response_modifiers["bicameral_attention_targets"] = list(frame.attention_targets)
-        state.response_modifiers["bicameral_causal_effects"] = causal
-        state.response_modifiers["bicameral_memory_priority"] = _bounded_float(
-            causal.get("memory_priority"), 0.0
+        return advisory_passes.apply_bicameral_advisory(
+            state, objective, origin, context, is_background=is_background
         )
-        state.response_modifiers["bicameral_verification_pressure"] = _bounded_float(
-            causal.get("verification_pressure"), 0.0
-        )
-        state.response_modifiers["self_model_update_pressure"] = max(
-            _bounded_float(state.response_modifiers.get("self_model_update_pressure"), 0.0),
-            _bounded_float(causal.get("self_model_update"), 0.0),
-        )
-        state.response_modifiers["metacognition_depth"] = max(
-            _bounded_float(state.response_modifiers.get("metacognition_depth"), 0.35),
-            _bounded_float(causal.get("metacognition_depth"), 0.35),
-        )
-        state.response_modifiers["verification_pressure"] = max(
-            _bounded_float(state.response_modifiers.get("verification_pressure"), 0.0),
-            _bounded_float(causal.get("verification_pressure"), 0.0),
-        )
-        state.response_modifiers["creative_pressure"] = max(
-            _bounded_float(state.response_modifiers.get("creative_pressure"), 0.0),
-            _bounded_float(causal.get("creative_pressure"), 0.0),
-        )
-        if routing.get("use_tool_gateway") or routing.get("seek_verification"):
-            state.response_modifiers["tool_governance_pressure"] = True
-        if routing.get("compact_foreground"):
-            state.response_modifiers["runtime_load_shed_requested"] = True
-        if (
-            _bounded_float(causal.get("memory_priority"), 0.0) >= 0.45
-            or _bounded_float(causal.get("self_model_update"), 0.0) >= 0.35
-            or routing.get("preserve_conversation_context")
-        ):
-            state.response_modifiers["requires_memory_grounding"] = True
-
-        cognition_mods = dict(getattr(state.cognition, "modifiers", {}) or {})
-        cognition_mods["bicameral_advisory"] = frame_dict
-        cognition_mods["bicameral_prompt_block_available"] = True
-        cognition_mods["bicameral_attention_targets"] = list(frame.attention_targets)
-        cognition_mods["bicameral_causal_effects"] = causal
-        cognition_mods["bicameral_sampling_bias"] = sampling
-        cognition_mods["bicameral_routing_bias"] = routing
-        cognition_mods["self_model_update_pressure"] = state.response_modifiers[
-            "self_model_update_pressure"
-        ]
-        if state.response_modifiers.get("requires_memory_grounding"):
-            cognition_mods["requires_memory_grounding"] = True
-        state.cognition.modifiers = cognition_mods
-
-        if frame.attention_targets and not is_background:
-            existing_focus = str(getattr(state.cognition, "attention_focus", "") or "").strip()
-            advisory_focus = ", ".join(frame.attention_targets[:4])
-            state.cognition.attention_focus = (
-                f"{existing_focus} | advisory focus: {advisory_focus}"
-                if existing_focus
-                else f"{objective[:120]} | advisory focus: {advisory_focus}"
-            )
-
-        merged_context = dict(context or {})
-        merged_context["bicameral_advisory"] = frame_dict
-        merged_context["bicameral_sampling_bias"] = sampling
-        return merged_context
 
     def _apply_cognitive_situation_frame(
         self,
@@ -2689,130 +2313,9 @@ class CognitiveEngine:
         *,
         is_background: bool,
     ) -> dict[str, Any] | None:
-        try:
-            from core.brain.cognitive_situation import get_cognitive_situation_engine
-
-            engine = get_cognitive_situation_engine()
-            frame = engine.frame(
-                objective,
-                state=state,
-                context=context,
-                origin=origin,
-                is_background=is_background,
-            )
-        except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
-            record_degradation(
-                "cognitive_engine",
-                exc,
-                severity="warning",
-                action="continued cognitive cycle without cognitive situation frame",
-            )
-            logger.debug("Cognitive situation frame unavailable: %s", exc)
-            return context
-
-        frame_dict = frame.to_dict()
-        if frame.salience < 0.16:
-            return context
-
-        causal = dict(frame.causal_effects or {})
-        routing = dict(frame.routing_bias or {})
-        sampling = dict(frame.sampling_bias or {})
-
-        state.response_modifiers["cognitive_situation_frame"] = frame_dict
-        state.response_modifiers["semantic_flexibility_pressure"] = frame.semantic_flexibility
-        state.response_modifiers["analogical_leap_pressure"] = frame.analogical_leap_pressure
-        state.response_modifiers["sensorimotor_grounding_pressure"] = frame.sensorimotor_grounding
-        state.response_modifiers["cognitive_situation_sampling_bias"] = sampling
-        state.response_modifiers["cognitive_situation_routing_bias"] = routing
-        state.response_modifiers["cognitive_situation_attention_targets"] = list(
-            frame.attention_targets
+        return advisory_passes.apply_cognitive_situation_frame(
+            state, objective, origin, context, is_background=is_background
         )
-        state.response_modifiers["verification_pressure"] = max(
-            _bounded_float(state.response_modifiers.get("verification_pressure"), 0.0),
-            frame.verification_pressure,
-        )
-        state.response_modifiers["metacognition_depth"] = max(
-            _bounded_float(state.response_modifiers.get("metacognition_depth"), 0.35),
-            frame.metacognition_pressure,
-        )
-        state.response_modifiers["creative_pressure"] = max(
-            _bounded_float(state.response_modifiers.get("creative_pressure"), 0.0),
-            frame.analogical_leap_pressure,
-        )
-        if routing.get("use_tool_gateway") or routing.get("bind_sensorimotor_evidence"):
-            state.response_modifiers["tool_governance_pressure"] = True
-        if routing.get("perception_abstention_required"):
-            state.response_modifiers["perception_abstention_required"] = True
-        if routing.get("perception_repair_required"):
-            state.response_modifiers["perception_repair_required"] = True
-        perception_constraints = causal.get("perception_planning_constraints")
-        if isinstance(perception_constraints, list):
-            state.response_modifiers["perception_planning_constraints"] = list(
-                perception_constraints[:8]
-            )
-        perception_repairs = causal.get("perception_repair_requirements")
-        if isinstance(perception_repairs, list):
-            state.response_modifiers["perception_repair_requirements"] = list(
-                perception_repairs[:8]
-            )
-        social_constraints = causal.get("social_planning_constraints")
-        if isinstance(social_constraints, list):
-            state.response_modifiers["social_planning_constraints"] = list(
-                social_constraints[:8]
-            )
-        state.response_modifiers["social_uncertainty"] = frame.social_uncertainty
-        state.response_modifiers["social_repair_pressure"] = frame.social_repair_pressure
-        if routing.get("social_repair_required"):
-            state.response_modifiers["social_repair_required"] = True
-        if routing.get("social_confirmation_required"):
-            state.response_modifiers["social_confirmation_required"] = True
-        if routing.get("social_state_clarification_required"):
-            state.response_modifiers["social_state_clarification_required"] = True
-        if routing.get("social_response_brevity"):
-            state.response_modifiers["social_response_brevity"] = True
-        if routing.get("requires_memory_grounding") or routing.get("preserve_conversation_context"):
-            state.response_modifiers["requires_memory_grounding"] = True
-        if routing.get("deliberate_mode") and not is_background:
-            state.cognition.current_mode = CognitiveMode.DELIBERATE
-
-        cognition_mods = dict(getattr(state.cognition, "modifiers", {}) or {})
-        cognition_mods["cognitive_situation_frame"] = frame_dict
-        cognition_mods["cognitive_situation_prompt_block_available"] = True
-        cognition_mods["semantic_flexibility_pressure"] = frame.semantic_flexibility
-        cognition_mods["analogical_leap_pressure"] = frame.analogical_leap_pressure
-        cognition_mods["sensorimotor_grounding_pressure"] = frame.sensorimotor_grounding
-        cognition_mods["cognitive_situation_sampling_bias"] = sampling
-        cognition_mods["cognitive_situation_routing_bias"] = routing
-        cognition_mods["cognitive_situation_causal_effects"] = causal
-        if routing.get("requires_memory_grounding"):
-            cognition_mods["requires_memory_grounding"] = True
-        if routing.get("bind_sensorimotor_evidence"):
-            cognition_mods["bind_sensorimotor_evidence"] = True
-        if routing.get("perception_abstention_required"):
-            cognition_mods["perception_abstention_required"] = True
-        if routing.get("perception_repair_required"):
-            cognition_mods["perception_repair_required"] = True
-        if routing.get("social_repair_required"):
-            cognition_mods["social_repair_required"] = True
-        if routing.get("social_confirmation_required"):
-            cognition_mods["social_confirmation_required"] = True
-        if routing.get("social_state_clarification_required"):
-            cognition_mods["social_state_clarification_required"] = True
-        state.cognition.modifiers = cognition_mods
-
-        if frame.attention_targets and not is_background:
-            existing_focus = str(getattr(state.cognition, "attention_focus", "") or "").strip()
-            situation_focus = ", ".join(frame.attention_targets[:4])
-            state.cognition.attention_focus = (
-                f"{existing_focus} | situation focus: {situation_focus}"
-                if existing_focus
-                else f"{objective[:120]} | situation focus: {situation_focus}"
-            )
-
-        merged_context = dict(context or {})
-        merged_context["cognitive_situation_frame"] = frame_dict
-        merged_context["cognitive_situation_sampling_bias"] = sampling
-        return merged_context
 
     def _learn_spiking_active_inference_outcome(
         self,
@@ -2821,32 +2324,9 @@ class CognitiveEngine:
         outcome: str,
         reward: float,
     ) -> dict[str, Any] | None:
-        if not isinstance(context, dict):
-            return None
-        advice = context.get("spiking_active_inference")
-        if not isinstance(advice, dict):
-            return None
-        action = str(advice.get("action") or "").strip()
-        features = advice.get("features")
-        if not action or not isinstance(features, dict):
-            return None
-        try:
-            advisor = get_container().get("spiking_active_inference", default=None)
-            if advisor is None or not hasattr(advisor, "learn_from_feedback"):
-                return None
-            learned = advisor.learn_from_feedback(action, float(reward), features)
-            if isinstance(learned, dict):
-                learned["outcome"] = str(outcome or "unknown")[:80]
-                return learned
-        except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
-            record_degradation(
-                "cognitive_engine",
-                exc,
-                severity="warning",
-                action="continued cognitive cycle without spiking active-inference feedback learning",
-            )
-            logger.debug("Spiking active-inference feedback learning skipped: %s", exc)
-        return None
+        return advisory_passes.learn_spiking_active_inference_outcome(
+            context, outcome=outcome, reward=reward
+        )
 
     def _learn_imagination_workspace_outcome(
         self,
@@ -2857,59 +2337,13 @@ class CognitiveEngine:
         evidence_basis: str = "",
         evidence_id: str = "",
     ) -> dict[str, Any] | None:
-        if not isinstance(context, dict):
-            return None
-        frame = context.get("imagination_workspace")
-        if not isinstance(frame, dict):
-            return None
-        try:
-            from core.brain.imagination_basis import Basis, meets
-
-            try:
-                basis = Basis(str(evidence_basis or ""))
-            except ValueError:
-                basis = Basis.LEXICAL
-            frame_id = str(frame.get("frame_id") or "")[:120]
-            subject = str(
-                context.get("user_id")
-                or context.get("principal_id")
-                or "anonymous"
-            )[:64]
-            if not evidence_id or not meets(basis, Basis.MEASURED):
-                # A generation existing is not evidence that imagination made
-                # it correct. Keep the eligibility record typed and pending;
-                # do not call the durable learner until an evaluator, tool
-                # receipt, or user outcome supplies measured evidence.
-                return {
-                    "frame_id": frame_id,
-                    "subject": subject,
-                    "outcome": str(outcome or "unknown")[:80],
-                    "reward": round(max(-1.0, min(1.0, float(reward))), 4),
-                    "evidence_basis": basis.value,
-                    "evidence_id": str(evidence_id or "")[:120],
-                    "applied": False,
-                    "refusal": "measured outcome evidence required",
-                }
-            from core.brain.imagination import get_imagination_engine
-
-            learned = get_imagination_engine().learn_from_feedback(
-                frame,
-                reward=float(reward),
-                outcome=outcome,
-                subject=subject,
-                evidence_basis=basis.value,
-                evidence_id=evidence_id,
-            )
-            return learned if isinstance(learned, dict) else None
-        except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
-            record_degradation(
-                "cognitive_engine",
-                exc,
-                severity="warning",
-                action="continued cognitive cycle without imagination workspace feedback learning",
-            )
-            logger.debug("Imagination workspace feedback learning skipped: %s", exc)
-        return None
+        return advisory_passes.learn_imagination_workspace_outcome(
+            context,
+            outcome=outcome,
+            reward=reward,
+            evidence_basis=evidence_basis,
+            evidence_id=evidence_id,
+        )
 
     def _learn_bicameral_advisory_outcome(
         self,
@@ -2918,29 +2352,9 @@ class CognitiveEngine:
         outcome: str,
         reward: float,
     ) -> dict[str, Any] | None:
-        if not isinstance(context, dict):
-            return None
-        frame = context.get("bicameral_advisory")
-        if not isinstance(frame, dict):
-            return None
-        try:
-            from core.brain.bicameral_advisory import get_bicameral_advisory
-
-            learned = get_bicameral_advisory().learn_from_feedback(
-                frame,
-                reward=float(reward),
-                outcome=outcome,
-            )
-            return learned if isinstance(learned, dict) else None
-        except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
-            record_degradation(
-                "cognitive_engine",
-                exc,
-                severity="warning",
-                action="continued cognitive cycle without bicameral advisory feedback learning",
-            )
-            logger.debug("Bicameral advisory feedback learning skipped: %s", exc)
-        return None
+        return advisory_passes.learn_bicameral_advisory_outcome(
+            context, outcome=outcome, reward=reward
+        )
 
     async def think(
         self,
