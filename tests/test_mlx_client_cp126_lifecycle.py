@@ -84,6 +84,33 @@ class TestWorkerProgressIsBounded:
         client._record_latent_progress({"id": "req-1", "stage": "S" * 5000, "elapsed_s": 1.0})
         assert len(client._latent_progress_by_request["req-1"]["stage"]) == 200
 
+    def test_latent_progress_retains_engine_coordinates(self, client):
+        client._current_request_id = "req-1"
+        client._record_latent_progress(
+            {
+                "id": "req-1",
+                "stage": "prompt_prefill",
+                "processed_tokens": 128,
+                "total_tokens": 755,
+                "chunk_tokens": 128,
+                "prefill_chunk_ceiling": 128,
+                "decode_generated_tokens": 16,
+                "decode_requested_tokens": 64,
+                "tokens_generated": 17,
+                "untrusted": "must-not-escape",
+            }
+        )
+
+        progress = client._latent_progress_by_request["req-1"]
+        assert progress["processed_tokens"] == 128
+        assert progress["total_tokens"] == 755
+        assert progress["chunk_tokens"] == 128
+        assert progress["prefill_chunk_ceiling"] == 128
+        assert progress["decode_generated_tokens"] == 16
+        assert progress["decode_requested_tokens"] == 64
+        assert progress["tokens_generated"] == 17
+        assert "untrusted" not in progress
+
     def test_finished_requests_expire_from_the_progress_map(self, client):
         client._latent_progress_by_request = {
             "done": {"received_at_unix": time.time() - 10_000.0}

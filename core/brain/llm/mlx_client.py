@@ -5694,6 +5694,16 @@ class MLXLocalClient:
             "accepted",
             "wrapped_layers",
             "generated_tokens",
+            # RLC emits these coordinates from its bounded prefill and
+            # decode stages. Keep the wire names so the parent receipt can
+            # distinguish prompt work from answer tokens without guessing.
+            "tokens_generated",
+            "processed_tokens",
+            "total_tokens",
+            "chunk_tokens",
+            "prefill_chunk_ceiling",
+            "decode_generated_tokens",
+            "decode_requested_tokens",
             "termination",
         }
         # The KEY whitelist bounds which fields survive; it says nothing about
