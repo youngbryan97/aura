@@ -19,6 +19,7 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from core.interiority.faculties import load_all  # noqa: E402
+from core.interiority.longitudinal import summary as longitudinal_summary  # noqa: E402
 from core.interiority.proving import summary  # noqa: E402
 
 
@@ -43,6 +44,10 @@ def main() -> int:
     print(
         f"reach a measured behaviour    {ablation['reach_behaviour']}/{ablation['run']}"
     )
+    longitudinal = longitudinal_summary()
+    print(
+        f"long-running properties       {longitudinal['held']}/{longitudinal['episodes']}"
+    )
 
     if args.verbose:
         print("\nwhat each faculty moves when it is removed:")
@@ -56,6 +61,8 @@ def main() -> int:
             if result["unheld"]:
                 extra += f" releases={result['unheld']}"
             print(f"  {faculty:<32} {moved}{extra}")
+
+    report["longitudinal"] = longitudinal
 
     if args.json:
         args.json.parent.mkdir(parents=True, exist_ok=True)
@@ -77,6 +84,8 @@ def main() -> int:
         problems.append(
             f"{faculty} changes nothing any subsystem reads when removed"
         )
+    for failure in longitudinal["failed"]:
+        problems.append(f"{failure['episode']}: {failure['detail']}")
 
     if problems:
         print("\nFAILED:")
@@ -85,7 +94,8 @@ def main() -> int:
         return 1
 
     print("\n✅ every declared refutation holds, nothing fires on nothing, "
-          "and no faculty is decorative")
+          "no faculty is decorative, and every long-running property keeps "
+          "its shape")
     return 0
 
 

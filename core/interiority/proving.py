@@ -224,6 +224,7 @@ _WORLD_DEFAULTS: dict[str, Any] = {
     "custody_vulnerability": 0.8,
     "loss_irreversibility": 0.9,
     "history_repeats": 3,
+    "history_heeded": 0,
 }
 
 
@@ -284,6 +285,8 @@ def _ledger_for(
             ledger.notes.note_seen("ignored_request", "subject")
             ledger.notes.note_seen("encounter", "subject")
             ledger.notes.note_seen("harm_by", "subject")
+        for _ in range(int(w["history_heeded"])):
+            ledger.notes.note_seen("heeded_request", "subject")
     return ledger
 
 

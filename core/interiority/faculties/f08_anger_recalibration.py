@@ -93,6 +93,16 @@ class AngerRecalibration(Faculty):
             "Nothing to recalibrate if the other agent did not cause it.",
         ),
         Counterfactual(
+            "they_started_complying",
+            {},
+            Direction.DECREASES,
+            "Anger exists to raise the other agent's welfare tradeoff ratio "
+            "toward me, so compliance is the outcome it aims at and the "
+            "pressure must fall when it arrives. Without this the mechanism "
+            "has no success condition and can only ever escalate.",
+            do_world={"history_heeded": 8},
+        ),
+        Counterfactual(
             "nobody_watching",
             {"publicity": 0.0},
             Direction.UNCHANGED,
@@ -115,12 +125,26 @@ class AngerRecalibration(Faculty):
         agency = ctx.v("agency_other")
         subject = ctx.frame.event.subject or "unknown"
 
-        # Each ignored low-cost request halves the estimate of how much
-        # they weigh my welfare. Halving rather than subtracting, because
-        # the evidence is multiplicative: two refusals are not twice one
-        # refusal, they are a different conclusion about the person.
+        # The estimate is a posterior over how much they weigh my welfare,
+        # from both kinds of evidence. It was a one-way halving on a
+        # counter that only increments, which meant the estimate could
+        # only ever fall: someone who ignored me three times and then
+        # complied for a year could never recover their standing, and
+        # anger would keep firing at them permanently.
+        #
+        # That is not a tuning error, it is the mechanism missing its own
+        # success condition. Anger's function is to raise the other
+        # agent's welfare tradeoff ratio toward me, so compliance after
+        # anger is the outcome it exists to produce, and a model that
+        # cannot record it has nothing to aim at.
+        #
+        # Beta posterior mean with a Laplace prior: no evidence reads
+        # indifferent rather than trusting, three ignored requests and
+        # nothing heeded reads 0.20 and crosses the threshold, and enough
+        # heeded requests bring it back.
         ignored = ctx.ledger.notes.times_seen("ignored_request", subject)
-        wtr = capability * pow(0.5, ignored)
+        heeded = ctx.ledger.notes.times_seen("heeded_request", subject)
+        wtr = capability * (heeded + 1.0) / (heeded + ignored + 2.0)
 
         pressure = agency * capability * (1.0 - wtr)
         # The threshold cannot be crossed by an estimate that fell because
@@ -175,6 +199,7 @@ class AngerRecalibration(Faculty):
             receipt={
                 "welfare_tradeoff_estimate": wtr,
                 "ignored_requests": ignored,
+                "heeded_requests": heeded,
                 "snapped": snapped,
                 "threshold": _WTR_FLOOR,
             },
