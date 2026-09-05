@@ -12,7 +12,7 @@ import pytest
 mx = pytest.importorskip("mlx.core")
 pytest.importorskip("mlx_lm")
 
-from mlx_lm.models.cache import BatchKVCache, make_prompt_cache  # noqa: E402
+from mlx_lm.models.cache import ArraysCache, BatchKVCache, make_prompt_cache  # noqa: E402
 from mlx_lm.models.qwen2 import Model, ModelArgs  # noqa: E402
 
 from core.brain.llm.latent_cortex.engine import LatentCortexEngine  # noqa: E402
@@ -214,13 +214,154 @@ def test_batch_kv_cache_vector_coordinates_restore_exact_logical_boundary():
     assert [item._idx for item in cache] == [5, 5, 5]
     assert [item.offset.tolist() for item in cache] == parent_offsets
     assert all(item.keys is expected for item, expected in zip(cache, parent_keys, strict=True))
-    assert all(
-        item.values is expected
-        for item, expected in zip(cache, parent_values, strict=True)
-    )
+    assert all(item.values is expected for item, expected in zip(cache, parent_values, strict=True))
     receipt = _validate(tree.receipt(), layers=3, branches=1)
     assert receipt["exact_parent_restoration"] is True
     assert receipt["restore_failure_count"] == 0
+
+
+@pytest.mark.parametrize("hybrid", [False, True])
+def test_recurrent_state_mutation_restores_without_inventing_token_growth(hybrid):
+    recurrent = ArraysCache(2)
+    recurrent[0] = mx.ones((1, 2, 4))
+    recurrent[1] = mx.ones((1, 2, 4, 4))
+    recurrent.left_padding = mx.array([0])
+    recurrent.lengths = mx.array([5])
+    cache = [recurrent]
+    if hybrid:
+        attention = BatchKVCache([0])
+        attention.update_and_fetch(mx.ones((1, 2, 5, 4)), mx.ones((1, 2, 5, 4)))
+        cache.append(attention)
+    parent_state = list(recurrent.state)
+    tree = KVStateTree(
+        cache,
+        n_layers=len(cache),
+        episode_id="episode-test",
+        input_tokens_sha256=_sha("prompt"),
+    )
+    transaction = tree.begin_speculation(
+        cache,
+        start=0,
+        end=1,
+        purpose="recurrent_state_update",
+        branch_index=0,
+        parent_sha256=tree.root_sha256,
+    )
+    recurrent[1] = recurrent[1] + 2
+    recurrent.advance(2)
+    transaction.observe_mutation()
+    transaction.restore_parent()
+    event = transaction.reject_after_restore()
+    assert event["mutation_observed"] is True
+    assert event["appended_tokens_min"] is None
+    assert event["appended_tokens_max"] is None
+    assert all(a is b for a, b in zip(recurrent.state, parent_state, strict=True))
+    assert recurrent.lengths.tolist() == [5]
+    assert recurrent.left_padding.tolist() == [0]
+    receipt = _validate(tree.receipt(), layers=len(cache), branches=1)
+    root = receipt["nodes"][0]
+    assert root["min_offset"] == (5 if hybrid else None)
+    assert root["max_offset"] == (5 if hybrid else None)
+    assert receipt["exact_parent_restoration"] is True
+
+
+@pytest.mark.parametrize("metadata_only", [False, True])
+def test_cursorless_mutation_cannot_escape_declared_window(metadata_only):
+    cache = [ArraysCache(2), ArraysCache(2)]
+    for item in cache:
+        item[0] = mx.ones((1, 2, 4))
+        item[1] = mx.ones((1, 2, 4, 4))
+        item.lengths = mx.array([5])
+    tree = KVStateTree(
+        cache,
+        n_layers=2,
+        episode_id="episode-test",
+        input_tokens_sha256=_sha("prompt"),
+    )
+    transaction = tree.begin_speculation(
+        cache,
+        start=0,
+        end=1,
+        purpose="recurrent_state_update",
+        branch_index=0,
+        parent_sha256=tree.root_sha256,
+    )
+    if metadata_only:
+        cache[1].advance(1)
+    else:
+        cache[1][0] = cache[1][0] + 1
+    with pytest.raises(KVStateTreeError, match="escaped"):
+        transaction.observe_mutation()
+    transaction.restore_parent()
+
+
+def test_attention_state_change_without_cursor_growth_is_still_a_mutation():
+    cache = _fake_cache()
+    tree = KVStateTree(
+        cache,
+        n_layers=4,
+        episode_id="episode-test",
+        input_tokens_sha256=_sha("prompt"),
+    )
+    transaction = tree.begin_speculation(
+        cache,
+        start=0,
+        end=1,
+        purpose="same_length_edit",
+        branch_index=0,
+        parent_sha256=tree.root_sha256,
+    )
+    cache[0].keys = cache[0].keys + 1
+    transaction.observe_mutation()
+    transaction.restore_parent()
+    event = transaction.reject_after_restore()
+    assert event["mutation_observed"] is True
+    assert event["appended_tokens_max"] == 0
+    _validate(tree.receipt(), layers=4, branches=1)
+
+
+def test_legacy_receipt_remains_bound_to_its_token_growth_contract(monkeypatch):
+    import core.brain.llm.latent_cortex.kv_state_tree as module
+
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "KV_STATE_TREE_SCHEMA", "aura.rlc.kv_state_tree.v1")
+        patch.setattr(module, "KV_STATE_NODE_SCHEMA", "aura.rlc.kv_state_node.v1")
+        patch.setattr(module, "KV_STATE_EVENT_SCHEMA", "aura.rlc.kv_state_event.v1")
+        cache = _fake_cache()
+        tree = KVStateTree(
+            cache,
+            n_layers=4,
+            episode_id="episode-test",
+            input_tokens_sha256=_sha("prompt"),
+        )
+        transaction = tree.begin_speculation(
+            cache,
+            start=0,
+            end=1,
+            purpose="legacy_append",
+            branch_index=0,
+            parent_sha256=tree.root_sha256,
+        )
+        cache[0].append(count=1, marker=17.0)
+        transaction.observe_mutation()
+        transaction.restore_parent()
+        transaction.reject_after_restore()
+        receipt = tree.receipt()
+    _validate(receipt, layers=4, branches=1)
+    receipt["events"][0]["appended_tokens_min"] = 0
+    receipt["events"][0]["appended_tokens_max"] = 0
+    with pytest.raises(ValueError, match="mutation evidence"):
+        _validate(receipt, layers=4, branches=1)
+
+
+@pytest.mark.parametrize("offset", [None, -1, True, "5"])
+def test_invalid_attention_cursor_is_not_treated_as_recurrent_state(offset):
+    cache = _fake_cache()
+    cache[0].offset = offset
+    from core.brain.llm.latent_cortex.kv_state_tree import _cache_offsets
+
+    with pytest.raises(KVStateTreeError, match="invalid offset"):
+        _cache_offsets(cache, 0, len(cache))
 
 
 def test_rejected_child_cannot_become_a_later_parent():

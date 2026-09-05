@@ -146,9 +146,7 @@ def _hybrid_model():
         "head_dim": 16,
         "tie_word_embeddings": False,
     }
-    model = qwen3_5.Model(
-        qwen3_5.ModelArgs(model_type="qwen3_5", text_config=text_config)
-    )
+    model = qwen3_5.Model(qwen3_5.ModelArgs(model_type="qwen3_5", text_config=text_config))
     mx.eval(model.parameters())
     return model
 
@@ -240,6 +238,52 @@ def test_hybrid_chunked_prefill_matches_single_graph_and_reports_progress():
                 rtol=3e-2,
                 atol=1e-2,
             )
+
+
+def test_native_hybrid_runs_complete_episode_with_recurrent_cache_lineage():
+    from core.brain.llm.latent_cortex.kv_state_tree import validate_kv_state_tree_receipt
+
+    engine = LatentCortexEngine(_hybrid_model(), config=_config())
+    result = engine.reason(token_ids=PROMPT_TOKENS)
+
+    assert result.ok, result.reason
+    assert result.tokens
+    assert result.receipt.params_unchanged is True
+    receipt = validate_kv_state_tree_receipt(
+        result.receipt.kv_state_tree,
+        episode_id=result.receipt.episode_id,
+        input_tokens_sha256=result.receipt.input_tokens_sha256,
+        n_layers=4,
+        expected_n_branches=engine.config.branches.n_branches,
+        require_final=True,
+    )
+    assert receipt["exact_parent_restoration"] is True
+    assert receipt["all_rejected_slices_pruned"] is True
+
+
+@pytest.mark.parametrize("persist", [False, True])
+def test_native_recurrent_only_window_has_no_kv_growth_or_attention_charge(persist):
+    from core.brain.llm.latent_cortex.loop_core import validate_kv_bound_receipt
+
+    engine = LatentCortexEngine(_hybrid_model(), config=_config())
+    cache = engine._fresh_cache()
+    engine._prefill(PROMPT_TOKENS, cache, ComputeBudget())
+    parent_state = list(cache[0].state)
+    budget = ComputeBudget()
+    runner = WindowRunner(engine.decoder, budget)
+    runner.run(mx.ones((1, 3, 64)), cache, 0, 1, persist=persist)
+
+    receipt = validate_kv_bound_receipt(runner.kv_bound_receipt())
+    assert receipt["max_context_tokens"] is None
+    assert receipt["max_total_tokens"] is None
+    assert receipt["calls"][0]["post_context_tokens"] is None
+    assert receipt["all_within_limit"] is True
+    assert budget.spent_layer_apps == 3
+    assert budget.resource_ledger.totals()["attention_query_key_pairs"] == 0
+    assert all(a is b for a, b in zip(cache[0].state, parent_state, strict=True)) is (not persist)
+    receipt["schema"] = "aura.rlc.kv_bound.v1"
+    with pytest.raises(ValueError, match="call evidence"):
+        validate_kv_bound_receipt(receipt)
 
 
 def test_hybrid_wrapper_runs_a_complete_latent_episode():
@@ -1540,10 +1584,7 @@ def test_incomplete_branch_inventory_keeps_candidate_local_latent_score(
         "task_score_nonregression_with_proxy_descent_v1"
     )
     assert receipt.latent_opt_verifier["plateau_rollbacks"] == 2
-    assert (
-        "fast_weight_candidate_local_evidence_without_branch_selection"
-        in receipt.honest_flags
-    )
+    assert "fast_weight_candidate_local_evidence_without_branch_selection" in receipt.honest_flags
     admission = receipt.fast_weight_learning["admission"]
     assert admission["reason"] != "verifier_unavailable"
     assert admission["source_sha256"] != hashlib.sha256(b"").hexdigest()
@@ -1842,10 +1883,7 @@ def test_rejected_post_adaptation_candidate_revokes_partial_replacement_inventor
     assert result.ok
     receipt = result.receipt
     assert receipt.post_adaptation_candidate["final_candidate_available"] is False
-    assert (
-        "post_adaptation_candidate_inventory_incomplete"
-        in receipt.honest_flags
-    )
+    assert "post_adaptation_candidate_inventory_incomplete" in receipt.honest_flags
     assert receipt.disagreement_graph["candidate_decompositions"] == {}
     assert result.answer_replacement_private == {}
 

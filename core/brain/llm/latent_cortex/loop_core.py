@@ -10,10 +10,8 @@ from typing import Any
 from core.brain.llm.latent_cortex.workspace import per_position_rms
 
 LOOP_CORE_SCHEMA = "aura.rlc.loop_core.v1"
-KV_BOUND_SCHEMA = "aura.rlc.kv_bound.v1"
-UPDATE_IMPLEMENTATION = (
-    "core.brain.llm.latent_cortex.loop_core.controlled_recurrent_update"
-)
+KV_BOUND_SCHEMA = "aura.rlc.kv_bound.v2"
+UPDATE_IMPLEMENTATION = "core.brain.llm.latent_cortex.loop_core.controlled_recurrent_update"
 ABSOLUTE_POSITION_LIMIT = 1_048_576
 
 
@@ -105,9 +103,7 @@ def alpha_for_step(
         return float(alpha)
     horizon = max(1, max_steps - 1)
     progress = min(1.0, step / horizon)
-    return float(alpha) * (
-        0.25 + 0.75 * 0.5 * (1.0 + math.cos(math.pi * progress))
-    )
+    return float(alpha) * (0.25 + 0.75 * 0.5 * (1.0 + math.cos(math.pi * progress)))
 
 
 def rms_match(new_state: Any, anchor_state: Any, clip_ratio: float) -> Any:
@@ -254,8 +250,7 @@ def validate_loop_core_contract(
         value["schema"] != LOOP_CORE_SCHEMA
         or value["update_implementation"] != UPDATE_IMPLEMENTATION
         or value["anchor_policy"] != "fixed_post_prelude_state_v1"
-        or value["residual_policy"]
-        != "mailbox_plus_mutable_hypothesis_mean_rms_v1"
+        or value["residual_policy"] != "mailbox_plus_mutable_hypothesis_mean_rms_v1"
         or value["finite_policy"] != "input_candidate_output_fail_closed_v1"
         or value["cache_policy"] != "snapshot_restore_and_position_bound_v1"
         or type(value["prelude_end"]) is not int
@@ -327,16 +322,17 @@ def transition_metrics(
     if previous_delta is not None:
         numerator = mx.sum(previous_delta * delta)
         denominator = mx.maximum(
-            mx.sqrt(mx.sum(previous_delta * previous_delta))
-            * mx.sqrt(mx.sum(delta * delta)),
+            mx.sqrt(mx.sum(previous_delta * previous_delta)) * mx.sqrt(mx.sum(delta * delta)),
             1e-9,
         )
         delta_cosine = float(numerator / denominator)
         delta_cosine = max(-1.0, min(1.0, delta_cosine))
     values = (residual, input_rms, output_rms, anchor_rms, anchor_ratio)
-    if any(not math.isfinite(value) for value in values) or (
-        contraction_ratio is not None and not math.isfinite(contraction_ratio)
-    ) or (delta_cosine is not None and not math.isfinite(delta_cosine)):
+    if (
+        any(not math.isfinite(value) for value in values)
+        or (contraction_ratio is not None and not math.isfinite(contraction_ratio))
+        or (delta_cosine is not None and not math.isfinite(delta_cosine))
+    ):
         raise LoopCoreError("recurrent diagnostics are non-finite")
     metrics = {
         "alpha": round(float(alpha), 8),
@@ -345,15 +341,9 @@ def transition_metrics(
         "anchor_mean_rms": reported_anchor_rms,
         "anchor_rms_ratio": round(anchor_ratio, 8),
         "residual": reported_residual,
-        "contraction_ratio": (
-            None if contraction_ratio is None else round(contraction_ratio, 8)
-        ),
-        "delta_cosine": (
-            None if delta_cosine is None else round(delta_cosine, 8)
-        ),
-        "contracting": (
-            None if contraction_ratio is None else contraction_ratio < 1.0
-        ),
+        "contraction_ratio": (None if contraction_ratio is None else round(contraction_ratio, 8)),
+        "delta_cosine": (None if delta_cosine is None else round(delta_cosine, 8)),
+        "contracting": (None if contraction_ratio is None else contraction_ratio < 1.0),
         "oscillating": bool(delta_cosine is not None and delta_cosine < -0.5),
         "fixed_point_candidate": reported_residual < float(convergence_eps),
         "all_finite": True,
@@ -392,6 +382,24 @@ def validate_kv_bound_receipt(value: Any) -> dict[str, Any]:
         "persist",
         "restored",
     }
+    legacy = value["schema"] == "aura.rlc.kv_bound.v1"
+
+    def valid_context(row):
+        context = row["context_tokens"]
+        total = row["total_tokens"]
+        post = row["post_context_tokens"]
+        if context is None or total is None or post is None:
+            return not legacy and context is None and total is None and post is None
+        return (
+            type(context) is int
+            and context >= 0
+            and type(total) is int
+            and total == context + row["tokens"]
+            and type(post) is int
+            and post >= 0
+            and post == (total if row["persist"] else context)
+        )
+
     if any(
         not isinstance(row, dict)
         or set(row) != row_fields
@@ -401,39 +409,35 @@ def validate_kv_bound_receipt(value: Any) -> dict[str, Any]:
         or not 0 <= row["start"] < row["end"]
         or type(row["tokens"]) is not int
         or row["tokens"] < 1
-        or type(row["context_tokens"]) is not int
-        or row["context_tokens"] < 0
-        or row["total_tokens"] != row["context_tokens"] + row["tokens"]
-        or type(row["post_context_tokens"]) is not int
-        or row["post_context_tokens"] < 0
+        or not valid_context(row)
         or type(row["persist"]) is not bool
         or type(row["restored"]) is not bool
         or row["restored"] is not (not row["persist"])
-        or (
-            row["post_context_tokens"]
-            != (
-                row["total_tokens"]
-                if row["persist"]
-                else row["context_tokens"]
-            )
-        )
         for index, row in enumerate(calls)
     ):
         raise ValueError("KV-bound call evidence is invalid")
     position_limit = value["position_limit"]
     if (
-        value["schema"] != KV_BOUND_SCHEMA
+        value["schema"] not in {"aura.rlc.kv_bound.v1", KV_BOUND_SCHEMA}
         or type(position_limit) is not int
         or not 1 <= position_limit <= ABSOLUTE_POSITION_LIMIT
-        or value["position_limit_source"]
-        not in {"model_config", "absolute_safety_ceiling"}
+        or value["position_limit_source"] not in {"model_config", "absolute_safety_ceiling"}
         or value["call_count"] != len(calls)
         or value["max_context_tokens"]
-        != max(row["context_tokens"] for row in calls)
-        or value["max_total_tokens"] != max(row["total_tokens"] for row in calls)
-        or value["max_total_tokens"] > position_limit
+        != max(
+            (row["context_tokens"] for row in calls if row["context_tokens"] is not None),
+            default=None,
+        )
+        or value["max_total_tokens"]
+        != max(
+            (row["total_tokens"] for row in calls if row["total_tokens"] is not None), default=None
+        )
         or value["all_within_limit"] is not True
-        or any(row["total_tokens"] > position_limit for row in calls)
+        or any(
+            (row["total_tokens"] if row["total_tokens"] is not None else row["tokens"])
+            > position_limit
+            for row in calls
+        )
         or value["calls_sha256"] != canonical_sha256(calls)
     ):
         raise ValueError("KV-bound receipt summary is invalid")

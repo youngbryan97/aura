@@ -220,6 +220,29 @@ def _owned_cache_coordinate(value):
     )
 
 
+def _cache_token_cursor(cache_entry) -> int | None:
+    """Return a token cursor, or None for state with no growing token axis."""
+
+    if cache_entry is None:
+        return None
+    if (
+        not hasattr(cache_entry, "_idx")
+        and not hasattr(cache_entry, "offset")
+        and not hasattr(cache_entry, "keys")
+        and not hasattr(cache_entry, "values")
+        and hasattr(cache_entry, "state")
+        and hasattr(cache_entry, "meta_state")
+    ):
+        return None
+    # BatchKVCache.offset is per-example; _idx is its shared storage cursor.
+    offset = getattr(cache_entry, "_idx", None)
+    if type(offset) is not int:
+        offset = getattr(cache_entry, "offset", None)
+    if type(offset) is not int or offset < 0:
+        raise CacheSnapshotError("cache has an invalid offset")
+    return offset
+
+
 def _snapshot_cache_coordinates(cache_entry) -> dict[str, object]:
     return {
         attr: _owned_cache_coordinate(getattr(cache_entry, attr))

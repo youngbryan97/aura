@@ -52548,3 +52548,39 @@ through its root signal handler. A source-matched replay of this second repair,
 remaining synchronous retrieval callers, capability misrouting, duplicate
 generation and general semantic arbitration remain open. No RLC serving scope
 or scientific verdict changes.
+
+## Checkpoint 2026-09-05: Audit Hybrid Cache State, Not Only Token Growth
+
+The b99d3cfe3 live turn asked how checked facts differ from inference. It
+returned a complete answer after 254.97 seconds, but the latent attempt failed
+first: KVStateTree required an integer offset from ArraysCache at layer 0.
+Fallback repeated the 12332-token prefill and exhausted its budget before
+decode. The ordinary path then answered. This does not pass runtime latency.
+
+Five regressions reproduced the offset refusal and missed fixed-length state
+mutations. The shared recurrent-cache contract now distinguishes real token
+cursors from fixed-size state. Lineage checks compare saved state and metadata
+at every layer, including writes outside the declared window. Recurrent-only
+windows report unavailable token-growth measures as null. They retain layer
+compute charges but do not accrue nonexistent attention pairs. A complete
+tiny native Qwen3.5 episode exposed and then verified the second affected
+consumer, WindowRunner position accounting. Historical v1 receipts retain
+their original validation; new receipts use v2 semantics.
+
+Focused real-MLX cache, engine, recurrent-depth and recurrence suites: 135
+passed on CPU beside the resident runtime. The complete native hybrid test
+requires final lineage evidence, so a successful vanilla fallback cannot pass
+it. Live source-matched verification remains next. No model weights, prompts,
+scientific result or serving qualification changed.
+
+Claude's 71aa50c84 and 84efe1028 changes are relevant to later generalization:
+they separate unobserved primitives from equivalent ones, improve the null
+for invented-relation transfer, and preserve developmental evidence across
+restart. They do not replace hybrid cache ownership or establish a calibrated
+source-to-program selector. Capability misrouting, discarded no-tool answers,
+large context assembly and general semantic arbitration remain open.
+
+Checkpoint gates: smoke 163 passed, 1 skipped; lint, compile, layering and
+writing passed. Smoke took 145.41 seconds while another agent's test process
+and the live runtime were active. This duration is a gate-run measurement,
+not a model latency measurement.

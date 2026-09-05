@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-from core.brain.llm.recurrent_depth import _snapshot_recurrent_caches
+from core.brain.llm.recurrent_depth import (
+    _cache_entry_matches_snapshot,
+    _snapshot_recurrent_caches,
+)
 
 if TYPE_CHECKING:
     from core.brain.llm.latent_cortex.kv_state_tree import KVStateTree
@@ -44,8 +47,8 @@ class KVMutationTransaction:
         self._child_cache_sha256 = ""
         self._child_offsets_sha256 = ""
         self._mutation_observed = False
-        self._appended_min = 0
-        self._appended_max = 0
+        self._appended_min: int | None = None
+        self._appended_max: int | None = None
         self._execution_failed = False
         self._closed = False
 
@@ -83,13 +86,22 @@ class KVMutationTransaction:
         child_offsets = _cache_offsets(target, 0, self._tree.n_layers)
         parent_offsets = self._tree._node_offsets(self.parent_sha256)
         self._child_offsets_sha256 = _offsets_sha256(child_offsets)
+        if any(
+            (child is None) != (parent is None)
+            for child, parent in zip(child_offsets, parent_offsets, strict=True)
+        ):
+            raise _tree_error("speculative cache cursor contract changed")
         deltas = [
-            child - parent for child, parent in zip(child_offsets, parent_offsets, strict=True)
+            child - parent
+            for child, parent in zip(child_offsets, parent_offsets, strict=True)
+            if child is not None and parent is not None
         ]
         if any(delta < 0 for delta in deltas):
             raise _tree_error("speculative KV child moved before its parent")
+        parent_snapshots = self._tree._node(self.parent_sha256).snapshots
         changed = [
-            child_offsets[index] != parent_offsets[index] for index in range(self._tree.n_layers)
+            not _cache_entry_matches_snapshot(item, snapshot)
+            for item, snapshot in zip(target, parent_snapshots, strict=True)
         ]
         outside = [
             index
@@ -98,10 +110,19 @@ class KVMutationTransaction:
         ]
         if outside:
             raise _tree_error("speculative KV mutation escaped its declared layer window")
-        positive = [delta for delta in deltas if delta > 0]
-        self._mutation_observed = bool(positive)
-        self._appended_min = min(positive, default=0)
-        self._appended_max = max(positive, default=0)
+        window_deltas = [
+            child - parent
+            for child, parent in zip(
+                child_offsets[self.start : self.end],
+                parent_offsets[self.start : self.end],
+                strict=True,
+            )
+            if child is not None and parent is not None
+        ]
+        positive = [delta for delta in window_deltas if delta > 0]
+        self._mutation_observed = any(changed)
+        self._appended_min = min(positive, default=0) if window_deltas else None
+        self._appended_max = max(positive, default=0) if window_deltas else None
 
     def reject_after_restore(self, cache: Sequence[Any] | None = None) -> dict[str, Any]:
         if self.isolated:

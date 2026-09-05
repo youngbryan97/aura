@@ -35,13 +35,14 @@ from core.brain.llm.latent_cortex.recurrence import _cache_matches_snapshot
 from core.brain.llm.recurrent_depth import (
     CacheSnapshotError,
     _cache_snapshot_commitment_parts,
+    _cache_token_cursor,
     _restore_recurrent_caches,
     _snapshot_recurrent_caches,
 )
 
-KV_STATE_TREE_SCHEMA = "aura.rlc.kv_state_tree.v1"
-KV_STATE_NODE_SCHEMA = "aura.rlc.kv_state_node.v1"
-KV_STATE_EVENT_SCHEMA = "aura.rlc.kv_state_event.v1"
+KV_STATE_TREE_SCHEMA = "aura.rlc.kv_state_tree.v2"
+KV_STATE_NODE_SCHEMA = "aura.rlc.kv_state_node.v2"
+KV_STATE_EVENT_SCHEMA = "aura.rlc.kv_state_event.v2"
 
 _MAX_LAYERS = 512
 _MAX_NODES = 4096
@@ -155,9 +156,7 @@ def _snapshot_commitment(snapshots: list, *, salt: bytes) -> str:
         if not isinstance(snapshot, tuple) or not snapshot:
             raise KVStateTreeError("cache snapshot entry is malformed")
         try:
-            kind, state_value, metadata_value = _cache_snapshot_commitment_parts(
-                snapshot
-            )
+            kind, state_value, metadata_value = _cache_snapshot_commitment_parts(snapshot)
         except CacheSnapshotError as exc:
             raise KVStateTreeError(str(exc)) from exc
         rows.append(
@@ -173,27 +172,20 @@ def _snapshot_commitment(snapshots: list, *, salt: bytes) -> str:
     return _canonical_sha256(rows)
 
 
-def _cache_offsets(cache: Sequence[Any], start: int, end: int) -> list[int]:
+def _cache_offsets(cache: Sequence[Any], start: int, end: int) -> list[int | None]:
+    """Read real token cursors; recurrent state has no token-growth measure."""
     if not 0 <= start < end <= len(cache):
         raise KVStateTreeError("cache offset range is invalid")
-    offsets: list[int] = []
+    offsets: list[int | None] = []
     for index, item in enumerate(cache[start:end], start=start):
-        if item is None:
-            offsets.append(0)
-            continue
-        # BatchKVCache has per-example offsets because left padding differs,
-        # but its scalar _idx is the shared logical K/V cursor. Transactions
-        # need one cursor per layer so layer-window escape checks remain exact.
-        offset = getattr(item, "_idx", None)
-        if type(offset) is not int:
-            offset = getattr(item, "offset", None)
-        if type(offset) is not int or offset < 0:
-            raise KVStateTreeError(f"cache layer {index} has an invalid offset")
-        offsets.append(offset)
+        try:
+            offsets.append(_cache_token_cursor(item))
+        except CacheSnapshotError as exc:
+            raise KVStateTreeError(f"cache layer {index} has an invalid offset") from exc
     return offsets
 
 
-def _offsets_sha256(offsets: Sequence[int]) -> str:
+def _offsets_sha256(offsets: Sequence[int | None]) -> str:
     return _canonical_sha256(list(offsets))
 
 
@@ -203,8 +195,8 @@ def _node_payload(
     parent_sha256: str,
     cache_sha256: str,
     offsets_sha256: str,
-    min_offset: int,
-    max_offset: int,
+    min_offset: int | None,
+    max_offset: int | None,
     branch_index: int | None,
     label: str,
     authority: str,
@@ -267,7 +259,7 @@ class KVStateTree:
         self._salt = secrets.token_bytes(32)
         self._nodes: list[_NodeRuntime] = []
         self._nodes_by_sha256: dict[str, _NodeRuntime] = {}
-        self._node_offsets_by_sha256: dict[str, list[int]] = {}
+        self._node_offsets_by_sha256: dict[str, list[int | None]] = {}
         self._events: list[dict[str, Any]] = []
         # (parent node, branch index, child content hash). A content hash is
         # not an identity: a deterministic decode reaches the same cache
@@ -300,7 +292,7 @@ class KVStateTree:
         except KeyError as exc:
             raise KVStateTreeError("KV state-tree parent is unknown") from exc
 
-    def _node_offsets(self, node_sha256: str) -> list[int]:
+    def _node_offsets(self, node_sha256: str) -> list[int | None]:
         try:
             return list(self._node_offsets_by_sha256[node_sha256])
         except KeyError as exc:
@@ -364,18 +356,18 @@ class KVStateTree:
         # rejected child's state cannot survive in the cache at all.
         if (
             snapshots is not None
-            and (parent_sha256, branch_index, cache_sha256)
-            in self._rejected_child_commitments
+            and (parent_sha256, branch_index, cache_sha256) in self._rejected_child_commitments
         ):
             raise KVStateTreeError("a rejected KV child was reused as a live boundary")
         offsets = _cache_offsets(cache, 0, self.n_layers)
+        measured_offsets = [offset for offset in offsets if offset is not None]
         payload = _node_payload(
             ordinal=len(self._nodes),
             parent_sha256=parent_sha256,
             cache_sha256=cache_sha256,
             offsets_sha256=_offsets_sha256(offsets),
-            min_offset=min(offsets),
-            max_offset=max(offsets),
+            min_offset=min(measured_offsets, default=None),
+            max_offset=max(measured_offsets, default=None),
             branch_index=branch_index,
             label=label,
             authority=authority,
@@ -742,8 +734,11 @@ def validate_kv_state_tree_receipt(
     }
     if set(value) != required:
         raise ValueError("KV state-tree receipt fields differ")
+    legacy = value["schema"] == "aura.rlc.kv_state_tree.v1"
+    node_schema = "aura.rlc.kv_state_node.v1" if legacy else KV_STATE_NODE_SCHEMA
+    event_schema = "aura.rlc.kv_state_event.v1" if legacy else KV_STATE_EVENT_SCHEMA
     if (
-        value["schema"] != KV_STATE_TREE_SCHEMA
+        value["schema"] not in {"aura.rlc.kv_state_tree.v1", KV_STATE_TREE_SCHEMA}
         or value["episode_id"] != episode_id
         or value["input_tokens_sha256"] != input_tokens_sha256
         or value["n_layers"] != n_layers
@@ -788,7 +783,7 @@ def validate_kv_state_tree_receipt(
     for ordinal, raw in enumerate(nodes):
         if not isinstance(raw, dict) or set(raw) != node_keys:
             raise ValueError("KV state-tree node fields differ")
-        if raw["schema"] != KV_STATE_NODE_SCHEMA or raw["ordinal"] != ordinal:
+        if raw["schema"] != node_schema or raw["ordinal"] != ordinal:
             raise ValueError("KV state-tree node ordering differs")
         for key in ("cache_sha256", "offsets_sha256", "node_sha256"):
             if not _is_sha256(raw[key]):
@@ -814,7 +809,8 @@ def validate_kv_state_tree_receipt(
             raise ValueError("KV state-tree final node is not verified")
         if raw["latent_sha256"] and not _is_sha256(raw["latent_sha256"]):
             raise ValueError("KV state-tree latent commitment is invalid")
-        if (
+        unmeasured_offsets = not legacy and raw["min_offset"] is None and raw["max_offset"] is None
+        if not unmeasured_offsets and (
             type(raw["min_offset"]) is not int
             or type(raw["max_offset"]) is not int
             or not 0 <= raw["min_offset"] <= raw["max_offset"]
@@ -873,7 +869,7 @@ def validate_kv_state_tree_receipt(
     for ordinal, raw in enumerate(events):
         if not isinstance(raw, dict) or set(raw) != event_template:
             raise ValueError("KV state-tree event fields differ")
-        if raw["schema"] != KV_STATE_EVENT_SCHEMA or raw["ordinal"] != ordinal:
+        if raw["schema"] != event_schema or raw["ordinal"] != ordinal:
             raise ValueError("KV state-tree event ordering differs")
         parent_sha256 = raw["parent_node_sha256"]
         if parent_sha256 not in by_node:
@@ -911,14 +907,29 @@ def validate_kv_state_tree_receipt(
         ):
             if type(raw[key]) is not bool:
                 raise ValueError("KV state-tree event flag is invalid")
-        if (
+        unmeasured_append = (
+            not legacy and raw["appended_tokens_min"] is None and raw["appended_tokens_max"] is None
+        )
+        if not unmeasured_append and (
             type(raw["appended_tokens_min"]) is not int
             or type(raw["appended_tokens_max"]) is not int
             or not 0 <= raw["appended_tokens_min"] <= raw["appended_tokens_max"]
         ):
             raise ValueError("KV state-tree event append span is invalid")
-        if raw["mutation_observed"] is (raw["appended_tokens_max"] == 0):
+        mutation_evidence = (
+            raw["appended_tokens_max"] > 0
+            if legacy
+            else raw["child_cache_sha256"] != raw["parent_cache_sha256"]
+        )
+        if raw["mutation_observed"] != mutation_evidence:
             raise ValueError("KV state-tree mutation evidence is inconsistent")
+        if (
+            not legacy
+            and raw["appended_tokens_max"] is not None
+            and raw["appended_tokens_max"] > 0
+            and not raw["mutation_observed"]
+        ):
+            raise ValueError("KV state-tree token growth has no state mutation")
         disposition = raw["disposition"]
         if disposition in {"rejected_pruned", "isolated_discarded"}:
             rejected_count += 1

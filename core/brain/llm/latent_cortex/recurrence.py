@@ -50,6 +50,7 @@ from core.brain.llm.latent_cortex.workspace import per_position_rms
 from core.brain.llm.recurrent_depth import (
     CacheSnapshotError,
     _cache_entry_matches_snapshot,
+    _cache_token_cursor,
     _restore_recurrent_caches,
     _snapshot_recurrent_caches,
 )
@@ -368,7 +369,7 @@ class WindowRunner:
             ),
         }
 
-    def _context_tokens(self, cache, start: int, end: int) -> int:
+    def _context_tokens(self, cache, start: int, end: int) -> int | None:
         if (
             not isinstance(cache, (list, tuple))
             or type(start) is not int
@@ -378,16 +379,15 @@ class WindowRunner:
             raise LoopCoreError("recurrent cache window is invalid")
         offsets: list[int] = []
         for item in cache[start:end]:
-            if item is None:
-                offsets.append(0)
-                continue
-            offset = getattr(item, "offset", None)
-            if type(offset) is not int or offset < 0:
-                raise LoopCoreError("recurrent cache offset is invalid")
-            offsets.append(offset)
+            try:
+                offset = _cache_token_cursor(item)
+            except CacheSnapshotError as exc:
+                raise LoopCoreError("recurrent cache offset is invalid") from exc
+            if offset is not None:
+                offsets.append(offset)
         if len(set(offsets)) > 1:
             raise LoopCoreError("recurrent cache window offsets disagree")
-        return offsets[0] if offsets else 0
+        return offsets[0] if offsets else None
 
     def kv_bound_receipt(self) -> dict[str, Any]:
         """Return model-bounded position evidence for every window call."""
@@ -399,15 +399,19 @@ class WindowRunner:
             "position_limit_source": self._position_limit_source,
             "call_count": len(calls),
             "max_context_tokens": max(
-                (row["context_tokens"] for row in calls),
-                default=0,
+                (row["context_tokens"] for row in calls if row["context_tokens"] is not None),
+                default=None,
             ),
             "max_total_tokens": max(
-                (row["total_tokens"] for row in calls),
-                default=0,
+                (row["total_tokens"] for row in calls if row["total_tokens"] is not None),
+                default=None,
             ),
             "all_within_limit": bool(calls)
-            and all(row["total_tokens"] <= self._position_limit for row in calls),
+            and all(
+                (row["total_tokens"] if row["total_tokens"] is not None else row["tokens"])
+                <= self._position_limit
+                for row in calls
+            ),
             "calls": calls,
             "calls_sha256": canonical_sha256(calls),
         }
@@ -436,8 +440,8 @@ class WindowRunner:
         if tokens < 1 or layers < 1:
             raise LoopCoreError("recurrent window dimensions are empty")
         context_tokens = self._context_tokens(cache, start, end)
-        total_tokens = context_tokens + tokens
-        if total_tokens > self._position_limit:
+        total_tokens = context_tokens + tokens if context_tokens is not None else None
+        if (total_tokens if total_tokens is not None else tokens) > self._position_limit:
             raise LoopCoreError(
                 "recurrent KV position limit exceeded: "
                 f"total={total_tokens} limit={self._position_limit}"
@@ -448,10 +452,7 @@ class WindowRunner:
             # resident model is clean and the turn can still be answered by the
             # ordinary path.
             if self._budget.remaining_wall_s <= 0.0:
-                reason = (
-                    "wall-clock budget exhausted "
-                    f"(limit={self._budget.wall_clock_s:.3f}s)"
-                )
+                reason = f"wall-clock budget exhausted (limit={self._budget.wall_clock_s:.3f}s)"
             else:
                 required = tokens * layers
                 reason = (
@@ -459,19 +460,16 @@ class WindowRunner:
                     f"(required={required} remaining={self._budget.remaining_layer_apps})"
                 )
             raise ComputeBudgetUnaffordable(
-                f"compute budget cannot afford window [{start}:{end}) for {tokens} slots: "
-                f"{reason}"
+                f"compute budget cannot afford window [{start}:{end}) for {tokens} slots: {reason}"
             )
         # Reserve and account the whole atomic pass before execution. A layer
         # fault can consume partial compute, so failed work must not disappear
         # from the conservative ledger or become available to a fallback.
         attention_pairs = 0
         for item in cache[start:end]:
-            offset = getattr(item, "offset", 0) if item is not None else 0
-            layer_context_tokens = max(0, int(offset)) if type(offset) is int else 0
-            attention_pairs += triangular_attention_pairs(
-                tokens, context_tokens=layer_context_tokens
-            )
+            offset = _cache_token_cursor(item)
+            if offset is not None:
+                attention_pairs += triangular_attention_pairs(tokens, context_tokens=offset)
         self._budget.charge(
             tokens=tokens,
             layers=layers,
@@ -592,9 +590,7 @@ def recurrence_step(
     from core.learning.role_conditioned_lora import recurrent_branch_index
 
     branch_scope = (
-        recurrent_branch_index(branch_index)
-        if branch_index is not None
-        else nullcontext()
+        recurrent_branch_index(branch_index) if branch_index is not None else nullcontext()
     )
     with branch_scope, recurrent_depth_index(step):
         z_raw = runner.run(z, cache, start, end, persist=False)
