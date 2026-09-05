@@ -152,3 +152,61 @@ def test_the_snapshot_separates_supplied_from_invented(vocabulary):
     assert snapshot["supplied"] == 3
     assert snapshot["invented"] == 1
     assert snapshot["by_generation"]["0"] == 3
+
+
+# ── knowing when it applies, and reasoning with it ───────────────────────
+
+
+def test_an_untried_primitive_has_no_domain_which_is_not_applying_everywhere(vocabulary):
+    """The two used to be the same state: an empty list meaning both."""
+    vocabulary.invent("square", lambda x: x * x)
+    assert vocabulary.get("square").applies_where == ()
+    assert vocabulary.get("square").applicability_known is False
+
+
+def test_applicability_is_learned_from_where_it_worked(vocabulary):
+    vocabulary.invent("square", lambda x: x * x)
+    vocabulary.note_applies("square", "geometry", worked=True)
+    vocabulary.note_applies("square", "text_layout", worked=False)
+    assert vocabulary.get("square").applies_where == ("geometry",)
+    assert vocabulary.get("square").applicability_known is True
+
+
+def test_a_domain_it_stopped_working_in_is_dropped(vocabulary):
+    vocabulary.invent("square", lambda x: x * x)
+    vocabulary.note_applies("square", "geometry", worked=True)
+    vocabulary.note_applies("square", "geometry", worked=False)
+    assert vocabulary.get("square").applies_where == ()
+
+
+def test_every_use_counts_whether_or_not_it_worked(vocabulary):
+    vocabulary.invent("square", lambda x: x * x)
+    vocabulary.note_applies("square", "a", worked=True)
+    vocabulary.note_applies("square", "b", worked=False)
+    assert vocabulary.get("square").used_in_reasoning == 2
+
+
+def test_something_invented_and_never_used_was_stored_not_learned(vocabulary):
+    """A vocabulary counting those is counting its own filing."""
+    vocabulary.invent("square", lambda x: x * x)
+    vocabulary.invent("mod3", lambda x: x % 3)
+    vocabulary.note_applies("square", "geometry", worked=True)
+    assert vocabulary.stored_but_unused() == ("mod3",)
+
+
+def test_a_supplied_primitive_is_not_counted_as_stored_but_unused(vocabulary):
+    """Generation zero was never invented, so it cannot be invention that idled."""
+    assert vocabulary.stored_but_unused() == ()
+
+
+def test_noting_a_primitive_that_does_not_exist_reports_failure(vocabulary):
+    assert vocabulary.note_applies("nothing_here", "anywhere", worked=True) is False
+
+
+def test_the_snapshot_separates_having_a_domain_from_being_invented(vocabulary):
+    vocabulary.invent("square", lambda x: x * x)
+    vocabulary.invent("mod3", lambda x: x % 3)
+    vocabulary.note_applies("square", "geometry", worked=True)
+    snapshot = vocabulary.snapshot()
+    assert snapshot["invented"] == 2
+    assert snapshot["with_known_domain"] == 1
