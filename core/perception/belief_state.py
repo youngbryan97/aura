@@ -311,6 +311,40 @@ class EnvironmentBeliefState:
                 current[label].evidence = current[label].evidence[-8:]
         return current
 
+    def find_out_about(self, subject: str, *, value_per_bit: float = 1.0) -> Any:
+        """Go and find out, rather than wait for an observation to arrive.
+
+        The loop this belief state could not run. It held hypotheses and a
+        method for updating them when something turned up, and had no way to
+        decide what to turn up: perception was receptive, so the observations
+        she got were the ones that happened to arrive.
+
+        Now the hypotheses here are handed to the controller, which ranks
+        every registered way of finding out by what it would tell her minus
+        what it costs, takes the best if any is worth taking, and the result
+        comes back through the same Bayesian update any other evidence does.
+
+        Returns the Finding, which says what was considered even when nothing
+        was worth doing — "I did not look" and "there was nothing worth
+        looking at" are different answers and only one of them is a gap.
+        """
+
+        from core.perception.how_she_finds_out import find_out
+
+        held = self.hypotheses.get(str(subject)) or {}
+        if len(held) < 2:
+            return find_out(str(subject), {}, value_per_bit=value_per_bit)
+        beliefs = {label: one.probability for label, one in held.items()}
+        finding = find_out(str(subject), beliefs, value_per_bit=value_per_bit)
+        if finding.looked and finding.after and finding.after != finding.before:
+            for label, probability in finding.after.items():
+                if label in held:
+                    held[label].probability = float(probability)
+                    held[label].updated_at = time.time()
+                    held[label].evidence.append(f"{finding.way}: {finding.saw}")
+                    held[label].evidence = held[label].evidence[-8:]
+        return finding
+
     def epistemic_uncertainty(self, subject: Optional[str] = None) -> float:
         """Return entropy-normalized uncertainty across hypotheses."""
         if subject is not None:

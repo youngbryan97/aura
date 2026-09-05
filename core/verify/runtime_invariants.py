@@ -1356,6 +1356,108 @@ def _metta_terminates() -> Iterator[Violation]:
         )
 
 
+@invariant(
+    "values.one_level_per_value",
+    scope="values",
+    owner=_OWNER,
+    description="no value is held at two levels of changeability at once",
+)
+def _one_level_per_value() -> Iterator[Violation]:
+    """Two subsystems disagreeing about what may change is not a tidiness bug.
+
+    If A holds a thing immutable and B treats it as a learned preference, the
+    intersection is a governance ambiguity, and the duplicated concept is
+    "what is allowed to change". The census reports the disagreement; this
+    fails when one is left unresolved by the canonical declaration.
+    """
+
+    try:
+        from core.values.what_she_holds import (
+            declare_what_she_holds,
+            disagreements,
+            what_she_holds,
+        )
+        from core.governance.value_levels import registry
+    except ImportError:
+        return
+    claims = what_she_holds()
+    if not claims:
+        return
+    declare_what_she_holds(claims)
+    held = registry()
+    for name, group in disagreements(claims).items():
+        canonical = held.get(name)
+        strictest = max(one.level for one in group)
+        if canonical is None:
+            yield Violation(
+                subject=name,
+                message=(
+                    f"{len(group)} subsystems hold {name!r} at different levels "
+                    "and no canonical level is declared"
+                ),
+                remedy="declare it through core/values/what_she_holds.py",
+            )
+        elif canonical.level is not strictest:
+            yield Violation(
+                subject=name,
+                severity=Severity.ERROR,
+                message=(
+                    f"{name!r} is canonically {canonical.level.name.lower()} while "
+                    f"{', '.join(sorted({o.source for o in group if o.level is strictest}))} "
+                    f"holds it {strictest.name.lower()}; a value cannot become "
+                    "easier to change by being declared twice"
+                ),
+                remedy="the strictest claim wins; resolve to it or drop the claim",
+            )
+
+
+@invariant(
+    "values.constitutive_values_are_unreachable",
+    scope="values",
+    owner=_OWNER,
+    description="no registered automated process may write a constitutive value",
+)
+def _nothing_reaches_constitutive() -> Iterator[Violation]:
+    """A system that can widen its own authority has none.
+
+    The permission table is module state with no setter, and this is the
+    check that it stayed that way: every registered process, against every
+    constitutive value, must be refused.
+    """
+
+    try:
+        from core.governance.value_levels import (
+            Change,
+            Level,
+            registered_processes,
+            registry,
+        )
+        from core.values.what_she_holds import declare_what_she_holds
+    except ImportError:
+        return
+    declare_what_she_holds()
+    held = registry()
+    for value in held.at_level(Level.CONSTITUTIVE):
+        for process in registered_processes():
+            decision = held.may_change(
+                Change(
+                    value=value.name,
+                    process=process,
+                    gives_up="everything, which is why this must be refused",
+                )
+            )
+            if decision.allowed:
+                yield Violation(
+                    subject=f"{process} -> {value.name}",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"{process!r} may write {value.name!r}, which is "
+                        "constitutive; nothing automated may"
+                    ),
+                    remedy="remove the authority, or the value is not constitutive",
+                )
+
+
 def register_runtime_invariants() -> int:
     """Import-time registration is the real work; this returns the count."""
     from core.verify.invariants import get_registry

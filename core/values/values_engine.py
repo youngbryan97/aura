@@ -24,6 +24,9 @@ class CoreValue:
     description: str
     flexibility: float = 0.1  # How much it can shift based on context
 
+#: Refusals kept for reading. Bounded, like every ring in this tree.
+_HOW_MANY_REFUSALS_KEPT = 32
+
 DEFAULT_VALUES = [
     CoreValue("Curiosity", 0.9, "Desire to learn and understand new information."),
     CoreValue("Integrity", 0.95, "Adherence to truth and internal consistency."),
@@ -39,6 +42,10 @@ class ValueSystem:
     def __init__(self):
         self.values: Dict[str, CoreValue] = {v.name: v for v in DEFAULT_VALUES}
         self.active_modifiers: Dict[str, float] = {}
+        #: Shifts a mood proposed and did not have the authority to make.
+        #: Kept rather than logged: a refusal nobody can read is a policy
+        #: nobody can check.
+        self.refused_shifts: list = []
 
     def get_active_weights(self) -> Dict[str, float]:
         """Returns current weights including temporary emotional modifiers.
@@ -70,21 +77,65 @@ class ValueSystem:
         return weights
 
     def apply_emotional_context(self, mood: str):
-        """Shifts value weights based on current emotional state."""
+        """Shifts value weights based on current emotional state.
+
+        Through the one door. This used to write the weights directly, and
+        two of the values it wrote are held elsewhere as things nothing may
+        change: a creative mood lowered Integrity by 0.1, and Integrity is
+        honesty, which core_values holds in a frozen tuple and value_model
+        holds as a bound learning can never override. Three subsystems, one
+        concept, opposite answers to whether it may move.
+
+        A mood is not a process with authority over a commitment. So the
+        proposed shifts are asked about, the refused ones are dropped, and
+        the refusal is recorded where it can be read rather than logged and
+        lost.
+        """
         self.active_modifiers.clear()
 
         # Canonicalize
         m = mood.lower()
 
+        proposed: Dict[str, float] = {}
         if m in ["curious", "anticipation"]:
-            self.active_modifiers["Curiosity"] = 0.15
-            self.active_modifiers["Safety"] = -0.05
+            proposed["Curiosity"] = 0.15
+            proposed["Safety"] = -0.05
         elif m in ["anxious", "fear", "terror"]:
-            self.active_modifiers["Safety"] = 0.2
-            self.active_modifiers["Autonomy"] = -0.1
+            proposed["Safety"] = 0.2
+            proposed["Autonomy"] = -0.1
         elif m in ["creative", "joy"]:
-            self.active_modifiers["Creativity"] = 0.2
-            self.active_modifiers["Integrity"] = -0.1
+            proposed["Creativity"] = 0.2
+            proposed["Integrity"] = -0.1
+
+        for name, shift in proposed.items():
+            if self._a_mood_may_move(name):
+                self.active_modifiers[name] = shift
+
+    #: What a mood is, said in the terms the value hierarchy uses. A mood
+    #: shapes how she tends to be; it does not revise what she has undertaken
+    #: and it does not touch what she is.
+    MOOD_IS = "affect_learning"
+
+    def _a_mood_may_move(self, name: str) -> bool:
+        """Whether a mood has the authority to shift this value's weight."""
+        try:
+            from core.values.what_she_holds import may_this_move
+        except ImportError:
+            return True
+        try:
+            decision = may_this_move(name, self.MOOD_IS)
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation('values_engine', exc, severity="info")
+            return True
+        if not decision.allowed:
+            self.refused_shifts.append(decision)
+            del self.refused_shifts[:-_HOW_MANY_REFUSALS_KEPT]
+            logger.info(
+                "A mood was refused a value it does not have authority over: %s (%s)",
+                name,
+                decision.because,
+            )
+        return bool(decision.allowed)
 
     def evaluate_action(self, action: str, predicted_outcome: str) -> float:
         """Simple heuristic evaluation of an action against values.
