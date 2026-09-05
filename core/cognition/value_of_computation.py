@@ -42,6 +42,20 @@ from typing import Any
 
 logger = logging.getLogger("Aura.Cognition.VOC")
 
+
+def _checked_lock(name: str, *, reentrant: bool = False):
+    """The repo's instrumented lock, so lockdep can see this one too.
+
+    A raw threading lock is invisible to the ABBA detector, and a detector
+    that sees only some of the locks reports clean while the deadlock it
+    exists to find is assembled out of the others.
+    """
+
+    from core.runtime.lockdep import checked_lock
+
+    return checked_lock(name, reentrant=reentrant)
+
+
 #: Observations needed before the swing record can say anything. Below this
 #: the spread is one or two deliberations and calling it a distribution would
 #: be dressing an anecdote as a measurement.
@@ -128,7 +142,7 @@ class Swing:
     def __init__(self, name: str = "default") -> None:
         self.name = str(name)
         self._observations: list[Observation] = []
-        self._lock = threading.RLock()
+        self._lock = _checked_lock("value_of_computation", reentrant=True)
 
     def observe(
         self, *, spend: float, movement: float, changed_decision: bool = False
@@ -341,7 +355,7 @@ def worth_learning(
 
 
 _SWINGS: dict[str, Swing] = {}
-_SWINGS_LOCK = threading.Lock()
+_SWINGS_LOCK = _checked_lock("value_of_computation")
 
 
 def swing_record(name: str = "default") -> Swing:

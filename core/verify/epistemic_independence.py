@@ -39,6 +39,20 @@ from typing import Any
 logger = logging.getLogger("Aura.Verify.Independence")
 
 
+def _checked_lock(name: str, *, reentrant: bool = False):
+    """The repo's instrumented lock, so lockdep can see this one too.
+
+    A raw threading lock is invisible to the ABBA detector, and a detector
+    that sees only some of the locks reports clean while the deadlock it
+    exists to find is assembled out of the others.
+    """
+
+    from core.runtime.lockdep import checked_lock
+
+    return checked_lock(name, reentrant=reentrant)
+
+
+
 class IndependenceError(RuntimeError):
     """A criterion was set, changed or read out of order."""
 
@@ -102,7 +116,7 @@ class Criterion:
         self.rationale = str(rationale)
         self._predicate = predicate
         self._judgements: list[Judgement] = []
-        self._lock = threading.RLock()
+        self._lock = _checked_lock("epistemic_independence", reentrant=True)
         self._seal = self._compute_seal()
 
     def _compute_seal(self) -> str:
@@ -177,7 +191,7 @@ class CriterionRegistry:
 
     def __init__(self) -> None:
         self._criteria: dict[str, Criterion] = {}
-        self._lock = threading.RLock()
+        self._lock = _checked_lock("epistemic_independence", reentrant=True)
 
     def declare(self, criterion: Criterion) -> Criterion:
         with self._lock:

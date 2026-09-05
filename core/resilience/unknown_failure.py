@@ -46,6 +46,20 @@ from typing import Any
 
 logger = logging.getLogger("Aura.Resilience.Unknown")
 
+
+def _checked_lock(name: str, *, reentrant: bool = False):
+    """The repo's instrumented lock, so lockdep can see this one too.
+
+    A raw threading.Lock is invisible to the ABBA detector, and a detector
+    that only sees some of the locks reports clean while the deadlock it
+    exists to find is being assembled out of the others.
+    """
+
+    from core.runtime.lockdep import checked_lock
+
+    return checked_lock(name, reentrant=reentrant)
+
+
 #: Instances of a known fault needed before its learned signature is worth
 #: matching against. One instance is a point, not a signature.
 MIN_INSTANCES = 3
@@ -233,7 +247,7 @@ class FailureOntology:
     def __init__(self) -> None:
         self._instances: dict[str, list[Signature]] = {}
         self._invented: set[str] = set()
-        self._lock = threading.RLock()
+        self._lock = _checked_lock("unknown_failure", reentrant=True)
 
     # ── learning what the known ones look like ───────────────────────────
 
@@ -606,7 +620,7 @@ HOW_MANY_KEPT_EACH = 30
 HOW_OFTEN_IT_IS_WRITTEN = 8
 
 _ONTOLOGY: _KeptOntology | None = None
-_ONTOLOGY_LOCK = threading.Lock()
+_ONTOLOGY_LOCK = _checked_lock("unknown_failure.ontology")
 _ASKED_TO_WRITE = threading.Event()
 _WRITER: threading.Thread | None = None
 _ATTACHED = [False]

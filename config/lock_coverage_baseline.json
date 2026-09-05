@@ -1,7 +1,7 @@
 {
-  "raw_lock_calls": 684,
-  "files_with_raw_locks": 432,
-  "files_using_checked_locks": 156,
+  "raw_lock_calls": 680,
+  "files_with_raw_locks": 429,
+  "files_using_checked_locks": 232,
   "raw_by_file": {
     "core/actuators/actuator_registry.py": 3,
     "core/actuators/actuator_synthesis.py": 2,
@@ -242,9 +242,6 @@
     "core/memory/sovereign_pruner.py": 1,
     "core/memory/sqlite_storage.py": 2,
     "core/memory/user_profile.py": 2,
-    "core/morphogenesis/field.py": 1,
-    "core/morphogenesis/registry.py": 1,
-    "core/morphogenesis/runtime.py": 2,
     "core/motivation/drives.py": 1,
     "core/motivation/engine.py": 1,
     "core/multimodal/coordinator.py": 1,

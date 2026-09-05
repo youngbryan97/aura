@@ -43,6 +43,20 @@ from typing import Any
 logger = logging.getLogger("Aura.Governance.Values")
 
 
+def _checked_lock(name: str, *, reentrant: bool = False):
+    """The repo's instrumented lock, so lockdep can see this one too.
+
+    A raw threading lock is invisible to the ABBA detector, and a detector
+    that sees only some of the locks reports clean while the deadlock it
+    exists to find is assembled out of the others.
+    """
+
+    from core.runtime.lockdep import checked_lock
+
+    return checked_lock(name, reentrant=reentrant)
+
+
+
 class Level(IntEnum):
     """How a value may change. Ordered: higher is harder to move."""
 
@@ -171,7 +185,7 @@ class ValueRegistry:
         self._values: dict[str, Value] = {}
         self._refusals: list[Decision] = []
         self._changes: list[Change] = []
-        self._lock = threading.RLock()
+        self._lock = _checked_lock("value_levels", reentrant=True)
 
     def declare(self, value: Value) -> Value:
         with self._lock:

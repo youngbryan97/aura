@@ -58,6 +58,20 @@ from core.perception.expected_information_gain import (
 
 logger = logging.getLogger("Aura.Perception.HowSheFindsOut")
 
+
+def _checked_lock(name: str, *, reentrant: bool = False):
+    """The repo's instrumented lock, so lockdep can see this one too.
+
+    A raw threading.Lock is invisible to the ABBA detector, and a detector
+    that only sees some of the locks reports clean while the deadlock it
+    exists to find is being assembled out of the others.
+    """
+
+    from core.runtime.lockdep import checked_lock
+
+    return checked_lock(name, reentrant=reentrant)
+
+
 __all__ = [
     "Finding",
     "WayOfFindingOut",
@@ -170,7 +184,7 @@ class Finding:
 
 
 _INVENTORY: dict[str, WayOfFindingOut] = {}
-_LOCK = threading.RLock()
+_LOCK = _checked_lock("how_she_finds_out", reentrant=True)
 
 
 def register_a_way(way: WayOfFindingOut) -> WayOfFindingOut:

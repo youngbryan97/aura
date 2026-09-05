@@ -44,6 +44,20 @@ from typing import Any
 
 logger = logging.getLogger("Aura.Verify.Horizon")
 
+
+def _checked_lock(name: str, *, reentrant: bool = False):
+    """The repo's instrumented lock, so lockdep can see this one too.
+
+    A raw threading lock is invisible to the ABBA detector, and a detector
+    that sees only some of the locks reports clean while the deadlock it
+    exists to find is assembled out of the others.
+    """
+
+    from core.runtime.lockdep import checked_lock
+
+    return checked_lock(name, reentrant=reentrant)
+
+
 #: Resolved cases needed near a query before support can be claimed. Below
 #: this the neighbourhood is one or two points and their accuracy is anecdote.
 MIN_NEIGHBOURS = 5
@@ -216,7 +230,7 @@ class ModelHorizon:
         self.model = str(model)
         self._cases: list[Case] = []
         self._capacity = max(MIN_RECORD, int(capacity))
-        self._lock = threading.RLock()
+        self._lock = _checked_lock("model_horizon", reentrant=True)
 
     # ── recording ────────────────────────────────────────────────────────
 
@@ -390,7 +404,7 @@ def _error_within_bar(error: float) -> bool:
 
 
 _HORIZONS: dict[str, ModelHorizon] = {}
-_HORIZONS_LOCK = threading.Lock()
+_HORIZONS_LOCK = _checked_lock("model_horizon")
 
 
 def horizon(model: str) -> ModelHorizon:

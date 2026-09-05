@@ -4461,6 +4461,14 @@
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
+      "path": "core/interiority/census.py",
+      "scope": "<module>.Census.persist"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_json",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
       "path": "core/interiority/ledger.py",
       "scope": "<module>.RelationalLedger.persist"
     },
@@ -5433,6 +5441,22 @@
       "scope": "<module>._key"
     },
     {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/resilience/unknown_failure.py",
+      "scope": "<module>._KeptOntology.keep"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/resilience/unknown_failure.py",
+      "scope": "<module>._KeptOntology.keep"
+    },
+    {
       "callee": "<file_write_gateway>.copy_path_async",
       "canonical_owner": true,
       "category": "file_write_gateway",
@@ -5972,6 +5996,14 @@
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
+      "count": 2,
+      "path": "core/self_improvement/blinded_workspace.py",
+      "scope": "<module>.BlindedWorkspaceFactory._create"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
       "count": 1,
       "path": "core/self_improvement/blinded_workspace.py",
       "scope": "<module>.BlindedWorkspaceFactory._write_audit_manifest"
@@ -5983,14 +6015,6 @@
       "count": 1,
       "path": "core/self_improvement/blinded_workspace.py",
       "scope": "<module>.BlindedWorkspaceFactory._write_init_files"
-    },
-    {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 2,
-      "path": "core/self_improvement/blinded_workspace.py",
-      "scope": "<module>.BlindedWorkspaceFactory.create"
     },
     {
       "callee": "<file_write_gateway>.ensure_directory",
@@ -6079,6 +6103,14 @@
       "count": 1,
       "path": "core/self_modification/learning_system.py",
       "scope": "<module>.SelfImprovementLearning._save_knowledge"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/lineage_enclosure.py",
+      "scope": "<module>._governed_mkdir"
     },
     {
       "callee": "<file_write_gateway>.write_text",
@@ -16178,6 +16210,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "e174674a2888d969a66ee770f0a6ae3fd2c3122c22eaad0853efa7302fdc844e",
+  "inventory_sha256": "19952052983701b33fb244e5298c0a8f2cad9fc94d7efa29d2b5ff92943c2f3d",
   "schema_version": 1
 }

@@ -68,6 +68,20 @@ __all__ = [
 
 logger = logging.getLogger("Aura.TheRecordOfHerOwnWork")
 
+
+def _checked_lock(name: str, *, reentrant: bool = False):
+    """The repo's instrumented lock, so lockdep can see this one too.
+
+    A raw threading.Lock is invisible to the ABBA detector, and a detector
+    that only sees some of the locks reports clean while the deadlock it
+    exists to find is being assembled out of the others.
+    """
+
+    from core.runtime.lockdep import checked_lock
+
+    return checked_lock(name, reentrant=reentrant)
+
+
 #: How many episodes are kept whole. The counts outlive them, so a structure
 #: seen long ago still counts; what is lost is the instance, not the statistic.
 #: Read off what a decision needs rather than chosen: the estimates below use
@@ -448,7 +462,7 @@ HOW_OFTEN_IT_IS_WRITTEN = 16
 
 _RESTORED = [False]
 _UNWRITTEN = [0]
-_WRITING = threading.Lock()
+_WRITING = _checked_lock("the_record_of_her_own_work")
 _WRITER: threading.Thread | None = None
 
 
