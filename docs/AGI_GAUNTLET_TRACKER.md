@@ -17,7 +17,7 @@ the strength of an argument.
 | A7 | `expected_information_gain.py` isolated; no organism-wide epistemic controller | DONE |
 | A8 | `long_horizon.py` and the relationship history APIs underfed by ordinary experience | DONE |
 | A9 | The developmental ledger receives evidence from one cognitive ecology | DONE |
-| A10 | Level 2 RSI: no generational chain with Q measured on independent objectives | |
+| A10 | Level 2 RSI: the chain runs, against its own null, and reports depth 0 | DONE (instrument) |
 | A11 | Native cognition needs a human-written grammar per family | |
 | A12 | Complexity ratchets above baseline; module-size regressions | |
 

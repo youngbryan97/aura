@@ -151,9 +151,17 @@ def what_the_record_would_have_cost(worth: Code) -> float:
     never made is charged what the family cost with nothing chosen, because
     that is what not knowing costs.
 
-    The measurements are already there. A rule cannot flatter itself by
-    changing them, because what is recorded is what the search spent and the
-    search never reads this.
+    The measurements are already there and a rule still could flatter itself,
+    which this claim used to deny. Asking what to do next writes a stage into
+    the decision trace and an entry into the ledger of what each action has
+    done, and the pricing reads that ledger; two identical replays of the same
+    rule over the same record returned 45,408 and then 42,537, the second
+    cheaper for the first having happened. And choosing among actions with no
+    history is a draw, so one replay is one sample of a quantity whose spread
+    is about a tenth of itself.
+
+    Both are handled here now: the replay runs inside a scope that restores
+    everything it touches, and the score is the mean over seeded replays.
     """
     from core.cognition.the_record_of_her_own_work import the_record
     from core.cognition.what_it_is_worth_doing import (
@@ -164,6 +172,11 @@ def what_the_record_would_have_cost(worth: Code) -> float:
     from core.cognition.she_decides_to_develop import what_to_do_next
     from core.cognition.what_she_could_do_next import the_actions_she_has
 
+    from core.cognition.does_improving_compound import (
+        HOW_MANY_REPLAYS,
+        a_replay_that_changes_nothing,
+    )
+
     kept = the_record().kept
     if not kept or not the_actions_she_has():
         return float("inf")
@@ -172,23 +185,27 @@ def what_the_record_would_have_cost(worth: Code) -> float:
         cost_of.setdefault((one.family, one.route), []).append(one.walked)
     families = sorted({one.family for one in kept})
     was = the_worth_she_uses()
-    total = 0.0
+    got: list[float] = []
     try:
         the_worth_she_wrote(worth)
-        for family in families:
-            spent = cost_of.get((family, None)) or [
-                one.walked for one in kept if one.family == family
-            ]
-            now = sum(spent) / len(spent)
-            decided = what_to_do_next(family, costs_now=int(now))
-            picked = decided.action.name if decided.action else None
-            seen = cost_of.get((family, picked))
-            total += (sum(seen) / len(seen)) if seen else now
+        for seed in range(HOW_MANY_REPLAYS):
+            total = 0.0
+            with a_replay_that_changes_nothing(seed=seed):
+                for family in families:
+                    spent = cost_of.get((family, None)) or [
+                        one.walked for one in kept if one.family == family
+                    ]
+                    now = sum(spent) / len(spent)
+                    decided = what_to_do_next(family, costs_now=int(now))
+                    picked = decided.action.name if decided.action else None
+                    seen = cost_of.get((family, picked))
+                    total += (sum(seen) / len(seen)) if seen else now
+            got.append(total)
     except (OutOfFuel, Stuck, ArithmeticError, TypeError, ValueError):
         return float("inf")
     finally:
         the_worth_she_wrote(was)
-    return total
+    return sum(got) / len(got) if got else float("inf")
 
 
 def a_worth_that_would_have_chosen_better(
