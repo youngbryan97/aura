@@ -482,3 +482,34 @@ def test_the_per_turn_cost_stays_off_the_critical_path(
         f"the interiority layer costs {per_turn_ms:.1f} ms per turn, which is "
         "no longer negligible against a turn a person is waiting through"
     )
+
+
+def test_hydration_is_idempotent_so_the_cap_is_a_cap() -> None:
+    """Found live: a declared cap of 24 produced 76 goals in the ledger.
+
+    The boot path registers the derived engines more than once, and each
+    pass returned a different slice of the goal snapshot, so the bound
+    bounded nothing.
+    """
+    from core.container import ServiceContainer
+    from core.interiority.hydrate import hydrate
+
+    class _Engine:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def get_active_goals(self, limit: int = 12, **_: object) -> list[dict]:
+            self.calls += 1
+            return [
+                {"goal_id": f"g{self.calls}_{i}", "priority": 0.5}
+                for i in range(limit)
+            ]
+
+    ServiceContainer.register("goal_engine", _Engine())
+    try:
+        service = InteriorityService()
+        for _ in range(4):
+            hydrate(service)
+        assert service.ledger.counts()["goals"] == 24
+    finally:
+        ServiceContainer.register("goal_engine", None)

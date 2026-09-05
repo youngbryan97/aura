@@ -93,8 +93,20 @@ def hydrate_goals(service: Any) -> dict[str, Any]:
 
 
 def hydrate(service: Any) -> dict[str, Any]:
-    """Everything the ledger can honestly be given at boot."""
+    """Everything the ledger can honestly be given at boot.
+
+    Idempotent, because the boot path registers the derived engines more
+    than once. Each pass returned a different slice of the goal snapshot,
+    so a declared cap of twenty-four produced seventy-six goals in the
+    ledger on the live instance — a bound that bounded nothing.
+    """
+    if getattr(service, "_hydrated", False):
+        return {"skipped": "already hydrated", "ledger": service.ledger.counts()}
     report = {"goals": hydrate_goals(service)}
+    try:
+        service._hydrated = True
+    except (AttributeError, TypeError):
+        pass
     counts = service.ledger.counts()
     report["ledger"] = counts
     if counts.get("goals", 0) == 0:
