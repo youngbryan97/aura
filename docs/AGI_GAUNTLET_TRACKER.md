@@ -50,14 +50,14 @@ the strength of an argument.
 |---|---|---|
 | C1 | Freeze: commit hash, weight hash, config hash; environments sealed after | DONE — commit, source digest, weights, config; seed derived from all four |
 | C2 | Ablations: full / no-development / reset-between-episodes / base model in a plain scaffold | DONE for what can run — five lesions, gaps measured; the plain-scaffold and self-model lesions are declared with what they need |
-| C3 | Human baselines and the competent-adult threshold | NOT RUN — needs human baselines |
+| C3 | Human baselines and the competent-adult threshold | DECLARED — a slot per gate that mentions a person, empty rather than guessed |
 | C4 | P_0 and P_L, and the difference between them | DONE — P0 and PL, and the difference, in scoring.py |
 | C5 | Interaction efficiency beside accuracy | DONE — interaction efficiency beside accuracy in B2 |
 | C6 | Thirty trajectories, effect sizes, significance | DONE — 30 trajectories, bootstrap intervals, effect sizes |
 | C7 | A receipt for every claim | DONE — one receipt per gate with its trajectories |
 | C8 | No benchmark-specific code path, checked rather than promised | DONE — B16 parses rather than greps |
 | C9 | `make agi-gauntlet` and the written protocol | DONE — make agi-gauntlet and docs/AGI_GAUNTLET.md |
-| C10 | The reproduction bundle an outside evaluator runs | PARTIAL — the run reproduces; an outside evaluator is still needed |
+| C10 | The reproduction bundle an outside evaluator runs | DONE — written beside every run: freeze, gates, lesions, empty baseline slots, and what is still needed |
 
 ## What the ablations said
 

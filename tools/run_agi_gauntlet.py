@@ -25,6 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from tools.agi_gauntlet.bundle import write_the_bundle  # noqa: E402
 from tools.agi_gauntlet.gates import THE_GATES, run_a_gate  # noqa: E402
 from tools.agi_gauntlet.protocol import take_the_freeze  # noqa: E402
 
@@ -87,6 +88,7 @@ def main() -> int:
         ],
     }
     (into / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    write_the_bundle(into, freeze)
     if args.json:
         print(json.dumps(report, indent=2))
     else:
