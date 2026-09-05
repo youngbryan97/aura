@@ -3068,6 +3068,45 @@ def _universality_certificates_that_fail() -> int:
     return failed
 
 
+def _the_floor_cannot_read_itself() -> int:
+    """Run the floor's evaluator, written in the floor. Failures must be none.
+
+    The claim made everywhere in this area is that the mechanism becomes an
+    object she can hold — quoted, passed around, changed. An interpreter for
+    the language, written IN the language, is what that claim comes to, and it
+    was sitting in a file nothing imported.
+
+    Two answers have to agree: running a term, and running the interpreter on
+    the term. Anything else and what is in that file resembles the evaluator
+    rather than being it.
+    """
+    from core.cognition.the_floor_reading_itself import interpret
+    from core.cognition.the_floor_she_stands_on import (
+        L,
+        N,
+        PLUS,
+        TIMES,
+        V,
+        build,
+        run,
+    )
+
+    from core.cognition.the_floor_she_stands_on import A, Code
+
+    failed = 0
+    for term in (build(PLUS(N(2), N(3))), build(TIMES(N(6), N(7)))):
+        failed += 0 if run(term) == interpret(term) else 1
+    # A function is compared by what it does, not by how it is written down.
+    # Both sides come back a closure and the two closures differ inside — the
+    # interpreter's carries the interpreter's own machinery — which is exactly
+    # right and says nothing about whether they agree. Applying them does.
+    twice = build(L("x", TIMES(V("x"), N(2))))
+    for one in (0, 1, 7):
+        applied = Code("of", parts=(twice, Code("a number", value=one)))
+        failed += 0 if run(applied) == interpret(applied) == one * 2 else 1
+    return failed
+
+
 def _the_four_walls_growth_runs_into() -> int:
     """Run the four limits on growing a language. Failures must be none.
 
@@ -3898,6 +3937,15 @@ def _install_language_growth_claims(suite: Any) -> None:
             "core/cognition/what_the_floor_can_say.py",
         ),
         (
+            "test_the_floor_runs_its_own_evaluator_and_the_answers_agree",
+            "the floor's evaluator is written in the floor, and running a term "
+            "directly and running the interpreter on that term give the same "
+            "answer — which is what 'the mechanism is an object she can hold' "
+            "comes to",
+            _the_floor_cannot_read_itself,
+            "core/cognition/the_floor_reading_itself.py",
+        ),
+        (
             "test_growth_runs_into_four_walls_and_they_are_run_not_cited",
             "a universal language gains no meaning from a name, no update rule "
             "improves everywhere and the environment that beats one is built, "
@@ -4136,6 +4184,26 @@ def _install_language_growth_claims(suite: Any) -> None:
                 "n-th at the n-th place: 400 words, 1,200 places, no agreement"
             ),
             live_channels=("language.ways_of_building",),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "The floor's evaluator is written in the floor itself, and "
+                "running a term directly agrees with running the interpreter "
+                "on that term — so the mechanism is an object she can quote, "
+                "pass around and change rather than only a thing that runs."
+            ),
+            test="test_the_floor_runs_its_own_evaluator_and_the_answers_agree",
+            owner="core/cognition/the_floor_reading_itself.py",
+            asserted_in="core/cognition/the_floor_reading_itself.py",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "an addition and a multiplication run both ways and compared, "
+                "and a function compared by what it does at three arguments — "
+                "the two closures differ inside, which is right and says "
+                "nothing about whether they agree"
+            ),
         )
     )
     suite.add_claim(
