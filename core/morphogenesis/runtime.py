@@ -590,6 +590,12 @@ class MorphogeneticRuntime:
             live = {cell.cell_id for cell in self.registry.active_cells()}
             known = set(self.graph.nodes())
             if live == known:
+                # The population is unchanged, but the bindings may not be:
+                # a graph restored from disk arrives with edges the substrate
+                # was never told about. Returning here left the two
+                # disagreeing on 82 bindings after a restart, which is the
+                # signature of a partial failure nobody cleaned up.
+                self._reconcile_substrate()
                 return
             for cell_id in live - known:
                 self.substrate.place(cell_id)
@@ -617,22 +623,6 @@ class MorphogeneticRuntime:
                         scratch.add_edge(edge)
 
             self.graph.transaction(sync, cause=f"population_sync@tick{self._tick}")
-
-            # Tell the substrate about the bindings the sync just made. The
-            # graph and the world disagreeing is the signature of a partial
-            # failure nobody cleaned up, and an invariant watches for exactly
-            # this — it caught these two edges before this line existed.
-            live_keys = {edge.key for edge in self.graph.edges()}
-            for edge in self.graph.edges():
-                if not self.substrate.bound(edge):
-                    self.substrate.bind(edge)
-            for key in self.substrate.bound_keys() - live_keys:
-                stale = MorphEdge(
-                    source=key[0], target=key[1],
-                    edge_type=EdgeType(key[2]), port=key[3],
-                )
-                self.substrate.unbind(stale)
-
             if gone:
                 # Whatever the graph recorded about these cells was decided
                 # under a world that no longer holds.
@@ -642,12 +632,38 @@ class MorphogeneticRuntime:
                 for cell_id in gone:
                     self.substrate.retire(cell_id)
                     self.lineage.record_retirement(cell_id, cause="left the registry")
+            self._reconcile_substrate()
         except _MORPHOGENESIS_RECOVERABLE_ERRORS as exc:
             _record_morphogenesis_runtime_degradation(
                 exc,
                 action="kept the previous topology after a population sync failed",
                 severity="warning",
                 extra={"tick": self._tick},
+            )
+
+    def _reconcile_substrate(self) -> None:
+        """Make the substrate hold exactly the bindings the graph declares.
+
+        Cheap: a membership test per edge, and work only where they differ.
+        Run every tick rather than only when the population changes, because
+        the ways they can drift apart — a restored graph, a rolled-back
+        commit, a lesion — mostly leave the node set alone.
+        """
+        try:
+            declared = {edge.key: edge for edge in self.graph.edges()}
+            for edge in declared.values():
+                if not self.substrate.bound(edge):
+                    self.substrate.bind(edge)
+            for key in self.substrate.bound_keys() - set(declared):
+                self.substrate.unbind(MorphEdge(
+                    source=key[0], target=key[1],
+                    edge_type=EdgeType(key[2]), port=key[3],
+                ))
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_morphogenesis_runtime_degradation(
+                exc,
+                action="left the substrate and the graph disagreeing for one tick",
+                severity="warning",
             )
 
     def _attachments_for(self, arrived: set[str], live: set[str]) -> list[Any]:

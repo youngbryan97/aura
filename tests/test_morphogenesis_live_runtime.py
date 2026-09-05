@@ -261,6 +261,46 @@ async def test_a_quiet_system_is_not_a_reason_to_reorganise(tmp_path):
     assert evaluator(runtime.graph, None) is None
 
 
+def test_a_test_process_cannot_reach_the_live_registry():
+    """A runtime built without an explicit root must not write the live file.
+
+    One did. A probe run left 27 cells and 17 organs of test-derived state in
+    ~/.aura/data/morphogenesis where the live population's belongs, and it
+    happened with AURA_LOG_DIR set correctly — config.paths.data_dir resolves
+    to the real directory whatever the environment says. Env discipline was
+    not enough, so the guard is structural.
+    """
+    from pathlib import Path
+
+    from core.morphogenesis.registry import MorphogenesisRegistry
+
+    live = Path.home() / ".aura" / "data" / "morphogenesis"
+    path = MorphogenesisRegistry().state_path
+    assert live not in path.parents, f"a test would have written to {path}"
+
+
+def test_the_substrate_holds_exactly_what_the_graph_declares(tmp_path):
+    """They drifted apart on 82 bindings after a restart: a graph restored
+    from disk arrives with edges the substrate was never told about, and the
+    reconciliation sat behind an early return that only ran when the
+    population had changed."""
+    async def run():
+        runtime = _runtime(tmp_path)
+        register_morphogenesis_services(runtime)
+        await _drive(runtime, ticks=3)
+        runtime.registry.save()
+
+        restarted = _runtime(tmp_path)
+        register_morphogenesis_services(restarted)
+        restarted.registry.load()
+        await _drive(restarted, ticks=2)
+        declared = {edge.key for edge in restarted.graph.edges()}
+        assert declared == restarted.substrate.bound_keys()
+        assert restarted.graph.edge_count > 0
+
+    asyncio.run(run())
+
+
 def test_the_live_policy_only_picks_a_port_both_ends_can_carry():
     """It assumed 'repair'; a binding satisfying one end is refused at commit,
     after the proposal has already cost a measurement."""

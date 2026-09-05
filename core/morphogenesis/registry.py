@@ -3,6 +3,8 @@ from core.runtime.errors import record_degradation
 
 
 import logging
+import os
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional
@@ -24,7 +26,34 @@ from core.runtime.state_ownership import state_root
 logger = logging.getLogger("Aura.Morphogenesis.Registry")
 
 
+#: Env var that moves the registry off the live instance's data directory.
+#:
+#: `config.paths.data_dir` resolves to ~/.aura/data whatever AURA_DATA_DIR
+#: says, so a test or a sandbox run constructing a registry with no explicit
+#: root wrote its state straight into the live instance's file. That happened
+#: here on 2026-09-04: a probe run left 27 cells and 17 organs of test-derived
+#: state where the live population's belongs.
+#:
+#: A test-shaped run already sets AURA_LOG_DIR by convention, so that is
+#: honoured too rather than adding one more thing to remember.
+_ROOT_ENV = "AURA_MORPHOGENESIS_DIR"
+
+
 def _default_root() -> Path:
+    override = os.environ.get(_ROOT_ENV, "").strip()
+    if override:
+        return Path(override)
+    log_dir = os.environ.get("AURA_LOG_DIR", "").strip()
+    if log_dir and not log_dir.startswith(str(Path.home() / ".aura")):
+        # Redirected logs mean a run that is not the live instance.
+        return Path(log_dir) / "morphogenesis"
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        # A test that builds a runtime without naming a root must not be able
+        # to reach the live population's file. One did, and left 27 cells and
+        # 17 organs of test-derived state where the live instance's belongs.
+        # Env discipline is not enough on its own: the test that did it ran
+        # with AURA_LOG_DIR set correctly and still landed here.
+        return Path(tempfile.gettempdir()) / "aura-morphogenesis-tests"
     try:
         from core.config import config
         return Path(config.paths.data_dir) / "morphogenesis"
