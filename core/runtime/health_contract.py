@@ -1551,6 +1551,15 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["the_control_policy"] = {"error": repr(exc)}
 
+    # How many named faculties have a measured downstream effect. A channel
+    # wired to a consumer is not one; only `measured` is evidence.
+    try:
+        from core.verify.what_has_a_measured_effect import what_it_stood_at_last_time
+
+        block["what_has_a_measured_effect"] = what_it_stood_at_last_time()
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_has_a_measured_effect"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering
