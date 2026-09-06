@@ -309,8 +309,10 @@ THE_GATES: tuple[Gate, ...] = (
         "evaluation",
         "no benchmark name anywhere under core, interface, skills, llm, "
         "executors or security — including in a comment",
-        "the check is a grep, which is weak and cannot be argued with. A "
-        "strong check somebody can dispute is worth less here",
+        "the grep is weak and cannot be argued with, and it is static — a "
+        "branch keyed on the shape of a problem rather than its name would "
+        "pass it. So the same claim is also watched: two families through one "
+        "entry point, and nothing outside the search runs for only one",
         run=_r.generality_not_a_bag_of_solvers,
     ),
     Gate(

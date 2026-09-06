@@ -64,7 +64,7 @@ carries all 202 with their state.
 | N2 | Distance gradient vs visit count, both against random | DONE |
 | N3 | Growth worth 0.00 on gate 9 — a real negative, published | DONE |
 | N4 | Her generator reaches four distinct one-argument behaviours | DONE |
-| N5 | A runtime probe beside gate 16's static scan | TODO |
+| N5 | A runtime probe beside gate 16's static scan | DONE — two families watched through one entry point; 74 shared functions and nothing outside the search runs for only one, either order |
 | N7 | GAIA / OSWorld / post-cutoff SWE / hours-long autonomy | TODO |
 | N9 | Grounding beyond the seven authored installers | TODO |
 | N10 | Generational compounding, currently depth 0 | TODO |

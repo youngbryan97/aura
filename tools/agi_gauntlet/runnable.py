@@ -1181,13 +1181,43 @@ def generality_not_a_bag_of_solvers(
             except (OSError, SyntaxError):
                 continue
             found.extend(_benchmark_paths_in(tree, inside))
+    # The static half is a grep over the tree, and it says so about itself. A
+    # branch keyed on the SHAPE of a problem rather than its name would pass
+    # it and still be a bag of solvers, so the same claim is put to a run:
+    # two families through one entry point, watched.
+    watched = _watch_two_families()
     return {
         "files_read": looked,
         "benchmark_names_looked_for": len(THE_BENCHMARK_NAMES),
         "found": found,
-        "passed": not found,
+        "at_runtime": watched,
+        "passed": not found and bool(watched.get("passed")),
         "trajectories": found,
     }
+
+
+def _watch_two_families() -> dict[str, Any]:
+    """Run two materially different problems and compare what executed."""
+    try:
+        from core.cognition.sequence_induction import answer_sequence_question
+        from tools.agi_gauntlet.the_same_path_twice import the_same_path_twice
+
+        positional = (
+            "If 1 2 3 becomes 3 2 1, and 4 5 6 becomes 6 5 4, "
+            "what does 7 8 9 become?"
+        )
+        arithmetic = (
+            "2 4 6 becomes 4 8 12. 1 3 5 becomes 2 6 10. "
+            "what does 5 7 9 become?"
+        )
+        return the_same_path_twice(
+            {
+                "positional": lambda: answer_sequence_question(positional),
+                "arithmetic": lambda: answer_sequence_question(arithmetic),
+            }
+        )
+    except Exception as exc:  # noqa: BLE001 — a probe that cannot run has not passed
+        return {"passed": False, "why": repr(exc)}
 
 
 def _benchmark_paths_in(tree: Any, inside: str) -> list[dict[str, Any]]:
@@ -1252,8 +1282,6 @@ def persistence_across_restart(freeze: Freeze, options: dict[str, Any]) -> dict[
     failure looks like.
     """
 
-    import importlib
-    import json
     from pathlib import Path
 
     where = Path(options.get("state", "/tmp/aura_gauntlet_state"))
