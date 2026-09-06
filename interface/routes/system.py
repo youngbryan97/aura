@@ -5825,6 +5825,7 @@ def _runtime_integrity_public_payload(report: dict[str, Any] | None) -> dict[str
                 "what_answered_this_turn",
                 "whose_turn_it_is",
                 "what_a_message_carries",
+                "what_a_phase_changed",
             )
             if report.get(key) is not None
         },

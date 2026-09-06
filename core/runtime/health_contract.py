@@ -1485,6 +1485,15 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_a_message_carries"] = {"error": repr(exc)}
 
+    # What each phase committed at its boundary, and what is held by more than
+    # one. A stuck refcount has to be answerable rather than a mystery.
+    try:
+        from core.state.what_a_phase_changed import how_the_boundaries_have_gone
+
+        block["what_a_phase_changed"] = how_the_boundaries_have_gone()
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_a_phase_changed"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering
