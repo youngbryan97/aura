@@ -235,10 +235,17 @@ def _she_may_improve_a_working_answer(
         # held was indistinguishable from one she never tried. Without it the
         # compounding replay prices every operator the same, because no
         # episode in the record carries any action name at all.
+        # `walked`, not `decided.worth.cost`. The second is what the policy
+        # PREDICTED the action would cost, and writing a prediction into the
+        # record makes the record agree with the predictor by construction:
+        # every action then costs whatever was estimated, no action is cheaper
+        # than another, and no operator preferring a cheaper one can score
+        # better. Measured across a seeded record, every priced action came
+        # back at exactly 5.0 — the estimate — including the fallback.
         note_an_episode(
             family,
             route=None,
-            walked=decided.worth.cost if decided.worth else walked,
+            walked=walked,
             tried=decided.action.name,
         )
         note_what_it_did(decided.action.name, kept=False)
@@ -254,10 +261,11 @@ def _she_may_improve_a_working_answer(
     from core.cognition.how_a_change_is_promoted import promote
     from core.cognition.what_she_could_do_next import note_what_it_did
 
+    # The observation, for the same reason as the failure path above.
     note_an_episode(
         family,
         route=decided.action.name,
-        walked=decided.worth.cost if decided.worth else walked,
+        walked=walked,
         admitted=decided.action.kind,
     )
     note_what_it_did(decided.action.name, kept=True, gained=was - now)

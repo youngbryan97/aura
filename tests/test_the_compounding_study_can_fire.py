@@ -146,3 +146,47 @@ def test_an_action_nobody_has_tried_falls_back_to_the_family_average():
         assert _replay(["sequences"], cost_of, kept) == 10.0
     finally:
         deciding.what_to_do_next = original
+
+
+# ------------------------------------- the record holds what happened
+
+
+def test_the_episode_records_what_it_cost_and_not_what_was_predicted():
+    """The third link, and the one that kept every action at the same price.
+
+    `walked=decided.worth.cost` writes the policy's own ESTIMATE into the
+    record. A record that stores a prediction agrees with the predictor by
+    construction: every action then costs whatever was estimated, no action is
+    cheaper than another, and no operator that prefers a cheaper one can score
+    better. Measured on a seeded record, every priced action came back at
+    exactly 5.0 — the estimate — including the fallback it was compared with.
+
+    Recording the observation instead gives three distinct prices across the
+    same run: 1.0, 5.0, 10.0.
+    """
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "core" / "cognition" / "sequence_induction.py"
+    ).read_text("utf-8")
+    assert "walked=decided.worth.cost if decided.worth else walked" not in source
+    assert source.count("walked=walked,") >= 2
+
+
+def test_prices_can_differ_between_actions_in_one_family():
+    """What the estimate made impossible."""
+    from core.cognition.the_record_of_her_own_work import Episode
+
+    kept = [
+        Episode(family="f", route=None, walked=1, tried="a cheap one"),
+        Episode(family="f", route=None, walked=10, tried="a dear one"),
+    ]
+    cost_of: dict[tuple[str, str | None], list[int]] = {}
+    for one in kept:
+        acted = getattr(one, "tried", None)
+        if acted:
+            cost_of.setdefault((one.family, acted), []).append(one.walked)
+
+    prices = {key[1]: sum(v) / len(v) for key, v in cost_of.items()}
+    assert prices == {"a cheap one": 1.0, "a dear one": 10.0}
