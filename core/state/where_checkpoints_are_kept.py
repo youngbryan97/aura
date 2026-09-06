@@ -37,9 +37,13 @@ logger = logging.getLogger("Aura.WhereCheckpointsAreKept")
 
 __all__ = [
     "AKeptCheckpoint",
+    "AnAsyncStore",
     "ATrigger",
     "InJson",
     "InSqlite",
+    "AsJson",
+    "HowAStateIsWritten",
+    "THE_DEFAULT_WRITER",
     "TheCheckpointsAreKept",
     "WhatCameBackIsNotWhatWentIn",
     "what_a_checkpoint_store_promises",
@@ -63,8 +67,39 @@ class WhatCameBackIsNotWhatWentIn(RuntimeError):
     """A store handed back something other than what was put in."""
 
 
-def _digest(state: Any) -> str:
-    body = json.dumps(state, sort_keys=True, default=str, separators=(",", ":"))
+@runtime_checkable
+class HowAStateIsWritten(Protocol):
+    """How a checkpoint's state becomes bytes and comes back.
+
+    Declared so a store can be handed a different one. JSON is the default
+    because a checkpoint a person cannot read is a resume point nobody can
+    check, and that is worth more than the few bytes another format saves.
+    """
+
+    def dumps(self, state: dict[str, Any]) -> str:
+        ...
+
+    def loads(self, raw: str) -> dict[str, Any]:
+        ...
+
+
+class AsJson:
+    """The default. Sorted keys, so one state has one digest."""
+
+    def dumps(self, state: dict[str, Any]) -> str:
+        return json.dumps(state, sort_keys=True, default=str, separators=(",", ":"))
+
+    def loads(self, raw: str) -> dict[str, Any]:
+        held = json.loads(raw)
+        return dict(held) if isinstance(held, dict) else {}
+
+
+#: What writes a state when nothing else was given.
+THE_DEFAULT_WRITER: HowAStateIsWritten = AsJson()
+
+
+def _digest(state: Any, writer: HowAStateIsWritten | None = None) -> str:
+    body = (writer or THE_DEFAULT_WRITER).dumps(state)
     return hashlib.blake2b(body.encode("utf-8"), digest_size=16).hexdigest()
 
 
@@ -126,7 +161,41 @@ class TheCheckpointsAreKept(Protocol):
         ...
 
 
-class InJson:
+class AnAsyncStore:
+    """The same four, awaitable, for callers on the event loop.
+
+    Not a different store — the same one with the blocking part moved off the
+    loop. Writing a checkpoint fsyncs, and an fsync on the loop froze this
+    runtime for twenty minutes once, so an async caller that used the
+    synchronous store would be repeating that.
+
+    A mixin rather than a second class: two implementations of one contract
+    drift, and the async pair drifting from the sync one is the drift nobody
+    notices until a checkpoint is missing.
+    """
+
+    async def put_async(self, checkpoint: AKeptCheckpoint) -> None:
+        import asyncio
+
+        await asyncio.to_thread(self.put, checkpoint)
+
+    async def get_async(self, name: str) -> AKeptCheckpoint | None:
+        import asyncio
+
+        return await asyncio.to_thread(self.get, name)
+
+    async def names_async(self) -> list[str]:
+        import asyncio
+
+        return await asyncio.to_thread(self.names)
+
+    async def forget_async(self, name: str) -> bool:
+        import asyncio
+
+        return await asyncio.to_thread(self.forget, name)
+
+
+class InJson(AnAsyncStore):
     """One file holding every checkpoint. Readable by a person."""
 
     def __init__(self, path: Any) -> None:
@@ -219,7 +288,7 @@ class InJson:
         return True
 
 
-class InSqlite:
+class InSqlite(AnAsyncStore):
     """A table of checkpoints. For when there are more than a person reads."""
 
     def __init__(self, path: Any) -> None:

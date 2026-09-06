@@ -171,3 +171,82 @@ def test_the_json_store_does_not_hold_its_lock_across_the_write(tmp_path):
 
 def test_a_missing_file_is_an_empty_store(tmp_path):
     assert InJson(tmp_path / "never-written.json").names() == []
+
+
+# --------------------------------------------------- sync and async pairs
+
+
+@pytest.mark.parametrize("which", ["json", "sqlite"])
+def test_every_store_offers_an_awaitable_pair(tmp_path, which):
+    """Writing a checkpoint fsyncs, and an fsync on the loop froze this
+    runtime for twenty minutes once."""
+    import asyncio
+
+    from core.state.where_checkpoints_are_kept import AnAsyncStore
+
+    store = (
+        InJson(tmp_path / f"{which}.json")
+        if which == "json"
+        else InSqlite(tmp_path / f"{which}.db")
+    )
+    assert isinstance(store, AnAsyncStore)
+
+    one = AKeptCheckpoint.of("a", {"x": 1}, trigger=ATrigger.TURN_ENDED)
+
+    async def go():
+        await store.put_async(one)
+        assert (await store.get_async("a")).state == {"x": 1}
+        assert await store.names_async() == ["a"]
+        assert await store.forget_async("a") is True
+        assert await store.get_async("a") is None
+
+    asyncio.run(go())
+
+
+def test_the_async_pair_is_the_same_store_and_not_a_second_one():
+    """Two implementations of one contract drift.
+
+    The async pair drifting from the sync one is the drift nobody notices
+    until a checkpoint is missing.
+    """
+    from core.state.where_checkpoints_are_kept import AnAsyncStore
+
+    for name in ("put", "get", "names", "forget"):
+        assert hasattr(AnAsyncStore, f"{name}_async")
+        assert not hasattr(AnAsyncStore, name), (
+            f"AnAsyncStore defines {name} itself instead of using the store's"
+        )
+
+
+# ------------------------------------------------------ how a state is written
+
+
+def test_the_default_writer_is_json_a_person_can_read():
+    """A checkpoint nobody can read is a resume point nobody can check."""
+    from core.state.where_checkpoints_are_kept import THE_DEFAULT_WRITER
+
+    written = THE_DEFAULT_WRITER.dumps({"b": 2, "a": 1})
+    assert written == '{"a":1,"b":2}'
+    assert THE_DEFAULT_WRITER.loads(written) == {"a": 1, "b": 2}
+
+
+def test_the_writer_sorts_so_one_state_has_one_digest():
+    from core.state.where_checkpoints_are_kept import THE_DEFAULT_WRITER
+
+    assert THE_DEFAULT_WRITER.dumps({"a": 1, "b": 2}) == THE_DEFAULT_WRITER.dumps(
+        {"b": 2, "a": 1}
+    )
+
+
+def test_a_writer_is_anything_that_answers_the_two_calls():
+    from core.state.where_checkpoints_are_kept import HowAStateIsWritten
+
+    class Backwards:
+        def dumps(self, state):
+            return repr(state)[::-1]
+
+        def loads(self, raw):
+            return eval(raw[::-1])  # noqa: S307 — a test's own round trip
+
+    assert isinstance(Backwards(), HowAStateIsWritten)
+    assert Backwards().loads(Backwards().dumps({"a": 1})) == {"a": 1}
