@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
 
 from pathlib import Path
 
@@ -59,6 +58,33 @@ def _kept_at() -> Path:
 #: A bound on the file. What she invented is a handful of recipes; anything
 #: larger is a runaway rather than a mind that has learned a great deal.
 _MOST_KEPT = 200_000
+
+#: What shape the file is in. Bumped when a reader could no longer make sense
+#: of an older one; the minor number moves when a field is added and an older
+#: reader can still use what it understands.
+_THE_SHAPE = (1, 0)
+
+
+def _adopt_an_older_file(data: dict, major: int, minor: int) -> dict:
+    """Read a file written before this store had a version on it.
+
+    Version 0 is the bare object the old code wrote: the same fields, with no
+    envelope. Nothing to change, so this returns it — the hook exists so that
+    adopting a versioned store does not throw away what was already there.
+    """
+    return data
+
+
+def _the_store():
+    from core.persistence.a_versioned_store import AVersionedStore
+
+    return AVersionedStore(
+        _kept_at(),
+        major=_THE_SHAPE[0],
+        minor=_THE_SHAPE[1],
+        migrate=_adopt_an_older_file,
+        source="what_she_invented",
+    )
 
 
 def keep() -> bool:
@@ -99,9 +125,7 @@ def keep() -> bool:
             get_file_write_gateway().ensure_directory(
                 _kept_at().parent, source="what_she_invented"
             )
-            get_file_write_gateway().write_text(
-                _kept_at(), written, source="what_she_invented"
-            )
+            _the_store().save(body)
         logger.info("kept %d propert(ies) she worked out", len(body["measures"]))
         return True
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -120,10 +144,27 @@ def recall() -> dict[str, int]:
     would mean a property could never be judged on a machine that reboots.
     """
     back = {"measures": 0}
+    from core.persistence.a_versioned_store import CannotRead
+
     try:
-        held = json.loads(_kept_at().read_text(encoding="utf-8"))
+        kept = _the_store().load()
+    except CannotRead as exc:
+        # It used to return an empty dict here, so a corrupt file was
+        # indistinguishable from a fresh install — and the next keep wrote
+        # over it, taking the evidence with it. The store puts the bad copy
+        # aside; this says out loud that it happened.
+        record_degradation(
+            "what_she_invented",
+            exc,
+            severity="warning",
+            action=f"put the unreadable file aside at {exc.put_aside_at}",
+        )
+        return back
     except (OSError, ValueError):
         return back
+    if kept is None:
+        return back
+    held = kept.data
     if not isinstance(held, dict):
         return back
     from core.agency.how_good_is_this import ON_TRIAL, promote
