@@ -171,3 +171,35 @@ def test_the_states_are_the_six_and_nothing_else():
     assert {str(one) for one in Alive} == {
         "not started", "starting", "running", "stopping", "stopped", "refused"
     }
+
+
+def test_a_state_change_stamps_when_it_happened() -> None:
+    """A word alone cannot tell a part that just started from a wedged one."""
+    import time
+
+    from core.runtime.what_a_part_of_her_declares import (
+        Alive,
+        APart,
+        TheSupervisor,
+    )
+
+    started: list[str] = []
+    part = APart(
+        name="clock",
+        authority="runtime",
+        start=lambda: started.append("clock"),
+        healthy=lambda: True,
+    )
+    made_at = part.alive_since
+    assert made_at > 0.0, "a part knows when it was made, not only what it is"
+
+    time.sleep(0.01)
+    supervisor = TheSupervisor(may_start=frozenset({"runtime"}))
+    supervisor.declare(part)
+    supervisor.start_everything()
+
+    assert part.alive is Alive.RUNNING
+    assert part.alive_since > made_at, "the stamp moved when the state did"
+    seen = part.to_dict()
+    assert seen["alive_since"] == part.alive_since
+    assert seen["for_seconds"] >= 0.0

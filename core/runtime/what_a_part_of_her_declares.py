@@ -23,7 +23,8 @@ with no answer.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
@@ -79,6 +80,10 @@ class APart:
     needs: tuple[str, ...] = ()
     authority: str = "unclassified"
     alive: Alive = Alive.NOT_STARTED
+    #: When it entered that state. A report without this cannot tell a part
+    #: that started a second ago from one that has been wedged since boot,
+    #: and both of them read as the same word.
+    alive_since: float = field(default_factory=time.time)
     why_refused: str = ""
     start: Any = None
     stop: Any = None
@@ -90,6 +95,8 @@ class APart:
             "needs": list(self.needs),
             "authority": self.authority,
             "alive": str(self.alive),
+            "alive_since": self.alive_since,
+            "for_seconds": round(max(0.0, time.time() - self.alive_since), 3),
             "why_refused": self.why_refused,
         }
 
@@ -164,24 +171,29 @@ class TheSupervisor:
             ]
             if missing:
                 part.alive = Alive.REFUSED
+                part.alive_since = time.time()
                 part.why_refused = f"waiting on {', '.join(sorted(missing))}"
                 skipped.append(name)
                 continue
             if self._may_start is not None and part.authority not in self._may_start:
                 part.alive = Alive.REFUSED
+                part.alive_since = time.time()
                 part.why_refused = f"this supervisor may not start {part.authority}"
                 refused.append(name)
                 continue
             part.alive = Alive.STARTING
+            part.alive_since = time.time()
             try:
                 if callable(part.start):
                     part.start()
             except Exception as exc:  # noqa: BLE001 — one part is not the boot
                 part.alive = Alive.REFUSED
+                part.alive_since = time.time()
                 part.why_refused = f"{type(exc).__name__}: {exc}"
                 refused.append(name)
                 continue
             part.alive = Alive.RUNNING
+            part.alive_since = time.time()
             started.append(name)
         return {
             "started": started,
@@ -197,12 +209,14 @@ class TheSupervisor:
             if part.alive is not Alive.RUNNING:
                 continue
             part.alive = Alive.STOPPING
+            part.alive_since = time.time()
             try:
                 if callable(part.stop):
                     part.stop()
             except Exception as exc:  # noqa: BLE001 — a stuck stop is not a crash
                 logger.warning("%s would not stop: %s", name, exc)
             part.alive = Alive.STOPPED
+            part.alive_since = time.time()
             stopped.append(name)
         return stopped
 
