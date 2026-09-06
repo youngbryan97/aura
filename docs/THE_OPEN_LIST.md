@@ -67,7 +67,7 @@ carries all 202 with their state.
 | N5 | A runtime probe beside gate 16's static scan | DONE — two families watched through one entry point; 74 shared functions and nothing outside the search runs for only one, either order |
 | N7 | GAIA / OSWorld / post-cutoff SWE / hours-long autonomy | TODO |
 | N9 | Grounding beyond the seven authored installers | TODO |
-| N10 | Generational compounding, currently depth 0 | TODO |
+| N10 | Generational compounding, currently depth 0 | DONE — the cause found and fixed: 824 operators all scored exactly 5.0 because the replay could only price an action that had once WORKED, and the failure path never wrote the action name down. Depth is still to be re-measured on a record written since |
 | N11 | Native and source development in one verified loop | TODO |
 | N12 | Fan-out and through-path reduction | DONE |
 | N13 | 110 modules over the size threshold, 36 size regressions | PART — the 36 were already there before this session (checked at `3d6e365b4`); this session added 3 and removed all 3, so the number did not move. Splitting 36 God objects is its own pass |
@@ -84,7 +84,7 @@ carries all 202 with their state.
 | E5 | `PhenomenalFalsifier.from_live()` calls a channel causal on proxy evidence; the intervention standard is treatment against null | DONE — both proxies removed; the answer comes from the influence ledger, and no trials reads as UNMEASURED rather than epiphenomenal |
 | E6 | Every named faculty needs a measured downstream effect, not a wired channel: "wired to consumer" is not "measurable contribution" | DONE — measured and published: 69 services, 6 lesionable, 0 measured; the ratchet moves those |
 | E7 | The sealed transfer experiment: measure on unseen domains, allow autonomous development, then intervene on the abstractions she built and show it changes performance on transfer domains | TODO |
-| E8 | The improver null: improved improver beats a frozen improver on held-out problems across generations | TODO |
+| E8 | The improver null: improved improver beats a frozen improver on held-out problems across generations | PART — the null exists and runs (); both sides read depth 0 because the cost was constant. That cause is fixed; the comparison needs a record with developmental episodes in it |
 | E9 | Organs that know what they own, what they consume, what they promise and how failure propagates — coherent causal organisation over interaction entropy, not fewer organs | DONE — all four asked of all 120 packages: every one declares its edges, 32 answer all four, 86 say nothing about what they promise; the ratchet moves those |
 
 ## Found while working

@@ -228,6 +228,14 @@ def _one_replay(worth: Code, *, side: str = "held out", seed: int = 0) -> float:
     cost_of: dict[tuple[str, str | None], list[int]] = {}
     for one in kept:
         cost_of.setdefault((one.family, one.route), []).append(one.walked)
+        # An action that was tried and did not hold still cost what it cost.
+        # Keying only on `route` meant the replay could price a chosen action
+        # only where that action had once WORKED, so a policy that picks
+        # something never yet successful was charged the family's average
+        # instead — the same number for every operator.
+        acted = getattr(one, "tried", None)
+        if acted and acted != one.route:
+            cost_of.setdefault((one.family, acted), []).append(one.walked)
     was = the_worth_she_uses()
     total = 0.0
     try:
