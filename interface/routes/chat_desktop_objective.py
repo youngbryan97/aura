@@ -563,8 +563,21 @@ _ASKS_FOR_INFORMATION_RE = re.compile(
     re.IGNORECASE,
 )
 
+# The verb has to be doing the commanding. As a bare alternation this excluded
+# "how does copy-on-write work?", "what does open() do in python?" and "where
+# did you put the report?" from being questions, because the word appeared
+# somewhere in them.
 _ASKS_FOR_INFORMATION_EXCLUSION_RE = re.compile(
-    r"\b(?:put|copy|paste|save|write|create|make|move|rename|delete|open|quit|"
+    # an imperative: the verb starts the sentence or follows a connective
+    r"(?:\A|[.;!?]\s+|\b(?:please|then|also|and|now|first)\s+)"
+    r"(?:put|copy|paste|save|write|create|make|move|rename|delete|open|quit|"
+    r"close|set|install)\b\s+\S"
+    # a request framed as a question but asking for the action
+    r"|\b(?:can|could|would|will|why\s+don'?t)\s+you\s+(?:please\s+)?"
+    r"(?:put|copy|paste|save|write|create|make|move|rename|delete|open|quit|"
+    r"close|set|install)\b"
+    r"|\b(?:i\s+(?:want|need)\s+you\s+to|go\s+ahead\s+and)\s+"
+    r"(?:put|copy|paste|save|write|create|make|move|rename|delete|open|quit|"
     r"close|set|install)\b",
     re.IGNORECASE,
 )

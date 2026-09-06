@@ -25,13 +25,35 @@ LANE_MODULES = (
     "interface.routes.chat_conversation_repair",
     "interface.routes.chat_delivery",
     "interface.routes.chat_desktop_objective",
+    "interface.routes.chat_desktop_objective_gates",
     "interface.routes.chat_desktop_repair",
     "interface.routes.chat_memory_state",
     "interface.routes.chat_preflight",
     "interface.routes.chat_protected_prompt",
+    "interface.routes.chat_quality",
     "interface.routes.chat_runtime_proof",
+    "interface.routes.chat_self_reply",
     "interface.routes.chat_turn_contract",
+    "interface.routes.chat_turn_evidence",
 )
+
+
+def lane_modules_on_disk() -> tuple[str, ...]:
+    """Every chat lane module the routes package actually has.
+
+    A lift that moves code into a new lane module and does not add it here
+    makes every source-reading test in this family read a shorter file. They
+    keep passing, because a call site nobody can see is a call site nobody
+    counts. Four modules had gone missing this way.
+    """
+    import pathlib
+
+    routes = pathlib.Path(__file__).resolve().parent.parent / "interface" / "routes"
+    return tuple(
+        f"interface.routes.{path.stem}"
+        for path in sorted(routes.glob("chat*.py"))
+        if not path.stem.endswith("__init__")
+    )
 
 
 def _loaded_lanes() -> list[ModuleType]:
