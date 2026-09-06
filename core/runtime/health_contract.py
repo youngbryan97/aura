@@ -1471,6 +1471,20 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["whose_turn_it_is"] = {"error": repr(exc)}
 
+    # Who is listening, in a form a restart can put back. AutoGen saves agent
+    # state and says it does not save this; a subscription that does not
+    # survive a restart is a listener that silently stops.
+    try:
+        from core.runtime.what_a_message_carries import what_was_subscribed
+
+        subscribed = what_was_subscribed()
+        block["what_a_message_carries"] = {
+            "subscriptions": len(subscribed),
+            "topics": sorted({one["topic"] for one in subscribed}),
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_a_message_carries"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering
