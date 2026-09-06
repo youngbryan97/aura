@@ -1529,6 +1529,28 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_every_skill_gives_back"] = {"error": repr(exc)}
 
+    # What the uncalibrated decoding policy actually does. Counts only: the
+    # full sweep is 5,760 states and belongs in a test, not on a route.
+    try:
+        from core.runtime.service_registry import get_runtime_service
+
+        # Through the registry, not by import: this package may not reach
+        # core.brain, and a health block that needed that edge would be a
+        # layering violation dressed as observability.
+        provider = get_runtime_service("the_control_policy_sweep", default=None)
+        if not callable(provider):
+            raise RuntimeError("the control policy sweep is not registered")
+        swept = provider()
+        block["the_control_policy"] = {
+            "policy": swept["policy"],
+            "calibrated": swept["calibrated"],
+            "states_swept": swept["states_swept"],
+            "controls_that_never_move": swept["controls_that_never_move"],
+            "discriminates": swept["discriminates"],
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["the_control_policy"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering

@@ -1096,6 +1096,23 @@ def _register_live_mind_lesions() -> None:
 _register_live_mind_lesions()
 
 
+def _offer_the_control_policy_sweep() -> None:
+    """Make what the policy actually does readable from the health report.
+
+    Registered from here because this module owns the policy, and read
+    through the registry because core/runtime may not import core.brain.
+    """
+    try:
+        from core.brain.does_the_mind_move_the_controls import register_the_sweep
+
+        register_the_sweep()
+    except Exception as exc:  # noqa: BLE001 — a report is not worth a boot
+        logger.debug("the control policy sweep was not offered: %s", exc)
+
+
+_offer_the_control_policy_sweep()
+
+
 def _attach_turn_receipt(thought: Any, receipt: TurnReceipt) -> None:
     """Travel the path evidence with the answer it explains.
 
