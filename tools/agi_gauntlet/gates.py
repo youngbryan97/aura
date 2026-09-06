@@ -235,7 +235,11 @@ THE_GATES: tuple[Gate, ...] = (
         "and at or below zero on the negative controls",
         "pairs built to look alike and differ underneath. A system that "
         "transfers there is matching surfaces",
-        run=_r.transfer,
+                # A prior beating no prior says something helped and not what.
+        # The gate now also removes the one structure built while learning
+        # A and measures B again, which is the difference between a
+        # comparison and an intervention.
+run=_r.transfer,
     ),
     *_NEEDS_AN_EVALUATOR[:2],
     _NEEDS_AN_EVALUATOR[2],

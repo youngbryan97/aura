@@ -538,6 +538,27 @@ def _solve_a_world(world: Any, language: Any) -> bool:
         return False
 
 
+def _without(language: Any, built: Any) -> Any:
+    """The language she had, minus the one structure she built while learning A.
+
+    A copy: removing it from the original would change what the next pair is
+    measured against, and every pair has to be measured against the same
+    thing it was taught.
+    """
+    from core.cognition.relation_language import RelationLanguage
+
+    lesioned = RelationLanguage()
+    family = getattr(built, "family", None)
+    form = getattr(built, "form", None)
+    for name, count in getattr(language, "counts", {}).items():
+        if name != family:
+            lesioned.counts[name] = count
+    for shape, held in getattr(language, "forms", {}).items():
+        if shape != form:
+            lesioned.forms[shape] = held
+    return lesioned
+
+
 def transfer(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]:
     """Discover something in A, and recognise it in B without being told.
 
@@ -553,6 +574,8 @@ def transfer(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]:
 
     pairs = invent_the_worlds(freeze.seed, how_many=int(options.get("pairs", 50)))
     after, scratch, control_after, control_scratch = [], [], [], []
+    after_lesion: list[float] = []
+    control_lesion: list[float] = []
     outside = 0
     trajectories = []
     for pair in pairs:
@@ -578,12 +601,20 @@ def transfer(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]:
             continue
         with_it = 1.0 if _solve_a_world(pair.second, taught) else 0.0
         without = 1.0 if _solve_a_world(pair.second, RelationLanguage()) else 0.0
+        # The intervention. P(B | A) against P(B | ∅) says a prior helped;
+        # it does not say WHICH prior. Removing the one structure she built
+        # while learning A, and leaving everything else, asks the question an
+        # external review asked: does intervening on the newly developed
+        # abstraction change performance on the transfer domain?
+        lesioned = 1.0 if _solve_a_world(pair.second, _without(taught, learned)) else 0.0
         if pair.should_transfer:
             after.append(with_it)
             scratch.append(without)
+            after_lesion.append(lesioned)
         else:
             control_after.append(with_it)
             control_scratch.append(without)
+            control_lesion.append(lesioned)
         trajectories.append(
             {
                 "pair": pair.name,
@@ -591,13 +622,35 @@ def transfer(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]:
                 "control": not pair.should_transfer,
                 "after_learning": with_it,
                 "from_scratch": without,
+                "with_what_she_built_removed": lesioned,
             }
         )
     found = transfer_gain(
         after, scratch, control_after=control_after, control_scratch=control_scratch,
         seed=freeze.seed % 7919,
     )
+
+    def _mean(rows: list[float]) -> float:
+        return sum(rows) / len(rows) if rows else 0.0
+
+    intervention = {
+        "with_what_she_built": round(_mean(after), 4),
+        "with_it_removed": round(_mean(after_lesion), 4),
+        "from_scratch": round(_mean(scratch), 4),
+        # How much of the transfer runs through the thing she built while
+        # learning A. Zero means the prior helped for some other reason.
+        "carried_by_what_she_built": round(_mean(after) - _mean(after_lesion), 4),
+        "controls": {
+            "with_what_she_built": round(_mean(control_after), 4),
+            "with_it_removed": round(_mean(control_lesion), 4),
+        },
+        "what_this_shows": (
+            "P(B | A) − P(B | A without the structure built in A). A prior "
+            "beating no prior says something helped; this says what"
+        ),
+    }
     return {
+        "intervention": intervention,
         "pairs": len(after),
         "controls": len(control_after),
         "outside_the_language": outside,
