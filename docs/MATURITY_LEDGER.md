@@ -85,7 +85,7 @@ system. Several found defects that were not in the review:
 | AutoGPT #8 | P1 | One pre-execution permission check | Prove a single ActionAuthority choke point for all side-effecting actions; every lower executor must require its unforgeable authorization receipt. | TODO |
 | AutoGPT #9 | P1 | Central send/context token accounting | Add ContextBudget ledger with named allocations for identity/memory/interiority/tools/history/reasoning; all builders consume it and publish truncatio | TODO |
 | AutoGPT #10 | P1 | Composable tool components | Standardize ToolProvider/ToolExecutor/ToolPolicy contracts and make every skill resolve through them; enforce no direct side effect below executor. | TODO |
-| AutoGPT #11 | P1 | One action-history component | Create a canonical ActionEpisode projection sourced from the event spine, with adapters to memory/UI rather than parallel authoritative histories. | TODO |
+| AutoGPT #11 | P1 | One action-history component | Create a canonical ActionEpisode projection sourced from the event spine, with adapters to memory/UI rather than parallel authoritative histories. | DONE |
 | AutoGPT #12 | P1 | One MultiProvider completion API | Make ModelRuntimeProtocol the only Cortex-facing API: generate/stream/count/cancel/health/capabilities/receipts, with conformance tests for MLX/local/ | TODO |
 | AutoGPT #13 | P1 | Component enabled/disabled reason is standardized | Add LifecycleStatus {state, reason, since, owner, dependencies} to every registered organ/service and one machine-queryable registry. | TODO |
 | AutoGPT #14 | P1 | Dependency order declared by components | Require every phase/background job to declare requires/before/after and compile a DAG; reject cycles/unresolved dependencies at boot. | TODO |
