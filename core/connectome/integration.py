@@ -75,9 +75,11 @@ def declare_telemetry() -> list[str]:
         logger.debug("telemetry dictionary unavailable: %s", exc)
         return []
     declared: list[str] = []
+    failed = False
+    # 0x1801-0x1807 is owned by interiority. Keep these wire IDs distinct.
     for spec in (
         {
-            "identifier": 0x1801,
+            "identifier": 0x1901,
             "name": CHANNEL_CELLS,
             "type": ChannelType.INT,
             "unit": "count",
@@ -87,7 +89,7 @@ def declare_telemetry() -> list[str]:
             "stale_after_s": 86_400.0,
         },
         {
-            "identifier": 0x1802,
+            "identifier": 0x1902,
             "name": CHANNEL_CONTACTS,
             "type": ChannelType.INT,
             "unit": "count",
@@ -97,7 +99,7 @@ def declare_telemetry() -> list[str]:
             "stale_after_s": 86_400.0,
         },
         {
-            "identifier": 0x1803,
+            "identifier": 0x1903,
             "name": CHANNEL_EI_RATIO,
             "unit": "ratio",
             "description": (
@@ -112,7 +114,7 @@ def declare_telemetry() -> list[str]:
             "stale_after_s": 86_400.0,
         },
         {
-            "identifier": 0x1804,
+            "identifier": 0x1904,
             "name": CHANNEL_WITHIN_LAYER,
             "unit": "ratio",
             "description": (
@@ -125,7 +127,7 @@ def declare_telemetry() -> list[str]:
             "stale_after_s": 86_400.0,
         },
         {
-            "identifier": 0x1805,
+            "identifier": 0x1905,
             "name": CHANNEL_COVERAGE,
             "unit": "fraction",
             "description": "share of in-volume call sites the reconstruction attached",
@@ -136,7 +138,7 @@ def declare_telemetry() -> list[str]:
             "stale_after_s": 86_400.0,
         },
         {
-            "identifier": 0x1806,
+            "identifier": 0x1906,
             "name": CHANNEL_SPLIT_ERRORS,
             "type": ChannelType.INT,
             "unit": "count",
@@ -151,8 +153,9 @@ def declare_telemetry() -> list[str]:
             channel(**spec)
             declared.append(str(spec["name"]))
         except (ValueError, TypeError, KeyError) as exc:
-            logger.debug("channel %s not declared: %s", spec.get("name"), exc)
-    _DECLARED = True
+            failed = True
+            logger.warning("channel %s not declared: %s", spec.get("name"), exc)
+    _DECLARED = not failed
     return declared
 
 

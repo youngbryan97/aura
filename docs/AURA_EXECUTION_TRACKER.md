@@ -53070,3 +53070,23 @@ Shutdown logs show orchestrator_shutdown at 08:49:12 UTC, desktop_exit at
 08:49:48, clean container teardown, and root exit_code=0 at 08:50:10. This
 rules out calling the observed end an unexplained abrupt crash; the initial
 shutdown initiator still needs attribution.
+
+### Claude Integration Review: Connectome and RLC
+
+Reviewed the new connectome integration, activity recorder, delay compiler,
+neuromodulation interfaces, routing analysis, and the context allocation ledger
+against main 6560fb781. The ledger is called by context_assembler after fitting;
+it can explain missing context but does not itself change allocation. The graph
+delay and neuromodulation functions have no production RLC caller found in this
+review. Their analysis results are not evidence of deployed reasoning gains.
+
+Two concrete integration defects repaired: connectome channels reused
+interiority IDs 0x1801-0x1806, and failed declaration marked registration done.
+Connectome now uses 0x1901-0x1906 and retains retryability after partial failure.
+The activity recorder also released a monitoring slot after failing to acquire
+it. Cleanup now requires ownership. A real Python monitoring-slot test verifies
+that another owner's identity, events, and callback remain intact.
+
+Focused and existing connectome tests: 50 passed. These repairs make the
+diagnostic tools coexist; they do not close native reasoning completion,
+executable-answer correctness, live launch attribution, or general RLC transfer.

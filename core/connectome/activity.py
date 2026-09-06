@@ -216,6 +216,7 @@ class ActivityRecorder:
         self.config = config or RecorderConfig()
         self._lock = threading.RLock()
         self._recording = False
+        self._owns_monitoring_slot = False
         self._condition = ""
         self._started_at = 0.0
         self._frame_started = 0.0
@@ -244,6 +245,7 @@ class ActivityRecorder:
                 return False
             try:
                 monitoring.use_tool_id(_TOOL_ID, "aura.connectome")
+                self._owns_monitoring_slot = True
                 monitoring.register_callback(
                     _TOOL_ID, monitoring.events.PY_START, self._on_py_start
                 )
@@ -282,6 +284,8 @@ class ActivityRecorder:
             self._condition = condition
 
     def _release_tool(self) -> None:
+        if not self._owns_monitoring_slot:
+            return
         monitoring = getattr(sys, "monitoring", None)
         if monitoring is None:
             return
@@ -291,6 +295,7 @@ class ActivityRecorder:
             if self.config.capture_edges:
                 monitoring.register_callback(_TOOL_ID, monitoring.events.CALL, None)
             monitoring.free_tool_id(_TOOL_ID)
+            self._owns_monitoring_slot = False
         except (ValueError, RuntimeError) as exc:
             logger.debug("monitoring slot release was refused: %s", exc)
 
