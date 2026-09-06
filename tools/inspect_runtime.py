@@ -196,6 +196,121 @@ def _destinations() -> dict[str, Any]:
 
 
 #: Every question this answers, and where the answer comes from.
+def _clocks() -> Any:
+    from core.observability.which_clock_is_this import how_the_clocks_stand
+
+    return how_the_clocks_stand()
+
+
+def _traces() -> Any:
+    from core.observability.does_one_trace_reach_the_end import how_far_a_trace_reaches
+
+    return how_far_a_trace_reaches()
+
+
+def _calls() -> Any:
+    from core.runtime.how_a_call_is_made import how_the_calls_are_made
+
+    return how_the_calls_are_made()
+
+
+def _task_endings() -> Any:
+    from core.runtime.how_a_task_should_end import how_the_endings_are_declared
+
+    return how_the_endings_are_declared()
+
+
+def _supersteps() -> Any:
+    from core.state.what_they_all_read import how_the_supersteps_have_gone
+
+    return how_the_supersteps_have_gone()
+
+
+def _memory_kinds() -> Any:
+    from core.memory.what_kind_of_memory_is_this import how_the_kinds_stand
+
+    return how_the_kinds_stand()
+
+
+def _prompt_room() -> Any:
+    from core.brain.llm.who_got_the_room import how_the_room_was_shared
+
+    return how_the_room_was_shared()
+
+
+def _deprecations() -> Any:
+    from core.runtime.what_is_on_its_way_out import how_the_deprecations_stand
+
+    return how_the_deprecations_stand()
+
+
+def _multi_claims() -> Any:
+    from core.runtime.claiming_more_than_one import how_the_multi_claims_have_gone
+
+    return how_the_multi_claims_have_gone()
+
+
+def _write_drains() -> Any:
+    from core.state.nothing_lands_before_its_writes import how_the_drains_have_gone
+
+    return how_the_drains_have_gone()
+
+
+def _action_batches() -> Any:
+    from core.runtime.what_she_decided_to_do_at_once import how_the_batches_have_gone
+
+    return how_the_batches_have_gone()
+
+
+def _abandoned_calls() -> Any:
+    from core.runtime.cancelling_the_call_and_not_just_the_wait import how_the_calls_ended
+
+    return how_the_calls_ended()
+
+
+def _lifecycles() -> Any:
+    from core.runtime.which_parts_say_how_they_are import how_the_parts_answer
+
+    return how_the_parts_answer()
+
+
+def _promises() -> Any:
+    from core.verify.a_promise_with_a_test import how_the_promises_stand
+
+    return how_the_promises_stand()
+
+
+#: What the maturity pass built. Listed here rather than inside the test that
+#: reads it, so the inspector and the gate ask about one set.
+THE_PRIMITIVES: tuple[str, ...] = tuple(
+    "core." + one
+    for one in (
+        "runtime.what_must_never_be_retried",
+        "state.what_they_all_read",
+        "runtime.how_a_task_should_end",
+        "observability.does_one_trace_reach_the_end",
+        "runtime.how_a_call_is_made",
+        "observability.which_clock_is_this",
+        "runtime.which_parts_say_how_they_are",
+        "memory.what_kind_of_memory_is_this",
+        "brain.llm.who_got_the_room",
+        "runtime.what_is_on_its_way_out",
+        "runtime.claiming_more_than_one",
+        "state.nothing_lands_before_its_writes",
+        "verify.is_this_async_code_correct",
+        "runtime.what_she_decided_to_do_at_once",
+        "runtime.cancelling_the_call_and_not_just_the_wait",
+        "verify.a_promise_with_a_test",
+    )
+)
+
+
+def _what_governs() -> Any:
+    from core.verify.does_this_govern_anything import what_governs_and_what_does_not
+
+    return what_governs_and_what_does_not(THE_PRIMITIVES)
+
+
 THE_SECTIONS: dict[str, Callable[[], Any]] = {
     "topology": _topology,
     "owners": _owners,
@@ -214,6 +329,21 @@ THE_SECTIONS: dict[str, Callable[[], Any]] = {
     "interrupted": _interrupted,
     "action_history": _action_history,
     "destinations": _destinations,
+    "clocks": _clocks,
+    "traces": _traces,
+    "calls": _calls,
+    "task_endings": _task_endings,
+    "supersteps": _supersteps,
+    "memory_kinds": _memory_kinds,
+    "prompt_room": _prompt_room,
+    "deprecations": _deprecations,
+    "multi_claims": _multi_claims,
+    "write_drains": _write_drains,
+    "action_batches": _action_batches,
+    "abandoned_calls": _abandoned_calls,
+    "lifecycles": _lifecycles,
+    "promises": _promises,
+    "what_governs": _what_governs,
 }
 
 

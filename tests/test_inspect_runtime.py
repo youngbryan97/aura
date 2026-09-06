@@ -127,3 +127,44 @@ def test_the_budget_section_shows_the_rules_rather_than_a_count(everything):
 def test_the_destinations_section_carries_all_seven(everything):
     assert everything["destinations"]["destinations"] == 7
     assert everything["destinations"]["not_really_a_destination"] == []
+
+
+def test_everything_the_maturity_pass_built_is_askable_from_here() -> None:
+    """A primitive nobody can ask about is one nobody will find.
+
+    Reachable is not governing — that is what `what_governs` measures — but a
+    module that is not even in the inspector cannot become either.
+    """
+    from tools.inspect_runtime import THE_PRIMITIVES, THE_SECTIONS
+
+    wanted = {
+        "core.observability.which_clock_is_this": "clocks",
+        "core.observability.does_one_trace_reach_the_end": "traces",
+        "core.runtime.how_a_call_is_made": "calls",
+        "core.runtime.how_a_task_should_end": "task_endings",
+        "core.state.what_they_all_read": "supersteps",
+        "core.memory.what_kind_of_memory_is_this": "memory_kinds",
+        "core.brain.llm.who_got_the_room": "prompt_room",
+        "core.runtime.what_is_on_its_way_out": "deprecations",
+        "core.runtime.claiming_more_than_one": "multi_claims",
+        "core.state.nothing_lands_before_its_writes": "write_drains",
+        "core.runtime.what_she_decided_to_do_at_once": "action_batches",
+        "core.runtime.cancelling_the_call_and_not_just_the_wait": "abandoned_calls",
+        "core.runtime.which_parts_say_how_they_are": "lifecycles",
+        "core.verify.a_promise_with_a_test": "promises",
+    }
+    missing = sorted(name for name, section in wanted.items() if section not in THE_SECTIONS)
+    assert missing == [], f"no section reads {missing}"
+    unasked = sorted(set(THE_PRIMITIVES) - set(wanted) - {
+        "core.runtime.what_must_never_be_retried",
+        "core.verify.is_this_async_code_correct",
+    })
+    assert unasked == [], f"{unasked} were built and are not askable"
+
+
+def test_the_inspector_says_what_still_decides_nothing() -> None:
+    from tools.inspect_runtime import inspect
+
+    said = inspect("what_governs")["what_governs"]
+    assert "proposals" in said and "governing" in said
+    assert said["asked_about"] >= 16
