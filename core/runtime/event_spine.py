@@ -41,13 +41,18 @@ from core.runtime.lockdep import checked_lock
 import json
 import logging
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger("Aura.EventSpine")
+
+#: How far back to read when catching up with another process. One line is
+#: never more than a few hundred bytes, so this covers the last few.
+_HOW_FAR_BACK_TO_LOOK = 4096
 
 __all__ = [
     "LineageBroken",
@@ -178,7 +183,19 @@ class EventLog:
         causal_parent: int = 0,
         clock: Callable[[], float] = time.time,
     ) -> Event:
-        with self._lock:
+        # The interprocess lock OUTSIDE the thread lock, deliberately. It
+        # blocks, and a blocking call under a lock is what lockdep refuses and
+        # what wedges a runtime; taken the other way round this deadlocked
+        # immediately.
+        with self._across_processes(), self._lock:
+            if self._kept_at is not None:
+                # Two EventLogs on one file each minted their own next
+                # sequence, so the file ended up holding each number twice and
+                # the third reader had to drop half of them. Under the
+                # interprocess lock the counter is caught up from the file
+                # first, so the number is unique across processes rather than
+                # only within one.
+                self._catch_up()
             parent = int(causal_parent or 0)
             if parent and parent >= self._next:
                 raise LineageBroken(
@@ -193,8 +210,13 @@ class EventLog:
             )
             self._next += 1
             self._events.append(event)
-            self._keep(event)
-            return event
+        # The write happens with the thread lock released and the interprocess
+        # lock still held. Lockdep refuses an fsync under a lock and it is
+        # right — a blocking call under one is how a runtime freezes — and
+        # ordering is unaffected, because the interprocess lock is what other
+        # writers are waiting on.
+        self._keep(event)
+        return event
 
     def ancestry(self, seq: int, *, most: int = 512) -> list[int]:
         """The causal chain back from one event, bounded.
@@ -237,6 +259,83 @@ class EventLog:
                 "whole": not (
                     self._duplicates or self._gaps or self._unreadable_after
                 ),
+            }
+
+    @contextmanager
+    def _across_processes(self) -> Iterator[None]:
+        """Hold the file against other processes, where there is a file."""
+        if self._kept_at is None:
+            yield
+            return
+        try:
+            from core.runtime.atomic_writer import interprocess_file_lock
+        except ImportError:  # pragma: no cover - foundation import order
+            yield
+            return
+        # A SIBLING file, not the log itself. `atomic_append_text` flocks the
+        # log through its own descriptor, and flock is per open-file
+        # description — so locking the same path here deadlocked the process
+        # against itself on the first append.
+        with interprocess_file_lock(self._kept_at.with_suffix(".seq.lock")):
+            yield
+
+    def _catch_up(self) -> int:
+        """Read the last sequence another process wrote. Caller holds the lock.
+
+        Only the tail: the whole point is that this runs on every append, and
+        a full re-read would make an append cost the length of the log.
+        """
+        if self._kept_at is None or not self._kept_at.exists():
+            return self._next
+        try:
+            with self._kept_at.open("rb") as handle:
+                handle.seek(0, 2)
+                size = handle.tell()
+                handle.seek(max(0, size - _HOW_FAR_BACK_TO_LOOK))
+                tail = handle.read().decode("utf-8", "replace")
+        except OSError as exc:
+            logger.debug("could not read the tail of the kept log: %s", exc)
+            return self._next
+        for line in reversed(tail.splitlines()):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                seq = int(json.loads(line)["seq"])
+            except (ValueError, KeyError, TypeError):
+                continue
+            if seq >= self._next:
+                logger.debug(
+                    "another process had reached %d; this one was at %d",
+                    seq, self._next,
+                )
+                self._next = seq + 1
+                self._kept_through = max(self._kept_through, seq)
+            return self._next
+        return self._next
+
+    def rebuild(self) -> dict[str, Any]:
+        """Read the file again from nothing, and say what came back.
+
+        Deterministic: the same file gives the same events in the same order,
+        and the counts say whether anything was lost. A recovery that cannot
+        be checked is a recovery nobody can rely on.
+        """
+        with self._across_processes(), self._lock:
+            before = len(self._events)
+            self._events.clear()
+            self._duplicates.clear()
+            self._gaps.clear()
+            self._unreadable_after = 0
+            self._parentless = 0
+            self._next = 1
+            self._kept_through = 0
+            read = self._read_what_was_kept()
+            return {
+                "in_memory_before": before,
+                "read_back": read,
+                "lost": max(0, before - read),
+                "whole": self.integrity()["whole"],
             }
 
     def _keep(self, event: Event) -> None:

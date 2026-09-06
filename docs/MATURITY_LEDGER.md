@@ -62,7 +62,7 @@ name each cluster more than once:
 | AutoGPT #3 | P1 | Explicit endpoint protocols | Define Protocols for major Aura service seams and migrate dynamic getattr/callback bridges behind typed adapters; mypy must prove implementations sati | TODO |
 | AutoGPT #4 | P1 | Component-specific error hierarchy | Create canonical FailureScope + FailureKind typed exception/receipt taxonomy and map subsystem errors at boundaries. | TODO |
 | AutoGPT #5 | P1 | Typed proposal/result lifecycle | Replace dict action boundaries with discriminated typed models; preserve extensibility with versioned unions. | TODO |
-| AutoGPT #6 | P1 | Explicit root/subagent ExecutionContext | Introduce ExecutionContext as mandatory argument/context for all spawned cognitive/tool work: lineage, owner turn, budgets, authority, cancellation, s | TODO |
+| AutoGPT #6 | P1 | Explicit root/subagent ExecutionContext | Introduce ExecutionContext as mandatory argument/context for all spawned cognitive/tool work: lineage, owner turn, budgets, authority, cancellation, s | DONE |
 | AutoGPT #7 | P1 | Multiple reasoning strategies behind one interface | Define DeliberationStrategy protocol and strategy registry; all search modes return one typed DeliberationReceipt and obey the same budget/cancellatio | TODO |
 | AutoGPT #8 | P1 | One pre-execution permission check | Prove a single ActionAuthority choke point for all side-effecting actions; every lower executor must require its unforgeable authorization receipt. | TODO |
 | AutoGPT #9 | P1 | Central send/context token accounting | Add ContextBudget ledger with named allocations for identity/memory/interiority/tools/history/reasoning; all builders consume it and publish truncatio | TODO |
@@ -75,11 +75,11 @@ name each cluster more than once:
 | AutoGPT #16 | P1 | Parallel tool execution normalized at Agent boundary | Define ToolBatch with deterministic ordering, per-call cancellation, resource claims and aggregate failure semantics; route multi-tool plans through i | TODO |
 | AutoGPT #17 | P1 | Subagent factory carries explicit parent/depth | Require all subagents/background autonomous workers to register parent lineage, authority inheritance, budget partition and termination policy in Exec | TODO |
 | OpenHands #1 | P0 | Durable universal conversation event log | Make Aura event spine durable and mandatory for causally material events; state/action/memory projections may derive from it, but cannot bypass lineag | DONE |
-| OpenHands #2 | P1 | Parent-linked branch tree | Index causal parents durably, reject dangling parents, detect cycles, support O(depth) path-to-root and branch replay across restarts. | TODO |
-| OpenHands #3 | P1 | Duplicate event IDs rejected at append | Give each Aura event immutable EventId; append must reject duplicates and invalid parents, including across process restarts. | TODO |
-| OpenHands #4 | P1 | Process/thread-safe event writes | Persist spine through a backend offering process-safe CAS/lock semantics; include multiprocess append stress tests. | TODO |
-| OpenHands #5 | P1 | Bounded ancestry traversal | Maintain branch/parent indexes and benchmark bounded causal queries at million-event scale. | TODO |
-| OpenHands #6 | P1 | Self-healing event index | For every durable event index, add generation markers, corruption detection, deterministic rebuild and verified no-loss recovery. | TODO |
+| OpenHands #2 | P1 | Parent-linked branch tree | Index causal parents durably, reject dangling parents, detect cycles, support O(depth) path-to-root and branch replay across restarts. | DONE |
+| OpenHands #3 | P1 | Duplicate event IDs rejected at append | Give each Aura event immutable EventId; append must reject duplicates and invalid parents, including across process restarts. | DONE |
+| OpenHands #4 | P1 | Process/thread-safe event writes | Persist spine through a backend offering process-safe CAS/lock semantics; include multiprocess append stress tests. | DONE |
+| OpenHands #5 | P1 | Bounded ancestry traversal | Maintain branch/parent indexes and benchmark bounded causal queries at million-event scale. | DONE |
+| OpenHands #6 | P1 | Self-healing event index | For every durable event index, add generation markers, corruption detection, deterministic rebuild and verified no-loss recovery. | DONE |
 | OpenHands #7 | P0 | First-class CancellationToken through agent/tool calls | Introduce AuraCancellationToken in ExecutionContext and require model, tool, search, workflow and subagent APIs to accept it; cancellation must propag | DONE |
 | OpenHands #8 | P1 | Unfinished actions receive terminal outcomes on interrupt | On cancellation, synthesize a typed terminal receipt for every admitted but unfinished action/tool/model call; CI must detect orphaned starts. | TODO |
 | OpenHands #9 | P1 | Pause is an explicit execution state | Adopt ExecutionState FSM (initializing, ready, running, waiting, paused, cancelling, completed, failed, degraded) across turn/workflow/subagent lifecy | TODO |
