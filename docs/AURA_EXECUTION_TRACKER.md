@@ -53056,3 +53056,17 @@ At the later check port 8000 was unavailable and no aura_main PID remained.
 Shutdown cause has not been established. Next: trace the existing code-tool
 verification path for generated examples and inspect runtime termination;
 do not mark this example correct from exit status or delivery certification.
+
+Further receipt inspection identifies the RLC failure more precisely:
+native_thinking_prefix_open and native_thinking_boundary_incomplete are both
+present. All 3201 retained generated tokens ended before the public-channel
+boundary, with token_limit_sentence_grace termination. The parent therefore
+received an empty surface string, not a missing IPC result. Preserve the
+private/public boundary; the next repair must address completion of the
+native reasoning channel, not expose private text or accept an empty answer.
+The existing worker already records this as a censored reasoning-cost sample.
+
+Shutdown logs show orchestrator_shutdown at 08:49:12 UTC, desktop_exit at
+08:49:48, clean container teardown, and root exit_code=0 at 08:50:10. This
+rules out calling the observed end an unexplained abrupt crash; the initial
+shutdown initiator still needs attribution.
