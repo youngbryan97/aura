@@ -55,7 +55,11 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.CortexGenerationUpgrade")
 
-EVALUATION_SCHEMA = "aura.cortex_upgrade.evaluation.v3"
+#: v4 adds ``budget_parity``. The version moves because the key set is an
+#: exact contract: a v3 receipt has no record of whether its two arms were
+#: allowed the same budget, and reading one as though it did is the thing
+#: the field exists to stop.
+EVALUATION_SCHEMA = "aura.cortex_upgrade.evaluation.v4"
 EVALUATION_PROGRESS_SCHEMA = "aura.cortex_upgrade.evaluation_progress.v1"
 CANDIDATE_SCHEMA = "aura.cortex_upgrade.candidate.v1"
 MIGRATION_PLAN_SCHEMA = "aura.cortex_upgrade.migration_plan.v1"
@@ -418,6 +422,39 @@ def capability_battery(
     }
 
 
+def _where_the_budgets_differ(
+    current: dict[str, Any], candidate: dict[str, Any]
+) -> list[str]:
+    """Probe-by-probe token budgets that were not the same for both arms.
+
+    Empty when every probe gave both models the same allowance, which is what
+    makes an accuracy difference a difference in the models rather than in
+    what they were allowed to spend.
+
+    A probe present for one arm and absent for the other counts: an arm scored
+    over fewer probes is an arm scored on a different battery.
+    """
+    found: list[str] = []
+    for axis in ("breadth_rows", "reasoning_rows"):
+        mine = current.get(axis) or []
+        theirs = candidate.get(axis) or []
+        if len(mine) != len(theirs):
+            found.append(
+                f"{axis}: {len(mine)} probes for the incumbent and "
+                f"{len(theirs)} for the candidate"
+            )
+            continue
+        for at, (one, other) in enumerate(zip(mine, theirs, strict=False)):
+            if not isinstance(one, dict) or not isinstance(other, dict):
+                continue
+            a, b = one.get("max_tokens"), other.get("max_tokens")
+            if a != b:
+                found.append(f"{axis}[{at}]: max_tokens {a} against {b}")
+            if one.get("prompt") != other.get("prompt"):
+                found.append(f"{axis}[{at}]: the two arms were asked different things")
+    return found
+
+
 def compare_batteries(
     current: dict[str, Any],
     candidate: dict[str, Any],
@@ -432,6 +469,26 @@ def compare_batteries(
     requires exact non-regression on both measured axes and a strict gain on at
     least one.  Deployment remains separately blocked by every critical gate.
     """
+    # Budget parity first. The probes fix max_tokens by construction and decode
+    # greedily, so the two arms have always been matched — by somebody having
+    # been careful, not by anything checking. This verdict is the whole gate on
+    # replacing the mind's base model, so what it rests on should be checkable:
+    # a comparison whose arms were allowed different budgets is not a weak
+    # result, it is not a result. Same rule as core/evaluation/matched_budget.
+    unmatched = _where_the_budgets_differ(current, candidate)
+    if unmatched:
+        result = {
+            "schema": EVALUATION_SCHEMA,
+            "current_label": current.get("label", ""),
+            "candidate_label": candidate.get("label", ""),
+            "verdict": "VOID",
+            "promotion_eligible": False,
+            "budget_parity": {"matched": False, "differences": unmatched},
+            "compared_at": time.time(),
+        }
+        result["evaluation_sha256"] = _receipt_digest(result)
+        return result
+
     breadth_delta = candidate["breadth_accuracy"] - current["breadth_accuracy"]
     reasoning_delta = candidate["reasoning_accuracy"] - current["reasoning_accuracy"]
     identity_changed = current.get("identity_digests") != candidate.get(
@@ -461,6 +518,7 @@ def compare_batteries(
             (candidate_descriptor or {}).get("descriptor_sha256") or ""
         ),
         "critical_gates": gates,
+        "budget_parity": {"matched": True, "differences": []},
         "promotion_eligible": verdict == "PASS" and all_critical_gates_pass,
         "verdict": verdict,
         "compared_at": time.time(),
@@ -733,6 +791,7 @@ def _validate_evaluation(
         "identity_note",
         "candidate_descriptor_sha256",
         "critical_gates",
+        "budget_parity",
         "promotion_eligible",
         "verdict",
         "compared_at",
