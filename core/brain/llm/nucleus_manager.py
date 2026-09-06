@@ -884,20 +884,6 @@ class NucleusManager(LLMProvider):
             "substituted": bool(self._last_lane_substituted),
         }
 
-    def last_lane_receipt(self) -> dict[str, Any]:
-        """Which model answered the last request, and whether that was the one
-        lane selection chose.
-
-        Callers received a plain string either way, so a user request answered
-        by Brainstem and constitutive work answered by Cortex were
-        indistinguishable from correctly routed ones. This is the seam a caller
-        can read to tell.
-        """
-        return {
-            "served_by": self._last_served_lane,
-            "substituted": bool(self._last_lane_substituted),
-        }
-
     def _format_prompt(self, prompt: str, system_prompt: str | None = None, prefill: str | None = None) -> str:
         """Formats the prompt using ChatML for Qwen-Instruct models.
 
