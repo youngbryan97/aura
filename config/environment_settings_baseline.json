@@ -1,0 +1,6 @@
+{
+  "note": "Environment variables read directly rather than through the typed settings model. defaults_disagree only goes down: two places disagreeing about what a setting absence means is the one shape here that is unambiguously a defect, because the behaviour then depends on which module asked first.",
+  "settings": 403,
+  "reads": 518,
+  "defaults_disagree": 6
+}
