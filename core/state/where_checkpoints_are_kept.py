@@ -208,6 +208,15 @@ class AnAsyncStore:
     async def put_async(self, checkpoint: AKeptCheckpoint) -> None:
         import asyncio
 
+        # The writes this checkpoint describes must be on disk before it is.
+        # Otherwise a reader restores a state whose values were never written
+        # and every check passes: the digest matches what the checkpoint
+        # recorded, and what it recorded was a future that did not happen.
+        from core.state.nothing_lands_before_its_writes import (
+            wait_for_the_writes_async,
+        )
+
+        await wait_for_the_writes_async(checkpoint.name)
         await asyncio.to_thread(self.put, checkpoint)
 
     async def get_async(self, name: str) -> AKeptCheckpoint | None:

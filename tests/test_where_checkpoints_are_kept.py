@@ -407,3 +407,41 @@ def test_both_providers_keep_the_lineage_promise(tmp_path):
         broken = {k: v for k, v in kept.items() if v != "kept"}
         assert broken == {}, f"{label}: {broken}"
         assert "a parent and a branch survive the round trip" in kept
+
+
+def test_an_async_put_waits_for_the_writes_that_produced_it(tmp_path):
+    """A checkpoint on disk before its own writes restores a state that never was."""
+    import asyncio
+    import threading
+    import time
+
+    from core.state.nothing_lands_before_its_writes import (
+        a_write_in_flight,
+        forget_everything,
+    )
+    from core.state.where_checkpoints_are_kept import AKeptCheckpoint, ATrigger, InJson
+
+    forget_everything()
+    try:
+        store = InJson(tmp_path / "c.json")
+        landed: list[str] = []
+
+        def slow_write():
+            with a_write_in_flight("turn-4", "state.json"):
+                time.sleep(0.15)
+                landed.append("state.json")
+
+        async def go():
+            worker = threading.Thread(target=slow_write)
+            worker.start()
+            await asyncio.sleep(0.02)
+            await store.put_async(
+                AKeptCheckpoint.of("turn-4", {"n": 1}, trigger=ATrigger.TURN_ENDED)
+            )
+            worker.join()
+            return landed
+
+        assert asyncio.run(go()) == ["state.json"]
+        assert store.get("turn-4") is not None
+    finally:
+        forget_everything()
