@@ -227,7 +227,9 @@ async def main():
 '''
     assert what_is_wrong_with(source) == ()
     namespace = {"completed": asyncio.Event()}
-    exec(source, namespace)
+    # noqa: S102 — the checker's verdict is only worth anything if the
+    # source it approved actually runs, so running it IS the assertion.
+    exec(source, namespace)  # noqa: S102
     asyncio.run(namespace["main"]())
     assert namespace["completed"].is_set()
 

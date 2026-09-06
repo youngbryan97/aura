@@ -323,7 +323,12 @@ def references_that_lead_nowhere(
                             "link": link.kind,
                             "end": which,
                             "id": end,
-                            "why": "a placeholder" if held is not None else "nothing",
+                            # The node's own kind, rather than a word for it.
+                            # Every id here is absent from `real`, so a node
+                            # that exists at all is one of the unknown kind —
+                            # naming the constant says which and says it in
+                            # the vocabulary the graph already uses.
+                            "why": A_PLACEHOLDER if held is not None else "nothing",
                         }
                     )
     return nowhere

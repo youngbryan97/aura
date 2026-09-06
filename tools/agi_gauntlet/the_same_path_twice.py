@@ -121,12 +121,17 @@ def the_same_path_twice(
     # second solve of the same thing is not. Measuring a first solve against a
     # repeat compares a learner with itself at two different moments, which is
     # a real difference and not the one this probe is asking about.
+    warmed_but_broken: dict[str, str] = {}
     for _ in range(2):
-        for work in families.values():
+        for family, work in families.items():
             try:
                 work()
-            except Exception:  # noqa: BLE001 — a warm-up's answer is not the result
-                pass
+            except Exception as exc:  # noqa: BLE001 — a warm-up's answer is not the result
+                # A family that raises during warm-up will raise during the
+                # measurement too, and a run that silently warmed nothing looks
+                # like one that warmed everything. Named here so the two are
+                # distinguishable in the result.
+                warmed_but_broken[family] = f"{type(exc).__name__}: {exc}"
 
     ran: dict[str, set[str]] = {}
     answered: dict[str, Any] = {}
@@ -158,6 +163,10 @@ def the_same_path_twice(
     }
     return {
         "families": sorted(ran),
+        # Families that raised while warming up. A run that warmed nothing
+        # reports the same shape as one that warmed everything, and only this
+        # says which happened.
+        "would_not_warm_up": warmed_but_broken,
         "answered": {name: str(one)[:120] for name, one in answered.items()},
         "functions_that_ran": {name: len(seen) for name, seen in ran.items()},
         "shared": len(shared),
