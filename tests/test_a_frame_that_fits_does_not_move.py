@@ -17,13 +17,25 @@ from __future__ import annotations
 from core.perception.the_lattice_she_holds import TheLatticeSheHolds
 
 
+def _settle(lattice: TheLatticeSheHolds, places, *, first: int) -> bool:
+    """Offer the same places act after act until the lattice takes them.
+
+    A set still growing is not evidence yet, so the first offer only records
+    it. What says it has stopped is stillness for longer than it has ever gone
+    between taking a place on — a number the lattice keeps rather than one
+    anybody picks. Offering twice at the same act count is not stillness at
+    all; no caller does it, because `acts` is a counter that only goes up.
+    """
+    for act in range(first, first + 40):
+        if lattice.built_from(places, acts=act):
+            return True
+    return False
+
+
 def _four_by_four() -> TheLatticeSheHolds:
     lattice = TheLatticeSheHolds()
-    # Offered until it settles. A set still growing is not evidence yet, so
-    # the first offer only records it and the second builds from it.
     places = [(x, y) for y in (20, 40, 60, 80) for x in (20, 40, 60, 80)]
-    lattice.built_from(places, acts=8)
-    lattice.built_from(places, acts=8)
+    assert _settle(lattice, places, first=8)
     assert lattice.held
     return lattice
 
@@ -41,9 +53,12 @@ def test_a_place_that_already_fits_leaves_the_lines_where_they_are():
 def test_more_of_the_same_board_does_not_move_the_frame():
     """She keeps finding places belonging to a shape she already holds."""
     lattice = TheLatticeSheHolds()
-    lattice.built_from([(20, 20), (40, 20), (20, 40), (40, 40)], acts=2)
+    assert _settle(lattice, [(20, 20), (40, 20), (20, 40), (40, 40)], first=2)
     was = (lattice.down_at, lattice.across_at)
-    lattice.built_from([(20, 20), (40, 20), (20, 40), (40, 40), (21, 19)], acts=3)
+    assert was != ((), ()), "nothing is being compared unless a frame is held"
+    lattice.built_from(
+        [(20, 20), (40, 20), (20, 40), (40, 40), (21, 19)], acts=lattice.from_acts + 1
+    )
     assert (lattice.down_at, lattice.across_at) == was
 
 
@@ -54,9 +69,7 @@ def test_places_that_do_not_fit_are_still_evidence_of_a_new_shape():
     # A window resized, or a different thing on the screen: the places are
     # nowhere near the lines she is holding.
     moved = [(x, y) for y in (5, 15, 25) for x in (5, 15, 25)]
-    lattice.built_from(moved, acts=20)
-    changed = lattice.built_from(moved, acts=20)
-    assert changed
+    assert _settle(lattice, moved, first=20)
     assert (lattice.down_at, lattice.across_at) != was
     assert (lattice.rows, lattice.columns) == (3, 3)
 
@@ -70,13 +83,10 @@ def test_more_lines_than_she_holds_is_a_bigger_view_of_the_same_thing():
     """
     lattice = TheLatticeSheHolds()
     corners = [(20, 20), (80, 20), (20, 80), (80, 80)]
-    lattice.built_from(corners, acts=2)
-    lattice.built_from(corners, acts=2)
+    assert _settle(lattice, corners, first=2)
     assert (lattice.rows, lattice.columns) == (2, 2)
     wider = [(x, y) for y in (20, 40, 60, 80) for x in (20, 40, 60, 80)]
-    lattice.built_from(wider, acts=6)
-    grew = lattice.built_from(wider, acts=6)
-    assert grew
+    assert _settle(lattice, wider, first=6)
     assert (lattice.rows, lattice.columns) == (4, 4)
 
 
@@ -91,7 +101,5 @@ def test_the_places_are_still_written_down_when_the_frame_does_not_move():
 
 def test_a_lattice_with_nothing_held_still_builds():
     lattice = TheLatticeSheHolds()
-    lattice.built_from([(20, 20), (40, 20), (20, 40), (40, 40)], acts=2)
-    lattice.built_from([(20, 20), (40, 20), (20, 40), (40, 40)], acts=2)
-    assert lattice.held
+    assert _settle(lattice, [(20, 20), (40, 20), (20, 40), (40, 40)], first=2)
     assert lattice.held

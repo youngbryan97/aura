@@ -50,12 +50,34 @@ def test_the_action_is_advertised_to_whoever_plans():
 
 
 @pytest.mark.asyncio
-async def test_a_pursuit_with_no_finishing_condition_is_refused():
-    """A run that cannot end is not a run."""
+async def test_a_pursuit_with_no_finishing_condition_runs_to_its_bounds(monkeypatch):
+    """It ends on the cycle count and the clock, which it always had.
+
+    This used to be a refusal, guarding against a loop that could never stop.
+    The loop could always stop — the bounds are arguments to it. What the
+    refusal blocked was every request that names a process without naming an
+    end, which is most of the ways a person asks for one. LIVE 2026-08-27: a
+    correctly parsed goal, with the page to open and the keys to press, turned
+    away in 417ms.
+    """
+    import core.skills.screen_pursuit as sp
+
+    asked: dict[str, object] = {}
+
+    async def ran(**kwargs):
+        asked.update(kwargs)
+        return {"completed": False, "outcome": "out_of_cycles", "moves": []}
+
+    monkeypatch.setattr(sp, "pursue_on_screen", ran)
     skill = ComputerUseSkill()
     result = await skill._pursue_on_screen(json.dumps({"goal": "play the game"}))
-    assert result["ok"] is False
-    assert "could never end" in result["error"]
+    assert asked, "the run was refused before it started"
+    assert asked["goal"] == "play the game"
+    assert asked["success_when"] == "", "no condition was named, and none was invented"
+    assert asked["max_cycles"] > 0 and asked["max_seconds"] > 0, "the bounds it ends on"
+    # It ran and ran out, which is an honest ending rather than a refusal.
+    assert result["outcome"] == "out_of_cycles"
+    assert "could never end" not in str(result.get("error", ""))
 
 
 @pytest.mark.asyncio
@@ -226,10 +248,25 @@ def test_an_ordinary_desktop_request_keeps_its_ordinary_budget():
 
 
 def test_the_pursuit_declares_its_own_limit_so_the_layers_can_read_it():
-    from core.runtime.watched_goal import PURSUIT_SECONDS, read_watched_goal
+    """The limit is the cycles it may take, at the speed a cycle really runs.
+
+    It was a flat number, chosen when a cycle was a keystroke and a glance. A
+    cycle now reads the screen, grades the last prediction and often thinks in
+    words, so the flat budget bought a sixth of the play it was written for.
+    What the layers read is still one number they can plan against; it is just
+    no longer a constant.
+    """
+    from core.runtime.watched_goal import (
+        PURSUIT_CEILING_S,
+        PURSUIT_SECONDS,
+        read_watched_goal,
+        time_for,
+    )
 
     goal = read_watched_goal("play 2048 until you get 128")
-    assert goal.as_target()["max_seconds"] == PURSUIT_SECONDS
+    declared = goal.as_target()["max_seconds"]
+    assert declared == time_for()
+    assert PURSUIT_SECONDS <= declared <= PURSUIT_CEILING_S
 
 
 @pytest.mark.asyncio
