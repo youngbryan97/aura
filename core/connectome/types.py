@@ -43,6 +43,8 @@ __all__ = [
     "H01_REFERENCE",
     "FLY_MALE_CNS_REFERENCE",
     "CORTICAL_EI_RATIO",
+    "CORTICAL_EXCITATORY",
+    "CORTICAL_INHIBITORY",
     "stable_id",
 ]
 
@@ -92,10 +94,13 @@ class Compartment(StrEnum):
     GLIA = "glia"
 
 
-#: Cortical excitatory:inhibitory cell ratio, the standard 80/20 split.
-#: Source: Potjans & Diesmann 2014 population sizes, which sum to 66,070
-#: excitatory and 15,326 inhibitory neurons across the four layers.
-CORTICAL_EI_RATIO: float = 66070.0 / 15326.0
+#: Cortical excitatory:inhibitory cell ratio, the standard 80/20 split stated
+#: exactly. Potjans & Diesmann 2014 model 1 mm^2 of cortex as 77,169 neurons:
+#: 61,843 excitatory and 15,326 inhibitory across the four layers, so the ratio
+#: is 4.035 and inhibitory cells are 19.9% of the population.
+CORTICAL_EXCITATORY: int = 20_683 + 21_915 + 4_850 + 14_395
+CORTICAL_INHIBITORY: int = 5_834 + 5_479 + 1_065 + 2_948
+CORTICAL_EI_RATIO: float = CORTICAL_EXCITATORY / CORTICAL_INHIBITORY
 
 
 @dataclass(frozen=True)
