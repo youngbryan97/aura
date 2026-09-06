@@ -6,9 +6,8 @@ Aura changes its own behaviour constantly — a new verifier, a different
 retrieval weighting, a revised steering dose — and the evidence for
 whether a change helped is, today, a before-and-after comparison across
 different days, different conversations, and a runtime that was not the
-same in any other respect. That is not evidence. It is the oldest mistake
-in performance work, and it is worse here because the outcome measures are
-noisy.
+same in any other respect. It is the oldest mistake in performance work, and
+it is worse here because the outcome measures are noisy.
 
 A field trial makes the comparison honest in the only way that works:
 **run both arms concurrently, in the same runtime, over the same

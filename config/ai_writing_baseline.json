@@ -22,7 +22,6 @@
       "core/brain/llm_health_router.py": 1,
       "core/brain/semantic_memory.py": 1,
       "core/consciousness/affective_steering.py": 5,
-      "core/consciousness/criticality_regulator.py": 1,
       "core/consciousness/crsm_loop_monitor.py": 1,
       "core/consciousness/hot_engine.py": 2,
       "core/consciousness/multiple_drafts.py": 2,
@@ -30,7 +29,6 @@
       "core/consciousness/somatic_marker_gate.py": 1,
       "core/consciousness/temporal_experience.py": 2,
       "core/conversation/capability_condition.py": 1,
-      "core/executive/executive_core.py": 1,
       "core/identity/heartstone.py": 1,
       "core/introspection/code_graph.py": 1,
       "core/knowledge/local_corpus.py": 2,
@@ -38,8 +36,6 @@
       "core/phases/response_generation_unitary.py": 1,
       "core/resilience/stall_watchdog.py": 1,
       "core/runtime/boot_profile.py": 1,
-      "core/runtime/field_trials.py": 1,
-      "core/runtime/hot_swap.py": 1,
       "core/security/user_recognizer.py": 1,
       "core/self_improvement/program_dna.py": 1,
       "core/senses/neural_bridge.py": 1,
@@ -55,7 +51,7 @@
       "tools/proof/run_rsi_challenge_proof.py": 1,
       "tools/run_rlc_reconciliation_sweep.py": 1
     },
-    "total": 76
+    "total": 72
   },
   "front": {
     "per_file": {

@@ -80,6 +80,12 @@ class BenchmarkConfig:
     #: Cells that never fire carry no signal and inflate every average towards
     #: zero, so they are dropped and the count is reported.
     drop_silent_cells: bool = True
+    #: Which signal to forecast. "calcium" is the trace a light sheet would have
+    #: produced and is what makes a number here comparable with ZAPBench's.
+    #: "spikes" is the call counts themselves, which no microscope can see and
+    #: which is the right choice when the question is about Aura rather than
+    #: about the comparison.
+    signal: str = "calcium"
 
 
 def build_adjacency(
@@ -257,7 +263,7 @@ def run_benchmark(
     import numpy as np
 
     config = config or BenchmarkConfig()
-    activity = trace.calcium()
+    activity = trace.matrix() if config.signal == "spikes" else trace.calcium()
     uids = list(trace.uids)
     conditions = list(trace.conditions)
     if activity.size == 0:
@@ -448,6 +454,7 @@ def run_benchmark(
             "held_out_frames": len(held_out_rows),
             "frame_seconds": trace.frame_seconds,
             "horizon": config.horizon,
+            "signal": config.signal,
         },
         arms=arms,
         structure_test=structure,

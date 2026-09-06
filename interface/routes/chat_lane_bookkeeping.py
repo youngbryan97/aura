@@ -1065,7 +1065,7 @@ def _cortex_is_cold_loading(lane: object) -> bool:
     the time needed to become able to answer at all.
 
     LIVE 2026-08-17, measured four times: the first message after launch died
-    at 15-16s every time. The foreground timeout is ~80s and the reserve is
+    at 15s, 15s, 16s and 16s. The foreground timeout is ~80s and the reserve is
     64s, so admission got ~16s — while a 32B cold load needs well over a
     minute. The turn could not have succeeded at any point during boot, and the
     person got "the live answer lane could not finish preparing", which reads

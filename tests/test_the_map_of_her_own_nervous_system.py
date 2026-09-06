@@ -706,3 +706,103 @@ def test_an_unmeasured_pair_has_no_effect_and_says_so():
     field = ReceptorField()
     assert field.gain("nowhere", Modulator.NORADRENALINE, 0.9) == 1.0
     assert "not measured" in field.claim("nowhere", Modulator.NORADRENALINE)
+
+
+# ---------------------------------------------------------------------------
+# The benchmark, validated on data where the answer is known
+# ---------------------------------------------------------------------------
+
+
+def _coupled_system(cells: int, frames: int, *, coupling: float, seed: int):
+    """A connectome and a recording generated through it.
+
+    With ``coupling`` above zero a cell's next value depends on the cells wired
+    into it, so structure genuinely predicts activity. At zero every cell is its
+    own independent process and the wiring predicts nothing, which is the case
+    the benchmark has to be unable to find an effect in.
+    """
+    import numpy as np
+
+    from core.connectome.activity import ActivityTrace
+
+    rng = np.random.default_rng(seed)
+    edges: list[tuple[str, str, int]] = []
+    inputs: dict[int, list[int]] = {i: [] for i in range(cells)}
+    for target in range(cells):
+        for source in rng.choice(cells, size=3, replace=False):
+            if int(source) == target:
+                continue
+            edges.append((f"c{int(source)}", f"c{target}", 1))
+            inputs[target].append(int(source))
+    snapshot = _graph_snapshot(edges)
+
+    values = np.zeros((frames, cells), dtype=np.float64)
+    values[0] = rng.normal(4.0, 1.0, size=cells)
+    for t in range(1, frames):
+        neighbour = np.array(
+            [
+                values[t - 1][inputs[i]].mean() if inputs[i] else 0.0
+                for i in range(cells)
+            ]
+        )
+        values[t] = (
+            0.35 * values[t - 1]
+            + coupling * neighbour
+            + (1.0 - 0.35 - coupling) * 4.0
+            + rng.normal(0.0, 0.25, size=cells)
+        )
+    trace = ActivityTrace(
+        uids=tuple(f"c{i}" for i in range(cells)),
+        conditions=tuple("stim%d" % (t // 40 % 3) for t in range(frames)),
+        spikes=[list(row) for row in values],
+    )
+    return snapshot, trace
+
+
+def test_the_benchmark_finds_structure_when_the_activity_flows_through_it():
+    from core.connectome.zapbench import BenchmarkConfig, run_benchmark
+
+    snapshot, trace = _coupled_system(60, 400, coupling=0.55, seed=3)
+    report = run_benchmark(
+        trace,
+        snapshot,
+        BenchmarkConfig(contexts=(4,), horizon=8, bootstrap=200, signal="spikes"),
+    )
+    by_arm = {arm.arm: arm.mae for arm in report.arms if arm.context == 4}
+    assert by_arm["connectome"] < by_arm["rewired"]
+    assert by_arm["connectome"] < by_arm["blind"]
+    test = report.structure_test["context_4"]["connectome_vs_rewired"]
+    assert test["significant"] is True
+    assert test["difference"] < 0
+    assert "wiring predicts activity" in report.structure_test["context_4"]["verdict"]
+
+
+def test_the_benchmark_does_not_find_structure_that_is_not_there():
+    from core.connectome.zapbench import BenchmarkConfig, run_benchmark
+
+    snapshot, trace = _coupled_system(60, 400, coupling=0.0, seed=4)
+    report = run_benchmark(
+        trace,
+        snapshot,
+        BenchmarkConfig(contexts=(4,), horizon=8, bootstrap=200, signal="spikes"),
+    )
+    verdict = report.structure_test["context_4"]["verdict"]
+    assert "no detectable effect" in verdict or "rewiring beats" in verdict
+    by_arm = {arm.arm: arm.mae for arm in report.arms if arm.context == 4}
+    assert abs(by_arm["connectome"] - by_arm["rewired"]) < 0.05 * by_arm["blind"]
+
+
+def test_the_naive_baselines_are_reported_and_beatable():
+    from core.connectome.zapbench import BenchmarkConfig, run_benchmark
+
+    snapshot, trace = _coupled_system(40, 300, coupling=0.5, seed=5)
+    report = run_benchmark(
+        trace,
+        snapshot,
+        BenchmarkConfig(contexts=(4,), horizon=8, bootstrap=100, signal="spikes"),
+    )
+    arms = {arm.arm: arm.mae for arm in report.arms}
+    for baseline in ("mean", "condition_mean", "persistence"):
+        assert baseline in arms
+    assert arms["connectome"] < arms["mean"]
+    assert report.dataset["cells"] == 40

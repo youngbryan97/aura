@@ -32,9 +32,9 @@ from __future__ import annotations
 import logging
 import math
 import sys
-import types
 import threading
 import time
+import types
 from collections import defaultdict, deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field

@@ -1,7 +1,7 @@
 """Bounded in-process hot-swap registry.
 
-This is not arbitrary core self-replacement. It is a small, auditable primitive
-for swapping approved service objects while preserving exported state. The
+A small, auditable primitive for swapping approved service objects while
+preserving exported state, and nothing wider than that. The
 caller supplies validation and migration hooks; failures leave the active object
 unchanged.
 """

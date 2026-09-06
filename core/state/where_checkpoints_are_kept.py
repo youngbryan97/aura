@@ -498,7 +498,7 @@ def prune(store: Any, *, keep: int = 50, branch: str = "") -> list[str]:
 
     Per branch rather than overall: pruning globally deletes a whole short
     branch to make room on a long one, which is exactly the branch somebody
-    kept in order to compare against.
+    kept to compare against.
 
     Never prunes a checkpoint another one still names as its parent — a chain
     with a hole in it restores to a state whose history stops mid-sentence.
