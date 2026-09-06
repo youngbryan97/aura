@@ -66,7 +66,7 @@ def test_a_missing_descriptor_does_not_invent_a_cortex_size(monkeypatch):
 
 def test_chat_no_longer_matches_a_parameter_count_to_pick_a_label():
     production_surfaces = (
-        HERE / "interface/routes/chat.py",
+        *sorted((HERE / "interface" / "routes").glob("chat*.py")),
         HERE / "interface/routes/chat_preflight.py",
         HERE / "interface/routes/system.py",
         HERE / "core/brain/inference_gate.py",
@@ -81,7 +81,9 @@ def test_chat_no_longer_matches_a_parameter_count_to_pick_a_label():
         }
         for literal in ('"Cortex (32B)"', '"Solver (72B)"', '"Brainstem (7B)"'):
             assert literal[1:-1] not in literals, path
-    assert "lane_display_label" in (HERE / "interface/routes/chat.py").read_text()
+    from chat_lane_support import chat_lane_source
+
+    assert "lane_display_label" in chat_lane_source()
 
 
 def test_the_inference_gate_log_line_carries_the_signed_label():

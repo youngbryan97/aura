@@ -37,6 +37,30 @@ THE_PROMISES: tuple[APromise, ...] = (
         "lenient mode the clash is recorded and settled by sorted phase name",
     ),
     APromise(
+        it="Every state holder is classified as authority, projection or "
+        "scratch, so nothing is authoritative by default.",
+        checked_by="tests/test_what_kind_of_state_is_this.py::"
+        "test_nothing_is_unclassified",
+        if_it_fails="what_is_not_classified() names the holder; two places "
+        "would each be able to claim they hold the real value",
+    ),
+    APromise(
+        it="A projection names the authority it is derived from, so a stale "
+        "one can be traced to what should have refreshed it.",
+        checked_by="tests/test_what_kind_of_state_is_this.py::"
+        "test_every_projection_names_the_authority_it_comes_from",
+        if_it_fails="the projection is unattributed and a disagreement between "
+        "it and its source has no arbiter",
+    ),
+    APromise(
+        it="A field that was owned by something does not silently become "
+        "unowned, so ownership is only ever taken up.",
+        checked_by="tests/test_who_owns_each_field.py::"
+        "test_no_field_becomes_unowned_that_was_owned",
+        if_it_fails="the ownership baseline names the field; two writers can "
+        "then disagree with nothing saying which is right",
+    ),
+    APromise(
         it="A checkpoint restored from a store is refused when its content no "
         "longer matches the digest recorded when it was written.",
         checked_by="tests/test_where_checkpoints_are_kept.py::"

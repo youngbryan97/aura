@@ -25,13 +25,17 @@ LANE_MODULES = (
     "interface.routes.chat_conversation_repair",
     "interface.routes.chat_delivery",
     "interface.routes.chat_desktop_objective",
+    "interface.routes.chat_desktop_evidence",
     "interface.routes.chat_desktop_objective_gates",
     "interface.routes.chat_desktop_repair",
+    "interface.routes.chat_lane_bookkeeping",
     "interface.routes.chat_memory_state",
     "interface.routes.chat_preflight",
     "interface.routes.chat_protected_prompt",
     "interface.routes.chat_quality",
+    "interface.routes.chat_reply_shaping",
     "interface.routes.chat_runtime_proof",
+    "interface.routes.chat_served_answers",
     "interface.routes.chat_self_reply",
     "interface.routes.chat_turn_contract",
     "interface.routes.chat_turn_evidence",
@@ -153,3 +157,36 @@ def lane_function_source(name: str) -> str:
             start = min([node.lineno] + [d.lineno for d in node.decorator_list])
             return "".join(lines[start - 1 : node.end_lineno])
     raise AttributeError(f"no chat lane module defines {name!r}")
+
+
+def the_source_of(name: str) -> str:
+    """The source of one chat-lane function, wherever it now lives.
+
+    Slicing the concatenated lane source from one `def` to the next was how
+    these assertions used to bound a function. That works while two functions
+    sit next to each other in one file and stops working the moment either
+    moves, because the next `def` is then in a different module and the slice
+    silently covers something else. Returns empty where nothing defines it,
+    so a caller can say "gone" rather than assert against a wrong window.
+    """
+    import ast
+    import pathlib
+
+    routes = pathlib.Path(__file__).resolve().parent.parent / "interface" / "routes"
+    for module_name in LANE_MODULES:
+        path = routes / (module_name.rsplit(".", 1)[1] + ".py")
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name == name
+            ):
+                lines = text.splitlines(keepends=True)
+                return "".join(lines[node.lineno - 1 : node.end_lineno])
+    return ""

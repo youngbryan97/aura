@@ -55,7 +55,9 @@ def test_nothing_at_all_is_still_nothing() -> None:
 def test_the_salvage_site_uses_the_salvage_test() -> None:
     from pathlib import Path
 
-    body = Path("interface/routes/chat.py").read_text()
+    from chat_lane_support import chat_lane_source
+
+    body = chat_lane_source()
     start = body.index("Preserved no-reply draft remained ineligible for delivery")
     window = body[start - 500 : start + 900]
     assert "_authored_answer_can_serve_unfinished(salvage_contract)" in window
@@ -79,10 +81,10 @@ def test_authorship_and_approval_are_different_facts() -> None:
     assert "engine_think_invoked" in window
     assert "engine_reply_accepted" not in window
 
-    body = Path("interface/routes/chat.py").read_text()
-    start = body.index("def _authored_answer_can_serve_unfinished(")
-    # Bounded at the next function, which legitimately asks for the full proof.
-    salvage = body[start : body.index("def _authored_answer_can_serve(", start)]
+    from chat_lane_support import the_source_of
+
+    salvage = the_source_of("_authored_answer_can_serve_unfinished")
+    assert salvage, "the salvage site is gone"
     assert 'contract.get("engine_authored_the_text")' in salvage
     assert 'contract.get("authentic_cognitive_reply")' not in salvage
 
@@ -92,11 +94,18 @@ def test_the_full_delivery_test_is_untouched() -> None:
 
     from pathlib import Path
 
-    body = Path("interface/routes/chat.py").read_text()
-    start = body.index("def _authored_answer_can_serve(contract: Any) -> bool:")
-    full = body[start : start + 600]
-    assert 'contract.get("answer_delivery_proven")' in full
-    assert 'contract.get("authentic_cognitive_reply")' in full
+    import re
+
+    from chat_lane_support import the_source_of
+
+    full = the_source_of("_authored_answer_can_serve")
+    assert full, "the full delivery test is gone"
+    # Whitespace-insensitive: a formatter had split one of these calls across
+    # three lines, and the assertion was about the proof it reads rather than
+    # about how many lines it takes to read it.
+    one_line = re.sub(r"\s+", "", full)
+    assert 'contract.get("answer_delivery_proven")' in one_line
+    assert 'contract.get("authentic_cognitive_reply")' in one_line
 
 
 def test_a_retry_is_not_two_owners_at_the_salvage_site() -> None:

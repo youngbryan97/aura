@@ -18,13 +18,17 @@ wrong rather than a matter of style, so it is safe on every path.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.unit
 
-_CHAT = Path(__file__).resolve().parents[1] / "interface" / "routes" / "chat.py"
+# The chat lane is several files now. Reading one of them makes an assertion
+# about a call site depend on which module it happens to live in today.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from chat_lane_support import chat_lane_source  # noqa: E402
 
 
 #: Helpers the finalizer delegates to. Their bodies are part of the gate.
@@ -41,7 +45,7 @@ def _function_source(name: str) -> str:
     """One function's body, resolved by parsing rather than by slicing text."""
     import ast
 
-    src = _CHAT.read_text(encoding="utf-8")
+    src = chat_lane_source()
     tree = ast.parse(src)
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
@@ -93,7 +97,7 @@ class TestTheGateIsAtTheChokepoint:
         )
 
     def test_it_is_the_shared_finalizer_not_one_call_site(self):
-        src = _CHAT.read_text(encoding="utf-8")
+        src = chat_lane_source()
         assert src.count("_finalize_fastpath(") > 10, (
             "the value of this location is that every serving path reaches it"
         )

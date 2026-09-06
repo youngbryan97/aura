@@ -78,11 +78,15 @@ def test_a_pair_must_be_joined_by_something_meaning_becomes() -> None:
 def test_the_live_route_consults_it() -> None:
     from pathlib import Path
 
-    body = Path("interface/routes/chat.py").read_text()
-    assert "_serve_worked_out_sequence(user_message, corrected)" in body
-    start = body.index("def _serve_worked_out_sequence(")
-    window = body[start : start + 1800]
-    assert "answer_sequence_question" in window
+    from chat_lane_support import chat_lane_source, the_source_of
+
+    body = chat_lane_source()
+    # The call, whatever the callers named their variable. Asserting the exact
+    # argument spelling made this a test about a local name.
+    assert "_serve_worked_out_sequence(user_message," in body
+    served = the_source_of("_serve_worked_out_sequence")
+    assert served, "the route is gone"
+    assert "answer_sequence_question" in served
 
 
 def test_one_turn_makes_the_next_one_possible(tmp_path, monkeypatch) -> None:

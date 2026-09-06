@@ -91,7 +91,9 @@ def test_the_desktop_lane_does_not_search_for_an_address() -> None:
     address, so no search result can be better evidence than the document."""
     from pathlib import Path
 
-    source = Path("interface/routes/chat.py").read_text(encoding="utf-8")
+    from chat_lane_support import chat_lane_source
+
+    source = chat_lane_source()
     gate = source[source.index("def _chat_requires_search") :] if "def _chat_requires_search" in source else source
     gate = source[source.index("# A file on this disk is not a live-search question.") :]
     gate = gate[: gate.index("contract = _resolve_chat_response_contract(user_message)")]
