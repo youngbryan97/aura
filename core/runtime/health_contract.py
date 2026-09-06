@@ -1504,6 +1504,18 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["which_thread_may_do_this"] = {"error": repr(exc)}
 
+    # Every state holder, and whether it decides a fact, shows one, or is
+    # scratch. Counts here; the table itself is in the module.
+    try:
+        from core.state.what_kind_of_state_is_this import how_the_state_is_organised
+
+        organised = how_the_state_is_organised()
+        block["what_kind_of_state_is_this"] = {
+            key: value for key, value in organised.items() if key != "by_kind"
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_kind_of_state_is_this"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering
