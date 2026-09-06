@@ -127,3 +127,32 @@ async def test_live_phantom_browser_dynamic_navigation(local_web_server):
     assert res["verification"]["AURA-LIVE-AGI-9921"] is True
     assert res["verification"]["Authentication credentials"] is True
     assert "Aura Documentation" in res["content_snippet"]
+
+
+@pytest.mark.asyncio
+async def test_a_refused_read_is_not_reported_as_a_page_without_the_words(
+    local_web_server,
+):
+    """The failure this task actually had, kept from coming back.
+
+    Every browser call in the task named a principal except the read, and an
+    unnamed principal is refused. A refused read comes back as an empty
+    string — the same value a blank page gives — so the task reported that
+    its keywords were missing from a page it had never been allowed to read.
+    """
+    from core.capabilities.phantom_browser import PhantomBrowser
+
+    browser = PhantomBrowser(visible=False)
+    try:
+        await browser.browse(local_web_server, principal="test_reader")
+        anonymous = await browser.read_content()
+        assert anonymous == "", "an unnamed read is refused"
+        verdict = browser.last_verdict
+        assert verdict.get("allowed") is False
+        assert "principal" in str(verdict.get("reason", ""))
+        # And the same read, named, is not empty — so the empty one above was
+        # the refusal and not the page.
+        named = await browser.read_content(principal="test_reader")
+        assert named.strip(), "the page has content when the read is allowed"
+    finally:
+        await browser.close()
