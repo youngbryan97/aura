@@ -4,8 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.utils.privacy_hygiene import MetadataScrubber, get_stealth_mode
 
 

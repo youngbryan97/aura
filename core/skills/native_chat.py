@@ -6,10 +6,10 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.brain.cognitive_engine import CognitiveEngine, ThinkingMode
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 logger = logging.getLogger("Skills.NativeChat")
 

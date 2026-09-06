@@ -19,8 +19,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 _QUANTUM_LAB_ERRORS = (ImportError, AttributeError, RuntimeError, TypeError, ValueError)
 

@@ -7,13 +7,13 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
 from core.search import ResearchSearchPipeline
 from core.search.research_pipeline import freshness_window_for_query, query_requires_source_reading
 from core.skills.base_skill import BaseSkill
 from core.skills.deep_research import run_deep_research
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 logger = logging.getLogger("Skills.WebSearch")
 

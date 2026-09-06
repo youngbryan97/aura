@@ -15,11 +15,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.config import config
 from core.runtime.atomic_writer import interprocess_file_lock
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 _CATALOG_SCHEMA_VERSION = 1
 _MAX_CATALOG_BYTES = 8 * 1024 * 1024

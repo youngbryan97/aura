@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
 from core.skills.web_search import EnhancedWebSearchSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 
 class _LocalOnlyRouter:

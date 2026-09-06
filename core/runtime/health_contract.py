@@ -1428,9 +1428,8 @@ def _runtime_integrity_block() -> dict[str, Any]:
         from core.knowledge.one_graph import (
             every_graph,
             references_that_lead_nowhere,
+            which_stores_have_not_registered,
         )
-
-        from core.knowledge.one_graph import which_stores_have_not_registered
 
         graphs = every_graph(live=True)
         # Bounded: the integrity walk is O(nodes x links), and a health route

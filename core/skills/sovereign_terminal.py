@@ -9,7 +9,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.config import config
 from core.runtime.errors import record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
@@ -20,6 +19,7 @@ from core.security.execution_authority import (
     release_execution,
 )
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.utils.task_tracker import task_tracker
 
 logger = logging.getLogger("Skills.SovereignTerminal")

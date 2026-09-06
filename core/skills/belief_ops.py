@@ -17,9 +17,9 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill, SkillResult
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 logger = logging.getLogger("Skills.BeliefOps")
 

@@ -5,12 +5,12 @@ import time
 from pathlib import Path
 from typing import Any
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.network_gateway import get_network_gateway
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 # Configure logger
 logger = logging.getLogger("Skills.InterAgent")

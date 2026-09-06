@@ -30,7 +30,6 @@ pytestmark = pytest.mark.unit
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from chat_lane_support import chat_lane_source  # noqa: E402
 
-
 #: Helpers the finalizer delegates to. Their bodies are part of the gate.
 #:
 #: tools/extract_seam.py moves blocks out of long functions into module-level
@@ -50,7 +49,7 @@ def _function_source(name: str) -> str:
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
             return ast.get_source_segment(src, node) or ""
-    raise AssertionError(f"{name} is gone from {_CHAT.name}")
+    raise AssertionError(f"{name} is gone from the chat lane")
 
 
 def _finalizer_source() -> str:

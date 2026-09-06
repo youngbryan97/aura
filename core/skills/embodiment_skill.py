@@ -7,7 +7,6 @@ import uuid
 from collections.abc import Mapping
 from typing import Any
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.container import ServiceContainer
 from core.embodiment.world_bridge import Channel, get_world_bridge
 from core.governance.capability_chain import CapabilityViolation, get_capability_issuer
@@ -27,6 +26,7 @@ from core.reality_reach.metrology import (
 from core.runtime.audit_chain import canonical_json
 from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 _HOME_ASSISTANT_CONTROL_DOMAINS = frozenset(
     {"climate", "fan", "input_boolean", "light", "switch"}

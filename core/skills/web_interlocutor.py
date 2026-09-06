@@ -12,13 +12,13 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.capabilities.web_interlocutor import (
     WebInterlocutorSession,
     get_web_interlocutor_job_manager,
 )
 from core.container import ServiceContainer
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 logger = logging.getLogger("Aura.Skill.WebInterlocutor")
 
