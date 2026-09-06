@@ -96,8 +96,8 @@ name each cluster more than once:
 | OpenHands #20 | P1 | Security analyzer defaults on | For each action class, publish the mandatory gate chain and boot-fail if a required gate is absent; no optional wiring for required safeguards. | TODO |
 | OpenHands #21 | P1 | Tool execution is a first-class observability span | Use one TraceContext from turn -> deliberation -> action -> tool -> result -> learning; require trace_id/span_id on all receipts/events. | TODO |
 | OpenHands #22 | P1 | FileStore abstraction below event log | Define EventStoreBackend and StateStoreBackend protocols with conformance suites; local SQLite is one implementation. | TODO |
-| OpenHands #23 | P1 | Legacy parentless events get defined fallback semantics | Version all event envelopes and provide deterministic upcasters; replay old fixtures in CI through current projections. | TODO |
-| OpenHands #24 | P1 | Event index gaps are diagnosed | Add sequence continuity/hash-chain verification to durable spine and fail replay past unexplained gaps. | TODO |
+| OpenHands #23 | P1 | Legacy parentless events get defined fallback semantics | Version all event envelopes and provide deterministic upcasters; replay old fixtures in CI through current projections. | DONE |
+| OpenHands #24 | P1 | Event index gaps are diagnosed | Add sequence continuity/hash-chain verification to durable spine and fail replay past unexplained gaps. | DONE |
 | OpenHands #25 | P1 | Pending concurrent executions are explicitly drainable/cancellable | Every spawned task must register in TaskRegistry with owner, cancel policy and drain deadline; shutdown asserts registry reaches zero or records orpha | TODO |
 | OpenHands #26 | P1 | Event tree supports branch/rerun semantics natively | Represent workflow/turn forks as branches in the durable spine so replay, UI and learning share ancestry semantics. | TODO |
 | OpenHands #27 | P1 | Event log can install a write guard | Make durable spine append require an AuthorityContext for protected event classes; guard is centralized and testable. | TODO |
@@ -109,11 +109,11 @@ name each cluster more than once:
 | LangGraph #5 | P1 | Immutable runtime context separate from mutable state | ExecutionContext must contain immutable run resources/authority/budgets; AuraState contains cognitive mutable state; CI rejects persisting process han | TODO |
 | LangGraph #6 | P0 | Graph validated before execution | Compile the cognitive phase DAG at boot and emit a sealed plan hash; unresolved dependency/ownership/duplicate phase must prevent ready state. | DONE |
 | LangGraph #7 | P1 | Uniform retry/cache/error/timeout policy | Define ExecutionPolicy for every phase/service call: timeout, retry, fallback, cache, idempotency, cancellation, criticality. Central executor applies | TODO |
-| LangGraph #8 | P1 | Versioned checkpoint includes channel versions/versions_seen | Whole-state snapshot manifest must include per-owner revision vectors and consumed revisions, enabling causality-aware restore. | TODO |
+| LangGraph #8 | P1 | Versioned checkpoint includes channel versions/versions_seen | Whole-state snapshot manifest must include per-owner revision vectors and consumed revisions, enabling causality-aware restore. | DONE |
 | LangGraph #9 | P0 | One BaseCheckpointSaver backend interface | Create StoreBackend protocols for event/state/workflow/memory and a shared capability model; do not force identical data models, but standardize lifec | DONE |
 | LangGraph #10 | P0 | Backend-independent checkpoint conformance suite | Build conformance packages for StateStore, EventStore, MemoryStore and ModelRuntime; every implementation must pass unchanged suites. | DONE |
-| LangGraph #11 | P1 | Pending writes distinct from committed checkpoint | Create PendingEffect records with idempotency key, owner revision and terminal state; restart reconciles them before admitting new work. | TODO |
-| LangGraph #12 | P1 | First-class checkpoint selection/replay | Expose one TimeTravel API over durable spine + state projection + workflow revisions: inspect, fork, replay, compare. | TODO |
+| LangGraph #11 | P1 | Pending writes distinct from committed checkpoint | Create PendingEffect records with idempotency key, owner revision and terminal state; restart reconciles them before admitting new work. | DONE |
+| LangGraph #12 | P1 | First-class checkpoint selection/replay | Expose one TimeTravel API over durable spine + state projection + workflow revisions: inspect, fork, replay, compare. | DONE |
 | LangGraph #13 | P1 | First-class interrupt/resume protocol | Define SuspendedWork envelope with continuation token, required input schema, state revision and expiration; every pause/approval uses it. | TODO |
 | LangGraph #14 | P1 | Delta-channel snapshot/prune rules | Every compactable store must expose materialize_before_prune() and prove state equivalence before/after compaction under randomized histories. | TODO |
 | LangGraph #15 | P1 | Copy thread preserves semantic state | Make branch/fork a core spine operation producing new lineage ID with inherited state revision vector; workflows/conversations use it. | TODO |
@@ -135,15 +135,15 @@ name each cluster more than once:
 | AutoGen #1 | P0 | One runtime_checkable AgentRuntime protocol | Define AuraRuntime Protocol exposing only stable lifecycle/message/state/capability/subscription operations; kernel/orchestrator implement it. | DONE |
 | AutoGen #2 | P1 | AgentId separates logical identity from object instance | Represent cognitive workers/subagents/services by stable RuntimeAddress; direct object access is private implementation detail. | TODO |
 | AutoGen #3 | P1 | Same runtime API supports remote agents | Add optional remote RuntimeAddress transport behind AuraRuntime while preserving local default; serialize typed messages and authority context. | TODO |
-| AutoGen #4 | P1 | Direct and publish message semantics are distinct | Define CommandMessage (one recipient, reply) vs EventMessage (pub/sub, no reply); prohibit using broadcast bus for commands. | TODO |
+| AutoGen #4 | P1 | Direct and publish message semantics are distinct | Define CommandMessage (one recipient, reply) vs EventMessage (pub/sub, no reply); prohibit using broadcast bus for commands. | DONE |
 | AutoGen #5 | P0 | Cancellation token is part of message API | ExecutionContext carries CancellationToken required by all async runtime calls; adapter bridges asyncio task cancellation into it. | DONE |
-| AutoGen #6 | P1 | Message identity is part of runtime API | Use one MessageId type across commands/events/tool/model calls with parent/causal IDs in TraceContext. | TODO |
+| AutoGen #6 | P1 | Message identity is part of runtime API | Use one MessageId type across commands/events/tool/model calls with parent/causal IDs in TraceContext. | DONE |
 | AutoGen #7 | P1 | Agent factory has expected_class validation | ServiceRegistry.register requires Protocol/schema descriptor and factory shadow-instantiation; boot rejects type/contract mismatch. | TODO |
 | AutoGen #8 | P1 | Agent type/instance uniqueness defined | Central NamespaceRegistry defines uniqueness domains for services, agents, events, telemetry and capabilities; all registries delegate to it. | TODO |
 | AutoGen #9 | P1 | save_state/load_state on runtime protocol | Implement WholeAuraSnapshot through AuraRuntime and require restore equivalence checks over authoritative state and active artifact digests. | TODO |
 | AutoGen #10 | P1 | agent_save_state/agent_load_state | Every autonomous child/subagent gets a StateCapsule protocol or explicitly declares stateless; parent snapshot enumerates them. | TODO |
-| AutoGen #11 | P1 | add/remove_subscription protocol | Create SubscriptionSpec {id,event_type,filter,consumer,delivery,backpressure}; EventBus uses it and registry can audit dangling subscriptions. | TODO |
-| AutoGen #12 | P1 | MessageSerializer registry | Create MessageCodecRegistry with schema ID/version/content type/upcaster; Redis/websocket/durable spine use the same codecs. | TODO |
+| AutoGen #11 | P1 | add/remove_subscription protocol | Create SubscriptionSpec {id,event_type,filter,consumer,delivery,backpressure}; EventBus uses it and registry can audit dangling subscriptions. | DONE |
+| AutoGen #12 | P1 | MessageSerializer registry | Create MessageCodecRegistry with schema ID/version/content type/upcaster; Redis/websocket/durable spine use the same codecs. | DONE |
 | AutoGen #13 | P1 | Direct underlying-agent access is explicitly discouraged | Restrict direct service instance resolution to composition root/adapters; cross-organ interaction goes through Protocol methods/runtime messages. | TODO |
 | AutoGen #14 | P0 | Handlers receive typed MessageContext | All event/command handlers receive immutable HandlerContext with sender, authority, trace, cancellation, state revision, timestamp. | DONE |
 | AutoGen #15 | P1 | Intervention/middleware handler protocol | Define RuntimeMiddleware protocol with pre/post command/event/model/tool stages, ordering and failure semantics; governance can implement it. | TODO |
