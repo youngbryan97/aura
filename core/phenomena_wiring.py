@@ -62,6 +62,18 @@ INVARIANT_MODULES: tuple[str, ...] = (
 
 _RECOVERABLE = (ImportError, AttributeError, TypeError, ValueError, KeyError, RuntimeError, OSError)
 
+#: Why every read below may fail silently, said once rather than fifteen times.
+#:
+#: This sweep asks every organ for its current reading. An organ that has not
+#: started, or has been shed under memory pressure, has no reading to give —
+#: and a turn is not worse for a missing channel than it would be for a wrong
+#: one. So the absence is the answer: `put` declines a None, the channel is
+#: simply not written this tick, and anything reading the telemetry sees a gap
+#: rather than a zero. A persistent absence is a finding for the organ's own
+#: health check, which knows whether it should be running; this sweep cannot
+#: tell "not started" from "not started yet".
+_WHY_A_MISSING_READING_IS_FINE = __doc__
+
 
 def _absent_service_errors() -> tuple[type[BaseException], ...]:
     """What the container raises for a name nobody registered.
@@ -182,7 +194,7 @@ def sample() -> dict[str, float]:
                 put(ch.CHANNEL_UNSUPPORTED,
                     sum(len(identity.get(n).unsupported_declarations()) for n in names))
         except _RECOVERABLE:
-            pass
+            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
 
     expression = _service("expressive_dynamics")
     if expression is not None:
@@ -200,7 +212,7 @@ def sample() -> dict[str, float]:
             put(ch.CHANNEL_CARE_OWN_UNMET, strain.get("own_unmet"))
             put(ch.CHANNEL_CARE_DEPLETED, 1.0 if strain.get("depleted") else 0.0)
         except _RECOVERABLE:
-            pass
+            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
 
     receptivity = _service("receptivity")
     if receptivity is not None:
@@ -209,7 +221,7 @@ def sample() -> dict[str, float]:
             put(ch.CHANNEL_ACCEPTANCE, isolation.get("acceptance_rate"))
             put(ch.CHANNEL_REGARD, isolation.get("mean_regard"))
         except _RECOVERABLE:
-            pass
+            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
 
     arbiter = _service("dual_process_arbiter")
     if arbiter is not None:
@@ -222,7 +234,7 @@ def sample() -> dict[str, float]:
                 led = sum(1 for row in domains.values() if row.get("leads") == "affective")
                 put(ch.CHANNEL_AFFECT_LED, led / len(domains))
         except _RECOVERABLE:
-            pass
+            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
 
     positions = _service("prospect_refuge")
     if positions is not None:
@@ -234,7 +246,7 @@ def sample() -> dict[str, float]:
                     put(ch.CHANNEL_ASYMMETRY,
                         sum(p.asymmetry for p in scored) / len(scored))
         except _RECOVERABLE:
-            pass
+            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
 
     craft = _service("craft_practice")
     if craft is not None:
@@ -244,7 +256,7 @@ def sample() -> dict[str, float]:
                 skill = craft.status()["skills"].get(target) or {}
                 put(ch.CHANNEL_IMPROVEMENT, skill.get("improvement_rate"))
         except _RECOVERABLE:
-            pass
+            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
 
     novelty = _service("novelty_value")
     if novelty is not None:
@@ -254,14 +266,14 @@ def sample() -> dict[str, float]:
                 put(ch.CHANNEL_NOVELTY_VALUE, novelty.value(
                     responses[-1].key, responses[-1].payload).value)
         except _RECOVERABLE:
-            pass
+            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
 
     ledger = _service("reversibility_ledger")
     if ledger is not None:
         try:
             put(ch.CHANNEL_PREMIUM, ledger.status().get("premium_paid"))
         except _RECOVERABLE:
-            pass
+            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
 
     channel = _service("signal_channel")
     if channel is not None:
@@ -272,7 +284,7 @@ def sample() -> dict[str, float]:
                 put(ch.CHANNEL_INFORMATIVE,
                     status.get("informative_readings", 0) / signals)
         except _RECOVERABLE:
-            pass
+            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
 
     reciprocity = _service("reciprocity")
     if reciprocity is not None:
@@ -285,7 +297,7 @@ def sample() -> dict[str, float]:
             if continuations:
                 put(ch.CHANNEL_CONTINUATION, sum(continuations) / len(continuations))
         except _RECOVERABLE:
-            pass
+            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
 
     empathy = _service("empathic_coupling")
     if empathy is not None:
@@ -296,7 +308,7 @@ def sample() -> dict[str, float]:
                 put(ch.CHANNEL_AUTONOMY, min(own))
             put(ch.CHANNEL_MERGED, len(status.get("merged") or []))
         except _RECOVERABLE:
-            pass
+            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
 
     aesthetic = _service("aesthetic_response")
     if aesthetic is not None:
@@ -305,7 +317,7 @@ def sample() -> dict[str, float]:
             if last:
                 put(ch.CHANNEL_PLEASURE, last.get("pleasure"))
         except _RECOVERABLE:
-            pass
+            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
 
     conventions = _service("conventions")
     if conventions is not None:
@@ -314,7 +326,7 @@ def sample() -> dict[str, float]:
             put(ch.CHANNEL_MARKERS,
                 sum(1 for row in markers.values() if row.get("arbitrary")))
         except _RECOVERABLE:
-            pass
+            pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
 
     return written
 

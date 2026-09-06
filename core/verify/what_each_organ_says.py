@@ -97,6 +97,7 @@ def what_an_organ_says(where: Path) -> dict[str, Any]:
     owns: list[str] = []
     promises: list[str] = []
     degrades: list[str] = []
+    catches: list[str] = []
     for path in sorted(where.rglob("*.py")):
         if "__pycache__" in str(path):
             continue
@@ -107,6 +108,16 @@ def what_an_organ_says(where: Path) -> dict[str, Any]:
         rel = str(path.relative_to(where.parent.parent))
         if "record_degradation(" in text:
             degrades.append(rel)
+        try:
+            caught = sum(
+                1
+                for node in ast.walk(ast.parse(text))
+                if isinstance(node, ast.ExceptHandler)
+            )
+        except (SyntaxError, ValueError):
+            caught = 0
+        if caught:
+            catches.append(rel)
         if any(one in text for one in _A_PROMISE):
             promises.append(rel)
         # Owning something means holding module-level state others read.
@@ -130,6 +141,11 @@ def what_an_organ_says(where: Path) -> dict[str, Any]:
         "promises": len(set(promises)),
         "how failure propagates": sorted(set(degrades))[:20],
         "degrades": len(set(degrades)),
+        #: Files that catch an exception. A package that catches nothing
+        #: propagates every failure to its caller, which is an answer to
+        #: "how does failure propagate" — the strongest one there is.
+        "catches": len(set(catches)),
+        "catches_and_records_nothing": bool(catches) and not degrades,
         "declares_its_edges": deps.exists(),
     }
 
@@ -158,7 +174,13 @@ def how_the_organs_answer(root: Path | None = None) -> dict[str, Any]:
             given.add("what it consumes")
         if said["promises"] > 0:
             given.add("what it promises")
-        if said["degrades"] > 0:
+        # Two ways to answer this, and only one of them was being counted.
+        # A package that records degradations says where failure goes. A
+        # package that catches nothing says it too: every failure reaches the
+        # caller, which is the strongest answer available and was scoring as
+        # silence. Twelve packages with no `except` anywhere were being
+        # counted as not knowing how their own failures travel.
+        if said["degrades"] > 0 or said["catches"] == 0:
             given.add("how failure propagates")
         return given
 
@@ -180,6 +202,13 @@ def how_the_organs_answer(root: Path | None = None) -> dict[str, Any]:
         },
         "say_nothing_about_what_they_promise": missing["what it promises"][:40],
         "say_nothing_about_failure": missing["how failure propagates"][:40],
+        #: The dangerous middle: it catches exceptions and records none of
+        #: them, so a failure is neither raised nor written down anywhere.
+        "catches_and_records_nothing": sorted(
+            name
+            for name, said in organs.items()
+            if said.get("catches_and_records_nothing")
+        ),
         "without_a_deps_file": sorted(
             name for name, said in organs.items() if not said["declares_its_edges"]
         ),

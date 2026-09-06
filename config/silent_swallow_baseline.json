@@ -1,0 +1,5 @@
+{
+  "note": "`except X: pass` with no comment saying why. Only goes down. A defensible silent handler and a real swallow look identical from outside; the difference is a sentence.",
+  "silent_handlers": 613,
+  "unexplained": 402
+}
