@@ -110,3 +110,12 @@ def test_every_part_says_why_losing_it_matters() -> None:
 
 def test_nothing_is_recorded_until_a_fit_is_noted() -> None:
     assert how_the_room_was_shared()["fits"] == 0
+
+
+def test_the_assembler_records_who_paid_for_the_fit() -> None:
+    """Wired, not beside: the ledger is on the path the prompt takes."""
+    from core.brain.llm import context_assembler
+
+    source = __import__("inspect").getsource(context_assembler)
+    assert "note_a_fit(" in source, "the fit is not recorded on the real path"
+    assert "who_got_the_room" in source

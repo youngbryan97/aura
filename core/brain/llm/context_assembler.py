@@ -359,7 +359,7 @@ def _fit_the_request(
                 int(budget),
                 "\n\n[... optional system context omitted for budget ...]\n\n",
             )
-        return (
+        fitted = (
             fit_to_budget(
                 body,
                 request,
@@ -369,6 +369,21 @@ def _fit_the_request(
             )
             or body
         )
+        # What the fit took, by named part. A thin turn and a turn whose
+        # recalled memory was cut to nothing leave the same trace otherwise:
+        # a shorter prompt.
+        try:
+            from core.brain.llm.who_got_the_room import note_a_fit
+
+            note_a_fit(body, fitted, budget=int(budget), request=request)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "context_assembler",
+                exc,
+                severity="info",
+                action="fitted the prompt without recording which part paid for it",
+            )
+        return fitted
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
         record_degradation(
             "context_assembler",
