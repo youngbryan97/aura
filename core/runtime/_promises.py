@@ -53,6 +53,38 @@ THE_PROMISES: tuple[APromise, ...] = (
         "per resource and both waiting",
     ),
     APromise(
+        it="A published message cannot also name a recipient, so a handler "
+        "never has to infer whether it was addressed.",
+        checked_by="tests/test_what_a_message_carries.py::"
+        "test_a_published_message_cannot_also_name_a_recipient",
+        if_it_fails="the envelope is refused at construction; without it one "
+        "message shape means two different things to two readers",
+    ),
+    APromise(
+        it="Only one turn owns the answer at a time, and a second cannot begin "
+        "while one is active.",
+        checked_by="tests/test_whose_turn_it_is.py::"
+        "test_a_second_turn_cannot_begin_while_one_is_active",
+        if_it_fails="two turns write the same reply slot and the person sees "
+        "whichever finished last",
+    ),
+    APromise(
+        it="Spending past the end of a budget is refused rather than raised, "
+        "so a caller decides what to do about it.",
+        checked_by="tests/test_what_is_left_to_spend.py::"
+        "test_spending_past_the_end_is_refused_and_not_raised",
+        if_it_fails="the refusal is recorded with what wanted what; a raise "
+        "here would make running out of budget look like a fault",
+    ),
+    APromise(
+        it="A status transition that is not legal is refused and says why, "
+        "rather than being applied and reported as fine.",
+        checked_by="tests/test_what_a_status_may_become.py::"
+        "test_an_illegal_move_is_refused_and_says_why",
+        if_it_fails="the table's outcome says REFUSED with the reason; a "
+        "silent apply would leave a workflow in a state nothing can leave",
+    ),
+    APromise(
         it="Every background task owner declares when its work may be cancelled "
         "and how long its drain may take.",
         checked_by="tests/test_how_a_task_should_end.py::"

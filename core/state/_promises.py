@@ -37,6 +37,39 @@ THE_PROMISES: tuple[APromise, ...] = (
         "lenient mode the clash is recorded and settled by sorted phase name",
     ),
     APromise(
+        it="A write is not in its channel until it is committed, so a reader "
+        "between the write and the barrier sees the old value rather than a "
+        "half-applied one.",
+        checked_by="tests/test_a_checkpoint_and_its_writes.py::"
+        "test_a_write_is_not_in_its_channel_until_it_is_committed",
+        if_it_fails="a checkpoint taken mid-phase holds a value no phase ever "
+        "agreed on, and restoring it restores a state that never existed",
+    ),
+    APromise(
+        it="A difference between two states says exactly where it is, rather "
+        "than only that the two are not identical.",
+        checked_by="tests/test_are_these_the_same.py::"
+        "test_a_difference_says_where_it_is",
+        if_it_fails="a hash mismatch is all a caller gets, and a byte "
+        "difference cannot be told from a meaningful one",
+    ),
+    APromise(
+        it="An observation channel that never declared how it is read cannot "
+        "be read at all.",
+        checked_by="tests/test_when_an_observation_was_true.py::"
+        "test_a_channel_that_never_declared_cannot_be_read",
+        if_it_fails="the refusal names the modes it could have declared; "
+        "reading it anyway compares values from different kinds of time",
+    ),
+    APromise(
+        it="Working memory has one capacity, and it is the one the trimmer "
+        "actually enforces.",
+        checked_by="tests/test_one_working_memory.py::"
+        "test_the_capacity_is_the_one_the_trimmer_enforces",
+        if_it_fails="the_caps_that_disagree() names them; a turn is trimmed to "
+        "one number while another part of the runtime plans against another",
+    ),
+    APromise(
         it="Every state holder is classified as authority, projection or "
         "scratch, so nothing is authoritative by default.",
         checked_by="tests/test_what_kind_of_state_is_this.py::"
