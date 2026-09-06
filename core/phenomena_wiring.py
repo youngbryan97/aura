@@ -62,6 +62,28 @@ INVARIANT_MODULES: tuple[str, ...] = (
 
 _RECOVERABLE = (ImportError, AttributeError, TypeError, ValueError, KeyError, RuntimeError, OSError)
 
+
+def _absent_service_errors() -> tuple[type[BaseException], ...]:
+    """What the container raises for a name nobody registered.
+
+    `_service` below is written to return None where a service is missing —
+    that is the whole of its contract — and it caught seven exception types,
+    none of them the one the container actually raises. So a wiring pass in
+    any context where an optional service is absent did not degrade, it
+    detonated, and the traceback named the service rather than the lookup that
+    could not tolerate its absence.
+
+    Resolved through the exception module rather than hard-coded, so a
+    container that renames its error does not quietly restore the defect.
+    """
+
+    try:
+        from core.exceptions import ContainerError
+
+        return (ContainerError,)
+    except ImportError:  # pragma: no cover — the module is not optional
+        return ()
+
 _booted = False
 
 
@@ -82,7 +104,7 @@ def _service(name: str) -> Any:
         return None
     try:
         return container.get(name)
-    except _RECOVERABLE:
+    except (*_RECOVERABLE, *_absent_service_errors()):
         return None
 
 

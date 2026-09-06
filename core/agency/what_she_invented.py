@@ -36,7 +36,25 @@ logger = logging.getLogger("Aura.PropertiesSheInvented")
 #: Where it lives. Beside what she learned about particular worlds, because it
 #: is the same kind of thing: something she found out and should not have to
 #: find out again.
-_KEPT_AT = Path.home() / ".aura" / "state" / "properties_she_invented.json"
+#:
+#:
+#: Set to send it somewhere else. Left alone in the live runtime; a test that
+#: wants its own file names one here.
+_KEPT_AT: Path | None = None
+
+
+def _kept_at() -> Path:
+    """Where it goes.
+
+    Asked for on each call rather than fixed at import: a path resolved once
+    aims a test run's writes at the live instance, the ownership guard then
+    refuses them, and the persistence is never actually exercised.
+    """
+    if _KEPT_AT is not None:
+        return _KEPT_AT
+    from core.runtime.state_ownership import state_root
+
+    return state_root() / "state" / "properties_she_invented.json"
 
 #: A bound on the file. What she invented is a handful of recipes; anything
 #: larger is a runaway rather than a mind that has learned a great deal.
@@ -79,10 +97,10 @@ def keep() -> bool:
             "what_she_invented.keep", domain="state_mutation"
         ):
             get_file_write_gateway().ensure_directory(
-                _KEPT_AT.parent, source="what_she_invented"
+                _kept_at().parent, source="what_she_invented"
             )
             get_file_write_gateway().write_text(
-                _KEPT_AT, written, source="what_she_invented"
+                _kept_at(), written, source="what_she_invented"
             )
         logger.info("kept %d propert(ies) she worked out", len(body["measures"]))
         return True
@@ -103,7 +121,7 @@ def recall() -> dict[str, int]:
     """
     back = {"measures": 0}
     try:
-        held = json.loads(_KEPT_AT.read_text(encoding="utf-8"))
+        held = json.loads(_kept_at().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return back
     if not isinstance(held, dict):
@@ -142,7 +160,7 @@ def forget_everything() -> bool:
     try:
         from core.runtime.file_write_gateway import get_file_write_gateway
 
-        get_file_write_gateway().delete_file(_KEPT_AT, source="what_she_invented")
+        get_file_write_gateway().delete_file(_kept_at(), source="what_she_invented")
         return True
     except (OSError, RuntimeError, AttributeError):
         return False

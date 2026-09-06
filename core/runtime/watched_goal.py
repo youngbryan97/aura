@@ -98,7 +98,17 @@ _A_CYCLE: dict[str, float] = {"seconds": 0.0}
 #: Held in a process only, this is forgotten at every restart, so the first
 #: watched goal after one always asks for the budget written down rather than
 #: the one measured — and the first is usually the one somebody is watching.
-_MEASURED_AT = Path.home() / ".aura" / "state" / "pursuit_cycle_seconds.json"
+#: Set to send it somewhere else. Left alone in the live runtime; a test
+#: that wants its own file names one here.
+_MEASURED_AT: Path | None = None
+
+
+def _measured_at() -> Path:
+    if _MEASURED_AT is not None:
+        return _MEASURED_AT
+    from core.runtime.state_ownership import state_root
+
+    return state_root() / "state" / "pursuit_cycle_seconds.json"
 
 
 def a_cycle_took(seconds: float) -> None:
@@ -116,7 +126,7 @@ def _remembered() -> float:
     if _A_CYCLE["seconds"] > 0.0:
         return _A_CYCLE["seconds"]
     try:
-        held = json.loads(_MEASURED_AT.read_text())
+        held = json.loads(_measured_at().read_text())
         kept = float(held.get("seconds") or 0.0)
     except (OSError, ValueError, TypeError, AttributeError):
         return 0.0
@@ -134,13 +144,13 @@ def _write_down(seconds: float) -> None:
         with local_internal_governed_scope(
             "watched_goal.cycle_cost",
             domain="state_mutation",
-            constraints={"path": str(_MEASURED_AT)},
+            constraints={"path": str(_measured_at())},
         ):
             get_file_write_gateway().ensure_directory(
-                _MEASURED_AT.parent, source="watched_goal"
+                _measured_at().parent, source="watched_goal"
             )
             get_file_write_gateway().write_text(
-                _MEASURED_AT,
+                _measured_at(),
                 json.dumps({"seconds": round(float(seconds), 3)}),
                 source="watched_goal.cycle_cost",
             )

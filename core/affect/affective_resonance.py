@@ -294,9 +294,22 @@ def get_affective_resonance() -> AffectiveResonance:
     return _INSTANCE
 
 
+#: The short name three live readers ask for. The canonical name is
+#: ServiceNames.SAMANTHA and this is an alias for it, kept because dropping it
+#: left `cognitive_integration_layer`, `derived_runtime_context` and the
+#: derived-engine initialiser resolving nothing — readers with no writer, which
+#: is the failure this codebase keeps finding.
+#:
+#: One object under two names, never two objects: the alias is registered from
+#: the same instance, so a consumer that asks either way gets the thing that
+#: exists rather than a second one built to answer.
+_ALSO_ASKED_FOR_AS = "samantha"
+
+
 def register_affective_resonance(orchestrator: Any = None) -> AffectiveResonance:
     from core.service_names import ServiceNames
 
     inst = get_runtime_service(ServiceNames.SAMANTHA, default=None) or get_affective_resonance()
     register_runtime_service(ServiceNames.SAMANTHA, inst)
+    register_runtime_service(_ALSO_ASKED_FOR_AS, inst)
     return inst

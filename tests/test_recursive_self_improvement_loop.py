@@ -227,8 +227,24 @@ async def test_code_refinement_falls_through_to_self_modifier_after_structural_e
     assert result["deterministic"]["reason"].startswith("structural_improver:OSError")
 
 
+def _somewhere_repairs_may_be_applied(root: Path) -> Path:
+    """A path the mutation constitution puts in the automatic tier.
+
+    The tiers are matched on the path, and everything outside the declared
+    low-risk surface — tests, docs, generated skills, the proposal workspace —
+    is propose-only or sealed. A repair written into a bare temporary
+    directory is therefore correctly refused, so a test that wants the applying
+    half has to ask about a path the constitution allows.
+    """
+
+    where = root / "patches" / "proposals"
+    where.mkdir(parents=True, exist_ok=True)
+    return where
+
+
 def test_structural_improver_finds_and_repairs_missing_os_import(tmp_path: Path):
-    source = tmp_path / "mod.py"
+    at = _somewhere_repairs_may_be_applied(tmp_path)
+    source = at / "mod.py"
     source.write_text(
         "def enabled():\n"
         "    return os.environ.get('AURA_FLAG') == '1'\n",
@@ -239,12 +255,41 @@ def test_structural_improver_finds_and_repairs_missing_os_import(tmp_path: Path)
     issues = improver.scan()
     result = improver.apply_known_repair(issues[0])
 
-    assert result.success is True
+    assert result.success is True, result.message
     assert "import os" in source.read_text(encoding="utf-8")
 
 
-def test_structural_improver_repairs_generated_gateway_mkdir(tmp_path: Path):
+def test_a_repair_outside_the_allow_surface_is_refused_rather_than_applied(tmp_path: Path):
+    """The deterministic path consults the same constitution the model path does.
+
+    This asserted that the repair was applied, which was true and was the
+    defect: the seal over the control plane held on the model-driven repair
+    path and not on this one, while both are reachable from the same RSI
+    action. "Sealed from every self-modification path" was true of one path
+    and said of all of them.
+    """
+
     source = tmp_path / "mod.py"
+    source.write_text(
+        "def enabled():\n"
+        "    return os.environ.get('AURA_FLAG') == '1'\n",
+        encoding="utf-8",
+    )
+    improver = StructuralImprover(tmp_path, ledger_path=tmp_path / "ledger.jsonl")
+
+    issues = improver.scan()
+    assert issues, "the improver stopped finding the defect"
+    result = improver.apply_known_repair(issues[0])
+
+    assert result.success is False
+    assert "not applied automatically" in result.message
+    assert "import os" not in source.read_text(encoding="utf-8"), (
+        "a refused repair was written anyway"
+    )
+
+
+def test_structural_improver_repairs_generated_gateway_mkdir(tmp_path: Path):
+    source = _somewhere_repairs_may_be_applied(tmp_path) / "mod.py"
     source.write_text(
         "from pathlib import Path\n\n"
         "def make(root):\n"
@@ -258,7 +303,7 @@ def test_structural_improver_repairs_generated_gateway_mkdir(tmp_path: Path):
     result = improver.apply_known_repair(issue)
 
     text = source.read_text(encoding="utf-8")
-    assert result.success is True
+    assert result.success is True, result.message
     assert "Path(target).mkdir(parents=True, exist_ok=True)" in text
     assert "get_storage_gateway" not in text
 
@@ -266,7 +311,7 @@ def test_structural_improver_repairs_generated_gateway_mkdir(tmp_path: Path):
 def test_structural_improver_reports_rollback_failure(tmp_path: Path, monkeypatch):
     from core.self_modification import structural_improver as module
 
-    source = tmp_path / "mod.py"
+    source = _somewhere_repairs_may_be_applied(tmp_path) / "mod.py"
     source.write_text(
         "def enabled():\n"
         "    return os.environ.get('AURA_FLAG') == '1'\n",
