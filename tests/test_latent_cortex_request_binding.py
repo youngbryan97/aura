@@ -104,8 +104,8 @@ def test_client_success_mapping_preserves_private_validation_evidence(evidence):
     # noqa: S307 — the test reads one expression out of the real source and
     # evaluates it, so what is asserted is the shipped mapping rather than
     # a copy of it that could drift.
-    actual = eval(  # noqa: S307
-        compile(expression, "client-success-mapping", "eval"),
+    actual = eval(  # noqa: S102,S307
+        compile(expression, "client-success-mapping", "eval"),  # noqa: S102
         {"res": {"answer_replacement_private": evidence}},
     )
     assert actual is evidence

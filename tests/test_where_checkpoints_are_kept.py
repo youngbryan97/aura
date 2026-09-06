@@ -246,7 +246,10 @@ def test_a_writer_is_anything_that_answers_the_two_calls():
             return repr(state)[::-1]
 
         def loads(self, raw):
-            return eval(raw[::-1])  # noqa: S307 — a test's own round trip
+            # noqa: S102,S307 — a writer that reverses on the way out and
+            # back is the shortest thing that proves the round trip is real
+            # rather than the identity function wearing a name.
+            return eval(raw[::-1])  # noqa: S102,S307
 
     assert isinstance(Backwards(), HowAStateIsWritten)
     assert Backwards().loads(Backwards().dumps({"a": 1})) == {"a": 1}
