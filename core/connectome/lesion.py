@@ -165,23 +165,25 @@ def degree_matched_null(
     samples: int,
     tolerance: float = 0.2,
     seed: int = 0,
+    exclude: Sequence[str] = (),
 ) -> list[str]:
     """Cells with about the same degree as the target, for the control lesion.
 
     Matching on degree is what makes the comparison mean something. A hub
     removed from any graph costs reach; the question is whether this hub costs
     more than the others of its size, and only a matched control answers it.
+
+    ``exclude`` keeps the cells reach is measured *from* out of the pool.
+    Removing a source destroys every path trivially, and a control that does
+    that is measuring the experiment rather than the graph.
     """
     degree = graph.degree(target)
     if degree == 0:
         return []
     low = degree * (1.0 - tolerance)
     high = degree * (1.0 + tolerance)
-    pool = [
-        node
-        for node in graph.nodes
-        if node != target and low <= graph.degree(node) <= high
-    ]
+    banned = set(exclude) | {target}
+    pool = [node for node in graph.nodes if node not in banned and low <= graph.degree(node) <= high]
     if not pool:
         return []
     rng = random.Random(seed)
@@ -222,7 +224,11 @@ def measure_effect(
     null_flow: list[float] = []
     for index, target in enumerate(removed):
         for control in degree_matched_null(
-            graph, target, samples=max(1, null_samples // max(1, len(removed))), seed=seed + index
+            graph,
+            target,
+            samples=max(1, null_samples // max(1, len(removed))),
+            seed=seed + index,
+            exclude=[*sources, *sinks],
         ):
             control_graph = _drop(graph, [control])
             null_reach.append(

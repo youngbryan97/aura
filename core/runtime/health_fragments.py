@@ -37,6 +37,7 @@ HEALTH_FRAGMENTS_SCHEMA = "aura.runtime.health_fragments.v1"
 #: with no registration is reported as missing.
 EXPECTED_FRAGMENTS: tuple[str, ...] = (
     "cognitive_contracts",
+    "connectome",
     "cognitive_growth",
     "external_reach",
     "memory_inventory",

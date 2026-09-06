@@ -909,6 +909,12 @@ def _classify(unit: Unit, visitor: _FunctionVisitor) -> CellClass:
     nothing would otherwise read as a gate, and a gate is checked before the
     default because most cells produce something and the interesting minority
     is the one that refuses.
+
+    The threshold is a strict majority of exits, not half of them. Guard clauses
+    are everywhere, and a function with one early return and one real return is
+    a producer with a guard rather than a gate. Counting it as inhibitory would
+    make almost every cell in the system inhibitory and the measurement would
+    stop discriminating.
     """
     productive = unit.exits_productive
     if (
@@ -921,7 +927,7 @@ def _classify(unit: Unit, visitor: _FunctionVisitor) -> CellClass:
         return CellClass.MODULATORY
     if _returns_only_boolean(visitor.returns) and productive > 0:
         return CellClass.INHIBITORY
-    if unit.exit_count and unit.suppression >= 0.5:
+    if unit.exit_count and unit.suppression > 0.5:
         return CellClass.INHIBITORY
     return CellClass.EXCITATORY
 

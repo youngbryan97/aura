@@ -170,7 +170,12 @@ def branching_ratio_mr(
             return 0.0, 0.0
         x = ks[positive]
         y = np.log(target[positive])
-        slope, intercept = np.polyfit(x, y, 1)
+        # Taking logs turns an exponential into a line and turns the noise on a
+        # small slope into a large error on its logarithm. Weighting each lag by
+        # the size of its own correlation is the standard correction, and
+        # without it a fast-decaying process reads as slower than it is.
+        weights = target[positive]
+        slope, intercept = np.polyfit(x, y, 1, w=weights)
         predicted = slope * x + intercept
         residual = float(((y - predicted) ** 2).sum())
         total = float(((y - y.mean()) ** 2).sum())
