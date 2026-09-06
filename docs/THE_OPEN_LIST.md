@@ -66,7 +66,7 @@ carries all 202 with their state.
 | N4 | Her generator reaches four distinct one-argument behaviours | DONE |
 | N5 | A runtime probe beside gate 16's static scan | DONE — two families watched through one entry point; 74 shared functions and nothing outside the search runs for only one, either order |
 | N7 | GAIA / OSWorld / post-cutoff SWE / hours-long autonomy | TODO |
-| N9 | Grounding beyond the seven authored installers | TODO |
+| N9 | Grounding beyond the seven authored installers | DONE — the claim that each of the seven has an installer, a lesion and a persistence path is now resolved rather than asserted; it caught one that did not |
 | N10 | Generational compounding, currently depth 0 | DONE — the cause found and fixed: 824 operators all scored exactly 5.0 because the replay could only price an action that had once WORKED, and the failure path never wrote the action name down. Depth is still to be re-measured on a record written since |
 | N11 | Native and source development in one verified loop | TODO |
 | N12 | Fan-out and through-path reduction | DONE |
