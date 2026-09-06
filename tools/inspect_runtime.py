@@ -20,9 +20,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import Any, Callable
+
+logger = logging.getLogger("Aura.InspectRuntime")
 
 HERE = Path(__file__).resolve().parents[1]
 if str(HERE) not in sys.path:
@@ -133,6 +136,65 @@ def _outside() -> dict[str, Any]:
     return how_it_stands()
 
 
+def _budgets_and_guardrails() -> dict[str, Any]:
+    """What the retry and guardrail machinery is, as declared."""
+    from core.runtime.what_an_answer_must_pass import AVerdict, TheGuardrails
+    from core.runtime.what_is_left_to_spend import a_budget_of
+
+    return {
+        "a_budget_is": "a tree; a child spends from its parent and cannot "
+        "spend past it",
+        "a_guardrail_says": "why it refused, in words that can be handed back",
+        "an_empty_chain_passes": bool(TheGuardrails().check("anything")),
+        "an_empty_budget_refuses": not a_budget_of("nothing", 0).spend(1),
+        "a_verdict_is_a_boolean": bool(AVerdict(passed=True)),
+    }
+
+
+def _numbers() -> dict[str, Any]:
+    from core.observability.how_long_a_number_lives import how_the_numbers_stand
+
+    return how_the_numbers_stand()
+
+
+def _observations() -> dict[str, Any]:
+    from core.state.when_an_observation_was_true import the_frontier
+
+    return the_frontier()
+
+
+def _interrupted() -> dict[str, Any]:
+    from core.state.stopping_and_starting_again import what_was_interrupted
+
+    return what_was_interrupted()
+
+
+def _action_history() -> dict[str, Any]:
+    from core.runtime.what_she_did_and_what_happened import how_the_history_stands
+
+    return how_the_history_stands()
+
+
+def _destinations() -> dict[str, Any]:
+    from core.cognition.where_a_term_can_go import where_a_term_can_go
+
+    # The actions are declared by a registration call rather than at import,
+    # so asking without it reports every destination as one nothing installs
+    # into — which is a fact about this process, not about her. Registering is
+    # populating a dict; nothing is done to her by asking.
+    try:
+        from core.cognition.sequence_induction import _register_what_she_could_do
+
+        _register_what_she_could_do()
+    except Exception as exc:  # noqa: BLE001 — a reporter must not fail on this
+        logger.debug("the developmental actions were not registered: %s", exc)
+
+    said = where_a_term_can_go()
+    return {
+        key: value for key, value in said.items() if key != "each"
+    } | {"each": {name: row for name, row in said["each"].items()}}
+
+
 #: Every question this answers, and where the answer comes from.
 THE_SECTIONS: dict[str, Callable[[], Any]] = {
     "topology": _topology,
@@ -146,6 +208,12 @@ THE_SECTIONS: dict[str, Callable[[], Any]] = {
     "organs": _organs,
     "measured_effect": _measured,
     "measured_outside": _outside,
+    "budgets_and_guardrails": _budgets_and_guardrails,
+    "numbers": _numbers,
+    "observations": _observations,
+    "interrupted": _interrupted,
+    "action_history": _action_history,
+    "destinations": _destinations,
 }
 
 

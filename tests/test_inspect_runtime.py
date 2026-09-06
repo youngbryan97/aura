@@ -84,3 +84,46 @@ def test_every_section_reads_from_the_module_that_owns_it():
         assert f'"{name}": _' in source, name
     # Every reader is an import away, not a reimplementation.
     assert source.count("from core.") >= len(THE_SECTIONS) - 3
+
+
+# ----------------------------------------------- everything is reachable
+
+
+def test_every_module_this_session_added_is_reachable_from_here():
+    """A module that is tested and not reachable is half-wired.
+
+    Ten of them were: built, covered, and not askable from a running system.
+    """
+    for wanted in (
+        "budgets_and_guardrails",
+        "numbers",
+        "observations",
+        "interrupted",
+        "action_history",
+        "destinations",
+    ):
+        assert wanted in THE_SECTIONS, wanted
+
+
+def test_the_new_sections_answer(everything):
+    for name in (
+        "budgets_and_guardrails",
+        "numbers",
+        "observations",
+        "interrupted",
+        "action_history",
+        "destinations",
+    ):
+        assert "error" not in everything[name], everything[name]
+
+
+def test_the_budget_section_shows_the_rules_rather_than_a_count(everything):
+    """Nothing is spending yet; what a reader needs is what the rules are."""
+    said = everything["budgets_and_guardrails"]
+    assert said["an_empty_budget_refuses"] is True
+    assert said["an_empty_chain_passes"] is True
+
+
+def test_the_destinations_section_carries_all_seven(everything):
+    assert everything["destinations"]["destinations"] == 7
+    assert everything["destinations"]["not_really_a_destination"] == []
