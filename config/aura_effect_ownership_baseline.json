@@ -6313,6 +6313,22 @@
       "scope": "<module>.ShadowRuntime.test_mutation"
     },
     {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/standing_authorization.py",
+      "scope": "<module>._keep"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/standing_authorization.py",
+      "scope": "<module>._keep"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -16330,6 +16346,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "4300055872ec047665b5831b4d544d6919c5dcc9169be3344c95b23f9ea72375",
+  "inventory_sha256": "e43d73ed316c99622d18db95a81885d299c397107105a43445f9ff97ba499b58",
   "schema_version": 1
 }
