@@ -178,7 +178,7 @@ name each cluster more than once:
 | Soar #22 | P1 | Explicit input/output phase boundary | For each sensor/action channel declare consistency mode: sampled-at-tick, streaming, transactional; state snapshots must record which observation fron | TODO |
 | Soar #23 | P1 | Timing can be compiled/enabled explicitly | Classify instrumentation as mandatory/minimal/debug/scientific; benchmark overhead and allow reproducible modes while never disabling safety receipts. | TODO |
 | Soar #24 | P1 | Kernel data/phase semantics have decades of continuity | Freeze a Kernel ABI v1 for phase IDs, event envelopes, state patch, action receipt and runtime protocol; changes require versioning/upcasters, not sil | TODO |
-| OpenCog AtomSpace #1 | P0 | One canonical AtomSpace | Define a canonical SemanticGraph interface/ID layer shared by knowledge systems; specialized stores can remain, but cross-system references use canoni | TODO |
+| OpenCog AtomSpace #1 | P0 | One canonical AtomSpace | Define a canonical SemanticGraph interface/ID layer shared by knowledge systems; specialized stores can remain, but cross-system references use canoni | DONE |
 | OpenCog AtomSpace #2 | P0 | Atoms are globally unique/interned in an AtomSpace | SemanticIdentity service canonicalizes entities/concepts/relations and stores alias/equivalence; duplicate detection tests span memories/graphs. | DONE |
 | OpenCog AtomSpace #3 | P1 | Node/Link representation is universal | Create minimal canonical relation algebra (EntityId, RelationType, edge/value metadata) and adapters from richer domain models. | TODO |
 | OpenCog AtomSpace #4 | P1 | Dedicated TypeIndex | SemanticGraph maintains canonical type/relation/source/time indexes with invariants and performance benchmarks. | TODO |

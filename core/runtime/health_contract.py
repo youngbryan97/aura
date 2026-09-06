@@ -1412,6 +1412,29 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["who_owns_each_field"] = {"error": repr(exc)}
 
+    # The graph stores under one shape, and whether a reference from one into
+    # another still lands. Over the LIVE instances: the same check over fresh
+    # graphs measures nothing, which is how a check like this usually fails.
+    try:
+        from core.knowledge.one_graph import (
+            every_graph,
+            references_that_lead_nowhere,
+        )
+
+        from core.knowledge.one_graph import which_stores_have_not_registered
+
+        graphs = every_graph(live=True)
+        nowhere = references_that_lead_nowhere(graphs) if graphs else []
+        block["one_graph"] = {
+            "stores": sorted(graphs),
+            "not_registered": which_stores_have_not_registered(),
+            "nodes": sum(len(one.all_nodes()) for one in graphs.values()),
+            "references_that_lead_nowhere": nowhere[:20],
+            "how_many_lead_nowhere": len(nowhere),
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["one_graph"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering

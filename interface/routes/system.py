@@ -5821,6 +5821,7 @@ def _runtime_integrity_public_payload(report: dict[str, Any] | None) -> dict[str
                 "the_runtime_boundary",
                 "who_holds_what",
                 "who_owns_each_field",
+                "one_graph",
             )
             if report.get(key) is not None
         },
