@@ -109,3 +109,36 @@ async def test_a_plan_with_no_developmental_choice_says_so():
     said = await loop._run_developmental(plan)
     assert said["ok"] is False
     assert "no developmental choice" in said["reason"]
+
+
+def test_the_forge_is_asked_about_what_the_ledger_counted():
+    """One event, one name, or the two records cannot be joined.
+
+    The ledger counts repeats of a DESCRIPTION and says why: keying on kind
+    or metric gives every gap the same name, so a ledger built to notice the
+    same gap twice sees one gap forever. The plan's forge_gaps must use the
+    same string, and the first version of it did not — it keyed on source and
+    kind, which is the exact mistake that comment exists to prevent.
+    """
+    from core.learning.recursive_self_improvement import ImprovementSignal
+
+    described = ImprovementSignal(
+        source="screen",
+        kind="capability_gap",
+        evidence={"task": "read a chart out of a screenshot"},
+    )
+    bare = ImprovementSignal(source="planner", kind="tool_gap")
+    what = RecursiveSelfImprovementLoop._what_was_missing
+    assert what(described) == "read a chart out of a screenshot"
+    assert what(bare) == "planner", "a signal with no evidence falls back to its source"
+    assert what(ImprovementSignal(source="", kind="tool_gap")) == ""
+
+
+def test_two_gaps_with_different_evidence_get_different_names():
+    """The property the ledger's key exists for."""
+    from core.learning.recursive_self_improvement import ImprovementSignal
+
+    what = RecursiveSelfImprovementLoop._what_was_missing
+    one = ImprovementSignal(source="s", kind="capability_gap", evidence={"task": "a"})
+    other = ImprovementSignal(source="s", kind="capability_gap", evidence={"task": "b"})
+    assert what(one) != what(other)

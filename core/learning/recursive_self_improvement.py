@@ -595,6 +595,27 @@ class RecursiveSelfImprovementLoop:
         return [str(getattr(one, "name", "") or "a skill") for one in made or ()]
 
     @staticmethod
+    def _what_was_missing(signal: Any) -> str:
+        """What a gap signal says was missing, in words.
+
+        The ledger counts REPEATS of a description. Reading the signal's kind
+        or metric would give every gap the same key — "capability" for all of
+        them — and a ledger built to notice the same gap twice would see one
+        gap forever.
+
+        The forge asks about the same string, because a plan that says it
+        asked about a gap and a ledger that counted a different one are two
+        records of one event that cannot be joined.
+        """
+        evidence = getattr(signal, "evidence", None)
+        if isinstance(evidence, dict):
+            for key in ("task", "detail", "description", "goal", "what"):
+                described = str(evidence.get(key) or "").strip()
+                if described:
+                    return described
+        return str(getattr(signal, "source", "") or "").strip()
+
+    @staticmethod
     def _remember_the_gaps(signals: list) -> None:
         """Tell the gap ledger about capability gaps this loop just observed.
 
@@ -627,20 +648,7 @@ class RecursiveSelfImprovementLoop:
             )
             return
         for signal in signals:
-            # What was missing, in words, because the ledger counts REPEATS of
-            # a description. Reading the signal's kind or metric would give
-            # every gap the same key — "capability" for all of them — and a
-            # ledger built to notice the same gap twice would see one gap
-            # forever.
-            evidence = getattr(signal, "evidence", None)
-            described = ""
-            if isinstance(evidence, dict):
-                for key in ("task", "detail", "description", "goal", "what"):
-                    described = str(evidence.get(key) or "").strip()
-                    if described:
-                        break
-            if not described:
-                described = str(getattr(signal, "source", "") or "").strip()
+            described = RecursiveSelfImprovementLoop._what_was_missing(signal)
             if not described:
                 continue
             try:
@@ -690,7 +698,20 @@ class RecursiveSelfImprovementLoop:
         if self._worth_asking_the_forge(
             allowed=allow_tool_creation, observed=bool(gaps_observed)
         ):
-            forge_gaps = tuple(sorted({str(s.detail or s.kind) for s in gaps_observed}))
+            # The same strings the ledger counted. My first version keyed
+            # these by source and kind, which is precisely the mistake
+            # _what_was_missing exists to prevent: every gap would come out
+            # with the same name and the forge would be asked about one gap
+            # forever.
+            forge_gaps = tuple(
+                sorted(
+                    {
+                        described
+                        for one in gaps_observed
+                        if (described := self._what_was_missing(one))
+                    }
+                )
+            )
             actions.append("asked_the_forge")
             rationale.append(
                 "a gap has been seen often enough to be worth forging a capability for"
