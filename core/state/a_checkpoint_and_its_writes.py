@@ -36,11 +36,21 @@ logger = logging.getLogger("Aura.ACheckpointAndItsWrites")
 
 __all__ = [
     "AChannel",
+    "AnIllegalWrite",
     "ACheckpoint",
     "APendingWrite",
     "TheChannels",
     "WritesStillPending",
 ]
+
+
+class AnIllegalWrite(TypeError):
+    """A write the channel's declared type does not accept.
+
+    Raised at the write, not at the commit. A caller told at commit time
+    cannot say which of its writes was wrong, and by then the others have
+    been queued behind it.
+    """
 
 
 class WritesStillPending(RuntimeError):
@@ -54,14 +64,26 @@ class WritesStillPending(RuntimeError):
 
 @dataclass
 class AChannel:
-    """One value, and the version that moves whenever it does."""
+    """One value, the version that moves whenever it does, and its type.
+
+    ``holds`` is what this channel accepts, declared the first time anything
+    writes it. A second declaration that disagrees is refused: two writers
+    with different ideas of what a key holds is the defect a shared key set
+    exists to prevent, and letting the last one win hides it.
+    """
 
     name: str
     value: Any = None
     version: int = 0
+    holds: type | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {"name": self.name, "value": self.value, "version": self.version}
+        return {
+            "name": self.name,
+            "value": self.value,
+            "version": self.version,
+            "holds": self.holds.__name__ if self.holds else None,
+        }
 
 
 @dataclass(frozen=True)
@@ -119,6 +141,17 @@ class TheChannels:
 
     # ----------------------------------------------------- pending writes
 
+    def declare(self, channel: str, holds: type) -> None:
+        """Say what this channel accepts. Refuses a second, different answer."""
+        with self._lock:
+            held = self._channels.setdefault(channel, AChannel(name=channel))
+            if held.holds is not None and held.holds is not holds:
+                raise AnIllegalWrite(
+                    f"{channel} was declared to hold {held.holds.__name__} and "
+                    f"is now declared to hold {holds.__name__}"
+                )
+            held.holds = holds
+
     def write(self, channel: str, value: Any, *, by: str) -> None:
         """Produce a value. It is not in the channel until it is committed.
 
@@ -126,6 +159,13 @@ class TheChannels:
         half-finished node invisible to the node after it.
         """
         with self._lock:
+            held = self._channels.get(str(channel))
+            if held is not None and held.holds is not None:
+                if not isinstance(value, held.holds):
+                    raise AnIllegalWrite(
+                        f"{by} wrote {type(value).__name__} to {channel}, "
+                        f"which holds {held.holds.__name__}"
+                    )
             self._pending.append(
                 APendingWrite(channel=str(channel), value=value, by=str(by))
             )
@@ -152,6 +192,10 @@ class TheChannels:
                 )
                 channel.value = one.value
                 channel.version += 1
+                if channel.holds is None:
+                    # Declared by the first thing that wrote it. A key whose
+                    # type nobody stated is still a key with a type.
+                    channel.holds = type(one.value)
                 moved[one.channel] = channel.version
             self._pending.clear()
             return moved

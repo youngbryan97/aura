@@ -43,6 +43,7 @@ __all__ = [
     "how_to_write_it",
     "subscribe",
     "the_subscriptions",
+    "unsubscribe",
     "what_was_subscribed",
     "who_is_subscribed_again",
 ]
@@ -258,6 +259,17 @@ def subscribe(topic: str, who: str, *, handler: Any = None) -> ASubscription:
     with _LOCK:
         _SUBSCRIPTIONS[(subscription.topic, subscription.who)] = subscription
     return subscription
+
+
+def unsubscribe(topic: str, who: str) -> bool:
+    """Stop listening. Returns whether there was anything to stop.
+
+    Named as its own operation rather than left to a caller clearing a dict:
+    a subscription that can be added and not removed accumulates listeners
+    that nothing can account for, and after a restart it comes back too.
+    """
+    with _LOCK:
+        return _SUBSCRIPTIONS.pop((str(topic), str(who)), None) is not None
 
 
 def the_subscriptions() -> tuple[ASubscription, ...]:

@@ -13,11 +13,11 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 from core.self_modification.incremental_code_health import IncrementalCodeHealthScanner
 from core.self_modification.safe_modification_harness import SafeModificationHarness
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Skills.AutoRefactor")

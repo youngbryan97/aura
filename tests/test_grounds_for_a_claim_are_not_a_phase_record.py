@@ -68,6 +68,8 @@ def test_think_is_left_alone_because_it_is_genuinely_ambiguous() -> None:
 def test_the_record_is_only_appended_when_it_was_asked_for() -> None:
     from pathlib import Path
 
-    source = Path("interface/routes/chat.py").read_text(encoding="utf-8")
+    from chat_lane_support import chat_lane_source
+
+    source = chat_lane_source()
     assert "if not asks_why_she_did_that(user_message):" in source
     assert "return reply_text" in source

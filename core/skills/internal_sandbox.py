@@ -10,10 +10,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 # Prevent basic unsafe operations inside the sandbox
 SECURITY_PREAMBLE = """

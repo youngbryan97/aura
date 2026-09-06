@@ -3134,6 +3134,24 @@ def test_every_chokepoint_door_attaches_desktop_receipts():
         "a reply exit is dropping desktop receipts"
     )
 
+def test_every_chat_lane_module_is_in_the_list_these_tests_read():
+    """A lane module missing from the list is a call site nobody counts.
+
+    These tests assert that call sites exist by reading source. When a lift
+    moves code into a new `chat_*.py` and the list is not updated, the source
+    they read gets shorter and the assertions pass over an absence. Four
+    modules had gone missing that way, and the test that counts direct
+    executor calls was reading a 0 where the answer was 1.
+    """
+    from chat_lane_support import LANE_MODULES, lane_modules_on_disk
+
+    missing = sorted(set(lane_modules_on_disk()) - set(LANE_MODULES))
+    assert missing == [], (
+        f"{len(missing)} chat lane module(s) exist but are not read by these "
+        f"tests: {missing}. Add them to LANE_MODULES."
+    )
+
+
 def test_desktop_objective_execution_routes_through_tracked_gate():
     """Every desktop execution routes through the receipt-tracked gate.
 
@@ -3170,9 +3188,12 @@ def test_self_sufficient_desktop_objectives_execute_before_freeform_generation()
     """
 
     src = chat_lane_source()
+    # The lane was lifted out of the handler, so the inner name is now a
+    # forwarding stub. Read the implementation, not the forwarder: slicing at
+    # the stub found four lines of `return await ...` and asserted nothing.
     narrow = src.split(
-        "async def _execute_narrow_desktop_objective_before_cognition", 1
-    )[1].split("desktop_objective_response = await", 1)[0]
+        "async def _lifted_execute_narrow_desktop_objective_before_cognition", 1
+    )[1].split("\nasync def ", 1)[0]
     assert "_desktop_objective_self_sufficient_without_cognitive_text" in narrow
     assert "await _run_desktop_objective_tracked(" in narrow
 

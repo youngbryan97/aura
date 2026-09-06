@@ -254,7 +254,7 @@ def test_websocket_runtime_heartbeat_requires_conversation_lane(monkeypatch):
             "last_failure_reason": "desktop_cognitive_engine_required_no_reply",
         },
     )
-    monkeypatch.setattr(chat_routes, "_conversation_lane_is_standby", lambda _lane: False)
+    patch_chat_lane(monkeypatch, "_conversation_lane_is_standby", lambda _lane: False)
 
     payload = websocket_manager.runtime_heartbeat_payload("heartbeat")
 

@@ -229,6 +229,17 @@ class PhantomBrowser:
         if not PLAYWRIGHT_AVAILABLE:
             return
 
+    @property
+    def last_verdict(self) -> dict[str, Any]:
+        """How the last governed browser action was decided.
+
+        A refused read returns an empty string, which is also what a blank
+        page returns, so a caller reading only the content cannot tell a
+        refusal from nothing being there. One task reported that its keywords
+        were missing from a page it had never been allowed to read.
+        """
+        return dict(self._last_verdict)
+
     def _effective_principal(self, principal: str = "") -> str:
         return str(principal or "").strip() or str(
             getattr(self, "principal", "") or ""

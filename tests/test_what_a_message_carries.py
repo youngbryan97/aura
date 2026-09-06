@@ -252,3 +252,31 @@ def test_asking_again_does_not_replace_a_registration_somebody_made():
     for_a_type(Odd, mine)
     assert for_a_type(Odd) is mine
     assert how_to_read_it(b"cba", Odd) == "abc"
+
+
+def test_a_subscription_can_be_removed_as_well_as_added():
+    """One that can only be added accumulates listeners nothing accounts for."""
+    from core.runtime.what_a_message_carries import unsubscribe
+
+    subscribe("t", "kernel")
+    assert unsubscribe("t", "kernel") is True
+    assert the_subscriptions() == ()
+
+
+def test_removing_one_that_is_not_there_says_so():
+    from core.runtime.what_a_message_carries import unsubscribe
+
+    assert unsubscribe("t", "nobody") is False
+
+
+def test_a_removed_subscription_does_not_come_back_after_a_restart():
+    from core.runtime.what_a_message_carries import unsubscribe
+
+    subscribe("t", "kernel")
+    subscribe("t", "journal")
+    unsubscribe("t", "kernel")
+    saved = what_was_subscribed()
+
+    forget_everything()
+    who_is_subscribed_again(saved)
+    assert {one.who for one in the_subscriptions()} == {"journal"}

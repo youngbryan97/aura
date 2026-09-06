@@ -66,12 +66,27 @@ def _record_reaper_degradation(
             logger.debug("LymphaticReaper degradation could not be recorded: %s", signature_exc)
 
 
+def _default_data_dir() -> Path:
+    """The data directory under whichever state root this process has."""
+    try:
+        from core.runtime.state_ownership import state_root
+
+        return Path(state_root()) / "data"
+    except (ImportError, AttributeError, OSError, RuntimeError):
+        return Path("~/.aura/data")
+
+
 class LymphaticReaper:
     def __init__(self, interval_s: float = 300.0, *, data_dir: Path | None = None):
         self._interval = max(1.0, float(interval_s))
         self._running = False
         self._task: asyncio.Task | None = None
-        self._data_dir = Path(data_dir or os.environ.get("AURA_DATA_DIR", "~/.aura/data")).expanduser()
+        # Under the state root, not hardcoded to the live one. This fell back
+        # to ~/.aura/data, so a process with its own AURA_STATE_ROOT — every
+        # test, every probe — had a reaper sweeping the live instance's data.
+        self._data_dir = Path(
+            data_dir or os.environ.get("AURA_DATA_DIR") or _default_data_dir()
+        ).expanduser()
         self._terminate_long_children = os.getenv("AURA_REAPER_TERMINATE_LONG_CHILDREN", "0") == "1"
         self._last_sweep_at = 0.0
         self._last_error = ""

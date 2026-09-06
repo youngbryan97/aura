@@ -345,6 +345,42 @@ class LLMCodeGenerator:
                     f"LLM returned no valid Python source "
                     f"({exc.msg} at line {exc.lineno}); model said:\n{preview}"
                 ) from exc
+            # Parsing says it is Python. It does not say the Python does what
+            # it reads as doing. LIVE: a run delivered in 335 seconds whose
+            # code never awaited its queued coroutines, could deadlock waiting
+            # on queue data while holding the producer's lock, and mutated a
+            # queue's internal deque instead of calling put(). Delivery
+            # succeeded and semantic correctness was zero.
+            self.last_async_findings = ()
+            try:
+                from core.verify.is_this_async_code_correct import what_is_wrong_with
+
+                self.last_async_findings = what_is_wrong_with(code)
+            except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                _record_code_generator_degradation(
+                    "llm_code_generator",
+                    exc,
+                    action="served generated code without the async correctness check",
+                )
+            if self.last_async_findings:
+                _record_code_generator_degradation(
+                    "llm_code_generator",
+                    RuntimeError(
+                        "; ".join(
+                            one.what_happens for one in self.last_async_findings[:3]
+                        )
+                    ),
+                    action=(
+                        f"served {len(self.last_async_findings)} async mistake(s) in "
+                        "generated code; the findings are on last_async_findings"
+                    ),
+                    extra={"module_path": str(context.get("module_path", ""))},
+                )
+                logger.warning(
+                    "Generated code has %d async mistake(s): %s",
+                    len(self.last_async_findings),
+                    "; ".join(str(one) for one in self.last_async_findings[:3]),
+                )
             logger.info(
                 "Generated reconstruction candidate for %s (%d chars)",
                 context.get("module_path", "<unknown>"),

@@ -30,10 +30,10 @@ from urllib.parse import urlencode, urlparse, urlsplit, urlunsplit
 
 from pydantic import BaseModel, Field
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 from core.runtime.public_http_transport import request_public_http
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 #: Methods that only ask a server a question.
 READ_METHODS: tuple[str, ...] = ("GET", "HEAD")

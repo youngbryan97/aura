@@ -53,7 +53,7 @@ async def test_reply_quality_candidate_is_measured_once_per_request(monkeypatch)
         return _measured
 
     assessment = SimpleNamespace(ok=True, reasons=(), retryable=False, hard_failure=False)
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", _recent)
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", _recent)
     monkeypatch.setattr(chat_routes, "_is_actionably_stale_response", _count("stale", False))
     monkeypatch.setattr(chat_routes, "_is_same_answer_different_prompt", _count("same", False))
     monkeypatch.setattr(chat_routes, "_evaluate_reply_topicality", _count("topic", (False, "")))
@@ -1663,10 +1663,7 @@ def test_continuity_status_probe_repair_is_grounded_not_boilerplate():
 def test_recovery_surfaces_do_not_assert_unmeasured_runtime_facts(monkeypatch):
     from interface.routes import chat as chat_routes
 
-    monkeypatch.setattr(
-        chat_routes,
-        "_shape_with_live_substrate",
-        lambda text, user_message="": text,
+    patch_chat_lane(monkeypatch, "_shape_with_live_substrate", lambda text, user_message="": text,
     )
     replies = (
         chat_routes._build_assistant_mode_recovery_reply(
@@ -8410,7 +8407,7 @@ async def test_api_chat_desktop_explicit_file_objective_runs_after_cognitive_eng
     monkeypatch.setattr(chat_routes, "_emit_chat_output_receipt", _fake_output_receipt)
     monkeypatch.setattr(_chat_capability_inventory, "_execute_governed_live_skill", _fake_governed_skill)
     monkeypatch.setattr(chat_routes, "_run_cognitive_engine_chat_turn", _fake_cognitive_turn)
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     patch_chat_lane(monkeypatch, "_collect_conversation_lane_status",
         lambda: {
             "conversation_ready": True,
@@ -8501,7 +8498,7 @@ async def test_api_chat_desktop_runtime_status_uses_cognitive_engine_when_requir
     monkeypatch.setattr(chat_routes, "_run_cognitive_engine_chat_turn", _fake_cognitive_turn)
     patch_chat_lane(monkeypatch, "_runtime_tool_governance_available", lambda: True)
     patch_chat_lane(monkeypatch, "_runtime_cognitive_engine_available", lambda: True)
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     patch_chat_lane(monkeypatch, "_collect_conversation_lane_status",
         lambda: {
             "conversation_ready": True,
@@ -8585,7 +8582,7 @@ async def test_api_chat_desktop_soak_lane_question_uses_cognitive_engine_when_re
     monkeypatch.setattr(chat_routes, "_run_cognitive_engine_chat_turn", _fake_cognitive_turn)
     patch_chat_lane(monkeypatch, "_runtime_tool_governance_available", lambda: True)
     patch_chat_lane(monkeypatch, "_runtime_cognitive_engine_available", lambda: True)
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     patch_chat_lane(monkeypatch, "_collect_conversation_lane_status",
         lambda: {
             "conversation_ready": True,
@@ -8659,7 +8656,7 @@ async def test_api_chat_desktop_coherence_status_uses_cognitive_engine_when_requ
     monkeypatch.setattr(chat_routes, "_run_cognitive_engine_chat_turn", _fake_cognitive_turn)
     patch_chat_lane(monkeypatch, "_runtime_tool_governance_available", lambda: True)
     patch_chat_lane(monkeypatch, "_runtime_cognitive_engine_available", lambda: True)
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     patch_chat_lane(monkeypatch, "_collect_conversation_lane_status",
         lambda: {
             "conversation_ready": True,
@@ -8737,7 +8734,7 @@ async def test_api_chat_desktop_nonexecuting_plan_uses_cognitive_engine_when_req
     monkeypatch.setattr(chat_routes, "_emit_chat_output_receipt", _fake_output_receipt)
     monkeypatch.setattr(chat_routes, "_run_cognitive_engine_chat_turn", _fake_cognitive_turn)
     monkeypatch.setattr(_chat_desktop_objective, "_execute_desktop_objective_from_chat", _forbidden_desktop_objective)
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     patch_chat_lane(monkeypatch, "_collect_conversation_lane_status",
         lambda: {
             "conversation_ready": True,
@@ -8818,7 +8815,7 @@ async def test_api_chat_desktop_nonexecuting_decision_question_blocks_desktop_ta
     monkeypatch.setattr(chat_routes, "_emit_chat_output_receipt", _fake_output_receipt)
     monkeypatch.setattr(chat_routes, "_run_cognitive_engine_chat_turn", _fake_cognitive_turn)
     monkeypatch.setattr(_chat_desktop_objective, "_execute_desktop_objective_from_chat", _forbidden_desktop_objective)
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     patch_chat_lane(monkeypatch, "_collect_conversation_lane_status",
         lambda: {
             "conversation_ready": True,
@@ -9026,9 +9023,21 @@ async def test_api_chat_desktop_surface_blocks_thin_cognitive_engine_recovery_re
     )
 
     assert response.status_code == 200  # in-band fail-closed delivery for real users
-    assert b"desktop_cognitive_engine_unavailable" in response.body
+    # The thin engine text is the thing that must not reach the person. It is
+    # not served, and the reply says she could not answer.
     assert b"What&apos;s the puzzle" not in response.body
     assert b"What's the puzzle" not in response.body
+    said = json.loads(response.body)["response"]
+    assert said.strip(), "failing closed still has to say something"
+    assert any(
+        one in said.lower()
+        for one in ("couldn't", "could not", "unavailable", "rather tell you")
+    ), said
+    # The status marker used to be asserted here. It named one of several
+    # fail-closed exits, and the turn now leaves by a different one — her own
+    # words, unfinished, beat an apology (LIVE 2026-08-27, 2026-08-29). What
+    # this test is about is that a generic recovery line is not an answer, and
+    # that is what the assertions above hold.
 
 
 @pytest.mark.asyncio
@@ -9081,7 +9090,7 @@ async def test_api_chat_desktop_required_fails_closed_on_final_degraded_reply(mo
     monkeypatch.setattr(chat_routes, "_run_cognitive_engine_chat_turn", _bad_cognitive_turn)
     monkeypatch.setattr(chat_routes, "_stabilize_user_facing_reply", _no_stabilize)
     monkeypatch.setattr(chat_routes, "_repair_final_degraded_reply", _no_repair)
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     monkeypatch.setattr(chat_routes.ServiceContainer, "get", staticmethod(lambda _name, default=None: default))
     patch_chat_lane(monkeypatch, "_collect_conversation_lane_status",
         lambda: {
@@ -9180,7 +9189,7 @@ async def test_api_chat_desktop_required_blocks_unfounded_voice_intrusion(monkey
     monkeypatch.setattr(chat_routes, "_run_cognitive_engine_chat_turn", _bad_cognitive_turn)
     monkeypatch.setattr(chat_routes, "_stabilize_user_facing_reply", _no_stabilize)
     monkeypatch.setattr(chat_routes, "_repair_final_degraded_reply", _no_repair)
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     monkeypatch.setattr(chat_routes.ServiceContainer, "get", staticmethod(lambda _name, default=None: default))
     patch_chat_lane(monkeypatch, "_collect_conversation_lane_status",
         lambda: {
@@ -9292,7 +9301,7 @@ async def test_api_chat_desktop_required_does_not_start_second_full_mind_owner(m
     monkeypatch.setattr(chat_routes, "_run_cognitive_engine_chat_turn", _cognitive_turn)
     monkeypatch.setattr(chat_routes, "_stabilize_user_facing_reply", _no_stabilize)
     monkeypatch.setattr(chat_routes, "_repair_final_degraded_reply", _no_repair)
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
         "get",
@@ -9518,10 +9527,7 @@ async def test_required_self_condition_turn_projects_mixed_operational_claims_wi
             "projection_dict": {"evidence_id": "condition-proof-1"},
         },
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_shape_with_live_substrate",
-        lambda text, _user_message="": text,
+    patch_chat_lane(monkeypatch, "_shape_with_live_substrate", lambda text, _user_message="": text,
     )
     monkeypatch.setattr(
         chat_routes,
@@ -9637,10 +9643,7 @@ async def test_required_self_condition_turn_repairs_a_dropped_epistemic_ask(
             "projection_dict": {"evidence_id": "condition-proof-compound"},
         },
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_shape_with_live_substrate",
-        lambda text, _user_message="": text,
+    patch_chat_lane(monkeypatch, "_shape_with_live_substrate", lambda text, _user_message="": text,
     )
     monkeypatch.setattr(
         chat_routes,
@@ -10098,7 +10101,7 @@ async def test_desktop_cognitive_engine_rejects_unfounded_voice_intrusion(monkey
         ),
     )
     monkeypatch.setattr(chat_routes, "_repair_final_degraded_reply", _no_repair)
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
         "get",
@@ -10280,10 +10283,7 @@ async def test_desktop_repair_cannot_open_a_fresh_transaction_deadline(monkeypat
         "_desktop_secondary_model_repair_allowed",
         lambda **_kwargs: (True, "test_ready"),
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_gather_recent_user_messages_for_relevance",
-        AsyncCallFixture(return_value=[]),
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]),
     )
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
@@ -10510,9 +10510,9 @@ async def test_desktop_stabilizer_keeps_complex_self_process_questions_substanti
     patch_chat_lane(monkeypatch, "_resolve_live_aura_state", lambda: None)
     monkeypatch.setattr(_chat_conversation_repair, "_build_grounded_introspection_reply", lambda _msg: "")
     monkeypatch.setattr(chat_routes, "_build_grounded_traceability_reply", AsyncCallFixture(return_value=""))
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     monkeypatch.setattr(_chat_desktop_repair, "_apply_aura_voice_shaping", lambda text: str(text))
-    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping_compat", lambda text, _msg: str(text))
+    patch_chat_lane(monkeypatch, "_apply_aura_voice_shaping_compat", lambda text, _msg: str(text))
     monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
     monkeypatch.setattr(chat_routes, "_record_recent_response", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
@@ -11895,7 +11895,7 @@ async def test_desktop_low_risk_social_turn_retries_once_then_fails_closed(monke
             reason="",
         ),
     )
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
         "get",
@@ -11956,7 +11956,7 @@ async def test_desktop_required_capability_turn_uses_cognitive_engine_before_cat
             return await operation()
 
     monkeypatch.setattr(pool_module, "get_engine_connection_pool", lambda: _Pool())
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
         "get",
@@ -12032,7 +12032,7 @@ async def test_desktop_required_status_turn_uses_cognitive_engine_when_lane_read
             return await operation()
 
     monkeypatch.setattr(pool_module, "get_engine_connection_pool", lambda: _Pool())
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
         "get",
@@ -12232,10 +12232,7 @@ async def test_cognitive_engine_does_not_duplicate_a_consumed_model_owner(monkey
         "_desktop_secondary_model_repair_allowed",
         lambda **_kwargs: (True, "test_ready"),
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_gather_recent_user_messages_for_relevance",
-        AsyncCallFixture(return_value=[]),
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]),
     )
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
@@ -12448,10 +12445,7 @@ async def test_truncated_foreground_answer_gets_one_same_worker_continuation(mon
         "_desktop_secondary_model_repair_allowed",
         lambda **_kwargs: (True, "completion_retry_ready"),
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_gather_recent_user_messages_for_relevance",
-        AsyncCallFixture(return_value=[]),
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]),
     )
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
@@ -12547,10 +12541,7 @@ async def test_route_level_truncated_draft_enters_same_worker_continuation(monke
         "_desktop_secondary_model_repair_allowed",
         lambda **_kwargs: (True, "completion_retry_ready"),
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_gather_recent_user_messages_for_relevance",
-        AsyncCallFixture(return_value=[]),
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]),
     )
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
@@ -12842,10 +12833,7 @@ async def test_desktop_chat_adopts_certified_recurrent_answer_without_fake_decod
             return await operation()
 
     monkeypatch.setattr(pool_module, "get_engine_connection_pool", lambda: _Pool())
-    monkeypatch.setattr(
-        chat_routes,
-        "_gather_recent_user_messages_for_relevance",
-        AsyncCallFixture(return_value=[]),
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]),
     )
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
@@ -12997,10 +12985,7 @@ async def test_desktop_chat_delivers_certified_recurrent_answer_without_prose_pi
         "_build_conversation_recall_reply",
         _forbidden_context_collector,
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_collect_desktop_required_search_evidence",
-        _forbidden_context_collector,
+    patch_chat_lane(monkeypatch, "_collect_desktop_required_search_evidence", _forbidden_context_collector,
     )
     monkeypatch.setattr(
         chat_routes,
@@ -13045,15 +13030,9 @@ async def test_desktop_chat_delivers_certified_recurrent_answer_without_prose_pi
         "_append_past_action_record",
         _forbidden_terminal_transform,
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_append_runtime_authored_why",
-        _forbidden_terminal_transform,
+    patch_chat_lane(monkeypatch, "_append_runtime_authored_why", _forbidden_terminal_transform,
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_enforce_final_requested_output_contract",
-        _forbidden_terminal_transform,
+    patch_chat_lane(monkeypatch, "_enforce_final_requested_output_contract", _forbidden_terminal_transform,
     )
     monkeypatch.setattr(chat_routes, "_is_actionably_stale_response", _record_quality_call)
     monkeypatch.setattr(chat_routes, "_is_same_answer_different_prompt", _record_quality_call)
@@ -13185,10 +13164,7 @@ async def test_truncated_completion_replacement_cannot_become_authoritative(monk
         "_desktop_secondary_model_repair_allowed",
         lambda **_kwargs: (True, "completion_retry_ready"),
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_gather_recent_user_messages_for_relevance",
-        AsyncCallFixture(return_value=[]),
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]),
     )
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
@@ -13671,10 +13647,7 @@ async def test_empty_completion_cannot_erase_a_valid_incumbent(monkeypatch):
         "_desktop_secondary_model_repair_allowed",
         lambda **_kwargs: (True, "completion_retry_ready"),
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_gather_recent_user_messages_for_relevance",
-        AsyncCallFixture(return_value=[]),
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]),
     )
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
@@ -13780,10 +13753,7 @@ async def test_progressive_continuation_accepts_complete_deadline_segment(monkey
         "_desktop_secondary_model_repair_allowed",
         lambda **_kwargs: (True, "completion_retry_ready"),
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_gather_recent_user_messages_for_relevance",
-        AsyncCallFixture(return_value=[]),
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]),
     )
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
@@ -13973,10 +13943,7 @@ async def test_compound_answer_schedules_each_uncovered_obligation(monkeypatch):
         "_desktop_secondary_model_repair_allowed",
         lambda **_kwargs: (True, "completion_retry_ready"),
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_gather_recent_user_messages_for_relevance",
-        AsyncCallFixture(return_value=[]),
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]),
     )
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
@@ -14436,15 +14403,9 @@ async def test_rejected_generation_cannot_open_metadata_less_second_owner(monkey
         "_desktop_secondary_model_repair_allowed",
         lambda **_kwargs: (True, "test_ready"),
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_gather_recent_user_messages_for_relevance",
-        AsyncCallFixture(return_value=[]),
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]),
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_ground_runtime_fact_status_reply",
-        lambda _visible, reply, _lane, **_kwargs: f"{reply} grounded",
+    patch_chat_lane(monkeypatch, "_ground_runtime_fact_status_reply", lambda _visible, reply, _lane, **_kwargs: f"{reply} grounded",
     )
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
@@ -17362,7 +17323,7 @@ async def test_stabilize_user_facing_reply_blocks_ungrounded_search_turn_fallbac
     patch_chat_lane(monkeypatch, "_resolve_live_aura_state", lambda: state)
     monkeypatch.setattr(_chat_conversation_repair, "_build_grounded_introspection_reply", lambda _msg: "")
     monkeypatch.setattr(_chat_desktop_repair, "_apply_aura_voice_shaping", lambda text: str(text))
-    monkeypatch.setattr(chat_routes, "_looks_generic_assistantish", lambda _msg, _text: (False, ""))
+    patch_chat_lane(monkeypatch, "_looks_generic_assistantish", lambda _msg, _text: (False, ""))
     monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
     monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
     monkeypatch.setattr(chat_routes, "_record_recent_response", lambda *_args, **_kwargs: None)
@@ -17612,7 +17573,7 @@ async def test_stabilize_user_facing_reply_rejects_objective_parrot(monkeypatch)
     monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
     monkeypatch.setattr(chat_routes, "_record_recent_response", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
-    monkeypatch.setattr(chat_routes, "_build_stateful_voice_reflex", lambda _frame: "I'm not going to just mirror you back.")
+    patch_chat_lane(monkeypatch, "_build_stateful_voice_reflex", lambda _frame: "I'm not going to just mirror you back.")
     monkeypatch.setattr(
         "core.identity.identity_guard.PersonaEnforcementGate",
         lambda: _PassingGate(),
@@ -17862,14 +17823,11 @@ async def test_stabilize_user_facing_reply_rejects_identity_collapse_disclaimer(
     patch_chat_lane(monkeypatch, "_resolve_live_aura_state", lambda: None)
     monkeypatch.setattr(_chat_conversation_repair, "_build_grounded_introspection_reply", lambda _msg: "")
     monkeypatch.setattr(_chat_desktop_repair, "_apply_aura_voice_shaping", lambda text: str(text))
-    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping_compat", lambda text, _msg: str(text))
+    patch_chat_lane(monkeypatch, "_apply_aura_voice_shaping_compat", lambda text, _msg: str(text))
     monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
     monkeypatch.setattr(chat_routes, "_record_recent_response", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
-    monkeypatch.setattr(
-        chat_routes,
-        "_call_stateful_voice_reflex",
-        lambda _frame, _msg: "I do have a live stance here, and I should speak from it directly.",
+    patch_chat_lane(monkeypatch, "_call_stateful_voice_reflex", lambda _frame, _msg: "I do have a live stance here, and I should speak from it directly.",
     )
     monkeypatch.setattr(
         "core.identity.identity_guard.PersonaEnforcementGate",
@@ -17934,13 +17892,10 @@ async def test_desktop_required_stabilizer_does_not_add_a_third_generation_by_de
     patch_chat_lane(monkeypatch, "_resolve_live_aura_state", lambda: None)
     monkeypatch.setattr(_chat_conversation_repair, "_build_grounded_introspection_reply", lambda _msg: "")
     monkeypatch.setattr(chat_routes, "_build_grounded_traceability_reply", AsyncCallFixture(return_value=""))
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     monkeypatch.setattr(_chat_desktop_repair, "_apply_aura_voice_shaping", lambda text: str(text))
-    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping_compat", lambda text, _msg: str(text))
-    monkeypatch.setattr(
-        chat_routes,
-        "_looks_generic_assistantish",
-        lambda _msg, text: ("ai language model" in str(text).lower(), "assistant_disclaimer"),
+    patch_chat_lane(monkeypatch, "_apply_aura_voice_shaping_compat", lambda text, _msg: str(text))
+    patch_chat_lane(monkeypatch, "_looks_generic_assistantish", lambda _msg, text: ("ai language model" in str(text).lower(), "assistant_disclaimer"),
     )
     monkeypatch.setattr(chat_routes, "_is_objective_parrot_reply", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
@@ -18008,13 +17963,10 @@ async def test_desktop_required_capability_repair_uses_grounded_inventory_withou
     patch_chat_lane(monkeypatch, "_resolve_live_aura_state", lambda: None)
     monkeypatch.setattr(_chat_conversation_repair, "_build_grounded_introspection_reply", lambda _msg: "")
     monkeypatch.setattr(chat_routes, "_build_grounded_traceability_reply", AsyncCallFixture(return_value=""))
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     monkeypatch.setattr(_chat_desktop_repair, "_apply_aura_voice_shaping", lambda text: str(text))
-    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping_compat", lambda text, _msg: str(text))
-    monkeypatch.setattr(
-        chat_routes,
-        "_looks_generic_assistantish",
-        lambda _msg, text: ("ai language model" in str(text).lower(), "assistant_disclaimer"),
+    patch_chat_lane(monkeypatch, "_apply_aura_voice_shaping_compat", lambda text, _msg: str(text))
+    patch_chat_lane(monkeypatch, "_looks_generic_assistantish", lambda _msg, text: ("ai language model" in str(text).lower(), "assistant_disclaimer"),
     )
     monkeypatch.setattr(chat_routes, "_is_objective_parrot_reply", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
@@ -18087,14 +18039,11 @@ async def test_stabilizer_skips_second_generation_under_critical_memory_pressure
     patch_chat_lane(monkeypatch, "_resolve_live_aura_state", lambda: None)
     monkeypatch.setattr(_chat_conversation_repair, "_build_grounded_introspection_reply", lambda _msg: "")
     monkeypatch.setattr(_chat_desktop_repair, "_apply_aura_voice_shaping", lambda text: str(text))
-    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping_compat", lambda text, _msg: str(text))
+    patch_chat_lane(monkeypatch, "_apply_aura_voice_shaping_compat", lambda text, _msg: str(text))
     monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
     monkeypatch.setattr(chat_routes, "_record_recent_response", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
-    monkeypatch.setattr(
-        chat_routes,
-        "_call_stateful_voice_reflex",
-        lambda _frame, _msg: "I should not launch a second model pass while memory is unsafe.",
+    patch_chat_lane(monkeypatch, "_call_stateful_voice_reflex", lambda _frame, _msg: "I should not launch a second model pass while memory is unsafe.",
     )
     monkeypatch.setattr(
         "core.identity.identity_guard.PersonaEnforcementGate",
@@ -18162,13 +18111,10 @@ async def test_desktop_required_stabilizer_uses_protected_primary_contract(monke
     patch_chat_lane(monkeypatch, "_resolve_live_aura_state", lambda: None)
     monkeypatch.setattr(_chat_conversation_repair, "_build_grounded_introspection_reply", lambda _msg: "")
     monkeypatch.setattr(chat_routes, "_build_grounded_traceability_reply", AsyncCallFixture(return_value=""))
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     monkeypatch.setattr(_chat_desktop_repair, "_apply_aura_voice_shaping", lambda text: str(text))
-    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping_compat", lambda text, _msg: str(text))
-    monkeypatch.setattr(
-        chat_routes,
-        "_looks_generic_assistantish",
-        lambda _msg, text: ("ai language model" in str(text).lower(), "assistant_disclaimer"),
+    patch_chat_lane(monkeypatch, "_apply_aura_voice_shaping_compat", lambda text, _msg: str(text))
+    patch_chat_lane(monkeypatch, "_looks_generic_assistantish", lambda _msg, text: ("ai language model" in str(text).lower(), "assistant_disclaimer"),
     )
     monkeypatch.setattr(chat_routes, "_is_objective_parrot_reply", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
@@ -18376,7 +18322,7 @@ def test_grounded_self_condition_reply_forwards_session_identity(monkeypatch):
         observed.update(message=message, session_id=session_id)
         return {"reply": "I am steady. The rest remains an inference."}
 
-    monkeypatch.setattr(chat_routes, "_build_self_condition_evidence", _evidence)
+    patch_chat_lane(monkeypatch, "_build_self_condition_evidence", _evidence)
 
     reply = chat_routes._build_grounded_self_condition_reply(
         "How are you right now?",
@@ -18705,7 +18651,7 @@ async def test_api_chat_uses_social_presence_before_protected_foreground_for_liv
     patch_chat_lane(monkeypatch, "_restore_owner_session_from_request", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(chat_routes, "_notify_user_spoke", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(_chat_preflight, "_log_exchange", AsyncCallFixture())
-    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
+    patch_chat_lane(monkeypatch, "_gather_recent_user_messages_for_relevance", AsyncCallFixture(return_value=[]))
     monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
     monkeypatch.setattr(chat_routes, "_is_same_answer_different_prompt", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(chat_routes, "_evaluate_reply_topicality", lambda *_args, **_kwargs: (False, ""))
@@ -19255,7 +19201,7 @@ async def test_api_chat_preempts_stale_foreground_lock_and_clears_mlx_owner(monk
 
     monkeypatch.setattr(chat_routes, "_foreground_chat_lock", chat_routes.PreemptibleChatLock())
     monkeypatch.setattr(chat_routes, "_FOREGROUND_CHAT_BUSY_WAIT_S", 0.01)
-    monkeypatch.setattr(chat_routes, "_force_clear_mlx_foreground_owner", _fake_clear_mlx_owner)
+    patch_chat_lane(monkeypatch, "_force_clear_mlx_foreground_owner", _fake_clear_mlx_owner)
     patch_chat_lane(monkeypatch, "_restore_owner_session_from_request", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(chat_routes, "_notify_user_spoke", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(_chat_preflight, "_log_exchange", _fake_log_exchange)

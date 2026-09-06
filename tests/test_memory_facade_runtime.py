@@ -325,6 +325,11 @@ async def test_memory_facade_compat_search_accepts_top_k_and_sync(monkeypatch, t
 @pytest.mark.asyncio
 async def test_memory_facade_commit_interaction_supports_sync_vector_and_ledger(monkeypatch):
     monkeypatch.setenv("AURA_STRICT_RUNTIME", "0")
+    # These exercise the direct episodic and semantic writes, which is
+    # the ungoverned path. It used to be reached by relaxing the global
+    # strict flag; it has its own name now, so a test that wants it says
+    # so where a reader can see it.
+    monkeypatch.setenv("AURA_MEMORY_WRITES_UNGOVERNED", "1")
     facade = MemoryFacade()
     facade._episodic = SimpleNamespace(record_episode_async=AsyncCallFixture(return_value="episode-1"))
     vector_calls = []
@@ -355,6 +360,11 @@ async def test_memory_facade_commit_interaction_supports_sync_vector_and_ledger(
 @pytest.mark.asyncio
 async def test_memory_facade_commit_interaction_writes_semantic_for_user_facing_turn(monkeypatch):
     monkeypatch.setenv("AURA_STRICT_RUNTIME", "0")
+    # These exercise the direct episodic and semantic writes, which is
+    # the ungoverned path. It used to be reached by relaxing the global
+    # strict flag; it has its own name now, so a test that wants it says
+    # so where a reader can see it.
+    monkeypatch.setenv("AURA_MEMORY_WRITES_UNGOVERNED", "1")
     facade = MemoryFacade()
     facade._episodic = SimpleNamespace(record_episode_async=AsyncCallFixture(return_value="episode-7"))
     semantic_calls = []
@@ -744,6 +754,11 @@ async def test_memory_facade_add_memory_records_rejection_reason(monkeypatch):
 @pytest.mark.asyncio
 async def test_memory_facade_add_memory_treats_none_returning_vector_backend_as_success(monkeypatch):
     monkeypatch.setenv("AURA_STRICT_RUNTIME", "0")
+    # These exercise the direct episodic and semantic writes, which is
+    # the ungoverned path. It used to be reached by relaxing the global
+    # strict flag; it has its own name now, so a test that wants it says
+    # so where a reader can see it.
+    monkeypatch.setenv("AURA_MEMORY_WRITES_UNGOVERNED", "1")
     facade = MemoryFacade()
     vector_calls = []
     facade._vector = SimpleNamespace(add_memory=lambda text, metadata=None: vector_calls.append((text, metadata)))
@@ -768,6 +783,11 @@ async def test_memory_facade_add_memory_treats_none_returning_vector_backend_as_
 @pytest.mark.asyncio
 async def test_memory_facade_add_memory_degrades_open_for_legacy_non_user_writes(monkeypatch):
     monkeypatch.setenv("AURA_STRICT_RUNTIME", "0")
+    # These exercise the direct episodic and semantic writes, which is
+    # the ungoverned path. It used to be reached by relaxing the global
+    # strict flag; it has its own name now, so a test that wants it says
+    # so where a reader can see it.
+    monkeypatch.setenv("AURA_MEMORY_WRITES_UNGOVERNED", "1")
     facade = MemoryFacade()
     vector_calls = []
     facade._vector = SimpleNamespace(add_memory=lambda text, metadata=None: vector_calls.append((text, metadata)) or True)

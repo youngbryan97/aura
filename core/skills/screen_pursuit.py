@@ -37,7 +37,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.cognition.a_shape_that_makes_it_safe import what_makes_it_safe
 from core.cognition.a_window_not_a_maximum import AWindow, which_act_lands_in_it
 from core.cognition.does_this_world_repeat import DoesItRepeat
@@ -70,6 +69,7 @@ from core.runtime.errors import record_degradation
 from core.runtime.watched_goal import PURSUIT_SECONDS, a_cycle_took
 from core.runtime.what_she_learned import TRUST_CARRIED_OVER, named, recall, remember
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 logger = logging.getLogger("Aura.ScreenPursuit")
 

@@ -3,7 +3,7 @@
   "signature": "decided from one token, more than once",
   "formed_from_failures": 113,
   "patterns_covered": 121,
-  "patterns_not_honouring": 20,
+  "patterns_not_honouring": 14,
   "measured_at": "the decision, by asking the pattern whether it fires on the token alone",
   "recorded": "2026-08-28",
   "note": "Only shrinks. A decision taken from one of these tokens alone asks for the role instead."

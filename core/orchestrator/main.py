@@ -632,20 +632,6 @@ class RobustOrchestrator(
 
             logger.debug("Suppressed: %s", exc)
 
-    def _publish_telemetry(self, data: dict[str, Any]):
-        """Publish telemetry data to Event Bus."""
-        try:
-            from core.event_bus import get_event_bus
-
-            get_event_bus().publish_threadsafe("telemetry", {"timestamp": time.time(), **data})
-        except _ORCHESTRATOR_RECOVERABLE_ERRORS as exc:
-            _record_main_degradation(
-                exc,
-                action="dropped telemetry event-bus update and kept runtime loop active",
-            )
-
-            logger.debug("Suppressed: %s", exc)
-
     def _background_message_block_reason(self, origin: str) -> str:
         if self._is_user_facing_origin(origin):
             return ""
@@ -2954,13 +2940,15 @@ class RobustOrchestrator(
 
     def _publish_telemetry(self, data: dict[str, Any]):
         """
-        ZENITH LOCKDOWN: Fast-path telemetry delivery.
-        Keep the actor fast path and the canonical EventBus/UI path in sync.
+        Fast-path telemetry delivery, with the actor fast path and the
+        canonical EventBus/UI path kept in sync.
 
-        This later method shadows the older EventBus publisher above. Sending
-        only to ActorBus made request/reply control messages disappear: a
-        camera_capture_request reached SensoryGate while the desktop WebSocket
-        (fed by EventBus -> event_bridge -> broadcast_bus) never saw it.
+        There used to be a second, older EventBus-only publisher above this
+        one, silently shadowed by it and never called. Sending only to
+        ActorBus made request/reply control messages disappear: a
+        camera_capture_request reached SensoryGate while the desktop
+        WebSocket (fed by EventBus -> event_bridge -> broadcast_bus) never
+        saw it. The dead copy is gone; this is the only one.
         """
         try:
             from core.event_bus import get_event_bus

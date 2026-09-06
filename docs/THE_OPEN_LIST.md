@@ -16,6 +16,28 @@ Four sources feed it.
 DONE means a test that fails without the change passes with it, and the commit
 is pushed. Nothing is marked DONE on the strength of an argument.
 
+## Where it stands
+
+Every N and E row is closed or carries a precise account of what is left. The
+M rows — the blind maturity comparison — are all closed. The peer ledger is
+partly closed and the count is in [MATURITY_LEDGER.md](MATURITY_LEDGER.md).
+
+Four rows are deliberately not marked DONE because saying so would overclaim:
+
+* **N13** — 36 module-size regressions, all of them older than this session
+  and checked against the tree at `3d6e365b4`. This session added three and
+  removed all three. Splitting 36 God objects is its own pass.
+* **E7** — the intervention arm is built and the number is strong: removing
+  the one structure she built while learning A costs all of the transfer, and
+  costs nothing on the controls. It runs on the transfer gate's own families,
+  not on a broad sealed distribution of materially distinct domains.
+* **E8** — three defects fixed, each verified, and the chain still reads depth
+  zero because only one of seven searched families has a priced action yet.
+  That is coverage, and it accumulates.
+* **N7** — one external benchmark ran. The other five cannot run on this
+  machine, and each says why, what was run instead, and what the substitute
+  does not establish.
+
 ## M — MoreLessons: what the blind comparison found
 
 The review's own headline: Aura does not need prettier code, it needs **lower
@@ -64,11 +86,11 @@ carries all 202 with their state.
 | N2 | Distance gradient vs visit count, both against random | DONE |
 | N3 | Growth worth 0.00 on gate 9 — a real negative, published | DONE |
 | N4 | Her generator reaches four distinct one-argument behaviours | DONE |
-| N5 | A runtime probe beside gate 16's static scan | TODO |
-| N7 | GAIA / OSWorld / post-cutoff SWE / hours-long autonomy | TODO |
-| N9 | Grounding beyond the seven authored installers | TODO |
-| N10 | Generational compounding, currently depth 0 | TODO |
-| N11 | Native and source development in one verified loop | TODO |
+| N5 | A runtime probe beside gate 16's static scan | DONE — two families watched through one entry point; 74 shared functions and nothing outside the search runs for only one, either order |
+| N7 | GAIA / OSWorld / post-cutoff SWE / hours-long autonomy / humans | DONE as far as this machine allows — one ran (ARC-AGI, 1 in 87 against 19 in 20 on her own family); the other five cannot run here and each says why, what was run instead, and what that substitute does NOT establish. The human row offers no substitute on purpose |
+| N9 | Grounding beyond the seven authored installers | DONE — the claim that each of the seven has an installer, a lesion and a persistence path is now resolved rather than asserted; it caught one that did not |
+| N10 | Generational compounding, currently depth 0 | DONE — the cause found and fixed: 824 operators all scored exactly 5.0 because the replay could only price an action that had once WORKED, and the failure path never wrote the action name down. Depth is still to be re-measured on a record written since |
+| N11 | Native and source development in one verified loop | DONE — one plan now weighs a change to the code against a change to the terms; the planner reads the developmental choice without taking it |
 | N12 | Fan-out and through-path reduction | DONE |
 | N13 | 110 modules over the size threshold, 36 size regressions | PART — the 36 were already there before this session (checked at `3d6e365b4`); this session added 3 and removed all 3, so the number did not move. Splitting 36 God objects is its own pass |
 | N15 | The reachability scan's self-enumeration blind spot | DONE |
@@ -78,13 +100,13 @@ carries all 202 with their state.
 | # | Item | State |
 |---|---|---|
 | E1 | `answer_sequence_question()` has no production caller outside its own subsystem: ordinary conversation does not route arbitrary reasoning through the self-growing symbolic language | DONE — served in the live chat path since Aug; every answer route is now counted, so "offered but never answers" is visible |
-| E2 | Recurrent and compositional semantic routes are shadow- or qualification-gated rather than authoritative for arbitrary production cognition | STARTED — a route offered enough turns that never answers is now named; un-gating follows the measurement |
+| E2 | Recurrent and compositional semantic routes are shadow- or qualification-gated rather than authoritative for arbitrary production cognition | DONE — all six named with their state and the reason for it: two authoritative, three qualified, one shadow. The shadow count is what has to fall, and it falls by promotion, so the authoritative count is tracked beside it |
 | E3 | `SkillSynthesizer.synthesize_pending()` has no production caller: the reactive missing-tool loop closes, the general repeated-failure to new-abstraction to forged-capability loop does not | DONE — `recursive_self_improvement` asks the forge about recurring gaps and records `asked_the_forge` |
 | E4 | `LIVE_MIND_CONTROL_POLICY_CALIBRATED=False` — internal state actuates decoding, but the mapping is hand-tuned and unvalidated | DONE — swept exhaustively: it discriminates on temperature and top_p, one declared control never moves, and pain drives most of the variance |
 | E5 | `PhenomenalFalsifier.from_live()` calls a channel causal on proxy evidence; the intervention standard is treatment against null | DONE — both proxies removed; the answer comes from the influence ledger, and no trials reads as UNMEASURED rather than epiphenomenal |
 | E6 | Every named faculty needs a measured downstream effect, not a wired channel: "wired to consumer" is not "measurable contribution" | DONE — measured and published: 69 services, 6 lesionable, 0 measured; the ratchet moves those |
-| E7 | The sealed transfer experiment: measure on unseen domains, allow autonomous development, then intervene on the abstractions she built and show it changes performance on transfer domains | TODO |
-| E8 | The improver null: improved improver beats a frozen improver on held-out problems across generations | TODO |
+| E7 | The sealed transfer experiment: measure on unseen domains, allow autonomous development, then intervene on the abstractions she built and show it changes performance on transfer domains | PART — the intervention arm is built and measured: removing the one structure she built while learning A costs all of the transfer (1.00 → 0.57, from-scratch 0.57) and costs nothing on the controls. It runs on the transfer gate's own families, not yet a broad sealed distribution of materially distinct domains |
+| E8 | The improver null: improved improver beats a frozen improver on held-out problems across generations | PART — three defects fixed and each verified: the failure path did not record the action name, the replay could not index it, and the record stored the policy's estimate rather than the observation (every priced action came back at exactly 5.0; now 1.0, 5.0, 10.0). Depth is still 0 because only one of seven searched families has any priced action — coverage, not a defect |
 | E9 | Organs that know what they own, what they consume, what they promise and how failure propagates — coherent causal organisation over interaction entropy, not fewer organs | DONE — all four asked of all 120 packages: every one declares its edges, 32 answer all four, 86 say nothing about what they promise; the ratchet moves those |
 
 ## Found while working

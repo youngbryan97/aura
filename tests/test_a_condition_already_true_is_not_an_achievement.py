@@ -22,6 +22,28 @@ import pytest
 from core.skills import screen_pursuit as sp
 from core.skills.screen_pursuit import goal_reached
 
+
+@pytest.fixture(autouse=True)
+def _a_screen_to_look_at(monkeypatch):
+    """There is a screen here, so the run gets as far as what these tests ask.
+
+    A pursuit waits for a screen before it looks at anything, which is right —
+    a locked machine is a condition that passes, not a fault. Under pytest
+    nothing ever unlocks, so every one of these runs came back
+    "no_screen_to_look_at" and the assertions about already-met goals were
+    reading a refusal. Granting the look is the only stub these tests want;
+    everything after it is the behaviour under test.
+    """
+    from core.security.screen_capture_policy import ScreenCaptureAdmission
+
+    async def open_to_look(*_args, **_kwargs):
+        return ScreenCaptureAdmission(allowed=True, reason=None)
+
+    monkeypatch.setattr(
+        "core.security.screen_capture_policy.evaluate_screen_capture_admission_async",
+        open_to_look,
+    )
+
 BOARD_WITH_SCORE = {
     "ok": True,
     "text": "2048 SCORE 128 BEST 6068 2 4 8",
@@ -68,7 +90,7 @@ def test_a_bare_value_is_checked_by_region_even_with_no_band():
 
 @pytest.mark.asyncio
 async def test_a_goal_already_met_before_she_moved_is_said_not_claimed(monkeypatch):
-    async def read(app_name=""):
+    async def read(app_name="", **_where):
         return BOARD_WITH_TILE
 
     async def press(key, *, expect_app=""):
@@ -161,7 +183,7 @@ async def test_a_goal_met_by_an_old_game_is_a_choice_to_begin_again(monkeypatch)
         {"text": "New Game", "x": 0.70, "width": 0.10, "center_x": 0.75, "center_y": 0.18, "height": 0.02}
     ]
 
-    async def read(app_name=""):
+    async def read(app_name="", **_where):
         if state["clicked"]:
             return {
                 "ok": True,
@@ -215,7 +237,7 @@ async def test_accepting_a_pre_met_goal_is_still_reported_honestly(monkeypatch):
         {"text": "New Game", "x": 0.70, "width": 0.10, "center_x": 0.75, "center_y": 0.18, "height": 0.02}
     ]
 
-    async def read(app_name=""):
+    async def read(app_name="", **_where):
         return board
 
     async def frontmost(_app):
@@ -269,7 +291,7 @@ async def test_a_reset_is_waited_for_before_anything_is_judged(monkeypatch):
     }
     state = {"reset": False}
 
-    async def read(app_name=""):
+    async def read(app_name="", **_where):
         reads["n"] += 1
         return fresh_board if state["reset"] else old_board
 
@@ -322,7 +344,7 @@ async def test_a_click_that_changed_nothing_is_not_a_restart(monkeypatch):
         {"text": "New Game", "x": 0.70, "width": 0.10, "center_x": 0.75, "center_y": 0.18, "height": 0.02}
     ]
 
-    async def read(app_name=""):
+    async def read(app_name="", **_where):
         return board  # nothing ever changes
 
     async def click(x, y, *, expect_app="", bounds=None):

@@ -13,8 +13,8 @@ from typing import Any
 import numpy as np
 from pydantic import BaseModel, Field
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 try:
     import sounddevice as sd

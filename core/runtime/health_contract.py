@@ -1367,14 +1367,17 @@ def _runtime_integrity_block() -> dict[str, Any]:
     # service somebody else owns — a module singleton, a boot-local — which
     # is the ownership debt, measured rather than asserted.
     try:
-        from core.container import ServiceContainer
         from core.runtime.what_a_runtime_is import (
             THE_OPERATIONS,
             the_services_it_can_address,
             what_is_missing_from,
         )
 
-        interface = ServiceContainer.get("kernel_interface", default=None)
+        # Through the runtime registry, like everything else here. Reaching
+        # for ServiceContainer put core.container behind core.runtime, which
+        # is the dependency that stops the foundation coming up to report on
+        # a mind that failed to start — and there is a test that says so.
+        interface = get_runtime_service("kernel_interface", default=None)
         running = getattr(interface, "kernel", None)
         boundary: dict[str, Any] = {"operations": sorted(THE_OPERATIONS)}
         if running is None:
@@ -1425,9 +1428,8 @@ def _runtime_integrity_block() -> dict[str, Any]:
         from core.knowledge.one_graph import (
             every_graph,
             references_that_lead_nowhere,
+            which_stores_have_not_registered,
         )
-
-        from core.knowledge.one_graph import which_stores_have_not_registered
 
         graphs = every_graph(live=True)
         # Bounded: the integrity walk is O(nodes x links), and a health route
@@ -1578,6 +1580,30 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_each_organ_says"] = {"error": repr(exc)}
+
+    # The benchmarks somebody else designed: what ran, what could not, and
+    # whether anything is claimed without its limit.
+    try:
+        from core.verify.what_was_measured_outside import how_it_stands
+
+        block["what_was_measured_outside"] = how_it_stands()
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_was_measured_outside"] = {"error": repr(exc)}
+
+    # Which semantic routes decide an answer and which only watch one. A
+    # shadow route contributes no answers however good it gets.
+    try:
+        from core.runtime.service_registry import get_runtime_service
+
+        # Through the registry: this package may not reach core.brain, and a
+        # health block that needed that edge would be a layering violation
+        # dressed as observability.
+        provider = get_runtime_service("which_routes_are_authoritative", default=None)
+        block["which_routes_are_authoritative"] = (
+            provider() if callable(provider) else {"registered": False}
+        )
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["which_routes_are_authoritative"] = {"error": repr(exc)}
 
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
@@ -2113,6 +2139,48 @@ def _runtime_integrity_block() -> dict[str, Any]:
             }
     except Exception as exc:  # noqa: BLE001 — each health add-on is isolated
         block["judgement_error"] = repr(exc)
+
+    # What the maturity pass built, and whether any of it decides anything.
+    #
+    # An external source-level review made the point this answers: a
+    # 150-line module reads as though a system-wide invariant now exists, and
+    # it does not. So the report says which primitives have a production
+    # caller, which are only reachable, and which are still proposals — rather
+    # than listing them and letting the list imply the rest.
+    # Three of these walk the whole tree — the clock scan 19s, the settings
+    # scan 9s, the deprecation scan 7s. They belong to a gate and to
+    # tools/inspect_runtime.py, not to a route somebody refreshes: a health
+    # report that takes half a minute is a health report nobody asks for.
+    # What is left here is what a live runtime can answer about itself.
+    for name, read in (
+        ("trace_boundaries",
+         "core.observability.does_one_trace_reach_the_end:how_far_a_trace_reaches"),
+        ("call_policies", "core.runtime.how_a_call_is_made:how_the_calls_are_made"),
+        ("task_endings",
+         "core.runtime.how_a_task_should_end:how_the_endings_are_declared"),
+        ("prompt_room", "core.brain.llm.who_got_the_room:how_the_room_was_shared"),
+        ("memory_kinds",
+         "core.memory.what_kind_of_memory_is_this:how_the_kinds_stand"),
+        ("write_drains",
+         "core.state.nothing_lands_before_its_writes:how_the_drains_have_gone"),
+        ("abandoned_calls",
+         "core.runtime.cancelling_the_call_and_not_just_the_wait:how_the_calls_ended"),
+        ("checkable_promises",
+         "core.verify.a_promise_with_a_test:how_the_promises_stand"),
+    ):
+        module_name, _, func_name = read.partition(":")
+        try:
+            import importlib
+
+            said = getattr(importlib.import_module(module_name), func_name)()
+            # The each/policies lists are long and this is served on a route.
+            block[name] = {
+                key: value
+                for key, value in said.items()
+                if key not in ("each", "policies", "the_disagreements", "recent")
+            }
+        except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
+            block[f"{name}_error"] = repr(exc)
     return block
 
 

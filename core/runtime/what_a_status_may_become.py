@@ -161,8 +161,16 @@ def the_workflow_statuses() -> ATransitionTable:
             S.RUNNING: (S.PAUSED_FOR_APPROVAL, S.COMPLETED, S.FAILED, S.CANCELED),
             # An approval can be granted, refused, or overtaken by a shutdown.
             S.PAUSED_FOR_APPROVAL: (S.RUNNING, S.CANCELED, S.FAILED),
+            # A failed workflow can be run again from its checkpoint. That is
+            # what a durable workflow is for, and calling FAILED terminal here
+            # made `resume` refuse every workflow it exists to rescue —
+            # caught by the resume test, which had been asserting it for
+            # longer than this table has existed.
+            S.FAILED: (S.RUNNING, S.CANCELED),
         },
-        terminal=(S.COMPLETED, S.FAILED, S.CANCELED),
+        # Completed and canceled are endings somebody reached on purpose.
+        # Failed is a place work stops, not a place it has to stay.
+        terminal=(S.COMPLETED, S.CANCELED),
     )
 
 

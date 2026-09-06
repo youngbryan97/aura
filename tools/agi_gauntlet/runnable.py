@@ -538,6 +538,27 @@ def _solve_a_world(world: Any, language: Any) -> bool:
         return False
 
 
+def _without(language: Any, built: Any) -> Any:
+    """The language she had, minus the one structure she built while learning A.
+
+    A copy: removing it from the original would change what the next pair is
+    measured against, and every pair has to be measured against the same
+    thing it was taught.
+    """
+    from core.cognition.relation_language import RelationLanguage
+
+    lesioned = RelationLanguage()
+    family = getattr(built, "family", None)
+    form = getattr(built, "form", None)
+    for name, count in getattr(language, "counts", {}).items():
+        if name != family:
+            lesioned.counts[name] = count
+    for shape, held in getattr(language, "forms", {}).items():
+        if shape != form:
+            lesioned.forms[shape] = held
+    return lesioned
+
+
 def transfer(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]:
     """Discover something in A, and recognise it in B without being told.
 
@@ -553,6 +574,8 @@ def transfer(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]:
 
     pairs = invent_the_worlds(freeze.seed, how_many=int(options.get("pairs", 50)))
     after, scratch, control_after, control_scratch = [], [], [], []
+    after_lesion: list[float] = []
+    control_lesion: list[float] = []
     outside = 0
     trajectories = []
     for pair in pairs:
@@ -578,12 +601,20 @@ def transfer(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]:
             continue
         with_it = 1.0 if _solve_a_world(pair.second, taught) else 0.0
         without = 1.0 if _solve_a_world(pair.second, RelationLanguage()) else 0.0
+        # The intervention. P(B | A) against P(B | ∅) says a prior helped;
+        # it does not say WHICH prior. Removing the one structure she built
+        # while learning A, and leaving everything else, asks the question an
+        # external review asked: does intervening on the newly developed
+        # abstraction change performance on the transfer domain?
+        lesioned = 1.0 if _solve_a_world(pair.second, _without(taught, learned)) else 0.0
         if pair.should_transfer:
             after.append(with_it)
             scratch.append(without)
+            after_lesion.append(lesioned)
         else:
             control_after.append(with_it)
             control_scratch.append(without)
+            control_lesion.append(lesioned)
         trajectories.append(
             {
                 "pair": pair.name,
@@ -591,13 +622,35 @@ def transfer(freeze: Freeze, options: dict[str, Any]) -> dict[str, Any]:
                 "control": not pair.should_transfer,
                 "after_learning": with_it,
                 "from_scratch": without,
+                "with_what_she_built_removed": lesioned,
             }
         )
     found = transfer_gain(
         after, scratch, control_after=control_after, control_scratch=control_scratch,
         seed=freeze.seed % 7919,
     )
+
+    def _mean(rows: list[float]) -> float:
+        return sum(rows) / len(rows) if rows else 0.0
+
+    intervention = {
+        "with_what_she_built": round(_mean(after), 4),
+        "with_it_removed": round(_mean(after_lesion), 4),
+        "from_scratch": round(_mean(scratch), 4),
+        # How much of the transfer runs through the thing she built while
+        # learning A. Zero means the prior helped for some other reason.
+        "carried_by_what_she_built": round(_mean(after) - _mean(after_lesion), 4),
+        "controls": {
+            "with_what_she_built": round(_mean(control_after), 4),
+            "with_it_removed": round(_mean(control_lesion), 4),
+        },
+        "what_this_shows": (
+            "P(B | A) − P(B | A without the structure built in A). A prior "
+            "beating no prior says something helped; this says what"
+        ),
+    }
     return {
+        "intervention": intervention,
         "pairs": len(after),
         "controls": len(control_after),
         "outside_the_language": outside,
@@ -1181,13 +1234,43 @@ def generality_not_a_bag_of_solvers(
             except (OSError, SyntaxError):
                 continue
             found.extend(_benchmark_paths_in(tree, inside))
+    # The static half is a grep over the tree, and it says so about itself. A
+    # branch keyed on the SHAPE of a problem rather than its name would pass
+    # it and still be a bag of solvers, so the same claim is put to a run:
+    # two families through one entry point, watched.
+    watched = _watch_two_families()
     return {
         "files_read": looked,
         "benchmark_names_looked_for": len(THE_BENCHMARK_NAMES),
         "found": found,
-        "passed": not found,
+        "at_runtime": watched,
+        "passed": not found and bool(watched.get("passed")),
         "trajectories": found,
     }
+
+
+def _watch_two_families() -> dict[str, Any]:
+    """Run two materially different problems and compare what executed."""
+    try:
+        from core.cognition.sequence_induction import answer_sequence_question
+        from tools.agi_gauntlet.the_same_path_twice import the_same_path_twice
+
+        positional = (
+            "If 1 2 3 becomes 3 2 1, and 4 5 6 becomes 6 5 4, "
+            "what does 7 8 9 become?"
+        )
+        arithmetic = (
+            "2 4 6 becomes 4 8 12. 1 3 5 becomes 2 6 10. "
+            "what does 5 7 9 become?"
+        )
+        return the_same_path_twice(
+            {
+                "positional": lambda: answer_sequence_question(positional),
+                "arithmetic": lambda: answer_sequence_question(arithmetic),
+            }
+        )
+    except Exception as exc:  # noqa: BLE001 — a probe that cannot run has not passed
+        return {"passed": False, "why": repr(exc)}
 
 
 def _benchmark_paths_in(tree: Any, inside: str) -> list[dict[str, Any]]:
@@ -1252,8 +1335,6 @@ def persistence_across_restart(freeze: Freeze, options: dict[str, Any]) -> dict[
     failure looks like.
     """
 
-    import importlib
-    import json
     from pathlib import Path
 
     where = Path(options.get("state", "/tmp/aura_gauntlet_state"))

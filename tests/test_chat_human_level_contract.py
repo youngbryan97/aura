@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from chat_lane_support import patch_chat_lane
 
 
 def _rich_reply(topic: str, idx: int) -> str:
@@ -986,10 +987,7 @@ def test_grounded_self_condition_reply_cannot_be_rewritten_by_substrate_voice(mo
     from core.conversation.response_reliability import assess_user_facing_reply
     from interface.routes import chat as chat_routes
 
-    monkeypatch.setattr(
-        chat_routes,
-        "_shape_with_live_substrate",
-        lambda *_args, **_kwargs: "I'm here, and I'm following the thread.",
+    patch_chat_lane(monkeypatch, "_shape_with_live_substrate", lambda *_args, **_kwargs: "I'm here, and I'm following the thread.",
     )
 
     reply = chat_routes._build_grounded_self_condition_reply("You ok?")

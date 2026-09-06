@@ -44,6 +44,7 @@ from typing import Any
 logger = logging.getLogger("Aura.TheShapeOfOneTurn")
 
 __all__ = [
+    "as_a_drawing",
     "APhaseInThePlan",
     "LAST_IN_THE_ORDER",
     "THE_WRITE_MODES",
@@ -300,6 +301,35 @@ def compile_the_cognition(mode: str = "foreground") -> TheShapeOfOneTurn:
         remarks=made.remarks,
         seal=the_seal(made),
     )
+
+
+def as_a_drawing(plan: TheShapeOfOneTurn) -> str:
+    """The compiled plan as a mermaid diagram a person can read.
+
+    LangGraph renders its compiled graph, and the reason it is worth copying
+    is the review's own point about legibility: a reviewer should be able to
+    enumerate the causal order without reading the scheduler. The seal says
+    two plans are the same; this says what the plan IS.
+
+    Written rather than drawn by a library: a drawing that needs a dependency
+    to look at is one nobody looks at.
+    """
+    lines = ["flowchart TD", f"  %% {plan.mode}, sealed {plan.seal}"]
+    ran = [one for one in plan.phases if one.runs]
+    for at, one in enumerate(ran):
+        node = f"p{at}"
+        label = one.phase.replace('"', "'")
+        undeclared = " ⚠" if one.undeclared else ""
+        lines.append(f'  {node}["{label}{undeclared}"]')
+        if at:
+            lines.append(f"  p{at - 1} --> {node}")
+    for one in plan.refusals:
+        lines.append(f'  %% refused: {one}')
+    for one in plan.remarks[:12]:
+        lines.append(f"  %% {one}")
+    if not ran:
+        lines.append('  none["nothing runs in this mode"]')
+    return "\n".join(lines)
 
 
 def the_seal(plan: TheShapeOfOneTurn) -> str:

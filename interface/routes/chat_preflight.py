@@ -1259,9 +1259,22 @@ _RUNTIME_FACT_STATUS_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Every word here appears in a role rather than on its own. The bare
+# alternation this replaces matched "is" in "the active model is a nice thing
+# to have" and read a remark as a request for a status card.
 _RUNTIME_FACT_STATUS_REQUEST_RE = re.compile(
-    r"\b(?:status|validation|validate|check|report|reply|answer|confirm|"
-    r"explain|why|which|what|whether|is|are|do|does|did|available|active|using|handled)\b",
+    # a status asked for, not the noun sitting in a sentence
+    r"\b(?:short|current|the|a|its|your|runtime)\s+(?:status|validation)\b"
+    r"|\b(?:status|validation)\s+(?:of|on|for|please|report|check)\b"
+    # a request whose verb governs something
+    r"|\b(?:validate|check|report|reply|answer|confirm|explain)\s+\S"
+    # an interrogative governing what follows it
+    r"|\b(?:why|which|what|whether)\s+\S"
+    # a copula or auxiliary with a subject after it
+    r"|\b(?:is|are|do|does|did)\s+(?:the|it|you|your|they|we|this|that|any|all)\b"
+    # a predicate asserted about the fact
+    r"|\b(?:still|currently|now|is|are|be)\s+(?:available|active|using|handled)\b"
+    r"|\b(?:available|active|using|handled)\s*[?]",
     re.IGNORECASE,
 )
 

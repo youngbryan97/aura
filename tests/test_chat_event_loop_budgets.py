@@ -7,6 +7,8 @@ import time
 from types import SimpleNamespace
 
 import pytest
+
+from chat_lane_support import patch_chat_lane
 import interface.routes.chat_memory_state as _chat_memory_state
 
 
@@ -164,7 +166,7 @@ async def test_recent_response_symbolic_audit_is_supervised_off_loop(monkeypatch
         started.set()
         release.wait(2.0)
 
-    monkeypatch.setattr(chat_routes, "_audit_recent_response_reasoning_sync", blocking_audit)
+    patch_chat_lane(monkeypatch, "_audit_recent_response_reasoning_sync", blocking_audit)
     monkeypatch.setattr(chat_routes, "_CHAT_REASONING_AUDIT_TIMEOUT_S", 0.05)
     chat_routes._reasoning_audit_tasks.clear()
     try:

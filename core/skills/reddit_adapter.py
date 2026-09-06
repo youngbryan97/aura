@@ -41,7 +41,6 @@ except ImportError:
     PlaywrightError = RuntimeError
     PlaywrightTimeoutError = TimeoutError
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.being.body_state_service import BodyStateService
 from core.being.welfare_state import WelfareState
 from core.being.welfare_transaction import WelfareTransaction
@@ -50,6 +49,7 @@ from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.state_ownership import state_root
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 logger = logging.getLogger("Skills.Reddit")
 

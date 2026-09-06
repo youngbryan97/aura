@@ -6,10 +6,10 @@ from typing import Any, Literal, Protocol, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.communication.contact_directory import DEFAULT_MESSAGES_CONTACT_ALIAS
 from core.container import ServiceContainer
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
 
 class _MessagesTransport(Protocol):

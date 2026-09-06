@@ -607,11 +607,6 @@ class CognitiveLedger:
                 logger.debug("Suppressed Exception: %s", _exc)
         return stats
 
-    def close(self):
-        if self._conn:
-            self._conn.close()
-            self._conn = None
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 

@@ -27,10 +27,9 @@ from typing import Any
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.permission_gates import screen_allowed
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.runtime.who_gets_it_next import GaveUp
 
 logger = logging.getLogger(__name__)
-
-from core.runtime.who_gets_it_next import GaveUp
 
 _COMPUTER_USE_RECOVERABLE_ERRORS = (
     ImportError,

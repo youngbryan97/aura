@@ -48,7 +48,15 @@ from core.utils.task_tracker import get_task_tracker
 logger = logging.getLogger("Aura.Substrate")
 
 def _configured_neurons() -> int:
-    raw = os.getenv("AURA_SUBSTRATE_DIM", "64")
+    # Its own name. This read AURA_SUBSTRATE_DIM, which the liquid substrate
+    # also reads — with a default of 512 against this one's 64 and a ceiling
+    # of 4096 against this one's 512. Setting it to tune either silently
+    # changed the other, by a factor of eight at the defaults and by whatever
+    # the clamps allowed above them. The old name is still honoured so an
+    # existing setting is not lost, and it is read second.
+    raw = os.getenv("AURA_CONTINUOUS_SUBSTRATE_NEURONS") or os.getenv(
+        "AURA_SUBSTRATE_DIM", "64"
+    )
     try:
         value = int(raw)
     except (TypeError, ValueError):

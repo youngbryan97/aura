@@ -34,7 +34,9 @@ def test_the_reading_is_in_her_state_snapshot() -> None:
 def test_a_reading_that_did_not_answer_is_absent_not_zero() -> None:
     """A load reported as 0% because nothing answered is worse than a gap."""
 
-    source = Path("interface/routes/chat.py").read_text(encoding="utf-8")
+    from chat_lane_support import chat_lane_source
+
+    source = chat_lane_source()
     assert "Absent rather than zero" in source
     assert "if load is not None and load.present:" in source
 
@@ -47,7 +49,9 @@ def test_both_compactions_carry_it() -> None:
 
 
 def test_the_payload_offers_it() -> None:
-    source = Path("interface/routes/chat.py").read_text(encoding="utf-8")
+    from chat_lane_support import chat_lane_source
+
+    source = chat_lane_source()
     tree = ast.parse(source)
     for node in ast.walk(tree):
         if not isinstance(node, ast.FunctionDef):

@@ -100,7 +100,24 @@ async def run_browsing_task(
                 return {"ok": False, "error": f"Could not click selector: '{click_selector}'"}
 
         # 4. Extract final content
-        final_content = await browser.read_content()
+        #
+        # Named, like every other call in this task. Without a principal the
+        # read is refused, and a refusal comes back as an empty string — the
+        # same value a blank page gives. The task then reported that its
+        # keywords were missing from the page, which was true and had nothing
+        # to do with the page.
+        final_content = await browser.read_content(principal=principal)
+        if not final_content:
+            refused = browser.last_verdict
+            if refused and not refused.get("allowed", True):
+                return {
+                    "ok": False,
+                    "start_url": start_url,
+                    "error": f"the page could not be read: {refused.get('reason', '')}",
+                    "refused": refused,
+                    "verification": {},
+                    "content_snippet": "",
+                }
         logger.info("Final page content length: %d", len(final_content))
         
         # 5. Verify keywords

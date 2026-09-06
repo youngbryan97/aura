@@ -235,7 +235,11 @@ THE_GATES: tuple[Gate, ...] = (
         "and at or below zero on the negative controls",
         "pairs built to look alike and differ underneath. A system that "
         "transfers there is matching surfaces",
-        run=_r.transfer,
+                # A prior beating no prior says something helped and not what.
+        # The gate now also removes the one structure built while learning
+        # A and measures B again, which is the difference between a
+        # comparison and an intervention.
+run=_r.transfer,
     ),
     *_NEEDS_AN_EVALUATOR[:2],
     _NEEDS_AN_EVALUATOR[2],
@@ -309,8 +313,10 @@ THE_GATES: tuple[Gate, ...] = (
         "evaluation",
         "no benchmark name anywhere under core, interface, skills, llm, "
         "executors or security — including in a comment",
-        "the check is a grep, which is weak and cannot be argued with. A "
-        "strong check somebody can dispute is worth less here",
+        "the grep is weak and cannot be argued with, and it is static — a "
+        "branch keyed on the shape of a problem rather than its name would "
+        "pass it. So the same claim is also watched: two families through one "
+        "entry point, and nothing outside the search runs for only one",
         run=_r.generality_not_a_bag_of_solvers,
     ),
     Gate(
