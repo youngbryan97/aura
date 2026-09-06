@@ -31,7 +31,7 @@ that down.
 | M5 | Home Assistant-grade store: versioned records, minor versions, load serialisation, bounded concurrent loads, migration hooks, corruption quarantine | DONE |
 | M6 | Home Assistant-grade root runtime: lifecycle states, thread affinity, typed jobs, task ownership, startup/shutdown stages | DONE — thread affinity enforced and live; lifecycle states are the turn state machine from M2 |
 | M7 | AutoGPT-grade graph execution: legal status transitions, per-node context copies, typed failure classes, transition-applied vs zero-rows-matched | DONE |
-| M8 | CrewAI-grade checkpointing: typed trigger events across task/crew/agent/flow/LLM/tool/memory, two providers, restore from checkpoint | TODO |
+| M8 | CrewAI-grade checkpointing: typed trigger events across task/crew/agent/flow/LLM/tool/memory, two providers, restore from checkpoint | DONE |
 | M9 | AutoGen-grade messaging: typed envelopes carrying cancellation, ids and trace; a serializer registry keyed by type — and subscription state persisted, which AutoGen does not do | DONE |
 | M10 | Soar-grade authority: working-memory changes buffered and committed at phase boundaries with refcount semantics; explicit stopping reasons | DONE — buffer, boundary and refcounts built; the phases still write directly, so the ratchet is adoption |
 | M11 | AtomSpace-grade concurrency: two threads discovering absence together, recheck, repair the losing installation | DONE — the insert is structurally atomic; the ratchet on locks lockdep cannot see is the remaining debt (522) |
