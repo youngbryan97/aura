@@ -39,6 +39,25 @@ FULL = "full_architecture"
 STATELESS_CONDITIONS = (RAW, PROMPTED)
 
 
+#: What the FULL condition is, and what it is not. This travels with every
+#: report because the numbers travel further than the code, and a downstream
+#: artifact writes them under the key ``aura_scores`` — which reads as the
+#: organism to anyone who did not open this file.
+#:
+#: The comparison here is one model against itself with and without assembled
+#: context. That is a real and checkable experiment about memory and context,
+#: and it is not "the Aura organism against the same model and compute
+#: without Aura". Establishing the second needs the substrate, the token
+#: budget, the wall clock, the tool permissions and the external information
+#: budget held equal across arms, and it needs faculty-by-faculty ablations
+#: of the organism rather than of the context. Nothing in this module claims
+#: to have done that.
+WHAT_FULL_MEANS = (
+    "one model with the architecture's assembled context (conversation "
+    "history and recalled memory) against the same model without it; not the "
+    "whole organism against a matched substrate"
+)
+
 @dataclass(frozen=True)
 class AblationTask:
     """A multi-turn task with an objectively checkable final answer.
@@ -245,6 +264,7 @@ class AblationHarness:
                 "No hardcoded scores."
             ),
             "tasks_evaluated": n,
+            "claim_boundary": WHAT_FULL_MEANS,
             "conditions": {
                 c: results[c].as_dict(iterations=self.bootstrap_iterations)
                 for c in self.conditions
@@ -267,6 +287,7 @@ class AblationHarness:
                 "verdict requires CI separation. No hardcoded scores."
             ),
             "tasks_evaluated": len(tasks),
+            "claim_boundary": WHAT_FULL_MEANS,
             "conditions": {
                 c: results[c].as_dict(iterations=self.bootstrap_iterations)
                 for c in self.conditions
