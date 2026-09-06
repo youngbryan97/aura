@@ -9023,9 +9023,21 @@ async def test_api_chat_desktop_surface_blocks_thin_cognitive_engine_recovery_re
     )
 
     assert response.status_code == 200  # in-band fail-closed delivery for real users
-    assert b"desktop_cognitive_engine_unavailable" in response.body
+    # The thin engine text is the thing that must not reach the person. It is
+    # not served, and the reply says she could not answer.
     assert b"What&apos;s the puzzle" not in response.body
     assert b"What's the puzzle" not in response.body
+    said = json.loads(response.body)["response"]
+    assert said.strip(), "failing closed still has to say something"
+    assert any(
+        one in said.lower()
+        for one in ("couldn't", "could not", "unavailable", "rather tell you")
+    ), said
+    # The status marker used to be asserted here. It named one of several
+    # fail-closed exits, and the turn now leaves by a different one — her own
+    # words, unfinished, beat an apology (LIVE 2026-08-27, 2026-08-29). What
+    # this test is about is that a generic recovery line is not an answer, and
+    # that is what the assertions above hold.
 
 
 @pytest.mark.asyncio
