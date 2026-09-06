@@ -21,6 +21,38 @@ THE_PROMISES: tuple[APromise, ...] = (
         "cannot be compared across runs",
     ),
     APromise(
+        it="No external claim about Aura is recorded without a limit saying "
+        "what that measurement does not show.",
+        checked_by="tests/test_what_was_measured_outside.py::"
+        "test_nothing_is_claimed_without_a_limit",
+        if_it_fails="what_is_claimed_without_a_limit() names the row; a "
+        "benchmark result then reads as a claim about everything",
+    ),
+    APromise(
+        it="A row for a benchmark that did not run gives a reason rather than "
+        "being absent, so an unattempted measurement is not a missing one.",
+        checked_by="tests/test_what_was_measured_outside.py::"
+        "test_a_row_that_did_not_run_gives_a_reason",
+        if_it_fails="the table is silently shorter and nobody can tell a "
+        "benchmark that failed from one nobody tried",
+    ),
+    APromise(
+        it="Async code written by a model is checked before it is served, "
+        "against the mistakes that make it look right and behave wrong.",
+        checked_by="tests/test_is_this_async_code_correct.py::"
+        "test_the_tree_itself_is_clean",
+        if_it_fails="what_is_wrong_with names the line and what will happen; "
+        "unchecked, delivery succeeds and correctness is zero",
+    ),
+    APromise(
+        it="A primitive with no caller outside its own tests is reported as a "
+        "proposal rather than counted as an invariant.",
+        checked_by="tests/test_does_this_govern_anything.py::"
+        "test_a_chain_of_primitives_calling_each_other_is_still_a_chain_nothing_enters",
+        if_it_fails="the report flatters itself and a 150-line module reads "
+        "as a system-wide guarantee it is not",
+    ),
+    APromise(
         it="A promise a package declares names a test that exists, so a "
         "declaration cannot read as coverage it does not have.",
         checked_by="tests/test_a_promise_with_a_test.py::"
