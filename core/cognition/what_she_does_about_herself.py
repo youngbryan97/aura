@@ -354,28 +354,42 @@ def offer_what_she_can_do_about_what_she_is_made_of() -> None:
             return str(best["change"])
         return None
 
-    for name, over, kind, do_it in (
-        ("let go of a part that pays nothing", "the words", "letting go", let_go),
+    # `judges` says the action already measured itself on held-out families and
+    # returned None where the change did not pay. The generic gate skips those
+    # rather than running the same probe twice; anything answering False here
+    # is judged by the gate, so "it returned a sentence" is nobody's evidence.
+    for name, over, kind, do_it, judges in (
+        ("let go of a part that pays nothing", "the words", "letting go", let_go, True),
         (
             "make the change that pays most",
             "the ways of computing",
             "a cause",
             take_the_cause_that_pays,
+            True,
         ),
         (
             "one name for what two parts share",
             "the ways of computing",
             "a shared name",
             one_name_for_both,
+            True,
         ),
         (
             "ask for the example that settles it",
             "the words",
             "asking",
             ask_for_an_example,
+            # Asking changes nothing about her; it produces a question. There
+            # is no installed change for a held-out probe to weigh.
+            True,
         ),
     ):
         if name not in WHAT_SHE_COULD_DO:
             what_she_could_do(
-                name, over=over, kind=kind, do_it=do_it, needs_a_case=False
+                name,
+                over=over,
+                kind=kind,
+                do_it=do_it,
+                needs_a_case=False,
+                judges_itself=judges,
             )
