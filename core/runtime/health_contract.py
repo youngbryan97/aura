@@ -1494,6 +1494,16 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_a_phase_changed"] = {"error": repr(exc)}
 
+    # What ran on the loop's thread that must not. An on-loop fsync once froze
+    # this loop for twenty minutes, and the fix was a rule in a guide; this is
+    # the part that can tell you the rule was broken.
+    try:
+        from core.runtime.which_thread_may_do_this import how_it_has_gone
+
+        block["which_thread_may_do_this"] = how_it_has_gone()
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["which_thread_may_do_this"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering

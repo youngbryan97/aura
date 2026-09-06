@@ -29,7 +29,7 @@ that down.
 | M3 | LangGraph-grade checkpoint semantics: pending writes separate from committed checkpoints, channel versions, per-node seen-versions, durability never ahead of its writes | DONE |
 | M4 | OpenHands-grade durable event log: duplicate-ID rejection, parent validity, branch semantics, bounded traversal, stale-index recovery, gap detection | DONE |
 | M5 | Home Assistant-grade store: versioned records, minor versions, load serialisation, bounded concurrent loads, migration hooks, corruption quarantine | DONE |
-| M6 | Home Assistant-grade root runtime: lifecycle states, thread affinity, typed jobs, task ownership, startup/shutdown stages | TODO |
+| M6 | Home Assistant-grade root runtime: lifecycle states, thread affinity, typed jobs, task ownership, startup/shutdown stages | DONE — thread affinity enforced and live; lifecycle states are the turn state machine from M2 |
 | M7 | AutoGPT-grade graph execution: legal status transitions, per-node context copies, typed failure classes, transition-applied vs zero-rows-matched | DONE |
 | M8 | CrewAI-grade checkpointing: typed trigger events across task/crew/agent/flow/LLM/tool/memory, two providers, restore from checkpoint | TODO |
 | M9 | AutoGen-grade messaging: typed envelopes carrying cancellation, ids and trace; a serializer registry keyed by type — and subscription state persisted, which AutoGen does not do | DONE |
