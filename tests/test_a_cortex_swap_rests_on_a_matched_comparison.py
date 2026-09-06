@@ -148,3 +148,51 @@ def test_a_matched_receipt_records_that_it_was_matched():
         _battery("candidate", breadth=0.6, reasoning=0.5),
     )
     assert said["budget_parity"] == {"matched": True, "differences": []}
+
+
+def test_a_schema_bump_does_not_invalidate_the_running_pointer():
+    """Reading is permissive about the past; writing is strict about the present.
+
+    Bumping the evaluation schema made every already-active pointer fail
+    validation, so `get_active_cortex_spec` returned None and the running
+    system lost its model pointer — logged as "Active cortex pointer is
+    invalid". A version bump must not reach backwards into what is already
+    serving.
+    """
+    from core.learning.cortex_generation_upgrade import (
+        _EVALUATION_KEYS,
+        _validate_evaluation,
+    )
+
+    v3 = dict.fromkeys(_EVALUATION_KEYS["aura.cortex_upgrade.evaluation.v3"], "")
+    v3["schema"] = "aura.cortex_upgrade.evaluation.v3"
+    v3["candidate_descriptor_sha256"] = "abc"
+
+    # The assertion is about the SCHEMA gate specifically. A fixture this
+    # thin fails the identity, eligibility and digest checks too, and it
+    # should — those are what stop a forged receipt. What must not happen is
+    # a v3 pointer being rejected for being v3.
+    with pytest.raises(ValueError) as raised:
+        _validate_evaluation(v3, descriptor_sha256="abc")
+    assert "evaluation_schema_invalid" not in str(raised.value)
+
+
+def test_an_old_receipt_still_cannot_authorize_a_new_swap():
+    """The other half. Permissive reads must not become a permissive gate."""
+    import pytest as _pytest
+
+    from core.learning.cortex_generation_upgrade import (
+        EVALUATION_SCHEMA,
+        _EVALUATION_KEYS,
+        _validate_evaluation,
+    )
+
+    v3 = dict.fromkeys(_EVALUATION_KEYS["aura.cortex_upgrade.evaluation.v3"], "")
+    v3["schema"] = "aura.cortex_upgrade.evaluation.v3"
+    v3["candidate_descriptor_sha256"] = "abc"
+    with _pytest.raises(ValueError, match="evaluation_schema_invalid"):
+        _validate_evaluation(
+            v3,
+            descriptor_sha256="abc",
+            schemas=frozenset({EVALUATION_SCHEMA}),
+        )
