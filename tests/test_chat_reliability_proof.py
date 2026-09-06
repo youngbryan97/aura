@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 
 import pytest
+
+from chat_lane_support import patch_chat_lane
 import interface.routes.chat_desktop_repair as _chat_desktop_repair
 
 
@@ -277,10 +279,7 @@ async def test_stabilizer_prefers_generated_social_grounding_before_bounded_floo
         "_desktop_secondary_model_repair_allowed",
         lambda **_kwargs: (True, "test"),
     )
-    monkeypatch.setattr(
-        chat_routes,
-        "_bound_stabilizer_generation_budget",
-        lambda requested: (requested, ""),
+    patch_chat_lane(monkeypatch, "_bound_stabilizer_generation_budget", lambda requested: (requested, ""),
     )
 
     repaired = await chat_routes._stabilize_user_facing_reply(prompt, draft)

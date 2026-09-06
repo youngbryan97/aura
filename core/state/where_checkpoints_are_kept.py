@@ -18,6 +18,13 @@ pretending to be an interface. Both here pass the same suite.
 What is done differently: a checkpoint carries the digest of what it holds, so
 a store that hands back something other than what was put in says so. CrewAI's
 restore trusts the row.
+
+**Lineage.** A checkpoint names the one it came after and the branch it is on.
+Without that a store is a bag of resume points: you can restore any of them
+and you cannot ask what happened between two, or which of two divergent
+attempts a state belongs to. A branch is what a retry actually is — the same
+work from the same point, going somewhere else — and a store that cannot
+represent it makes the second attempt overwrite the first.
 """
 from __future__ import annotations
 
@@ -37,6 +44,10 @@ logger = logging.getLogger("Aura.WhereCheckpointsAreKept")
 
 __all__ = [
     "AKeptCheckpoint",
+    "the_line_back_from",
+    "what_is_on",
+    "the_branches",
+    "prune",
     "AnAsyncStore",
     "ATrigger",
     "InJson",
@@ -112,16 +123,30 @@ class AKeptCheckpoint:
     state: dict[str, Any]
     at: float = field(default_factory=time.time)
     digest: str = ""
+    #: The checkpoint this one came after. Empty for the first on a branch.
+    after: str = ""
+    #: Which line of attempts this belongs to. A retry from a point is a new
+    #: branch, not a replacement: the first attempt is still there to compare
+    #: against, and "it worked the second time" is a claim about two states.
+    branch: str = "main"
 
     @classmethod
     def of(
-        cls, name: str, state: dict[str, Any], *, trigger: ATrigger
+        cls,
+        name: str,
+        state: dict[str, Any],
+        *,
+        trigger: ATrigger,
+        after: str = "",
+        branch: str = "main",
     ) -> "AKeptCheckpoint":
         return cls(
             name=str(name),
             trigger=trigger,
             state=dict(state),
             digest=_digest(state),
+            after=str(after),
+            branch=str(branch or "main"),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -131,6 +156,8 @@ class AKeptCheckpoint:
             "state": dict(self.state),
             "at": self.at,
             "digest": self.digest,
+            "after": self.after,
+            "branch": self.branch,
         }
 
     @classmethod
@@ -141,6 +168,10 @@ class AKeptCheckpoint:
             state=dict(row.get("state") or {}),
             at=float(row.get("at", 0.0)),
             digest=str(row.get("digest", "")),
+            after=str(row.get("after", "")),
+            # A row written before branches existed is on the main line, which
+            # is where everything was.
+            branch=str(row.get("branch") or "main"),
         )
 
 
@@ -294,21 +325,35 @@ class InSqlite(AnAsyncStore):
     def __init__(self, path: Any) -> None:
         self._path = Path(path)
         self._lock = checked_lock(f"checkpoints_in_sqlite:{self._path.name}")
-        with self._lock:
-            # Through the gateway like every other consequential write. A raw
-            # mkdir here creates the directory the sqlite file then lives in,
-            # so it is the same decision the gateway exists to govern.
-            from core.runtime.file_write_gateway import get_file_write_gateway
+        # Through the gateway like every other consequential write, and outside
+        # the lock: the gateway fsyncs, and an fsync under a lock is what
+        # lockdep refuses and what froze this runtime once.
+        from core.runtime.file_write_gateway import get_file_write_gateway
 
-            get_file_write_gateway().ensure_directory(
-                self._path.parent, source="checkpoints"
-            )
+        get_file_write_gateway().ensure_directory(
+            self._path.parent, source="checkpoints"
+        )
+        with self._lock:
             with self._open() as db:
                 db.execute(
                     "CREATE TABLE IF NOT EXISTS checkpoints ("
                     "name TEXT PRIMARY KEY, trigger TEXT NOT NULL, "
                     "state TEXT NOT NULL, at REAL NOT NULL, digest TEXT NOT NULL)"
                 )
+                # Added after the table shipped, so a database written by an
+                # earlier build opens and reads rather than refusing. A row
+                # from before branches existed is on the main line.
+                for column, kind, default in (
+                    ("after", "TEXT", "''"),
+                    ("branch", "TEXT", "'main'"),
+                ):
+                    try:
+                        db.execute(
+                            f"ALTER TABLE checkpoints ADD COLUMN {column} {kind} "
+                            f"NOT NULL DEFAULT {default}"
+                        )
+                    except sqlite3.OperationalError:
+                        pass  # already there, which is the usual case
 
     def _open(self) -> sqlite3.Connection:
         db = sqlite3.connect(self._path, timeout=5.0)
@@ -318,24 +363,28 @@ class InSqlite(AnAsyncStore):
     def put(self, checkpoint: AKeptCheckpoint) -> None:
         with self._lock, self._open() as db:
             db.execute(
-                "INSERT INTO checkpoints (name, trigger, state, at, digest) "
-                "VALUES (?, ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET "
+                "INSERT INTO checkpoints "
+                "(name, trigger, state, at, digest, after, branch) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET "
                 "trigger=excluded.trigger, state=excluded.state, "
-                "at=excluded.at, digest=excluded.digest",
+                "at=excluded.at, digest=excluded.digest, "
+                "after=excluded.after, branch=excluded.branch",
                 (
                     checkpoint.name,
                     str(checkpoint.trigger),
                     json.dumps(checkpoint.state, sort_keys=True, default=str),
                     checkpoint.at,
                     checkpoint.digest,
+                    checkpoint.after,
+                    checkpoint.branch,
                 ),
             )
 
     def get(self, name: str) -> AKeptCheckpoint | None:
         with self._lock, self._open() as db:
             found = db.execute(
-                "SELECT name, trigger, state, at, digest FROM checkpoints "
-                "WHERE name = ?",
+                "SELECT name, trigger, state, at, digest, after, branch "
+                "FROM checkpoints WHERE name = ?",
                 (str(name),),
             ).fetchone()
         if found is None:
@@ -347,6 +396,8 @@ class InSqlite(AnAsyncStore):
                 "state": json.loads(found[2]),
                 "at": found[3],
                 "digest": found[4],
+                "after": found[5],
+                "branch": found[6],
             }
         )
 
@@ -389,7 +440,78 @@ THE_PROMISES: tuple[str, ...] = (
     "forgetting removes it and says whether there was anything to forget",
     "the trigger comes back as the trigger",
     "a state that was changed underneath is refused",
+    "a parent and a branch survive the round trip",
 )
+
+
+def the_line_back_from(store: Any, name: str, *, most: int = 200) -> list[AKeptCheckpoint]:
+    """This checkpoint and every one it came after, newest first.
+
+    Bounded and cycle-safe. A store is a file other processes write, so a row
+    naming itself as its own parent is a thing that can arrive, and a walk
+    that trusted the chain would spin on it.
+    """
+    walked: list[AKeptCheckpoint] = []
+    seen: set[str] = set()
+    at = str(name)
+    while at and at not in seen and len(walked) < most:
+        seen.add(at)
+        one = store.get(at)
+        if one is None:
+            break
+        walked.append(one)
+        at = one.after
+    return walked
+
+
+def what_is_on(store: Any, branch: str) -> list[AKeptCheckpoint]:
+    """Every checkpoint on one branch, oldest first."""
+    out = [
+        one
+        for one in (store.get(name) for name in store.names())
+        if one is not None and one.branch == str(branch)
+    ]
+    return sorted(out, key=lambda one: one.at)
+
+
+def the_branches(store: Any) -> dict[str, int]:
+    """Every branch the store holds, and how many checkpoints are on it."""
+    counted: dict[str, int] = {}
+    for name in store.names():
+        one = store.get(name)
+        if one is not None:
+            counted[one.branch] = counted.get(one.branch, 0) + 1
+    return dict(sorted(counted.items()))
+
+
+def prune(store: Any, *, keep: int = 50, branch: str = "") -> list[str]:
+    """Forget the oldest, keeping the newest ``keep`` on each branch.
+
+    Per branch rather than overall: pruning globally deletes a whole short
+    branch to make room on a long one, which is exactly the branch somebody
+    kept in order to compare against.
+
+    Never prunes a checkpoint another one still names as its parent — a chain
+    with a hole in it restores to a state whose history stops mid-sentence.
+    """
+    wanted = [branch] if branch else list(the_branches(store))
+    forgotten: list[str] = []
+    for one_branch in wanted:
+        on_it = what_is_on(store, one_branch)
+        if len(on_it) <= keep:
+            continue
+        still_needed = {
+            found.after
+            for name in store.names()
+            for found in (store.get(name),)
+            if found is not None and found.after
+        }
+        for old in on_it[: len(on_it) - keep]:
+            if old.name in still_needed:
+                continue
+            if store.forget(old.name):
+                forgotten.append(old.name)
+    return forgotten
 
 
 def what_a_checkpoint_store_promises(
@@ -409,6 +531,31 @@ def what_a_checkpoint_store_promises(
             kept[promise] = f"broken: {exc!r}"
 
     one = AKeptCheckpoint.of("one", {"a": 1}, trigger=ATrigger.TURN_ENDED)
+
+    def _lineage_survives(store: Any) -> None:
+        first = AKeptCheckpoint.of("first", {"n": 1}, trigger=ATrigger.TURN_ENDED)
+        second = AKeptCheckpoint.of(
+            "second", {"n": 2}, trigger=ATrigger.TURN_ENDED, after="first"
+        )
+        other = AKeptCheckpoint.of(
+            "other", {"n": 3}, trigger=ATrigger.TURN_ENDED,
+            after="first", branch="a retry",
+        )
+        for each in (first, second, other):
+            store.put(each)
+        back = store.get("second")
+        assert back is not None and back.after == "first", "the parent was lost"
+        assert store.get("other").branch == "a retry", "the branch was lost"
+        walked = [step.name for step in the_line_back_from(store, "second")]
+        assert walked == ["second", "first"], walked
+        # What this put, not what the store holds: a provider may be handed a
+        # store with rows already in it, and a promise that assumed an empty
+        # one would be testing the harness.
+        counted = the_branches(store)
+        assert counted.get("a retry") == 1, counted
+        assert counted.get("main", 0) >= 2, counted
+        on_the_retry = [one.name for one in what_is_on(store, "a retry")]
+        assert on_the_retry == ["other"], on_the_retry
 
     def _round_trip(store: Any) -> None:
         store.put(one)
@@ -454,7 +601,8 @@ def what_a_checkpoint_store_promises(
 
     for promise, check in zip(
         THE_PROMISES,
-        (_round_trip, _unknown, _second_wins, _names, _forget, _trigger, _tamper),
+        (_round_trip, _unknown, _second_wins, _names, _forget, _trigger,
+         _tamper, _lineage_survives),
         strict=True,
     ):
         _try(promise, check)

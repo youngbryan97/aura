@@ -250,3 +250,160 @@ def test_a_writer_is_anything_that_answers_the_two_calls():
 
     assert isinstance(Backwards(), HowAStateIsWritten)
     assert Backwards().loads(Backwards().dumps({"a": 1})) == {"a": 1}
+
+
+# --- Lineage ------------------------------------------------------------------
+
+
+def _three_on_two_branches(store):
+    from core.state.where_checkpoints_are_kept import AKeptCheckpoint, ATrigger
+
+    first = AKeptCheckpoint.of("first", {"n": 1}, trigger=ATrigger.TURN_ENDED)
+    second = AKeptCheckpoint.of(
+        "second", {"n": 2}, trigger=ATrigger.TOOL_RAN, after="first"
+    )
+    retried = AKeptCheckpoint.of(
+        "retried", {"n": 3}, trigger=ATrigger.TOOL_RAN, after="first", branch="a retry"
+    )
+    for one in (first, second, retried):
+        store.put(one)
+    return first, second, retried
+
+
+def test_a_retry_is_a_branch_rather_than_a_replacement(tmp_path):
+    """The first attempt is still there, which is what makes the second a claim."""
+    from core.state.where_checkpoints_are_kept import InJson, the_branches
+
+    store = InJson(tmp_path / "c.json")
+    _three_on_two_branches(store)
+    assert the_branches(store) == {"a retry": 1, "main": 2}
+    assert store.get("second").state == {"n": 2}
+    assert store.get("retried").state == {"n": 3}
+
+
+def test_the_line_back_walks_the_parents(tmp_path):
+    from core.state.where_checkpoints_are_kept import InJson, the_line_back_from
+
+    store = InJson(tmp_path / "c.json")
+    _three_on_two_branches(store)
+    assert [one.name for one in the_line_back_from(store, "second")] == [
+        "second",
+        "first",
+    ]
+    assert [one.name for one in the_line_back_from(store, "retried")] == [
+        "retried",
+        "first",
+    ]
+
+
+def test_a_row_naming_itself_as_its_parent_does_not_hang_the_walk(tmp_path):
+    """A store is a file other processes write, so that row can arrive."""
+    from core.state.where_checkpoints_are_kept import (
+        AKeptCheckpoint,
+        ATrigger,
+        InJson,
+        the_line_back_from,
+    )
+
+    store = InJson(tmp_path / "c.json")
+    store.put(
+        AKeptCheckpoint.of("loop", {"n": 1}, trigger=ATrigger.TURN_ENDED, after="loop")
+    )
+    assert [one.name for one in the_line_back_from(store, "loop")] == ["loop"]
+
+
+def test_a_missing_parent_ends_the_walk_rather_than_raising(tmp_path):
+    from core.state.where_checkpoints_are_kept import (
+        AKeptCheckpoint,
+        ATrigger,
+        InJson,
+        the_line_back_from,
+    )
+
+    store = InJson(tmp_path / "c.json")
+    store.put(
+        AKeptCheckpoint.of("child", {}, trigger=ATrigger.TURN_ENDED, after="gone")
+    )
+    assert [one.name for one in the_line_back_from(store, "child")] == ["child"]
+
+
+def test_pruning_keeps_the_newest_on_each_branch_separately(tmp_path):
+    """Pruning globally deletes a short branch to make room on a long one."""
+    from core.state.where_checkpoints_are_kept import (
+        AKeptCheckpoint,
+        ATrigger,
+        InJson,
+        prune,
+        what_is_on,
+    )
+
+    store = InJson(tmp_path / "c.json")
+    for n in range(10):
+        one = AKeptCheckpoint.of(f"m{n}", {"n": n}, trigger=ATrigger.TURN_ENDED)
+        one = type(one)(**{**one.to_dict(), "trigger": one.trigger, "at": float(n)})
+        store.put(one)
+    kept_short = AKeptCheckpoint.of(
+        "s0", {"n": 0}, trigger=ATrigger.TURN_ENDED, branch="a retry"
+    )
+    store.put(kept_short)
+
+    gone = prune(store, keep=3)
+    assert len(gone) == 7
+    assert [one.name for one in what_is_on(store, "main")] == ["m7", "m8", "m9"]
+    assert [one.name for one in what_is_on(store, "a retry")] == ["s0"], (
+        "the short branch was pruned to make room on the long one"
+    )
+
+
+def test_pruning_never_removes_a_checkpoint_something_still_comes_after(tmp_path):
+    """A chain with a hole restores to a history that stops mid-sentence."""
+    from core.state.where_checkpoints_are_kept import (
+        AKeptCheckpoint,
+        ATrigger,
+        InJson,
+        prune,
+    )
+
+    store = InJson(tmp_path / "c.json")
+    for n in range(6):
+        one = AKeptCheckpoint(
+            name=f"m{n}",
+            trigger=ATrigger.TURN_ENDED,
+            state={"n": n},
+            at=float(n),
+            after=f"m{n - 1}" if n else "",
+        )
+        store.put(one)
+    prune(store, keep=2)
+    assert store.get("m0") is not None, "m1 still names it"
+    assert store.get("m4") is not None and store.get("m5") is not None
+
+
+def test_a_row_written_before_branches_existed_is_on_the_main_line(tmp_path):
+    from core.state.where_checkpoints_are_kept import AKeptCheckpoint, ATrigger
+
+    old = AKeptCheckpoint.from_dict(
+        {"name": "x", "trigger": str(ATrigger.TURN_ENDED), "state": {}, "at": 1.0}
+    )
+    assert old.branch == "main"
+    assert old.after == ""
+
+
+def test_both_providers_keep_the_lineage_promise(tmp_path):
+    import itertools
+
+    from core.state.where_checkpoints_are_kept import (
+        InJson,
+        InSqlite,
+        what_a_checkpoint_store_promises,
+    )
+
+    n = itertools.count()
+    for make, label in (
+        (lambda: InJson(tmp_path / f"j{next(n)}.json"), "InJson"),
+        (lambda: InSqlite(tmp_path / f"s{next(n)}.db"), "InSqlite"),
+    ):
+        kept = what_a_checkpoint_store_promises(make, called=label)
+        broken = {k: v for k, v in kept.items() if v != "kept"}
+        assert broken == {}, f"{label}: {broken}"
+        assert "a parent and a branch survive the round trip" in kept
