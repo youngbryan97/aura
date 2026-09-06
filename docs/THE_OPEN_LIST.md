@@ -16,6 +16,28 @@ Four sources feed it.
 DONE means a test that fails without the change passes with it, and the commit
 is pushed. Nothing is marked DONE on the strength of an argument.
 
+## Where it stands
+
+Every N and E row is closed or carries a precise account of what is left. The
+M rows — the blind maturity comparison — are all closed. The peer ledger is
+partly closed and the count is in [MATURITY_LEDGER.md](MATURITY_LEDGER.md).
+
+Four rows are deliberately not marked DONE because saying so would overclaim:
+
+* **N13** — 36 module-size regressions, all of them older than this session
+  and checked against the tree at `3d6e365b4`. This session added three and
+  removed all three. Splitting 36 God objects is its own pass.
+* **E7** — the intervention arm is built and the number is strong: removing
+  the one structure she built while learning A costs all of the transfer, and
+  costs nothing on the controls. It runs on the transfer gate's own families,
+  not on a broad sealed distribution of materially distinct domains.
+* **E8** — three defects fixed, each verified, and the chain still reads depth
+  zero because only one of seven searched families has a priced action yet.
+  That is coverage, and it accumulates.
+* **N7** — one external benchmark ran. The other five cannot run on this
+  machine, and each says why, what was run instead, and what the substitute
+  does not establish.
+
 ## M — MoreLessons: what the blind comparison found
 
 The review's own headline: Aura does not need prettier code, it needs **lower

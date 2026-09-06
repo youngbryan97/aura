@@ -36,6 +36,24 @@ name each cluster more than once:
 | J. Runtime protocol and ownership | AutoGen #1, Soar #3 | One runtime object owns the authoritative services; no module singletons in core |
 | K. Tool schemas | CrewAI #18 | JSON Schema in and out, a version, and a side-effect class, validated before authority |
 
+## What the clusters cost, and what they found
+
+Every cluster landed with a module, a suite, and a place in
+`runtime_health_report()["integrity"]` so it can be read from a running
+system. Several found defects that were not in the review:
+
+* The sandbox's memory-bomb guard read `state.working_memory`, an attribute
+  `AuraState` does not have, and passed a 5,000-item state.
+* The compiled plan reported its own mode as a write mode, so every seal
+  published before that was a digest of a plan mislabelling itself.
+* The resource handoff woke a waiter and let it install itself, so a third
+  caller arriving in between held the same resource.
+* `schedule_relaunch` replayed `sys.argv`, which in a test run is pytest —
+  5,205 chained processes in fifteen minutes.
+* The compounding study's cost was constant across 824 operators, in three
+  separate ways, none of which any test could see.
+
+
 ## Every finding
 
 | Finding | Priority | Title | Closure (abridged) | State |
@@ -172,7 +190,7 @@ name each cluster more than once:
 | Soar #16 | P1 | Stable callback/event API around phases | Publish versioned lifecycle events for every canonical phase transition; no extension may monkey-patch phase internals. | TODO |
 | Soar #17 | P1 | Native memory manager/pools for hot kernel | Profile and move only proven hot coordination structures to optimized arrays/native extensions; establish per-tick orchestration CPU/allocation budget | TODO |
 | Soar #18 | P1 | Small set of core managers defines cognition | Keep organ count, but compress authority: one runtime, one scheduler, one event spine, one state gateway, one action authority, one learning authority | TODO |
-| Soar #19 | P1 | Uniform introspection commands/statistics | Expose a single `aura inspect` API/CLI over topology, state owners, active phases, counters, queues, resources and degradations with machine JSON outp | TODO |
+| Soar #19 | P1 | Uniform introspection commands/statistics | Expose a single `aura inspect` API/CLI over topology, state owners, active phases, counters, queues, resources and degradations with machine JSON outp | DONE |
 | Soar #20 | P1 | Statistics reset semantics are explicit | Every metric declares lifetime domain (turn/session/boot/lifetime); reset APIs operate by domain and never silently mix them. | TODO |
 | Soar #21 | P1 | Dedicated decision consistency machinery | Build WholeMindInvariantEngine consuming topology/state/authority/event-spine audits and run at boot + sampled ticks; findings have stable IDs/severit | TODO |
 | Soar #22 | P1 | Explicit input/output phase boundary | For each sensor/action channel declare consistency mode: sampled-at-tick, streaming, transactional; state snapshots must record which observation fron | TODO |
@@ -190,7 +208,7 @@ name each cluster more than once:
 | OpenCog AtomSpace #10 | P1 | Explicit recursive extraction semantics | Canonical semantic/memory deletion must check inbound references; caller chooses reject, detach or cascade and receives impact set. | TODO |
 | OpenCog AtomSpace #11 | P1 | Reference-counted stable handles | Use typed IDs/handles with resolver and tombstone semantics; never pass raw mutable object as durable cross-organ reference. | TODO |
 | OpenCog AtomSpace #12 | P1 | Content comparison is a testable core operation | Define semantic_equivalence(snapshotA,B, tolerances) for Aura state/knowledge; use in restore, compaction, migration and shadow tests. | TODO |
-| OpenCog AtomSpace #13 | P1 | Persistence/remote storage behind StorageNode | Canonical graph/store protocol separates semantic operations from SQLite/vector/file backend; conformance suite validates each backend. | TODO |
+| OpenCog AtomSpace #13 | P1 | Persistence/remote storage behind StorageNode | Canonical graph/store protocol separates semantic operations from SQLite/vector/file backend; conformance suite validates each backend. | DONE |
 | OpenCog AtomSpace #14 | P1 | Typed Values associated with atoms | Define versioned SemanticValue union for common confidence/time/source/vector/numeric/text/provenance values; domain extras remain namespaced. | TODO |
 | OpenCog AtomSpace #15 | P1 | Generic query mechanisms operate on same representation | Expose one cross-memory semantic query layer over canonical IDs/relations, delegating to specialized stores but returning normalized results. | TODO |
 | OpenCog AtomSpace #16 | P1 | GroundedSchema/Runner bridges symbolic and executable | Represent capabilities as canonical semantic entities linked to preconditions/effects/evidence and resolver; execution remains governed by ActionAutho | TODO |
