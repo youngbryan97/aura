@@ -1516,6 +1516,19 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_kind_of_state_is_this"] = {"error": repr(exc)}
 
+    # What a skill gave back that it did not declare. Every one of the 82
+    # declares now; a declaration nothing checks is a comment.
+    try:
+        from core.skills.what_every_skill_gives_back import how_results_have_differed
+
+        differed = how_results_have_differed()
+        block["what_every_skill_gives_back"] = {
+            "skills_that_differed": len(differed),
+            "differed": differed,
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_every_skill_gives_back"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering

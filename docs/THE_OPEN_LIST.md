@@ -50,7 +50,7 @@ carries all 202 with their state.
 | D. State patches and reducers | DONE |
 | E. Deterministic laboratory mode | DONE |
 | F. Semantic identity | DONE |
-| G. Memory provenance (Letta #1 MemoryFS, #16 three-way merge) | PART — #11 done |
+| G. Memory provenance | DONE — #1, #11 and #16 |
 | H. Conformance suites | DONE — store, graph and model-provider suites |
 | I. One working memory | DONE |
 | J. Runtime protocol and ownership | DONE |
