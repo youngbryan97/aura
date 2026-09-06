@@ -132,7 +132,7 @@ system. Several found defects that were not in the review:
 | LangGraph #10 | P0 | Backend-independent checkpoint conformance suite | Build conformance packages for StateStore, EventStore, MemoryStore and ModelRuntime; every implementation must pass unchanged suites. | DONE |
 | LangGraph #11 | P1 | Pending writes distinct from committed checkpoint | Create PendingEffect records with idempotency key, owner revision and terminal state; restart reconciles them before admitting new work. | DONE |
 | LangGraph #12 | P1 | First-class checkpoint selection/replay | Expose one TimeTravel API over durable spine + state projection + workflow revisions: inspect, fork, replay, compare. | DONE |
-| LangGraph #13 | P1 | First-class interrupt/resume protocol | Define SuspendedWork envelope with continuation token, required input schema, state revision and expiration; every pause/approval uses it. | TODO |
+| LangGraph #13 | P1 | First-class interrupt/resume protocol | Define SuspendedWork envelope with continuation token, required input schema, state revision and expiration; every pause/approval uses it. | DONE |
 | LangGraph #14 | P1 | Delta-channel snapshot/prune rules | Every compactable store must expose materialize_before_prune() and prove state equivalence before/after compaction under randomized histories. | TODO |
 | LangGraph #15 | P1 | Copy thread preserves semantic state | Make branch/fork a core spine operation producing new lineage ID with inherited state revision vector; workflows/conversations use it. | TODO |
 | LangGraph #16 | P1 | Checkpointer serializer protocol | Create VersionedCodec registry for durable envelopes with schema ID, version, hash, upcaster and optional encryption; stores depend on codecs, not ad- | DONE |
