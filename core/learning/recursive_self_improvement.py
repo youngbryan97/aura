@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -77,6 +77,22 @@ class ImprovementScorecard:
     evidence: dict[str, Any] = field(default_factory=dict)
 
 
+#: Every action a cycle can plan, and therefore every action it must be able
+#: to run. The planner could emit ``developmental`` and ``asked_the_forge``
+#: and the executor's dispatch had a branch for neither, so both were
+#: appended to ``attempted_actions`` and then silently did nothing — a ledger
+#: recording an attempt that never happened. Both sides are derived from this
+#: one tuple now, and a test fails if they diverge.
+WHAT_A_CYCLE_CAN_DO: tuple[str, ...] = (
+    "asked_the_forge",
+    "developmental",
+    "weight_update",
+    "code_refinement",
+    "tool_creation",
+    "collect_more_signal",
+)
+
+
 @dataclass(frozen=True)
 class ImprovementPlan:
     """One bounded recursive-improvement step."""
@@ -93,6 +109,15 @@ class ImprovementPlan:
     system2_reason: str = ""
     system2_receipt: dict[str, Any] = field(default_factory=dict)
     system2_outcome_receipt_id: str = ""
+    #: The developmental choice this plan was made on. Carried rather than
+    #: re-derived: the choice among unpriced actions is a draw, so asking
+    #: again at execution acts on a different answer than the one planned.
+    developmental_decision: Any = None
+    #: Whether the plan intends to ask the forge, and about what. The asking
+    #: belongs to the executor — a planner that acts while planning makes the
+    #: plan a record of what already happened, which is this module's own
+    #: stated rule and the forge probe was the one place breaking it.
+    forge_gaps: tuple[str, ...] = ()
 
 
 @dataclass
@@ -321,8 +346,21 @@ class RecursiveSelfImprovementLoop:
                 action_results[action] = await self._run_code_refinement()
             elif action == "tool_creation":
                 action_results[action] = await self._run_tool_creation(plan)
+            elif action == "developmental":
+                action_results[action] = await self._run_developmental(plan)
+            elif action == "asked_the_forge":
+                action_results[action] = self._ask_the_forge(plan.forge_gaps)
             elif action == "collect_more_signal":
                 action_results[action] = {"ok": True, "reason": "insufficient signal for mutation"}
+            else:
+                # An action the planner can emit and this dispatch cannot run.
+                # Recorded rather than skipped: `attempted` used to name it
+                # while nothing happened, and a ledger that reports an attempt
+                # nobody made is worse than one that reports a gap.
+                action_results[action] = {
+                    "ok": False,
+                    "reason": f"no implementation for {action!r} in this cycle",
+                }
 
         after = await self._evaluate()
         delta = after.score - baseline.score
@@ -393,7 +431,7 @@ class RecursiveSelfImprovementLoop:
         return result
 
 
-    def _what_she_could_change_about_her_own_terms(self) -> str | None:
+    def _what_she_could_change_about_her_own_terms(self) -> Any:
         """What the developmental policy would do to the language, if anything.
 
         The same decision `she_improves_her_own_deciding` makes, asked from
@@ -418,35 +456,99 @@ class RecursiveSelfImprovementLoop:
         except Exception as exc:  # noqa: BLE001 — a planner must not die deciding
             logger.debug("the developmental policy declined to answer: %s", exc)
             return None
-        return decided.action.name if getattr(decided, "action", None) else None
+        # The decision, not its name. Carrying the name means the executor
+        # has to ask again to get something it can run, and the choice among
+        # unpriced actions is a draw — so it would run a different action
+        # from the one this plan was made on and reported.
+        return decided if getattr(decided, "action", None) else None
+
+    async def _run_developmental(self, plan: ImprovementPlan) -> dict[str, Any]:
+        """Take the developmental choice this plan was made on.
+
+        The planner could put ``developmental`` in a plan and the dispatch had
+        no branch for it, so the choice was read, written into the plan, named
+        in ``attempted_actions``, and never taken. The whole native half of the
+        loop stopped one step short of happening.
+
+        The decision is carried on the plan rather than asked for again here.
+        Asking again draws again — the choice among unpriced actions is a draw
+        from what the counts support — so the cycle would run something other
+        than the action it planned and reported, which is the same defect the
+        idle loop had.
+        """
+        decided = plan.developmental_decision
+        if decided is None or getattr(decided, "action", None) is None:
+            return {"ok": False, "reason": "the plan carried no developmental choice"}
+        try:
+            from core.cognition.she_decides_to_develop import she_develops_herself
+        except (ImportError, RuntimeError) as exc:
+            return {"ok": False, "reason": f"no developmental policy: {exc}"}
+
+        def take_it() -> tuple[Any, Any]:
+            return she_develops_herself(decided)
+
+        try:
+            import asyncio
+
+            # Off the loop: a developmental action installs into registries and
+            # runs a held-out probe, and doing that on the event loop is how a
+            # 20-minute freeze happened here before.
+            _again, came_of_it = await asyncio.get_running_loop().run_in_executor(
+                None, take_it
+            )
+        except Exception as exc:  # noqa: BLE001 — a failed change is a result
+            record_degradation(
+                "recursive_self_improvement",
+                exc,
+                action="took a developmental action inside an improvement cycle",
+            )
+            return {"ok": False, "reason": f"{type(exc).__name__}: {exc}"}
+        return {
+            "ok": bool(came_of_it),
+            "action": getattr(decided.action, "name", ""),
+            "over": getattr(decided.action, "over", ""),
+            "came_of_it": str(came_of_it) if came_of_it else "",
+            # An action that declined is not an action that failed. The trial
+            # around it put the state back either way, so a False here means
+            # "nothing was kept", not "something broke".
+            "declined": came_of_it is None,
+        }
 
     @staticmethod
-    def _ask_the_forge_about_recurring_gaps(*, allowed: bool, observed: bool) -> bool:
-        """Start the forge on recurring gaps. Returns whether it was asked.
+    def _worth_asking_the_forge(*, allowed: bool, observed: bool) -> bool:
+        """Whether this cycle should ask the forge. Decides; does not ask.
 
-        Asked rather than awaited. Synthesis writes code, runs probes and
-        installs a skill; a planning pass that blocked on it would make every
-        improvement cycle as slow as the slowest thing it might build, and the
-        plan does not need the answer to be a plan.
-
-        So the plan says "asked the forge", not "forged" — which is also the
-        honest thing to write down, because whether anything came of it is the
-        forge's result and not this cycle's.
+        This used to start the forge task from inside the planner and return
+        whether it had. That made the plan a record of what had already
+        happened — the exact thing the docstring two methods up says a planner
+        must not do — and it left the executor with an action name and nothing
+        to run, so ``asked_the_forge`` was reported as attempted whether or
+        not anything was.
         """
-
         if not allowed or not observed:
             return False
-        if os.getenv("AURA_RSI_TOOL_CREATION", "0") != "1":
-            return False
+        return os.getenv("AURA_RSI_TOOL_CREATION", "0") == "1"
+
+    @staticmethod
+    def _ask_the_forge(gaps: Sequence[str]) -> dict[str, Any]:
+        """Start the forge on recurring gaps. Returns what the cycle can record.
+
+        Asked rather than awaited. Synthesis writes code, runs probes and
+        installs a skill; a cycle that blocked on it would be as slow as the
+        slowest thing it might build.
+
+        So the result says "asked", not "forged" — which is also the honest
+        thing to write down, because whether anything came of it is the
+        forge's outcome and not this cycle's.
+        """
         try:
             import asyncio
 
             from core.utils.task_tracker import get_task_tracker
 
-            loop = asyncio.get_running_loop()
-        except (ImportError, RuntimeError):
-            return False
-        del loop
+            asyncio.get_running_loop()
+        except (ImportError, RuntimeError) as exc:
+            return {"ok": False, "reason": f"no loop to ask on: {type(exc).__name__}"}
         try:
             get_task_tracker().create_task(
                 RecursiveSelfImprovementLoop._forge_what_keeps_being_missing(),
@@ -458,8 +560,8 @@ class RecursiveSelfImprovementLoop:
                 exc,
                 action="did not ask the forge about recurring gaps this cycle",
             )
-            return False
-        return True
+            return {"ok": False, "reason": f"{type(exc).__name__}: {exc}"}
+        return {"ok": True, "asked_about": list(gaps), "awaited": False}
 
     @staticmethod
     async def _forge_what_keeps_being_missing() -> list[str]:
@@ -584,9 +686,11 @@ class RecursiveSelfImprovementLoop:
         ]
         capability_gap_signal = bool(gaps_observed)
         self._remember_the_gaps(gaps_observed)
-        if self._ask_the_forge_about_recurring_gaps(
+        forge_gaps: tuple[str, ...] = ()
+        if self._worth_asking_the_forge(
             allowed=allow_tool_creation, observed=bool(gaps_observed)
         ):
+            forge_gaps = tuple(sorted({str(s.detail or s.kind) for s in gaps_observed}))
             actions.append("asked_the_forge")
             rationale.append(
                 "a gap has been seen often enough to be worth forging a capability for"
@@ -597,7 +701,12 @@ class RecursiveSelfImprovementLoop:
         # records, so a cycle could not choose between changing the code and
         # changing the terms — and "which of those is worth doing here" is the
         # question a single improver has to be able to answer.
-        chosen = self._what_she_could_change_about_her_own_terms()
+        chosen_decision = self._what_she_could_change_about_her_own_terms()
+        chosen = (
+            getattr(getattr(chosen_decision, "action", None), "name", None)
+            if chosen_decision is not None
+            else None
+        )
         if chosen:
             actions.append("developmental")
             rationale.append(
@@ -646,6 +755,8 @@ class RecursiveSelfImprovementLoop:
             depth=depth,
             fine_tune_type=fine_tune_type,
             full_weights_unlocked=full_weights_unlocked,
+            developmental_decision=chosen_decision,
+            forge_gaps=forge_gaps,
         )
 
     async def _refine_plan_with_native_system2(
