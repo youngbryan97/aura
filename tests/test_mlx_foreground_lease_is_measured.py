@@ -85,6 +85,21 @@ def test_a_silent_owner_accumulates_silence():
     assert mlx_client._foreground_owner_silence() >= 119.0
 
 
+def test_status_cleanup_preserves_an_old_owner_reporting_progress():
+    _own(600.0)
+    mlx_client.note_foreground_owner_progress()
+
+    assert mlx_client._clear_stale_foreground_owner() is None
+    assert mlx_client._FOREGROUND_OWNER_NAME == "chat_api:default"
+
+
+def test_status_cleanup_releases_an_old_silent_owner():
+    _own(600.0)
+
+    assert mlx_client._clear_stale_foreground_owner() == "chat_api:default"
+    assert mlx_client._FOREGROUND_OWNER_NAME is None
+
+
 def test_a_slow_but_working_owner_is_not_force_cleared():
     """A 32B cold load is legitimately slow; clearing it mid-load is the
     deadlock this guard exists to avoid."""

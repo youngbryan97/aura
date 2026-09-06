@@ -3880,7 +3880,7 @@ def _clear_stale_foreground_owner(max_age_s: float = 200.0) -> str | None:
         if holder is None:
             return None
         age = _foreground_owner_age()
-        if age <= max_age_s:
+        if age <= max_age_s or _foreground_owner_silence() <= max_age_s:
             return None
         _FOREGROUND_OWNER_NAME = None
         _FOREGROUND_OWNER_ACQUIRED_AT = 0.0
