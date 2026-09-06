@@ -259,24 +259,35 @@ def write_export(
     labels: Mapping[str, str] | None = None,
     source: str = "core.connectome.neuroglancer",
 ) -> dict[str, str]:
-    """Write the segment properties and the viewer state through the gateway."""
+    """Write the segment properties and the viewer state through the gateway.
+
+    Inside a governed scope, like every other internal maintenance write.
+    Routing through the gateway is half the rule; the live runtime refuses an
+    ungoverned write even when it arrives by the right door.
+    """
+    from core.governance_context import local_internal_governed_scope
     from core.runtime.file_write_gateway import get_file_write_gateway
 
     target = Path(directory)
     gateway = get_file_write_gateway()
-    gateway.ensure_directory(target, source=source)
     properties = segment_properties(snapshot, assignment, labels=labels)
     state = viewer_state(snapshot, assignment)
     files = {
         "segment_properties": str(target / "segment_properties.json"),
         "viewer_state": str(target / "neuroglancer_state.json"),
     }
-    gateway.write_text(
-        files["segment_properties"],
-        json.dumps(properties, indent=2, sort_keys=True),
-        source=source,
-    )
-    gateway.write_text(
-        files["viewer_state"], json.dumps(state, indent=2, sort_keys=True), source=source
-    )
+    with local_internal_governed_scope(
+        "connectome.neuroglancer_export", domain="state_mutation"
+    ):
+        gateway.ensure_directory(target, source=source)
+        gateway.write_text(
+            files["segment_properties"],
+            json.dumps(properties, indent=2, sort_keys=True),
+            source=source,
+        )
+        gateway.write_text(
+            files["viewer_state"],
+            json.dumps(state, indent=2, sort_keys=True),
+            source=source,
+        )
     return files
