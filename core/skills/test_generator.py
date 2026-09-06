@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.container import ServiceContainer
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
@@ -78,6 +79,11 @@ class TestGeneratorParams(BaseModel):
 
 
 class TestGeneratorSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     __test__ = False
     """Test Generator Skill v2.0
     Generates unit tests using the brain and executes them to verify code integrity.

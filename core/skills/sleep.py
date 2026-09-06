@@ -12,6 +12,7 @@ import inspect
 import logging
 from typing import Any
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.container import ServiceContainer
 from core.runtime.errors import Severity, record_degradation
 from core.skills.base_skill import BaseSkill
@@ -103,6 +104,11 @@ def _get_sleep_service(
 
 
 class SleepSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "dream_sleep"
     description = "Consolidates memories and evolves identity during downtime."
     timeout_seconds = 120.0

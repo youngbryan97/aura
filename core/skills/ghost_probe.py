@@ -2,6 +2,7 @@
 Phase 16.4: Ghost Deployment Skill.
 Allows Aura to spawn external monitoring probes.
 """
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.skills.base_skill import BaseSkill
 from core.container import ServiceContainer
 from typing import Any, Dict
@@ -19,6 +20,11 @@ class GhostProbeParams(BaseModel):
 
 class GhostProbeSkill(BaseSkill):
     """Skill to deploy and manage Ghost Probes."""
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     
     name = "deploy_ghost_probe"
     description = "Deploy a lightweight background probe to monitor a file or resource."

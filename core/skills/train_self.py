@@ -1,6 +1,7 @@
 """skills/train_self.py - Neuroplasticity / Self-Fine-Tuning Skill
 Provides the architecture for Aura to learn from her own high-value experiences.
 """
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 import json
 import logging
@@ -11,7 +12,7 @@ from typing import Any, Dict
 
 import asyncio
 from core.config import config
-from core.runtime.atomic_writer import async_atomic_write_text, atomic_write_text
+from core.runtime.atomic_writer import async_atomic_write_text
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.skills.base_skill import BaseSkill
 
@@ -21,6 +22,11 @@ class TrainSelfSkill(BaseSkill):
     """Sleep and Learn: Neuroplasticity simulation.
     Orchestrates the preparation and trigger for local model fine-tuning.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "train_self"
     description = (

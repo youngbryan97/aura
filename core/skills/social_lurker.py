@@ -1,6 +1,6 @@
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 import logging
-import asyncio
 from typing import Any, Dict, Optional
 from core.skills.base_skill import BaseSkill
 from pydantic import BaseModel, Field
@@ -20,6 +20,11 @@ class LurkerInput(BaseModel):
     limit: Optional[int] = Field(10, description="Number of posts to read.")
 
 class LurkerSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "social_lurker"
     description = "Scrape feeds (HackerNews/Reddit) for latest topics."
     input_model = LurkerInput

@@ -37,6 +37,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.cognition.a_shape_that_makes_it_safe import what_makes_it_safe
 from core.cognition.a_window_not_a_maximum import AWindow, which_act_lands_in_it
 from core.cognition.does_this_world_repeat import DoesItRepeat
@@ -805,6 +806,11 @@ async def press_many(keys: Sequence[str], *, expect_app: str = "") -> int:
 
 class ScreenPursuitSkill(BaseSkill):
     """Keep looking at the screen and acting until a goal is reached."""
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "pursue_on_screen"
     description = (

@@ -54,7 +54,7 @@ carries all 202 with their state.
 | H. Conformance suites | DONE — store, graph and model-provider suites |
 | I. One working memory | DONE |
 | J. Runtime protocol and ownership | DONE |
-| K. Tool schemas | PART — 78 tools still declare no result |
+| K. Tool schemas | DONE — 82 of 82 declare a result, checked at the executor |
 
 ## N — NextSteps
 

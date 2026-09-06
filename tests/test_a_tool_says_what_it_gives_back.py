@@ -62,10 +62,33 @@ def test_a_skill_that_declares_a_result_schema_carries_it_through(engine):
 
 
 def test_an_undeclared_result_is_an_open_object_and_says_so(engine):
-    quiet = [one for one in engine.skills.values() if not one.declares_its_result]
-    assert quiet, "nothing is undeclared, so this test measures nothing"
-    schema = quiet[0].result_schema_def
-    assert schema == {"additionalProperties": True, "properties": {}, "type": "object"}
+    """The mechanism, on a metadata built for it.
+
+    This used to pick a real undeclared skill out of the registry. Every one
+    of the 82 declares now, so that form asserted the work had not been done
+    and would fail the moment it was — which is a test measuring the wrong
+    thing rather than a regression.
+    """
+    from core.capability_engine import SkillMetadata
+
+    quiet = SkillMetadata(
+        name="declares_nothing",
+        class_name="DeclaresNothing",
+        description="a skill that says nothing about its result",
+        module_path="tests.declares_nothing",
+    )
+    assert not quiet.declares_its_result
+    assert quiet.result_schema_def == {
+        "additionalProperties": True, "properties": {}, "type": "object"
+    }
+
+
+def test_every_registered_skill_now_declares_a_result(engine):
+    """78 of 82 did not. Named, so a regression says which one."""
+    quiet = sorted(
+        one.name for one in engine.skills.values() if not one.declares_its_result
+    )
+    assert quiet == [], quiet
 
 
 def test_the_count_of_undeclared_results_only_falls():

@@ -1,11 +1,11 @@
 """Aura Hive Mind Sync
 Enables memory synchronization between Home and Cloud variants via a private Git repository.
 """
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
-import sys
 from pathlib import Path
 from typing import Any, Dict, Literal
 
@@ -22,6 +22,11 @@ class MemorySyncParams(BaseModel):
     consented: bool = Field(False, description="Manual consent required for cloud memory upload (push/sync).")
 
 class MemorySyncSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "memory_sync"
     description = "Syncs semantic memory (data/memory) with a remote Git repository."
     input_model = MemorySyncParams

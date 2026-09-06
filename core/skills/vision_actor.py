@@ -4,6 +4,7 @@ This module implements the See -> Think -> Act loop using PyAutoGUI.
 It allows the LLM to control the local UI by asking for visual bounding boxes.
 """
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 import asyncio
 import logging
@@ -15,7 +16,6 @@ from core.skills._pyautogui_runtime import get_pyautogui
 from core.senses.screen_vision import LocalVision
 from core.container import ServiceContainer
 import re
-import time
 
 logger = logging.getLogger("Skills.VisionActor")
 
@@ -26,6 +26,11 @@ class VisionActorInput(BaseModel):
     press_enter: bool = Field(False, description="Press Enter after typing.")
 
 class VisionActorSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "sovereign_vision"
     description = "Control the computer UI. Can 'look' to find coordinates, 'click' visually described elements, or 'type' text."
     input_model = VisionActorInput

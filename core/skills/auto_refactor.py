@@ -13,6 +13,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 from core.self_modification.incremental_code_health import IncrementalCodeHealthScanner
 from core.self_modification.safe_modification_harness import SafeModificationHarness
@@ -46,6 +47,11 @@ class AutoRefactorParams(BaseModel):
 
 
 class AutoRefactorSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "auto_refactor"
     description = (
         "Incrementally analyzes repository code health under explicit time and file budgets, "

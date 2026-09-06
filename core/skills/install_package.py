@@ -2,6 +2,7 @@
 Allows Aura to install Python packages into the Sovereign Sandbox.
 Essential for upgrading the "Body" (Perception libraries).
 """
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 import inspect
 import logging
@@ -12,7 +13,6 @@ from pydantic import BaseModel, Field
 
 from core.skills.base_skill import BaseSkill
 
-from ..sovereign.local_sandbox import LocalSandbox
 from .active_coding import get_sandbox
 
 logger = logging.getLogger("Skills.InstallPackage")
@@ -21,6 +21,11 @@ class InstallPackageParams(BaseModel):
     package_name: str = Field(..., description="The name of the Python package to install via pip.")
 
 class InstallPackageSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "install_package"
     description = "Installs Python packages into the Sandbox using pip."
     input_model = InstallPackageParams

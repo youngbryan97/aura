@@ -327,6 +327,27 @@ _PRESENTABLE_AUTHORITY_KEYS = frozenset(
 )
 
 
+def _check_what_the_skill_gave_back(engine: Any, name: str, result: Any) -> None:
+    """Compare a skill's result against the schema it declared.
+
+    Records, never raises, and never changes the result. Every one of the 82
+    tools now says what it gives back; a declaration nothing checks is a
+    comment, and a check that could cost the turn would be worse than the
+    comment.
+    """
+    try:
+        from core.skills.what_every_skill_gives_back import check_a_result
+
+        held = getattr(engine, "skills", None) or {}
+        metadata = held.get(name) if isinstance(held, dict) else None
+        declared = getattr(metadata, "result_schema_def", None)
+        if not declared or not getattr(metadata, "declares_its_result", False):
+            return
+        check_a_result(str(name), declared, result)
+    except Exception as exc:  # noqa: BLE001 — a contract check must cost nothing
+        logger.debug("could not check what %s gave back: %s", name, exc)
+
+
 class ActionExecutor:
     """Execute, observe, and receipt one consequential action."""
 
@@ -1422,6 +1443,7 @@ class ActionExecutor:
                     "action_expectation": expectation.to_dict(),
                 },
             )
+            _check_what_the_skill_gave_back(engine, action_name, raw_result)
             return _coerce_result(raw_result)
 
         if domain == ActionDomain.FILE_WRITE:

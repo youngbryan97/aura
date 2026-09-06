@@ -13,6 +13,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.service_registry import get_runtime_service
 from core.service_names import ServiceNames
 from core.skills.base_skill import BaseSkill
@@ -63,6 +64,11 @@ class ProgramDNAInput(BaseModel):
 
 
 class ProgramDNAReconstructSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill here
+    #: returns `ok`, and a schema claiming to be complete would be wrong
+    #: for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "program_dna_reconstruct"
     description = (
         "Authorized clean-room reconstruction and mechanism study of a program's behavior DNA "

@@ -12,6 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.capabilities.web_interlocutor import (
     WebInterlocutorSession,
     get_web_interlocutor_job_manager,
@@ -47,6 +48,11 @@ class WebInterlocutorParams(BaseModel):
 
 
 class WebInterlocutorSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill here
+    #: returns `ok`, and a schema claiming to be complete would be wrong
+    #: for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "web_interlocutor"
     description = (
         "Hold a visible, governed conversation with another web AI/chat page in the user's browser, "

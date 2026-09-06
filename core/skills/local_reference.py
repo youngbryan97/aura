@@ -26,6 +26,20 @@ class LocalReferenceInput(BaseModel):
 
 class LocalReferenceSearchSkill(BaseSkill):
     """Offline reference lookup over the local knowledge corpus."""
+    #: This one answers with `success` rather than `ok`, and a list of hits.
+    #: Written out rather than pointed at the shared contract, because
+    #: declaring `ok` here would be declaring a field it does not return.
+    result_schema = {
+        "type": "object",
+        "properties": {
+            "success": {"type": "boolean"},
+            "results": {"type": "array"},
+            "message": {"type": "string"},
+        },
+        "required": ["success", "results"],
+        "additionalProperties": True,
+    }
+
 
     name = "local_reference_search"
     description = (

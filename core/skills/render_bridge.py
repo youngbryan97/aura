@@ -15,14 +15,13 @@ payloads that the frontend chat UI can interpret and display.
 This closes the "render ecosystem" gap in tool parity.
 """
 
-import json
 import logging
 import time
-from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.skills.base_skill import BaseSkill
 
@@ -88,6 +87,11 @@ class RenderBridgeInput(BaseModel):
 
 
 class RenderBridgeSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "render_bridge"
     description = (
         "Process and emit render instructions for the UI. "

@@ -1,6 +1,7 @@
 import logging
 from typing import Any, Dict
 from pydantic import BaseModel, Field
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Aura.SkillGovernor")
@@ -13,6 +14,11 @@ class ManageAbilitiesSkill(BaseSkill):
     """Activate or deactivate specific skills to manage your memory and thermal load.
     Deactivate heavy skills when not in use.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "ManageAbilities"
     description = "Manage your cognitive toolset. Activate dormant tools to use them, deactivate when finished."
     input_model = ManageAbilitiesInput

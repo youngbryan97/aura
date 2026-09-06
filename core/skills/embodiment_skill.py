@@ -7,6 +7,7 @@ import uuid
 from collections.abc import Mapping
 from typing import Any
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.container import ServiceContainer
 from core.embodiment.world_bridge import Channel, get_world_bridge
 from core.governance.capability_chain import CapabilityViolation, get_capability_issuer
@@ -115,6 +116,11 @@ def _world_result(result: Any) -> dict[str, Any]:
 
 class EmbodimentSkill(BaseSkill):  # type: ignore[misc]  # skipped import is untyped
     """Observe, discover, attach, focus, and control declared physical surfaces."""
+    #: What a caller gets back. The shared part only: every skill here
+    #: returns `ok`, and a schema claiming to be complete would be wrong
+    #: for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "embodiment"
     description = (

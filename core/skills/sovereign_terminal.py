@@ -9,6 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.config import config
 from core.runtime.errors import record_degradation
 from core.runtime.subprocess_gateway import get_subprocess_gateway
@@ -43,6 +44,11 @@ class SovereignTerminalSkill(BaseSkill):
     """The unified terminal and system operation capability for Aura.
     Handles shell command execution, application launching, and file opening.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     
     name = "sovereign_terminal"
     description = "Execute shell commands, launch system apps, and open files via CLI."

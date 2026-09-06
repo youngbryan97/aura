@@ -1,3 +1,4 @@
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 from typing import Any, Dict
 
@@ -14,6 +15,11 @@ class SearchInput(BaseModel):
 
 class WebSearchSkill(EnhancedWebSearchSkill):
     """Compatibility alias for the modern resilient web-search skill."""
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "search_web"
     description = "Search the open web for information. Use this to find facts, news, or deep dive on topics."

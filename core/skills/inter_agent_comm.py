@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
@@ -18,6 +19,11 @@ class InterAgentCommSkill(BaseSkill):
     """Skill for communication with registered local peer agents.
     v3.4 Patch: Uses mock 'conversation_loop' if needed.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     
     name = "inter_agent_comm"
     retry_safe = False  # external send/act — never double-fire on retry

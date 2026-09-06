@@ -1,7 +1,7 @@
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 import logging
-import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from core.memory.knowledge.curriculum import CurriculumManager
 from core.skills.base_skill import BaseSkill
@@ -11,6 +11,11 @@ logger = logging.getLogger("Skills.Curiosity")
 class CuriositySkill(BaseSkill):
     """Allows Aura to explore her learning curriculum and media suggestions.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "curiosity"
     description = "Access learning suggestions and track consumption of educational media."

@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.skills.base_skill import BaseSkill
 
 
@@ -37,6 +38,11 @@ class PropagationSkill(BaseSkill):
     operator-consented planning that must be executed through governed external
     I/O pathways.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "propagation"
     description = "Plan consent-aware, governed deployment or handoff propagation without executing it."
