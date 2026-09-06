@@ -80,3 +80,29 @@ def test_the_report_separates_who_spawned_from_who_declared() -> None:
     assert seen["owners_that_have_not_said"] == ["ghost"]
     assert seen["owners_that_spawned"] == 1
     assert seen["declared"] >= 8, "declaring is not the same as having run"
+
+
+def test_shutdown_says_whether_a_survivor_is_a_defect() -> None:
+    """A curiosity task outliving shutdown costs nothing; a write does not.
+
+    Both used to be one line saying "survived". Whether it matters is the
+    owner's declaration, and the shutdown report carries it now. Checked on
+    the report builder directly rather than by racing a real drain: a test
+    that skips when the task happens to finish in time proves nothing.
+    """
+    import inspect
+
+    from core.utils import task_tracker
+
+    source = inspect.getsource(task_tracker.TaskTracker.shutdown)
+    assert "the_policy_for" in source, (
+        "shutdown decides for itself whether a survivor matters"
+    )
+    assert "an_orphan_is_a_defect" in source
+    assert "why_it_matters" in source
+
+    # And the declaration it reads says the two apart.
+    from core.runtime.how_a_task_should_end import the_policy_for
+
+    assert the_policy_for("file_write_gateway").an_orphan_is_a_defect is True
+    assert the_policy_for("curiosity").an_orphan_is_a_defect is False

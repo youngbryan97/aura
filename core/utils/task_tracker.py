@@ -862,20 +862,34 @@ class TaskTracker:
         if remaining:
             logger.warning("%d tasks still pending after bounded cancellation.", len(remaining))
         remaining_tasks = []
+        try:
+            from core.runtime.how_a_task_should_end import the_policy_for
+        except ImportError:  # a tracker in a process without the runtime
+            the_policy_for = None  # type: ignore[assignment]
         for task in remaining[:20]:
             with self._state_lock:
                 record = self._records.get(id(task))
+            owner = record.source if record is not None else "unknown"
             _record_shutdown_task_event(
                 name=record.name if record is not None else task.get_name(),
-                source=record.source if record is not None else "unknown",
+                source=owner,
                 outcome="survived",
             )
+            # Whether this survival is a defect is the owner's declaration, not
+            # this loop's guess. A curiosity task outliving shutdown costs
+            # nothing; a write that outlives it is how a state file is
+            # truncated, and both used to be one line saying "survived".
+            told = the_policy_for(owner) if the_policy_for is not None else None
             remaining_tasks.append(
                 {
                     "name": record.name if record is not None else task.get_name(),
-                    "source": record.source if record is not None else "unknown",
+                    "source": owner,
                     "supervision": record.supervision if record is not None else "unknown",
                     "loop_running": task.get_loop().is_running(),
+                    "an_orphan_is_a_defect": (
+                        bool(told.an_orphan_is_a_defect) if told is not None else None
+                    ),
+                    "why_it_matters": told.why if told is not None else "",
                 }
             )
         return {
