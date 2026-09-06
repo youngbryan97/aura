@@ -61,10 +61,26 @@ _A_PROMISE = (
 
 
 def _packages(root: Path) -> list[Path]:
+    """Every package under ``core``, including the namespace ones.
+
+    Requiring ``__init__.py`` left 42 directories out of this audit, among
+    them ``state``, ``kernel``, ``learning``, ``ethics``, ``health``,
+    ``organism`` and ``sovereign``. So the number everyone was reading —
+    32 of 120 — was computed over three quarters of the tree, and the
+    packages missing from it were not a random three quarters: a namespace
+    package is what a directory becomes when nobody wrote its ``__init__``,
+    which correlates with nobody writing its DEPS or its promises either.
+
+    A directory of importable modules is a package whether or not it has an
+    ``__init__``, and an organ that cannot be seen by the audit is the one
+    worth seeing.
+    """
     return sorted(
         one
         for one in (root / "core").iterdir()
-        if one.is_dir() and not one.name.startswith("__") and (one / "__init__.py").exists()
+        if one.is_dir()
+        and not one.name.startswith("__")
+        and any(one.glob("*.py"))
     )
 
 

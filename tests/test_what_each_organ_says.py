@@ -112,9 +112,27 @@ def test_the_baseline_is_readable_and_says_which_way_each_number_moves():
 def test_most_organs_still_say_nothing_about_what_they_promise(organs):
     """The honest state, pinned so closing it is visible.
 
-    86 of 120. This is the number the recommendation was actually about.
+    118 of 162. It was reported as 86 of 120 while the audit required an
+    __init__.py and therefore never looked at 42 namespace packages — state,
+    kernel, learning, ethics, health, organism, sovereign among them. A
+    directory nobody wrote an __init__ for is not a random sample: it
+    correlates with nobody having written its promises either.
     """
     assert organs["who_does_not_say"]["what it promises"] > 50
+
+
+def test_the_audit_looks_at_namespace_packages_too(organs):
+    """A package the audit cannot see is the one worth seeing."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "core"
+    on_disk = {
+        one.name
+        for one in root.iterdir()
+        if one.is_dir() and not one.name.startswith("__") and any(one.glob("*.py"))
+    }
+    assert organs["organs"] == len(on_disk)
+    assert "state" in on_disk and "kernel" in on_disk
 
 
 def test_the_count_is_in_the_health_report():

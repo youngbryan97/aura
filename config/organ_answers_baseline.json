@@ -1,12 +1,13 @@
 {
-  "note": "Organs that know what they own, consume, promise and how failure propagates. answer_all_four only goes up; each who_does_not_say count only goes down.",
-  "organs": 120,
-  "answer_all_four": 32,
+  "note": "Organs that know what they own, consume, promise and how failure propagates. answer_all_four only goes up; each who_does_not_say count only goes down. 2026-09-06: the audit required __init__.py and so had never looked at 42 namespace packages, among them state, kernel, learning, ethics, health, organism and sovereign. The denominator is 162, not 120, and these numbers are the first measurement over all of it.",
+  "organs": 162,
+  "answer_all_four": 42,
   "answer_nothing": 0,
   "who_does_not_say": {
-    "what it owns": 18,
+    "what it owns": 29,
     "what it consumes": 0,
-    "what it promises": 86,
-    "how failure propagates": 21
-  }
+    "what it promises": 118,
+    "how failure propagates": 28
+  },
+  "measured_over": "every directory under core/ holding .py files, with or without __init__.py"
 }
