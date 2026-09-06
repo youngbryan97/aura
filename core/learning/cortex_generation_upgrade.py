@@ -55,7 +55,11 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.CortexGenerationUpgrade")
 
-EVALUATION_SCHEMA = "aura.cortex_upgrade.evaluation.v3"
+#: v4 adds ``budget_parity``. The version moves because the key set is an
+#: exact contract: a v3 receipt has no record of whether its two arms were
+#: allowed the same budget, and reading one as though it did is the thing
+#: the field exists to stop.
+EVALUATION_SCHEMA = "aura.cortex_upgrade.evaluation.v4"
 EVALUATION_PROGRESS_SCHEMA = "aura.cortex_upgrade.evaluation_progress.v1"
 CANDIDATE_SCHEMA = "aura.cortex_upgrade.candidate.v1"
 MIGRATION_PLAN_SCHEMA = "aura.cortex_upgrade.migration_plan.v1"
@@ -418,6 +422,39 @@ def capability_battery(
     }
 
 
+def _where_the_budgets_differ(
+    current: dict[str, Any], candidate: dict[str, Any]
+) -> list[str]:
+    """Probe-by-probe token budgets that were not the same for both arms.
+
+    Empty when every probe gave both models the same allowance, which is what
+    makes an accuracy difference a difference in the models rather than in
+    what they were allowed to spend.
+
+    A probe present for one arm and absent for the other counts: an arm scored
+    over fewer probes is an arm scored on a different battery.
+    """
+    found: list[str] = []
+    for axis in ("breadth_rows", "reasoning_rows"):
+        mine = current.get(axis) or []
+        theirs = candidate.get(axis) or []
+        if len(mine) != len(theirs):
+            found.append(
+                f"{axis}: {len(mine)} probes for the incumbent and "
+                f"{len(theirs)} for the candidate"
+            )
+            continue
+        for at, (one, other) in enumerate(zip(mine, theirs, strict=False)):
+            if not isinstance(one, dict) or not isinstance(other, dict):
+                continue
+            a, b = one.get("max_tokens"), other.get("max_tokens")
+            if a != b:
+                found.append(f"{axis}[{at}]: max_tokens {a} against {b}")
+            if one.get("prompt") != other.get("prompt"):
+                found.append(f"{axis}[{at}]: the two arms were asked different things")
+    return found
+
+
 def compare_batteries(
     current: dict[str, Any],
     candidate: dict[str, Any],
@@ -432,6 +469,26 @@ def compare_batteries(
     requires exact non-regression on both measured axes and a strict gain on at
     least one.  Deployment remains separately blocked by every critical gate.
     """
+    # Budget parity first. The probes fix max_tokens by construction and decode
+    # greedily, so the two arms have always been matched — by somebody having
+    # been careful, not by anything checking. This verdict is the whole gate on
+    # replacing the mind's base model, so what it rests on should be checkable:
+    # a comparison whose arms were allowed different budgets is not a weak
+    # result, it is not a result. Same rule as core/evaluation/matched_budget.
+    unmatched = _where_the_budgets_differ(current, candidate)
+    if unmatched:
+        result = {
+            "schema": EVALUATION_SCHEMA,
+            "current_label": current.get("label", ""),
+            "candidate_label": candidate.get("label", ""),
+            "verdict": "VOID",
+            "promotion_eligible": False,
+            "budget_parity": {"matched": False, "differences": unmatched},
+            "compared_at": time.time(),
+        }
+        result["evaluation_sha256"] = _receipt_digest(result)
+        return result
+
     breadth_delta = candidate["breadth_accuracy"] - current["breadth_accuracy"]
     reasoning_delta = candidate["reasoning_accuracy"] - current["reasoning_accuracy"]
     identity_changed = current.get("identity_digests") != candidate.get(
@@ -461,6 +518,7 @@ def compare_batteries(
             (candidate_descriptor or {}).get("descriptor_sha256") or ""
         ),
         "critical_gates": gates,
+        "budget_parity": {"matched": True, "differences": []},
         "promotion_eligible": verdict == "PASS" and all_critical_gates_pass,
         "verdict": verdict,
         "compared_at": time.time(),
@@ -718,30 +776,45 @@ def build_migration_contract(
     return material
 
 
+#: The key set each evaluation schema carries. v4 added ``budget_parity``.
+#:
+#: Reading is permissive about the past and writing is strict about the
+#: present: an ALREADY-ACTIVE cortex was staged under whatever schema was
+#: current then, and a version bump that retroactively invalidates it takes
+#: the running system's model pointer away — which is what happened the first
+#: time this moved, and it read as "Active cortex pointer is invalid".
+#: Activation still requires the current schema, so no new swap can land
+#: without a recorded parity check.
+_EVALUATION_KEYS: dict[str, frozenset[str]] = {
+    "aura.cortex_upgrade.evaluation.v3": frozenset({
+        "schema", "current_label", "candidate_label", "breadth_delta",
+        "reasoning_delta", "identity_behavior_changed", "identity_note",
+        "candidate_descriptor_sha256", "critical_gates", "promotion_eligible",
+        "verdict", "compared_at", "evaluation_sha256",
+    }),
+    "aura.cortex_upgrade.evaluation.v4": frozenset({
+        "schema", "current_label", "candidate_label", "breadth_delta",
+        "reasoning_delta", "identity_behavior_changed", "identity_note",
+        "candidate_descriptor_sha256", "critical_gates", "budget_parity",
+        "promotion_eligible", "verdict", "compared_at", "evaluation_sha256",
+    }),
+}
+
+
 def _validate_evaluation(
     evaluation: dict[str, object],
     *,
     descriptor_sha256: str,
+    schemas: frozenset[str] | None = None,
 ) -> dict[str, object]:
-    required = {
-        "schema",
-        "current_label",
-        "candidate_label",
-        "breadth_delta",
-        "reasoning_delta",
-        "identity_behavior_changed",
-        "identity_note",
-        "candidate_descriptor_sha256",
-        "critical_gates",
-        "promotion_eligible",
-        "verdict",
-        "compared_at",
-        "evaluation_sha256",
-    }
+    allowed = schemas if schemas is not None else frozenset(_EVALUATION_KEYS)
+    said = evaluation.get("schema") if isinstance(evaluation, dict) else None
+    required = _EVALUATION_KEYS.get(str(said or ""))
     if (
         not isinstance(evaluation, dict)
+        or said not in allowed
+        or required is None
         or set(evaluation) != required
-        or evaluation.get("schema") != EVALUATION_SCHEMA
     ):
         raise ValueError("evaluation_schema_invalid")
     if evaluation.get("candidate_descriptor_sha256") != descriptor_sha256:
@@ -1131,6 +1204,55 @@ def stage_upgrade(
     return receipt
 
 
+def _who_authorized_this(
+    fused_model_dir: Path,
+    *,
+    authorized_by: str,
+    model_path: str,
+    descriptor_digest: str,
+) -> dict[str, Any]:
+    """An operator at the swap, or a standing grant that covers this candidate.
+
+    Raises when neither holds, and the message names why the grant did not
+    apply rather than saying "not authorized" — an operator who wrote a grant
+    and hit this needs to know whether it expired, was spent, or does not
+    cover what was staged.
+
+    A present operator wins outright and the grant is left unspent: spending
+    a standing authorization for a swap somebody stood over would consume a
+    ceiling nobody drew on.
+    """
+    from core.self_modification.standing_authorization import (
+        read_standing_grant,
+        spend_one_activation,
+        why_a_grant_does_not_cover,
+    )
+
+    who = str(authorized_by or "").strip()
+    if len(who) >= 3:
+        return {"route": "operator_present", "granted_by": who}
+
+    grant = read_standing_grant(fused_model_dir)
+    refusal = why_a_grant_does_not_cover(
+        grant, model_path=model_path, descriptor_digest=descriptor_digest
+    )
+    if refusal or grant is None:
+        raise PermissionError(
+            "cortex activation requires an explicit operator authorization "
+            f"string or a standing grant that covers this candidate: {refusal}"
+        )
+    spent = spend_one_activation(fused_model_dir, grant)
+    return {
+        "route": "standing_grant",
+        "granted_by": grant.granted_by,
+        "grant_digest": grant.digest(),
+        "reason": grant.reason,
+        "activations_used": spent.used,
+        "activations_allowed": grant.most_activations,
+        "expires_at": grant.expires_at,
+    }
+
+
 def activate_upgrade(
     *,
     fused_model_dir: Path | str | None = None,
@@ -1139,14 +1261,21 @@ def activate_upgrade(
 ) -> dict[str, Any]:
     """Flip the activation pointer to the staged target. Boot-time effect only.
 
-    Hard gates, no overrides: a real operator authorization string and a
-    PASS comparison verdict. The running mind is never hot-swapped — the
-    new cortex exists only after the operator restarts.
+    Two gates, and neither has an override: an operator authorization, and a
+    PASS comparison verdict. The running mind is never hot-swapped — the new
+    cortex exists only after the operator restarts.
+
+    The authorization can arrive two ways. ``authorized_by`` is an operator
+    present at the moment of the swap. A standing grant is the same operator
+    deciding earlier about a named family of candidates, with an expiry and a
+    ceiling — see :mod:`core.self_modification.standing_authorization`. Pass
+    ``authorized_by=""`` to require the grant.
+
+    A grant replaces the operator's presence and nothing else. The verdict,
+    the budget parity inside it and every critical gate still have to hold,
+    and a candidate outside the grant's scope is refused exactly as if no
+    grant existed.
     """
-    if not isinstance(authorized_by, str) or len(authorized_by.strip()) < 3:
-        raise PermissionError(
-            "cortex activation requires an explicit operator authorization string"
-        )
     if not isinstance(evaluation, dict) or evaluation.get("verdict") != "PASS":
         raise PermissionError(
             "cortex activation requires a PASS capability-comparison verdict"
@@ -1179,7 +1308,14 @@ def activate_upgrade(
     assert isinstance(staged_evaluation, dict)
     descriptor_sha256 = str(descriptor.get("descriptor_sha256") or "")
     try:
-        _validate_evaluation(evaluation, descriptor_sha256=descriptor_sha256)
+        # Current schema only. A v3 receipt has no record of whether its two
+        # arms were allowed the same budget, and accepting one to authorize a
+        # NEW swap is exactly what the field was added to stop.
+        _validate_evaluation(
+            evaluation,
+            descriptor_sha256=descriptor_sha256,
+            schemas=frozenset({EVALUATION_SCHEMA}),
+        )
     except ValueError as exc:
         raise PermissionError("activation requires the exact staged evaluation") from exc
     if evaluation.get("evaluation_sha256") != staged_evaluation.get(
@@ -1189,6 +1325,18 @@ def activate_upgrade(
     _validate_evaluation(staged_evaluation, descriptor_sha256=descriptor_sha256)
 
     candidate = Path(str(staged["active_model_path"])).expanduser()
+
+    # Authorization last among the reads, because a standing grant is scoped
+    # to a candidate and the candidate is not known until the staged pointer
+    # has been read and validated. An operator present at the swap is checked
+    # here too, so both routes refuse in the same place.
+    authorization = _who_authorized_this(
+        fused_model_dir,
+        authorized_by=authorized_by,
+        model_path=str(staged["active_model_path"]),
+        descriptor_digest=descriptor_sha256,
+    )
+
     validate_model_artifact_descriptor(
         descriptor,
         model_path=candidate,
@@ -1204,6 +1352,9 @@ def activate_upgrade(
         "activated_model": staged["active_model_path"],
         "active_sha256": hashlib.sha256(staged_bytes).hexdigest(),
         "model_descriptor_sha256": descriptor_sha256,
+        # Who authorized this, and by which route. A receipt that says only
+        # "activated" cannot answer the question anybody reading it will ask.
+        "authorization": authorization,
         "evaluation_sha256": evaluation["evaluation_sha256"],
         "serving_profile_sha256": serving_profile["profile_sha256"],
         "migration_contract_sha256": migration_contract[

@@ -1,0 +1,273 @@
+{
+  "arms": {
+    "aura_intact": {
+      "lower_ci": 0.8562,
+      "mean": 0.9062,
+      "n": 160,
+      "upper_ci": 0.95
+    },
+    "aura_minus_developmental_learning": {
+      "lower_ci": 0.8562,
+      "mean": 0.9062,
+      "n": 160,
+      "upper_ci": 0.95
+    },
+    "aura_minus_endogenous_state": {
+      "lower_ci": 0.8562,
+      "mean": 0.9062,
+      "n": 160,
+      "upper_ci": 0.95
+    },
+    "aura_minus_recurrent_cortex": {
+      "lower_ci": 0.8562,
+      "mean": 0.9062,
+      "n": 160,
+      "upper_ci": 0.95
+    },
+    "base_model": {
+      "lower_ci": 0.3937,
+      "mean": 0.4688,
+      "n": 160,
+      "upper_ci": 0.55
+    },
+    "base_plus_scaffolding": {
+      "lower_ci": 0.425,
+      "mean": 0.5,
+      "n": 160,
+      "upper_ci": 0.575
+    }
+  },
+  "attempts": 960,
+  "budget_parity": {
+    "conditions": [
+      "base_model",
+      "base_plus_scaffolding",
+      "aura_intact",
+      "aura_minus_recurrent_cortex",
+      "aura_minus_endogenous_state",
+      "aura_minus_developmental_learning"
+    ],
+    "declared_varied": [],
+    "matched": true,
+    "schema": "aura.budget_parity.v1",
+    "violations": []
+  },
+  "by_family": {
+    "aura_intact": {
+      "arithmetic": {
+        "lower_ci": 1.0,
+        "mean": 1.0,
+        "n": 40,
+        "upper_ci": 1.0
+      },
+      "constraint": {
+        "lower_ci": 0.775,
+        "mean": 0.875,
+        "n": 40,
+        "upper_ci": 0.975
+      },
+      "multi_step": {
+        "lower_ci": 0.6,
+        "mean": 0.75,
+        "n": 40,
+        "upper_ci": 0.875
+      },
+      "recall": {
+        "lower_ci": 1.0,
+        "mean": 1.0,
+        "n": 40,
+        "upper_ci": 1.0
+      }
+    },
+    "aura_minus_developmental_learning": {
+      "arithmetic": {
+        "lower_ci": 1.0,
+        "mean": 1.0,
+        "n": 40,
+        "upper_ci": 1.0
+      },
+      "constraint": {
+        "lower_ci": 0.775,
+        "mean": 0.875,
+        "n": 40,
+        "upper_ci": 0.975
+      },
+      "multi_step": {
+        "lower_ci": 0.6,
+        "mean": 0.75,
+        "n": 40,
+        "upper_ci": 0.875
+      },
+      "recall": {
+        "lower_ci": 1.0,
+        "mean": 1.0,
+        "n": 40,
+        "upper_ci": 1.0
+      }
+    },
+    "aura_minus_endogenous_state": {
+      "arithmetic": {
+        "lower_ci": 1.0,
+        "mean": 1.0,
+        "n": 40,
+        "upper_ci": 1.0
+      },
+      "constraint": {
+        "lower_ci": 0.775,
+        "mean": 0.875,
+        "n": 40,
+        "upper_ci": 0.975
+      },
+      "multi_step": {
+        "lower_ci": 0.6,
+        "mean": 0.75,
+        "n": 40,
+        "upper_ci": 0.875
+      },
+      "recall": {
+        "lower_ci": 1.0,
+        "mean": 1.0,
+        "n": 40,
+        "upper_ci": 1.0
+      }
+    },
+    "aura_minus_recurrent_cortex": {
+      "arithmetic": {
+        "lower_ci": 1.0,
+        "mean": 1.0,
+        "n": 40,
+        "upper_ci": 1.0
+      },
+      "constraint": {
+        "lower_ci": 0.775,
+        "mean": 0.875,
+        "n": 40,
+        "upper_ci": 0.975
+      },
+      "multi_step": {
+        "lower_ci": 0.6,
+        "mean": 0.75,
+        "n": 40,
+        "upper_ci": 0.875
+      },
+      "recall": {
+        "lower_ci": 1.0,
+        "mean": 1.0,
+        "n": 40,
+        "upper_ci": 1.0
+      }
+    },
+    "base_model": {
+      "arithmetic": {
+        "lower_ci": 1.0,
+        "mean": 1.0,
+        "n": 40,
+        "upper_ci": 1.0
+      },
+      "constraint": {
+        "lower_ci": 0.775,
+        "mean": 0.875,
+        "n": 40,
+        "upper_ci": 0.975
+      },
+      "multi_step": {
+        "lower_ci": 0.0,
+        "mean": 0.0,
+        "n": 40,
+        "upper_ci": 0.0
+      },
+      "recall": {
+        "lower_ci": 0.0,
+        "mean": 0.0,
+        "n": 40,
+        "upper_ci": 0.0
+      }
+    },
+    "base_plus_scaffolding": {
+      "arithmetic": {
+        "lower_ci": 1.0,
+        "mean": 1.0,
+        "n": 40,
+        "upper_ci": 1.0
+      },
+      "constraint": {
+        "lower_ci": 0.775,
+        "mean": 0.875,
+        "n": 40,
+        "upper_ci": 0.975
+      },
+      "multi_step": {
+        "lower_ci": 0.025,
+        "mean": 0.125,
+        "n": 40,
+        "upper_ci": 0.225
+      },
+      "recall": {
+        "lower_ci": 0.0,
+        "mean": 0.0,
+        "n": 40,
+        "upper_ci": 0.0
+      }
+    }
+  },
+  "channels_live": [
+    "affect.circumplex_sampling",
+    "affect.generation_controls",
+    "bicameral.sampling_bias",
+    "imagination.sampling_bias",
+    "live_mind.context_block",
+    "live_mind.generation_controls",
+    "live_mind.recurrent_loops",
+    "live_mind.steering_alpha",
+    "qualia.richness",
+    "spiking.sampling_bias"
+  ],
+  "claim_boundary": "a result at mlx-community/Qwen2.5-1.5B-Instruct-4bit under a 48-token budget; it does not transfer to the 27B by itself, and the architecture arms differ from the base arms in assembled context and in which faculties were lesioned, not in the model",
+  "delta_context_vs_none": {
+    "delta_mean": 0.4374,
+    "note": "separated means the intervals do not overlap",
+    "separated": true
+  },
+  "delta_context_vs_scaffolding": {
+    "delta_mean": 0.4062,
+    "note": "separated means the intervals do not overlap",
+    "separated": true
+  },
+  "delta_per_faculty": {
+    "developmental_learning": {
+      "observed_delta_mean": 0.0,
+      "outcome": "NOT_MEASURED",
+      "what_would_measure_it": "route every arm's generation through the cognitive engine with the faculties constructed, so the channels are in the path they act on",
+      "why": "aura_minus_developmental_learning differs from aura_intact only by lesion channels that act inside the cognitive engine, and this protocol generates by calling the model directly \u2014 so the arms are identical in this path and a zero is arithmetic rather than evidence"
+    },
+    "endogenous_state": {
+      "observed_delta_mean": 0.0,
+      "outcome": "NOT_MEASURED",
+      "what_would_measure_it": "route every arm's generation through the cognitive engine with the faculties constructed, so the channels are in the path they act on",
+      "why": "aura_minus_endogenous_state differs from aura_intact only by lesion channels that act inside the cognitive engine, and this protocol generates by calling the model directly \u2014 so the arms are identical in this path and a zero is arithmetic rather than evidence"
+    },
+    "recurrent_cortex": {
+      "observed_delta_mean": 0.0,
+      "outcome": "NOT_MEASURED",
+      "what_would_measure_it": "route every arm's generation through the cognitive engine with the faculties constructed, so the channels are in the path they act on",
+      "why": "aura_minus_recurrent_cortex differs from aura_intact only by lesion channels that act inside the cognitive engine, and this protocol generates by calling the model directly \u2014 so the arms are identical in this path and a zero is arithmetic rather than evidence"
+    }
+  },
+  "elapsed_s": 144.7,
+  "how_to_read_it": "A margin on the null family is this measurement's own bias, so a margin elsewhere has to beat it to mean anything. The positive control is where an architecture carrying context should win; if it does not, the protocol is measuring something broken rather than reporting a null result.",
+  "null_family": "arithmetic",
+  "null_family_bias_vs_base": {
+    "aura_intact": 0.0,
+    "aura_minus_developmental_learning": 0.0,
+    "aura_minus_endogenous_state": 0.0,
+    "aura_minus_recurrent_cortex": 0.0,
+    "base_model": 0.0,
+    "base_plus_scaffolding": 0.0
+  },
+  "positive_control": "recall",
+  "schema": "aura.matched_substrate.v1",
+  "substrate": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+  "tokens_per_answer": 48,
+  "trials": 5,
+  "what_a_faculty_delta_can_show_here": "The arms differ in which lesion channels are entered around a direct model call. A channel that acts inside the cognitive engine cannot bite when generation does not go through it, so a zero here is 'this faculty was not in this path', not 'this faculty does nothing'. Measuring the second needs the engine in the loop with the faculties constructed."
+}
