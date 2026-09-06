@@ -32,6 +32,7 @@ from __future__ import annotations
 import logging
 import math
 import sys
+import types
 import threading
 import time
 from collections import defaultdict, deque
@@ -224,6 +225,7 @@ class ActivityRecorder:
         self._uid_cache: dict[tuple[str, str], str | None] = {}
         self._dropped_cells = 0
         self._events = 0
+        self._callback_failures = 0
         self.observed = ObservedEdges()
 
     # -- lifecycle ------------------------------------------------------
@@ -295,17 +297,20 @@ class ActivityRecorder:
     # -- the callback ---------------------------------------------------
 
     def _on_py_start(self, code: Any, _offset: int) -> Any:
-        uid = self._uid_for(code)
-        if uid is None:
-            monitoring = getattr(sys, "monitoring", None)
-            return monitoring.DISABLE if monitoring else None
-        self._live[uid] += 1
-        self._events += 1
-        now = time.monotonic()
-        if now - self._frame_started >= self.config.frame_seconds:
-            with self._lock:
-                if now - self._frame_started >= self.config.frame_seconds:
-                    self._close_frame(now)
+        try:
+            uid = self._uid_for(code)
+            if uid is None:
+                monitoring = getattr(sys, "monitoring", None)
+                return monitoring.DISABLE if monitoring else None
+            self._live[uid] += 1
+            self._events += 1
+            now = time.monotonic()
+            if now - self._frame_started >= self.config.frame_seconds:
+                with self._lock:
+                    if now - self._frame_started >= self.config.frame_seconds:
+                        self._close_frame(now)
+        except BaseException as exc:  # noqa: BLE001 - see _callback_failed
+            return self._callback_failed(exc)
         return None
 
     def _on_call(self, code: Any, _offset: int, callee: Any, _arg0: Any) -> Any:
@@ -315,23 +320,53 @@ class ActivityRecorder:
         builtin, a C function or a bound method with no Python body has nothing
         to attach to and is skipped. Those are the same calls the static
         reconstruction counts as leaving the volume.
+
+        ``__code__`` is checked for being a code object rather than for being
+        present. On a class it resolves to the descriptor, and reading
+        ``co_filename`` off that raises inside whatever code happened to be
+        running — which is how a recording broke 88 test files at import.
         """
-        target = getattr(callee, "__code__", None)
-        if target is None:
-            target = getattr(getattr(callee, "__func__", None), "__code__", None)
-        if target is None:
-            return None
-        post = self._uid_for(target)
-        if post is None:
-            return None
-        pre = self._uid_for(code)
-        if pre is None:
-            self.observed.unresolved += 1
-            return None
-        if len(self.observed.counts) >= self.config.max_observed_pairs:
-            return None
-        self.observed.add(pre, post)
+        try:
+            target = getattr(callee, "__code__", None)
+            if not isinstance(target, types.CodeType):
+                inner = getattr(callee, "__func__", None)
+                target = getattr(inner, "__code__", None)
+            if not isinstance(target, types.CodeType):
+                return None
+            post = self._uid_for(target)
+            if post is None:
+                return None
+            pre = self._uid_for(code)
+            if pre is None:
+                self.observed.unresolved += 1
+                return None
+            if len(self.observed.counts) >= self.config.max_observed_pairs:
+                return None
+            self.observed.add(pre, post)
+        except BaseException as exc:  # noqa: BLE001 - see _callback_failed
+            return self._callback_failed(exc)
         return None
+
+    def _callback_failed(self, exc: BaseException) -> Any:
+        """Swallow a callback failure, and stop recording if they keep coming.
+
+        A monitoring callback runs inside arbitrary user code. An exception
+        raised here does not fail the recording, it fails whatever was running,
+        which is the worst possible way for an observation tool to behave. So
+        the first failures are counted and disabled per code object, and a
+        recording that keeps failing takes itself off rather than degrading
+        every call in the process.
+        """
+        self._callback_failures += 1
+        if self._callback_failures == 1:
+            logger.warning("activity recording callback failed: %r", exc, exc_info=False)
+        if self._callback_failures >= 64:
+            logger.warning("activity recording stopped after repeated callback failures")
+            self._release_tool()
+            self._recording = False
+            return None
+        monitoring = getattr(sys, "monitoring", None)
+        return monitoring.DISABLE if monitoring else None
 
     def _uid_for(self, code: Any) -> str | None:
         """Map a code object onto a cell, or say it is out of volume.
@@ -425,6 +460,7 @@ class ActivityRecorder:
             {
                 "events": self._events,
                 "dropped_cells": self._dropped_cells,
+                "callback_failures": self._callback_failures,
                 "watched_code_objects": len(self._uid_cache),
                 "observed": self.observed.summary(),
             }

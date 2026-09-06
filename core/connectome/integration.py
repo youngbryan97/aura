@@ -9,7 +9,7 @@ Nothing here runs at import. Reconstruction walks four thousand files and the
 recorder claims a monitoring slot, so both are asked for explicitly and the
 snapshot is cached once built. A process that never asks pays nothing.
 
-The mappings are the part worth explaining. ``core/science/neuro_reference.py``
+The mappings need explaining. ``core/science/neuro_reference.py``
 grades every biological name in the codebase and caps what a claim may lean on
 it for, and its own docstring said the ceiling was ANALOGOUS_FUNCTION because
 Aura has no recordings and no way to discriminate one mapping from another.
@@ -365,8 +365,9 @@ def cached_snapshot(*, rebuild: bool = False, max_age_s: float = 3_600.0) -> Any
         if not rebuild and _CACHE.get("snapshot") is not None:
             if time.time() - built_at < max_age_s:
                 return _CACHE["snapshot"]
-    from .volume import VolumeReconstructor
     from pathlib import Path
+
+    from .volume import VolumeReconstructor
 
     reconstructor = VolumeReconstructor(Path(__file__).resolve().parents[2])
     reconstructor.scan()

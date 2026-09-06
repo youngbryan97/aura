@@ -30,11 +30,11 @@ from __future__ import annotations
 import logging
 import random
 import statistics
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from .celltypes import Typing, compare_typings, refine_types
+from .celltypes import compare_typings, refine_types
 from .microcircuit import LaminarAssignment
 from .types import FLY_MALE_CNS_REFERENCE, ConnectomeSnapshot, EdgeKind
 

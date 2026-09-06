@@ -9,8 +9,6 @@ that it does not.
 
 from __future__ import annotations
 
-import json
-import math
 from pathlib import Path
 
 import pytest
@@ -299,6 +297,39 @@ def test_the_recorder_sees_cells_fire_and_labels_the_condition(tmp_path):
     assert trace.n_frames >= 1
     assert set(trace.conditions) <= {"first", "second"}
     assert trace.summary()["events"] > 0
+
+
+def test_a_recording_never_raises_into_the_code_it_is_watching():
+    """A callback that raises fails the program, not the recording.
+
+    ``__code__`` on a class is a descriptor, not a code object, and reading
+    ``co_filename`` off it raised inside whatever was running. Building a
+    function through types.FunctionType is what networkx does at import, and it
+    is what broke 88 test files while a recording was on.
+    """
+    import types
+
+    recorder = ActivityRecorder(
+        Path(__file__).resolve().parents[1],
+        RecorderConfig(frame_seconds=0.05, capture_edges=True, max_wall_seconds=20.0),
+    )
+    if not recorder.start("hostile"):
+        pytest.skip("sys.monitoring slot unavailable in this process")
+    try:
+        def _target(value):
+            return value
+
+        for _ in range(20):
+            clone = types.FunctionType(
+                _target.__code__, _target.__globals__, "clone", None, _target.__closure__
+            )
+            assert clone(1) == 1
+        # A class passed where a callable is expected resolves __code__ to a
+        # descriptor, which is the exact shape that raised.
+        assert isinstance(getattr(types.FunctionType, "__code__", None), object)
+    finally:
+        trace = recorder.stop()
+    assert trace.attrs["callback_failures"] == 0
 
 
 def test_the_calcium_kernel_decays_and_normalises():
