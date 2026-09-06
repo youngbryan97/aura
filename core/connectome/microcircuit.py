@@ -36,7 +36,7 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from .topology import DiGraphView
@@ -395,13 +395,12 @@ def compare_to_cortex(
     def _within_between(source: Sequence[Sequence[float]]) -> tuple[float, float]:
         within: list[float] = []
         between: list[float] = []
-        for row_index, target in enumerate(POPULATIONS):
-            for column_index, origin in enumerate(POPULATIONS):
-                value = float(source[row_index][column_index])
+        for target, row in zip(POPULATIONS, source, strict=True):
+            for origin, value in zip(POPULATIONS, row, strict=True):
                 if target[:-1] == origin[:-1]:
-                    within.append(value)
+                    within.append(float(value))
                 else:
-                    between.append(value)
+                    between.append(float(value))
         return (
             sum(within) / len(within) if within else 0.0,
             sum(between) / len(between) if between else 0.0,
@@ -428,14 +427,10 @@ def compare_to_cortex(
     )
     reversed_layers = {"L4": "L6", "L23": "L5", "L5": "L23", "L6": "L4"}
     flipped_ours: list[float] = []
-    for row_index, target in enumerate(POPULATIONS):
-        for column_index, source in enumerate(POPULATIONS):
-            mirror_row = POPULATIONS.index(
-                reversed_layers[target[:-1]] + target[-1]
-            )
-            mirror_col = POPULATIONS.index(
-                reversed_layers[source[:-1]] + source[-1]
-            )
+    for target in POPULATIONS:
+        mirror_row = POPULATIONS.index(reversed_layers[target[:-1]] + target[-1])
+        for origin in POPULATIONS:
+            mirror_col = POPULATIONS.index(reversed_layers[origin[:-1]] + origin[-1])
             flipped_ours.append(float(matrix[mirror_row][mirror_col]))
 
     return {
