@@ -10,7 +10,11 @@ from __future__ import annotations
 
 import pytest
 
-from core.state.a_checkpoint_and_its_writes import TheChannels, WritesStillPending
+from core.state.a_checkpoint_and_its_writes import (
+    AnIllegalWrite,
+    TheChannels,
+    WritesStillPending,
+)
 
 
 @pytest.fixture
@@ -193,3 +197,67 @@ def test_the_report_says_what_is_pending_and_what_the_versions_are(channels):
     assert report["versions"] == {"plan": 1}
     assert report["pending"] == 1
     assert report["checkpoints"] == ["one"]
+
+
+# ------------------------------------------------------- what a key holds
+
+
+def test_a_channel_can_declare_what_it_holds(channels):
+    channels.declare("plan", list)
+    channels.write("plan", ["step one"], by="planner")
+    channels.commit()
+    assert channels.value("plan") == ["step one"]
+
+
+def test_a_write_of_the_wrong_type_is_refused_at_the_write(channels):
+    """Not at the commit.
+
+    A caller told at commit time cannot say which of its writes was wrong,
+    and by then the others are queued behind it.
+    """
+    channels.declare("plan", list)
+    with pytest.raises(AnIllegalWrite, match="wrote str to plan"):
+        channels.write("plan", "not a list", by="confused")
+    assert channels.pending() == []
+
+
+def test_a_second_different_declaration_is_refused(channels):
+    """Two writers with different ideas of what a key holds.
+
+    Letting the last one win hides exactly the disagreement a shared key set
+    exists to prevent.
+    """
+    channels.declare("plan", list)
+    with pytest.raises(AnIllegalWrite, match="is now declared to hold"):
+        channels.declare("plan", dict)
+
+
+def test_declaring_the_same_type_again_is_fine(channels):
+    channels.declare("plan", list)
+    channels.declare("plan", list)
+    assert channels.channels()["plan"]["holds"] == "list"
+
+
+def test_an_undeclared_channel_takes_its_type_from_the_first_write(channels):
+    """A key whose type nobody stated is still a key with a type."""
+    channels.write("mode", "reactive", by="router")
+    channels.commit()
+    assert channels.channels()["mode"]["holds"] == "str"
+
+    with pytest.raises(AnIllegalWrite, match="wrote int to mode"):
+        channels.write("mode", 7, by="router")
+
+
+def test_a_subclass_is_accepted(channels):
+    class AKindOfList(list):
+        pass
+
+    channels.declare("plan", list)
+    channels.write("plan", AKindOfList(["a"]), by="planner")
+    channels.commit()
+    assert channels.value("plan") == ["a"]
+
+
+def test_the_type_travels_with_the_channel_report(channels):
+    channels.declare("plan", list)
+    assert channels.channels()["plan"]["holds"] == "list"
