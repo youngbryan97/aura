@@ -230,7 +230,7 @@ system. Several found defects that were not in the review:
 | CrewAI #10 | P1 | LLM references have validators and serializers | Create ModelRef typed URI + ModelDescriptor digest; config always serializes ModelRef, runtime resolves to provider/model artifact. | TODO |
 | CrewAI #11 | P0 | Provider-specific message/tool normalization | ModelRuntime conformance suite with golden message/tool/stream/error/token cases for every adapter; provider quirks cannot leak upward. | DONE |
 | CrewAI #12 | P1 | Planning behavior has one typed config | Create DeliberationConfig with strategy, budget, model tier, search limits, uncertainty threshold and fallback; include in receipts. | TODO |
-| CrewAI #13 | P1 | Output guardrail protocol and retry budget | Define OutputValidator protocol returning typed violation/remedy; response pipeline composes validators under one retry budget. | TODO |
+| CrewAI #13 | P1 | Output guardrail protocol and retry budget | Define OutputValidator protocol returning typed violation/remedy; response pipeline composes validators under one retry budget. | DONE |
 | CrewAI #14 | P1 | Executor class validation/serialization + deprecation | For each legacy execution path, publish replacement map, compatibility period and test that no new direct call sites appear. | TODO |
 | CrewAI #15 | P1 | Typed A2A client/server configuration | Define AgentDelegation protocol/schema independent of transport; local subagents implement it first, optional remote adapter later. | TODO |
 | CrewAI #16 | P1 | max_execution_time/max_retry_limit are top-level agent contracts | Expose TurnBudget/TaskBudget summary at admission; all child budgets draw from it and UI/receipts show remaining budget. | TODO |
