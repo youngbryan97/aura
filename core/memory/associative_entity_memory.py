@@ -364,11 +364,25 @@ def entity_id_for(kind: EntityKind, canonical_name: str) -> str:
 
     Content-addressed rather than sequential so two processes that meet the
     same person independently agree on who it is.
-    """
-    import hashlib
 
-    seed = f"{kind.value}|{normalize_name(canonical_name)}".encode()
-    return "ent_" + hashlib.blake2b(seed, digest_size=10).hexdigest()
+    Minted through `core.knowledge.who_this_is`, which is the same scheme this
+    function has always used — adopted rather than replaced, so every id ever
+    stored here is already canonical. What adopting buys is the other half:
+    this store's ids can now be declared the same thing as another store's,
+    and a name held twice under two ids is findable rather than invisible.
+    """
+
+    try:
+        from core.knowledge.who_this_is import an_id_for
+
+        return an_id_for(kind.value, canonical_name)
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        # The same arithmetic, so a failure to reach the shared service is a
+        # missing join rather than a different id.
+        import hashlib
+
+        seed = f"{kind.value}|{normalize_name(canonical_name)}".encode()
+        return "ent_" + hashlib.blake2b(seed, digest_size=10).hexdigest()
 
 
 class AssociativeEntityMemory:

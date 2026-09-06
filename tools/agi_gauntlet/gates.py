@@ -68,16 +68,36 @@ def run_a_gate(gate: Gate, freeze: Freeze, options: dict[str, Any]) -> Receipt:
         receipt.ran = False
         receipt.why_not = gate.if_not_here or "no harness for this here"
         return receipt
+    # Held clocks where the caller asks for them.
+    #
+    # Soar can be told to run for one phase or N decisions, and that is why its
+    # experiments reproduce. Three measurements in this repository have already
+    # been reversed by the clock rather than by the thing being measured: a
+    # search bounded by seconds gave a family on an idle host and refused it on
+    # a busy one, an ablation flipped twice under adaptive depth, and one run
+    # of eighty-seven tasks took 414 seconds and the next would not finish.
+    #
+    # The mode is recorded on the receipt because a number measured with time
+    # frozen is a different number.
+    held = bool(options.get("hold_the_clocks", False))
     began = time.monotonic()
     try:
-        found = gate.run(freeze, options)
+        if held:
+            from core.runtime.the_laboratory import under_the_laboratory
+
+            with under_the_laboratory(seed=freeze.seed % (2**31)):
+                found = gate.run(freeze, options)
+        else:
+            found = gate.run(freeze, options)
     except Exception as exc:  # noqa: BLE001 — a gate that raises has not passed
         receipt.ran = False
         receipt.passed = False
         receipt.why_not = f"{type(exc).__name__}: {exc}"
         receipt.seconds = time.monotonic() - began
+        receipt.clocks_held = held
         return receipt
     receipt.seconds = time.monotonic() - began
+    receipt.clocks_held = held
     receipt.ran = True
     receipt.passed = bool(found.pop("passed", False))
     receipt.trajectories = list(found.pop("trajectories", []))

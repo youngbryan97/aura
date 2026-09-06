@@ -208,6 +208,11 @@ class Receipt:
     measurements: dict[str, Any] = field(default_factory=dict)
     trajectories: list[dict[str, Any]] = field(default_factory=list)
     seconds: float = 0.0
+    #: Whether the clocks were held while this gate ran. A number measured
+    #: with time frozen is a different number, and reporting it as an ordinary
+    #: one is the dishonest part — Soar can run for N decisions and that is why
+    #: its experiments reproduce, so the mode goes on the receipt.
+    clocks_held: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -219,6 +224,7 @@ class Receipt:
             "trajectories": self.trajectories[:200],
             "trajectories_total": len(self.trajectories),
             "seconds": round(self.seconds, 2),
+            "clocks_held": self.clocks_held,
             "freeze": self.freeze.to_dict(),
         }
 

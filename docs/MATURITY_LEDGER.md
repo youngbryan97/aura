@@ -159,7 +159,7 @@ name each cluster more than once:
 | Soar #3 | P0 | One central agent_struct owns core managers | Make AuraRuntime instance own every authoritative service; eliminate module singletons/global resolvers from core through dependency injection or runt | TODO |
 | Soar #4 | P1 | Exact decision/phase/firing counters | Define CognitiveAccounting with standard tick/phase/action/model/tool/state-write counters and causal correlation; all phases update centrally. | TODO |
 | Soar #5 | P1 | Precise timer accounting by phase and callbacks | Use nested span accounting with exclusivity: wall, exclusive CPU, child time, queue time, model/tool time; validate totals mathematically. | TODO |
-| Soar #6 | P0 | Deterministic run-for-N APIs | Add deterministic LaboratoryMode: step one phase/tick/decision, freeze background clocks, inject event, inspect state; use virtual time and determinis | TODO |
+| Soar #6 | P0 | Deterministic run-for-N APIs | Add deterministic LaboratoryMode: step one phase/tick/decision, freeze background clocks, inject event, inspect state; use virtual time and determinis | DONE |
 | Soar #7 | P1 | Explicit halt and reinitialize semantics | Define reset levels (turn, cognition, runtime, organism) with exact preserved/cleared state matrix and equivalence tests. | TODO |
 | Soar #8 | P0 | Integrated working-memory manager | Choose one canonical WorkingMemory API/state model; other caches become projections. Enforce capacity, activation and provenance uniformly. | TODO |
 | Soar #9 | P1 | Central symbol manager | Introduce SemanticIdentity service for canonical entity/concept IDs and aliasing; graphs/memories refer to IDs rather than re-inventing string identit | TODO |
@@ -179,7 +179,7 @@ name each cluster more than once:
 | Soar #23 | P1 | Timing can be compiled/enabled explicitly | Classify instrumentation as mandatory/minimal/debug/scientific; benchmark overhead and allow reproducible modes while never disabling safety receipts. | TODO |
 | Soar #24 | P1 | Kernel data/phase semantics have decades of continuity | Freeze a Kernel ABI v1 for phase IDs, event envelopes, state patch, action receipt and runtime protocol; changes require versioning/upcasters, not sil | TODO |
 | OpenCog AtomSpace #1 | P0 | One canonical AtomSpace | Define a canonical SemanticGraph interface/ID layer shared by knowledge systems; specialized stores can remain, but cross-system references use canoni | TODO |
-| OpenCog AtomSpace #2 | P0 | Atoms are globally unique/interned in an AtomSpace | SemanticIdentity service canonicalizes entities/concepts/relations and stores alias/equivalence; duplicate detection tests span memories/graphs. | TODO |
+| OpenCog AtomSpace #2 | P0 | Atoms are globally unique/interned in an AtomSpace | SemanticIdentity service canonicalizes entities/concepts/relations and stores alias/equivalence; duplicate detection tests span memories/graphs. | DONE |
 | OpenCog AtomSpace #3 | P1 | Node/Link representation is universal | Create minimal canonical relation algebra (EntityId, RelationType, edge/value metadata) and adapters from richer domain models. | TODO |
 | OpenCog AtomSpace #4 | P1 | Dedicated TypeIndex | SemanticGraph maintains canonical type/relation/source/time indexes with invariants and performance benchmarks. | TODO |
 | OpenCog AtomSpace #5 | P1 | Layered AtomSpace environments | Implement OverlayState/OverlayKnowledge abstraction with read-through + isolated writes + merge/discard, reusable by imagination, shadow evaluation an | TODO |
@@ -198,7 +198,7 @@ name each cluster more than once:
 | OpenCog AtomSpace #18 | P1 | C++ indexed atom storage | Benchmark actual graph workloads; if overhead is material, implement native/Rust/C++ backend behind the same SemanticGraph contract, not premature rew | TODO |
 | OpenCog AtomSpace #19 | P1 | AtomTable/StateLink unit suites target substrate invariants | Create canonical SemanticGraph conformance/invariant suite: identity, type index, links, overlays, COW, deletion, persistence, concurrency. | TODO |
 | OpenCog AtomSpace #20 | P1 | Parallel/ExecuteThreaded links are first-class atoms | ActionPlan schema explicitly represents sequence/parallel/race/barrier/retry nodes, with deterministic execution semantics. | TODO |
-| OpenCog AtomSpace #21 | P0 | Incoming/outgoing sets enforce graph relationships | Canonical semantic IDs maintain inbound-reference index across stores or a reconciliation job; dangling references are detectable and policy-controlle | TODO |
+| OpenCog AtomSpace #21 | P0 | Incoming/outgoing sets enforce graph relationships | Canonical semantic IDs maintain inbound-reference index across stores or a reconciliation job; dangling references are detectable and policy-controlle | DONE |
 | OpenCog AtomSpace #22 | P1 | Type/name servers centralize type registration | Unify registries under NamespaceRegistry with typed domains and schema descriptors, preventing collisions like the telemetry issue class at source. | TODO |
 | CrewAI #1 | P0 | Event bus dispatches BaseEvent classes | Add typed EventSpec registry and generated validators; transport topic is not the payload schema. | DONE |
 | CrewAI #2 | P1 | Dependency-aware handler execution graph | SubscriptionSpec declares depends_on; bus compiles handler DAG and rejects cycles. | TODO |
