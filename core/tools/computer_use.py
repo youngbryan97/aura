@@ -30,6 +30,8 @@ from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 logger = logging.getLogger(__name__)
 
+from core.runtime.who_gets_it_next import GaveUp
+
 _COMPUTER_USE_RECOVERABLE_ERRORS = (
     ImportError,
     AttributeError,
@@ -301,7 +303,26 @@ class ComputerUseSkill:
                 failure_reason=f"no driver registered for '{action.kind}'",
             )
         try:
-            output = await driver(action)
+            # An action that moves the pointer or types holds the screen while
+            # it does. Two of these interleaving is why a run once spent 35
+            # moves in the wrong window: each move was correct and neither had
+            # the screen the other thought it had. Reads overlap freely.
+            if action.kind in self.READ_ACTIONS:
+                output = await driver(action)
+            else:
+                from core.runtime.who_gets_it_next import claim
+
+                async with claim("screen", f"computer_use.{action.kind}"):
+                    output = await driver(action)
+        except GaveUp as exc:
+            # Not reaching the screen is a failed action, not a crash: every
+            # caller of perform() reads a result, and an exception escaping
+            # here would land somewhere that has no idea what a claim is.
+            return ComputerUseResult(
+                ok=False,
+                action=action,
+                failure_reason=f"could not take the screen: {exc}",
+            )
         except _COMPUTER_USE_RECOVERABLE_ERRORS as exc:
             _record_computer_use_tool_degradation(
                 exc,

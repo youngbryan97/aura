@@ -1329,6 +1329,7 @@ async def prepare_model_lane_claim(
             raise ModelLaneControlError(
                 f"model_lane_admission_cancelled:{cancelled.reason}:receipt={cancelled.receipt_id}"
             )
+        _report_the_lane_is_held(claim, decision)
         return lane_controller, decision
     except asyncio.CancelledError:
         await asyncio.shield(
@@ -1347,6 +1348,36 @@ async def prepare_model_lane_claim(
                 compensate=compensate,
             )
         raise
+
+
+def _report_the_lane_is_free(owner_id: str) -> None:
+    """Tell the claim register the lane is free again."""
+    try:
+        from core.runtime.who_gets_it_next import observe_released
+
+        observe_released("model_lane", owner_id)
+    except (ImportError, KeyError, ValueError) as exc:
+        logger.debug("model lane release not reported to the claim register: %s", exc)
+
+
+def _report_the_lane_is_held(claim: LaneClaim, decision: LaneTransactionDecision) -> None:
+    """Tell the claim register the lane is taken.
+
+    Reporting only. This transaction decides who gets the lane — it evicts and
+    compensates, which a queue cannot — and the register exists so that "who
+    holds the screen" and "who holds the lane" are one question rather than
+    two subsystems away from each other.
+    """
+    try:
+        from core.runtime.who_gets_it_next import observe_held
+
+        observe_held(
+            "model_lane",
+            str(getattr(claim, "owner_id", "") or "model_lane"),
+            trace=str(getattr(decision, "receipt_id", "") or ""),
+        )
+    except (ImportError, KeyError, ValueError) as exc:
+        logger.debug("model lane not reported to the claim register: %s", exc)
 
 
 class ModelLaneController:
@@ -3385,6 +3416,7 @@ class ModelLaneController:
         reason: str = "owner_released",
     ) -> bool:
         now = self._clock()
+        _report_the_lane_is_free(str(owner_id))
         with self._thread_lock, interprocess_file_lock(self.lock_path):
             state = self._load_locked()
             owner = state["owners"].get(str(owner_id))

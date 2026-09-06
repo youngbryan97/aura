@@ -1380,6 +1380,24 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["the_runtime_boundary"] = {"error": repr(exc)}
 
+    # Who holds the scarce things, who is queued for them, and how the waiting
+    # has gone. A lock answers none of those: it is a boolean with a queue
+    # nobody can see, and whose order is whatever the loop decided.
+    try:
+        from core.runtime.who_gets_it_next import (
+            how_it_has_gone,
+            who_holds_what,
+            who_is_waiting,
+        )
+
+        block["who_holds_what"] = {
+            "held": who_holds_what(),
+            "waiting": who_is_waiting(),
+            "record": how_it_has_gone(),
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["who_holds_what"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering
