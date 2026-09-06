@@ -214,6 +214,11 @@ def schedule_relaunch(
                 source="runtime_relaunch:schedule_relaunch",
                 accelerator_capability="auto",
             )
+            from core.runtime.runtime_hygiene import get_runtime_hygiene
+
+            get_runtime_hygiene().handoff_successor(
+                child, predecessor_pid=resolved_pid
+            )
     except (OSError, ValueError) as exc:
         record_degradation(
             _SUBSYSTEM,
