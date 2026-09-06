@@ -77,12 +77,32 @@ def test_it_stops_at_the_first_refusal():
     assert rails.refusals[0]["rail"] == "not empty"
 
 
-def test_a_broken_guardrail_is_not_a_refusal():
+def test_a_broken_guardrail_is_whatever_that_rail_declared():
+    """This used to carry on regardless, and that is what got flagged.
+
+    "A broken rail is not a refusal" is right for a rail whose job is quality
+    and wrong for one whose job is safety. A check that could not run has
+    established nothing, so which of those it is has to be the rail's own
+    declaration rather than this loop's opinion.
+    """
+    from core.runtime.what_an_answer_must_pass import WhenItCannotAnswer
+
     def angry(_answer):
         raise RuntimeError("this rail is broken")
 
-    rails = TheGuardrails().add(a_guardrail("broken", angry)).add(_not_empty())
-    assert rails.check("a real answer")
+    quality = (
+        TheGuardrails()
+        .add(
+            a_guardrail(
+                "broken", angry, when_it_cannot_answer=WhenItCannotAnswer.CARRY_ON
+            )
+        )
+        .add(_not_empty())
+    )
+    assert quality.check("a real answer")
+
+    safety = TheGuardrails().add(a_guardrail("broken", angry)).add(_not_empty())
+    assert not safety.check("a real answer"), "an undeclared rail refuses"
 
 
 def test_the_report_names_every_rail_and_every_refusal():
@@ -168,3 +188,137 @@ def test_a_child_budget_cannot_outspend_the_turn():
     )
     assert rails.attempts == 2
     assert turn.exhausted
+
+
+# --- A rail says what its own failure means -----------------------------------
+
+
+def test_a_rail_that_does_not_say_refuses_when_it_cannot_run() -> None:
+    """The safe default has to be the one you get by not thinking about it."""
+    from core.runtime.what_an_answer_must_pass import (
+        TheGuardrails,
+        WhenItCannotAnswer,
+        a_guardrail,
+    )
+
+    def broken(_answer):
+        raise RuntimeError("the checker is broken")
+
+    rail = a_guardrail("safety", broken)
+    assert rail.when_it_cannot_answer is WhenItCannotAnswer.REFUSE
+
+    verdict = TheGuardrails().add(rail).check("an answer")
+    assert not verdict.passed
+    assert verdict.from_a_broken_rail
+    assert "established nothing" in verdict.why
+
+
+def test_a_quality_rail_can_declare_that_losing_it_costs_polish() -> None:
+    from core.runtime.what_an_answer_must_pass import (
+        TheGuardrails,
+        WhenItCannotAnswer,
+        a_guardrail,
+    )
+
+    def broken(_answer):
+        raise RuntimeError("no")
+
+    rails = TheGuardrails().add(
+        a_guardrail("tidy", broken, when_it_cannot_answer=WhenItCannotAnswer.CARRY_ON)
+    )
+    verdict = rails.check("an answer")
+    assert verdict.passed
+    assert rails.could_not_run and rails.could_not_run[0]["rail"] == "tidy"
+
+
+def test_a_pass_that_some_rails_never_looked_at_says_so() -> None:
+    """Silence from a rail that could not run must not read as agreement."""
+    from core.runtime.what_an_answer_must_pass import (
+        AVerdict,
+        TheGuardrails,
+        WhenItCannotAnswer,
+        a_guardrail,
+    )
+
+    def broken(_answer):
+        raise RuntimeError("no")
+
+    rails = (
+        TheGuardrails()
+        .add(a_guardrail("looked", lambda _a: AVerdict(passed=True)))
+        .add(
+            a_guardrail(
+                "did not", broken, when_it_cannot_answer=WhenItCannotAnswer.ABSTAIN
+            )
+        )
+    )
+    verdict = rails.check("an answer")
+    assert verdict.passed
+    assert "did not" in verdict.why and "could not run" in verdict.why
+
+
+def test_escalating_records_a_degradation_rather_than_a_log_line() -> None:
+    from unittest.mock import patch
+
+    from core.runtime.what_an_answer_must_pass import (
+        TheGuardrails,
+        WhenItCannotAnswer,
+        a_guardrail,
+    )
+
+    def broken(_answer):
+        raise RuntimeError("no")
+
+    rails = TheGuardrails().add(
+        a_guardrail(
+            "constitutional",
+            broken,
+            when_it_cannot_answer=WhenItCannotAnswer.ESCALATE,
+        )
+    )
+    with patch("core.runtime.errors.record_degradation") as told:
+        verdict = rails.check("an answer")
+    assert not verdict.passed
+    assert told.called
+    assert "constitutional" in told.call_args.kwargs.get("action", "")
+
+
+def test_the_report_names_every_rail_that_fails_open() -> None:
+    from core.runtime.what_an_answer_must_pass import (
+        AVerdict,
+        TheGuardrails,
+        WhenItCannotAnswer,
+        a_guardrail,
+    )
+
+    ok = lambda _a: AVerdict(passed=True)  # noqa: E731
+    rails = (
+        TheGuardrails()
+        .add(a_guardrail("safety", ok))
+        .add(a_guardrail("tidy", ok, when_it_cannot_answer=WhenItCannotAnswer.CARRY_ON))
+    )
+    seen = rails.report()
+    assert seen["fail_open_rails"] == ["tidy"]
+    assert seen["when_they_cannot_answer"]["safety"] == "refuse"
+
+
+def test_all_four_failure_modes_are_distinct_and_only_two_let_it_through() -> None:
+    from core.runtime.what_an_answer_must_pass import (
+        TheGuardrails,
+        WhenItCannotAnswer,
+        a_guardrail,
+    )
+
+    def broken(_answer):
+        raise RuntimeError("no")
+
+    got = {}
+    for mode in WhenItCannotAnswer:
+        rails = TheGuardrails().add(
+            a_guardrail("r", broken, when_it_cannot_answer=mode)
+        )
+        got[mode] = rails.check("x").passed
+    assert len(WhenItCannotAnswer) == 4
+    assert sum(1 for allowed in got.values() if allowed) == 2
+    assert got[WhenItCannotAnswer.REFUSE] is False
+    assert got[WhenItCannotAnswer.ESCALATE] is False
