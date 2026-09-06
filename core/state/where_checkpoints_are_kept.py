@@ -295,7 +295,14 @@ class InSqlite(AnAsyncStore):
         self._path = Path(path)
         self._lock = checked_lock(f"checkpoints_in_sqlite:{self._path.name}")
         with self._lock:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
+            # Through the gateway like every other consequential write. A raw
+            # mkdir here creates the directory the sqlite file then lives in,
+            # so it is the same decision the gateway exists to govern.
+            from core.runtime.file_write_gateway import get_file_write_gateway
+
+            get_file_write_gateway().ensure_directory(
+                self._path.parent, source="checkpoints"
+            )
             with self._open() as db:
                 db.execute(
                     "CREATE TABLE IF NOT EXISTS checkpoints ("

@@ -3425,14 +3425,6 @@
       "scope": "<module>.keep"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/agency/what_she_invented.py",
-      "scope": "<module>.keep"
-    },
-    {
       "callee": "<file_write_gateway>.ensure_directory_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -4538,6 +4530,22 @@
     },
     {
       "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/knowledge/who_this_is.py",
+      "scope": "<module>.keep_the_equivalences"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/knowledge/who_this_is.py",
+      "scope": "<module>.keep_the_equivalences"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
       "canonical_owner": true,
       "category": "file_write_gateway",
       "count": 1,
@@ -4953,6 +4961,22 @@
       "scope": "<module>.CurriculumManager._save_data"
     },
     {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/memory/memory_you_can_read.py",
+      "scope": "<module>.MemoryYouCanRead._put"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/memory/memory_you_can_read.py",
+      "scope": "<module>.MemoryYouCanRead._put"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
       "canonical_owner": true,
       "category": "file_write_gateway",
@@ -5191,6 +5215,38 @@
       "count": 1,
       "path": "core/perception/where_it_responds.py",
       "scope": "<module>._note_what_was_seen"
+    },
+    {
+      "callee": "<file_write_gateway>.delete_file",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/persistence/a_versioned_store.py",
+      "scope": "<module>.AVersionedStore._put_aside"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/persistence/a_versioned_store.py",
+      "scope": "<module>.AVersionedStore._put_aside"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/persistence/a_versioned_store.py",
+      "scope": "<module>.AVersionedStore.flush"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/persistence/a_versioned_store.py",
+      "scope": "<module>.AVersionedStore.flush"
     },
     {
       "callee": "<file_write_gateway>.ensure_directory_async",
@@ -5615,6 +5671,14 @@
       "count": 2,
       "path": "core/runtime/durable_workflow.py",
       "scope": "<module>.WorkflowStore.save"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/runtime/event_spine.py",
+      "scope": "<module>.EventLog._keep"
     },
     {
       "callee": "get_file_write_gateway().write_bytes",
@@ -6639,6 +6703,30 @@
       "count": 1,
       "path": "core/state/state_repository.py",
       "scope": "<module>.StateRepository._ensure_db_parent_directory"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/state/where_checkpoints_are_kept.py",
+      "scope": "<module>.InJson._write"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/state/where_checkpoints_are_kept.py",
+      "scope": "<module>.InJson._write"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/state/where_checkpoints_are_kept.py",
+      "scope": "<module>.InSqlite.__init__"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -14926,7 +15014,7 @@
       "category": "subprocess_gateway",
       "count": 1,
       "path": "core/learning/lora_trainer.py",
-      "scope": "<module>.LoraTrainer.train_adapter"
+      "scope": "<module>.LoraTrainer._run_the_finetune"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
@@ -16210,6 +16298,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "19952052983701b33fb244e5298c0a8f2cad9fc94d7efa29d2b5ff92943c2f3d",
+  "inventory_sha256": "ebf310ae9c2787e6675a366ace9c46bab9d750e80a68beccb297e541a9bd3d4a",
   "schema_version": 1
 }
