@@ -145,3 +145,26 @@ def test_the_three_modes_have_three_different_seals():
 
     seals = {mode: compile_the_cognition(mode).seal for mode in THE_MODES}
     assert len(set(seals.values())) == len(THE_MODES), seals
+
+
+def test_declaring_a_write_mode_invalidates_the_compiled_plan():
+    """The plan is cached, and a declaration is a change to it.
+
+    Compiling costs about two seconds and the health report is served on a
+    route, so the plan has to be cached; a cache that outlives its input
+    reports the plan somebody used to have.
+    """
+    from core.runtime.the_shape_of_one_turn import (
+        LAST_IN_THE_ORDER,
+        compile_the_cognition,
+        declare_write_mode,
+        write_mode_for,
+    )
+
+    path = "cognition.a_field_only_this_test_declares"
+    before = compile_the_cognition("foreground")
+    assert write_mode_for(path) == LAST_IN_THE_ORDER
+    declare_write_mode(path, "union")
+    assert write_mode_for(path) == "union"
+    # A fresh object, not the cached one.
+    assert compile_the_cognition("foreground") is not before

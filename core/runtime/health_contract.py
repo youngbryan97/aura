@@ -1293,6 +1293,13 @@ def _attach_causal_evidence(block: dict[str, Any]) -> None:
         block["fabrication_watch_error"] = repr(exc)
 
 
+#: How big a graph is still worth walking end to end inside a health report.
+#: The integrity walk is O(nodes x links) and this is served on a route; above
+#: this the count is reported and the walk is skipped, which is a smaller lie
+#: than a report nobody can afford to call.
+_GRAPH_NODES_WORTH_WALKING = 5000
+
+
 def _runtime_integrity_block() -> dict[str, Any]:
     """Memory the health verdict does not otherwise have.
 
@@ -1402,13 +1409,9 @@ def _runtime_integrity_block() -> dict[str, Any]:
     # and the file that carries them is the baseline. A field that loses its
     # owner between two builds is what this is for.
     try:
-        from core.state.who_owns_each_field import how_ownership_stands
+        from core.state.who_owns_each_field import what_it_stood_at_last_time
 
-        stands = how_ownership_stands()
-        block["who_owns_each_field"] = {
-            key: (len(value) if isinstance(value, list) else value)
-            for key, value in stands.items()
-        }
+        block["who_owns_each_field"] = what_it_stood_at_last_time()
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["who_owns_each_field"] = {"error": repr(exc)}
 
@@ -1424,13 +1427,19 @@ def _runtime_integrity_block() -> dict[str, Any]:
         from core.knowledge.one_graph import which_stores_have_not_registered
 
         graphs = every_graph(live=True)
-        nowhere = references_that_lead_nowhere(graphs) if graphs else []
+        # Bounded: the integrity walk is O(nodes x links), and a health route
+        # must not become the most expensive thing in the process. Above the
+        # bound the count is reported and the walk is not run.
+        nodes = sum(len(one.all_nodes()) for one in graphs.values())
+        too_big = nodes > _GRAPH_NODES_WORTH_WALKING
+        nowhere = [] if (too_big or not graphs) else references_that_lead_nowhere(graphs)
         block["one_graph"] = {
             "stores": sorted(graphs),
             "not_registered": which_stores_have_not_registered(),
-            "nodes": sum(len(one.all_nodes()) for one in graphs.values()),
+            "nodes": nodes,
             "references_that_lead_nowhere": nowhere[:20],
             "how_many_lead_nowhere": len(nowhere),
+            "walked": not too_big,
         }
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["one_graph"] = {"error": repr(exc)}

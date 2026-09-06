@@ -26,6 +26,7 @@ for a second opinion about the same list, and the baseline only shrinks.
 """
 from __future__ import annotations
 
+import functools
 import re
 from pathlib import Path
 from typing import Any
@@ -151,7 +152,16 @@ def the_caps_that_disagree(root: Path | None = None) -> list[str]:
     ``the_capacity()``; a reader that genuinely wants a different denominator
     wants a different quantity and should name it.
     """
-    here = root or Path(__file__).resolve().parents[2]
+    return list(_caps_that_disagree(root or Path(__file__).resolve().parents[2]))
+
+
+@functools.lru_cache(maxsize=4)
+def _caps_that_disagree(here: Path) -> tuple[str, ...]:
+    """Cached: this reads every file under ``core``, which costs two seconds.
+
+    The source does not change while the process runs, and the health report
+    that asks this is served on a route.
+    """
     cap = float(the_capacity())
     found: list[str] = []
     for path in sorted((here / "core").rglob("*.py")):
@@ -178,4 +188,4 @@ def the_caps_that_disagree(root: Path | None = None) -> list[str]:
             if number == cap:
                 continue
             found.append(f"{rel}:{line_no}: {said}")
-    return found
+    return tuple(found)

@@ -35,6 +35,7 @@ cognition produced it.
 from __future__ import annotations
 
 import hashlib
+import functools
 import json
 import logging
 from dataclasses import dataclass
@@ -90,6 +91,9 @@ def declare_write_mode(path: str, mode: str) -> None:
     if mode not in THE_WRITE_MODES:
         raise ValueError(f"no such write mode: {mode!r}")
     _HOW_A_FIELD_IS_COMBINED[str(path)] = mode
+    # The compiled plan is cached, and declaring a mode is a change to it.
+    # A cache that outlives its input reports the plan somebody used to have.
+    compile_the_cognition.cache_clear()
 
 
 def write_mode_for(path: str) -> str | None:
@@ -188,6 +192,7 @@ def _order_and_frequency() -> tuple[tuple[str, ...], frozenset[str], dict[str, s
     return order, foreground, classes
 
 
+@functools.lru_cache(maxsize=8)
 def compile_the_cognition(mode: str = "foreground") -> TheShapeOfOneTurn:
     """The order for this mode, checked, with a seal over the result.
 

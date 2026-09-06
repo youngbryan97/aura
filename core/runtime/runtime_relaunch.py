@@ -101,6 +101,36 @@ def wait_for_predecessor(pid: int, port: int) -> str:
     return ""
 
 
+#: argv[0] endings that mean this process is a test runner rather than Aura.
+#: Checked as well as the profile, because a runner that clears AURA_TESTING
+#: still must not replay `-m pytest` as if it were a runtime.
+_NOT_A_RUNTIME = ("pytest", "py.test", "_jb_pytest_runner.py", "unittest")
+
+
+def _why_this_process_must_not_replace_itself(argv: list[str]) -> str:
+    """Empty when a replacement is allowed; otherwise why it is refused."""
+
+    # argv first. It is the more specific answer, and it is the one that still
+    # holds for a child a test spawned: that child has no pytest in its own
+    # sys.modules, so it reads as a LIVE runtime while carrying a pytest argv.
+    first = os.path.basename(str(argv[0] or "")).lower()
+    for name in _NOT_A_RUNTIME:
+        if first == name or first.startswith(name):
+            return f"argv_is_not_a_runtime:{first}"
+    if "pytest" in {str(one).lower() for one in argv[:3]}:
+        return "argv_is_not_a_runtime:pytest"
+
+    try:
+        from core.runtime.state_ownership import RuntimeProfile, runtime_profile
+
+        profile = runtime_profile()
+    except (ImportError, RuntimeError, ValueError):
+        profile = None
+    if profile is not None and profile is not RuntimeProfile.LIVE:
+        return f"not_a_live_runtime:profile={getattr(profile, 'value', profile)}"
+    return ""
+
+
 def schedule_relaunch(
     *,
     pid: int | None = None,
@@ -122,6 +152,21 @@ def schedule_relaunch(
 
     if not resolved_argv:
         return {"scheduled": False, "reason": "no_argv_to_replay"}
+
+    # A test process must never arrange its own replacement.
+    #
+    # This replays sys.argv, and in a test run that argv is pytest. The
+    # replacement is therefore another pytest, which reaches this code again
+    # and arranges another one. On 2026-09-05 that produced 5,205 chained
+    # pytest processes on this host in fifteen minutes: load 6.2, psutil
+    # walking 4,855 processes inside every health report, and every suite
+    # after the first test looking like a hang.
+    #
+    # Read from the profile rather than an env flag: a flag says what a
+    # harness meant to be true, and the profile says what this process is.
+    refusal = _why_this_process_must_not_replace_itself(resolved_argv)
+    if refusal:
+        return {"scheduled": False, "reason": refusal}
 
     port = _port_from_argv(resolved_argv)
     command = [

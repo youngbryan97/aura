@@ -31,6 +31,7 @@ from __future__ import annotations
 import ast
 import dataclasses
 import functools
+import json
 import logging
 from collections import defaultdict
 from pathlib import Path
@@ -43,6 +44,7 @@ __all__ = [
     "every_field",
     "how_ownership_stands",
     "the_owner_of",
+    "what_it_stood_at_last_time",
     "what_nobody_owns",
 ]
 
@@ -175,9 +177,24 @@ def _who_assigns(root: Path) -> dict[str, frozenset[str]]:
     return {path: frozenset(who) for path, who in found.items()}
 
 
+@functools.lru_cache(maxsize=4)
+def _stands(here: Path) -> dict[str, Any]:
+    """Cached because the source does not change while the process runs.
+
+    Without this the health report took eighteen seconds on its first call and
+    two to four on every one after — a report that expensive stops being read,
+    and the runtime calls it on a route.
+    """
+    return _work_out_how_ownership_stands(here)
+
+
 def how_ownership_stands(root: Path | None = None) -> dict[str, Any]:
     """The whole picture, in the order the three answers are tried."""
     here = root or Path(__file__).resolve().parents[2]
+    return dict(_stands(here))
+
+
+def _work_out_how_ownership_stands(here: Path) -> dict[str, Any]:
     fields = every_field()
     nested = [one for one in fields if one.count(".") == 1]
     by_a_phase = _declared_by_a_phase()
@@ -239,6 +256,28 @@ def the_owner_of(path: str, root: Path | None = None) -> dict[str, str] | None:
             "others": declared["others"],
         }
     return None
+
+
+def what_it_stood_at_last_time() -> dict[str, Any]:
+    """The committed measurement, read from the baseline file.
+
+    Cheap on purpose. Working it out means parsing every file under ``core``,
+    which takes eleven seconds, and the health report is served on a route —
+    a report that expensive stops being read. The baseline is the number this
+    commit stands behind; ``how_ownership_stands`` is what the gate runs.
+    """
+    where = Path(__file__).resolve().parents[2] / "config" / "field_ownership_baseline.json"
+    try:
+        held = json.loads(where.read_text("utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.debug("no field-ownership baseline: %s", exc)
+        return {"unclassified": None, "note": "no baseline"}
+    return {
+        "unclassified": held.get("count"),
+        "owned": held.get("owned"),
+        "out_of_reach": held.get("out_of_reach"),
+        "worked_out_this_process": _stands.cache_info().currsize > 0,
+    }
 
 
 def what_nobody_owns(root: Path | None = None) -> list[str]:

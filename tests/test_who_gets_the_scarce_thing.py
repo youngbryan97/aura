@@ -266,3 +266,123 @@ def test_the_register_is_in_the_health_report():
 
     block = runtime_health_report()["integrity"]["who_holds_what"]
     assert set(block) == {"held", "waiting", "record"}
+
+
+# ------------------------------------------------- the handoff is the invariant
+#
+# The first version of this module popped the holder, woke the next waiter's
+# future, and let the waiter install itself when it resumed. That is not
+# mutual exclusion. An external review traced it:
+#
+#   A releases -> _HELD empties -> B's future is made runnable -> lock released
+#   C arrives before B resumes, sees _HELD empty, takes the claim
+#   B resumes and writes _HELD[resource] = B without checking
+#
+# Two holders inside exclusive ownership, and the register showing one. The
+# fix is that the transfer happens under the books lock, before the future is
+# resolved, so a caller arriving in that window queues behind the waiter.
+
+
+def test_two_callers_never_hold_it_at_once_through_a_handoff():
+    """The exact interleaving the review named."""
+    inside: list[str] = []
+    overlapped: list[tuple[str, ...]] = []
+
+    async def hold(name: str, for_s: float):
+        async with claim("screen", name):
+            inside.append(name)
+            if len(inside) > 1:
+                overlapped.append(tuple(inside))
+            await asyncio.sleep(for_s)
+            inside.remove(name)
+
+    async def go():
+        first = asyncio.create_task(hold("A", 0.02))
+        await asyncio.sleep(0.005)
+        queued = asyncio.create_task(hold("B", 0.01))
+        await asyncio.sleep(0.005)
+        # C arrives in the window between A releasing and B resuming.
+        await asyncio.sleep(0.012)
+        late = asyncio.create_task(hold("C", 0.005))
+        await asyncio.gather(first, queued, late)
+
+    asyncio.run(go())
+    assert overlapped == [], f"two holders at once: {overlapped}"
+
+
+def test_a_caller_arriving_during_the_handoff_queues_behind_the_waiter():
+    """The claim is written before the future is woken, so C sees it held."""
+    async def go():
+        async with claim("screen", "A"):
+            queued = asyncio.create_task(_take("B", 0.05))
+            await asyncio.sleep(0.01)
+            assert [one["by"] for one in who_is_waiting()["screen"]] == ["B"]
+        # A has released; B owns it now, before B has resumed.
+        assert who_holds_what()["screen"]["by"] == "B"
+        late = asyncio.create_task(_take("C", 0.01))
+        await asyncio.sleep(0.005)
+        assert [one["by"] for one in who_is_waiting()["screen"]] == ["C"]
+        await asyncio.gather(queued, late)
+
+    async def _take(name: str, for_s: float):
+        async with claim("screen", name):
+            await asyncio.sleep(for_s)
+
+    asyncio.run(go())
+
+
+def test_the_grant_is_counted_once_per_holder():
+    """The waiter no longer installs itself, so nothing double-counts."""
+    async def hold(name: str):
+        async with claim("training", name):
+            await asyncio.sleep(0.01)
+
+    async def go():
+        await asyncio.gather(*(hold(name) for name in ("A", "B", "C")))
+
+    asyncio.run(go())
+    assert how_it_has_gone()["training"]["granted"] == 3
+
+
+def test_a_waiter_that_times_out_at_the_moment_it_is_granted_hands_it_on():
+    """Otherwise the claim sits held by somebody who stopped waiting."""
+    async def hold(for_s: float):
+        async with claim("training", "hog"):
+            await asyncio.sleep(for_s)
+
+    async def go():
+        first = asyncio.create_task(hold(0.04))
+        await asyncio.sleep(0.005)
+        # Deadline lands right around the handoff.
+        brief = asyncio.create_task(_brief())
+        after = asyncio.create_task(hold(0.005))
+        await asyncio.gather(first, brief, after, return_exceptions=True)
+
+    async def _brief():
+        async with claim("training", "brief", seconds=0.035):
+            await asyncio.sleep(0.001)
+
+    asyncio.run(go())
+    assert who_holds_what() == {}, f"left held: {who_holds_what()}"
+
+
+def test_a_cancelled_waiter_does_not_wedge_the_queue():
+    order: list[str] = []
+
+    async def hold(name: str, for_s: float):
+        async with claim("screen", name):
+            order.append(name)
+            await asyncio.sleep(for_s)
+
+    async def go():
+        first = asyncio.create_task(hold("A", 0.03))
+        await asyncio.sleep(0.005)
+        doomed = asyncio.create_task(hold("B", 0.01))
+        last = asyncio.create_task(hold("C", 0.005))
+        await asyncio.sleep(0.005)
+        doomed.cancel()
+        await asyncio.gather(first, last, doomed, return_exceptions=True)
+
+    asyncio.run(go())
+    assert "C" in order, f"the queue wedged on the cancelled waiter: {order}"
+    assert who_holds_what() == {}

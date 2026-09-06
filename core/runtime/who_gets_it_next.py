@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+import weakref
 from collections import deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -106,6 +107,7 @@ class _AWaiter:
     by: str
     asked_at: float
     ready: asyncio.Future
+    trace: str = ""
 
 
 @dataclass
@@ -124,10 +126,28 @@ class _HowItHasGone:
 _HELD: dict[str, AClaim] = {}
 _WAITING: dict[str, deque[_AWaiter]] = {}
 _RECORD: dict[str, _HowItHasGone] = {}
-#: One lock over the bookkeeping only. Held for the length of a dict update,
-#: never across an await on the resource itself — a claim manager that holds a
-#: lock while its callers work is the contention it was built to remove.
-_BOOKS = asyncio.Lock()
+
+#: One lock over the bookkeeping only, per event loop. Held for the length of
+#: a dict update, never across an await on the resource itself — a claim
+#: manager that holds a lock while its callers work is the contention it was
+#: built to remove.
+#:
+#: Per loop, not per process. An ``asyncio.Lock`` built at import binds its
+#: waiters to whichever loop first had to wait on it, and a second loop then
+#: waits forever on futures nothing will ever complete. That is not only a
+#: test artifact: ``AuraKernel.hot_reboot`` builds a new loop in a live
+#: process, and every claim after one would have hung.
+_LOCKS: "weakref.WeakKeyDictionary[Any, asyncio.Lock]" = weakref.WeakKeyDictionary()
+
+
+def _books() -> asyncio.Lock:
+    """The bookkeeping lock for the loop that is running now."""
+    loop = asyncio.get_running_loop()
+    found = _LOCKS.get(loop)
+    if found is None:
+        found = asyncio.Lock()
+        _LOCKS[loop] = found
+    return found
 
 
 def _record(resource: str) -> _HowItHasGone:
@@ -218,13 +238,46 @@ def _check(resource: str, *, granted: str) -> None:
 
 
 def _next_in_line(resource: str) -> None:
-    """Hand the resource to whoever asked first and is still there."""
+    """Give the resource to whoever asked first and is still there.
+
+    The transfer IS the invariant. This used to pop the holder, wake the next
+    waiter's future and let the waiter install itself when it resumed — which
+    is not mutual exclusion, because a third caller arriving between the wake
+    and the resume sees an empty ``_HELD`` and takes it, and then the waiter
+    resumes and overwrites the record without checking. Two holders inside
+    what is supposed to be exclusive ownership, and the register showing one.
+
+    So the claim is written here, under ``_books()``, before the future is
+    resolved. A caller arriving in that window sees the resource held by the
+    waiter and queues behind it. Callers must hold ``_books()``.
+    """
     queue = _WAITING.get(resource)
     while queue:
         waiter = queue.popleft()
-        if not waiter.ready.done():
+        if waiter.ready.done():
+            # Cancelled or timed out while queued. Its claim is nobody's.
+            continue
+        waited = time.monotonic() - waiter.asked_at
+        _HELD[resource] = AClaim(
+            resource=resource,
+            by=waiter.by,
+            trace=waiter.trace,
+            waited_s=waited,
+        )
+        record = _record(resource)
+        record.granted += 1
+        record.waited_s_total += waited
+        record.waited_s_worst = max(record.waited_s_worst, waited)
+        try:
             waiter.ready.set_result(True)
-            return
+        except asyncio.InvalidStateError:
+            # It finished between the check and here. Undo the grant rather
+            # than leave a claim held by somebody who will never release it.
+            _HELD.pop(resource, None)
+            record.granted -= 1
+            record.waited_s_total -= waited
+            continue
+        return
 
 
 @asynccontextmanager
@@ -251,7 +304,7 @@ async def claim(
     # cannot both read "free". Split across two lock holds this had a window
     # where each saw the resource unheld and each took it.
     waiter: _AWaiter | None = None
-    async with _BOOKS:
+    async with _books():
         held = _HELD.get(resource)
         if held is not None and held.by == by:
             held.depth += 1
@@ -266,6 +319,7 @@ async def claim(
                 by=by,
                 asked_at=asked_at,
                 ready=asyncio.get_running_loop().create_future(),
+                trace=here.trace,
             )
             _WAITING.setdefault(resource, deque()).append(waiter)
 
@@ -276,50 +330,55 @@ async def claim(
                 waiter.ready, None if left == float("inf") else left
             )
         except TimeoutError:
-            async with _BOOKS:
+            async with _books():
                 _drop(resource, waiter)
+                # It may have been given the claim in the instant before the
+                # deadline. Hand it straight on rather than leave it held by
+                # somebody who has already stopped waiting.
+                _release(resource, by, record)
             record.timed_out += 1
             raise GaveUp(
                 resource, "ran out of time", time.monotonic() - asked_at
             ) from None
         except asyncio.CancelledError:
-            async with _BOOKS:
+            async with _books():
                 _drop(resource, waiter)
-                # The hand-off already happened if the future completed before
-                # the cancellation landed; passing it on rather than dropping
-                # it is the difference between a queue that drains and one
-                # that wedges on the first cancelled waiter.
-                if waiter.ready.done() and not waiter.ready.cancelled():
-                    _next_in_line(resource)
+                _release(resource, by, record)
             record.stopped += 1
             raise
+        # The claim is already ours: _next_in_line wrote it under the books
+        # lock before waking this future. Nothing is installed here, because
+        # installing it here is what let a third caller slip in between.
         try:
             waiting.check()
         except Stopped:
-            async with _BOOKS:
-                _next_in_line(resource)
+            async with _books():
+                _release(resource, by, record)
             record.stopped += 1
             raise
-        waited = time.monotonic() - asked_at
-        async with _BOOKS:
-            _HELD[resource] = AClaim(
-                resource=resource, by=by, trace=here.trace, waited_s=waited
-            )
-            record.granted += 1
-            record.waited_s_total += waited
-            record.waited_s_worst = max(record.waited_s_worst, waited)
 
     try:
         yield _HELD.get(resource)
     finally:
-        async with _BOOKS:
-            held = _HELD.get(resource)
-            if held is not None and held.by == by:
-                held.depth -= 1
-                if held.depth <= 0:
-                    record.held_s_total += held.held_for_s
-                    _HELD.pop(resource, None)
-                    _next_in_line(resource)
+        async with _books():
+            _release(resource, by, record)
+
+
+def _release(resource: str, by: str, record: "_HowItHasGone") -> None:
+    """Give up one level of a claim, handing it on if that was the last.
+
+    Callers must hold ``_books()``: the pop and the hand-on are one step, and
+    the window between them is where two holders came from.
+    """
+    held = _HELD.get(resource)
+    if held is None or held.by != by:
+        return
+    held.depth -= 1
+    if held.depth > 0:
+        return
+    record.held_s_total += held.held_for_s
+    _HELD.pop(resource, None)
+    _next_in_line(resource)
 
 
 def _drop(resource: str, waiter: _AWaiter) -> None:
