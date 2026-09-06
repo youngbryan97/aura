@@ -17,6 +17,9 @@ const CASES = [
   ["Sweep complete: 0 procs reaped, 0.0MB storage reclaimed.", /nothing to clean up/],
 ];
 const UNTOUCHED = [
+  "[health_poll] health=not ready; probes blocked; conversation ready; proof integrity degraded",
+  "[websocket_heartbeat] health=ready; probes pass; conversation ready; proof integrity degraded: source drift",
+  "[health_poll] health=ready; probes pass; conversation ready",
   "I don't think you're right, and I'll tell you why.",
   "It's 1:24 AM, and I know that from my clock.",
 ];
