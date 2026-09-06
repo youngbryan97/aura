@@ -47,6 +47,17 @@ def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
 
 
+def _how_full_the_working_memory_is(state: Any) -> float:
+    """Working-memory occupancy against the capacity the trimmer enforces.
+
+    Imported inside the function: this module is on the import path of the
+    state package it would otherwise reach at module load.
+    """
+    from core.state.one_working_memory import how_full
+
+    return how_full(state)
+
+
 @dataclass
 class ObjectiveCommitment:
     """Tracks a foreground task commitment to prevent digital ADHD.
@@ -398,7 +409,10 @@ class ExecutiveClosureEngine:
         vec[16] = _clamp01(float(getattr(state.soma.hardware, "get", lambda *_: 0.0)("vram_usage", 0.0)) / 100.0) if hasattr(state.soma, "hardware") else 0.0
         vec[17] = _clamp01(float(getattr(state.soma.hardware, "get", lambda *_: 0.0)("temperature", 0.0)) / 100.0) if hasattr(state.soma, "hardware") else 0.0
         vec[18] = _clamp01(len(getattr(state.world, "recent_percepts", []) or []) / 20.0)
-        vec[19] = _clamp01(len(getattr(state.cognition, "working_memory", []) or []) / 20.0)
+        # Against the capacity that is actually enforced. Divided by 20 this
+        # sat at 1.0 for everything past the twentieth exchange, so the
+        # element carried no prediction signal for most of a conversation.
+        vec[19] = _clamp01(_how_full_the_working_memory_is(state))
         vec[20] = _clamp01(len(getattr(state.cognition, "pending_initiatives", []) or []) / 10.0)
         vec[21] = _clamp01(len(getattr(state.cognition, "active_goals", []) or []) / 10.0)
         vec[22] = _clamp01(float(getattr(state, "free_energy", 0.0)))

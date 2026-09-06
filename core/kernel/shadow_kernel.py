@@ -91,7 +91,13 @@ def _validate_shadow_source(code: str) -> None:
 @dataclass(frozen=True)
 class StateBoundsConfig:
     """Hard limits on AuraState field sizes. Enforced post-sandbox."""
-    MAX_WORKING_MEMORY_ITEMS: int = 100
+
+    #: How far past the enforced working-memory capacity a state may go before
+    #: it counts as a bomb. Not 1: the trimmer runs after the append, so a
+    #: legitimate state is briefly one item over, and a bomb is orders of
+    #: magnitude past that rather than one item.
+    WORKING_MEMORY_HEADROOM: int = 2
+    MAX_LONG_TERM_MEMORY_ITEMS: int = 10000
     MAX_LONG_TERM_MEMORY_ITEMS: int = 10000
     MAX_CONCEPT_GRAPH_NODES: int = 50000
     MAX_KNOWN_ENTITIES: int = 5000
@@ -253,8 +259,14 @@ class ShadowExecutionPhase(Phase):  # type: ignore[misc]
         config = StateBoundsConfig()
         
         try:
-            # Check Working Memory
-            if hasattr(state, "working_memory") and len(state.working_memory) > config.MAX_WORKING_MEMORY_ITEMS:
+            # Check Working Memory. Read through the canonical accessor: this
+            # was `state.working_memory`, which AuraState does not have — the
+            # list is on state.cognition — so the guard passed a 5,000-item
+            # bomb without ever looking at it.
+            from core.state.one_working_memory import the_capacity, the_working_memory
+
+            allowed = the_capacity() * max(1, config.WORKING_MEMORY_HEADROOM)
+            if len(the_working_memory(state)) > allowed:
                 return False
                 
             # Check LTM (if accessible)

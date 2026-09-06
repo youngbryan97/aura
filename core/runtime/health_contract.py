@@ -1331,6 +1331,30 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["the_shape_of_one_turn"] = {"error": repr(exc)}
 
+    # One working memory, and whether anything still normalises it against a
+    # number of its own. Three readers did, and each was pinned at its own
+    # ceiling for most of a conversation — a constant that looked like a
+    # measurement. Reported live so a new one cannot arrive unseen between
+    # test runs.
+    try:
+        from core.state.one_working_memory import (
+            THE_STORE,
+            the_capacity,
+            the_caps_that_disagree,
+            who_else_holds_it,
+        )
+
+        disagreeing = the_caps_that_disagree()
+        block["one_working_memory"] = {
+            "store": THE_STORE,
+            "capacity": the_capacity(),
+            "projections": len(who_else_holds_it()),
+            "caps_that_disagree": disagreeing,
+            "agreed": not disagreeing,
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["one_working_memory"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering
