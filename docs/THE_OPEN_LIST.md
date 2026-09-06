@@ -68,7 +68,7 @@ carries all 202 with their state.
 | N7 | GAIA / OSWorld / post-cutoff SWE / hours-long autonomy | TODO |
 | N9 | Grounding beyond the seven authored installers | DONE — the claim that each of the seven has an installer, a lesion and a persistence path is now resolved rather than asserted; it caught one that did not |
 | N10 | Generational compounding, currently depth 0 | DONE — the cause found and fixed: 824 operators all scored exactly 5.0 because the replay could only price an action that had once WORKED, and the failure path never wrote the action name down. Depth is still to be re-measured on a record written since |
-| N11 | Native and source development in one verified loop | TODO |
+| N11 | Native and source development in one verified loop | DONE — one plan now weighs a change to the code against a change to the terms; the planner reads the developmental choice without taking it |
 | N12 | Fan-out and through-path reduction | DONE |
 | N13 | 110 modules over the size threshold, 36 size regressions | PART — the 36 were already there before this session (checked at `3d6e365b4`); this session added 3 and removed all 3, so the number did not move. Splitting 36 God objects is its own pass |
 | N15 | The reachability scan's self-enumeration blind spot | DONE |

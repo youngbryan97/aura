@@ -393,6 +393,33 @@ class RecursiveSelfImprovementLoop:
         return result
 
 
+    def _what_she_could_change_about_her_own_terms(self) -> str | None:
+        """What the developmental policy would do to the language, if anything.
+
+        The same decision `she_improves_her_own_deciding` makes, asked from
+        here so one cycle sees both kinds of change. Reads the choice; does
+        not take it — a planner that acted while planning would make the plan
+        a record of what already happened.
+
+        None when there is nothing registered to choose between, which is the
+        honest answer and not a failure: with no developmental actions there
+        is no native change to weigh against a source change.
+        """
+        try:
+            from core.cognition.she_decides_to_develop import what_to_do_next
+            from core.cognition.what_she_could_do_next import the_actions_she_has
+        except (ImportError, RuntimeError) as exc:
+            logger.debug("no developmental policy to ask: %s", exc)
+            return None
+        try:
+            if not the_actions_she_has():
+                return None
+            decided = what_to_do_next("recursive_self_improvement", costs_now=1)
+        except Exception as exc:  # noqa: BLE001 — a planner must not die deciding
+            logger.debug("the developmental policy declined to answer: %s", exc)
+            return None
+        return decided.action.name if getattr(decided, "action", None) else None
+
     @staticmethod
     def _ask_the_forge_about_recurring_gaps(*, allowed: bool, observed: bool) -> bool:
         """Start the forge on recurring gaps. Returns whether it was asked.
@@ -563,6 +590,18 @@ class RecursiveSelfImprovementLoop:
             actions.append("asked_the_forge")
             rationale.append(
                 "a gap has been seen often enough to be worth forging a capability for"
+            )
+
+        # The native side of the same loop. Until now improving her SOURCE and
+        # improving the LANGUAGE she thinks in were two loops with two
+        # records, so a cycle could not choose between changing the code and
+        # changing the terms — and "which of those is worth doing here" is the
+        # question a single improver has to be able to answer.
+        chosen = self._what_she_could_change_about_her_own_terms()
+        if chosen:
+            actions.append("developmental")
+            rationale.append(
+                f"the cheapest thing worth changing about how she thinks is {chosen}"
             )
 
         if allow_weight_update and self.live_learner and (force or weight_signal or self._buffer_size() > 0):
