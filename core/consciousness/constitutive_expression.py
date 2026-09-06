@@ -221,7 +221,7 @@ class ConstitutiveExpressionLayer:
         queue_backlogged = False
         try:
             from .reasoning_queue import get_reasoning_queue
-            queue_depth = get_reasoning_queue()._queue.qsize()
+            queue_depth = get_reasoning_queue().qsize()
             if queue_depth > 2:
                 queue_backlogged = True
         except (ImportError, AttributeError, RuntimeError) as e:
