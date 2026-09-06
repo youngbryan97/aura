@@ -1,0 +1,12 @@
+{
+  "note": "Organs that know what they own, consume, promise and how failure propagates. answer_all_four only goes up; each who_does_not_say count only goes down.",
+  "organs": 120,
+  "answer_all_four": 32,
+  "answer_nothing": 0,
+  "who_does_not_say": {
+    "what it owns": 18,
+    "what it consumes": 0,
+    "what it promises": 86,
+    "how failure propagates": 21
+  }
+}

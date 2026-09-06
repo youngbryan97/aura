@@ -1563,6 +1563,22 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_has_a_measured_effect"] = {"error": repr(exc)}
 
+    # Whether each organ knows what it owns, consumes, promises, and does when
+    # it fails. Counts from the committed baseline: asking every package walks
+    # the whole tree, and health is served on a route.
+    try:
+        from core.verify.what_each_organ_says import the_baseline
+
+        held = the_baseline()
+        block["what_each_organ_says"] = {
+            "organs": held.get("organs"),
+            "answer_all_four": held.get("answer_all_four"),
+            "answer_nothing": held.get("answer_nothing"),
+            "who_does_not_say": held.get("who_does_not_say", {}),
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_each_organ_says"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering

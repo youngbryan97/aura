@@ -85,7 +85,7 @@ carries all 202 with their state.
 | E6 | Every named faculty needs a measured downstream effect, not a wired channel: "wired to consumer" is not "measurable contribution" | DONE — measured and published: 69 services, 6 lesionable, 0 measured; the ratchet moves those |
 | E7 | The sealed transfer experiment: measure on unseen domains, allow autonomous development, then intervene on the abstractions she built and show it changes performance on transfer domains | TODO |
 | E8 | The improver null: improved improver beats a frozen improver on held-out problems across generations | TODO |
-| E9 | Organs that know what they own, what they consume, what they promise and how failure propagates — coherent causal organisation over interaction entropy, not fewer organs | TODO |
+| E9 | Organs that know what they own, what they consume, what they promise and how failure propagates — coherent causal organisation over interaction entropy, not fewer organs | DONE — all four asked of all 120 packages: every one declares its edges, 32 answer all four, 86 say nothing about what they promise; the ratchet moves those |
 
 ## Found while working
 

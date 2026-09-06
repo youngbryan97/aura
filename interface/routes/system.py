@@ -5831,6 +5831,7 @@ def _runtime_integrity_public_payload(report: dict[str, Any] | None) -> dict[str
                 "what_every_skill_gives_back",
                 "the_control_policy",
                 "what_has_a_measured_effect",
+                "what_each_organ_says",
             )
             if report.get(key) is not None
         },
