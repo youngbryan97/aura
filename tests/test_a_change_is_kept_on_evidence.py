@@ -152,3 +152,53 @@ def test_a_probe_that_raises_is_unmeasured_and_not_a_refusal():
         "core.cognition.what_she_does_about_herself.worth_keeping", boom
     ):
         assert W._held_out_says_it_paid("x", {}, [("fam", ())]) is None
+
+
+#: The places a change alters how she decides what to change next.
+_META = ("the proposer", "what a change is worth", "the order she tries them in")
+
+
+def test_a_change_to_the_deciding_machinery_faces_the_same_gate():
+    """The review's sharpest ask, held where it can fail.
+
+    An improvement to the improvement mechanism compounds: a worse rule for
+    judging changes makes every later judgement worse, so it is the last
+    thing that should be kept on weaker evidence than an ordinary change.
+    Before the gate existed all of them were kept for returning a sentence.
+    """
+    from core.cognition.one_algebra import DERIVED_HEADS
+
+    for over in _META:
+        name = f"one that changes {over}"
+        action = what_she_could_do(
+            name,
+            over=over,
+            kind="a meta change",
+            do_it=lambda situation=None, over=over: f"changed {over}",
+            needs_a_case=False,
+        )
+        assert not action.judges_itself, (
+            f"{name} exempts itself from the held-out gate"
+        )
+        with _probe_says(False):
+            assert action.do_it(None) is None, (
+                f"a change to {over} that did not pay was kept anyway"
+            )
+    assert "one that changes the proposer" not in DERIVED_HEADS
+
+
+def test_the_registered_meta_actions_do_not_exempt_themselves():
+    """The four that ship, not four the test invented."""
+    from core.cognition.she_improves_her_own_deciding import (
+        offer_what_she_can_do_about_herself,
+    )
+
+    offer_what_she_can_do_about_herself(within=0.1)
+    meta = [
+        one
+        for one in WHAT_SHE_COULD_DO.values()
+        if one.over in _META and not one.name.startswith("one that changes")
+    ]
+    assert meta, "no shipped action changes the deciding machinery"
+    exempt = [one.name for one in meta if one.judges_itself]
+    assert not exempt, f"these skip the held-out gate: {exempt}"
