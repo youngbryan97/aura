@@ -753,7 +753,7 @@ def _coupled_system(cells: int, frames: int, *, coupling: float, seed: int):
         )
     trace = ActivityTrace(
         uids=tuple(f"c{i}" for i in range(cells)),
-        conditions=tuple("stim%d" % (t // 40 % 3) for t in range(frames)),
+        conditions=tuple(f"stim{t // 40 % 3}" for t in range(frames)),
         spikes=[list(row) for row in values],
     )
     return snapshot, trace
@@ -806,3 +806,196 @@ def test_the_naive_baselines_are_reported_and_beatable():
         assert baseline in arms
     assert arms["connectome"] < arms["mean"]
     assert report.dataset["cells"] == 40
+
+
+# ---------------------------------------------------------------------------
+# The layers a call graph cannot see
+# ---------------------------------------------------------------------------
+
+
+_LAYERED_MODULE = '''
+def announce(bus):
+    bus.publish("core/thing/happened", {})
+
+
+def listen(bus):
+    bus.subscribe("core/thing/happened", handle)
+
+
+def orphan_publisher(bus):
+    bus.publish("core/thing/nobody_hears", {})
+
+
+def handle(event):
+    return event
+
+
+def writer(container):
+    container.set("shared_key", object())
+
+
+def reader(container):
+    return container.get("shared_key")
+
+
+def shows_a_message(ui):
+    ui.publish("Awaiting confirmation from the person")
+'''
+
+
+@pytest.fixture
+def layered_repo(tmp_path: Path) -> Path:
+    package = tmp_path / "core" / "layered"
+    package.mkdir(parents=True)
+    (tmp_path / "core" / "__init__.py").write_text("")
+    (package / "__init__.py").write_text("")
+    (package / "mod.py").write_text(_LAYERED_MODULE)
+    return tmp_path
+
+
+def test_the_volume_and_gap_layers_find_what_the_call_graph_cannot(layered_repo):
+    from core.connectome.layers import Layer, extract_layers, multilink_census
+
+    reconstructor = VolumeReconstructor(layered_repo, ReconstructionConfig(roots=("core",)))
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    multilayer = extract_layers(snapshot, layered_repo, roots=("core",))
+
+    names = {uid: unit.name.rsplit(":", 1)[1] for uid, unit in snapshot.units.items()}
+    volume_named = {
+        (names[pre], names[post]) for pre, post in multilayer.volume if pre in names and post in names
+    }
+    assert ("announce", "listen") in volume_named
+    gap_named = {
+        tuple(sorted((names[pre], names[post])))
+        for pre, post in multilayer.gap
+        if pre in names and post in names
+    }
+    assert ("reader", "writer") in gap_named
+    # Neither pair is joined by a call.
+    assert multilayer.unique_fraction(Layer.VOLUME) == pytest.approx(1.0)
+    census = multilink_census(multilayer)
+    assert census["volume_only"] >= 1
+    assert census["gap_only"] >= 1
+
+
+def test_a_sentence_is_not_a_topic(layered_repo):
+    from core.connectome.layers import Layer, extract_layers
+
+    reconstructor = VolumeReconstructor(layered_repo, ReconstructionConfig(roots=("core",)))
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    multilayer = extract_layers(snapshot, layered_repo, roots=("core",))
+    topics = {
+        key.partition(":")[2]
+        for key in multilayer.channels
+        if key.startswith(str(Layer.VOLUME))
+    }
+    assert "core/thing/happened" in topics
+    assert not any(" " in topic for topic in topics)
+
+
+def test_a_half_wired_topic_is_a_candidate_and_a_heavy_pair_is_measured(layered_repo):
+    from core.connectome.layers import extract_layers
+    from core.connectome.pathology import Confidence, diagnose
+
+    reconstructor = VolumeReconstructor(layered_repo, ReconstructionConfig(roots=("core",)))
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    multilayer = extract_layers(snapshot, layered_repo, roots=("core",))
+    report = diagnose(snapshot, multilayer=multilayer)
+    half_wired = [f for f in report.findings if f.kind == "half_wired_channel"]
+    assert any(f.subject == "core/thing/nobody_hears" for f in half_wired)
+    assert all(f.confidence is Confidence.CANDIDATE for f in half_wired)
+    assert all(f.closes_when for f in report.findings)
+
+
+def test_diagnosis_with_nothing_wrong_reports_nothing():
+    snapshot = _graph_snapshot([("a", "b", 1)])
+    from core.connectome.pathology import diagnose
+
+    report = diagnose(snapshot)
+    assert report.findings == []
+    assert report.as_json()["total"] == 0
+
+
+# ---------------------------------------------------------------------------
+# The local loop
+# ---------------------------------------------------------------------------
+
+
+def _noisy_trials(count: int, options: int, noise: float, seed: int, easy_share: float = 0.5):
+    import random
+
+    rng = random.Random(seed)
+    from core.connectome.laminar import Candidate
+
+    trials = []
+    for index in range(count):
+        truth = f"c{rng.randrange(options)}"
+        separation = 0.55 if rng.random() < easy_share else 0.12
+        base = {
+            f"c{i}": (1.0 if f"c{i}" == truth else 1.0 - separation) for i in range(options)
+        }
+        state = random.Random(seed * 1000 + index)
+
+        def evidence(candidate, prior, base=base, state=state):
+            return base[candidate.key] + state.gauss(0.0, noise)
+
+        trials.append(([Candidate(f"c{i}") for i in range(options)], evidence, truth))
+    return trials
+
+
+@pytest.mark.parametrize("noise", [0.10, 0.25, 0.40])
+def test_the_local_loop_matches_a_fixed_budget_for_fewer_calls(noise):
+    from core.connectome.laminar import LaminarConfig, compare_against_fixed_budget
+
+    comparison = compare_against_fixed_budget(
+        _noisy_trials(400, 4, noise, seed=7), config=LaminarConfig()
+    )
+    assert comparison.laminar_accuracy >= comparison.fixed_accuracy - 0.03
+    assert comparison.call_saving > 0.15
+    assert comparison.as_json()["verdict"] == "same accuracy for fewer calls"
+
+
+def test_a_lead_inside_the_noise_is_not_a_decision():
+    from core.connectome.laminar import decisive_margin
+
+    tied = decisive_margin({"a": 0.81, "b": 0.80, "c": 0.79})
+    assert tied.decisive is False
+    clear = decisive_margin({"a": 0.95, "b": 0.40, "c": 0.35})
+    assert clear.decisive is True
+    assert clear.winner == "a"
+
+
+def test_the_noise_is_estimated_from_the_candidates_that_lost():
+    """The spread of everything includes the leader, which hides a real winner."""
+    from core.connectome.laminar import decisive_margin
+
+    decision = decisive_margin({"a": 5.0, "b": 1.01, "c": 1.00, "d": 0.99})
+    assert decision.decisive is True
+    assert decision.z > 10.0
+
+
+def test_a_single_candidate_costs_one_call():
+    from core.connectome.laminar import Candidate, settle
+
+    calls = []
+
+    def evidence(candidate, prior):
+        calls.append(candidate.key)
+        return 1.0
+
+    settled = settle([Candidate("only")], evidence)
+    assert settled.winner is not None and settled.winner.key == "only"
+    assert settled.evidence_calls == 1
+    assert len(calls) == 1
+
+
+def test_the_calibrated_bound_moves_with_the_error_rate():
+    from core.connectome.laminar import calibrate_threshold
+
+    loose = calibrate_threshold([0.3], 0.25, target_error=0.10, candidates=4)
+    tight = calibrate_threshold([0.3], 0.25, target_error=0.001, candidates=4)
+    assert tight > loose
+    assert 1.0 <= loose < tight <= 6.0
