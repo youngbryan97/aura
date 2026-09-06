@@ -65,3 +65,32 @@ def test_the_report_separates_declaring_from_not() -> None:
     assert seen["packages"] >= 100
     assert seen["declaring"] + len(seen["not_declaring"]) == seen["packages"]
     assert seen["with_a_missing_test"] == []
+
+
+def test_a_declaration_is_plain_data_so_no_package_imports_this_one() -> None:
+    """A foundation package importing core.verify to describe itself is the
+    layering violation this convention would otherwise create everywhere it
+    was adopted, and DEPS refused it in six packages at once."""
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[1]
+    for path in sorted((root / "core").glob("*/_promises.py")):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped.startswith(("import ", "from ")):
+                assert "core.verify" not in stripped, f"{path}: {stripped}"
+
+
+def test_a_malformed_declaration_is_dropped_rather_than_taken() -> None:
+    from core.verify.a_promise_with_a_test import _as_a_promise
+
+    assert _as_a_promise({"it": "too short", "checked_by": "x", "if_it_fails": "y"}) is None
+    assert _as_a_promise("not a declaration at all") is None
+    good = _as_a_promise(
+        {
+            "it": "this one is a proper sentence about behaviour",
+            "checked_by": "tests/x.py::test_y",
+            "if_it_fails": "it goes here",
+        }
+    )
+    assert good is not None and good.test_name == "test_y"

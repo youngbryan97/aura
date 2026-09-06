@@ -87,6 +87,23 @@ class APromise:
         }
 
 
+def _as_a_promise(row: Any) -> "APromise | None":
+    """One declaration, however the package chose to write it down."""
+    if isinstance(row, APromise):
+        return row
+    if not isinstance(row, dict):
+        return None
+    try:
+        return APromise(
+            it=str(row.get("it", "")),
+            checked_by=str(row.get("checked_by", "")),
+            if_it_fails=str(row.get("if_it_fails", "")),
+        )
+    except ValueError as exc:
+        logger.warning("a declared promise is malformed: %s", exc)
+        return None
+
+
 @functools.lru_cache(maxsize=2)
 def the_declared_promises(root: str = "") -> dict[str, tuple[APromise, ...]]:
     """Every package under ``core`` that declares promises, and what they are."""
@@ -103,8 +120,12 @@ def the_declared_promises(root: str = "") -> dict[str, tuple[APromise, ...]]:
             logger.warning("core.%s declares promises that will not import: %s",
                            entry.name, exc)
             continue
-        declared = getattr(module, "THE_PROMISES", ())
-        rows = tuple(one for one in declared if isinstance(one, APromise))
+        # Declared as plain data, not as instances of a class from here. A
+        # foundation package importing core.verify to describe itself is the
+        # layering violation this convention would otherwise create in every
+        # package that adopts it, and DEPS was right to refuse it.
+        rows = tuple(_as_a_promise(one) for one in getattr(module, "THE_PROMISES", ()))
+        rows = tuple(one for one in rows if one is not None)
         if rows:
             found[entry.name] = rows
     return found
