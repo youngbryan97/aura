@@ -1113,6 +1113,21 @@ def _offer_the_control_policy_sweep() -> None:
 _offer_the_control_policy_sweep()
 
 
+def _offer_the_route_states() -> None:
+    """Make which routes are authoritative readable from the health report."""
+    try:
+        from core.brain.llm.which_routes_are_authoritative import (
+            register_the_route_states,
+        )
+
+        register_the_route_states()
+    except Exception as exc:  # noqa: BLE001 — a report is not worth a boot
+        logger.debug("the route states were not offered: %s", exc)
+
+
+_offer_the_route_states()
+
+
 def _attach_turn_receipt(thought: Any, receipt: TurnReceipt) -> None:
     """Travel the path evidence with the answer it explains.
 

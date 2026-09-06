@@ -1588,6 +1588,21 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_was_measured_outside"] = {"error": repr(exc)}
 
+    # Which semantic routes decide an answer and which only watch one. A
+    # shadow route contributes no answers however good it gets.
+    try:
+        from core.runtime.service_registry import get_runtime_service
+
+        # Through the registry: this package may not reach core.brain, and a
+        # health block that needed that edge would be a layering violation
+        # dressed as observability.
+        provider = get_runtime_service("which_routes_are_authoritative", default=None)
+        block["which_routes_are_authoritative"] = (
+            provider() if callable(provider) else {"registered": False}
+        )
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["which_routes_are_authoritative"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering
