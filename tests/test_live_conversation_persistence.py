@@ -16,7 +16,25 @@ class _PersistenceFixture:
         self.session_id = "session-live"
         self.rows = []
 
-    def record_turn(self, role, content, origin="", cid=None, session_id=None):
+    def record_turn(
+        self,
+        role,
+        content,
+        origin="",
+        cid=None,
+        session_id=None,
+        metadata=None,
+        **scope,
+    ):
+        """The real store's signature, including what the caller actually sends.
+
+        `chat_preflight` passes `metadata=` and the principal-scope kwargs.
+        This fixture accepted neither, so every persisted turn raised
+        TypeError inside the commit — which the route caught as a degradation
+        and logged, leaving the assertion to fail on a missing row rather
+        than on the reason. A stand-in narrower than the thing it stands in
+        for tests a contract nobody has.
+        """
         self.rows.append(
             {
                 "role": role,
@@ -24,6 +42,8 @@ class _PersistenceFixture:
                 "origin": origin,
                 "cid": cid,
                 "session_id": session_id or self.session_id,
+                "metadata": metadata,
+                "scope": dict(scope),
                 "created_at": float(len(self.rows) + 1),
             }
         )
@@ -83,6 +103,12 @@ async def test_completed_live_exchange_survives_process_memory_clear(monkeypatch
         "aura": "I will retain restart-echo-742 across a process restart.",
         "timestamp": "2.0",
         "session_id": "session-live",
+        # Present and None. The reconstruction emits both keys on every
+        # exchange whether or not the metadata carried them, so a reader never
+        # has to ask whether a missing key means "no episode" or "an older
+        # row" — and asserting the whole dict is what makes that a contract.
+        "action_episode": None,
+        "answer_provenance": None,
     }
 
 

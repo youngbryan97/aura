@@ -18,6 +18,12 @@ from typing import Any
 
 #: Every module a chat turn runs through. Add new lane modules here when they
 #: are split out; a lane missing from this list is a lane a patch will miss.
+#:
+#: The reverse costs more. A name here that is no longer a module raises
+#: ModuleNotFoundError inside the patch helper, which fails every test that
+#: uses it — and the error names the module rather than this list, so the
+#: reader looks for a deleted file instead of a stale line.
+#: ``test_chat_lane_support.py`` checks every name imports.
 LANE_MODULES = (
     "interface.routes.chat",
     "interface.routes.chat_capability_inventory",
@@ -25,7 +31,6 @@ LANE_MODULES = (
     "interface.routes.chat_conversation_repair",
     "interface.routes.chat_delivery",
     "interface.routes.chat_desktop_objective",
-    "interface.routes.chat_desktop_evidence",
     "interface.routes.chat_desktop_objective_gates",
     "interface.routes.chat_desktop_repair",
     "interface.routes.chat_lane_bookkeeping",
@@ -33,9 +38,7 @@ LANE_MODULES = (
     "interface.routes.chat_preflight",
     "interface.routes.chat_protected_prompt",
     "interface.routes.chat_quality",
-    "interface.routes.chat_reply_shaping",
     "interface.routes.chat_runtime_proof",
-    "interface.routes.chat_served_answers",
     "interface.routes.chat_self_reply",
     "interface.routes.chat_turn_contract",
     "interface.routes.chat_turn_evidence",
