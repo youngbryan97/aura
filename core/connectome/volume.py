@@ -66,6 +66,7 @@ __all__ = [
     "ReconstructionConfig",
     "VolumeReconstructor",
     "AmbiguousSite",
+    "classify_external",
     "reconstruct",
     "DEFAULT_ROOTS",
 ]
@@ -116,6 +117,118 @@ def _outside_volume(module_path: str) -> bool:
 
 
 _STDLIB_MODULES: frozenset[str] = frozenset(sys.stdlib_module_names)
+
+#: Modules through which a cell touches the world outside the process. A cell
+#: that reaches one of these is where Aura's nervous system meets her body, and
+#: which of the three groups it reaches decides whether it is afferent, efferent
+#: or neither. The lists are deliberately short: a module that only computes is
+#: not a sense organ however much data passes through it.
+_EFFERENT_MODULES: frozenset[str] = frozenset(
+    {
+        "subprocess",
+        "shutil",
+        "smtplib",
+        "webbrowser",
+        "signal",
+        "pyautogui",
+        "pynput",
+        "Quartz",
+        "AppKit",
+        "sounddevice",
+        "pyaudio",
+    }
+)
+_AFFERENT_MODULES: frozenset[str] = frozenset(
+    {
+        "select",
+        "termios",
+        "tty",
+        "mss",
+        "PIL",
+        "cv2",
+        "speech_recognition",
+        "psutil",
+    }
+)
+#: Names that act on the world whatever module they arrive through.
+_EFFERENT_NAMES: frozenset[str] = frozenset(
+    {
+        "system",
+        "popen",
+        "execv",
+        "execvp",
+        "spawn",
+        "spawnv",
+        "kill",
+        "remove",
+        "unlink",
+        "rmdir",
+        "rename",
+        "replace",
+        "mkdir",
+        "makedirs",
+        "chmod",
+        "chown",
+        "send",
+        "sendall",
+        "sendto",
+        "write",
+        "writelines",
+        "post",
+        "put",
+        "patch",
+        "delete",
+        "click",
+        "type_string",
+        "keyDown",
+        "press",
+        "screenshot",
+        "run",
+        "call",
+        "check_call",
+        "check_output",
+        "Popen",
+    }
+)
+_AFFERENT_NAMES: frozenset[str] = frozenset(
+    {
+        "recv",
+        "recvfrom",
+        "read",
+        "readline",
+        "readlines",
+        "listdir",
+        "scandir",
+        "stat",
+        "get",
+        "getch",
+        "input",
+        "grab",
+        "capture",
+        "poll",
+        "listen",
+        "accept",
+    }
+)
+
+
+def classify_external(module_head: str, name: str) -> str:
+    """Say whether a call outside the volume acts on the world, reads it, or neither.
+
+    The module decides first because ``subprocess.run`` acts whatever it is
+    called; the name decides second because ``socket.send`` acts and
+    ``socket.getsockname`` does not. Anything that matches neither is compute,
+    and compute is the overwhelming majority.
+    """
+    if module_head in _EFFERENT_MODULES:
+        return "efferent"
+    if module_head in _AFFERENT_MODULES:
+        return "afferent"
+    if name in _EFFERENT_NAMES and module_head in {"os", "socket", "requests", "httpx", "aiohttp", "shutil", "pathlib"}:
+        return "efferent"
+    if name in _AFFERENT_NAMES and module_head in {"os", "socket", "requests", "httpx", "aiohttp", "pathlib", "sys"}:
+        return "afferent"
+    return "compute"
 
 
 @dataclass(frozen=True)
@@ -404,6 +517,8 @@ class VolumeReconstructor:
         #: Sites the first pass refused to attach, kept with their candidates so
         #: an agglomeration step can be swept and scored rather than guessed at.
         self.ambiguous_sites: list[AmbiguousSite] = []
+        #: Per cell, how many of its calls left the process to touch the world.
+        self.external_calls: dict[str, dict[str, int]] = {}
 
     # -- discovery ------------------------------------------------------
 
@@ -596,6 +711,12 @@ class VolumeReconstructor:
                         )
                     )
 
+        for uid, roles in self.external_calls.items():
+            unit = units.get(uid)
+            if unit is not None:
+                unit.attrs["afferent"] = roles.get("afferent", 0)
+                unit.attrs["efferent"] = roles.get("efferent", 0)
+
         connections = _aggregate(contacts)
         snapshot = ConnectomeSnapshot(
             version=1,
@@ -623,6 +744,12 @@ class VolumeReconstructor:
                 "calls_unresolved": self.unresolved_calls,
                 "calls_out_of_volume": self.out_of_volume_calls,
                 "in_volume_coverage": round(self.resolved_calls / in_volume, 4),
+                "afferent_cells": sum(
+                    1 for r in self.external_calls.values() if r.get("afferent")
+                ),
+                "efferent_cells": sum(
+                    1 for r in self.external_calls.values() if r.get("efferent")
+                ),
                 "roots": list(self.config.roots),
             }
         )
@@ -683,7 +810,7 @@ class VolumeReconstructor:
                 if hit:
                     return self._hit(hit)
                 if _outside_volume(alias):
-                    self.out_of_volume_calls += 1
+                    self._external(call.caller, alias.split(".", 1)[0], name)
                     return None
             local_type = call.local_types.get(qualifier)
             if local_type:
@@ -699,7 +826,9 @@ class VolumeReconstructor:
         candidates = index.by_leaf.get(name, [])
         if not candidates:
             if name in _BUILTIN_NAMES:
-                self.out_of_volume_calls += 1
+                self._external(call.caller, "builtins", name)
+            elif qualifier and _outside_volume(str(qualifier)):
+                self._external(call.caller, str(qualifier), name)
             else:
                 self.unresolved_calls += 1
             return None
@@ -728,6 +857,14 @@ class VolumeReconstructor:
     def _hit(self, uid: str) -> str:
         self.resolved_calls += 1
         return uid
+
+    def _external(self, caller: str, module_head: str, name: str) -> None:
+        """Book one call that left the volume, against the cell that made it."""
+        self.out_of_volume_calls += 1
+        role = classify_external(module_head, name)
+        if role == "compute":
+            return
+        self.external_calls.setdefault(caller, {"afferent": 0, "efferent": 0})[role] += 1
 
 
 @dataclass(frozen=True)

@@ -29,14 +29,13 @@ Two asymmetries in what observation can prove, both of which this module keeps:
 from __future__ import annotations
 
 import logging
-import math
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 from .activity import ObservedEdges
 from .types import Compartment, Connection, ConnectomeSnapshot, ContactSite, EdgeKind, Unit
-from .volume import AmbiguousSite, VolumeReconstructor
+from .volume import AmbiguousSite
 
 logger = logging.getLogger("Aura.Connectome.Segmentation")
 
