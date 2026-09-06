@@ -77,12 +77,12 @@ carries all 202 with their state.
 
 | # | Item | State |
 |---|---|---|
-| E1 | `answer_sequence_question()` has no production caller outside its own subsystem: ordinary conversation does not route arbitrary reasoning through the self-growing symbolic language | TODO |
-| E2 | Recurrent and compositional semantic routes are shadow- or qualification-gated rather than authoritative for arbitrary production cognition | TODO |
-| E3 | `SkillSynthesizer.synthesize_pending()` has no production caller: the reactive missing-tool loop closes, the general repeated-failure to new-abstraction to forged-capability loop does not | TODO |
+| E1 | `answer_sequence_question()` has no production caller outside its own subsystem: ordinary conversation does not route arbitrary reasoning through the self-growing symbolic language | DONE — served in the live chat path since Aug; every answer route is now counted, so "offered but never answers" is visible |
+| E2 | Recurrent and compositional semantic routes are shadow- or qualification-gated rather than authoritative for arbitrary production cognition | STARTED — a route offered enough turns that never answers is now named; un-gating follows the measurement |
+| E3 | `SkillSynthesizer.synthesize_pending()` has no production caller: the reactive missing-tool loop closes, the general repeated-failure to new-abstraction to forged-capability loop does not | DONE — `recursive_self_improvement` asks the forge about recurring gaps and records `asked_the_forge` |
 | E4 | `LIVE_MIND_CONTROL_POLICY_CALIBRATED=False` — internal state actuates decoding, but the mapping is hand-tuned and unvalidated | TODO |
 | E5 | `PhenomenalFalsifier.from_live()` calls a channel causal on proxy evidence; the intervention standard is treatment against null | TODO |
-| E6 | Every named faculty needs a measured downstream effect, not a wired channel: "wired to consumer" is not "measurable contribution" | TODO |
+| E6 | Every named faculty needs a measured downstream effect, not a wired channel: "wired to consumer" is not "measurable contribution" | STARTED — the fourteen answer routes are measured; the named cognitive faculties are not |
 | E7 | The sealed transfer experiment: measure on unseen domains, allow autonomous development, then intervene on the abstractions she built and show it changes performance on transfer domains | TODO |
 | E8 | The improver null: improved improver beats a frozen improver on held-out problems across generations | TODO |
 | E9 | Organs that know what they own, what they consume, what they promise and how failure propagates — coherent causal organisation over interaction entropy, not fewer organs | TODO |

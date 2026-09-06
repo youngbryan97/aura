@@ -17800,21 +17800,57 @@ async def _recorded_answer_corrections(
     this codebase replaced with a stamp: it works until a reader phrases a
     true thing differently.
     """
+    # Every route goes through `offer`, which counts what it was given and
+    # what it did with it. A route that declines returns the reply unchanged,
+    # which is right and also means a route that CANNOT fire looks exactly
+    # like one that rarely applies — the difference only shows in the count.
+    #
+    # Each route takes the text so far rather than closing over it: the order
+    # is the contract here, and a closure over a loop variable makes the order
+    # something a reader has to work out from Python's scoping rules.
+    from core.runtime.what_answered_this_turn import offer, offer_async
+
     body = str(reply or "")
-    corrected = str(_serve_measured_filesystem_count(user_message, body) or body)
-    corrected = str(_serve_measured_belief_history(corrected) or corrected)
-    corrected = str(_serve_earlier_conversation(user_message, corrected) or corrected)
-    corrected = str(_serve_host_load(user_message, corrected) or corrected)
-    corrected = str(_serve_queued_work(user_message, corrected) or corrected)
-    corrected = str(_serve_recent_activity(user_message, corrected) or corrected)
-    corrected = str(await _save_requested_artifact(user_message, corrected) or corrected)
-    corrected = str(_serve_positional_solution(user_message, corrected) or corrected)
-    corrected = str(_serve_worked_out_sequence(user_message, corrected) or corrected)
-    corrected = str(_serve_lifetime(user_message, corrected) or corrected)
-    corrected = str(_serve_tabular_answer(user_message, corrected) or corrected)
-    corrected = str(await _serve_solved_game(user_message, corrected) or corrected)
-    corrected = str(_serve_repo_diagnosis(corrected) or corrected)
-    corrected = str(_serve_built_artifact(corrected) or corrected)
+    corrected = body
+
+    the_routes: tuple[tuple[str, Any, bool], ...] = (
+        ("measured_filesystem_count",
+         lambda text: _serve_measured_filesystem_count(user_message, text), False),
+        ("measured_belief_history",
+         lambda text: _serve_measured_belief_history(text), False),
+        ("earlier_conversation",
+         lambda text: _serve_earlier_conversation(user_message, text), False),
+        ("host_load", lambda text: _serve_host_load(user_message, text), False),
+        ("queued_work", lambda text: _serve_queued_work(user_message, text), False),
+        ("recent_activity",
+         lambda text: _serve_recent_activity(user_message, text), False),
+        ("saved_artifact",
+         lambda text: _save_requested_artifact(user_message, text), True),
+        ("positional_solution",
+         lambda text: _serve_positional_solution(user_message, text), False),
+        ("worked_out_sequence",
+         lambda text: _serve_worked_out_sequence(user_message, text), False),
+        ("lifetime", lambda text: _serve_lifetime(user_message, text), False),
+        ("tabular_answer",
+         lambda text: _serve_tabular_answer(user_message, text), False),
+        ("solved_game",
+         lambda text: _serve_solved_game(user_message, text), True),
+        ("repo_diagnosis", lambda text: _serve_repo_diagnosis(text), False),
+        ("built_artifact", lambda text: _serve_built_artifact(text), False),
+    )
+
+    for name, run, awaited in the_routes:
+        here = corrected
+        # Bound as defaults, not captured: the loop rebinds both on every
+        # pass, and a closure over them would read whatever the last pass
+        # left behind.
+        if awaited:
+            answer = await offer_async(
+                name, here, lambda one=run, text=here: one(text)
+            )
+        else:
+            answer = offer(name, here, lambda one=run, text=here: one(text))
+        corrected = str(answer or here)
     return corrected, corrected.strip() != body.strip()
 
 

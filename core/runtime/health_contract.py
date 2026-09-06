@@ -1444,6 +1444,23 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["one_graph"] = {"error": repr(exc)}
 
+    # Which answer route actually answered. A route offered every turn that
+    # has never answered one is either unable to fire or gated wrong, and
+    # neither is visible from the source: declining and being unable to
+    # answer look identical from outside.
+    try:
+        from core.runtime.what_answered_this_turn import (
+            how_the_routes_have_gone,
+            routes_that_have_never_answered,
+        )
+
+        block["what_answered_this_turn"] = {
+            "routes": how_the_routes_have_gone(),
+            "never_answered": routes_that_have_never_answered(),
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_answered_this_turn"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering
