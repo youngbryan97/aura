@@ -53010,3 +53010,28 @@ Lifecycle tests: 200 passed. Smoke: 164 passed, 1 skipped. The additional
 coordinate-retention regression passed all 10 progress tests. The lifecycle
 readiness assertion now checks the shared prover's remaining-budget argument
 instead of a retired inline prompt symbol.
+
+Combined-tree follow-up: layering passed (37 grandfathered). Governance lint
+reported 13 new effect-ownership entries and two stale buckets, in knowledge,
+memory, persistence, event-spine, checkpoint storage, and LoRA training paths.
+No baseline was refreshed. Those findings are separate from the progress
+patch and remain open. No aura_main, RLC training, or soak process matched the
+process inspection. The active response phase still sizes its initial request
+from answer tokens and clamps it to the cycle owner before dispatch. Its
+assembled prompt must be included by the owner before a new live replay;
+renewing outer activity cannot extend an already-issued worker budget.
+
+### Prompt-Aware Admission on the Active Chat Path
+
+Both response paths now use the shared resident read/decode measurement.
+CognitiveEngine binds admission to its own timeout and current TurnOutcome;
+the active response phase requests the measured allowance before applying
+the owner clamp and dispatching work. Disabled, unowned, expired, or unrelated
+turn scopes cannot grant time. Admission cannot shorten the clock. Proof,
+benchmark, background, and secondary-lane requests retain existing policy.
+No model token or reasoning budget is reduced by this change.
+
+Focused admission/measurement tests: 10 passed. Broader response/deadline run:
+248 passed and one stale class-method reference, corrected and retested above.
+Smoke: 164 passed, 1 skipped. Layering and touched-code Ruff passed. This is
+offline integration evidence; the failed live replay is not yet closed.

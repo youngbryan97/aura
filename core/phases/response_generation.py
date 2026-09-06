@@ -2399,6 +2399,14 @@ class ResponseGenerationPhase(BasePhase):
                     deep_handoff=deep_handoff,
                     token_budget=token_budget,
                 )
+                if not is_background and not deep_handoff and not proof_answer_run:
+                    from core.brain.llm.generation_allowance import resident_generation_seconds
+                    from core.runtime.completion_admission import admit_completion_work
+
+                    measured_seconds = resident_generation_seconds(messages, token_budget)
+                    if measured_seconds > 0.0:
+                        request_timeout = max(request_timeout, measured_seconds)
+                        admit_completion_work(request_timeout + 4.0)
                 request_timeout = self._bounded_request_timeout(
                     runtime_context,
                     request_timeout,

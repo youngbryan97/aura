@@ -635,35 +635,9 @@ def _timeout_for_request(
     allowance = 180.0
     if messages is None:
         return allowance
-    from core.brain.llm.chat_format import thinking_enabled_for_generation
-    from core.brain.llm.mlx_client import get_mlx_client
-    from core.brain.llm.thinking_reserve import (
-        reserve_tokens,
-        seconds_to_decode,
-        seconds_to_read,
-    )
+    from core.brain.llm.generation_allowance import resident_generation_seconds
 
-    client = get_mlx_client()
-    identity = client.get_worker_identity_snapshot()
-    model = str(identity.get("worker_model_path") or "")
-    if not model:
-        return allowance
-    private_tokens = (
-        max(0, int(reserve_tokens(model)))
-        if thinking_enabled_for_generation(model, answer_is_derived_here=True)
-        else 0
-    )
-    capacity = max(decode_max_tokens, min(8192, decode_max_tokens + private_tokens))
-    decode_seconds = seconds_to_decode(capacity, model)
-    if decode_seconds <= 0.0:
-        return allowance
-    prompt_chars = sum(len(str(message.get("content") or "")) for message in messages)
-    read_seconds = max(
-        seconds_to_read(prompt_chars), client.least_time_to_read(prompt_chars),
-    )
-    # Both the foreground bridge and the service reserve eight seconds
-    # for delivery. Fund those outside the measured read/decode work.
-    return max(allowance, read_seconds + decode_seconds + 16.0)
+    return max(allowance, resident_generation_seconds(messages, decode_max_tokens))
 
 
 class UnitaryResponsePhase(Phase):
