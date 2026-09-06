@@ -88,6 +88,9 @@ def offer_writing_an_action_for_a_gap() -> None:
             every_code,
             how_long,
         )
+        from core.cognition.what_she_already_knows_how_to_say import (
+            what_she_already_knows_how_to_say,
+        )
         from core.cognition.what_she_could_do_next import the_action_she_wrote
 
         found = a_gap_she_could_fill()
@@ -96,7 +99,14 @@ def offer_writing_an_action_for_a_gap() -> None:
         family, where = found
 
         for at, body in enumerate(
-            every_code(deepest=3, variables=1, constants=(0, 1, 2), also=())
+            # Her own terms as leaves, for the reason `every_code` documents:
+            # a library moves the horizon and a bigger budget does not.
+            every_code(
+                deepest=3,
+                variables=1,
+                constants=(0, 1, 2),
+                also=what_she_already_knows_how_to_say(),
+            )
         ):
             if at >= _HOW_MANY_TERMS:
                 break
