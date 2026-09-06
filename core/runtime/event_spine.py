@@ -39,12 +39,16 @@ from __future__ import annotations
 
 from core.runtime.lockdep import checked_lock
 import json
+import logging
 import threading
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger("Aura.EventSpine")
 
 __all__ = [
     "Lane",
@@ -123,7 +127,7 @@ class Reducer:
 class EventLog:
     """Append-only. The only mutator is append, and there is no delete."""
 
-    def __init__(self, *, capacity: int = 200_000) -> None:
+    def __init__(self, *, capacity: int = 200_000, kept_at: Any = None) -> None:
         self._lock = checked_lock("core.runtime.event_spine.EventLog", reentrant=True)
         self._events: list[Event] = []
         self._offset = 0
@@ -131,6 +135,21 @@ class EventLog:
         self._snapshot_seq = 0
         self._capacity = int(capacity)
         self._next = 1
+        # Where the raw experience lives between processes.
+        #
+        # Append-only in memory is half of the property. OpenHands persists a
+        # canonical causal history for its runtime and Letta keeps recall
+        # immutable in a durable store, and both make the same point: a log
+        # that dies with the process cannot be the thing summaries reference,
+        # because the range a summary names is gone before anyone reads it.
+        #
+        # Appended, never rewritten. A compaction drops what a snapshot
+        # accounts for from MEMORY and leaves the file alone, so the raw
+        # experience outlives every projection taken from it.
+        self._kept_at = Path(kept_at) if kept_at else None
+        self._kept_through = 0
+        if self._kept_at is not None:
+            self._read_what_was_kept()
 
     def append(
         self,
@@ -149,7 +168,70 @@ class EventLog:
             )
             self._next += 1
             self._events.append(event)
+            self._keep(event)
             return event
+
+    def _keep(self, event: Event) -> None:
+        """Append one event to the durable log. Never rewrites what is there."""
+
+        if self._kept_at is None:
+            return
+        try:
+            from core.runtime.file_write_gateway import get_file_write_gateway
+
+            get_file_write_gateway().append_text(
+                self._kept_at,
+                json.dumps(event.to_dict(), separators=(",", ":")) + "\n",
+                source="event_spine",
+            )
+            self._kept_through = event.seq
+        except Exception as exc:  # noqa: BLE001 — a turn must not die for a log line
+            logger.warning("event %d was not kept: %s", event.seq, exc)
+
+    def _read_what_was_kept(self) -> int:
+        """Load the durable log at open. Returns how many events came back.
+
+        A line that will not parse stops the read rather than being skipped:
+        the sequence numbers are the thing every projection joins on, and a
+        hole in them is worse than a short log, because a short log is
+        obviously short.
+        """
+
+        if self._kept_at is None or not self._kept_at.exists():
+            return 0
+        read = 0
+        try:
+            with self._kept_at.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    row = json.loads(line)
+                    event = Event(
+                        seq=int(row["seq"]),
+                        kind=str(row["kind"]),
+                        lane=Lane(row["lane"]),
+                        payload=dict(row.get("payload") or {}),
+                        at=float(row.get("at", 0.0)),
+                        actor=str(row.get("actor", "")),
+                        causal_parent=int(row.get("causal_parent", 0)),
+                    )
+                    self._events.append(event)
+                    self._next = max(self._next, event.seq + 1)
+                    self._kept_through = event.seq
+                    read += 1
+        except Exception as exc:  # noqa: BLE001 — a truncated log is still a log
+            logger.warning(
+                "the kept log stopped being readable after %d events: %s", read, exc
+            )
+        return read
+
+    @property
+    def kept_through(self) -> int:
+        """The last sequence number written durably. Zero when nothing is kept."""
+
+        with self._lock:
+            return self._kept_through
 
     def events(self, *, since: int = 0, until: int | None = None, lane: Lane | None = None) -> list[Event]:
         with self._lock:
@@ -179,7 +261,15 @@ class EventLog:
             dropped = sum(1 for e in self._events if e.seq <= through)
             self._events = [e for e in self._events if e.seq > through]
             self._offset += dropped
-            return {"snapshot_seq": through, "dropped": dropped, "remaining": len(self._events)}
+            # The file is untouched. Compaction is about what this process
+            # holds in memory; the raw experience outlives every projection
+            # taken from it, which is the whole of "recall never mutates".
+            return {
+                "snapshot_seq": through,
+                "dropped": dropped,
+                "remaining": len(self._events),
+                "still_kept_through": self._kept_through,
+            }
 
     def snapshot(self) -> tuple[dict[str, Any], int]:
         with self._lock:
@@ -197,6 +287,8 @@ class EventLog:
                 "snapshot_seq": self._snapshot_seq,
                 "head": self.head,
                 "by_lane": by_lane,
+                "durable": self._kept_at is not None,
+                "kept_through": self._kept_through,
             }
 
 
@@ -419,11 +511,29 @@ _lock = checked_lock("core.runtime.event_spine.singleton")
 _spine: Spine | None = None
 
 
+def _where_the_experience_is_kept() -> Path | None:
+    """The durable log's path, or None where this process must not write one.
+
+    Reading is safe anywhere; writing is for a process that owns the state.
+    A test run that appended to the live log would put its events into her
+    experience, and the next boot would replay them as things that happened.
+    """
+
+    try:
+        from core.runtime.state_ownership import RuntimeProfile, runtime_profile, state_root
+
+        if runtime_profile() is not RuntimeProfile.LIVE:
+            return None
+        return Path(state_root()) / "experience.jsonl"
+    except Exception:  # noqa: BLE001 — no path means an in-memory log, which still works
+        return None
+
+
 def get_spine() -> Spine:
     global _spine
     with _lock:
         if _spine is None:
-            log = EventLog()
+            log = EventLog(kept_at=_where_the_experience_is_kept())
             _spine = Spine(log=log, projection=Projection(log))
         return _spine
 
