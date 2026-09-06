@@ -45,7 +45,7 @@ name each cluster more than once:
 | BabyAGI #3 | P1 | Tiny authoritative execution path | Add a capability-resolution proof API that returns the complete chosen chain (name -> canonical artifact -> authority -> policy -> executor), and a st | TODO |
 | Generative Agents #1 | P0 | One explicit cognition sequence | Generate and enforce a machine-readable canonical phase DAG for foreground/background/degraded modes. Every phase must declare inputs, outputs, author | DONE |
 | Generative Agents #2 | P1 | Single simulation clock | Introduce ClockDomain (wall, monotonic, subjective, conversation, simulation, model-budget) and require persisted timestamps/decays/deadlines to decla | TODO |
-| Generative Agents #3 | P0 | Compact persona-state ownership | Complete the state-ownership registry so every durable semantic field has exactly one authoritative owner and all mirrors declare derivation/freshness | TODO |
+| Generative Agents #3 | P0 | Compact persona-state ownership | Complete the state-ownership registry so every durable semantic field has exactly one authoritative owner and all mirrors declare derivation/freshness | DONE |
 | Generative Agents #4 | P1 | One obvious save/load shape for persona state | Create a signed WholeAuraSnapshot manifest that names every authoritative store, schema version, digest, model/adapters, memory roots and replay point | TODO |
 | Generative Agents #5 | P1 | Small canonical memory taxonomy | Publish a canonical MemoryKind taxonomy and MemoryRecord envelope used by every durable memory system: identity, content/reference, temporal scope, so | TODO |
 | Voyager #1 | P1 | Closed curriculum-practice-critic-skill loop | Create an ImprovementTransaction trace that starts at deficit selection and ends at measured post-change capability, with mandatory links for proposal | TODO |
@@ -83,7 +83,7 @@ name each cluster more than once:
 | OpenHands #7 | P0 | First-class CancellationToken through agent/tool calls | Introduce AuraCancellationToken in ExecutionContext and require model, tool, search, workflow and subagent APIs to accept it; cancellation must propag | DONE |
 | OpenHands #8 | P1 | Unfinished actions receive terminal outcomes on interrupt | On cancellation, synthesize a typed terminal receipt for every admitted but unfinished action/tool/model call; CI must detect orphaned starts. | TODO |
 | OpenHands #9 | P1 | Pause is an explicit execution state | Adopt ExecutionState FSM (initializing, ready, running, waiting, paused, cancelling, completed, failed, degraded) across turn/workflow/subagent lifecy | TODO |
-| OpenHands #10 | P0 | FIFO per-resource lock manager | Create ResourceClaimManager keyed by semantic resource, FIFO/fairness, timeout/cancel, reentrancy policy and observability; adapters wrap model lane,  | TODO |
+| OpenHands #10 | P0 | FIFO per-resource lock manager | Create ResourceClaimManager keyed by semantic resource, FIFO/fairness, timeout/cancel, reentrancy policy and observability; adapters wrap model lane,  | DONE |
 | OpenHands #11 | P1 | Duplicate resource-key normalization | Define sorted multi-resource acquisition in the claim manager and property-test duplicate/permuted acquisition sets. | TODO |
 | OpenHands #12 | P1 | Immutable prepared action batch | Define immutable ActionBatchPlan + mutable execution ledger separated by ID; no executor may mutate the admitted plan. | TODO |
 | OpenHands #13 | P1 | Calls after FinishTool are discarded deterministically | Define terminal action semantics in the action schema; any subsequent actions in the same batch are invalid and recorded as rejected. | TODO |
@@ -132,7 +132,7 @@ name each cluster more than once:
 | LangGraph #28 | P1 | Cache policy is explicit per node | Add CachePolicy metadata to any phase/tool/model call that caches: key inputs, invalidation revision, safety class, determinism. Include cache-hit rec | TODO |
 | LangGraph #29 | P1 | Timeout policy is a typed node policy | Centralize timeouts into ExecutionPolicy and BudgetContext; ban naked wait_for timeout values in core except adapters, enforced by AST lint. | TODO |
 | LangGraph #30 | P1 | Different channel type for same key is rejected | Build SemanticFieldRegistry with canonical name/type/unit/owner/version and detect duplicates across dataclasses/Pydantic/telemetry/event projections. | TODO |
-| AutoGen #1 | P0 | One runtime_checkable AgentRuntime protocol | Define AuraRuntime Protocol exposing only stable lifecycle/message/state/capability/subscription operations; kernel/orchestrator implement it. | TODO |
+| AutoGen #1 | P0 | One runtime_checkable AgentRuntime protocol | Define AuraRuntime Protocol exposing only stable lifecycle/message/state/capability/subscription operations; kernel/orchestrator implement it. | DONE |
 | AutoGen #2 | P1 | AgentId separates logical identity from object instance | Represent cognitive workers/subagents/services by stable RuntimeAddress; direct object access is private implementation detail. | TODO |
 | AutoGen #3 | P1 | Same runtime API supports remote agents | Add optional remote RuntimeAddress transport behind AuraRuntime while preserving local default; serialize typed messages and authority context. | TODO |
 | AutoGen #4 | P1 | Direct and publish message semantics are distinct | Define CommandMessage (one recipient, reply) vs EventMessage (pub/sub, no reply); prohibit using broadcast bus for commands. | TODO |
@@ -156,12 +156,12 @@ name each cluster more than once:
 | AutoGen #22 | P1 | Runtime get(... lazy=True) semantics | ComponentDescriptor declares activation mode eager/lazy/on-demand; runtime owns activation state and readiness, callers never probe implementation fla | TODO |
 | Soar #1 | P0 | Canonical top-level phase state machine | Compile Aura’s scheduler into an explicit state machine/DAG with one advance API per clock domain; external schedulers submit work instead of owning c | DONE |
 | Soar #2 | P1 | Stable named phase vocabulary | Version Aura phase contracts; each phase ID has immutable responsibility/inputs/outputs and deprecation path. | TODO |
-| Soar #3 | P0 | One central agent_struct owns core managers | Make AuraRuntime instance own every authoritative service; eliminate module singletons/global resolvers from core through dependency injection or runt | TODO |
+| Soar #3 | P0 | One central agent_struct owns core managers | Make AuraRuntime instance own every authoritative service; eliminate module singletons/global resolvers from core through dependency injection or runt | DONE |
 | Soar #4 | P1 | Exact decision/phase/firing counters | Define CognitiveAccounting with standard tick/phase/action/model/tool/state-write counters and causal correlation; all phases update centrally. | TODO |
 | Soar #5 | P1 | Precise timer accounting by phase and callbacks | Use nested span accounting with exclusivity: wall, exclusive CPU, child time, queue time, model/tool time; validate totals mathematically. | TODO |
 | Soar #6 | P0 | Deterministic run-for-N APIs | Add deterministic LaboratoryMode: step one phase/tick/decision, freeze background clocks, inject event, inspect state; use virtual time and determinis | DONE |
 | Soar #7 | P1 | Explicit halt and reinitialize semantics | Define reset levels (turn, cognition, runtime, organism) with exact preserved/cleared state matrix and equivalence tests. | TODO |
-| Soar #8 | P0 | Integrated working-memory manager | Choose one canonical WorkingMemory API/state model; other caches become projections. Enforce capacity, activation and provenance uniformly. | TODO |
+| Soar #8 | P0 | Integrated working-memory manager | Choose one canonical WorkingMemory API/state model; other caches become projections. Enforce capacity, activation and provenance uniformly. | DONE |
 | Soar #9 | P1 | Central symbol manager | Introduce SemanticIdentity service for canonical entity/concept IDs and aliasing; graphs/memories refer to IDs rather than re-inventing string identit | TODO |
 | Soar #10 | P1 | Incremental rule matching engine | For shared symbolic constraints/rules, implement an incremental match network or indexed dependency engine; benchmark against rescanning at Aura scale | TODO |
 | Soar #11 | P1 | One semantic-memory manager | Define one SemanticMemory contract and migrate specialized stores behind it or explicitly classify them as non-semantic projections. | TODO |

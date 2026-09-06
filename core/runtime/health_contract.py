@@ -1398,6 +1398,20 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["who_holds_what"] = {"error": repr(exc)}
 
+    # Which durable fields have an authority. Counts only — the lists are long
+    # and the file that carries them is the baseline. A field that loses its
+    # owner between two builds is what this is for.
+    try:
+        from core.state.who_owns_each_field import how_ownership_stands
+
+        stands = how_ownership_stands()
+        block["who_owns_each_field"] = {
+            key: (len(value) if isinstance(value, list) else value)
+            for key, value in stands.items()
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["who_owns_each_field"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering

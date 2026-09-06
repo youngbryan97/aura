@@ -5819,6 +5819,8 @@ def _runtime_integrity_public_payload(report: dict[str, Any] | None) -> dict[str
                 "the_shape_of_one_turn",
                 "one_working_memory",
                 "the_runtime_boundary",
+                "who_holds_what",
+                "who_owns_each_field",
             )
             if report.get(key) is not None
         },
