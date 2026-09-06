@@ -22,6 +22,14 @@ THE_PROMISES: tuple[APromise, ...] = (
         "a route becomes a matter of editing one word",
     ),
     APromise(
+        it="A provider measured as a leaf when it is really a fallback chain "
+        "is reported as broken rather than as keeping the promise.",
+        checked_by="tests/test_what_a_provider_promises.py::"
+        "test_a_chain_measured_as_a_leaf_is_reported_as_broken",
+        if_it_fails="a chain passes a leaf's suite and the fallback it hides "
+        "is never exercised by anything",
+    ),
+    APromise(
         it="A prompt fitted to a budget records what each named part had and "
         "what it kept, so a squeeze has an owner.",
         checked_by="tests/test_who_got_the_room.py::"

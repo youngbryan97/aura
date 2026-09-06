@@ -21,6 +21,14 @@ THE_PROMISES: tuple[APromise, ...] = (
         "returned by the wrong query and missed by the right one",
     ),
     APromise(
+        it="What a readable memory projects is a subset, and anything outside "
+        "that subset is refused rather than quietly included.",
+        checked_by="tests/test_memory_you_can_read.py::"
+        "test_something_outside_the_subset_is_refused",
+        if_it_fails="a projection carries more than it declared, and a reader "
+        "trusting the declaration reads what nobody meant to publish",
+    ),
+    APromise(
         it="Two memories that disagree about an identity field produce a named "
         "conflict rather than one silently winning.",
         checked_by="tests/test_when_two_memories_disagree.py::"

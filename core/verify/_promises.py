@@ -5,6 +5,14 @@ from core.verify.a_promise_with_a_test import APromise
 
 THE_PROMISES: tuple[APromise, ...] = (
     APromise(
+        it="A null organ answers with the emptiest value of each declared "
+        "return type, so lesioning one cannot accidentally supply a value.",
+        checked_by="tests/test_an_organ_that_does_nothing.py::"
+        "test_every_answer_is_the_emptiest_of_its_declared_type",
+        if_it_fails="the null returns something usable and the lesion measures "
+        "a smaller effect than removing the organ really has",
+    ),
+    APromise(
         it="A faculty that cannot be lesioned is not counted as measured, so "
         "coverage never includes what could not have been tested.",
         checked_by="tests/test_what_has_a_measured_effect.py::"
