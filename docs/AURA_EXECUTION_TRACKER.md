@@ -52997,3 +52997,16 @@ allocation policy and verifies unsupported geometry retains its explicit
 storage-only basis. Identity tests: 16 passed; smoke: 164 passed, 1 skipped.
 The earlier source-matched failure remains open until a new live replay;
 this checkpoint does not establish answer quality or reasoning gain.
+
+### Latent Progress Reaches Its Turn Owner
+
+Latent submission captures the existing delivery publisher and turn-progress
+owner. Advancing prefill/decode coordinates publish to that request's chat
+journal and renew its completion activity. Repeated or malformed counters,
+stage-only messages, other request IDs, and closed turns cannot manufacture
+renewal. Cleanup releases both captured owners. The worker's finite episode
+budget remains unchanged; source-matched live replay is still required.
+Lifecycle tests: 200 passed. Smoke: 164 passed, 1 skipped. The additional
+coordinate-retention regression passed all 10 progress tests. The lifecycle
+readiness assertion now checks the shared prover's remaining-budget argument
+instead of a retired inline prompt symbol.

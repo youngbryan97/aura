@@ -5722,7 +5722,37 @@ class MLXLocalClient:
                 "received_at_unix": now,
             }
         )
+        previous = self._latent_progress_by_request.get(request_id, {})
+        # Stage-only messages must not erase the last measured coordinates.
+        for coordinate in ("processed_tokens", "decode_generated_tokens"):
+            prior = previous.get(coordinate)
+            value = snapshot.get(coordinate)
+            if type(prior) is int and (type(value) is not int or value < prior):
+                snapshot[coordinate] = prior
         self._latent_progress_by_request[request_id] = snapshot
+        owner_id, publish = getattr(self, "_latent_delivery_progress", (None, None))
+        if owner_id == request_id:
+            for coordinate, total_key, phase in (
+                ("processed_tokens", "total_tokens", "prefill"),
+                ("decode_generated_tokens", "decode_requested_tokens", "decode"),
+            ):
+                completed = snapshot.get(coordinate)
+                prior = previous.get(coordinate, 0)
+                total = snapshot.get(total_key, 0)
+                if (
+                    type(completed) is int and completed > 0
+                    and (type(prior) is not int or completed > prior)
+                ):
+                    turn_progress = getattr(self, "_latent_turn_progress", None)
+                    if turn_progress is not None:
+                        from core.runtime.turn_progress import note_progress
+
+                        note_progress(progress=turn_progress)
+                    if publish is not None:
+                        publish(
+                            phase=phase, completed=completed,
+                            total=total if type(total) is int and total >= 0 else 0,
+                        )
         self._expire_latent_progress(now=now)
         # Bounded: evict the oldest entries beyond a small window.
         if len(self._latent_progress_by_request) > 64:
@@ -10922,6 +10952,12 @@ class MLXLocalClient:
                 "stage": "submitted",
                 "received_at_unix": time.time(),
             }
+            from core.runtime.chat_delivery_progress import capture_generation_progress
+
+            self._latent_delivery_progress = (req_id, capture_generation_progress())
+            from core.runtime.turn_progress import capture_progress
+
+            self._latent_turn_progress = capture_progress()
             self._current_gen_future = fut
             self._active_generations += 1
             self._active_generation_started_at = time.time()
@@ -11440,6 +11476,9 @@ class MLXLocalClient:
                         await asyncio.shield(self._set_durable_lane_preemptible(True))
             finally:
                 self._latent_progress_by_request.pop(req_id, None)
+                if getattr(self, "_latent_delivery_progress", (None, None))[0] == req_id:
+                    self._latent_delivery_progress = (None, None)
+                    self._latent_turn_progress = None
                 self._release_request_lock()
                 if foreground_owner_cm is not None:
                     await foreground_owner_cm.__aexit__(None, None, None)

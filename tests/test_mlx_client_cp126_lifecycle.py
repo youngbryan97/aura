@@ -65,6 +65,44 @@ class TestExpectedCancellationIsRequestBound:
 
 
 class TestWorkerProgressIsBounded:
+    def test_latent_work_renews_only_its_captured_turn(self, client, monkeypatch):
+        from core.runtime import turn_progress
+
+        now = [100.0]
+        monkeypatch.setattr(turn_progress.time, "monotonic", lambda: now[0])
+        owner = turn_progress.TurnProgress()
+        client._current_request_id = "req-1"
+        client._latent_delivery_progress = ("req-1", None)
+        client._latent_turn_progress = owner
+        event = {"id": "req-1", "processed_tokens": 128, "total_tokens": 755}
+        client._record_latent_progress(event)
+        assert turn_progress.seconds_since_progress(progress=owner) == 0
+        now[0] = 110.0
+        client._record_latent_progress(event)
+        client._record_latent_progress({"id": "req-1", "stage": "working"})
+        client._record_latent_progress(event)
+        assert turn_progress.seconds_since_progress(progress=owner) == 10
+        client._latent_delivery_progress = ("other", None)
+        client._record_latent_progress({**event, "processed_tokens": 256})
+        assert turn_progress.seconds_since_progress(progress=owner) == 10
+        owner.close()
+        client._latent_delivery_progress = ("req-1", None)
+        client._record_latent_progress({**event, "processed_tokens": 512})
+        assert turn_progress.seconds_since_progress(progress=owner) == -1
+
+    def test_delivery_progress_belongs_to_request_and_requires_work(self, client):
+        events = []
+        client._current_request_id = "req-1"
+        client._latent_delivery_progress = ("req-1", lambda **event: events.append(event))
+        event = {"id": "req-1", "processed_tokens": 128, "total_tokens": 755}
+        client._record_latent_progress(event)
+        client._record_latent_progress(event)
+        client._record_latent_progress({**event, "processed_tokens": "256"})
+        assert events == [{"phase": "prefill", "completed": 128, "total": 755}]
+        client._latent_delivery_progress = ("other", lambda **event: events.append(event))
+        client._record_latent_progress({**event, "processed_tokens": 256})
+        assert len(events) == 1
+
     def test_an_oversized_string_is_clamped(self):
         assert len(_bounded_progress_value("A" * 10_000)) == 200
 
@@ -2572,8 +2610,6 @@ class TestRetriesDoNotBuyThemselvesMoreRoom:
 
     def test_the_inline_retry_re_checks_admission(self, client):
         """A fresh request would be refused in these states; so must a retry."""
-        import core.brain.llm.mlx_client as mod
-
         client._process = SimpleNamespace(is_alive=lambda: True)
         client._init_done = True
         assert client._inline_retry_refusal() == ""
@@ -2630,8 +2666,9 @@ class TestRetriesDoNotBuyThemselvesMoreRoom:
         assert "campaign_deadline" in source
         assert "10.0 * attempt" not in source, "retry must not widen the budget"
         # The readiness probe draws from the same deadline.
-        probe_at = source.index("_READINESS_PROBE_PROMPT")
+        probe_at = source.index("await self.prove_visible_readiness(")
         assert "probe_budget" in source[:probe_at]
+        assert "budget_s=min(probe_budget, _MAX_READINESS_PROBE_S)" in source[probe_at:]
 
     def test_an_exhausted_warmup_budget_starts_no_attempt(self):
         import inspect
