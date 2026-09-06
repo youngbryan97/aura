@@ -53035,3 +53035,24 @@ Focused admission/measurement tests: 10 passed. Broader response/deadline run:
 248 passed and one stale class-method reference, corrected and retested above.
 Smoke: 164 passed, 1 skipped. Layering and touched-code Ruff passed. This is
 offline integration evidence; the failed live replay is not yet closed.
+
+### Queue Replay: Delivery Completed, Correctness Failed
+
+Turn 8327bd16230c4be49b48bbffbf25620f ran on source-matched canonical
+4e1486c74 (PID 70403). The journal sealed a complete answer after about
+335 seconds, with one continuation. RLC was attempted but reported
+latent_answer_invalid and used fallback; this is not an RLC success.
+Its retained progress reached 3200 decode tokens; budget.exhausted was false.
+
+The delivered Python example never awaits its queued job coroutines and
+waits for queue items while holding the producer lock. It bypasses put()
+through direct deque mutation, hiding that deadlock. Executing the exact
+code in a five-second bounded subprocess exited zero but emitted four
+never-awaited RuntimeWarnings. The answer also incorrectly says cancellation
+automatically releases an asyncio.Lock without stating the context-manager
+or finally requirement. Delivery succeeded; semantic correctness did not.
+
+At the later check port 8000 was unavailable and no aura_main PID remained.
+Shutdown cause has not been established. Next: trace the existing code-tool
+verification path for generated examples and inspect runtime termination;
+do not mark this example correct from exit status or delivery certification.
