@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.kernel.aura_kernel import AuraKernel
+from core.kernel.aura_kernel import AuraKernel, _await_phase_completion
 
 
 def test_foreground_response_phases_get_extra_headroom():
@@ -74,7 +74,7 @@ def test_owned_response_waits_for_endpoint_completion():
             return "complete"
 
         with turn_outcome.bind_turn(turn_outcome.TurnOutcome(origin="user")):
-            return await AuraKernel._await_phase_completion(
+            return await _await_phase_completion(
                 asyncio.create_task(response()), phase_name="UnitaryResponsePhase",
                 priority=True, origin="user", budget_s=0.001,
             )
@@ -98,7 +98,7 @@ def test_other_phase_waits_still_cancel_and_drain(phase, priority, origin):
                 stopped.append(True)
 
         with pytest.raises(TimeoutError):
-            await AuraKernel._await_phase_completion(
+            await _await_phase_completion(
                 asyncio.create_task(work()), phase_name=phase,
                 priority=priority, origin=origin, budget_s=0.001,
             )
@@ -120,7 +120,7 @@ def test_owned_response_caller_cancellation_drains_work():
                 stopped.set()
 
         with turn_outcome.bind_turn(turn_outcome.TurnOutcome(origin="user")):
-            waiting = asyncio.create_task(AuraKernel._await_phase_completion(
+            waiting = asyncio.create_task(_await_phase_completion(
                 asyncio.create_task(work()), phase_name="UnitaryResponsePhase",
                 priority=True, origin="user", budget_s=0.001,
             ))

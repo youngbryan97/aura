@@ -191,6 +191,28 @@ class MirrorSnapshot(BaseModel):
     timestamp: float
 
 
+async def _await_phase_completion(task, *, phase_name, priority, origin, budget_s):
+    """Wait for a phase, with the budget the caller is allowed.
+
+    A module function rather than a method: it reads no instance state, and
+    AuraKernel is close enough to the size ratchet's ceiling that a helper
+    which does not need to be on the class should not be.
+    """
+    from core.runtime.turn_origin import a_person_is_waiting
+
+    if (
+        priority
+        and phase_name in {"UnitaryResponsePhase", "ResponseGenerationPhase"}
+        and a_person_is_waiting(origin)
+    ):
+        from core.brain.llm_health_router import _await_while_it_is_working
+
+        return await _await_while_it_is_working(
+            task, budget_s=budget_s, user_facing=True, person_is_waiting=True,
+        )
+    return await asyncio.wait_for(task, timeout=budget_s)
+
+
 class AuraKernel:
     """
     The Unitary Organism Kernel.
@@ -331,22 +353,6 @@ class AuraKernel:
                 "Kernel: preserved a post-turn background objective after closing %s.",
                 receipt.get("objective_digest") or "foreground turn",
             )
-
-    @staticmethod
-    async def _await_phase_completion(task, *, phase_name, priority, origin, budget_s):
-        from core.runtime.turn_origin import a_person_is_waiting
-
-        if (
-            priority
-            and phase_name in {"UnitaryResponsePhase", "ResponseGenerationPhase"}
-            and a_person_is_waiting(origin)
-        ):
-            from core.brain.llm_health_router import _await_while_it_is_working
-
-            return await _await_while_it_is_working(
-                task, budget_s=budget_s, user_facing=True, person_is_waiting=True,
-            )
-        return await asyncio.wait_for(task, timeout=budget_s)
 
     def _phase_timeout_seconds(self, phase_name: str, *, priority: bool) -> float:
         """Give foreground response generation enough headroom without letting background stalls monopolize the lock.
@@ -1347,7 +1353,7 @@ class AuraKernel:
                             else:
                                 phase_timeout = min(phase_timeout, 8.0)
 
-                        result = await self._await_phase_completion(
+                        result = await _await_phase_completion(
                             phase_task, phase_name=phase_name, priority=priority,
                             origin=turn_origin, budget_s=phase_timeout,
                         )
@@ -2150,43 +2156,6 @@ class AuraKernel:
         self._running = False
         for task in self._background_tasks:
             task.cancel()
-
-    # ------------------------------------------------ core.runtime.what_a_runtime_is
-    #
-    # The runtime boundary, delegating to what is already here. Prefixed
-    # because `start`, `stop` and `state` already mean something on this class
-    # and on the orchestrator, and they do not mean the same thing on both —
-    # which is the reason nothing could substitute one for the other.
-
-    async def runtime_start(self) -> None:
-        """Lifecycle up."""
-        await self.boot()
-
-    async def runtime_stop(self) -> None:
-        """Lifecycle down. The full shutdown, not the flag-clearing `stop`."""
-        await self.shutdown()
-
-    async def runtime_deliver(self, message: Any, *, origin: str = "user") -> Any:
-        """Hand the kernel something to think about.
-
-        A user-facing origin is a priority tick, which is the distinction
-        `tick` already draws; nothing new is decided here.
-        """
-        return await self.tick(str(message), priority=self._is_user_facing_origin(origin))
-
-    def runtime_state(self) -> Any:
-        """The state this kernel is acting on. None before boot."""
-        return self.state
-
-    def runtime_service(self, name: str, default: Any = None) -> Any:
-        """Resolve an authoritative service by name."""
-        return self.get(name, default=default)
-
-    async def runtime_watch(self, topic: str) -> Any:
-        """A queue carrying what the topic carries."""
-        from core.event_bus import get_event_bus
-
-        return await get_event_bus().subscribe(topic)
 
     def _extract_thought(self) -> str | None:
         """Extracts the resulting thought from the final state."""

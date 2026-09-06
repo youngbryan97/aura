@@ -15,6 +15,7 @@ import pytest
 from core.runtime.what_a_runtime_is import (
     THE_OPERATIONS,
     AuraRuntime,
+    a_runtime_over,
     the_services_it_can_address,
     what_is_missing_from,
 )
@@ -31,7 +32,7 @@ def _load(address: str):
 
 @pytest.mark.parametrize("address", RUNTIMES)
 def test_both_runtimes_offer_the_whole_boundary(address):
-    runtime = _load(address)
+    runtime = a_runtime_over(object.__new__(_load(address)))
     missing = what_is_missing_from(runtime)
     assert missing == [], f"{address} does not offer: {missing}"
 
@@ -39,13 +40,25 @@ def test_both_runtimes_offer_the_whole_boundary(address):
 @pytest.mark.parametrize("address", RUNTIMES)
 def test_both_runtimes_satisfy_the_protocol(address):
     """The isinstance check, which is what substitutability actually means."""
-    runtime = object.__new__(_load(address))
+    runtime = a_runtime_over(object.__new__(_load(address)))
     assert isinstance(runtime, AuraRuntime)
+
+
+def test_the_boundary_is_an_adapter_and_not_twelve_more_methods():
+    """It was on both classes first, and grew two already at 48 and 60.
+
+    The review's point was too many methods per class, so paying for a
+    boundary that way would have been buying the fix with the defect.
+    """
+    kernel, orchestrator = (_load(one) for one in RUNTIMES)
+    for operation in THE_OPERATIONS:
+        assert not hasattr(kernel, operation), operation
+        assert not hasattr(orchestrator, operation), operation
 
 
 @pytest.mark.parametrize("address", RUNTIMES)
 def test_the_lifecycle_and_message_operations_are_awaitable(address):
-    runtime = _load(address)
+    runtime = a_runtime_over(object.__new__(_load(address)))
     for operation in ("runtime_start", "runtime_stop", "runtime_deliver",
                       "runtime_watch"):
         assert inspect.iscoroutinefunction(getattr(runtime, operation)), (
@@ -59,7 +72,7 @@ def test_the_read_operations_are_not_awaitable(address):
 
     Health reporting and shutdown paths call both from synchronous code.
     """
-    runtime = _load(address)
+    runtime = a_runtime_over(object.__new__(_load(address)))
     for operation in ("runtime_state", "runtime_service"):
         assert not inspect.iscoroutinefunction(getattr(runtime, operation))
 
@@ -67,24 +80,28 @@ def test_the_read_operations_are_not_awaitable(address):
 @pytest.mark.parametrize("address", RUNTIMES)
 def test_deliver_takes_an_origin_by_keyword(address):
     """Where a message came from decides how it is treated, on both."""
-    signature = inspect.signature(_load(address).runtime_deliver)
+    signature = inspect.signature(
+        a_runtime_over(object.__new__(_load(address))).runtime_deliver
+    )
     origin = signature.parameters["origin"]
     assert origin.kind is inspect.Parameter.KEYWORD_ONLY
     assert origin.default == "user"
 
 
-def test_the_two_runtimes_now_share_more_than_stop():
-    """The finding, pinned. One shared method is not a boundary."""
-    kernel, orchestrator = (_load(a) for a in RUNTIMES)
-    shared = {
+def test_the_two_runtimes_now_answer_the_same_six_questions():
+    """The finding, pinned. They shared exactly one public method: `stop`."""
+    over = [a_runtime_over(object.__new__(_load(one))) for one in RUNTIMES]
+    for one in over:
+        assert what_is_missing_from(one) == []
+    kernel, orchestrator = (_load(one) for one in RUNTIMES)
+    shared_directly = {
         name
         for name in dir(kernel)
         if not name.startswith("_")
         and callable(getattr(kernel, name, None))
         and callable(getattr(orchestrator, name, None))
     }
-    assert set(THE_OPERATIONS) <= shared
-    assert len(shared) > 1
+    assert shared_directly == {"stop"}, sorted(shared_directly)
 
 
 def test_every_operation_says_what_it_is_for():

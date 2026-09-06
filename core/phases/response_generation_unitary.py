@@ -618,6 +618,54 @@ def _bind_fetched_content_to_the_contract(
     return contract
 
 
+def _timeout_for_request(
+    *, is_user_facing: bool, model_tier: str, deep_handoff: bool,
+    messages: list[dict] | None = None, decode_max_tokens: int = 768,
+) -> float:
+    """How long this request is allowed.
+
+    A module function rather than a method: it reads no instance state, and
+    UnitaryResponsePhase is 104 methods, which is past where the size ratchet
+    lets a class take another one that does not need to be there.
+    """
+    if not is_user_facing:
+        return 15.0
+    if deep_handoff or model_tier == "secondary":
+        return 210.0
+    allowance = 180.0
+    if messages is None:
+        return allowance
+    from core.brain.llm.chat_format import thinking_enabled_for_generation
+    from core.brain.llm.mlx_client import get_mlx_client
+    from core.brain.llm.thinking_reserve import (
+        reserve_tokens,
+        seconds_to_decode,
+        seconds_to_read,
+    )
+
+    client = get_mlx_client()
+    identity = client.get_worker_identity_snapshot()
+    model = str(identity.get("worker_model_path") or "")
+    if not model:
+        return allowance
+    private_tokens = (
+        max(0, int(reserve_tokens(model)))
+        if thinking_enabled_for_generation(model, answer_is_derived_here=True)
+        else 0
+    )
+    capacity = max(decode_max_tokens, min(8192, decode_max_tokens + private_tokens))
+    decode_seconds = seconds_to_decode(capacity, model)
+    if decode_seconds <= 0.0:
+        return allowance
+    prompt_chars = sum(len(str(message.get("content") or "")) for message in messages)
+    read_seconds = max(
+        seconds_to_read(prompt_chars), client.least_time_to_read(prompt_chars),
+    )
+    # Both the foreground bridge and the service reserve eight seconds
+    # for delivery. Fund those outside the measured read/decode work.
+    return max(allowance, read_seconds + decode_seconds + 16.0)
+
+
 class UnitaryResponsePhase(Phase):
     """
     Liberated Response Generation.
@@ -1215,48 +1263,6 @@ class UnitaryResponsePhase(Phase):
     @classmethod
     def _is_user_facing_origin(cls, origin: str | None) -> bool:
         return background_policy.is_user_facing_origin(origin)
-
-    @staticmethod
-    def _timeout_for_request(
-        *, is_user_facing: bool, model_tier: str, deep_handoff: bool,
-        messages: list[dict] | None = None, decode_max_tokens: int = 768,
-    ) -> float:
-        if not is_user_facing:
-            return 15.0
-        if deep_handoff or model_tier == "secondary":
-            return 210.0
-        allowance = 180.0
-        if messages is None:
-            return allowance
-        from core.brain.llm.chat_format import thinking_enabled_for_generation
-        from core.brain.llm.mlx_client import get_mlx_client
-        from core.brain.llm.thinking_reserve import (
-            reserve_tokens,
-            seconds_to_decode,
-            seconds_to_read,
-        )
-
-        client = get_mlx_client()
-        identity = client.get_worker_identity_snapshot()
-        model = str(identity.get("worker_model_path") or "")
-        if not model:
-            return allowance
-        private_tokens = (
-            max(0, int(reserve_tokens(model)))
-            if thinking_enabled_for_generation(model, answer_is_derived_here=True)
-            else 0
-        )
-        capacity = max(decode_max_tokens, min(8192, decode_max_tokens + private_tokens))
-        decode_seconds = seconds_to_decode(capacity, model)
-        if decode_seconds <= 0.0:
-            return allowance
-        prompt_chars = sum(len(str(message.get("content") or "")) for message in messages)
-        read_seconds = max(
-            seconds_to_read(prompt_chars), client.least_time_to_read(prompt_chars),
-        )
-        # Both the foreground bridge and the service reserve eight seconds
-        # for delivery. Fund those outside the measured read/decode work.
-        return max(allowance, read_seconds + decode_seconds + 16.0)
 
     @staticmethod
     def _strict_proof_timeout_cap() -> float:
@@ -6269,7 +6275,7 @@ class UnitaryResponsePhase(Phase):
                     messages, new_state, objective, contract
                 )
 
-            request_timeout = self._timeout_for_request(
+            request_timeout = _timeout_for_request(
                 is_user_facing=is_user_facing,
                 model_tier=model_tier,
                 deep_handoff=deep_handoff,
@@ -6353,7 +6359,7 @@ class UnitaryResponsePhase(Phase):
                 and not operator_evidence_turn
             ):
                 try:
-                    request_timeout = self._timeout_for_request(
+                    request_timeout = _timeout_for_request(
                         is_user_facing=True, model_tier=model_tier,
                         deep_handoff=deep_handoff, messages=messages,
                         decode_max_tokens=int(llm_kwargs.get("max_tokens") or 768),

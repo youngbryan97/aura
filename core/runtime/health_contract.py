@@ -1380,9 +1380,12 @@ def _runtime_integrity_block() -> dict[str, Any]:
         if running is None:
             boundary["runtime"] = "not up"
         else:
+            from core.runtime.what_a_runtime_is import a_runtime_over
+
+            over = a_runtime_over(running)
             boundary["runtime"] = type(running).__name__
-            boundary["missing"] = what_is_missing_from(running)
-            boundary.update(the_services_it_can_address(running))
+            boundary["missing"] = what_is_missing_from(over)
+            boundary.update(the_services_it_can_address(over))
         block["the_runtime_boundary"] = boundary
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["the_runtime_boundary"] = {"error": repr(exc)}

@@ -327,6 +327,23 @@ _PRESENTABLE_AUTHORITY_KEYS = frozenset(
 )
 
 
+def _what_stops_this(stopping: Any) -> Any:
+    """The token for this action: the caller's, or the ambient one.
+
+    A module function rather than a method. It reads no instance state, and
+    ActionExecutor is close enough to the method ceiling that a helper which
+    does not need to be on the class should not be.
+    """
+    if stopping is not None:
+        return stopping
+    try:
+        from core.runtime.what_stops_it import current
+
+        return current(whose="action_executor.execute").stopping
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        return None
+
+
 def _check_what_the_skill_gave_back(engine: Any, name: str, result: Any) -> None:
     """Compare a skill's result against the schema it declared.
 
@@ -493,19 +510,6 @@ class ActionExecutor:
             }
         return dict(result)
 
-    @staticmethod
-    def _what_stops_this(stopping: Any) -> Any:
-        """The token for this action: the caller's, or the ambient one."""
-
-        if stopping is not None:
-            return stopping
-        try:
-            from core.runtime.what_stops_it import current
-
-            return current(whose="action_executor.execute").stopping
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            return None
-
     @classmethod
     async def execute(
         cls,
@@ -539,7 +543,7 @@ class ActionExecutor:
         # Passed explicitly where the caller has one, read from the ambient
         # context where it does not — and reading it counts, so what has not
         # been threaded is a number rather than an impression.
-        halt = cls._what_stops_this(stopping)
+        halt = _what_stops_this(stopping)
         if halt is not None and halt.stopped:
             return {
                 "ok": False,
