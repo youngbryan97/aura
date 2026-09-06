@@ -106,6 +106,11 @@ class _AsyncCallRecorder:
 @pytest.mark.asyncio
 async def test_memory_facade_add_and_query_memory_compat(service_container, monkeypatch):
     monkeypatch.setenv("AURA_STRICT_RUNTIME", "0")
+    # These exercise the direct episodic and semantic writes, which is
+    # the ungoverned path. It used to be reached by relaxing the global
+    # strict flag; it has its own name now, so a test that wants it says
+    # so where a reader can see it.
+    monkeypatch.setenv("AURA_MEMORY_WRITES_UNGOVERNED", "1")
     records = []
 
     class VectorStore:

@@ -76,7 +76,7 @@ def test_the_three_outcomes_are_told_apart_by_went_not_by_truthiness(table):
 
 @pytest.mark.parametrize(
     "final",
-    [WorkflowStatus.COMPLETED, WorkflowStatus.FAILED, WorkflowStatus.CANCELED],
+    [WorkflowStatus.COMPLETED, WorkflowStatus.CANCELED],
 )
 def test_nothing_moves_out_of_a_terminal_status(table, final):
     """Nothing said a completed workflow could not go back to running."""
@@ -85,10 +85,26 @@ def test_nothing_moves_out_of_a_terminal_status(table, final):
     assert "is final" in change.why
 
 
-def test_the_terminal_statuses_are_the_three_endings(table):
-    assert table.terminal == frozenset(
-        {WorkflowStatus.COMPLETED, WorkflowStatus.FAILED, WorkflowStatus.CANCELED}
+def test_a_failed_workflow_can_be_run_again_from_its_checkpoint(table):
+    """That is what a durable workflow is for.
+
+    This table first called FAILED terminal, which made `resume` refuse every
+    workflow it exists to rescue. The resume test had been asserting the
+    opposite for longer than the table has existed.
+    """
+    change = table.change(
+        WorkflowStatus.FAILED, WorkflowStatus.FAILED, WorkflowStatus.RUNNING
     )
+    assert change.went is HowItWent.APPLIED
+    assert change.now is WorkflowStatus.RUNNING
+
+
+def test_the_terminal_statuses_are_the_two_endings_somebody_reached(table):
+    """Completed and canceled are endings. Failed is where work stopped."""
+    assert table.terminal == frozenset(
+        {WorkflowStatus.COMPLETED, WorkflowStatus.CANCELED}
+    )
+    assert WorkflowStatus.FAILED not in table.terminal
 
 
 def test_a_table_that_gives_a_terminal_status_a_move_is_refused_at_build():

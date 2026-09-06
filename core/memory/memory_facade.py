@@ -44,6 +44,23 @@ def _probe_harness_reason(text: Any, metadata: Any) -> str:
         return "harness_turn_pattern"
     return ""
 
+def _writes_go_through_the_gateway() -> bool:
+    """Whether a memory write goes through the governed gateway. Default yes.
+
+    This read AURA_STRICT_RUNTIME with a default of "1", and every other
+    reader of that variable in the tree treats its absence as off. So one flag
+    meant two opposite things: eleven modules asked "should I fail hard on an
+    anomaly", and this one asked "should the write be governed" — with the
+    answer inverted. Setting AURA_STRICT_RUNTIME=0 to relax the first quietly
+    rerouted memory writes around the gateway and its permission check.
+
+    Its own name, defaulting to what this module already did, so the coupling
+    goes and the behaviour does not.
+    """
+    said = os.environ.get("AURA_MEMORY_WRITES_UNGOVERNED", "").strip()
+    return said not in ("1", "true", "yes")
+
+
 class MemoryFacade:
     """
     Unified entry point for episodic, semantic, and vector memories.
@@ -1058,7 +1075,7 @@ class MemoryFacade:
         self._last_commit_time = datetime.now()
 
         async def _commit_interaction_effects() -> Any | None:
-            if os.environ.get("AURA_STRICT_RUNTIME", "1") == "1":
+            if _writes_go_through_the_gateway():
                 from core.memory.memory_write_gateway import get_memory_write_gateway
                 from core.runtime.gateways import MemoryWriteRequest
                 try:
@@ -1528,7 +1545,7 @@ class MemoryFacade:
                 return False
 
         async def _perform_add_memory() -> bool:
-            if os.environ.get("AURA_STRICT_RUNTIME", "1") == "1":
+            if _writes_go_through_the_gateway():
                 from core.memory.memory_write_gateway import get_memory_write_gateway
                 from core.runtime.gateways import MemoryWriteRequest
                 try:
