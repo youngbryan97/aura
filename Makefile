@@ -300,6 +300,9 @@ campaigns:
 	@$(PYTHON) tools/campaigns/tracking_campaign.py --sequences 200
 	@echo "✅ Campaigns complete; docs/evidence/ rewritten"
 
+raw-locks:
+	@$(PYTHON) tools/lint_raw_locks.py
+
 layering:
 	@echo "🏛  Checking architectural layering (DEPS include rules)..."
 	@$(PYTHON) tools/check_layering.py

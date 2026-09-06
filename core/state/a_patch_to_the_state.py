@@ -26,10 +26,11 @@ moved, and the number is the migration.
 from __future__ import annotations
 
 import logging
-import threading
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.APatchToTheState")
 
@@ -41,7 +42,7 @@ __all__ = [
     "read_a_path",
 ]
 
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.state.a_patch_to_the_state")
 _DIRECT_WRITES: dict[str, int] = {}
 
 

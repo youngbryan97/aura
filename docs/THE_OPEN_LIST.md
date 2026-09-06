@@ -34,7 +34,7 @@ that down.
 | M8 | CrewAI-grade checkpointing: typed trigger events across task/crew/agent/flow/LLM/tool/memory, two providers, restore from checkpoint | TODO |
 | M9 | AutoGen-grade messaging: typed envelopes carrying cancellation, ids and trace; a serializer registry keyed by type — and subscription state persisted, which AutoGen does not do | TODO |
 | M10 | Soar-grade authority: working-memory changes buffered and committed at phase boundaries with refcount semantics; explicit stopping reasons | TODO |
-| M11 | AtomSpace-grade concurrency: two threads discovering absence together, recheck, repair the losing installation | TODO |
+| M11 | AtomSpace-grade concurrency: two threads discovering absence together, recheck, repair the losing installation | DONE — the insert is structurally atomic; the ratchet on locks lockdep cannot see is the remaining debt (522) |
 | M12 | Classify every state holder as authority, derived projection, or temporary computational state | STARTED — `who_owns_each_field` covers AuraState's 80 nested fields; the eleven runtime state holders the review names are not yet classified |
 
 ## L — the peer ledger

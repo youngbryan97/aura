@@ -33,10 +33,11 @@ import hashlib
 import json
 import logging
 import re
-import threading
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.WhoThisIs")
 
@@ -53,7 +54,7 @@ __all__ = [
     "what_it_was_called",
 ]
 
-_LOCK = threading.RLock()
+_LOCK = checked_lock("core.knowledge.who_this_is", reentrant=True)
 #: id -> the id it was merged into. A chain, compressed on read.
 _MERGED_INTO: dict[str, str] = {}
 #: canonical id -> what it has been called, so a duplicate can be explained.
