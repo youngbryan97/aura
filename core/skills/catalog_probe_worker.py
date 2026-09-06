@@ -279,6 +279,13 @@ def _validate_class(module: Any, declaration: dict[str, Any]) -> dict[str, Any]:
             "description": str(getattr(skill_class, "description", declaration["description"])),
             "execution_profile": str(getattr(skill_class, "execution_profile", "cpu")),
             "input_schema": schema,
+            # What the skill hands back, where it says so machine-readably.
+            # `output` on a skill class is prose; `result_schema` is a claim a
+            # caller can check before it reads the result.
+            "result_schema": (
+                dict(getattr(skill_class, "result_schema", None) or {}) or None
+            ),
+            "contract_version": str(getattr(skill_class, "contract_version", "1")),
             "is_core_personality": bool(getattr(skill_class, "is_core_personality", False)),
             "memory_mb_estimate": int(getattr(skill_class, "memory_mb_estimate", 256)),
             "metabolic_cost": int(getattr(skill_class, "metabolic_cost", 1)),

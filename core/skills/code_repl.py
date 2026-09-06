@@ -868,6 +868,17 @@ class CodeREPLSkill(BaseSkill):
     timeout_seconds = 720.0
     metabolic_cost = 2
     effect_scope = "sandboxed_compute"
+    #: What a caller gets back, machine-readable. A prose `output`
+    #: tells a reader what to expect and a caller nothing it can check.
+    result_schema = {
+        "type": "object",
+        "properties": {
+            "ok": {"type": "boolean"},
+            "error": {"type": "string"}
+        },
+        "required": ["ok"],
+        "additionalProperties": True,
+    }
 
     # Session state: maps session_id -> serialized namespace dict
     _sessions: dict[str, dict[str, Any]]

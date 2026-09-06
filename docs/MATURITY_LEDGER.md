@@ -217,7 +217,7 @@ name each cluster more than once:
 | CrewAI #15 | P1 | Typed A2A client/server configuration | Define AgentDelegation protocol/schema independent of transport; local subagents implement it first, optional remote adapter later. | TODO |
 | CrewAI #16 | P1 | max_execution_time/max_retry_limit are top-level agent contracts | Expose TurnBudget/TaskBudget summary at admission; all child budgets draw from it and UI/receipts show remaining budget. | TODO |
 | CrewAI #17 | P1 | respect_context_window is explicit agent behavior | ContextBudget plus declared truncation priority/semantic preservation policies; no hidden contributor may exceed allocation. | TODO |
-| CrewAI #18 | P0 | Tools use structured schemas and normalization | All Aura tools expose JSON Schema/Pydantic input/output, semantic version and side-effect class; executor validates before authority check. | TODO |
+| CrewAI #18 | P0 | Tools use structured schemas and normalization | All Aura tools expose JSON Schema/Pydantic input/output, semantic version and side-effect class; executor validates before authority check. | DONE |
 | CrewAI #19 | P1 | Starting/ending event pairs tracked as scopes | TraceContext manages structured scopes; starting event creates span ID, terminal event required, dangling scope fails invariant audit. | TODO |
 | CrewAI #20 | P1 | ContextVar RuntimeState/entity registration | HandlerContext snapshot captures runtime identity/state revision at emission, not lookup-at-consume time. | TODO |
 | CrewAI #21 | P1 | Deliberate stops excluded from generic retry | Central RetryClassifier marks NeverRetry classes (cancel, denied, invariant, invalid input, unsafe) and all retry loops use it. | TODO |

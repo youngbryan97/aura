@@ -198,6 +198,10 @@ seams:
 	@echo "🪚 Listing the safe extraction seams in every oversized function..."
 	@$(PYTHON) tools/find_extraction_seam.py --tracked
 
+tool-contracts:
+	@echo "🔧 Counting tools that do not say what they take or give back..."
+	@$(PYTHON) tools/lint_tool_contracts.py
+
 reachability:
 	@echo "🕸  Counting modules nothing reaches (ratchet: only shrinks)..."
 	@$(PYTHON) tools/lint_module_reachability.py

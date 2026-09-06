@@ -768,6 +768,23 @@ def _coerce_and_harmonize_params(params: dict[str, Any], input_model: Any) -> di
     return healed
 
 
+def _a_model_from_a_schema(schema: dict[str, Any]) -> Any:
+    """Wrap a plain JSON schema so it answers `model_json_schema` like a model.
+
+    A skill that has a schema and not a model should not have to grow a
+    dependency to say what it returns.
+    """
+
+    class _SaysItsSchema:
+        def __init__(self, said: dict[str, Any]) -> None:
+            self._said = dict(said)
+
+        def model_json_schema(self) -> dict[str, Any]:
+            return dict(self._said)
+
+    return _SaysItsSchema(schema)
+
+
 class SkillMetadata(BaseModel):
     """Metadata and schema for a skill."""
 
@@ -779,6 +796,15 @@ class SkillMetadata(BaseModel):
     requirements: SkillRequirements = Field(default_factory=SkillRequirements)
     enabled: bool = True
     input_model: Any | None = None
+    #: What the skill hands back, as a model. CrewAI requires structured
+    #: schemas both ways and normalises them; Aura declared the input side and
+    #: left the output to whatever the caller happened to get, so a consumer
+    #: could not know the shape of a result without running it.
+    output_model: Any | None = None
+    #: Bumped when the input or output shape changes in a way a caller would
+    #: notice. Two tools named the same with different arguments is the thing
+    #: a version tells apart.
+    contract_version: str = "1"
     module_path: str | None = None
     class_name: str | None = None
     instance: Any | None = None
@@ -814,9 +840,48 @@ class SkillMetadata(BaseModel):
             return dict(self.input_model.model_json_schema())
         return {"additionalProperties": True, "properties": {}, "type": "object"}
 
+    @property
+    def result_schema_def(self) -> dict[str, Any]:
+        """The JSON schema for what this skill hands back, or an open object.
+
+        An open object is an honest answer meaning "this has not been
+        declared". It is told apart from a declared open result by
+        ``declares_its_result``, so the ratchet can count what is missing.
+        """
+
+        if self.output_model is not None and hasattr(self.output_model, "model_json_schema"):
+            return dict(self.output_model.model_json_schema())
+        return {"additionalProperties": True, "properties": {}, "type": "object"}
+
+    @property
+    def declares_its_result(self) -> bool:
+        return self.output_model is not None
+
+    @property
+    def declares_its_arguments(self) -> bool:
+        return self.input_model is not None or self.schema_override is not None
+
     def to_json_schema(self) -> dict[str, Any]:
         """Returns the OpenAI-compatible function definition for this skill."""
         return {"name": self.name, "description": self.description, "parameters": self.schema_def}
+
+    def what_it_promises(self) -> dict[str, Any]:
+        """The whole contract in one value: arguments, result, version, effect.
+
+        One place a caller reads instead of four, and the shape the ratchet
+        counts over.
+        """
+
+        return {
+            "name": self.name,
+            "contract_version": self.contract_version,
+            "arguments": self.schema_def,
+            "declares_its_arguments": self.declares_its_arguments,
+            "result": self.result_schema_def,
+            "declares_its_result": self.declares_its_result,
+            "effect_scope": self.effect_scope,
+            "authority_class": self.authority_class,
+        }
 
     async def extract_and_validate_args(self, params_raw: str, llm: Any) -> dict[str, Any]:
         """Validates raw JSON parameters against the skill's input model.
@@ -3244,6 +3309,12 @@ class CapabilityEngine(AuraBaseModule):
                 effect_scope=declaration.effect_scope,
                 authority_class=declaration.authority_class,
                 schema_override=dict(validation.get("input_schema") or {}),
+                output_model=(
+                    _a_model_from_a_schema(validation["result_schema"])
+                    if isinstance(validation.get("result_schema"), dict)
+                    else None
+                ),
+                contract_version=str(validation.get("contract_version") or "1"),
                 catalog_id=declaration.catalog_id,
                 source_kind=declaration.source_kind,
                 source_path=declaration.source_path,
@@ -3454,12 +3525,33 @@ class CapabilityEngine(AuraBaseModule):
             schema_override = {"additionalProperties": True, "properties": {}, "type": "object"}
 
         identity = f"runtime:{skill_class.__module__}:{skill_class.__name__}:{skill_name}"
+        # What the skill hands back, where it says so.
+        #
+        # Skills already carry `output`, which is prose: "Current date and time
+        # string" tells a reader what to expect and tells a caller nothing it
+        # can check. A class declaring `result_model` (a model) or
+        # `result_schema` (a dict) gets a machine-readable half, read here the
+        # same way the argument side is.
+        result_model = getattr(target, "result_model", None) or getattr(
+            skill_class, "result_model", None
+        )
+        result_schema = getattr(target, "result_schema", None) or getattr(
+            skill_class, "result_schema", None
+        )
+        if result_model is None and isinstance(result_schema, dict):
+            result_model = _a_model_from_a_schema(result_schema)
         self.skills[skill_name] = SkillMetadata(
             name=skill_name,
             description=description,
             skill_class=skill_class,
             requirements=requirements,
             input_model=input_model,
+            output_model=result_model,
+            contract_version=str(
+                getattr(target, "contract_version", None)
+                or getattr(skill_class, "contract_version", None)
+                or "1"
+            ),
             module_path=getattr(skill_class, "__module__", None),
             class_name=getattr(skill_class, "__name__", None),
             instance=instance,

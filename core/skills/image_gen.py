@@ -131,6 +131,17 @@ class ImageGenSkill(BaseSkill):
     timeout_seconds = 300.0  # Image generation can be slow
     metabolic_cost = 3  # Heavy GPU/CPU workload
     effect_scope = "read_write_artifacts"
+    #: What a caller gets back, machine-readable. A prose `output`
+    #: tells a reader what to expect and a caller nothing it can check.
+    result_schema = {
+        "type": "object",
+        "properties": {
+            "ok": {"type": "boolean"},
+            "error": {"type": "string"}
+        },
+        "required": ["ok"],
+        "additionalProperties": True,
+    }
 
     def __init__(self) -> None:
         super().__init__()
