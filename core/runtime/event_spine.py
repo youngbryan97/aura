@@ -39,14 +39,18 @@ from __future__ import annotations
 
 from core.runtime.lockdep import checked_lock
 import json
-import threading
+import logging
 import time
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger("Aura.EventSpine")
+
 __all__ = [
+    "LineageBroken",
     "Lane",
     "Event",
     "Reducer",
@@ -70,6 +74,16 @@ class Lane(StrEnum):
 
 class OwnershipViolation(RuntimeError):
     """A reducer wrote state it does not own."""
+
+
+class LineageBroken(ValueError):
+    """An event named a causal parent the log does not have.
+
+    Raised rather than clamped to zero. A caller that names a parent which is
+    not there has a defect, and quietly rewriting the lineage to "no parent"
+    makes the log agree with itself while disagreeing with what happened —
+    which is the failure mode a causal history exists to rule out.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,7 +137,7 @@ class Reducer:
 class EventLog:
     """Append-only. The only mutator is append, and there is no delete."""
 
-    def __init__(self, *, capacity: int = 200_000) -> None:
+    def __init__(self, *, capacity: int = 200_000, kept_at: Any = None) -> None:
         self._lock = checked_lock("core.runtime.event_spine.EventLog", reentrant=True)
         self._events: list[Event] = []
         self._offset = 0
@@ -131,6 +145,28 @@ class EventLog:
         self._snapshot_seq = 0
         self._capacity = int(capacity)
         self._next = 1
+        # Where the raw experience lives between processes.
+        #
+        # Append-only in memory is half of the property. OpenHands persists a
+        # canonical causal history for its runtime and Letta keeps recall
+        # immutable in a durable store, and both make the same point: a log
+        # that dies with the process cannot be the thing summaries reference,
+        # because the range a summary names is gone before anyone reads it.
+        #
+        # Appended, never rewritten. A compaction drops what a snapshot
+        # accounts for from MEMORY and leaves the file alone, so the raw
+        # experience outlives every projection taken from it.
+        self._kept_at = Path(kept_at) if kept_at else None
+        self._kept_through = 0
+        #: What the durable log turned out to contain. Named rather than
+        #: counted: "three gaps" does not tell you which range of experience
+        #: is missing, and a summary referencing that range is now wrong.
+        self._duplicates: list[int] = []
+        self._gaps: list[tuple[int, int]] = []
+        self._unreadable_after = 0
+        self._parentless = 0
+        if self._kept_at is not None:
+            self._read_what_was_kept()
 
     def append(
         self,
@@ -143,13 +179,152 @@ class EventLog:
         clock: Callable[[], float] = time.time,
     ) -> Event:
         with self._lock:
+            parent = int(causal_parent or 0)
+            if parent and parent >= self._next:
+                raise LineageBroken(
+                    f"{kind} named parent {parent}, which has not happened yet "
+                    f"(the next sequence number is {self._next})"
+                )
+            if parent < 0:
+                raise LineageBroken(f"{kind} named parent {parent}")
             event = Event(
                 seq=self._next, kind=kind, lane=lane, payload=dict(payload),
-                at=clock(), actor=actor, causal_parent=causal_parent,
+                at=clock(), actor=actor, causal_parent=parent,
             )
             self._next += 1
             self._events.append(event)
+            self._keep(event)
             return event
+
+    def ancestry(self, seq: int, *, most: int = 512) -> list[int]:
+        """The causal chain back from one event, bounded.
+
+        Bounded twice: by ``most``, and by refusing to visit a sequence number
+        twice. A durable log is a file, a file can be edited, and an edited
+        file can describe a cycle — a traversal that trusted the data would
+        hang the process that read it rather than the one that wrote it.
+        """
+        with self._lock:
+            by_seq = {one.seq: one for one in self._events}
+            chain: list[int] = []
+            seen: set[int] = set()
+            here = int(seq)
+            while here and here not in seen and len(chain) < int(most):
+                seen.add(here)
+                chain.append(here)
+                found = by_seq.get(here)
+                if found is None:
+                    break
+                here = found.causal_parent
+            return chain
+
+    def integrity(self) -> dict[str, Any]:
+        """What the log knows to be wrong with itself.
+
+        Everything here is about the durable file, because that is the part
+        another process can have written, truncated, or edited.
+        """
+        with self._lock:
+            return {
+                "kept_at": str(self._kept_at) if self._kept_at else "",
+                "kept_through": self._kept_through,
+                "next": self._next,
+                "in_memory": len(self._events),
+                "duplicate_sequences": list(self._duplicates),
+                "gaps": [list(one) for one in self._gaps],
+                "unreadable_after": self._unreadable_after,
+                "parentless": self._parentless,
+                "whole": not (
+                    self._duplicates or self._gaps or self._unreadable_after
+                ),
+            }
+
+    def _keep(self, event: Event) -> None:
+        """Append one event to the durable log. Never rewrites what is there."""
+
+        if self._kept_at is None:
+            return
+        try:
+            from core.runtime.file_write_gateway import get_file_write_gateway
+
+            get_file_write_gateway().append_text(
+                self._kept_at,
+                json.dumps(event.to_dict(), separators=(",", ":")) + "\n",
+                source="event_spine",
+            )
+            self._kept_through = event.seq
+        except Exception as exc:  # noqa: BLE001 — a turn must not die for a log line
+            logger.warning("event %d was not kept: %s", event.seq, exc)
+
+    def _read_what_was_kept(self) -> int:
+        """Load the durable log at open. Returns how many events came back.
+
+        A line that will not parse stops the read rather than being skipped:
+        the sequence numbers are the thing every projection joins on, and a
+        hole in them is worse than a short log, because a short log is
+        obviously short.
+        """
+
+        if self._kept_at is None or not self._kept_at.exists():
+            return 0
+        read = 0
+        seen: set[int] = set()
+        last = 0
+        try:
+            with self._kept_at.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    row = json.loads(line)
+                    event = Event(
+                        seq=int(row["seq"]),
+                        kind=str(row["kind"]),
+                        lane=Lane(row["lane"]),
+                        payload=dict(row.get("payload") or {}),
+                        at=float(row.get("at", 0.0)),
+                        actor=str(row.get("actor", "")),
+                        causal_parent=int(row.get("causal_parent", 0)),
+                    )
+                    if event.seq in seen:
+                        # Two writers on one file, or a file appended twice.
+                        # The second copy is dropped rather than replayed: a
+                        # projection that applies one event twice has counted
+                        # something that happened once.
+                        self._duplicates.append(event.seq)
+                        continue
+                    if last and event.seq > last + 1:
+                        self._gaps.append((last + 1, event.seq - 1))
+                    if not event.causal_parent:
+                        self._parentless += 1
+                    seen.add(event.seq)
+                    last = event.seq
+                    self._events.append(event)
+                    self._next = max(self._next, event.seq + 1)
+                    self._kept_through = event.seq
+                    read += 1
+        except Exception as exc:  # noqa: BLE001 — a truncated log is still a log
+            # A half-written last line is the ordinary case: the process died
+            # mid-append. Recorded rather than raised, and the sequence
+            # counter is recovered from what did parse, so the next append
+            # cannot reuse a number the file already holds.
+            self._unreadable_after = last
+            logger.warning(
+                "the kept log stopped being readable after %d events: %s", read, exc
+            )
+        if self._duplicates or self._gaps or self._unreadable_after:
+            logger.warning(
+                "kept log: %d duplicate sequences, %d gaps, unreadable after %d",
+                len(self._duplicates), len(self._gaps), self._unreadable_after,
+            )
+        return read
+
+    @property
+    def kept_through(self) -> int:
+        """The last sequence number written durably. Zero when nothing is kept."""
+
+        with self._lock:
+            return self._kept_through
 
     def events(self, *, since: int = 0, until: int | None = None, lane: Lane | None = None) -> list[Event]:
         with self._lock:
@@ -179,7 +354,15 @@ class EventLog:
             dropped = sum(1 for e in self._events if e.seq <= through)
             self._events = [e for e in self._events if e.seq > through]
             self._offset += dropped
-            return {"snapshot_seq": through, "dropped": dropped, "remaining": len(self._events)}
+            # The file is untouched. Compaction is about what this process
+            # holds in memory; the raw experience outlives every projection
+            # taken from it, which is the whole of "recall never mutates".
+            return {
+                "snapshot_seq": through,
+                "dropped": dropped,
+                "remaining": len(self._events),
+                "still_kept_through": self._kept_through,
+            }
 
     def snapshot(self) -> tuple[dict[str, Any], int]:
         with self._lock:
@@ -197,6 +380,17 @@ class EventLog:
                 "snapshot_seq": self._snapshot_seq,
                 "head": self.head,
                 "by_lane": by_lane,
+                "durable": self._kept_at is not None,
+                "kept_through": self._kept_through,
+                # What the file turned out to contain. A log that is not whole
+                # still answers every read; the difference is that a summary
+                # naming a range now knows whether that range is there.
+                "duplicate_sequences": list(self._duplicates),
+                "gaps": [list(one) for one in self._gaps],
+                "unreadable_after": self._unreadable_after,
+                "whole": not (
+                    self._duplicates or self._gaps or self._unreadable_after
+                ),
             }
 
 
@@ -419,11 +613,29 @@ _lock = checked_lock("core.runtime.event_spine.singleton")
 _spine: Spine | None = None
 
 
+def _where_the_experience_is_kept() -> Path | None:
+    """The durable log's path, or None where this process must not write one.
+
+    Reading is safe anywhere; writing is for a process that owns the state.
+    A test run that appended to the live log would put its events into her
+    experience, and the next boot would replay them as things that happened.
+    """
+
+    try:
+        from core.runtime.state_ownership import RuntimeProfile, runtime_profile, state_root
+
+        if runtime_profile() is not RuntimeProfile.LIVE:
+            return None
+        return Path(state_root()) / "experience.jsonl"
+    except Exception:  # noqa: BLE001 — no path means an in-memory log, which still works
+        return None
+
+
 def get_spine() -> Spine:
     global _spine
     with _lock:
         if _spine is None:
-            log = EventLog()
+            log = EventLog(kept_at=_where_the_experience_is_kept())
             _spine = Spine(log=log, projection=Projection(log))
         return _spine
 

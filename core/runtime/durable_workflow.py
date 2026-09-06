@@ -86,6 +86,27 @@ class WorkflowStatus(str, Enum):
     CANCELED = "canceled"
 
 
+def _became(checkpoint: "WorkflowCheckpoint", wanted: WorkflowStatus) -> Any:
+    """Move a checkpoint's status through the declared table.
+
+    Returns the change rather than a boolean, so a caller can tell a move that
+    is not legal from one that lost a race — they need opposite responses.
+    Applies the new status only when the table allowed it.
+    """
+    from core.runtime.what_a_status_may_become import the_workflow_statuses
+
+    was = checkpoint.status
+    change = the_workflow_statuses().change(was, was, wanted)
+    if change.applied:
+        checkpoint.status = wanted
+    else:
+        logger.warning(
+            "workflow %s stayed %s: %s",
+            getattr(checkpoint, "workflow_id", "?"), was, change.why,
+        )
+    return change
+
+
 @dataclass(frozen=True)
 class RetryPolicy:
     """How many times to re-attempt a step, and how long to wait between.
@@ -379,7 +400,15 @@ class DurableWorkflowEngine:
                 status=WorkflowStatus.RUNNING,
             )
         else:
-            checkpoint.status = WorkflowStatus.RUNNING
+            # A resume that finds the workflow already finished must not put
+            # it back to running. Nothing declared which moves were legal, so
+            # nothing could refuse this one.
+            resumed = _became(checkpoint, WorkflowStatus.RUNNING)
+            if not resumed:
+                logger.info(
+                    "workflow %s was not resumed: %s", workflow_id, resumed.why
+                )
+                return checkpoint
         await self.store.async_save(checkpoint)
 
         for step in steps:
@@ -389,7 +418,7 @@ class DurableWorkflowEngine:
             if step.human_approval:
                 decision = checkpoint.decision_for(step.step_id)
                 if decision is None:
-                    checkpoint.status = WorkflowStatus.PAUSED_FOR_APPROVAL
+                    _became(checkpoint, WorkflowStatus.PAUSED_FOR_APPROVAL)
                     checkpoint.paused_at_step = step.step_id
                     checkpoint.updated_at = time.time()
                     await self.store.async_save(checkpoint)
@@ -398,7 +427,7 @@ class DurableWorkflowEngine:
                     # A refusal is an answer. Cancelling is the honest outcome;
                     # looping back to ask again would be pestering, and leaving
                     # it paused would be the deadlock this replaced.
-                    checkpoint.status = WorkflowStatus.CANCELED
+                    _became(checkpoint, WorkflowStatus.CANCELED)
                     checkpoint.paused_at_step = None
                     checkpoint.failure_reason = (
                         f"{step.step_id} denied by {decision.approver}"
@@ -421,7 +450,7 @@ class DurableWorkflowEngine:
             except _WORKFLOW_STEP_ERRORS as exc:
                 checkpoint.failed_step = step.step_id
                 checkpoint.failure_reason = repr(exc)
-                checkpoint.status = WorkflowStatus.FAILED
+                _became(checkpoint, WorkflowStatus.FAILED)
                 checkpoint.updated_at = time.time()
                 await self.store.async_save(checkpoint)
                 if step.rollback is not None:
@@ -436,7 +465,7 @@ class DurableWorkflowEngine:
                         )
                 return checkpoint
 
-        checkpoint.status = WorkflowStatus.COMPLETED
+        _became(checkpoint, WorkflowStatus.COMPLETED)
         checkpoint.updated_at = time.time()
         await self.store.async_save(checkpoint)
         return checkpoint

@@ -1,7 +1,8 @@
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field
 
 from core.memory.memory_facade import MemoryFacade
@@ -16,6 +17,11 @@ class TrainingInput(BaseModel):
 
 class CognitiveTrainerSkill(BaseSkill):
     """Integrates high-fidelity 2026 benchmarks into Aura's cognitive substrate."""
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     
     name = "cognitive_trainer"
     description = "Ingest training data from MemoryAgentBench or AgentDrive to improve reasoning and memory."
@@ -94,7 +100,6 @@ class CognitiveTrainerSkill(BaseSkill):
     async def _ingest_agent_drive(self, limit: int, dry_run: bool) -> Dict[str, Any]:
         """Ingest AgentDrive-MCQ from the locally unzipped repository."""
         logger.info("🚦 Ingesting AgentDrive-MCQ (2026 Reasoning Bench)...")
-        from pathlib import Path
         import json
         from core.config import config
         

@@ -1,0 +1,14 @@
+{
+  "note": "A channel wired to a consumer is not a measured downstream effect. declared_lesions and measured only go up; a channel that had a verdict may not lose it.",
+  "declared_lesions": 6,
+  "measured": 0,
+  "measured_channels": [],
+  "still_unmeasured": [
+    "AFFECT_CIRCUMPLEX_SAMPLING",
+    "LIVE_MIND_CONTEXT_BLOCK",
+    "LIVE_MIND_GENERATION_CONTROLS",
+    "LIVE_MIND_RECURRENT_LOOPS",
+    "LIVE_MIND_STEERING_ALPHA",
+    "QUALIA_RICHNESS"
+  ]
+}

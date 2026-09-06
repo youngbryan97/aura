@@ -23,6 +23,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.construction.document import RENDERERS
 from core.language.learned_matcher import LearnedMatcher as _LearnedMatcher
 from core.language.model_features import model_hidden_features as _model_hidden_features
@@ -48,6 +49,11 @@ class BuildDocumentInput(BaseModel):
 
 
 class BuildDocumentSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "build_document"
     description = (
         "Build a document from its sections and write it to disk as one self-contained file "

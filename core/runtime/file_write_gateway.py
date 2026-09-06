@@ -124,6 +124,28 @@ class FileWriteBatchReceipt:
     sha256: tuple[tuple[str, str], ...]
 
 
+@contextmanager
+def _not_on_the_loop(what: str) -> Iterator[None]:
+    """Record a synchronous disk write that happened on the loop's thread.
+
+    The async lane below exists because an on-loop fsync froze the live loop
+    for about twenty minutes under thrash. The rule was written in a guide and
+    a ratchet test catches new sync writes inside `async def`; neither can see
+    a sync writer called FROM async through two intermediate frames. This can:
+    it asks which thread it is actually on.
+
+    Recorded, never raised. A write that reaches here has already passed
+    governance and the caller is expecting it to happen.
+    """
+    try:
+        from core.runtime.which_thread_may_do_this import AKindOfWork, this_is
+    except ImportError:  # pragma: no cover - foundation import order
+        yield
+        return
+    with this_is(AKindOfWork.NEVER_ON_THE_LOOP, what):
+        yield
+
+
 class FileWriteGateway:
     """Single canonical owner for filesystem write operations."""
 
@@ -627,7 +649,8 @@ class FileWriteGateway:
                 strict=True,
                 allowed_domains=self._allowed_domains,
             )
-        atomic_write_text(target, text, encoding=encoding, durable=durable)
+        with _not_on_the_loop(f"write_text:{source}"):
+            atomic_write_text(target, text, encoding=encoding, durable=durable)
 
     def append_text(self, path: PathLike, text: str, *, encoding: str = "utf-8", source: str = "unknown") -> None:
         target = _coerce_target(path)
@@ -641,7 +664,8 @@ class FileWriteGateway:
                 strict=True,
                 allowed_domains=self._allowed_domains,
             )
-        atomic_append_text(target, text, encoding=encoding)
+        with _not_on_the_loop(f"append_text:{source}"):
+            atomic_append_text(target, text, encoding=encoding)
 
     # ── Event-loop-safe lane ─────────────────────────────────────────
     # Governance is checked inline (fail fast, caller's context); only the

@@ -41,6 +41,7 @@ except ImportError:
     PlaywrightError = RuntimeError
     PlaywrightTimeoutError = TimeoutError
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.being.body_state_service import BodyStateService
 from core.being.welfare_state import WelfareState
 from core.being.welfare_transaction import WelfareTransaction
@@ -221,6 +222,11 @@ class RedditAdapterSkill(BaseSkill):
     Uses Playwright (headless Chromium) for fully organic interaction.
     Login session is persisted via browser storage state.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "reddit_adapter"
     retry_safe = False  # external send/act — never double-fire on retry

@@ -300,8 +300,68 @@ def offer_what_she_can_do_about_what_she_is_made_of() -> None:
         return None
 
 
+    def take_the_cause_that_pays(situation: Any = None) -> str | None:
+        """Rank the causes of it not being better, and make the top one.
+
+        The obvious way to ask which part of her is the bottleneck is to
+        classify — representation, search, data — and that question has eight
+        answers in the literature, none decidable, and a classifier over them
+        is the hand-written taxonomy this work exists to remove wearing a
+        different hat. `core/cognition/why_it_is_not_better.py` asks it the
+        other way: every cause is a change that can be MADE, ranked by what
+        making it turns out to be worth on a held-out probe.
+
+        It had no caller outside its own test, so the causes were ranked
+        nowhere and nothing was ever made from the ranking. It is one of the
+        actions she chooses among now, priced like the rest.
+        """
+
+        from core.cognition.why_it_is_not_better import (
+            _lesion_causes,  # noqa: PLC2701
+            _machinery_causes,  # noqa: PLC2701
+            why_it_is_not_better,
+        )
+
+        probe = _probe()
+        if not probe:
+            return None
+        # The same causes are ranked and then chosen from, so the winner is a
+        # cause she can make rather than a row she can read. Ranking undoes
+        # every change it tries — that is what makes the number a measurement
+        # — so making the winner is a separate act.
+        causes = [*_lesion_causes(), *_machinery_causes(within=4.0)]
+        if not causes:
+            return None
+        ranked = why_it_is_not_better(probe, costs=_costs, among=causes)
+        best = next(
+            (row for row in ranked if float(row.get("worth") or 0.0) > 0.0), None
+        )
+        if best is None:
+            return None
+        for cause in causes:
+            if cause.change != best["change"] or cause.at != best["at"]:
+                continue
+            try:
+                if not cause.make_it():
+                    return None
+            except Exception:  # noqa: BLE001 - a change that raises was not made
+                logger.info("could not make %s", cause.describes(), exc_info=True)
+                return None
+            logger.info(
+                "she made the change that pays most: %s at %s (worth %.3f)",
+                best["change"], best["at"], float(best["worth"]),
+            )
+            return str(best["change"])
+        return None
+
     for name, over, kind, do_it in (
         ("let go of a part that pays nothing", "the words", "letting go", let_go),
+        (
+            "make the change that pays most",
+            "the ways of computing",
+            "a cause",
+            take_the_cause_that_pays,
+        ),
         (
             "one name for what two parts share",
             "the ways of computing",

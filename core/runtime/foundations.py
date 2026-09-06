@@ -447,8 +447,13 @@ def _instantiated_services(container: Any) -> dict[str, Any]:
 async def _activate_kernel_discipline(*, foreground_only: bool) -> ActivationResult:
     """Wave 1 — taint register, lockdep, PSI, OOM policy, memory sentinel."""
     from core.runtime.lockdep import lockdep_report, note_event_loop_thread
+    from core.runtime.which_thread_may_do_this import note_the_loop_thread
 
     note_event_loop_thread()
+    # Lockdep already knew which thread the loop is on; nothing else did, so
+    # a blocking call had no way to check whether it was about to stall the
+    # loop. Told here, on the loop, once.
+    note_the_loop_thread()
     capacities = _declare_pressure_capacities()
     organs = _register_oom_organs()
 

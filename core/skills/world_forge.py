@@ -23,6 +23,7 @@ from pydantic import (
     model_validator,
 )
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.skills.base_skill import BaseSkill
 
 WorldAction = Literal[
@@ -178,6 +179,11 @@ def _simulation_capabilities() -> dict[str, Any]:
 
 
 class WorldForgeSkill(BaseSkill):  # type: ignore[misc]
+    #: What a caller gets back. The shared part only: every skill here
+    #: returns `ok`, and a schema claiming to be complete would be wrong
+    #: for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "world_forge"
     description = (
         "Create and inhabit persistent spatial physics worlds: procedural terrain, "

@@ -17,6 +17,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill, SkillResult
 
@@ -105,6 +106,11 @@ class AddBeliefSkill(BaseSkill):
       source="Bryan", relation="prefers", target="direct feedback"
       source="AURA_SELF", relation="is_working_on", target="belief graph integration"
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "add_belief"
     description = (
         "Add or reinforce a belief in Aura's world model. "
@@ -296,6 +302,11 @@ class QueryBeliefsSkill(BaseSkill):
     preferences, relationships, or factual claims to ensure the response
     reflects persistent knowledge rather than just in-context inference.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "query_beliefs"
     description = (
         "Query Aura's persistent belief graph about a subject. "

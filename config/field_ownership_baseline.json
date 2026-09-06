@@ -1,0 +1,29 @@
+{
+  "note": "Nested AuraState fields with no authority. This number only goes down. Raising it needs the reason in the commit message, and there has not been one.",
+  "unclassified": [
+    "affect.momentum",
+    "affect.mood_baselines",
+    "affect.updated_at",
+    "cognition.active_thread_id",
+    "cognition.contradiction_count",
+    "cold.concept_graph",
+    "cold.known_entities",
+    "cold.long_term_memory",
+    "cold.relationship_graph",
+    "cold.training_curriculum",
+    "identity.concept_graph",
+    "identity.formation_timestamp",
+    "motivation.latent_interests",
+    "soma.expressive",
+    "soma.motors",
+    "soma.qpos",
+    "soma.qvel",
+    "soma.sensors",
+    "world.known_entities",
+    "world.spatial_context",
+    "world.user_preferences"
+  ],
+  "count": 21,
+  "owned": 59,
+  "out_of_reach": 18
+}

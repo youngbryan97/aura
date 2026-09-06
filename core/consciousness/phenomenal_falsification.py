@@ -157,6 +157,75 @@ _WEIGHTS = {
 }
 
 
+#: Channels whose lesioning would show the phenomenal markers gate behaviour.
+#: Named rather than pattern-matched: a channel that merely has one of these
+#: words in it is not evidence about consciousness, and a check that accepted
+#: one would be the proxy this replaced wearing a longer name.
+THE_MARKER_CHANNELS: tuple[str, ...] = (
+    "phenomenal_state",
+    "felt_state",
+    "phi",
+    "interoception",
+    "affect_grounding",
+    "global_workspace_ignition",
+)
+
+
+def _causal_by_intervention() -> tuple[bool, str]:
+    """Whether lesioning a phenomenal marker measurably moved the output.
+
+    This used to be `bool(loop.get("phi") is not None)` and `causal = True`
+    with a comment beside it. Both said the pathway was present; neither said
+    it made a difference. An external review named the distinction exactly:
+
+        P(Y | do(X = x1)) != P(Y | do(X = x0))
+
+    is not established by a live snapshot reporting that a causal channel
+    appears to be there. Aura's own influence framework already requires
+    treatment against null, so the answer comes from there, and where there is
+    no such evidence the answer is False with a sentence saying what would
+    change it — which is a different claim from "epiphenomenal" and has to
+    read differently.
+    """
+    try:
+        from core.verify.causal_influence import Verdict, get_influence_ledger
+
+        ledger = get_influence_ledger()
+    except (ImportError, RuntimeError) as exc:
+        return False, f"no influence ledger to ask: {exc}"
+
+    influential: list[str] = []
+    inert: list[str] = []
+    unmeasured: list[str] = []
+    for channel in THE_MARKER_CHANNELS:
+        try:
+            verdict = ledger.verdict(channel).verdict
+        except Exception:  # noqa: BLE001 — an unaskable channel is unmeasured
+            unmeasured.append(channel)
+            continue
+        if verdict is Verdict.INERT:
+            inert.append(channel)
+        elif verdict is Verdict.UNMEASURED:
+            unmeasured.append(channel)
+        else:
+            influential.append(channel)
+
+    if influential:
+        return True, (
+            "lesioning moved the output for: " + ", ".join(sorted(influential))
+        )
+    if inert:
+        return False, (
+            "measured with enough power to see an effect and there was none: "
+            + ", ".join(sorted(inert))
+        )
+    return False, (
+        "no paired trials for any marker channel ("
+        + ", ".join(sorted(unmeasured))
+        + "); run the treatment and the null before claiming it gates behaviour"
+    )
+
+
 class PhenomenalFalsifier:
     """Tests the live consciousness markers against a non-phenomenal baseline."""
 
@@ -211,7 +280,10 @@ class PhenomenalFalsifier:
             prev = self._history[-1].index if self._history else index
         delta = round(index - prev, 4)
 
-        verdict = self._verdict(index, n_disc, len(tests), snapshot.markers_causal, delta)
+        verdict = self._verdict(
+            index, n_disc, len(tests), snapshot.markers_causal, delta,
+            why=getattr(self, "_why_causal", ""),
+        )
         report = DiscriminabilityReport(
             index=index, tests=tests, n_discriminable=n_disc, n_total=len(tests),
             delta=delta, verdict=verdict, boundary=REPORT_BOUNDARY,
@@ -222,11 +294,28 @@ class PhenomenalFalsifier:
         return report
 
     @staticmethod
-    def _verdict(index: float, n_disc: int, n_total: int, causal: bool, delta: float) -> str:
-        if not causal:
+    def _verdict(
+        index: float,
+        n_disc: int,
+        n_total: int,
+        causal: bool,
+        delta: float,
+        *,
+        why: str = "",
+    ) -> str:
+        if not causal and "no paired trials" in why:
+            # Not the same claim. Calling a marker epiphenomenal on no
+            # evidence is as wrong as calling it causal on none, and the
+            # boolean this used to take could not tell the two apart.
+            head = (
+                f"UNMEASURED on the decisive test (index={index:.2f}). "
+                f"{why}."
+            )
+        elif not causal:
             head = (
                 f"NOT discriminable on the decisive test: the markers are epiphenomenal "
                 f"(index={index:.2f}). Behaviour alone could produce this profile."
+                + (f" {why}." if why else "")
             )
         elif index >= 0.66:
             head = (
@@ -267,9 +356,11 @@ class PhenomenalFalsifier:
             if isinstance(loop, dict):
                 if not phi:
                     phi = float(loop.get("phi", 0.0) or 0.0)
-                # A live causal loop (affect→phi→response) means the markers gate behaviour.
-                causal = bool(loop.get("phi") is not None)
-                recurrence = _clamp01(loop.get("recurrence", 0.6 if causal else 0.0))
+                # NOT causal evidence. A phi value being present in the loop
+                # state says the pathway ran, which is not the same claim as
+                # "the markers gate behaviour" — see `_causal_by_intervention`
+                # below, which is where that answer now comes from.
+                recurrence = _clamp01(loop.get("recurrence", 0.6))
         except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
             record_degradation("phenomenal_falsifier", exc, severity="debug")
         try:
@@ -288,7 +379,6 @@ class PhenomenalFalsifier:
             last = get_unified_felt_state().last()
             if last is not None:
                 coherence = _clamp01(last.coherence)
-                causal = True  # the felt-state gates action via the Will
         except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
             record_degradation("phenomenal_falsifier", exc, severity="debug")
         # Metacognition: a higher-order monitor being present + active.
@@ -300,10 +390,16 @@ class PhenomenalFalsifier:
         except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
             pass
 
+        causal, why = _causal_by_intervention()
+        self._why_causal = why
         return MarkerSnapshot(
             phi=phi, recurrence=recurrence, ignition=ignition, broadcast_breadth=breadth,
             metacognition=metacog, self_coherence=coherence, markers_causal=causal,
         )
+
+    def why_the_causal_answer(self) -> str:
+        """What the last live read based its causal marker on."""
+        return getattr(self, "_why_causal", "not read yet")
 
     def assess_live(self) -> DiscriminabilityReport:
         return self.assess(self.from_live())

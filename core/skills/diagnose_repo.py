@@ -12,6 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.skills.base_skill import BaseSkill
 
 
@@ -23,6 +24,11 @@ class DiagnoseRepoInput(BaseModel):
 
 
 class DiagnoseRepoSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "diagnose_repo"
     # What the skill DOES, which the router matches a request against. It had
     # said "why code in a directory is failing", and the engine grew past that:

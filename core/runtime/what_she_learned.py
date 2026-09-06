@@ -29,8 +29,20 @@ __all__ = ["forget", "named", "recall", "remember", "TRUST_CARRIED_OVER"]
 
 logger = logging.getLogger("Aura.WhatSheLearned")
 
-#: Where it is kept. One file per thing she has acted in.
-_KEPT_IN = Path.home() / ".aura" / "state" / "worlds"
+#: Where it is kept. One file per thing she has acted in. Resolved on each
+#: call: fixed at import, a test run inherits the live instance's directory and
+#: writes practice worlds into the mind that has to act in the real one.
+#: Set to send it somewhere else. Left alone in the live runtime; a test
+#: that wants its own file names one here.
+_KEPT_IN: Path | None = None
+
+
+def _kept_in() -> Path:
+    if _KEPT_IN is not None:
+        return _KEPT_IN
+    from core.runtime.state_ownership import state_root
+
+    return state_root() / "state" / "worlds"
 
 #: How much of what she knew comes back. Under one on purpose: something she
 #: worked out yesterday is evidence about today and not a fact about it, and a
@@ -75,14 +87,14 @@ def remember(world: str, what: dict[str, Any]) -> bool:
         if len(body) > _MOST_KEPT:
             logger.info("what she learned about %r is too big to keep (%d)", key, len(body))
             return False
-        get_file_write_gateway().ensure_directory(_KEPT_IN, source="what_she_learned")
+        get_file_write_gateway().ensure_directory(_kept_in(), source="what_she_learned")
         with local_internal_governed_scope(
             "what_she_learned.remember",
             domain="state_mutation",
             constraints={"world": key},
         ):
             get_file_write_gateway().write_text(
-                _KEPT_IN / f"{key}.json", body, source="what_she_learned"
+                _kept_in() / f"{key}.json", body, source="what_she_learned"
             )
         return True
     except Exception as exc:  # noqa: BLE001 - remembering is never the task
@@ -96,7 +108,7 @@ def recall(world: str) -> dict[str, Any]:
     """What she worked out about this thing last time, if she has been here."""
     key = named(world)
     try:
-        held = json.loads((_KEPT_IN / f"{key}.json").read_text())
+        held = json.loads((_kept_in() / f"{key}.json").read_text())
     except (OSError, ValueError, TypeError):
         return {}
     if not isinstance(held, dict):
@@ -115,7 +127,7 @@ def forget(world: str) -> bool:
 
     try:
         get_file_write_gateway().delete_file(
-            _KEPT_IN / f"{named(world)}.json", source="what_she_learned"
+            _kept_in() / f"{named(world)}.json", source="what_she_learned"
         )
         return True
     except (OSError, RuntimeError, TypeError, ValueError):

@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.skills.base_skill import BaseSkill
 
 
@@ -23,6 +24,11 @@ class ProgramDNAEquivalenceBatteryInput(BaseModel):
 
 
 class ProgramDNAEquivalenceBatterySkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill here
+    #: returns `ok`, and a schema claiming to be complete would be wrong
+    #: for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "program_dna_equivalence_battery"
     description = (
         "Run the hidden-source Program DNA behavioral equivalence battery across "

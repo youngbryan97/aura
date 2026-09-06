@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 
 try:
@@ -156,6 +157,11 @@ class ListenInput(BaseModel):
     duration: float = Field(5.0, description="Seconds to listen for audio input.")
 
 class AudioListenerSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "listen"
     description = "Listen to microphone input and transcribe speech to text using local Whisper."
     effect_scope = "read_write_artifacts"

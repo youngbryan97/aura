@@ -8,7 +8,7 @@ def test_foreground_budgets_are_bounded_for_live_desktop_lane():
     from core.brain.inference_gate import InferenceGate
     from core.kernel.aura_kernel import AuraKernel
     from core.phases.response_generation import ResponseGenerationPhase
-    from core.phases.response_generation_unitary import UnitaryResponsePhase
+    from core.phases.response_generation_unitary import _timeout_for_request
     from interface.routes import chat as chat_routes
 
     kernel_probe = SimpleNamespace(state=SimpleNamespace(response_modifiers={}))
@@ -28,7 +28,7 @@ def test_foreground_budgets_are_bounded_for_live_desktop_lane():
     assert total == 180.0
     assert primary >= 150.0
     assert fallback >= 20.0
-    assert UnitaryResponsePhase._timeout_for_request(
+    assert _timeout_for_request(
         is_user_facing=True,
         model_tier="primary",
         deep_handoff=False,
@@ -40,7 +40,7 @@ def test_foreground_budgets_are_bounded_for_live_desktop_lane():
 
     kernel_probe.state.response_modifiers["deep_handoff"] = True
     assert AuraKernel._phase_timeout_seconds(kernel_probe, "UnitaryResponsePhase", priority=True) == 210.0
-    assert UnitaryResponsePhase._timeout_for_request(
+    assert _timeout_for_request(
         is_user_facing=True,
         model_tier="secondary",
         deep_handoff=True,

@@ -61,6 +61,30 @@ class LoraTrainer:
         ]
 
         logger.info("Initiating local model parameter adaptation: %s", " ".join(cmd))
+        # One fine-tune at a time. Nothing stopped two of these starting
+        # together, and two mlx_lm.lora subprocesses on one machine do not
+        # halve each other's speed — they compete for the same wired memory
+        # the resident model already holds. The queueing bound is the run's
+        # own timeout: a job unwilling to spend that long running is
+        # unwilling to spend it waiting.
+        from core.runtime.who_gets_it_next import GaveUp, claim
+
+        try:
+            async with claim("training", "lora_trainer.train_adapter", seconds=timeout):
+                return await self._run_the_finetune(cmd, output_path, timeout=timeout)
+        except GaveUp as exc:
+            return {
+                "status": "skipped",
+                "reason": f"another fine-tune held the GPU: {exc}",
+            }
+
+    async def _run_the_finetune(
+        self,
+        cmd: list[str],
+        output_path: str,
+        *,
+        timeout: float,  # noqa: ASYNC109 - delegated to the subprocess gateway.
+    ) -> dict[str, Any]:
         try:
             res = await get_subprocess_gateway().run_async(
                 cmd,

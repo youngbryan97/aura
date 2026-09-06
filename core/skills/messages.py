@@ -6,6 +6,7 @@ from typing import Any, Literal, Protocol, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.communication.contact_directory import DEFAULT_MESSAGES_CONTACT_ALIAS
 from core.container import ServiceContainer
 from core.skills.base_skill import BaseSkill
@@ -53,6 +54,11 @@ class MessagesInput(BaseModel):
 
 class MessagesSkill(BaseSkill):
     """Let Aura converse privately with her configured operator over Messages."""
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "messages"
     description = (

@@ -85,3 +85,73 @@ def get_knowledge_graph() -> KnowledgeGraph:
     if _graph_instance is None:
         _graph_instance = KnowledgeGraph()
     return _graph_instance
+
+
+# ---------------------------------------------------- the shared graph shape
+#
+# The adapter lives here rather than in core.knowledge because the interface
+# may not reach this package, and opening the layering so an interface could
+# describe the system would be describing a different system. A store adapts
+# itself; core.knowledge.one_graph only says what the shape is.
+
+from core.knowledge.one_graph import (  # noqa: E402
+    ALink,
+    ANode,
+    a_store_that_is_a_graph,
+    the_same,
+)
+
+
+class TheKnowledgeGraphAsAGraph:
+    """core/world/knowledge_graph.py, under the shared shape."""
+
+    def __init__(self, inner: Any = None) -> None:
+        self._inner = inner if inner is not None else KnowledgeGraph()
+
+    def put_node(self, node: ANode) -> str:
+        self._inner.add_node(
+            GraphNode(node.node_id, node.kind, {"name": node.name, **node.attributes})
+        )
+        return node.node_id
+
+    def put_link(self, link: ALink) -> None:
+        self._inner.add_edge(
+            GraphEdge(link.source_id, link.target_id, link.kind, dict(link.attributes))
+        )
+
+    def node(self, node_id: str) -> ANode | None:
+        found = self._inner.get_node(the_same(node_id))
+        if found is None:
+            return None
+        attributes = dict(getattr(found, "attributes", {}) or {})
+        return ANode(
+            found.node_id, found.kind, str(attributes.pop("name", "")), attributes
+        )
+
+    def out_of(self, node_id: str) -> list[ALink]:
+        return [
+            ALink(one.relationship, one.source_id, one.target_id, dict(one.attributes))
+            for one in self._inner.get_outgoing(the_same(node_id))
+        ]
+
+    def into(self, node_id: str) -> list[ALink]:
+        return [
+            ALink(one.relationship, one.source_id, one.target_id, dict(one.attributes))
+            for one in self._inner.get_incoming(the_same(node_id))
+        ]
+
+    def all_nodes(self) -> list[ANode]:
+        return [self.node(one) for one in list(self._inner.nodes)]
+
+
+@a_store_that_is_a_graph("knowledge_graph")
+def _the_knowledge_graph(*, live: bool = False):
+    inner = None
+    if live:
+        from core.container import ServiceContainer
+        from core.service_names import ServiceNames
+
+        inner = ServiceContainer.get(ServiceNames.KNOWLEDGE_GRAPH, default=None)
+        if inner is None:
+            raise RuntimeError("no live knowledge graph")
+    return TheKnowledgeGraphAsAGraph(inner)

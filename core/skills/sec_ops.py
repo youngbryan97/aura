@@ -9,6 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill
 
@@ -47,6 +48,11 @@ class SecOpsInput(BaseModel):
 
 
 class SecOpsSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "sec_ops"
     description = "Run bounded local security posture checks and refuse active external testing without authorization."
     input_model = SecOpsInput

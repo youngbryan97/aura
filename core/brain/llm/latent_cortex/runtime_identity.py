@@ -188,6 +188,16 @@ def logical_model_parameter_count(
         )
     except (FileNotFoundError, OSError, UnicodeDecodeError, json.JSONDecodeError):
         return stored_element_count, "stored_tensor_elements"
+    if isinstance(config, Mapping) and str(config.get("model_type") or "") in {
+        "qwen3_5", "qwen3_5_text",
+    }:
+        from core.brain.llm.model_artifact_profile import parameter_cross_check
+
+        measured = parameter_cross_check(dict(config), None)
+        logical = measured.get("config_parameters")
+        if measured.get("supported") and type(logical) is int and logical > 0:
+            return logical, "architecture_config_logical"
+        return stored_element_count, "stored_tensor_elements"
     if not isinstance(config, Mapping) or str(config.get("model_type") or "") != "qwen2":
         return stored_element_count, "stored_tensor_elements"
 

@@ -429,12 +429,52 @@ def bind_turn_evidence_custody(
     session_token = conversation_session_var.set(custody.session_id)
     turn_token = conversation_turn_var.set(custody.turn_id)
     custody_token = _ACTIVE_CUSTODY.set(custody)
+    # One turn owns the runtime for the length of this scope. `take_over`
+    # rather than `begin`: a new user message legitimately supersedes whatever
+    # was running, and refusing here would be this scope deciding a policy it
+    # does not own. What it buys is that the runtime can say which turn owns
+    # it, and that a turn superseded mid-flight is told so through its lease
+    # rather than finding out by writing into somebody else's turn.
+    lease = _took_the_turn(custody.turn_id)
     try:
         yield custody
     finally:
+        _gave_the_turn_back(lease)
         custody.close()
         _ACTIVE_CUSTODY.reset(custody_token)
         conversation_turn_var.reset(turn_token)
         conversation_session_var.reset(session_token)
+
+
+def _took_the_turn(turn_id: str) -> Any:
+    try:
+        from core.runtime.whose_turn_it_is import the_turn
+
+        return the_turn().take_over(origin="conversation", turn_id=str(turn_id))
+    except (ImportError, RuntimeError) as exc:
+        _logger.debug("turn ownership not recorded for %s: %s", turn_id, exc)
+        return None
+
+
+def _gave_the_turn_back(lease: Any) -> None:
+    """Hand it back, unless something took over while this turn ran.
+
+    A `NotTheOwner` here is the interesting case rather than an error: it
+    means this turn was superseded, which is exactly what the lease exists to
+    let a superseded owner discover.
+    """
+    if lease is None:
+        return
+    try:
+        from core.runtime.whose_turn_it_is import NotTheOwner, the_turn
+
+        try:
+            the_turn().finish(lease)
+        except NotTheOwner:
+            _logger.debug(
+                "turn %s finished after being superseded", getattr(lease, "turn_id", "?")
+            )
+    except ImportError:
+        return
 
 

@@ -52967,3 +52967,71 @@ The neural feed still shows duplicate vital cards, a warning paraphrased as
 "Health check passed", and background first-token cancellations. A boot health
 read returned 503 then recovered on the next read. These remain open runtime
 observations; the complete lock explanation also remains a correctness failure.
+
+### Source-Matched Replay: Active Phase Still Needs Owner Repair
+
+Runtime PID 64712 loaded canonical merge 3e39875e4 with source_current=true.
+Turn 8190d1e4aa534b6eb88ee688f2350f23 entered CognitiveEngine through
+ResponseGenerationPhase, not UnitaryResponsePhase. Its latent request
+052996ffa8884f1aaa7c4e4e5dfdf81e stopped before decode: 12653 input tokens,
+114.19 seconds prefill, 124.84 seconds total. The request carried 48365
+characters, of which 44223 were the main system context. The previous
+checkpoint did not close this active path. Next: unify measured admission
+with the CognitiveEngine-owned cycle deadline and both response phases;
+preserve scientific limits and explicit cancellation. Do not claim live closure.
+
+Interiority channels emitted live observations without the old ID collision.
+During replay the neural feed also reported severe event-loop lag (7.669s),
+a morphogenesis.field blocking hold (68ms), and runtime lease renewal loss.
+These observations require causal follow-up and are not explained away by
+the occasionally healthy status card.
+
+### Hybrid RLC Identity Repair
+
+The failed replay reported 4,204,731,904 stored elements as the worker's model
+size. The runtime identity counter recognized only qwen2 logical geometry;
+the hybrid checkpoint therefore selected the small-model allocation policy.
+RLC identity now reuses the existing hybrid-aware artifact-profile counter.
+A focused test follows the resulting 27B logical count into the resident
+allocation policy and verifies unsupported geometry retains its explicit
+storage-only basis. Identity tests: 16 passed; smoke: 164 passed, 1 skipped.
+The earlier source-matched failure remains open until a new live replay;
+this checkpoint does not establish answer quality or reasoning gain.
+
+### Latent Progress Reaches Its Turn Owner
+
+Latent submission captures the existing delivery publisher and turn-progress
+owner. Advancing prefill/decode coordinates publish to that request's chat
+journal and renew its completion activity. Repeated or malformed counters,
+stage-only messages, other request IDs, and closed turns cannot manufacture
+renewal. Cleanup releases both captured owners. The worker's finite episode
+budget remains unchanged; source-matched live replay is still required.
+Lifecycle tests: 200 passed. Smoke: 164 passed, 1 skipped. The additional
+coordinate-retention regression passed all 10 progress tests. The lifecycle
+readiness assertion now checks the shared prover's remaining-budget argument
+instead of a retired inline prompt symbol.
+
+Combined-tree follow-up: layering passed (37 grandfathered). Governance lint
+reported 13 new effect-ownership entries and two stale buckets, in knowledge,
+memory, persistence, event-spine, checkpoint storage, and LoRA training paths.
+No baseline was refreshed. Those findings are separate from the progress
+patch and remain open. No aura_main, RLC training, or soak process matched the
+process inspection. The active response phase still sizes its initial request
+from answer tokens and clamps it to the cycle owner before dispatch. Its
+assembled prompt must be included by the owner before a new live replay;
+renewing outer activity cannot extend an already-issued worker budget.
+
+### Prompt-Aware Admission on the Active Chat Path
+
+Both response paths now use the shared resident read/decode measurement.
+CognitiveEngine binds admission to its own timeout and current TurnOutcome;
+the active response phase requests the measured allowance before applying
+the owner clamp and dispatching work. Disabled, unowned, expired, or unrelated
+turn scopes cannot grant time. Admission cannot shorten the clock. Proof,
+benchmark, background, and secondary-lane requests retain existing policy.
+No model token or reasoning budget is reduced by this change.
+
+Focused admission/measurement tests: 10 passed. Broader response/deadline run:
+248 passed and one stale class-method reference, corrected and retested above.
+Smoke: 164 passed, 1 skipped. Layering and touched-code Ruff passed. This is
+offline integration evidence; the failed live replay is not yet closed.

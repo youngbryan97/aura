@@ -1,4 +1,5 @@
 """Skill: evolution_status — Aura's self-assessment of her evolutionary progress."""
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Dict, Optional
@@ -15,6 +16,11 @@ class EvolutionInput(BaseModel):
 
 class EvolutionStatusSkill(BaseSkill):
     """Reports Aura's evolutionary progress across all 8 axes."""
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "evolution_status"
     description = "Check evolutionary progress across self-awareness, ethics, learning, collaboration, embodiment, resilience, emotional/cognitive integration, and exploration."

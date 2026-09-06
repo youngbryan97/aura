@@ -1420,10 +1420,20 @@ class ContextAssembler:
             try:
                 from core.consciousness.temporal_finitude import get_temporal_finitude_model
                 tf = get_temporal_finitude_model()
-                wm_size = len(getattr(state.cognition, "working_memory", []) or [])
+                # Both from the one accessor. The cap was the literal 40
+                # against an enforced capacity of 150, so context_usage read
+                # 1.0 from the fortieth exchange on — a constant in the block
+                # where the runtime describes its own situation, which is the
+                # same defect as the user_present literal noted below.
+                from core.state.one_working_memory import (
+                    the_capacity,
+                    the_working_memory,
+                )
+
+                wm_size = len(the_working_memory(state))
                 tf.compute(
                     working_memory_size=wm_size,
-                    working_memory_cap=40,
+                    working_memory_cap=the_capacity(),
                     # Was the literal True. This block feeds live self-report
                     # and any causal experiment reading it, so a constant here
                     # is a fabricated observation in the one place the runtime

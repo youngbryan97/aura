@@ -3,6 +3,7 @@ Coding Skill — Dedicated interface for code generation with Thought Circulatio
 Ensures complex programming tasks are wrapped with <think> tags for high-accuracy reasoning.
 """
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Dict
@@ -12,6 +13,11 @@ from infrastructure import BaseSkill
 logger = logging.getLogger("Skills.Coding")
 
 class CodingSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "coding_skill"
     description = "Dedicated skill for writing, refactoring, and debugging complex code using step-by-step reasoning."
 

@@ -6,6 +6,7 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.brain.cognitive_engine import CognitiveEngine, ThinkingMode
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.skills.base_skill import BaseSkill
@@ -130,6 +131,11 @@ def _response_text(thought: Any) -> str:
 
 
 class NativeChatSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "native_chat"
     description = "Conversational engine with robust dependency resolution."
     aliases = ["chat", "talk"]

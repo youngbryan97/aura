@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from types import SimpleNamespace
 
@@ -147,6 +148,46 @@ def test_worker_identity_accepts_production_steering_coefficient():
     identity["worker_affective_steering_alpha"] = 5.525
 
     assert runtime_identity.worker_identity_errors(identity) == []
+
+
+def test_hybrid_identity_uses_the_shared_logical_geometry(tmp_path, monkeypatch):
+    from core.brain.latent_cortex_service import LatentCortexService
+    from core.brain.llm.model_artifact_profile import parameter_cross_check
+
+    text = {
+        "model_type": "qwen3_5_text", "hidden_size": 5120,
+        "intermediate_size": 17408, "num_hidden_layers": 64,
+        "num_attention_heads": 24, "num_key_value_heads": 4,
+        "head_dim": 256, "vocab_size": 248320,
+        "full_attention_interval": 4, "attn_output_gate": True,
+        "linear_conv_kernel_dim": 4, "linear_key_head_dim": 128,
+        "linear_num_key_heads": 16, "linear_num_value_heads": 48,
+        "linear_value_head_dim": 128, "tie_word_embeddings": False,
+    }
+    config = {"model_type": "qwen3_5", "text_config": text}
+    (tmp_path / "config.json").write_text(json.dumps(config))
+    count, basis = runtime_identity.logical_model_parameter_count(
+        tmp_path, stored_element_count=4_204_731_904,
+    )
+    assert count == parameter_cross_check(config, None)["config_parameters"]
+    assert 26_000_000_000 < count < 29_000_000_000
+    assert basis == "architecture_config_logical"
+
+    service = LatentCortexService()
+    monkeypatch.setattr(service, "_body_pressure", lambda: 0.1)
+    service.allocate(
+        stakes=0.7, uncertainty=0.8, model_parameter_count=count,
+        foreground_request=True, timeout_s=128.0,
+    )
+    assert service.get_status()["last_allocation"]["allocation_profile"] == (
+        "resident_32b_interactive_full_stack_v2"
+    )
+
+    del text["linear_key_head_dim"]
+    (tmp_path / "config.json").write_text(json.dumps(config))
+    assert runtime_identity.logical_model_parameter_count(
+        tmp_path, stored_element_count=4_204_731_904,
+    ) == (4_204_731_904, "stored_tensor_elements")
 
 
 def test_worker_identity_zeroes_an_unattached_steering_coefficient(

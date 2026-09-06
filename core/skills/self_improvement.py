@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
@@ -26,6 +27,11 @@ class SelfImprovementSkill(BaseSkill):
     """Skill for reflecting on self-improvement, checking learning progress,
     and planning cognitive upgrades.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     
     name = "self_improvement"
     description = "Reflect on evolution, check learning logs, and plan improvements."

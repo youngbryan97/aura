@@ -5807,6 +5807,34 @@ def _runtime_integrity_public_payload(report: dict[str, Any] | None) -> dict[str
         "caa_readiness": report.get("caa_readiness") or {},
         "at": report.get("at"),
         "read_model": report.get("integrity_read_model") or {},
+        # The compiled shape of a turn, the one working memory, and the
+        # runtime boundary. Additive and read-only: each is a fact about how
+        # this build is put together, and each was previously reachable only
+        # from inside the process. A seal that changes between two runs of one
+        # commit is the thing worth seeing, and nobody can see it over HTTP if
+        # it never leaves the report.
+        "engineering": {
+            key: report.get(key)
+            for key in (
+                "the_shape_of_one_turn",
+                "one_working_memory",
+                "the_runtime_boundary",
+                "who_holds_what",
+                "who_owns_each_field",
+                "one_graph",
+                "what_answered_this_turn",
+                "whose_turn_it_is",
+                "what_a_message_carries",
+                "what_a_phase_changed",
+                "which_thread_may_do_this",
+                "what_kind_of_state_is_this",
+                "what_every_skill_gives_back",
+                "the_control_policy",
+                "what_has_a_measured_effect",
+                "what_each_organ_says",
+            )
+            if report.get(key) is not None
+        },
     }
 
 

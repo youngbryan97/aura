@@ -4,6 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.skills.base_skill import BaseSkill
 from core.utils.privacy_hygiene import MetadataScrubber, get_stealth_mode
 
@@ -34,6 +35,11 @@ class StealthOpsSkill(BaseSkill):
     hygiene and status only, and refuses active stealth operations unless a
     future governed gateway provides explicit, auditable authorization.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "stealth_ops"
     description = "Inspect and apply local privacy hygiene without changing network identity or hiding activity."

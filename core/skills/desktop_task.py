@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.dialogue.referents import resolve_second_person
 from core.language.concepts import (
     extract_object_description,
@@ -37,7 +38,6 @@ from core.runtime.desktop_task_contract import (
 )
 from core.runtime.errors import record_degradation
 from core.runtime.os_automation_effects import (
-    canonical_app_target,
     extract_target_apps,
     extract_target_paths,
 )
@@ -352,6 +352,11 @@ def _note_unauthored(objective: str, why: str) -> None:
 
 
 class DesktopTaskSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "desktop_task"
     description = (
         "Execute a bounded, receipt-producing multi-step desktop plan through "

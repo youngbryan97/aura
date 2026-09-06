@@ -2,6 +2,7 @@
 Allows Aura to write and execute code in a sandbox to solve problems, 
 analyze data, or test hypotheses.
 """
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 import logging
 from pathlib import Path
@@ -62,6 +63,11 @@ class RunCodeParams(BaseModel):
     stateful: bool = Field(True, description="Keep variables and functions in memory for the next run.")
 
 class RunCodeSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "run_code"
     description = "Executes Python code in a secure sandbox. Use for calculation, data processing, or testing."
     input_model = RunCodeParams
@@ -89,7 +95,6 @@ class RunCodeSkill(BaseSkill):
             
         try:
             sandbox = get_sandbox()
-            import asyncio
             if params.stateful:
                 result = await sandbox.run_stateful_code(code)
             else:

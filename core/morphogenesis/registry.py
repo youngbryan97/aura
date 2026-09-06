@@ -44,7 +44,12 @@ def _default_root() -> Path:
     if override:
         return Path(override)
     log_dir = os.environ.get("AURA_LOG_DIR", "").strip()
-    if log_dir and not log_dir.startswith(str(Path.home() / ".aura")):
+    # Resolved rather than string-compared, and against the root this process
+    # started with rather than the current HOME: a redirected HOME made the
+    # live instance's own directory look like somebody else's.
+    from core.runtime.state_ownership import is_live_state_path
+
+    if log_dir and not is_live_state_path(log_dir):
         # Redirected logs mean a run that is not the live instance.
         return Path(log_dir) / "morphogenesis"
     if os.environ.get("PYTEST_CURRENT_TEST"):

@@ -4,6 +4,7 @@ import inspect
 import logging
 from typing import Any
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.container import ServiceContainer
 from core.runtime.errors import Severity, record_degradation
 from core.skills.base_skill import BaseSkill
@@ -89,6 +90,11 @@ class DreamSkill(BaseSkill):
     This consolidates old, fragmented memories into denser concepts, and
     reprocesses the dead-letter queue for missed thoughts.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "force_dream_cycle"
     description = "Initiates immediate memory consolidation and dead-letter queue (DLQ) re-processing."

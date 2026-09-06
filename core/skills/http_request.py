@@ -30,6 +30,7 @@ from urllib.parse import urlencode, urlparse, urlsplit, urlunsplit
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 from core.runtime.public_http_transport import request_public_http
 from core.skills.base_skill import BaseSkill
@@ -120,6 +121,11 @@ def check_url(url: str) -> tuple[str, str]:
 
 
 class HttpRequestSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "http_request"
     description = (
         "Fetch a URL over http or https and return the status, headers and body. "

@@ -24,11 +24,11 @@ implications on the event bus (``atomspace.derived``).
 """
 from __future__ import annotations
 
-import os
-import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Sequence
+
+from core.runtime.lockdep import checked_lock
 
 # ── PLN truth values ──────────────────────────────────────────────────────
 
@@ -301,7 +301,7 @@ class AtomSpace:
         focus_size: int = 20,
         max_atoms: int = 50_000,
     ) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.knowledge.atomspace.AtomSpace", reentrant=True)
         self._records: dict[Atom, _Record] = {}
         self._by_type: dict[str, set[Atom]] = {}
         self._incoming: dict[Atom, set[Link]] = {}
@@ -972,7 +972,7 @@ def assert_claim(
 
 # ── Singleton ─────────────────────────────────────────────────────────────
 
-_space_lock = threading.Lock()
+_space_lock = checked_lock("core.knowledge.atomspace.spaces")
 _space: AtomSpace | None = None
 
 

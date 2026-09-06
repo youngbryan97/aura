@@ -19,6 +19,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.skills.base_skill import BaseSkill
 
 _QUANTUM_LAB_ERRORS = (ImportError, AttributeError, RuntimeError, TypeError, ValueError)
@@ -128,6 +129,11 @@ class QuantumLabInput(BaseModel):  # type: ignore[misc]
 
 
 class QuantumLabSkill(BaseSkill):  # type: ignore[misc]
+    #: What a caller gets back. The shared part only: every skill here
+    #: returns `ok`, and a schema claiming to be complete would be wrong
+    #: for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "quantum_lab"
     description = (
         "Run quantum circuit simulations: Bell/GHZ entanglement, Grover search, "

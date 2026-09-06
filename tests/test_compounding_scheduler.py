@@ -257,7 +257,19 @@ class TestRSIWeightUpdateRouting:
         class FakeSchedulerService:
             async def run_cycle_now(self, *, reason):
                 cycle_calls.append(reason)
-                return {"status": "promoted"}
+                # A status the compounding contract actually produces.
+                #
+                # This said "promoted", which the contract has never emitted:
+                # a cycle ends as a candidate or a qualified adapter, and
+                # moving the active model pointer is a separate staged act on
+                # purpose. The reader was fixed to ask the contract rather
+                # than compare against a copy of it, and this double was still
+                # returning the string the fix was about — so the test
+                # asserted the defect.
+                from core.learning.weight_compounding import WORKED
+
+                assert "qualified_adapter" in WORKED
+                return {"status": "qualified_adapter"}
 
         monkeypatch.setattr(
             container_mod.ServiceContainer,

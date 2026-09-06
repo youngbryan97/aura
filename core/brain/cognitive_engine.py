@@ -1096,6 +1096,23 @@ def _register_live_mind_lesions() -> None:
 _register_live_mind_lesions()
 
 
+def _offer_the_control_policy_sweep() -> None:
+    """Make what the policy actually does readable from the health report.
+
+    Registered from here because this module owns the policy, and read
+    through the registry because core/runtime may not import core.brain.
+    """
+    try:
+        from core.brain.does_the_mind_move_the_controls import register_the_sweep
+
+        register_the_sweep()
+    except Exception as exc:  # noqa: BLE001 — a report is not worth a boot
+        logger.debug("the control policy sweep was not offered: %s", exc)
+
+
+_offer_the_control_policy_sweep()
+
+
 def _attach_turn_receipt(thought: Any, receipt: TurnReceipt) -> None:
     """Travel the path evidence with the answer it explains.
 
@@ -3174,7 +3191,18 @@ class CognitiveEngine:
             _provenance_tick = None
             _clock_keeper: Any = None
             try:
-                async with asyncio.timeout(cycle_timeout) as _cycle_clock:
+                from core.runtime.completion_admission import bind_completion_admission
+
+                async with asyncio.timeout(cycle_timeout) as _cycle_clock, bind_completion_admission(
+                    _cycle_clock, context,
+                    enabled=bool(
+                        self._is_user_facing_origin(origin) and not is_background
+                        and str(origin).lower() not in {"proof", "eval", "evaluation", "benchmark", "test"}
+                        and not any(context.get(key) for key in (
+                            "proof_or_benchmark", "proof_run", "benchmark_run", "proof_answer_run",
+                        ))
+                    ),
+                ):
                     _clock_keeper = asyncio.create_task(
                         _keep_the_cycle_open_while_it_is_working(
                             _cycle_clock,

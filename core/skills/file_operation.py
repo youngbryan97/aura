@@ -1,3 +1,4 @@
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 from core.runtime.action_executor import ActionExecutor
 from core.governance.will import ActionDomain
@@ -74,6 +75,11 @@ def _the_person_named_this_path(path: str) -> bool:
 
 
 class FileOperationSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "file_operation"
     description = "Read, write, append, or list files in the allowed workspace."
 

@@ -24,6 +24,7 @@ from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.conversation.word_markers import names_any
 from core.capabilities.browser_authority import (
     BrowserAction as AuthorityAction,
@@ -144,6 +145,11 @@ class SovereignBrowserSkill(BaseSkill):
     - Per-operation timeouts on all Playwright calls (read_content, browse, etc.)
     - Resource lock integration to pause background inference during heavy browsing.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "sovereign_browser"
     description = "Browse the web, search for information, or interact with websites (click, type, etc.)."

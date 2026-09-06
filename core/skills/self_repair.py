@@ -4,8 +4,8 @@ Analyzes errors, locates the source file, reads the code, asks the LLM
 for a targeted fix, and saves a repair proposal. Integrates with the
 learning system to remember what worked.
 """
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
-from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.action_executor import ActionExecutor
 from core.governance.will import ActionDomain
 import logging
@@ -31,6 +31,11 @@ class SelfRepairInput(BaseModel):
 
 class SelfRepairSkill(BaseSkill):
     """Autonomous self-healing of Aura's own tools and modules."""
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "self_repair"
     description = "Diagnose and repair broken skills or system components. Analyzes errors, reads source, proposes fixes."

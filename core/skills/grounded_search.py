@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
 from core.skills.web_search import EnhancedWebSearchSkill
@@ -31,6 +32,11 @@ class GroundedSearchSkill(EnhancedWebSearchSkill):
     This skill keeps the historical ``grounded_search`` address while requiring
     a fresh, deep evidence pass by default.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "grounded_search"
     description = (

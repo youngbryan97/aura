@@ -1,3 +1,4 @@
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 import logging
 from typing import Any, Dict
@@ -11,6 +12,11 @@ class VisualContextSkill(BaseSkill):
     Skill that allows Aura to query her rolling visual buffer for real-time spatial awareness.
     Provides 'Gemini Live' style screen-awareness.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     
     name = "query_visual_context"
     description = "Analyze the current rolling visual buffer (last 3 frames of screen/camera) to understand visual context."

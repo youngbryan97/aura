@@ -12,7 +12,7 @@ def test_live_owner_funds_reading_and_both_output_channels(
     monkeypatch, decode_rate, worker_read, private, expected,
 ):
     from core.brain.llm import chat_format, mlx_client, thinking_reserve
-    from core.phases.response_generation_unitary import UnitaryResponsePhase
+    from core.phases.response_generation_unitary import _timeout_for_request
 
     model = "/models/current-cortex"
     client = SimpleNamespace(
@@ -30,7 +30,7 @@ def test_live_owner_funds_reading_and_both_output_channels(
         return tokens / decode_rate if decode_rate else 0.0
 
     monkeypatch.setattr(thinking_reserve, "seconds_to_decode", decode)
-    assert UnitaryResponsePhase._timeout_for_request(
+    assert _timeout_for_request(
         is_user_facing=True, model_tier="primary", deep_handoff=False,
         messages=[{"role": "user", "content": "x" * 16000}],
         decode_max_tokens=1000,
@@ -40,13 +40,13 @@ def test_live_owner_funds_reading_and_both_output_channels(
 @pytest.mark.parametrize("foreground,tier,expected", [(False, "primary", 15.0), (True, "secondary", 210.0)])
 def test_other_lanes_do_not_borrow_resident_measurements(monkeypatch, foreground, tier, expected):
     from core.brain.llm import mlx_client
-    from core.phases.response_generation_unitary import UnitaryResponsePhase
+    from core.phases.response_generation_unitary import _timeout_for_request
 
     def unexpected():
         pytest.fail("another lane must not read the resident's rate")
 
     monkeypatch.setattr(mlx_client, "get_mlx_client", unexpected)
-    assert UnitaryResponsePhase._timeout_for_request(
+    assert _timeout_for_request(
         is_user_facing=foreground, model_tier=tier, deep_handoff=False,
         messages=[{"role": "user", "content": "hello"}],
     ) == expected

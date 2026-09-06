@@ -29,6 +29,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.container import ServiceContainer
 from core.skills.base_skill import BaseSkill
 
@@ -71,6 +72,11 @@ class NetHackParams(BaseModel):
 
 
 class ExecuteNethackActionSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "execute_nethack_action"
     description = (
         "Send a keystroke to the active NetHack game session and receive "

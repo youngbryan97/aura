@@ -11,6 +11,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import NetworkEffectDenied, record_degradation
 from core.runtime.network_gateway import build_stream_endpoint, get_network_gateway
 from core.runtime.subprocess_gateway import get_subprocess_gateway
@@ -33,6 +34,11 @@ class SovereignNetworkSkill(BaseSkill):
     """The unified network capability for Aura.
     Handles connectivity checks, stealthy recon, and advanced scanning.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     
     name = "sovereign_network"
     description = "Monitor connectivity, discover local devices, and audit network services."

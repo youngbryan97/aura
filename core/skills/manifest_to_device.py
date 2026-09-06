@@ -1,3 +1,4 @@
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 import hashlib
 import logging
@@ -72,6 +73,11 @@ class ManifestInput(BaseModel):
 
 class ManifestToDeviceSkill(BaseSkill):
     """Downloads remote assets to the host's Desktop for permanent storage."""
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "manifest_to_device"
     description = "Save a remote image or file to the host device's Desktop. Use this when the user explicitly asks to 'save' or 'download' an image seen in chat."

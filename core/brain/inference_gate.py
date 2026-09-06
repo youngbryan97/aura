@@ -11810,6 +11810,28 @@ class InferenceGate:
     ) -> Any:
         """Bind request-scoped generation evidence around the direct endpoint."""
 
+        # A turn that has been abandoned does not need its answer generated.
+        #
+        # Two peer architectures thread a cancellation token through the model
+        # call for this reason. Aura had asyncio cancellation, which raises
+        # inside the cancelled task and says nothing to the generation already
+        # in flight — so a turn the user walked away from held the model lane
+        # to the end and produced a reply nobody read.
+        #
+        # Checked once here rather than polled: the decode loop has its own
+        # deadline, and what this adds is the reason and the composition —
+        # a turn's token stops every model call under it, and a subagent's
+        # stops only its own.
+        try:
+            from core.runtime.what_stops_it import current
+
+            halt = current(whose="inference_gate.generate").stopping
+            if halt.stopped:
+                logger.info("🛑 generation not started: %s", halt.why)
+                return None
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            pass
+
         sink_slot = self._generation_metadata_sink_slot()
         inherited_sink = sink_slot.get()
         bound_sink = (

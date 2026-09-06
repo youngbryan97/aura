@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 from core.skills.base_skill import BaseSkill
 from core.skills._pyautogui_runtime import get_pyautogui
@@ -27,6 +28,11 @@ class DesktopControlSkill(BaseSkill):
     """The 'Hands' of the machine.
     Allows Aura to click, type, and scroll.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "os_manipulation"
     description = "Manipulate the mouse and keyboard to interact with the OS using PyAutoGUI."

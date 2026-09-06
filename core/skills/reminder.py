@@ -15,10 +15,16 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.skills.base_skill import BaseSkill
 
 
 class ReminderSkill(BaseSkill):
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
     name = "reminder"
     description = (
         "Set a reminder or timer for later — 'remind me in 20 minutes to check "

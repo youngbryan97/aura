@@ -327,6 +327,44 @@ _PRESENTABLE_AUTHORITY_KEYS = frozenset(
 )
 
 
+def _what_stops_this(stopping: Any) -> Any:
+    """The token for this action: the caller's, or the ambient one.
+
+    A module function rather than a method. It reads no instance state, and
+    ActionExecutor is close enough to the method ceiling that a helper which
+    does not need to be on the class should not be.
+    """
+    if stopping is not None:
+        return stopping
+    try:
+        from core.runtime.what_stops_it import current
+
+        return current(whose="action_executor.execute").stopping
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _check_what_the_skill_gave_back(engine: Any, name: str, result: Any) -> None:
+    """Compare a skill's result against the schema it declared.
+
+    Records, never raises, and never changes the result. Every one of the 82
+    tools now says what it gives back; a declaration nothing checks is a
+    comment, and a check that could cost the turn would be worse than the
+    comment.
+    """
+    try:
+        from core.skills.what_every_skill_gives_back import check_a_result
+
+        held = getattr(engine, "skills", None) or {}
+        metadata = held.get(name) if isinstance(held, dict) else None
+        declared = getattr(metadata, "result_schema_def", None)
+        if not declared or not getattr(metadata, "declares_its_result", False):
+            return
+        check_a_result(str(name), declared, result)
+    except Exception as exc:  # noqa: BLE001 — a contract check must cost nothing
+        logger.debug("could not check what %s gave back: %s", name, exc)
+
+
 class ActionExecutor:
     """Execute, observe, and receipt one consequential action."""
 
@@ -489,10 +527,31 @@ class ActionExecutor:
         verification_timeout_s: float | None = None,
         action_id: str | None = None,
         authority_context: Mapping[str, Any] | None = None,
+        stopping: Any = None,
     ) -> dict[str, Any]:
         domain = _coerce_domain(domain)
         action_name = _coerce_action_name(action_name)
         params = _coerce_params(params)
+        # A caller that can say stop, saying it before anything happens.
+        #
+        # Two peer architectures thread a cancellation token through tool
+        # calls so that cooperative cancellation composes. Aura had asyncio
+        # cancellation, deadlines and a token inside the voice duplex, none of
+        # which reach here: a turn abandoned mid-tool ran the tool to
+        # completion and threw the answer away.
+        #
+        # Passed explicitly where the caller has one, read from the ambient
+        # context where it does not — and reading it counts, so what has not
+        # been threaded is a number rather than an impression.
+        halt = _what_stops_this(stopping)
+        if halt is not None and halt.stopped:
+            return {
+                "ok": False,
+                "error": "stopped before it started",
+                "why": halt.why,
+                "domain": domain.value,
+                "action_name": action_name,
+            }
         _hold_perception_for(domain, action_name)
         handler_name = _validate_effect_handler(
             domain,
@@ -1388,6 +1447,7 @@ class ActionExecutor:
                     "action_expectation": expectation.to_dict(),
                 },
             )
+            _check_what_the_skill_gave_back(engine, action_name, raw_result)
             return _coerce_result(raw_result)
 
         if domain == ActionDomain.FILE_WRITE:

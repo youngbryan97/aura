@@ -45,6 +45,55 @@ def _env_float(name: str, default: float, *, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
+
+#: Set while this thread is inside the payload check, so recording a
+#: degradation — which can publish — cannot re-enter it.
+_CHECKING = threading.local()
+
+
+def _the_payload_matches_what_the_topic_declared(topic: Any, data: Any) -> None:
+    """Check a declared topic's payload, and never raise doing it.
+
+    The topic string is an address and stays one. What a consumer could not
+    know is what arrives on it, and the only way to find out was to read every
+    producer. A topic that declares its payload is checked here; one that says
+    nothing is counted and left alone.
+
+    A violation is a degradation, not an exception. A bus that raises inside
+    publish turns a consumer's schema mistake into a producer's crash, which
+    is a worse failure than the one being caught.
+    """
+
+    # Reentrancy is the whole difficulty here.
+    #
+    # Recording a degradation can publish, and publishing checks, and checking
+    # can record — so the first mismatched payload turns into a loop that eats
+    # the process. The guard is per thread rather than global: two threads
+    # publishing at once are two independent checks and neither is inside the
+    # other.
+    if getattr(_CHECKING, "inside", False):
+        return
+    _CHECKING.inside = True
+    try:
+        from core.runtime.what_an_event_carries import check
+
+        ok, reasons = check(str(topic or ""), data)
+        if ok:
+            return
+        from core.runtime.errors import record_degradation
+
+        record_degradation(
+            "event_bus.payload",
+            ValueError(f"{topic}: {'; '.join(reasons)}"),
+            severity="warning",
+            action="delivered the event anyway; the topic's declaration and its payload disagree",
+        )
+    except Exception:  # noqa: BLE001 — checking must never stop a publish
+        return
+    finally:
+        _CHECKING.inside = False
+
+
 class EventPriority(IntEnum):
     """Event priority tiers. Lower number = higher priority."""
     CRITICAL = 0    # System emergencies, stall recovery
@@ -628,6 +677,7 @@ class AuraEventBus:
         Args:
             priority: EventPriority tier. Lower = higher priority.
         """
+        _the_payload_matches_what_the_topic_declared(topic, data)
         # Ensure we're on the correct loop before doing anything
         try:
             current_loop = asyncio.get_running_loop()

@@ -1,8 +1,8 @@
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.errors import record_degradation
 import inspect
 import logging
-import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from core.skills.base_skill import BaseSkill
 from core.container import ServiceContainer
 
@@ -25,6 +25,11 @@ class SystemProprioceptionSkill(BaseSkill):
     
     Allows the AI to inspect registered services, their purpose, and their current status.
     """
+    #: What a caller gets back. The shared part only: every skill
+    #: here returns `ok`, and a schema claiming to be complete
+    #: would be wrong for every one that adds a field.
+    result_schema = THE_SHARED_RESULT
+
 
     name = "system_proprioception"
     description = "Inspect Aura's internal architecture, registered services, and core modules."

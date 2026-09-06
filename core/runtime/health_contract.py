@@ -1293,6 +1293,13 @@ def _attach_causal_evidence(block: dict[str, Any]) -> None:
         block["fabrication_watch_error"] = repr(exc)
 
 
+#: How big a graph is still worth walking end to end inside a health report.
+#: The integrity walk is O(nodes x links) and this is served on a route; above
+#: this the count is reported and the walk is skipped, which is a smaller lie
+#: than a report nobody can afford to call.
+_GRAPH_NODES_WORTH_WALKING = 5000
+
+
 def _runtime_integrity_block() -> dict[str, Any]:
     """Memory the health verdict does not otherwise have.
 
@@ -1305,6 +1312,272 @@ def _runtime_integrity_block() -> dict[str, Any]:
     attaches the caveat the verdict cannot express on its own.
     """
     block: dict[str, Any] = {}
+
+    # The order in which she thinks, compiled and sealed.
+    #
+    # Three peer architectures make the same complaint from three directions:
+    # Generative Agents puts the whole cycle in one function, Soar's decision
+    # cycle is a state machine anyone can enumerate, and LangGraph refuses to
+    # start when the topology does not resolve. Aura has the order, the
+    # frequency and the per-phase contracts, and nothing joined them, so a
+    # field two phases both write was found by watching it happen.
+    #
+    # The seal is what a receipt can carry: two runs of one commit agree, and
+    # a phase added, removed, reordered or re-declared does not.
+    try:
+        from core.runtime.the_shape_of_one_turn import compile_the_cognition
+
+        block["the_shape_of_one_turn"] = {
+            mode: {
+                key: value
+                for key, value in compile_the_cognition(mode).to_dict().items()
+                if key not in {"phases"}
+            }
+            for mode in ("foreground", "background")
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["the_shape_of_one_turn"] = {"error": repr(exc)}
+
+    # One working memory, and whether anything still normalises it against a
+    # number of its own. Three readers did, and each was pinned at its own
+    # ceiling for most of a conversation — a constant that looked like a
+    # measurement. Reported live so a new one cannot arrive unseen between
+    # test runs.
+    try:
+        from core.state.one_working_memory import (
+            THE_STORE,
+            the_capacity,
+            the_caps_that_disagree,
+            who_else_holds_it,
+        )
+
+        disagreeing = the_caps_that_disagree()
+        block["one_working_memory"] = {
+            "store": THE_STORE,
+            "capacity": the_capacity(),
+            "projections": len(who_else_holds_it()),
+            "caps_that_disagree": disagreeing,
+            "agreed": not disagreeing,
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["one_working_memory"] = {"error": repr(exc)}
+
+    # The runtime boundary, and how much of the declared service spine the
+    # runtime that is actually up can resolve. A name it cannot resolve is a
+    # service somebody else owns — a module singleton, a boot-local — which
+    # is the ownership debt, measured rather than asserted.
+    try:
+        from core.container import ServiceContainer
+        from core.runtime.what_a_runtime_is import (
+            THE_OPERATIONS,
+            the_services_it_can_address,
+            what_is_missing_from,
+        )
+
+        interface = ServiceContainer.get("kernel_interface", default=None)
+        running = getattr(interface, "kernel", None)
+        boundary: dict[str, Any] = {"operations": sorted(THE_OPERATIONS)}
+        if running is None:
+            boundary["runtime"] = "not up"
+        else:
+            from core.runtime.what_a_runtime_is import a_runtime_over
+
+            over = a_runtime_over(running)
+            boundary["runtime"] = type(running).__name__
+            boundary["missing"] = what_is_missing_from(over)
+            boundary.update(the_services_it_can_address(over))
+        block["the_runtime_boundary"] = boundary
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["the_runtime_boundary"] = {"error": repr(exc)}
+
+    # Who holds the scarce things, who is queued for them, and how the waiting
+    # has gone. A lock answers none of those: it is a boolean with a queue
+    # nobody can see, and whose order is whatever the loop decided.
+    try:
+        from core.runtime.who_gets_it_next import (
+            how_it_has_gone,
+            who_holds_what,
+            who_is_waiting,
+        )
+
+        block["who_holds_what"] = {
+            "held": who_holds_what(),
+            "waiting": who_is_waiting(),
+            "record": how_it_has_gone(),
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["who_holds_what"] = {"error": repr(exc)}
+
+    # Which durable fields have an authority. Counts only — the lists are long
+    # and the file that carries them is the baseline. A field that loses its
+    # owner between two builds is what this is for.
+    try:
+        from core.state.who_owns_each_field import what_it_stood_at_last_time
+
+        block["who_owns_each_field"] = what_it_stood_at_last_time()
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["who_owns_each_field"] = {"error": repr(exc)}
+
+    # The graph stores under one shape, and whether a reference from one into
+    # another still lands. Over the LIVE instances: the same check over fresh
+    # graphs measures nothing, which is how a check like this usually fails.
+    try:
+        from core.knowledge.one_graph import (
+            every_graph,
+            references_that_lead_nowhere,
+        )
+
+        from core.knowledge.one_graph import which_stores_have_not_registered
+
+        graphs = every_graph(live=True)
+        # Bounded: the integrity walk is O(nodes x links), and a health route
+        # must not become the most expensive thing in the process. Above the
+        # bound the count is reported and the walk is not run.
+        nodes = sum(len(one.all_nodes()) for one in graphs.values())
+        too_big = nodes > _GRAPH_NODES_WORTH_WALKING
+        nowhere = [] if (too_big or not graphs) else references_that_lead_nowhere(graphs)
+        block["one_graph"] = {
+            "stores": sorted(graphs),
+            "not_registered": which_stores_have_not_registered(),
+            "nodes": nodes,
+            "references_that_lead_nowhere": nowhere[:20],
+            "how_many_lead_nowhere": len(nowhere),
+            "walked": not too_big,
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["one_graph"] = {"error": repr(exc)}
+
+    # Which answer route actually answered. A route offered every turn that
+    # has never answered one is either unable to fire or gated wrong, and
+    # neither is visible from the source: declining and being unable to
+    # answer look identical from outside.
+    try:
+        from core.runtime.what_answered_this_turn import (
+            how_the_routes_have_gone,
+            routes_that_have_never_answered,
+        )
+
+        block["what_answered_this_turn"] = {
+            "routes": how_the_routes_have_gone(),
+            "never_answered": routes_that_have_never_answered(),
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_answered_this_turn"] = {"error": repr(exc)}
+
+    # Who owns the runtime right now, and what a cancelled turn is still
+    # waiting on. A runtime that reports idle while it is still tearing a turn
+    # down will start the next one on top of it.
+    try:
+        from core.runtime.whose_turn_it_is import the_turn
+
+        block["whose_turn_it_is"] = the_turn().report()
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["whose_turn_it_is"] = {"error": repr(exc)}
+
+    # Who is listening, in a form a restart can put back. AutoGen saves agent
+    # state and says it does not save this; a subscription that does not
+    # survive a restart is a listener that silently stops.
+    try:
+        from core.runtime.what_a_message_carries import what_was_subscribed
+
+        subscribed = what_was_subscribed()
+        block["what_a_message_carries"] = {
+            "subscriptions": len(subscribed),
+            "topics": sorted({one["topic"] for one in subscribed}),
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_a_message_carries"] = {"error": repr(exc)}
+
+    # What each phase committed at its boundary, and what is held by more than
+    # one. A stuck refcount has to be answerable rather than a mystery.
+    try:
+        from core.state.what_a_phase_changed import how_the_boundaries_have_gone
+
+        block["what_a_phase_changed"] = how_the_boundaries_have_gone()
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_a_phase_changed"] = {"error": repr(exc)}
+
+    # What ran on the loop's thread that must not. An on-loop fsync once froze
+    # this loop for twenty minutes, and the fix was a rule in a guide; this is
+    # the part that can tell you the rule was broken.
+    try:
+        from core.runtime.which_thread_may_do_this import how_it_has_gone
+
+        block["which_thread_may_do_this"] = how_it_has_gone()
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["which_thread_may_do_this"] = {"error": repr(exc)}
+
+    # Every state holder, and whether it decides a fact, shows one, or is
+    # scratch. Counts here; the table itself is in the module.
+    try:
+        from core.state.what_kind_of_state_is_this import how_the_state_is_organised
+
+        organised = how_the_state_is_organised()
+        block["what_kind_of_state_is_this"] = {
+            key: value for key, value in organised.items() if key != "by_kind"
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_kind_of_state_is_this"] = {"error": repr(exc)}
+
+    # What a skill gave back that it did not declare. Every one of the 82
+    # declares now; a declaration nothing checks is a comment.
+    try:
+        from core.skills.what_every_skill_gives_back import how_results_have_differed
+
+        differed = how_results_have_differed()
+        block["what_every_skill_gives_back"] = {
+            "skills_that_differed": len(differed),
+            "differed": differed,
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_every_skill_gives_back"] = {"error": repr(exc)}
+
+    # What the uncalibrated decoding policy actually does. Counts only: the
+    # full sweep is 5,760 states and belongs in a test, not on a route.
+    try:
+        from core.runtime.service_registry import get_runtime_service
+
+        # Through the registry, not by import: this package may not reach
+        # core.brain, and a health block that needed that edge would be a
+        # layering violation dressed as observability.
+        provider = get_runtime_service("the_control_policy_sweep", default=None)
+        if not callable(provider):
+            raise RuntimeError("the control policy sweep is not registered")
+        swept = provider()
+        block["the_control_policy"] = {
+            "policy": swept["policy"],
+            "calibrated": swept["calibrated"],
+            "states_swept": swept["states_swept"],
+            "controls_that_never_move": swept["controls_that_never_move"],
+            "discriminates": swept["discriminates"],
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["the_control_policy"] = {"error": repr(exc)}
+
+    # How many named faculties have a measured downstream effect. A channel
+    # wired to a consumer is not one; only `measured` is evidence.
+    try:
+        from core.verify.what_has_a_measured_effect import what_it_stood_at_last_time
+
+        block["what_has_a_measured_effect"] = what_it_stood_at_last_time()
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_has_a_measured_effect"] = {"error": repr(exc)}
+
+    # Whether each organ knows what it owns, consumes, promises, and does when
+    # it fails. Counts from the committed baseline: asking every package walks
+    # the whole tree, and health is served on a route.
+    try:
+        from core.verify.what_each_organ_says import the_baseline
+
+        held = the_baseline()
+        block["what_each_organ_says"] = {
+            "organs": held.get("organs"),
+            "answer_all_four": held.get("answer_all_four"),
+            "answer_nothing": held.get("answer_nothing"),
+            "who_does_not_say": held.get("who_does_not_say", {}),
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["what_each_organ_says"] = {"error": repr(exc)}
 
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
