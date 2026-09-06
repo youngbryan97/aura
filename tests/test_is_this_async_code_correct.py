@@ -195,3 +195,53 @@ def test_the_checks_are_named_so_a_caller_can_say_what_it_checked() -> None:
     verdict = is_it_correct("x = 1")
     assert verdict["checked"] == list(THE_CHECKS)
     assert len(THE_CHECKS) == 5
+
+
+def test_the_generator_checks_what_it_wrote_before_returning_it() -> None:
+    """Wired, not beside it: the check is on the path generated code takes."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from core.brain.llm.code_generator import LLMCodeGenerator
+
+    wrong = (
+        "import asyncio\n\n\n"
+        "async def go():\n"
+        "    await asyncio.sleep(0)\n\n\n"
+        "async def run():\n"
+        "    go()\n"
+    )
+
+    class _Router:
+        async def generate(self, request):
+            return f"```python\n{wrong}```"
+
+    made = LLMCodeGenerator(router=_Router())
+    code = asyncio.run(made.generate_async("write it", {"module_path": "x.py"}))
+    assert "async def run" in code, "the code is still returned"
+    found = {one.kind for one in made.last_async_findings}
+    assert "a coroutine created and dropped" in found, (
+        "the generator handed back code without checking it"
+    )
+
+
+def test_correct_generated_code_leaves_no_findings() -> None:
+    import asyncio
+
+    from core.brain.llm.code_generator import LLMCodeGenerator
+
+    right = (
+        "import asyncio\n\n\n"
+        "async def go():\n"
+        "    await asyncio.sleep(0)\n\n\n"
+        "async def run():\n"
+        "    await go()\n"
+    )
+
+    class _Router:
+        async def generate(self, request):
+            return f"```python\n{right}```"
+
+    made = LLMCodeGenerator(router=_Router())
+    asyncio.run(made.generate_async("write it", {"module_path": "x.py"}))
+    assert made.last_async_findings == ()
