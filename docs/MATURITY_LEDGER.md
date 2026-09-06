@@ -123,7 +123,7 @@ name each cluster more than once:
 | LangGraph #19 | P1 | Internal channel namespace is explicit | Create central NamespaceRegistry for event types, telemetry IDs, state keys, capability IDs and service names; CI allocates/checks ranges before runti | TODO |
 | LangGraph #20 | P1 | StateGraph exposes precise generic type parameters | Ratchet Any/getattr at architectural seams: typed generics for state patches, services, events, tools and model responses; allow Any only inside adapt | TODO |
 | LangGraph #21 | P1 | Versioned deprecation warnings in public API | Machine-register every compatibility shim with deprecated_since/remove_after/owner; CI forbids new consumers and reports expiry. | TODO |
-| LangGraph #22 | P1 | Compiled graph is inspectable/renderable | Emit CognitiveTopology.json at boot with phases, services, schedulers, event subscriptions, state ownership and authority edges; diff it in CI. | TODO |
+| LangGraph #22 | P1 | Compiled graph is inspectable/renderable | Emit CognitiveTopology.json at boot with phases, services, schedulers, event subscriptions, state ownership and authority edges; diff it in CI. | DONE |
 | LangGraph #23 | P1 | Concurrent fanout aggregation is defined by channels | Require every fanout group to declare join policy, failure policy, ordering and state merge; property-test scheduler permutations. | TODO |
 | LangGraph #24 | P1 | Input and output schemas distinct from internal state | Each major cognition pipeline gets narrow Input/Output models; no phase should receive full AuraState unless it is explicitly an integrator. | TODO |
 | LangGraph #25 | P1 | Managed values forbidden in graph I/O | Mark fields Durable/Derived/Ephemeral/ProcessLocal and validate serialization and API exposure automatically. | TODO |

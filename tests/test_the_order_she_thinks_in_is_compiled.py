@@ -168,3 +168,53 @@ def test_declaring_a_write_mode_invalidates_the_compiled_plan():
     assert write_mode_for(path) == "union"
     # A fresh object, not the cached one.
     assert compile_the_cognition("foreground") is not before
+
+
+# ------------------------------------------------------------ readable
+
+
+def test_the_compiled_plan_can_be_drawn():
+    """A reviewer should be able to see the order without reading the scheduler."""
+    from core.runtime.the_shape_of_one_turn import as_a_drawing, compile_the_cognition
+
+    plan = compile_the_cognition("foreground")
+    drawn = as_a_drawing(plan)
+
+    assert drawn.startswith("flowchart TD")
+    assert plan.seal in drawn
+    for phase in plan.runs:
+        assert phase in drawn
+    assert drawn.count("-->") == max(0, len(plan.runs) - 1)
+
+
+def test_a_phase_with_no_declared_contract_is_marked_in_the_drawing():
+    from core.runtime.the_shape_of_one_turn import as_a_drawing, compile_the_cognition
+
+    plan = compile_the_cognition("foreground")
+    undeclared = [one.phase for one in plan.phases if one.runs and one.undeclared]
+    drawn = as_a_drawing(plan)
+    for phase in undeclared:
+        assert f'"{phase} ⚠"' in drawn
+
+
+def test_the_drawing_needs_no_library_to_look_at():
+    """One that needs a dependency to read is one nobody reads."""
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "core" / "runtime" / "the_shape_of_one_turn.py"
+    ).read_text("utf-8")
+    where = source.index("def as_a_drawing")
+    body = source[where : source.index("\ndef ", where + 10)]
+    assert "import" not in body
+
+
+def test_a_mode_where_nothing_runs_says_so():
+    from core.runtime.the_shape_of_one_turn import (
+        TheShapeOfOneTurn,
+        as_a_drawing,
+    )
+
+    empty = TheShapeOfOneTurn(mode="foreground", phases=())
+    assert "nothing runs in this mode" in as_a_drawing(empty)
