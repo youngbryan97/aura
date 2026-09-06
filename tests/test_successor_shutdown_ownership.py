@@ -6,6 +6,26 @@ import pytest
 from core.runtime.runtime_hygiene import RuntimeHygieneManager
 
 
+def test_relaunch_executes_python_not_the_script(monkeypatch):
+    from core.runtime import runtime_relaunch, runtime_hygiene, subprocess_gateway
+    child = Child(99101)
+    manager = RuntimeHygieneManager()
+    commands = []
+
+    def spawn(command, **kwargs):
+        commands.append(command)
+        manager.register_process_handle(child)
+        return child
+
+    monkeypatch.setattr(runtime_relaunch, "_why_this_process_must_not_replace_itself", lambda argv: "")
+    monkeypatch.setattr(subprocess_gateway, "get_subprocess_gateway", lambda: SimpleNamespace(spawn=spawn))
+    monkeypatch.setattr(runtime_hygiene, "get_runtime_hygiene", lambda: manager)
+    receipt = runtime_relaunch.schedule_relaunch(argv=["aura_main.py", "--desktop"], executable="/python")
+    assert receipt["scheduled"]
+    command = commands[0]
+    assert command[command.index("--") + 1:] == ["/python", "aura_main.py", "--desktop"]
+
+
 class Child:
     def __init__(self, pid):
         self.pid = pid

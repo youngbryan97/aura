@@ -180,6 +180,7 @@ def schedule_relaunch(
         "--cwd",
         resolved_cwd,
         "--",
+        resolved_executable,
         *resolved_argv,
     ]
 
