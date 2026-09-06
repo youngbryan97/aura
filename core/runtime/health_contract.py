@@ -1306,6 +1306,31 @@ def _runtime_integrity_block() -> dict[str, Any]:
     """
     block: dict[str, Any] = {}
 
+    # The order in which she thinks, compiled and sealed.
+    #
+    # Three peer architectures make the same complaint from three directions:
+    # Generative Agents puts the whole cycle in one function, Soar's decision
+    # cycle is a state machine anyone can enumerate, and LangGraph refuses to
+    # start when the topology does not resolve. Aura has the order, the
+    # frequency and the per-phase contracts, and nothing joined them, so a
+    # field two phases both write was found by watching it happen.
+    #
+    # The seal is what a receipt can carry: two runs of one commit agree, and
+    # a phase added, removed, reordered or re-declared does not.
+    try:
+        from core.runtime.the_shape_of_one_turn import compile_the_cognition
+
+        block["the_shape_of_one_turn"] = {
+            mode: {
+                key: value
+                for key, value in compile_the_cognition(mode).to_dict().items()
+                if key not in {"phases"}
+            }
+            for mode in ("foreground", "background")
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["the_shape_of_one_turn"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering
