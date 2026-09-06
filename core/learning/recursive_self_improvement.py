@@ -394,6 +394,78 @@ class RecursiveSelfImprovementLoop:
 
 
     @staticmethod
+    def _ask_the_forge_about_recurring_gaps(*, allowed: bool, observed: bool) -> bool:
+        """Start the forge on recurring gaps. Returns whether it was asked.
+
+        Asked rather than awaited. Synthesis writes code, runs probes and
+        installs a skill; a planning pass that blocked on it would make every
+        improvement cycle as slow as the slowest thing it might build, and the
+        plan does not need the answer to be a plan.
+
+        So the plan says "asked the forge", not "forged" — which is also the
+        honest thing to write down, because whether anything came of it is the
+        forge's result and not this cycle's.
+        """
+
+        if not allowed or not observed:
+            return False
+        if os.getenv("AURA_RSI_TOOL_CREATION", "0") != "1":
+            return False
+        try:
+            import asyncio
+
+            from core.utils.task_tracker import get_task_tracker
+
+            loop = asyncio.get_running_loop()
+        except (ImportError, RuntimeError):
+            return False
+        del loop
+        try:
+            get_task_tracker().create_task(
+                RecursiveSelfImprovementLoop._forge_what_keeps_being_missing(),
+                name="rsi.forge_recurring_gaps",
+            )
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "recursive_self_improvement",
+                exc,
+                action="did not ask the forge about recurring gaps this cycle",
+            )
+            return False
+        return True
+
+    @staticmethod
+    async def _forge_what_keeps_being_missing() -> list[str]:
+        """Ask the forge to act on gaps that have become recurring.
+
+        The other half of the loop. Gaps are recognised here and counted in
+        the ledger, and ``synthesize_pending`` — which turns a gap seen often
+        enough into a skill — had no caller outside its own test. Its own
+        docstring said "call this in a background loop" and nothing did, so
+        Aura closed the reactive loop (a NAMED tool is missing, forge it) and
+        not the general one: repeated unnamed failure, infer the abstraction,
+        forge it, deploy.
+
+        Gated exactly as tool creation is, because it is tool creation. The
+        forge keeps every check it already had — the threshold, the probes,
+        the sandbox, the contract verifier — and what changes is that
+        something asks.
+        """
+
+        try:
+            from core.agi.skill_synthesizer import get_skill_synthesizer
+
+            made = await get_skill_synthesizer().synthesize_pending()
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "recursive_self_improvement",
+                exc,
+                action="did not ask the forge about recurring gaps this cycle",
+            )
+            return []
+        return [str(getattr(one, "name", "") or "a skill") for one in made or ()]
+
+    @staticmethod
     def _remember_the_gaps(signals: list) -> None:
         """Tell the gap ledger about capability gaps this loop just observed.
 
@@ -485,6 +557,13 @@ class RecursiveSelfImprovementLoop:
         ]
         capability_gap_signal = bool(gaps_observed)
         self._remember_the_gaps(gaps_observed)
+        if self._ask_the_forge_about_recurring_gaps(
+            allowed=allow_tool_creation, observed=bool(gaps_observed)
+        ):
+            actions.append("asked_the_forge")
+            rationale.append(
+                "a gap has been seen often enough to be worth forging a capability for"
+            )
 
         if allow_weight_update and self.live_learner and (force or weight_signal or self._buffer_size() > 0):
             actions.append("weight_update")
