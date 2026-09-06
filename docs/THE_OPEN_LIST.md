@@ -51,7 +51,7 @@ carries all 202 with their state.
 | E. Deterministic laboratory mode | DONE |
 | F. Semantic identity | DONE |
 | G. Memory provenance (Letta #1 MemoryFS, #16 three-way merge) | PART — #11 done |
-| H. Conformance suites (CrewAI #11 provider adapters) | PART — store and graph suites done |
+| H. Conformance suites | DONE — store, graph and model-provider suites |
 | I. One working memory | DONE |
 | J. Runtime protocol and ownership | DONE |
 | K. Tool schemas | PART — 78 tools still declare no result |

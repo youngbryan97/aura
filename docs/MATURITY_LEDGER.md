@@ -210,7 +210,7 @@ name each cluster more than once:
 | CrewAI #8 | P1 | Agent config is uniformly typed/validated | Move core runtime/organ settings into versioned Pydantic schemas under SettingsRegistry and generate docs/default dumps. | TODO |
 | CrewAI #9 | P1 | Deprecated fields are machine-visible | Deprecation registry + CI new-use ban + migration adapters, as above. | TODO |
 | CrewAI #10 | P1 | LLM references have validators and serializers | Create ModelRef typed URI + ModelDescriptor digest; config always serializes ModelRef, runtime resolves to provider/model artifact. | TODO |
-| CrewAI #11 | P0 | Provider-specific message/tool normalization | ModelRuntime conformance suite with golden message/tool/stream/error/token cases for every adapter; provider quirks cannot leak upward. | TODO |
+| CrewAI #11 | P0 | Provider-specific message/tool normalization | ModelRuntime conformance suite with golden message/tool/stream/error/token cases for every adapter; provider quirks cannot leak upward. | DONE |
 | CrewAI #12 | P1 | Planning behavior has one typed config | Create DeliberationConfig with strategy, budget, model tier, search limits, uncertainty threshold and fallback; include in receipts. | TODO |
 | CrewAI #13 | P1 | Output guardrail protocol and retry budget | Define OutputValidator protocol returning typed violation/remedy; response pipeline composes validators under one retry budget. | TODO |
 | CrewAI #14 | P1 | Executor class validation/serialization + deprecation | For each legacy execution path, publish replacement map, compatibility period and test that no new direct call sites appear. | TODO |
