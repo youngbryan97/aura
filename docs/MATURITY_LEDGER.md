@@ -260,3 +260,39 @@ system. Several found defects that were not in the review:
 | Letta Code #18 | P1 | Memory vs skills vs mods have distinct semantics | Adopt ArtifactKind decision table in developmental planner: belief/memory, procedure/skill, deterministic mechanism/code, model weight, configuration; | TODO |
 | Letta Code #19 | P1 | Agent identity/context designed to survive model changes | Define CompatibilityProfile for model swap and a continuity test suite ensuring self/memory/goals remain invariant except documented model-dependent l | TODO |
 | Letta Code #20 | P1 | Memory evolution is readable with ordinary git tooling | Provide `aura history memory/self/capability` commands that render semantic diffs and provenance without querying raw SQLite/JSON; optionally export t | TODO |
+
+## Second wave — a source-level comparison, 2026-09-06
+
+A second external review read the current implementations rather than the
+commit stream: Aura's event spine, checkpoint providers, lifecycle supervisor,
+hierarchical budget, interrupt/resume, answer guardrails and semantic state
+comparison, against the corresponding runtime code in LangGraph, AutoGen,
+OpenHands, AutoGPT, CrewAI and BabyAGI. It placed Aura at 3.3–3.7 of 5 on a
+five-stage engineering ladder, above BabyAGI wholesale and below LangGraph's
+durable execution semantics, OpenHands' agent lifecycle discipline, AutoGen's
+message-runtime abstraction, CrewAI's provider coherence and AutoGPT's
+distributed operations.
+
+Its central finding is not that abstractions are missing. It is that the
+standard is ahead of adoption: a 150-line module reads as a system-wide
+invariant and is not one. The rows below are the specific gaps it named in
+code, and each is scored the same way as every other row here — a test that
+fails without the change and passes with it.
+
+| Row | Pri | Finding | Closure | Status |
+| --- | --- | --- | --- | --- |
+| Wave2 #1 | P0 | The interruption registry was a module-level dict | Make it durable; an interruption recorded in one process resumes in another. | DONE |
+| Wave2 #2 | P0 | A broken guardrail failed open with no declared failure mode | Each rail declares carry-on, refuse, abstain or escalate; an undeclared rail refuses. | DONE |
+| Wave2 #3 | P0 | The organ audit had never looked at 42 namespace packages | Count every directory under core/ holding .py files. 162 organs, 42 answer all four. | DONE |
+| Wave2 #4 | P0 | "What do you promise" was answered by a string, so the number moved by adding markers | A promise needs a sentence, a test node id that exists, and where the breach goes. | DONE |
+| Wave2 #5 | P1 | A checkpoint can become durable before the writes that produced it | Drain pending write futures before the next checkpoint is made durable, as LangGraph's PregelLoop does. | TODO |
+| Wave2 #6 | P1 | Checkpoints have no branch or parent lineage | Add branch directories and parent ids to both providers, plus prune and checkpoint-id extraction, as CrewAI's BaseProvider has. | TODO |
+| Wave2 #7 | P1 | The hierarchical budget is a well-designed primitive with incomplete adoption | Thread it through every significant operation rather than leaving it an in-memory object callers may pass. | TODO |
+| Wave2 #8 | P1 | 118 of 162 organs say nothing about what they promise | Declare checkable promises per package. Six declare twenty. | TODO |
+| Wave2 #9 | P1 | 28 of 162 organs say nothing about how failure propagates | Route failure through record_degradation, or declare that the organ cannot fail and check it. | TODO |
+| Wave2 #10 | P1 | 69 declared services, 6 lesionable, 0 carrying an intervention verdict | Instrumentation exists before coverage; run do(X=present) against do(X=null) for the major organs. | TODO |
+| Wave2 #11 | P0 | Generated Python was delivered successfully and was semantically wrong | Queued job coroutines never awaited; a deadlock waiting on queue data while holding a producer lock; direct deque mutation bypassing put(); four never-awaited coroutine warnings; a false claim that cancellation releases an asyncio.Lock. | TODO |
+| Wave2 #12 | P1 | Cancellation is not linked to the future representing the call | Tie a cancellation token to the awaiting future, as AutoGen's runtime does. | TODO |
+| Wave2 #13 | P1 | A prepared action batch is mutable and unordered | Immutable ActionBatch, blocked and executable separated, results joined by action id and emitted in the original order, with a tool-concurrency limit. | TODO |
+| Wave2 #14 | P1 | Runtime conceptual compactness scored 4/10 and decomposability 5/10 | Continue the decomposition; chat.py is 24,185 lines down to 18,734 and the tree is 30,303 over its oversize budget. | TODO |
+| Wave2 #15 | P1 | RLC generation ends at the token limit with the private channel still open | 3,201 tokens of private reasoning, none of it past the public-answer boundary, so the parent correctly saw no public answer and the feature still failed. | TODO |
