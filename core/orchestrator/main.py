@@ -705,6 +705,47 @@ class RobustOrchestrator(
 
     # --- COMPATIBILITY SHIMS (ZENITH RECONCILIATION) ---
 
+    # ------------------------------------------------ core.runtime.what_a_runtime_is
+    #
+    # The same boundary the kernel offers, over what the orchestrator already
+    # does. Prefixed for the same reason: `start` and `stop` here are the
+    # process, and on the kernel they are the cognitive loop.
+
+    async def runtime_start(self) -> None:
+        """Lifecycle up."""
+        await self.start()
+
+    async def runtime_stop(self) -> None:
+        """Lifecycle down."""
+        await self.stop()
+
+    async def runtime_deliver(self, message: Any, *, origin: str = "user") -> Any:
+        """Hand the orchestrator something to act on."""
+        return await self.process_user_input(str(message), origin=origin)
+
+    def runtime_state(self) -> Any:
+        """The state the runtime is acting on, through the kernel that owns it.
+
+        The orchestrator holds no AuraState of its own; asking it to keep one
+        would create the second authority this boundary exists to rule out.
+        """
+        from core.container import ServiceContainer
+
+        interface = ServiceContainer.get("kernel_interface", default=None)
+        kernel = getattr(interface, "kernel", None)
+        return getattr(kernel, "state", None)
+
+    def runtime_service(self, name: str, default: Any = None) -> Any:
+        """Resolve an authoritative service by name."""
+        found = self._get_service(name)
+        return default if found is None else found
+
+    async def runtime_watch(self, topic: str) -> Any:
+        """A queue carrying what the topic carries."""
+        from core.event_bus import get_event_bus
+
+        return await get_event_bus().subscribe(topic)
+
     async def _process_cycle(self):
         """Legacy shim for the cognitive loop. Delegated to self.cognitive_loop."""
         try:

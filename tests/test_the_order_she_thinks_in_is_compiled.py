@@ -122,3 +122,26 @@ def test_the_shape_reaches_the_health_report():
     assert "foreground" in block and "background" in block, block
     assert block["foreground"]["seal"], block["foreground"]
     assert block["foreground"]["holds"] is True, block["foreground"]["refusals"]
+
+
+def test_a_plan_reports_the_mode_it_was_compiled_for():
+    """It did not.
+
+    A loop variable inside the multi-writer check was also called ``mode``, so
+    every compiled plan reported its own mode as whichever write mode the last
+    shared field happened to declare — both foreground and background said
+    "last in the order". The seal covers the mode, so the seals were digests
+    of a plan mislabelling itself.
+    """
+    from core.runtime.the_shape_of_one_turn import THE_MODES, compile_the_cognition
+
+    for mode in THE_MODES:
+        assert compile_the_cognition(mode).mode == mode
+
+
+def test_the_three_modes_have_three_different_seals():
+    """Same phases, different frequency, different plan."""
+    from core.runtime.the_shape_of_one_turn import THE_MODES, compile_the_cognition
+
+    seals = {mode: compile_the_cognition(mode).seal for mode in THE_MODES}
+    assert len(set(seals.values())) == len(THE_MODES), seals

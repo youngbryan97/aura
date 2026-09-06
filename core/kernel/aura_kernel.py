@@ -2151,6 +2151,43 @@ class AuraKernel:
         for task in self._background_tasks:
             task.cancel()
 
+    # ------------------------------------------------ core.runtime.what_a_runtime_is
+    #
+    # The runtime boundary, delegating to what is already here. Prefixed
+    # because `start`, `stop` and `state` already mean something on this class
+    # and on the orchestrator, and they do not mean the same thing on both —
+    # which is the reason nothing could substitute one for the other.
+
+    async def runtime_start(self) -> None:
+        """Lifecycle up."""
+        await self.boot()
+
+    async def runtime_stop(self) -> None:
+        """Lifecycle down. The full shutdown, not the flag-clearing `stop`."""
+        await self.shutdown()
+
+    async def runtime_deliver(self, message: Any, *, origin: str = "user") -> Any:
+        """Hand the kernel something to think about.
+
+        A user-facing origin is a priority tick, which is the distinction
+        `tick` already draws; nothing new is decided here.
+        """
+        return await self.tick(str(message), priority=self._is_user_facing_origin(origin))
+
+    def runtime_state(self) -> Any:
+        """The state this kernel is acting on. None before boot."""
+        return self.state
+
+    def runtime_service(self, name: str, default: Any = None) -> Any:
+        """Resolve an authoritative service by name."""
+        return self.get(name, default=default)
+
+    async def runtime_watch(self, topic: str) -> Any:
+        """A queue carrying what the topic carries."""
+        from core.event_bus import get_event_bus
+
+        return await get_event_bus().subscribe(topic)
+
     def _extract_thought(self) -> str | None:
         """Extracts the resulting thought from the final state."""
         return self.state.cognition.last_response if self.state else None

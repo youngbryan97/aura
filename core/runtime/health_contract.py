@@ -1355,6 +1355,31 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["one_working_memory"] = {"error": repr(exc)}
 
+    # The runtime boundary, and how much of the declared service spine the
+    # runtime that is actually up can resolve. A name it cannot resolve is a
+    # service somebody else owns — a module singleton, a boot-local — which
+    # is the ownership debt, measured rather than asserted.
+    try:
+        from core.container import ServiceContainer
+        from core.runtime.what_a_runtime_is import (
+            THE_OPERATIONS,
+            the_services_it_can_address,
+            what_is_missing_from,
+        )
+
+        interface = ServiceContainer.get("kernel_interface", default=None)
+        running = getattr(interface, "kernel", None)
+        boundary: dict[str, Any] = {"operations": sorted(THE_OPERATIONS)}
+        if running is None:
+            boundary["runtime"] = "not up"
+        else:
+            boundary["runtime"] = type(running).__name__
+            boundary["missing"] = what_is_missing_from(running)
+            boundary.update(the_services_it_can_address(running))
+        block["the_runtime_boundary"] = boundary
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["the_runtime_boundary"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering

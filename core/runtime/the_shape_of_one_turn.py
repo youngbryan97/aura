@@ -37,7 +37,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger("Aura.TheShapeOfOneTurn")
@@ -249,8 +249,11 @@ def compile_the_cognition(mode: str = "foreground") -> TheShapeOfOneTurn:
     for path, writers in sorted(written_by.items()):
         if len(writers) < 2:
             continue
-        mode = write_mode_for(path)
-        if mode == LAST_IN_THE_ORDER:
+        # Not `mode`: that is the run mode this plan is being compiled for,
+        # and shadowing it made every compiled plan report its own mode as
+        # whichever write mode the last shared field happened to declare.
+        combined_by = write_mode_for(path)
+        if combined_by == LAST_IN_THE_ORDER:
             # Several writers in a sequence that has one order is not a race:
             # the order settles it, and the last writer is the value. Said out
             # loud anyway, because "the order settles it" is a claim about the
@@ -261,7 +264,7 @@ def compile_the_cognition(mode: str = "foreground") -> TheShapeOfOneTurn:
                 f"the order settles it and {writers[-1]} is the value"
             )
             continue
-        if mode is None:
+        if combined_by is None:
             refusals.append(
                 f"{path} is written by {len(writers)} running phases "
                 f"({', '.join(sorted(writers))}) and its write mode is declared "
@@ -269,7 +272,7 @@ def compile_the_cognition(mode: str = "foreground") -> TheShapeOfOneTurn:
             )
             continue
         remarks.append(
-            f"{path} is written by {', '.join(writers)} and combined by {mode}"
+            f"{path} is written by {', '.join(writers)} and combined by {combined_by}"
         )
 
     produced: set[str] = set()
