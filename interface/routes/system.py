@@ -5823,6 +5823,7 @@ def _runtime_integrity_public_payload(report: dict[str, Any] | None) -> dict[str
                 "who_owns_each_field",
                 "one_graph",
                 "what_answered_this_turn",
+                "whose_turn_it_is",
             )
             if report.get(key) is not None
         },

@@ -1461,6 +1461,16 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_answered_this_turn"] = {"error": repr(exc)}
 
+    # Who owns the runtime right now, and what a cancelled turn is still
+    # waiting on. A runtime that reports idle while it is still tearing a turn
+    # down will start the next one on top of it.
+    try:
+        from core.runtime.whose_turn_it_is import the_turn
+
+        block["whose_turn_it_is"] = the_turn().report()
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["whose_turn_it_is"] = {"error": repr(exc)}
+
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering
