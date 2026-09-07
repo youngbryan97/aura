@@ -1875,3 +1875,183 @@ def test_the_model_tier_ranks_removals_and_says_it_is_a_model():
     assert graph.grade is Grade.MODEL
     assert graph.summary()["licenses"].startswith("that a model")
     assert graph.edges
+
+
+# ---------------------------------------------------------------------------
+# Merge errors: a builtin method name is not a cell here
+# ---------------------------------------------------------------------------
+
+
+_MERGE_MODULE = '''
+class Field:
+    def strip(self):
+        """A real method that shares a name with str.strip."""
+        return "clean"
+
+    def warning(self):
+        return None
+
+
+def uses_the_real_one(field):
+    holder = Field()
+    return holder.strip()
+
+
+def uses_a_string(raw):
+    return str(raw or "").strip().lower()
+
+
+def uses_a_logger(logger):
+    logger.warning("something")
+'''
+
+
+def test_a_string_method_is_not_resolved_to_a_class_that_shares_its_name(tmp_path: Path):
+    """The largest sink in the combined graph was every .strip() in the tree.
+
+    A method call on an expression has a receiver whose type is unknown, and
+    resolving it by name attaches thousands of standard-library calls to
+    whichever class happens to define that name.
+    """
+    package = tmp_path / "core" / "merge"
+    package.mkdir(parents=True)
+    (tmp_path / "core" / "__init__.py").write_text("")
+    (package / "__init__.py").write_text("")
+    (package / "mod.py").write_text(_MERGE_MODULE)
+
+    reconstructor = VolumeReconstructor(tmp_path, ReconstructionConfig(roots=("core",)))
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    names = {uid: unit.name.rsplit(":", 1)[1] for uid, unit in snapshot.units.items()}
+    pairs = {
+        (names[conn.pre], names[conn.post])
+        for conn in snapshot.edges(EdgeKind.DRIVE)
+        if conn.pre in names and conn.post in names
+    }
+    # The local constructor gives the receiver a type, so this one resolves.
+    assert ("uses_the_real_one", "Field.strip") in pairs
+    # These two have receivers whose type is unknown and must not.
+    assert ("uses_a_string", "Field.strip") not in pairs
+    assert ("uses_a_logger", "Field.warning") not in pairs
+
+
+def test_the_unsafe_names_cover_builtins_and_the_common_library_objects():
+    from core.connectome.volume import UNSAFE_ATTRIBUTE_NAMES
+
+    for name in ("strip", "replace", "extend", "append", "keys", "items", "split"):
+        assert name in UNSAFE_ATTRIBUTE_NAMES
+    for name in ("warning", "exception", "exists", "is_dir", "resolve"):
+        assert name in UNSAFE_ATTRIBUTE_NAMES
+    # Names this system owns must stay resolvable.
+    for name in ("record_degradation", "reconstruct", "publish_telemetry"):
+        assert name not in UNSAFE_ATTRIBUTE_NAMES
+
+
+# ---------------------------------------------------------------------------
+# The coalition
+# ---------------------------------------------------------------------------
+
+
+def test_a_station_claims_each_cell_once():
+    from core.connectome.coalition import assign_stations
+
+    units = {}
+    for name, module in (
+        ("a", "core.affect.emotion_engine"),
+        ("b", "core.consciousness.global_workspace"),
+        ("c", "core.agency.goal_planner"),
+        ("d", "core.utils.unrelated"),
+    ):
+        unit = _unit(name, region=module.split(".")[1])
+        unit.neuropil = module
+        units[name] = unit
+    snapshot = ConnectomeSnapshot(version=1, units=units, connections={}, neuropils={})
+    stations = assign_stations(snapshot)
+    claimed = [uid for station in stations.values() for uid in station.cells]
+    assert len(claimed) == len(set(claimed))
+    assert "a" in stations["affect"].cells
+    assert "b" in stations["workspace"].cells
+    assert "c" in stations["planning"].cells
+    assert "d" not in claimed
+
+
+def test_a_ring_that_carries_beats_a_shuffled_one():
+    from core.connectome.coalition import Station, test_closure
+
+    # A clean ring: each station reaches only the next.
+    ring = ["s0", "s1", "s2", "s3"]
+    edges = []
+    for i, name in enumerate(ring):
+        nxt = ring[(i + 1) % len(ring)]
+        edges.append((f"{name}_out", f"{nxt}_in", 4))
+        edges.append((f"{name}_in", f"{name}_out", 4))
+    snapshot = _graph_snapshot(edges)
+    stations = {
+        name: Station(name=name, patterns=(), cells=(f"{name}_in", f"{name}_out"))
+        for name in ring
+    }
+    report = test_closure(
+        snapshot, None, stations, order=ring, use_effective=False, nulls=200, max_hops=3
+    )
+    assert report.closed is True
+    assert report.ring_enrichment > report.null_enrichment
+    assert report.enrichment_z > 1.0
+    assert "carries more than a ring drawn at random" in report.as_json()["verdict"]
+
+
+def test_a_ring_nobody_wired_does_not():
+    from core.connectome.coalition import Station, test_closure
+
+    # A star: everything reaches s0 and nothing else.
+    ring = ["s0", "s1", "s2", "s3"]
+    edges = [(f"{name}_out", "s0_in", 4) for name in ring[1:]]
+    edges += [(f"{name}_in", f"{name}_out", 4) for name in ring]
+    snapshot = _graph_snapshot(edges)
+    stations = {
+        name: Station(name=name, patterns=(), cells=(f"{name}_in", f"{name}_out"))
+        for name in ring
+    }
+    report = test_closure(
+        snapshot, None, stations, order=ring, use_effective=False, nulls=200, max_hops=3
+    )
+    assert report.closed is False
+    assert report.enrichment_z < 2.0
+    assert "carry nothing" in report.as_json()["verdict"]
+
+
+def test_a_recording_the_stations_did_not_fire_in_is_refused():
+    from core.connectome.coalition import Station, test_closure
+
+    snapshot = _graph_snapshot([("a_out", "b_in", 1), ("b_out", "a_in", 1)])
+    stations = {
+        "a": Station(name="a", patterns=(), cells=("a_in", "a_out")),
+        "b": Station(name="b", patterns=(), cells=("b_in", "b_out")),
+        "c": Station(name="c", patterns=(), cells=()),
+    }
+
+    class _Effective:
+        condition = "quiet"
+        edges: dict = {}
+
+    report = test_closure(
+        snapshot,
+        _Effective(),
+        stations,
+        order=["a", "b", "c"],
+        use_effective=True,
+        recorded=["a_in"],
+    )
+    assert report.links == []
+    assert "did not fire" in report.skipped
+    assert report.as_json()["verdict"] == report.skipped
+
+
+def test_every_lesion_prediction_says_what_survives_and_what_does_not():
+    from core.connectome.coalition import LESION_PREDICTIONS
+
+    assert len(LESION_PREDICTIONS) == 3
+    for prediction in LESION_PREDICTIONS:
+        assert prediction.predicted_intact
+        assert prediction.predicted_lost
+        assert prediction.readout
+        assert prediction.predicted_intact != prediction.predicted_lost
