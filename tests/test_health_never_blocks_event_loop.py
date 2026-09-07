@@ -21,7 +21,9 @@ These tests hold the four properties that make that impossible.
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -140,6 +142,36 @@ def test_runtime_health_report_on_the_loop_is_bounded(monkeypatch):
 
 
 # ── 2. The corpus scan is not repeated once per control point ────────────
+
+
+def test_concurrent_health_workers_share_one_integrity_collection(monkeypatch):
+    from core.runtime import health_contract
+
+    health_contract.reset_integrity_snapshot_for_test()
+    entered = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def collect():
+        calls.append(1)
+        entered.set()
+        assert release.wait(3)
+        return {"measured": True}
+
+    monkeypatch.setattr(health_contract, "_runtime_integrity_block", collect)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        first = pool.submit(health_contract.integrity_block_snapshot)
+        assert entered.wait(2)
+        others = [pool.submit(health_contract.integrity_block_snapshot) for _ in range(3)]
+        try:
+            cold = asyncio.run(_snapshot_on_loop())
+            assert cold["snapshot"]["warming"] is True
+            assert calls == [1]
+        finally:
+            release.set()
+        assert first.result(timeout=3)["measured"] is True
+        assert all(job.result(timeout=3)["measured"] for job in others)
+    assert calls == [1]
 
 
 def test_ontogeny_stats_are_not_rescanned_within_the_ttl(tmp_path):

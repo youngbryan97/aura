@@ -49,3 +49,16 @@ the observation runs. The completion-ownership tests assert that observation
 and collection execute off the event-loop thread: 14 passed. The client
 resilience suite also passed all 96 tests. This removes one measured-path
 blocking operation, not every source of loop contention.
+
+Controlled reboot replaced PID 11289 with PID 19222 on commit
+`d4b0879a89db2954425dcb26348411b80c0af209`. Concurrent source edits changed
+the workspace fingerprint, so this is diagnostic evidence, not a clean
+source-matched closeout. The next request kept the event loop responsive
+(reported maximum 1 ms), but two drafts failed completion checks and the
+protected fallback hit its outer timeout. R05 remains open independently
+of the event-loop repair.
+
+The integrity collector now serializes concurrent off-loop scans and
+rechecks freshness after acquiring collection ownership. Event-loop readers
+still return immediately. All 13 health-responsiveness tests passed,
+including four concurrent callers sharing one scan.

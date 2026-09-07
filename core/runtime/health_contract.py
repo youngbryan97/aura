@@ -2241,6 +2241,7 @@ def _runtime_integrity_block() -> dict[str, Any]:
 
 _INTEGRITY_TTL_S = _float_env("AURA_HEALTH_INTEGRITY_TTL_S", 15.0)
 _INTEGRITY_LOCK = threading.Lock()
+_INTEGRITY_COLLECTION_LOCK = threading.Lock()
 _INTEGRITY_SNAPSHOT: dict[str, Any] | None = None
 _INTEGRITY_SNAPSHOT_AT = 0.0
 _INTEGRITY_SNAPSHOT_UNIX = 0.0
@@ -2287,14 +2288,23 @@ def _store_integrity_snapshot(block: dict[str, Any]) -> None:
 
 def _collect_integrity_snapshot() -> dict[str, Any]:
     """Collect and cache. Callers must already know they are off the loop."""
-    started = time.monotonic()
-    try:
-        block = _runtime_integrity_block()
-    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
-        block = {"collect_error": repr(exc)}
-    block["collect_duration_s"] = round(max(0.0, time.monotonic() - started), 3)
-    _store_integrity_snapshot(block)
-    return block
+    with _INTEGRITY_COLLECTION_LOCK:
+        # Another off-loop caller may have completed the same scan while
+        # this caller waited. The event loop never acquires this lock.
+        with _INTEGRITY_LOCK:
+            if (
+                _INTEGRITY_SNAPSHOT is not None
+                and time.monotonic() - _INTEGRITY_SNAPSHOT_AT < _INTEGRITY_TTL_S
+            ):
+                return dict(_INTEGRITY_SNAPSHOT)
+        started = time.monotonic()
+        try:
+            block = _runtime_integrity_block()
+        except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+            block = {"collect_error": repr(exc)}
+        block["collect_duration_s"] = round(max(0.0, time.monotonic() - started), 3)
+        _store_integrity_snapshot(block)
+        return block
 
 
 def _refresh_integrity_snapshot_async() -> None:
