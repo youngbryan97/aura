@@ -492,7 +492,7 @@ class AutonomyConductor:
         worked_out = ServiceContainer.get("what_she_worked_out", default=None)
         if worked_out is None:
             return {"kept": False, "why": "nothing joins the two keepers"}
-        return dict(worked_out.keep())
+        return dict(await asyncio.to_thread(worked_out.keep))
 
     async def _job_emergent_goal_adoption(self) -> dict[str, Any]:
         """Ask what the tensions she has been recording actually come to.

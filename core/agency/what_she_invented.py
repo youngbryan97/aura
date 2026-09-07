@@ -22,7 +22,6 @@ it cannot execute anything that was not already in the space she searches.
 from __future__ import annotations
 
 import json
-import asyncio
 import logging
 
 from pathlib import Path
@@ -126,10 +125,7 @@ def keep() -> bool:
                 )
                 _the_store().save(body)
 
-        try:
-            asyncio.get_running_loop().create_task(asyncio.to_thread(_write))
-        except RuntimeError:
-            _write()
+        _write()
         logger.info("kept %d propert(ies) she worked out", len(body["measures"]))
         return True
     except (OSError, RuntimeError, TypeError, ValueError) as exc:

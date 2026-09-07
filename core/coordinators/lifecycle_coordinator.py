@@ -331,8 +331,9 @@ class LifecycleCoordinator:
 
         # Save continuity record (session count, uptime, last exchange)
         try:
-            from core.continuity import get_continuity
+            from core.continuity import flush_continuity_writes, get_continuity
             get_continuity().save(reason="graceful")
+            await flush_continuity_writes()
             logger.info("✓ Continuity record saved")
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_lifecycle_degradation(
