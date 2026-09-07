@@ -3615,7 +3615,23 @@ async def pursue_on_screen(
             return None
         blocker_attempts["count"] = 0
         if not observation.get("ok"):
-            no_move["because"] = "waiting for what is in front of it to go"
+            # What the reading actually said went wrong.
+            #
+            # Every failed read was reported as something being in front of
+            # the thing and waited out. A read that timed out on a busy
+            # machine, a capture that errored, a window that had gone — all
+            # of them came back as an occlusion, which is a diagnosis of a
+            # cause nobody had established, and the answer to it is to wait,
+            # so she waited. Live 2026-09-07: three of those in a row ended
+            # the run as "no move available" after seventeen moves, with
+            # nothing on screen in front of anything.
+            went_wrong = str(observation.get("error") or "").strip()
+            no_move["because"] = (
+                f"the last reading did not come back: {went_wrong}"
+                if went_wrong
+                else "the last reading did not come back, and did not say why"
+            )
+            logger.info("no move this cycle: %s", no_move["because"])
             return None
 
         # What she is looking at, kept to the part that answers to her.

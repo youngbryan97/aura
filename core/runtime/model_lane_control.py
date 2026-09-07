@@ -584,21 +584,49 @@ def _json_metadata(value: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+#: What a model actually loads into memory. Weight shards and the small files
+#: that describe them; nothing else in the folder.
+WHAT_GETS_LOADED = (".safetensors", ".bin", ".gguf", ".npz", ".pt", ".pth")
+
+
 def _path_size_gb(model_path: str) -> float:
+    """How much of what is on disk here would be held in memory.
+
+    The weights, rather than the folder they live in. A model directory
+    accumulates things that are never loaded — adapters from previous runs,
+    fused candidates, optimizer state, checkpoints, logs — and sizing the tree
+    counts every one of them as memory the lane is about to need.
+
+    That estimate grows while she is running, because the things filling the
+    folder are written by her. LIVE 2026-09-07, playing a game: the brainstem
+    lane's declared footprint climbed from 28.2GB to 31.8GB over one session
+    for a model whose weights never changed, crossed the host budget, and was
+    refused for the rest of the run — so every decision fell to the resident
+    27B, at about ten seconds each, and the reads that share the machine with
+    it began timing out.
+
+    A folder holding nothing recognisable is still measured whole. Something
+    is there and she has no better account of it than its size.
+    """
     path = Path(str(model_path or "")).expanduser()
     try:
         if path.is_file():
             return float(path.stat().st_size) / float(1024**3)
         if not path.is_dir():
             return 0.0
-        total = 0
+        weights = 0
+        everything = 0
         for child in path.rglob("*"):
             try:
-                if child.is_file():
-                    total += child.stat().st_size
+                if not child.is_file():
+                    continue
+                size = child.stat().st_size
+                everything += size
+                if child.suffix.lower() in WHAT_GETS_LOADED:
+                    weights += size
             except OSError:
                 continue
-        return float(total) / float(1024**3)
+        return float(weights or everything) / float(1024**3)
     except OSError:
         return 0.0
 
