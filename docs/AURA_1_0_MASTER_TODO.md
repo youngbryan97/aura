@@ -49,10 +49,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 
 ## 1. Restore and validate the live runtime
 
-- [ ] R01 Repair reboot successor survival and detached-launch startup exit.
-  Active: PID 67655 vanished during boot. Sentinel last measured about 531 MB,
-  below its 57 GB cutoff; it reported disappearance, not a memory kill.
-  Next: establish exit/process ownership evidence and test supported relaunch.
+- [x] R01 Repair reboot successor survival and detached-launch startup exit.
+  Closed 2026-09-06: e82ccce56 isolates the runtime session from shell
+  process-group cleanup. Detached PID 94572 reached readiness after its
+  launcher exited; API reboot replaced it with PID 96426, which reached
+  kernel_ready and became the sole port-8000 listener. Real-process isolation
+  tests and reboot contracts pass. Evidence: [R01 receipt](evidence/R01_RUNTIME_SURVIVAL_2026-09-06.md).
 - [ ] R02 Prove exactly one replacement process, expected revision, model,
   preserved state, and stable readiness after launch/restart/update.
 - [ ] R03 Live-validate native-thinking public sentence grace (d472d2268).
