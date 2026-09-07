@@ -235,13 +235,31 @@ def _a_pass_in_moves(costs: dict[str, float]) -> float:
     along.
     """
     passes, quiet = costs.get("passes", 0.0), costs.get("quiet", 0.0)
-    if passes < 1.0 or quiet < 1.0:
+    if passes < 1.0:
         return 1.0
     a_pass = costs.get("pass_s", 0.0) / passes
-    a_quiet_move = costs.get("quiet_s", 0.0) / quiet
-    if a_quiet_move <= 0.0:
-        return 1.0
-    return max(1.0, a_pass / a_quiet_move)
+    if quiet >= 1.0:
+        a_quiet_move = costs.get("quiet_s", 0.0) / quiet
+        if a_quiet_move > 0.0:
+            return max(1.0, a_pass / a_quiet_move)
+    # Nothing to compare a pass against, because there has not been a quiet
+    # move — and there never will be while a pass is priced at one.
+    #
+    # Both halves had to be measured before either counted, so a run that
+    # thought about its first move could not find out that thinking was
+    # expensive: no quiet move, so a pass costs one, so the bar stays where a
+    # pass is cheap, so she thinks again. Live 2026-09-07: forty-eight passes
+    # for nineteen moves, every one of them about ten seconds.
+    #
+    # What she has instead is the pass itself against what the rest of a cycle
+    # takes — looking, deciding, pressing. A pass that takes longer than
+    # everything else put together is expensive whether or not she has ever
+    # done without one.
+    a_cycle = costs.get("cycle_s", 0.0) / max(1.0, costs.get("cycles", 0.0))
+    without_it = a_cycle - a_pass
+    if a_cycle > 0.0 and without_it > 0.0:
+        return max(1.0, a_pass / without_it)
+    return 1.0
 
 
 def _looks_like(foretold: Any, band: Any, lattice: Any) -> Any:
@@ -3392,7 +3410,12 @@ async def pursue_on_screen(
     busy = WhatItCostsToBeBusy()
     #: What a language pass costs and what a whole cycle costs, both measured
     #: here, so "is this worth thinking about" can weigh the price.
-    costs: dict[str, float] = {"pass_s": 0.0, "passes": 0.0, "quiet_s": 0.0, "quiet": 0.0, "at": 0.0}
+    costs: dict[str, float] = {
+        "pass_s": 0.0, "passes": 0.0, "quiet_s": 0.0, "quiet": 0.0, "at": 0.0,
+        # What a whole cycle takes, so a pass has something to be dear
+        # against before she has ever gone without one.
+        "cycle_s": 0.0, "cycles": 0.0,
+    }
     #: How far she has got into this before, and where it stopped. A player on
     #: their sixth go at Ninja Gaiden is not reacting — they are replaying
     #: what they know and thinking only where they died last time.
@@ -3487,6 +3510,9 @@ async def pursue_on_screen(
         # reading, the deciding and the act — which is what a pass is being
         # weighed against.
         _began_deciding = time.monotonic()
+        if costs["at"] > 0.0:
+            costs["cycle_s"] += _began_deciding - costs["at"]
+            costs["cycles"] += 1.0
         if costs["at"] > 0.0 and costs.get("was_quiet"):
             costs["quiet_s"] += _began_deciding - costs["at"]
             costs["quiet"] += 1.0
@@ -4839,6 +4865,11 @@ async def pursue_on_screen(
                 horizon=LANGUAGE_EVERY,
                 unusual=unusual or not moves or restarts["count"] > asked["after_restarts"],
                 recognised=recognised,
+                # How far she can trust her own arithmetic here, which is how
+                # often the rule she is using has been right about this world.
+                how_sure=(
+                    knows.rules.confidence() if knows.rules is not None else 0.0
+                ),
                 # What a pass costs, in moves not made, from this run's own
                 # clock. Live on a resident model it was about ten.
                 costs_moves=_a_pass_in_moves(costs),
