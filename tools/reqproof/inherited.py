@@ -16,6 +16,7 @@ import subprocess
 from collections import Counter
 from pathlib import Path
 
+from tools.reqproof import obligations
 from tools.reqproof.docket import _atomic_write, build_docket_report
 from tools.reqproof.evidence import load_evidence_ledger
 from tools.reqproof.schema import load_registry
@@ -114,6 +115,13 @@ def scan_source(path: str, text: str) -> dict:
 def apply_reviews(sources: list[dict], reviews: dict) -> dict:
     """Reject stale decisions and lossy grouping, including unresolved prose."""
     blocks = {block["id"]: block for source in sources for block in source["blocks"]}
+    for retired in reviews.get("retired_decisions", []):
+        if not retired.get("retired_reason") or not retired.get("superseded_by"):
+            raise ValueError(f"retired review lacks provenance: {retired['source_id']}")
+        current = blocks.get(retired["source_id"])
+        if current is not None and current["sha256"] == retired["source_sha256"]:
+            raise ValueError(
+                f"review retired while its text still stands: {retired['source_id']}")
     decisions = reviews.get("decisions", [])
     seen = set()
     groups = {}
@@ -141,8 +149,97 @@ def apply_reviews(sources: list[dict], reviews: dict) -> dict:
     return {key: sorted(values) for key, values in sorted(groups.items())}
 
 
+DISMISSAL_RULES = (
+    "structural_framing",
+    "table_header",
+    "atlas_card_closed",
+    "all_boxes_checked",
+    "lead_in",
+)
+MECHANISM_MAP = "config/inherited_mechanism_map.json"
+AUDIT_GOLD = "config/inherited_obligation_audit.json"
+QUEUE_DOC = "docs/AURA_1_0_MASTER_TODO.md"
+
+
+def _queue_items(root: Path) -> set[str]:
+    text = (root / QUEUE_DOC).read_text()
+    return set(re.findall(r"^\s*-\s*\[[ xX]\]\s*([A-Z]\d{2})\b", text, re.M))
+
+
+def classify_and_route(root: Path) -> dict:
+    """Partition every block, then route every one that survives dismissal.
+
+    A block leaves the inventory only two ways: a named rule whose predicate
+    anyone can re-evaluate, or a mechanism that carries it to a queue item.
+    Nothing leaves by not being mentioned.
+    """
+    vocabulary = obligations.load_vocabulary(root / "config/inherited_status_vocabulary.json")
+    rules = [
+        (rule["mechanism"], tuple(rule["queue"]), re.compile(rule["pattern"]))
+        for rule in json.loads((root / MECHANISM_MAP).read_text())["rules"]
+    ]
+    atlas_entries = json.loads((root / "docs/gap_atlas/adjudication.json").read_text())["entries"]
+    known_items = _queue_items(root)
+    unknown_targets = sorted({
+        item for _, queue, _ in rules for item in queue if item not in known_items
+    })
+
+    sources, records, routes = [], [], {}
+    for path in SOURCES:
+        text = (root / path).read_text()
+        source = scan_source(path, text)
+        source["historical"] = obligations.is_historical_source(text)
+        sources.append(source)
+        blocks = source["blocks"]
+        classified = [
+            obligations.classify_block(block, vocabulary, source["historical"])
+            for block in blocks
+        ]
+        required = [
+            (not source["historical"]) or item["kind"] == "obligation"
+            for item in classified
+        ]
+        context = {
+            "atlas": atlas_entries,
+            "has_reviewed_successor": {
+                blocks[index]["id"] for index in range(len(blocks) - 1) if required[index + 1]
+            },
+        }
+        for index, block in enumerate(blocks):
+            record = dict(classified[index])
+            record["path"] = path
+            record["in_scope"] = required[index]
+            record["dismissed_by_rule"] = None
+            record["mechanisms"] = []
+            record["queue"] = []
+            if required[index]:
+                for name in DISMISSAL_RULES:
+                    if obligations.evaluate_rule(name, block, context):
+                        record["dismissed_by_rule"] = name
+                        break
+                if record["dismissed_by_rule"] is None:
+                    subject = f"{block['heading']}\n{block['text']}"
+                    for mechanism, queue, pattern in rules:
+                        if pattern.search(subject):
+                            record["mechanisms"].append(mechanism)
+                            record["queue"].extend(queue)
+                    record["queue"] = sorted(set(record["queue"]))
+                    for item in record["queue"]:
+                        routes.setdefault(item, []).append(block["id"])
+            records.append(record)
+    return {
+        "sources": sources,
+        "records": records,
+        "routes": {key: sorted(value) for key, value in sorted(routes.items())},
+        "vocabulary_coverage": obligations.vocabulary_coverage(sources, vocabulary),
+        "unknown_queue_targets": unknown_targets,
+    }
+
+
 def build_report(root: Path, reviews: dict) -> dict:
-    sources = [scan_source(path, (root / path).read_text()) for path in SOURCES]
+    analysis = classify_and_route(root)
+    sources = analysis["sources"]
+    records = analysis["records"]
     groups = apply_reviews(sources, reviews)
     registry = load_registry(root / "config/requirement_registry.json")
     docket = build_docket_report(
@@ -152,39 +249,74 @@ def build_report(root: Path, reviews: dict) -> dict:
     atlas = json.loads((root / "docs/gap_atlas/adjudication.json").read_text())["entries"]
     outstanding = {key: value for key, value in atlas.items()
                    if value.get("outstanding") or value.get("status") != "closed"}
-    blocks = [block for source in sources for block in source["blocks"]]
-    states = Counter(block["review_status"] for block in blocks)
+    gold_path = root / AUDIT_GOLD
+    gold = json.loads(gold_path.read_text()) if gold_path.exists() else {"seed": 0, "labels": {}}
+    audit = obligations.dismissal_audit(records, gold, int(gold.get("per_stratum", 40)))
+    block_index = {block["id"]: block for source in sources for block in source["blocks"]}
+    closure = obligations.closure_reference_audit(records, block_index, root)
+
+    in_scope = [record for record in records if record["in_scope"]]
+    dismissed = [record for record in in_scope if record["dismissed_by_rule"]]
+    routed = [record for record in in_scope if record["queue"]]
+    unrouted = sorted(
+        record["id"] for record in in_scope
+        if not record["dismissed_by_rule"] and not record["queue"]
+    )
+    kinds = Counter(record["kind"] for record in records)
+    complete = (
+        not unrouted
+        and analysis["vocabulary_coverage"]["complete"]
+        and not analysis["unknown_queue_targets"]
+        and audit["complete"]
+        and closure["complete"]
+    )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "source_commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
         "scope": list(SOURCES),
         "summary": {
             "source_lines": sum(source["line_count"] for source in sources),
-            "source_blocks": len(blocks),
-            "checkboxes": sum(len(block["checkboxes"]) for block in blocks),
-            "unchecked": sum(not box["checked"] for block in blocks for box in block["checkboxes"]),
-            "unchecked_mapped": sum(
-                not box["checked"] for block in blocks
-                if block["review_status"] != "unreviewed"
-                for box in block["checkboxes"]
-            ),
-            "review_states": dict(sorted(states.items())),
-            "signal_blocks": sum(bool(block["review_signals"]) for block in blocks),
+            "source_blocks": len(records),
+            "block_kinds": dict(sorted(kinds.items())),
+            "in_scope_blocks": len(in_scope),
+            "dismissed_by_rule": dict(sorted(
+                Counter(record["dismissed_by_rule"] for record in dismissed).items())),
+            "routed_blocks": len(routed),
+            "unrouted_blocks": unrouted,
+            "queue_items_carrying_inheritance": len(analysis["routes"]),
+            "unknown_queue_targets": analysis["unknown_queue_targets"],
+            "vocabulary_coverage": analysis["vocabulary_coverage"],
+            "dismissal_audit": {
+                key: value for key, value in audit.items() if key != "strata"
+            } | {"strata": {
+                kind: {inner: outer for inner, outer in stratum.items() if inner != "sample"}
+                for kind, stratum in audit["strata"].items()
+            }},
+            "closure_reference_audit": closure,
+            "checkboxes": sum(len(block["checkboxes"]) for source in sources
+                              for block in source["blocks"]),
+            "unchecked": sum(not box["checked"] for source in sources
+                             for block in source["blocks"] for box in block["checkboxes"]),
             "atlas_outstanding": len(outstanding),
             "mechanism_groups": len(groups),
-            "inventory_review_complete": not states["unreviewed"],
+            "inventory_review_complete": complete,
         },
         "sources": sources,
+        "records": records,
+        "routes": analysis["routes"],
+        "audit": audit,
+        "closure_references": closure,
         "mechanisms": groups,
         "requirement_docket": docket,
         "atlas_outstanding": outstanding,
         "non_claims": [
+            "Routing an obligation to a queue item does not close it.",
+            "A rule dismissal is a predicate anyone can re-evaluate, not a verdict.",
             "Reading source bytes is not a semantic review.",
-            "Signals are review candidates, not definitive obligation detection.",
             "A current missing receipt does not prove the implementation is absent.",
             "An atlas mechanism closure does not close its outstanding campaign.",
-            "All source blocks remain in scope, including blocks with no signal.",
+            "The audit bounds what the partition missed; it does not prove nothing was missed.",
         ],
     }
 

@@ -1,0 +1,834 @@
+{
+  "schema_version": 1,
+  "note": "Routes every review-required inherited-ledger block to the master-queue items that carry its mechanism forward. Routing is not closure: it says the obligation is still owned, and by whom. tools/reqproof/inherited.py fails when any review-required block routes nowhere, so an obligation cannot be lost by being unmentioned.",
+  "rules": [
+    {
+      "mechanism": "runtime_survival",
+      "queue": [
+        "R01",
+        "R02",
+        "Q03"
+      ],
+      "pattern": "(?i)\\b(reboot|successor|relaunch|detached[- ]launch|process[- ]group|supervisor|orphan|respawn|single[- ]resident|duplicate runtime)\\b"
+    },
+    {
+      "mechanism": "public_answer_boundary",
+      "queue": [
+        "R03",
+        "R05",
+        "U01"
+      ],
+      "pattern": "(?i)\\b(public[- ](output|boundary|sentence)|private (reasoning|channel|candidate)|native[- ]thinking|latent answer|empty answer|thinking tag)\\b"
+    },
+    {
+      "mechanism": "turn_ownership",
+      "queue": [
+        "R04",
+        "R09",
+        "U01"
+      ],
+      "pattern": "(?i)\\b(turn custody|owner cleanup|foreground (completion|preemption|ownership|recovery|workload)|turn owner|conversation state|principal and session|preemption|handoff)\\b"
+    },
+    {
+      "mechanism": "event_loop_blocking",
+      "queue": [
+        "R06",
+        "Q03"
+      ],
+      "pattern": "(?i)\\b(event[- ]loop|fsync|blocking (work|write|call)|stall|wedge|lock (held|across)|contention|async lifecycle|owner[- ]loop)\\b"
+    },
+    {
+      "mechanism": "health_and_readiness",
+      "queue": [
+        "R07",
+        "R02"
+      ],
+      "pattern": "(?i)\\b(health (probe|read model|contract)|readiness|liveness|canonical readiness|boot (recovery|convergence|owned)|heartbeat)\\b"
+    },
+    {
+      "mechanism": "neural_feed",
+      "queue": [
+        "R08",
+        "U09"
+      ],
+      "pattern": "(?i)\\b(neural (feed|stream|emission)|telemetry (channel|window)|instrumentation|observability warning)\\b"
+    },
+    {
+      "mechanism": "streaming_and_delivery",
+      "queue": [
+        "R09",
+        "U01",
+        "U09"
+      ],
+      "pattern": "(?i)\\b(stream(ing)?|reconnect|delivery|payload|cancellation|long[- ]content|final answer|mid[- ](word|clause|list)|truncat)\\b"
+    },
+    {
+      "mechanism": "executable_examples",
+      "queue": [
+        "R10",
+        "Q12"
+      ],
+      "pattern": "(?i)\\b(executable example|documentation example|runnable snippet|exit zero|doc[- ]drift)\\b"
+    },
+    {
+      "mechanism": "latency_accounting",
+      "queue": [
+        "R11",
+        "Q10"
+      ],
+      "pattern": "(?i)\\b(latency|prefill|decode (loop|rate)|deadline|budget split|clock|timeout|time[- ]to[- ]first[- ]token|context (size|window|scaffold)|prompt (size|assembly|aware admission))\\b"
+    },
+    {
+      "mechanism": "rlc_baseline_and_claims",
+      "queue": [
+        "G01",
+        "G02",
+        "G13"
+      ],
+      "pattern": "(?i)\\b(recursive latent cortex|\\bRLC\\b|latent reasoning|recurrent (state|authority|generation|sft|grpo)|baseline freeze|claim boundary)\\b"
+    },
+    {
+      "mechanism": "semantic_binding",
+      "queue": [
+        "G03",
+        "G04",
+        "L04"
+      ],
+      "pattern": "(?i)\\b(semantic (binding|composition|source|ontology)|compositional|held[- ]out (construction|vocabulary|family)|transfer|abstraction)\\b"
+    },
+    {
+      "mechanism": "public_gain_translation",
+      "queue": [
+        "G05",
+        "G11"
+      ],
+      "pattern": "(?i)\\b(free decode|freely decoded|public answer|serve (eligible|the answer)|answer channel|token suppression)\\b"
+    },
+    {
+      "mechanism": "controls_and_ablation",
+      "queue": [
+        "G06",
+        "G08",
+        "L03"
+      ],
+      "pattern": "(?i)\\b(ablation|lesion|control arm|matched (control|experiment)|equal[- ]compute|null|shuffle|degree[- ]matched|counterfactual|causal (canary|credit|learnability))\\b"
+    },
+    {
+      "mechanism": "preregistration",
+      "queue": [
+        "G07",
+        "G08"
+      ],
+      "pattern": "(?i)\\b(preregist|precommit|stopping rule|fresh (seed|task|canary)|hidden (control|holdout)|replication)\\b"
+    },
+    {
+      "mechanism": "broad_reasoning_gain",
+      "queue": [
+        "G09",
+        "G12"
+      ],
+      "pattern": "(?i)\\b(broad (reasoning|competence)|frontier (parity|evidence|performance|engineering)|reasoning gain|independent (broad|task)|benchmark)\\b"
+    },
+    {
+      "mechanism": "weight_materialization",
+      "queue": [
+        "G10",
+        "L02"
+      ],
+      "pattern": "(?i)\\b(materiali|fusion|adapter|lora|codebook|optimizer|checkpoint v[0-9]|promotion (canary|custody|gate)|rollback|geometry|tokenizer)\\b"
+    },
+    {
+      "mechanism": "persona_and_continuity",
+      "queue": [
+        "L01",
+        "U01"
+      ],
+      "pattern": "(?i)\\b(persona|identity (engine|repair|bound|scoped|exact|logical)|continuity|steering vector|self[- ]profile)\\b"
+    },
+    {
+      "mechanism": "experience_to_training",
+      "queue": [
+        "L02",
+        "L03"
+      ],
+      "pattern": "(?i)\\b(dataset|training (path|run|data)|sft\\b|grpo|curriculum|marker format|quality metadata|experience (replay|corpus))\\b"
+    },
+    {
+      "mechanism": "knowledge_access",
+      "queue": [
+        "L05",
+        "U07"
+      ],
+      "pattern": "(?i)\\b(knowledge (base|graph|operation)|wikipedia|retrieval|web (search|fetch)|provenance|freshness|evidence (authority|source|bounded))\\b"
+    },
+    {
+      "mechanism": "feedback_edges",
+      "queue": [
+        "L06",
+        "L03"
+      ],
+      "pattern": "(?i)\\b(action outcome|selfhood|prediction resolution|crsm|reinforcement|feedback edge|belief revision|epistemic (state|publication))\\b"
+    },
+    {
+      "mechanism": "skill_lifecycle",
+      "queue": [
+        "L07",
+        "U06"
+      ],
+      "pattern": "(?i)\\b(skill (invention|installation|execution|route|catalog|preflight)|hephaestus|actuator (registry|synthesis)|capability (availability|board))\\b"
+    },
+    {
+      "mechanism": "affect_and_phi",
+      "queue": [
+        "L08"
+      ],
+      "pattern": "(?i)\\b(affect|phenomenolog|interocept|somatic|\\bphi\\b|consciousness|qualia|felt|mood|circumplex|welfare|allostasis)\\b"
+    },
+    {
+      "mechanism": "conversation_quality",
+      "queue": [
+        "U01",
+        "U08"
+      ],
+      "pattern": "(?i)\\b(conversation (semantics|quality|reliability|writes)|canned|fallback|dead end|chat (semantic|route|safety|lane)|question routing|repair)\\b"
+    },
+    {
+      "mechanism": "voice",
+      "queue": [
+        "U02"
+      ],
+      "pattern": "(?i)\\b(voice|microphone|speech|audio|acoustic|tts|asr|turn[- ]taking|barge[- ]in)\\b"
+    },
+    {
+      "mechanism": "vision",
+      "queue": [
+        "U03"
+      ],
+      "pattern": "(?i)\\b(camera|vision|glance|visual|sidecar|multimodal|image)\\b"
+    },
+    {
+      "mechanism": "companion_mode",
+      "queue": [
+        "U04"
+      ],
+      "pattern": "(?i)\\b(companion|ambient|bubble|notification|proactive observation|idle perception)\\b"
+    },
+    {
+      "mechanism": "screen_and_browser",
+      "queue": [
+        "U05",
+        "U06"
+      ],
+      "pattern": "(?i)\\b(screen (read|capture|understanding)|browser|incognito|desktop (actuation|objective|task|handoff|privacy)|highlight|window|page)\\b"
+    },
+    {
+      "mechanism": "desktop_actions",
+      "queue": [
+        "U06",
+        "U07"
+      ],
+      "pattern": "(?i)\\b(file (operation|creation|download)|wallpaper|media selection|app control|terminal|sandbox|code execution|coding|agent surface)\\b"
+    },
+    {
+      "mechanism": "research_and_planning",
+      "queue": [
+        "U07",
+        "L07"
+      ],
+      "pattern": "(?i)\\b(research|planning|multi[- ]step|long[- ]horizon|durable work|objective (closure|expectation)|autonomous (task|reflection|child))\\b"
+    },
+    {
+      "mechanism": "ui_surface",
+      "queue": [
+        "U09",
+        "U08"
+      ],
+      "pattern": "(?i)\\b(\\bUI\\b|accessibility|responsive|progress (bar|report|truthful|measured)|user surface|surface turn|demo)\\b"
+    },
+    {
+      "mechanism": "model_inventory",
+      "queue": [
+        "Q01",
+        "G10"
+      ],
+      "pattern": "(?i)\\b(model (load|admission|inventory|resource|lane|identity)|provider|mlx|resident (32b|1\\.5b|model)|capacity|reservation|eviction|allocation)\\b"
+    },
+    {
+      "mechanism": "disk_retention",
+      "queue": [
+        "Q02"
+      ],
+      "pattern": "(?i)\\b(disk|retention|log rotation|export|cache (size|growth)|artifact (size|bloat)|storage)\\b"
+    },
+    {
+      "mechanism": "memory_lifetime",
+      "queue": [
+        "Q03",
+        "Q10"
+      ],
+      "pattern": "(?i)\\b(memory (leak|growth|pressure|admission|ratchet)|oom|resident memory|sleep|wake|shutdown|teardown|finalizer|lifetime)\\b"
+    },
+    {
+      "mechanism": "authority_and_security",
+      "queue": [
+        "Q04",
+        "Q06"
+      ],
+      "pattern": "(?i)\\b(authority|permission|governance|prompt injection|secret|credential|security|threat|containment|dns|hardening|principal|scoped|will gate|signed|attest)\\b"
+    },
+    {
+      "mechanism": "persistence_and_recovery",
+      "queue": [
+        "Q05",
+        "Q03"
+      ],
+      "pattern": "(?i)\\b(persistence|migration|corruption|backup|restore|crash[- ]consistent|durable (state|storage|custody)|snapshot|write[- ]ahead|transaction)\\b"
+    },
+    {
+      "mechanism": "architecture_debt",
+      "queue": [
+        "Q06",
+        "Q07"
+      ],
+      "pattern": "(?i)\\b(architecture|layering|deps|debt|duplicat|ontolog|canonical state|spine|refactor|dead code|module size|complexity)\\b"
+    },
+    {
+      "mechanism": "semantic_ledger",
+      "queue": [
+        "Q07",
+        "Q13"
+      ],
+      "pattern": "(?i)\\b(semantic (review|ledger|remediation)|requirement (registry|docket|reconciliation)|closeout|rubric|adjudicat|review coverage)\\b"
+    },
+    {
+      "mechanism": "test_gates",
+      "queue": [
+        "Q08",
+        "Q09"
+      ],
+      "pattern": "(?i)\\b(test (suite|chunk|gate|run)|smoke|lint|compile|order[- ]depend|flake|flaky|regression|pytest|coverage)\\b"
+    },
+    {
+      "mechanism": "soak",
+      "queue": [
+        "Q10",
+        "Q03"
+      ],
+      "pattern": "(?i)\\b(soak|endurance|multi[- ]hour|longevity|sustained|24[- ]hour)\\b"
+    },
+    {
+      "mechanism": "install_and_release",
+      "queue": [
+        "Q11",
+        "Q12"
+      ],
+      "pattern": "(?i)\\b(install|uninstall|update path|packaging|desktop launch|app bundle|signing|provenance|sbom|release note|clean machine|portability)\\b"
+    },
+    {
+      "mechanism": "evidence_publication",
+      "queue": [
+        "Q12",
+        "Q13"
+      ],
+      "pattern": "(?i)\\b(evidence (bundle|publication|receipt|ledger|family)|reproducib|known limitation|independent (verif|replay|witness|review)|transparency|certificate|proof (bundle|receipt))\\b"
+    },
+    {
+      "mechanism": "fictional_organ_import",
+      "queue": [
+        "L07",
+        "U07"
+      ],
+      "pattern": "(?i)\\bFRONTIER-\\d|fictional[- ]AI|synthetic[- ]colleague|\\bCOLLEAGUE-\\d"
+    },
+    {
+      "mechanism": "self_other_world_model",
+      "queue": [
+        "L06",
+        "L08",
+        "U01"
+      ],
+      "pattern": "(?i)\\bSM-\\d|self[- ]other[- ]world|attributed model|spontaneous recognition|recognition opportunit"
+    },
+    {
+      "mechanism": "spark_research_ladder",
+      "queue": [
+        "G06",
+        "G07",
+        "G08"
+      ],
+      "pattern": "(?i)\\bSPARK-\\d"
+    },
+    {
+      "mechanism": "lifecycle_control_plane",
+      "queue": [
+        "Q03",
+        "Q06"
+      ],
+      "pattern": "(?i)\\bLIFECYCLE-\\d|\\bRUNTIME-SETTINGS-\\d|control[- ]plane|dependency closure"
+    },
+    {
+      "mechanism": "semantic_audit_pass",
+      "queue": [
+        "Q07",
+        "Q13"
+      ],
+      "pattern": "(?i)\\bAUDIT-\\d|\\bCHECKPOINT-\\d|every[- ]line semantic|criticism|quality corpus|completion envelope|percent|%"
+    },
+    {
+      "mechanism": "physical_acceptance",
+      "queue": [
+        "Q12",
+        "Q04"
+      ],
+      "pattern": "(?i)physical (campaign|metrology|acceptance|effect)|trust[- ]root|external (credential|witness|witnesses)|producer|preregistration artifact|cross[- ]host|A1 acceptance|operator chain"
+    },
+    {
+      "mechanism": "proof_and_replay_closure",
+      "queue": [
+        "Q12",
+        "Q13"
+      ],
+      "pattern": "(?i)final proof|replay|claims closure|proof honesty|operational maturity|day[- ]in[- ]the[- ]life|hidden (battery|day)"
+    },
+    {
+      "mechanism": "api_surface_health",
+      "queue": [
+        "R07",
+        "R09"
+      ],
+      "pattern": "(?i)/api/|HTTP 200|p50|p95|poll"
+    },
+    {
+      "mechanism": "generality_program",
+      "queue": [
+        "G09",
+        "G03",
+        "L04"
+      ],
+      "pattern": "(?i)generality|general (learning|process|mechanism)|decomposed to something checkable|battery|held[- ]out score|new capability class"
+    },
+    {
+      "mechanism": "multi_app_action_proof",
+      "queue": [
+        "U06",
+        "U05"
+      ],
+      "pattern": "(?i)multi[- ]app|visible action|audiovisual|live cognition"
+    },
+    {
+      "mechanism": "prompt_assembly_budget",
+      "queue": [
+        "R11",
+        "G05",
+        "U01"
+      ],
+      "pattern": "(?i)identity lock|inner state|assembled fresh|prompt plan|deep path|engine_directive|system\\s+\\d{2,3},\\d{3}|characters|scaffold|trims"
+    },
+    {
+      "mechanism": "tool_loop_completion",
+      "queue": [
+        "U07",
+        "R09",
+        "L07"
+      ],
+      "pattern": "(?i)tool (loop|call|-call)|consent|ceiling|reserve|two[- ]phase|estimator|read rate|self[- ]service|json contract"
+    },
+    {
+      "mechanism": "early_stop_completion",
+      "queue": [
+        "R09",
+        "G05"
+      ],
+      "pattern": "(?i)stop(ping|ped)? (early|sequence)|mid[- ]structure|ended mid|semantic completion|thousand characters|1,024|generation had"
+    },
+    {
+      "mechanism": "failure_level_routing",
+      "queue": [
+        "G03",
+        "L04",
+        "L07"
+      ],
+      "pattern": "(?i)which level failed|missing knowledge|insufficient evidence|inadequate search|relation induction|semantic substrate|new representational|falsifiable|routed to the mechanism|six levels"
+    },
+    {
+      "mechanism": "execution_contract",
+      "queue": [
+        "Q13",
+        "Q08"
+      ],
+      "pattern": "(?i)root cause|prompt engineering|carries the test|commit and push|never symptom"
+    },
+    {
+      "mechanism": "connectome_substrate",
+      "queue": [
+        "G09",
+        "G12",
+        "L04"
+      ],
+      "pattern": "(?i)connectome|G_neural|mesh|recurrence|graph|interven|lesion|degree|layer|wiring|synapse|H01|cortex"
+    },
+    {
+      "mechanism": "language_substrate",
+      "queue": [
+        "G03",
+        "L04",
+        "U01"
+      ],
+      "pattern": "(?i)language substrate|learned (semantic|surface|boundary)|AUROC|abstain|calibrat|pattern|encode_hidden|hidden state|paraphrase|surface"
+    },
+    {
+      "mechanism": "reasoning_amplifier",
+      "queue": [
+        "G09",
+        "G06",
+        "U07"
+      ],
+      "pattern": "(?i)amplifier|verifier|courtroom|revision gate|second pass|deliberat|search|hypothes|proof|reasoning"
+    },
+    {
+      "mechanism": "code_execution_chain",
+      "queue": [
+        "U07",
+        "L07",
+        "R10"
+      ],
+      "pattern": "(?i)fenced block|interpreter|syntax error|undefined name|pre[- ]flight|preflight|sys\\.path|import |runner|library|ledgerkit|trial balance|execution to discover|blank"
+    },
+    {
+      "mechanism": "documentation_self_teaching",
+      "queue": [
+        "U07",
+        "L05",
+        "L07"
+      ],
+      "pattern": "(?i)read the docs|teach herself|documentation|docs at this path|use the library"
+    },
+    {
+      "mechanism": "learning_mechanism_inventory",
+      "queue": [
+        "L04",
+        "G03",
+        "L07"
+      ],
+      "pattern": "(?i)log_gap|synthesis|synthesiser|inducer|ontology|predicate|vocabulary|node\\(kind|composition|library entr|retirement|soar|act-r|saturat|milestone|world a/b/c|signature|concept"
+    },
+    {
+      "mechanism": "repeated_autonomous_improvement",
+      "queue": [
+        "G09",
+        "G04",
+        "L07"
+      ],
+      "pattern": "(?i)repeatedly|ten times|once —|new distribution|unseen class|autonomous(ly)? construct|measurably improve|chain is worth"
+    },
+    {
+      "mechanism": "invariant_discipline",
+      "queue": [
+        "Q06",
+        "Q08"
+      ],
+      "pattern": "(?i)invariant|custody suite|lease api|existing shape|pinned"
+    },
+    {
+      "mechanism": "gauntlet_unrun_gates",
+      "queue": [
+        "G09",
+        "G12",
+        "Q12"
+      ],
+      "pattern": "(?i)\\bB\\d{1,2}\\b|GAIA|OSWorld|post[- ]cutoff|holdout|colleagues|competent[- ]adult|human baseline|apprenticeship|external evaluator|instructionless|goal discovery"
+    },
+    {
+      "mechanism": "gauntlet_review_items",
+      "queue": [
+        "Q06",
+        "G08",
+        "Q07"
+      ],
+      "pattern": "(?i)\\bD\\d{1,2}\\b|\\bC\\d\\b|fan[- ]in|fan[- ]out|oversized|size regression|reachability|interiority facult|29 phases|claims regist|generational compounding|native development|causal concentration|installers|open[- ]endedness"
+    },
+    {
+      "mechanism": "atlas_generation",
+      "queue": [
+        "Q07",
+        "Q13"
+      ],
+      "pattern": "(?i)gap atlas|cards\\.json|adjudication|414|rival|implement_to_what|section_level_bars|what_closed_means|PARTIAL|ABSENT|OVERSTATED"
+    },
+    {
+      "mechanism": "ledger_provenance",
+      "queue": [
+        "Q07"
+      ],
+      "pattern": "(?i)WorkToDO\\.pdf|Source:|measured, not asserted|Generated by|verbatim"
+    },
+    {
+      "mechanism": "failure_diagnosis_router",
+      "queue": [
+        "G03",
+        "L04",
+        "L06"
+      ],
+      "pattern": "(?i)why_did_this_fail|diagnosis|subscriber|two findings|its own next gap|unanswerable|made it unanswerable|matcher|staple|reader for the load"
+    },
+    {
+      "mechanism": "mandate_scope",
+      "queue": [
+        "Q13",
+        "G09"
+      ],
+      "pattern": "(?i)named in the mandate|said plainly|applies to everything below|closed\\.|found and not yet fixed|one live session|action side|second concept|decomposed to something checkable|council|audited head|post[- ]freeze|independent party"
+    },
+    {
+      "mechanism": "client_disconnect",
+      "queue": [
+        "R09",
+        "R07"
+      ],
+      "pattern": "(?i)disconnect|RuntimeError|middleware|no response returned"
+    },
+    {
+      "mechanism": "connectome_scale_run",
+      "queue": [
+        "G09",
+        "Q08",
+        "G12"
+      ],
+      "pattern": "(?i)fast2|27k frames|nine workloads|offline suite green|run_test_chunks|three predictions"
+    },
+    {
+      "mechanism": "substrate_measurement_protocol",
+      "queue": [
+        "G03",
+        "L03",
+        "G08"
+      ],
+      "pattern": "(?i)substrate_measurement|frozen set|leave[- ]one[- ]out|held[- ]out wording|boundary is used|spread of the examples|fail[- ]open|critical path|forward pass|incoming direction|outgoing direction|f\\(x\\)"
+    },
+    {
+      "mechanism": "expansion_controls",
+      "queue": [
+        "G06",
+        "G08",
+        "G07"
+      ],
+      "pattern": "(?i)18\\.\\d|19\\.\\d|LLM[- ]only|operator_invention|macro[- ]only|compression|shuffled label|fake operator|frozen prior|inline[- ]expansion|equal[- ]persistent|no[- ]MDL|forgetting|adversarial experience|evaluator hacking|reward hacking|self[- ]modification bypass|what it solves|novelty claim"
+    },
+    {
+      "mechanism": "semantics_admission_audit",
+      "queue": [
+        "Q04",
+        "Q06"
+      ],
+      "pattern": "(?i)self_modification|shadow runtime|cognitive event DAG|admit semantics"
+    },
+    {
+      "mechanism": "expressiveness_floor",
+      "queue": [
+        "G03",
+        "G04",
+        "L04"
+      ],
+      "pattern": "(?i)universal|expressiveness|necessity direction|regress|algebra|grammar|E_\\{?t|⊋|substrate actually in the tree"
+    },
+    {
+      "mechanism": "developmental_agency_audit",
+      "queue": [
+        "L06",
+        "L07",
+        "G09"
+      ],
+      "pattern": "(?i)developmental|_widen|fixed ladder|rung|caller traced|represent|inspect|construct|invoke|persist|ingredient|three[- ]generation|theoretically possible|mathematical limit|missing mechanism|what would prove it|filed under|central distinction|not written down|struck throug|against current Aura|without reference to a particular experiment"
+    },
+    {
+      "mechanism": "external_reproduction",
+      "queue": [
+        "Q12",
+        "Q11",
+        "Q13"
+      ],
+      "pattern": "(?i)external reviewer|reproduce the release|transcript|CHALLENGE"
+    },
+    {
+      "mechanism": "grounded_explanation",
+      "queue": [
+        "U01",
+        "L05"
+      ],
+      "pattern": "(?i)starter|yeasty|sour|she answered|doubles in five hours"
+    },
+    {
+      "mechanism": "checkpoint_accounting",
+      "queue": [
+        "Q13",
+        "Q07"
+      ],
+      "pattern": "(?i)remaining (work|total|consolidated|smaller)|checkpoint group|sub[- ]checkpoint|append[- ]only ledger|authoritative remaining"
+    },
+    {
+      "mechanism": "reply_narration_quality",
+      "queue": [
+        "U01",
+        "U09"
+      ],
+      "pattern": "(?i)self[- ]summary|desktop_task|narration|artifact bod|recovered text|off[- ]topic|prompt[- ]shaped|prompt framing|live_mind_snapshot|readout"
+    },
+    {
+      "mechanism": "false_health",
+      "queue": [
+        "R07",
+        "R06"
+      ],
+      "pattern": "(?i)false[- ]?health|full[- ]runtime health|generation lease|stale (ownership|lock|session|import|typing|schema|draft)|concurrency_health|dead[- ]letter|task tracker|watchdog|thermal|admission (clears|deferred)|quiet window"
+    },
+    {
+      "mechanism": "test_artifacts",
+      "queue": [
+        "Q08",
+        "Q09"
+      ],
+      "pattern": "(?i)tests?/test_|test_[a-z_]+\\b|~?\\d+ lines added|phase [A-Z]\\b|mixin sweep"
+    },
+    {
+      "mechanism": "self_knowing_kernels",
+      "queue": [
+        "L08",
+        "L06"
+      ],
+      "pattern": "(?i)phenomenal|self[- ]knowing|organism[- ]closure|personhood|private (phenomenal|experience)|AutomaticSelfKnowing|kernel"
+    },
+    {
+      "mechanism": "external_transport",
+      "queue": [
+        "Q04",
+        "U06"
+      ],
+      "pattern": "(?i)home assistant|transport|network I/O|ActionExecutor|credential|plain HTTP|noop success"
+    },
+    {
+      "mechanism": "cleanup_and_relaunch",
+      "queue": [
+        "R01",
+        "Q03"
+      ],
+      "pattern": "(?i)aura_cleanup|--stop|relaunch|orchestrator lock|AURA_CLEANUP_FORCE|process killing|Aura\\.app"
+    },
+    {
+      "mechanism": "risk_register",
+      "queue": [
+        "Q06",
+        "Q05"
+      ],
+      "pattern": "(?i)FMEA|risk|RPN|mitigation|fault taxonomy|traceability|expectation (verdict|feedback|receipt)|planner|action depth|memory_ops|archival_insert|PlanSchema|scanner|coroutine|message scanning|startup_policy|modal"
+    },
+    {
+      "mechanism": "module_paths",
+      "queue": [
+        "Q06",
+        "Q08"
+      ],
+      "pattern": "(?i)core/[a-z_/]+\\.py|interface/[a-z_/]+\\.py|top[- ]level subsystem|path component"
+    },
+    {
+      "mechanism": "chat_reliability_program",
+      "queue": [
+        "U01",
+        "U08",
+        "R09"
+      ],
+      "pattern": "(?i)chat (reliability|contract|subsystem)|social|factual|self[- ]condition|correction|interruption|memory[- ]reference|tool[- ]intent|reply rejection|stale[- ]topic|hard fallback|grounded (repair|failure)|coherent answer|conversational reference|sentence form|composer|clipping|turn ledger|TurnOutcome|user receipt|Notes[- ]write"
+    },
+    {
+      "mechanism": "desktop_escalation",
+      "queue": [
+        "U06",
+        "U05",
+        "Q04"
+      ],
+      "pattern": "(?i)escalation|cooldown|user[- ]advocate|confirmation decision|autonomous (task|action)|robotics|WorldActuator|dispatcher|missing application"
+    },
+    {
+      "mechanism": "learning_admission",
+      "queue": [
+        "L02",
+        "L03",
+        "L06"
+      ],
+      "pattern": "(?i)learning record|dreamer|admission (metadata|grounding)|legacy c|structural[- ]diversity|branch[- ]isolation|cognitive[- ]slot|fingerprint"
+    },
+    {
+      "mechanism": "boot_profile",
+      "queue": [
+        "R02",
+        "R07"
+      ],
+      "pattern": "(?i)ready state|runtime age|boot profile|heartbeat|subsystem audit|lifecycle[- ]owner|handshake|sentinel tombstone"
+    },
+    {
+      "mechanism": "training_mechanics",
+      "queue": [
+        "G10",
+        "L02",
+        "G06"
+      ],
+      "pattern": "(?i)trainer|rematerializ|mx\\.checkpoint|PCGrad|dot product|typed[- ]transition|frozen[- ]base|training plan|tokenized|model descriptor|candidate[- ]native|cumulative check|canary budget|campaign preparation|CP\\d{2,3}|package[- ]depth|serving policy|training frequency|model width|answer bridge|boolean action|modular action|state trace|action sequence|sweep"
+    },
+    {
+      "mechanism": "pass_f_expansion",
+      "queue": [
+        "Q06",
+        "Q13"
+      ],
+      "pattern": "(?i)Pass F|enterprise[- ]maturity|structural obligation|improve everything|carried forward"
+    },
+    {
+      "mechanism": "commit_pending",
+      "queue": [
+        "Q08",
+        "Q13"
+      ],
+      "pattern": "(?i)commit pending|implementation validated|prerequisite contract|append[- ]only status|adjudicated against the code|moves? to DONE"
+    },
+    {
+      "mechanism": "receipt_compaction",
+      "queue": [
+        "Q02",
+        "Q05"
+      ],
+      "pattern": "(?i)OutcomeLedger|receipt (compaction|bodies)|memory metabolism|admission denial|archival compaction|aggregation|durability"
+    },
+    {
+      "mechanism": "intent_classification",
+      "queue": [
+        "U01",
+        "G03"
+      ],
+      "pattern": "(?i)intent classification|context assembly|double or triple|incoming turn|read[- ]only"
+    },
+    {
+      "mechanism": "short_answer_latency",
+      "queue": [
+        "R11",
+        "U01",
+        "R09"
+      ],
+      "pattern": "(?i)took \\d+\\.\\d+ seconds|in[- ]band fail[- ]closed|exactly five words|brevity|short[- ]answer"
+    },
+    {
+      "mechanism": "candidate_scoring",
+      "queue": [
+        "G06",
+        "L03"
+      ],
+      "pattern": "(?i)preregistered structural|action[- ]cost estimate|sparse cell|applicability reason|between 0\\.\\d+ and \\d"
+    },
+    {
+      "mechanism": "promotion_installer",
+      "queue": [
+        "G10",
+        "R02"
+      ],
+      "pattern": "(?i)promotion controller|installer|stable live PID|negative verdict"
+    }
+  ]
+}

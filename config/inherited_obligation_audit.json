@@ -1,0 +1,1299 @@
+{
+ "labels": {
+  "docs/AGI_GAUNTLET_TRACKER.md:100": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "2b1b9eab059b02424b6772fdd128ab4104d7225d5c7cf7f6fc9ff703ed858ead",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AGI_GAUNTLET_TRACKER.md:15": {
+   "carries_obligation": false,
+   "reason": "Explicit DONE/PASS row carrying its own evidence; the only open-looking word sits inside a filename or a description of what was fixed.",
+   "sha256": "0b52a688fa3cc8d5cd3460cff0c3d7b6012bf7c4893f20c5c1f108b2c29afc95",
+   "stratum": "out_of_scope:resolved"
+  },
+  "docs/AGI_GAUNTLET_TRACKER.md:206": {
+   "carries_obligation": false,
+   "reason": "Explicit DONE/PASS row carrying its own evidence; the only open-looking word sits inside a filename or a description of what was fixed.",
+   "sha256": "38d49ed0d1e40deee5af8a75c38f46bdf262b140e9a5ea67f3f9a28acfb327ce",
+   "stratum": "out_of_scope:resolved"
+  },
+  "docs/AGI_GAUNTLET_TRACKER.md:213": {
+   "carries_obligation": false,
+   "reason": "Explicit DONE/PASS row carrying its own evidence; the only open-looking word sits inside a filename or a description of what was fixed.",
+   "sha256": "a319ce7ae8debfeaf2cad2d402a7ef2754ae3d9b45385ff455f805d553bd88bb",
+   "stratum": "out_of_scope:resolved"
+  },
+  "docs/AGI_GAUNTLET_TRACKER.md:214": {
+   "carries_obligation": false,
+   "reason": "Explicit DONE/PASS row carrying its own evidence; the only open-looking word sits inside a filename or a description of what was fixed.",
+   "sha256": "5261735b84deeaebec88cf0519ad745ff05c88e0cede28c106befebab5f11ba0",
+   "stratum": "out_of_scope:resolved"
+  },
+  "docs/AGI_GAUNTLET_TRACKER.md:42": {
+   "carries_obligation": false,
+   "reason": "Explicit DONE/PASS row carrying its own evidence; the only open-looking word sits inside a filename or a description of what was fixed.",
+   "sha256": "2252dbf46e028ea2c189a03c631f53f1e3d647e3c8fccf8e77b172b8d2215236",
+   "stratum": "out_of_scope:resolved"
+  },
+  "docs/AGI_GAUNTLET_TRACKER.md:44": {
+   "carries_obligation": false,
+   "reason": "Explicit DONE/PASS row carrying its own evidence; the only open-looking word sits inside a filename or a description of what was fixed.",
+   "sha256": "490ef8ffa9688172b7adff2c12ec48e1ecc0babf05282ff2bedf8fc13a4ed740",
+   "stratum": "out_of_scope:resolved"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:10160": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "3b5bdc0eedddaefdb4d215a36b949f635a8faecca3138a13d4193705a774ea07",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:10197": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "32c73daf03007c72c3aef287112d1bb935541f2dfc25a6aaf18cb991605cd321",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:10290": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "3c94d25003132c107cd850cd334a07bb5f69cda78feaf9245f896558f1044a84",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:10639": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "dc2f4437bbf1ab39d25556bf070f256f5f35d14fb57d07a3dd363a59df92f0c8",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:10882": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "347c62f4d16497bc1c92deb6bc32c7fa5fdc23e1c36580595469c237737a827c",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:10970": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "347c62f4d16497bc1c92deb6bc32c7fa5fdc23e1c36580595469c237737a827c",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:11034": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "347c62f4d16497bc1c92deb6bc32c7fa5fdc23e1c36580595469c237737a827c",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:11209": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "347c62f4d16497bc1c92deb6bc32c7fa5fdc23e1c36580595469c237737a827c",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:11380": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "abf9bd5e8c957330e4addfe97a1fdae58e3e8301c6189f19041554bf02d7a2a6",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:11479": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "f572b0e49fc273ec4869eb56c7ab9881a346d83a41749c86efbe2b88a97902a5",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:11524": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "fa565c7dba7df6a2066068bedab999c91b5be130d032d915676af7f2a9bfee85",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:12150": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "abedd910de20a8a4193c500a2838381646079a2fbec8be39900b06376d3fbb13",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:12413": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "a98fe4a589582d98c1a926a2a61bfa4db4cb34da5a3b6cb37ada26ad1e7512d9",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:12522": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "f76e1cf5fba706a5c2b545ae384ea075af5f01efff71339297fb8a5e34d21c50",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:12819": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "813616096071e75ef766e8c69eb165f4b05fa00296bc56269e2fa5da46d1839f",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:12910": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "db1dab1c90ccd71985dee9e7f448c8d7500fdee3f1d305978f11a7ddc852aeab",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:13007": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "db1dab1c90ccd71985dee9e7f448c8d7500fdee3f1d305978f11a7ddc852aeab",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:13203": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "53551fa79502e093ba2dff0ab45a8e776e38e64ebe93446ca4882c4322853f07",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:13714": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "e86431b5c874bee80cd31d4c511e351bc8978e3adbf8016c3c4ecc0258357cbe",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:13952": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "f9cbd12395ee1f83adb3354e2ac2578605a6918b5f6ba710341553e63b32fb67",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:14092": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "a9d5d0ab937bd91dec6b00aea4ac0dbe4a1d8a57089d91d0ca3995217c59e5af",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:14443": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "6544875e9c6c8629842b24239c3128ded95935d776c4a9524982058ff5f93495",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:14453": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "cdd1fe8426afe20f149f2eb3104808024b435d8db16949757cbf5c45e3691743",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:14911": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "2928e01d3c013927c31f0101703226e1179aefaf423a4ee76f2c8ab5686b556e",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:15141": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "7cdd69ab67c0089c261f786623f345442b3e55ec194c7f63e693dec2a669b011",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:15158": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "11ee57bcdeb66c53da2b64c754a5d4cd2878e8e3e25baefc99d8bcbd4a5debff",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:15171": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "800f08214b0bf6dbeef84b957425ce8665b6b3672407e5a810911744987d926e",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:16655": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "1f4be26b1c9e2c18e31f2913ca1c5b1fc7d7807b1456cd42acb8bc67a49992a3",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:16733": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "06552aacf7389ecde545b577f572dd378cf8176eace6e8717fcf2d14a14245c3",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:16797": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "06552aacf7389ecde545b577f572dd378cf8176eace6e8717fcf2d14a14245c3",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:16840": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "1f4be26b1c9e2c18e31f2913ca1c5b1fc7d7807b1456cd42acb8bc67a49992a3",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:16845": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "febc0ac39518ed6f8c12a4bccecd69a5c5e070e7fa2db1a43e2082e148341038",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:17522": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "aeb41f88ac561f09bb19ab66254092599734957ecadd40d6cf68870c2d9a0877",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:17567": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "4f31ff62fbce7372520d430b0fcb62ff509cd97bc38e3ac1f66ad2b7b9afa27b",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:17577": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "a7bc0f4d3c29eca6680ea614f8dab489f1c5a64e99bb44e539a90add14044a87",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:17595": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "8709eedf1cfc80226df241c7fe6d54070d3deac57e23d8165a05fc43d38cef45",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:17749": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "0d7ac6673f531f47f999f4bdde0715df10bcaf02c668804a2864c18592277da8",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:18150": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "762296bad503416549198ddbcda638f1a23df87d0de92c45c8c10c52a919032e",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:18385": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "89fed6b37c9e167caca4ead995d28ec64fb1d34c30462882ee51314926543243",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:20040": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "e811e475abc0a2ff88fa24094ef4751b88056294356d7796e17cdb769e0bd67a",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:20756": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "7a0c10ed863d0afa89f51266fa77b5df729d93b92f8e39f563d4f42b96b2e012",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:24035": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "187fd6bcc91a38240fcfee944095c658b68431b69038db6d26b4466537b8dcbb",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:2582": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "826d1695ea6bfc7a2cf19142e67718492edb1d0cee407de518cacc93f1b1e9aa",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:2639": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "a3d2df5091910db0e9cc0dd4097a98c0c2dd84a04c64b467eec67f0f17210827",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:2840": {
+   "carries_obligation": false,
+   "reason": "Explicit DONE/PASS row carrying its own evidence; the only open-looking word sits inside a filename or a description of what was fixed.",
+   "sha256": "70f6e2bd6b6719e59f918635905f46ce80dd4efb78e3457479762de54260a271",
+   "stratum": "out_of_scope:resolved"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:2937": {
+   "carries_obligation": false,
+   "reason": "Explicit DONE/PASS row carrying its own evidence; the only open-looking word sits inside a filename or a description of what was fixed.",
+   "sha256": "583a9ebea23c78b15a4a7aa4cc1926c6cdb82704ac54eabdfd6bd78e9d1cb59e",
+   "stratum": "out_of_scope:resolved"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:29675": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "e39c3bdc70437491b9db7a9658ac7ece20dcfd1a32b17409639ca6d52f4f4573",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:2972": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "f718050d2e2e99ff6e060290c1afa0f405d2af366ae8b8d4995e84536ee5831f",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:31446": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "d9e7c1509b72cee5baf0bf6ee1991ae08ed8d00790bdae929e2d6802d0a6b9a8",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:31770": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "49716adbedeb671f15fb5cdc337e88a3c7fa2c7b1cc09b5d403a46fe571da569",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:31817": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "2840d250abda4512be163af24f3a24a3459efca99500533a396c6dd33de498be",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:32205": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "f5e84cf7d1b78bc9747163e8b07ab92724bcede77f62264f03c9a0a04ed173b9",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:3253": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "fbb981885f45bc4d6be2de8c753a2b0addadf01ad45ab3902c56dce041189962",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:3466": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "83463d00d2e17f1fc67327a391ba2f4915d8dd2fff0b69be9611604a3b7ee24e",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:347": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "cdbc35c90e40953901105572cf4a47e4432db0b580f71dca31887a383463ee51",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:35698": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "421b16e2bb747eba4ec54aa8fdb7a2a25483afcec0ed9539ac2fad1761f16792",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:37551": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "01090b452490c6f8d48203e65b2bd1d9841e8f7518a4e2ccee7f1d0c614415c9",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:37584": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "f2748e6958fcd8d8443114516806719088b92d4333460dd3d20fe1ca99ab03dd",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:3826": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "d016bccc9135d5a19ee995e8ae6c357ca828a6c6ed93810ec18008e7739bc4ef",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:38494": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "abff518ab4d776fd8af8d7144204d009066c5861df540e16e131858aedbef358",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:39437": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "f928d72e2938f55e3ce5333192d33e38f27b3603f92514b761e2eda9e593da6d",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:4055": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "fbb981885f45bc4d6be2de8c753a2b0addadf01ad45ab3902c56dce041189962",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:41697": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "3a029c6e6a3dd937aa55ebf82337494123aa940509315b5f12ea22617282d19f",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:42255": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "25d2531305e8bc60b017c1372557e96f6f7cad6337746461fa603930e323f2cb",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:42856": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "91e74909ea8aba118765c84427bd204255a0fed2988a1115780af4fde7343acd",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:42914": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "15f37c3b43e3057cb4e797ff01db4dc8def0b99b2300894272b741d8cc72a359",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:4303": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "d7f516b72ce73a8f17105bb866de119f03f06df80a010b55e9cb4ebc9571339e",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:44960": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "9b3d4b0f8c9e62d3a06462ee0ef10b44361593ddc95924cb65f7357f69b0320e",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:45111": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "325309877ec9fce570dabc78ca53fd034fde876470a7a066b80555d744047ba9",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:45633": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "12882e2728304c986a0f95380fd41f7e60403f3d41272556095c7ef8c48d4422",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:4763": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "a594a6e2aa94f52fed096102f3e3f8048bcce186a513f33b3edc6482e1b956fb",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:48756": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "61808161fec07e9cdfae23a0eb1a391fcb9c7a70369f4d82f7a2cb131b28e4cd",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:49345": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "5152a14a841ddcf9efdcb7060e3ccf3ac9e9fcbd78fc838c01cc1acc2a28f67d",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:50311": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "045dd8b8fdf8ef195cc6f98c721727469b8b54834aa0bfe9485b4fb745e0da53",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:51674": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "7f35e49c81eb3926293b813c60af4067f7f4de690b13028524cd41621a30ffc8",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:5169": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "4728334c97458850a5b68773b0850da8a0da1527211d19cef95961211eef5bfe",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:51803": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "b36a75633659ce0a57c6c36ec90df58c8aa8a02ced7bf6a0e453aec1e0167516",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:5638": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "b67fe0e467b14ccde17328f150b9c937f502f61ee969c015e338dec1c9f44420",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:6858": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "3df30c17c1001fc814cc15440f74ff3b4e5d977ac7431d35c9774d8d94b7f260",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:7453": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "6bd66441675c99429f2aff5ab5f446fa74b2c4bdf5eb9a053b8ad9de7fd8951d",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:7835": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "3b5bdc0eedddaefdb4d215a36b949f635a8faecca3138a13d4193705a774ea07",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:7896": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "537f1d359c273fed83475eea2978de9c6aa0f2a31090b5287e9b1421638ce7a5",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:7981": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "7e319c21f14ba07759c90983277a40eb01d2135bdac58b80c60be94fbabd1af7",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:8174": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "9cba5109efffb9052a5dc5ba7f2bd1a8fa498dcb4cdef15995e3611413915218",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:8258": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "3b5bdc0eedddaefdb4d215a36b949f635a8faecca3138a13d4193705a774ea07",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:8279": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "d27bf9263ed24b86bc10df6ec52ba86509b876ceada614b62a6e7d6c98a67e13",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:8523": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "fcfd168e7c8a2ec5f2cfb3901566d19defe2206dc16770dda1efb705ca193fc7",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:8608": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "298d9ba06db1f79f2f3d26dd5a0e51c9eaea0fa3cabb3d32528d8a2300cb9451",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:8899": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "40105e7415573cd17df78123c7ace43c500b553bef7be55bbc6be9f9d993d93e",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:8960": {
+   "carries_obligation": false,
+   "reason": "Dated record of work already landed, or a checkpoint heading whose body blocks are separately in scope. Nothing forward-looking.",
+   "sha256": "e9ae741936e22755c24e79f4389587375e9736dc1cfda907d0036e39aa0a171f",
+   "stratum": "out_of_scope:historical_narrative"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:9390": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "1ddee0749f9fc009491c5e448dbb3e57ff8f2f721bc985c7b9b4c77e735fa6b2",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:9700": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "1ddee0749f9fc009491c5e448dbb3e57ff8f2f721bc985c7b9b4c77e735fa6b2",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:9768": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "1ddee0749f9fc009491c5e448dbb3e57ff8f2f721bc985c7b9b4c77e735fa6b2",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AURA_EXECUTION_TRACKER.md:9840": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "1ddee0749f9fc009491c5e448dbb3e57ff8f2f721bc985c7b9b4c77e735fa6b2",
+   "stratum": "rule:lead_in"
+  },
+  "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:104": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "3c02cd586f4e506e26859ee5c3fe2c76d6a5ef0add8a31509905ef1cc7917485",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:108": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "688782281370a98b0f0daeac34b3cb9f6543ec796c7c4a7fc405e8d272147a87",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:112": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "f52d711103d50a437830c6fbcd04fb4bab49a0f82f6d26d1c791c6e8488dd090",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:142": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "f52d711103d50a437830c6fbcd04fb4bab49a0f82f6d26d1c791c6e8488dd090",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:193": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "dcff4c8f40fa3afcd111d67727f1f7077403b92410bf9619c55bb16d0fad76f5",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:198": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "d110754581af3f0b753f34c6082229c8e209d214d3d1b541cc55e19c22ff8691",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:211": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "f52d711103d50a437830c6fbcd04fb4bab49a0f82f6d26d1c791c6e8488dd090",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:224": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "f52d711103d50a437830c6fbcd04fb4bab49a0f82f6d26d1c791c6e8488dd090",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:229": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "bc57ecd39f5042ba6c9581fccecee149fadf4c808fbfa64e7b7c0129c7595f24",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:244": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "f52d711103d50a437830c6fbcd04fb4bab49a0f82f6d26d1c791c6e8488dd090",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:65": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "d7059de52456c87248aed0e5e4876935c1687d43d566b25a42f9a4a72a1537c8",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/CONNECTOME_TODO.md:25": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "e966c6d0bf31b76737bf7c36b8cc94f4dd96f52455be80c029d2e22f56408721",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/CONNECTOME_TODO.md:5": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "85d1009dde3d4ce7c4afb861415c7157dd5562b9f1e6f4879f1d4f99b7dc74ff",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/CONNECTOME_TODO.md:74": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "46bf125fe1706698712a58261b81964e990eef69bf7bcc29fa7e2ee201180c23",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/CONNECTOME_TODO.md:78": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "441f707b715f4f9a9a225455e6aa9cdf8ab3ac654a25130e4af803f7a8a853dc",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/GENERALITY_TODO.md:154": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "788bb53781d11ed1bf66a6456ac7e491fe46247d299e56cf66a8d4d34d96e02f",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/GENERALITY_TODO.md:239": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "c5c236a13b859f26059acc1b77310e49b6743aa4031df8a1daa111430c50ec4a",
+   "stratum": "rule:lead_in"
+  },
+  "docs/GENERALITY_TODO.md:322": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "482081987d3d884f2c724c31beacb39b5c6632cea4e3993f923c4746ed36f6c0",
+   "stratum": "rule:lead_in"
+  },
+  "docs/GENERALITY_TODO.md:357": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "3a54cae36fbe163ec41c58d79a305d2b4e0d232e0fe609370f7f0fd21a1c7c68",
+   "stratum": "rule:lead_in"
+  },
+  "docs/GENERALITY_TODO.md:378": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "e4173284aeec6d87cb1b72767b8dae447835b037f6c4aab1c0e4a1614a0fc418",
+   "stratum": "rule:lead_in"
+  },
+  "docs/GENERALITY_TODO.md:426": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "bfc2ae05ace1f7095d6e1275db73513782871a858a058075eaa18534b5c57e5d",
+   "stratum": "rule:lead_in"
+  },
+  "docs/GENERALITY_TODO.md:476": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "f52d711103d50a437830c6fbcd04fb4bab49a0f82f6d26d1c791c6e8488dd090",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/GENERALITY_TODO.md:82": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "bf020004828bc9d6a32b5a6548cfc1e18b69525c34f578f304206cf8a146b028",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/GENERALITY_TODO.md:86": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "31ef739375dc9950cd35d004e549dde4599b7898dc4ed5e5f81c2f88c290ef12",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/LEARNED_LANGUAGE_INTERPRETATION_TODO.md:100": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "e459a27992952f7fbb15ea818f55406a8f9a43da01e9d9f86095cc919396052e",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/LEARNED_LANGUAGE_INTERPRETATION_TODO.md:19": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "3c54161e3f0753190505869cb065620a3fef5b51d5c561fb085caf7948191d28",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/LEARNED_LANGUAGE_INTERPRETATION_TODO.md:35": {
+   "carries_obligation": false,
+   "reason": "A table's column-name row. It states no obligation.",
+   "sha256": "1d616dad432614c7517f9d1518855ba7fb0c596522c34745dd7bd71d9c08c4e3",
+   "stratum": "rule:table_header"
+  },
+  "docs/LEARNED_LANGUAGE_INTERPRETATION_TODO.md:54": {
+   "carries_obligation": false,
+   "reason": "A table's column-name row. It states no obligation.",
+   "sha256": "18edd632740982f3893e9e10fcde9a7d3890584ca0dc5dc33a177ee5970148aa",
+   "stratum": "rule:table_header"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:154": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "2744f923b05b2cbca0e7333aa30adef116e59fda8e00974ce3826ac95541fb04",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:214": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "28fd19c2433e30ee058f4dfe9d8005770d4f97687ce111f58ec41a5fdfcb51f1",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:23": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "96506091f354d99908b5b82000282ab2bfe7725592b8e2c8aa36c521027bb004",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:232": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "f52d711103d50a437830c6fbcd04fb4bab49a0f82f6d26d1c791c6e8488dd090",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:238": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "f0ff6491aa410bc2b1e1e330aca305d610d1be46e0aeb1882fddd4508c2b0c12",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:256": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "f52d711103d50a437830c6fbcd04fb4bab49a0f82f6d26d1c791c6e8488dd090",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:265": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "1f49fe4fc713be4990cfaa72a04bc75a819a0acd1e51992e148eb54b77bd8ae5",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:273": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "601815634bbf333a976c1f1e6d3bdc3107d02628495ac62a086d12b267140858",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:287": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "17342951324f13506f62cb1d744cb314cd5893487173c29c39d926f851d1d82a",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:318": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "9be05f04c275f4a5c7b8c1b19f78bdb76e9bb58a7b6cce5579afc21468ea6937",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:337": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "f971bbe162fb9e4595b36fa13b86f15a016ed45e1929f888acba59309235e903",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:340": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "31f31e2f3e4c85ff13d566f579a20e8f6b9e7f83d1464cf76f6b1556874f55d0",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:341": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "50f952edcf67d48dd0789aaf46ad7d87832fed2562f23b45be850e96362dfbf6",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:345": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "f52d711103d50a437830c6fbcd04fb4bab49a0f82f6d26d1c791c6e8488dd090",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:359": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "efff1eda0cb0805eacbb4af4daffd8bfdb902acabe64106e7bd1463de09409e9",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:371": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "f52d711103d50a437830c6fbcd04fb4bab49a0f82f6d26d1c791c6e8488dd090",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:406": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "ff9b8ef9cf06e31f1964f72a779c9dd28c5043a6b63ade7e131857d96604eb73",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:416": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "f0fc2087eb964ddbb411a3a5440e42a62fe10bd818b2d997d97c21b73e8ace58",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:419": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "f52d711103d50a437830c6fbcd04fb4bab49a0f82f6d26d1c791c6e8488dd090",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:433": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "f52d711103d50a437830c6fbcd04fb4bab49a0f82f6d26d1c791c6e8488dd090",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:49": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "09beea3cdcd5f5fd4cdc820ab3e7a7e78ceb41ed8ebb22d1d73f2ef8366f612c",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:500": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "38c781ba5a539f3bf8f125428088deb39152e4106d5548afa897a3303c99c19a",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:524": {
+   "carries_obligation": false,
+   "reason": "A colon-terminated lead-in whose obligation lives in the block that follows it, which is itself in scope and routed.",
+   "sha256": "9a94f0e924d061fadbf057a0609b0a4874a9a7a66e28b40e843edc58a5e3eef4",
+   "stratum": "rule:lead_in"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:74": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "465127cbb7a40ea49284dfd8ed541c4e06644ef6d98bf08343fafaeecac057f7",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/evidence/CLOSEOUT.md:36": {
+   "carries_obligation": false,
+   "reason": "Explicit DONE/PASS row carrying its own evidence; the only open-looking word sits inside a filename or a description of what was fixed.",
+   "sha256": "8618eff4c8a0b4955792608c626319bf5eccb3129077e817cb7a2c6629902370",
+   "stratum": "out_of_scope:resolved"
+  },
+  "docs/gap_atlas/TODO.md:1001": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "a4994ce658d91d5b520ffb82aa8c6b7df613f6cf6b4a12ab61847e61d2ccafba",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1025": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "182bac21e9ae6d9e0934ceaa360603d3fe3c8206e48c1c4329f812c8a4ef3a66",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1053": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "3db882c6ae989bd80d7e46be83fd896d9c0c0658203d71685ea57209a93d4bf4",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1127": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "b2107fe606d25974d68d2bc7449385eb056a589dcdee3083ac9e5efb29d73618",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1158": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "2241900a2cb21f89064311cbe9891035826db503269182813e36c4b22c06769c",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1182": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "e8712cab9335000b972de30bbba2e70fa24155ea181850628768a82f2498326e",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1336": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "cc46f129a4e5125039352b161abcb2bfbeac7a977d05e5abe94a9c573293d19c",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1348": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "22263470d14559a5ae6ea15104c50646bd0ba7663f3e846e8667e7ad2b063432",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1518": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "9b119e162f424c31fa80c4dbe45ad6a0811cc2115a1ecdce3207bb25034aaf99",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:1548": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "3c3c7a4f6c8c30ac1d5c835bd88b6d740bdf80f72151339d86633d2980e1e6fb",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:1554": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "0a8c06b311ff15d3c94a234f2e1723a7f2b7b06a36bb0d150b236a9058e27ea4",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:1560": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "205845fa8b807a54d18ab2f2efd8f878fe167f56bd880f6f3d2e3849f6bc3058",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:1593": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "641d5d7a857db36610910801e84bbc30ee6fdaed4300d74a0d94e74603014610",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:168": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "2f347974e4dc90f8f959aa41ae04d1bbe8177f1bd31e0ef7db7a9fa701662c60",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1733": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "04a1f976b4b3fd80e958d435070330760a747148e483582bdf3342393271fdd6",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:1738": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "d9623ae2c4201beb21bfb3d0b2e8cc52eadbb4eab947c51916466871db0aa839",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:1873": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "9e9d1710b70534c807a73c9450e3534812d59e7228557e0e566dda17b14477a8",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:1896": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "a10b92e4a737ef2cf94abd5a2c84ce883617217ae2eadb71bf594b3cb4887923",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:1945": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "d2b4e80b1bcbaddf3fc273b145340046c0cb41b1a141d6d3d9ec89fd71d13053",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:1969": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "9317c4b87bc1d1da9caea2ff3278c5fe7b0f16bae09310dd724689e2c01a7a73",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2017": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "a9d1581b14b7d0d234d0f7fc8c0b835d4edce8ed9b5db05ba868cfd93ce313f7",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2048": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "3cacfb57b993a680728211a6f68e2086aae8862df7fdfc20a75cf10732305f95",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2053": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "398fd1f266567027ef60711ea786c3892a277cd6f03235d3f2c23fb391fde1c5",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2058": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "610af3023dd6ddcf0441510350fb93a1ee4ee8adc7b7244357c735921522de7e",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2074": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "78f2673419c9a233105d1edcea981744087763aab047ca4a61117fbe5af5bfe7",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2113": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "bc9be53488d26e28830b384b634c15e343a1212c8292e81fd63fc65c8815b00b",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2155": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "04155f9b2b55601f0809f50bd53b5f98793b90c80cebde4995fe4104547bb23d",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2178": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "e6c320cff0fcd607a8569f1ec6c2cf957ef07a4696cce72e86845e7231251f3c",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2187": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "28aba2e16ee67674a45677af524493e0c084dac681ad70d385eb65d5e565bbd0",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2193": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "832bc2b14e3d8e020935e5bd204162224295815ae785ea0024ff342fb2828275",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2199": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "817b9f3a773497fcea1bf58dd0ba8039e78bfb0ecea81583514266d5d48a777f",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2287": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "31fde1287ee680fbb0c236460ec4c79e4e8a2887a9124f54d8f8df5ea40c153a",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2316": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "5eee1b1cead502d059cc1637c38e02bfb5210358980616f2858a0a5bb7e15b2f",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2334": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "36d26842f813b8d6da544d2a2725be015a21278d4e5236975788ac66c1df1436",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2407": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "8490609747a674dcdc2106a790f49e49067fdbf307316f252524f5ae6e130497",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2431": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "6819f02b259d8e2136f92e2af33b00e96ebf50c2e4adcc1b3985484e6a664f40",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2449": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "0bf4a6651295d8542545ce8d2c165ad0b66dea43f01df7793f6446ba432b9a63",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2499": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "022d7dce15dc3844e16dc0fe9f64ea0445d4b09918c6cb9dc21f61d08ea037a1",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2505": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "49926de72e8646cc64d44eaf931631315e44382b7416a7d223fef913d8a3a90a",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2547": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "21ce5781aaf9d223458a9c96d82d7b72c59f419fc8d2fea415ce10d2efa95226",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:2558": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "1149f13dff3e2e03032a00de8caec8ad54081ee9cda26f4605031e195a9c1e58",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:280": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "6a4c3965a183b4b360520a5ce0d4659d1abb03b1af8a36b130d2836720454939",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:29": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "749290b048f953ad7d0f4cf71ca7192d8f4315b051163d77edcac791f43b7b94",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:383": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "94de7b848f831f8e776374a36c8082d76842be61989fb25d92121b448a05c63e",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:421": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "be0e4ff3a5162cf33168124550bda9107f51449acdb3a4ea7d6295438db1ae32",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:446": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "5445d1ff961ffa810ec1679d8af385afa8287f227a3f0fe98a71a5e03387d53f",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:452": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "808eb79f84df4a010669013ff9119d6d58f16c0563a578f06579906e76970722",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:511": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "6a32d20d67c028d183d59d660ec0a0312116ab05621666ff89b62ba9630994d8",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:523": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "a0692be1da9ddddc4239f9c31dafa90c52fdf68461354185132b3c5ededa574d",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:529": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "b0d66e966c742daed3f5d00cbe1b5f2dfbb84cdc03a784aaea219a974fb2075e",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:577": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "6869082d9c63097dda63e4e737676f34f6c2207b891c6312a3e03aa2f6a5f63b",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:684": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "c923f435c88316be38acaea007c5eacef58d6c2021c3c6c579f13edb009a4a44",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:7": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "5118a6cdbdf37f9ac4553f1be9fc860fe2b87905dc29315bb61a58b8bd233dac",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/gap_atlas/TODO.md:727": {
+   "carries_obligation": false,
+   "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+   "sha256": "0d4361d4611e31ac7e57bb7d86139e82e67a046e8669f81f0081e812204c6bc9",
+   "stratum": "rule:atlas_card_closed"
+  },
+  "docs/gap_atlas/TODO.md:762": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "b6d0b7d1763d07abefe121b5672a60da0888767dc86eeb925cd4c7e011d0b563",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:788": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "766f258c3459dd0f4a9103097b074b6bfb5bb339bb7b3fe07ddcac3308890816",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/worktodo/TODO.md:17": {
+   "carries_obligation": false,
+   "reason": "A table's column-name row. It states no obligation.",
+   "sha256": "606bfca2965ea1b1cc2da80f2e6f04c0eafb2d53e9a06459c1136505180f2429",
+   "stratum": "rule:table_header"
+  },
+  "docs/worktodo/TODO.md:24": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "4ea13f9d0dd7b3f7cc695cd3ec7b9627704d6b66af9b6e6558d29c96f8f19127",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/worktodo/TODO.md:26": {
+   "carries_obligation": false,
+   "reason": "A table's column-name row. It states no obligation.",
+   "sha256": "606bfca2965ea1b1cc2da80f2e6f04c0eafb2d53e9a06459c1136505180f2429",
+   "stratum": "rule:table_header"
+  },
+  "docs/worktodo/TODO.md:36": {
+   "carries_obligation": false,
+   "reason": "A table's column-name row. It states no obligation.",
+   "sha256": "606bfca2965ea1b1cc2da80f2e6f04c0eafb2d53e9a06459c1136505180f2429",
+   "stratum": "rule:table_header"
+  },
+  "docs/worktodo/TODO.md:8": {
+   "carries_obligation": false,
+   "reason": "A table's column-name row. It states no obligation.",
+   "sha256": "606bfca2965ea1b1cc2da80f2e6f04c0eafb2d53e9a06459c1136505180f2429",
+   "stratum": "rule:table_header"
+  }
+ },
+ "note": "Hand labels for the audit of every dismissed population. Each sampled block was read. carries_obligation true means the partition missed a live obligation and the detector must be repaired, not the label changed.",
+ "per_stratum": 40,
+ "reviewer": "Claude, 2026-09-07",
+ "schema_version": 1,
+ "seed": "aura-1.0-inventory"
+}
