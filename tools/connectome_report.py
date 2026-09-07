@@ -27,6 +27,8 @@ sys.path.insert(0, str(REPO))
 SECTIONS = (
     "reconstruction",
     "layers",
+    "likewise",
+    "stereotypy",
     "pathology",
     "prefetch",
     "synaptology",
@@ -185,10 +187,38 @@ def main() -> int:
             print("prefetch done", flush=True)
 
     if "spine" in wanted:
-        from core.connectome.spine import analyse_spine
+        from core.connectome.spine import analyse_spine, descending_directness
 
         report["spine"] = analyse_spine(snapshot).as_json()
+        report["spine"]["descending_directness"] = descending_directness(snapshot)
         print("spine done", flush=True)
+
+    if "likewise" in wanted and args.observed:
+        manifest_path = args.observed.parent / "activity_manifest.json"
+        matrix_path = args.observed.parent / "activity.npz"
+        if manifest_path.exists() and matrix_path.exists():
+            import numpy as np
+
+            from core.connectome.activity import ActivityTrace
+            from core.connectome.likewise import test_like_to_like
+
+            manifest = json.loads(manifest_path.read_text())
+            trace = ActivityTrace(
+                uids=tuple(manifest["uids"]),
+                conditions=tuple(manifest["conditions"]),
+                spikes=[],
+                array=np.load(matrix_path)["spikes"],
+            )
+            report["likewise"] = test_like_to_like(trace, snapshot).as_json()
+            print("like-to-like done", flush=True)
+
+    if "stereotypy" in wanted:
+        from core.connectome.celltypes import refine_types, serial_homology
+
+        report["serial_homology"] = serial_homology(
+            snapshot, refine_types(snapshot, rounds=1)
+        )
+        print("serial homology done", flush=True)
 
     if "whorls" in wanted:
         from core.connectome.beyond import explain_whorls, whorl_census
