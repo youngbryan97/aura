@@ -7,6 +7,8 @@ Working list. Deleted when every line is done and green.
 - [ ] fast2 analysis: the three predictions at scale (27k frames, all nine workloads)
 - [ ] full offline suite green (`tools/run_test_chunks.py --chunks 10`)
 - [ ] `make connectome` end to end with `--observed` and `--against`
+- [ ] regenerate every published number on the corrected graph — the merge-error
+      fix moved coverage from 0.502 to 0.736 and removed ~8,000 false edges
 
 ## The whole graph
 
@@ -21,14 +23,13 @@ nothing consequential from it.
 - [x] `G_call` — direct invocation (`volume.py`)
 - [x] `G_state` — shared container keys and module globals (`layers.py`, gap layer)
 - [x] `G_event` — publish and subscribe on a topic (`layers.py`, volume layer)
-- [ ] `G_data` — data dependence, not call count. An edge weighted by whether the
-      caller uses what the callee returns, and how far that value travels.
-- [ ] `G_io` — files, databases and other durable stores, as a layer with its own
-      readers and writers
-- [ ] `G_ipc` — cross-process edges: subprocess, socket, shared memory, the MLX
-      worker boundary
+- [x] `G_data` — data dependence, not call count. Six consequences per call site;
+      24.5% of drive edges carry no information at all
+- [x] `G_io` — files, databases and other durable stores. 94 stores, 108 pairs,
+      97% in no other layer, 84 written with no reader the scan can follow
+- [x] `G_ipc` — cross-process edges. 259 pairs, 99.6% unique
 - [ ] `G_neural` — the mesh, as a layer, so the substrate and the code are one graph
-- [ ] a combined view with per-layer weights and a single reachability query
+- [x] a combined view with per-layer weights and a single reachability query
 
 ## The effective connectome
 
@@ -36,13 +37,11 @@ The structural graph says what can happen. The interesting object is what does:
 
     w_ij^eff(c) = Effect[do(i), j | c]
 
-- [ ] per-condition effective connectomes, built from recorded activity plus
-      intervention rather than from co-occurrence
-- [ ] `G_conversation`, `G_planning`, `G_coding`, `G_threat`, `G_dreaming`,
-      `G_social`, `G_autonomous_development` — same anatomy, different active
-      circuits, each with the condition it was recorded under
-- [ ] a divergence measure between two conditions' effective graphs, so "which
-      circuits does this state recruit" has an answer
+- [x] per-condition effective connectomes, built from recorded activity with a
+      rotation null per edge
+- [x] nine conditions measured; related workloads correlate 0.92 to 0.96 and
+      unrelated ones at ~0.00
+- [x] a divergence measure between two conditions' effective graphs
 - [ ] intervention rather than correlation: `do(i)` implemented as a real
       perturbation with a matched control
 

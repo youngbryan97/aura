@@ -193,6 +193,7 @@ def predictive_influence(
     nulls: int = 8,
     seed: int = 0,
     max_edges: int = 40_000,
+    only_cells: Sequence[str] | None = None,
 ) -> EffectiveConnectome:
     """Does knowing the source's past help predict the target's next value?
 
@@ -204,6 +205,11 @@ def predictive_influence(
     Only edges that exist in the structural graph are tested. Testing every pair
     would be a different and much larger experiment, and it would need a
     correction for forty million comparisons that would leave nothing standing.
+
+    ``only_cells`` narrows it further to edges with both ends in a named set,
+    which is what a question about a particular circuit wants: measuring sixty
+    thousand edges to ask about seven stations spends nine regressions each on
+    the fifty-nine thousand that cannot answer.
     """
     import numpy as np
 
@@ -227,10 +233,13 @@ def predictive_influence(
     result = EffectiveConnectome(
         condition=condition, grade=Grade.PREDICTIVE, frames=len(rows)
     )
+    keep = set(only_cells) if only_cells is not None else None
     tested = 0
     for connection in snapshot.edges(EdgeKind.DRIVE):
         if tested >= max_edges:
             break
+        if keep is not None and (connection.pre not in keep or connection.post not in keep):
+            continue
         source = index.get(connection.pre)
         target = index.get(connection.post)
         if source is None or target is None or source == target:

@@ -26,7 +26,32 @@ A published measurement to compare against. H01 reconstructed a cubic millimetre
 of human temporal cortex — 57,000 cells, 150 million synapses, 1.4 petabytes —
 and the numbers that came out of it are numbers Aura can be held to.
 
-## The three layers
+## A call count is not a weight
+
+Two components can be causally coupled without ever calling each other, and one
+function can call another ten thousand times while using nothing it returns. The
+reconstruction counts call sites, which is the right weight for control and the
+wrong one for information, so the same edges carry a second weight: what happens
+to what comes back.
+
+Six outcomes, worked out by a def-use walk inside each function. Over 420,178
+call sites:
+
+| what became of the value | share |
+| --- | --- |
+| used locally | 42.3% |
+| decided the caller's control flow | 23.7% |
+| returned onward | 15.9% |
+| discarded | 11.8% |
+| logged and stopped | 4.6% |
+| escaped onto state outliving the call | 1.8% |
+
+**24.5% of drive edges carry no information at all.** That corrects a number
+here: heavy pairs are 3.54% of information-carrying edges against human cortex's
+0.092%, so 38 times cortex rather than 45, and 1,167 of 3,358 heavy pairs carry
+nothing. The heaviest of them is a builder being fed 73 times.
+
+## The five layers
 
 The wiring diagram is one layer. *C. elegans* has had its synaptic map since
 1986, and when the monoamine and neuropeptide layers were added on top of it,
@@ -34,26 +59,113 @@ The wiring diagram is one layer. *C. elegans* has had its synaptic map since
 of the neurons carrying a dopamine receptor receive no synapse from any neuron
 that releases dopamine.
 
-Aura has the same shape. Three layers are extracted:
+Aura has the same shape. Five layers are extracted:
 
-| layer | what joins two cells | directed |
-| --- | --- | --- |
-| wired | one calls the other | yes |
-| volume | one publishes a topic the other subscribes to | yes |
-| gap | both touch the same container key or module global | no |
+| layer | what joins two cells | directed | pairs | unique to it |
+| --- | --- | --- | --- | --- |
+| wired | one calls the other | yes | 72,650 | 99.9% |
+| volume | one publishes a topic the other subscribes to | yes | 11 | 100% |
+| gap | both touch the same container key or module global | no | 3,795 | 98.6% |
+| io | one writes a durable store the other reads | yes | 108 | 97.2% |
+| ipc | both name the same process boundary | no | 259 | 99.6% |
 
-98.6% of the shared-state pairs and 100% of the topic pairs exist in no other
-layer. 80,923 pairs are joined only by calls, 7,545 only by state, 11 only by a
-topic. Seven cells are central in the shared-state layer and peripheral in the
-call graph — the worm's finding that its monoamine rich club is different cells
-from its wired one.
+The worm's headline reproduces in every layer: almost nothing outside the call
+graph is visible from inside it. Seven cells are central in the shared-state
+layer and peripheral in the call graph — the worm's finding that its monoamine
+rich club is different cells from its wired one.
 
-The layer also counts what has one end. Of 120 event topics, 87 are published
+The layers also count what has one end. Of 120 event topics, 87 are published
 with no subscriber the scan can find and 26 subscribed with no publisher; seven
-have both. Of 923 shared-state keys, 229 are written and never read and 416 read
-and never written by any access a static scan can follow. Those are candidates,
-not defects: a subscriber can be registered from a table nothing static can
-follow, and the finding says so and names the step that would settle it.
+have both. Of 94 durable stores, 84 are written and never read. Of 923
+shared-state keys, 229 are written and never read and 416 read and never
+written by any access a static scan can follow. Those are candidates, not
+defects: a subscriber can be registered from a table nothing static can follow
+and a store can be read by another process on another day, and each finding
+says so and names the step that would settle it.
+
+## The merge error that moved every hub
+
+The largest sink in the combined graph had an in-degree of 4,357, and it was a
+real method — `PhenomenalField.strip`. Almost none of those callers were calling
+it. They were calling `str.strip`. The next three sinks were the same shape:
+every `logger.warning`, every `str.replace`, every `list.extend`, each attached
+to whichever class happened to define that name.
+
+Two rules fixed it. A method name owned by a builtin type or by a standard
+library object everyone holds is not resolved on a receiver whose type was not
+established; and a call on an expression rather than on a name reports its
+receiver as unknown rather than as absent, which is how `"".strip()` got past
+the first rule.
+
+Scored against the recording, this is the merge-split trade going the right way:
+recall 0.8284 to 0.8258, so 99.7% of the edges seen firing survive, while
+suspected merges fall 1,625 to 1,285 and expected run length rises. In-volume
+coverage goes 0.502 to **0.736** and ambiguous call sites 88,182 to 15,870.
+
+Every number in this document that was measured before that fix has moved. The
+shape has not.
+
+## She does not have one functional connectome
+
+The structural graph is the same whether she is holding a conversation,
+planning or refusing something, and those are not the same computation. The
+effective connectome is the influence one cell has on another under a cognitive
+condition, and it is measured three ways whose grades do not convert:
+`predictive` (does the source's past improve prediction of the target's future),
+`model` (remove it from the graph and propagate again), and `interventional`
+(disable it while she works). The null for the first is a rotation rather than a
+permutation, because shuffling would destroy the source's own autocorrelation
+too and almost anything beats a null that incoherent.
+
+Over the nine workloads, edges surviving the null range from 2 under
+`reconstruction` to 637 under `tests_verify`. The comparisons split cleanly: the
+three workloads that share machinery correlate at 0.92 to 0.96, and the ones
+that do not correlate at nothing — conversation against governance 0.009,
+conversation against runtime −0.001, runtime against verify −0.068 with 295 of
+1,039 shared edges active in one and not the other.
+
+Same anatomy, different active circuits, and which ones is measurable.
+
+## The ring is a star
+
+Every design document draws the same loop: interoception → affect → workspace →
+higher-order monitoring → self model → planning → action → interoception. A
+module named after each station is not evidence that the loop exists.
+
+Five things had to be fixed before the answer could be believed, and all five
+were mine. The station table used exact module prefixes and missed most of each
+station. Links were read as direct edges between subsystems holding hundreds of
+cells each. They were read from the wired layer alone, where these subsystems
+barely couple. The measure was binary reachability, which saturates — over the
+combined graph a randomly shuffled ring closed as often as the intended one, at
+z = −0.9. And the flow drained into maintenance: `record_degradation` receives
+from 3,760 cells, so every link read low for a reason that is about where errors
+are reported.
+
+The measure now is the share of one station's influence that lands in the next
+against the share its size predicts, conditioned on arriving at a station at all.
+With that:
+
+| link | enrichment |
+| --- | --- |
+| interoception → affect | 4.41 |
+| action → interoception | 1.55 |
+| workspace → higher-order | 0.09 |
+| higher-order → self model | 0.04 |
+| affect → workspace | 0.02 |
+| self model → planning | 0.00 |
+| planning → action | 0.00 |
+
+Ring enrichment 0.874 against a shuffled null of 0.853, z = 0.07. **The ring
+does not exist.** What exists is a star: every station's outflow goes to
+interoception at 3.6 to 5.7 times its share, and workspace, higher-order, self
+model, planning and action receive essentially nothing from anywhere.
+
+Each missing link is a finding that names its enrichment and what would close
+it. And because none of the nine recorded workloads fired those stations —
+planning fired in none of them — `tools/record_coalition_activity.py` drives all
+161 of their modules, so the recorded version of the question can be asked at
+all.
 
 ## The mapping
 
@@ -412,18 +524,6 @@ test.
 `make connectome`, `make connectome-pathology`, `make connectome-record` and
 `make connectome-zapbench` are the same four steps.
 
-## Where it is wired
-
-- `runtime_health_report()["connectome"]` carries the fragment. It never builds
-  a reconstruction to answer a poll; a process that has not made one says so.
-- Six telemetry channels at 0x1801, each with limits set against the published
-  value. `connectome.within_layer_ratio` reads yellow on its own.
-- Four mappings in `core/science/neuro_reference.py` at CONNECTIVITY_MATCHED,
-  each with its source, its falsifier and a competing hypothesis.
-- `core/consciousness/criticality_regulator.py` steers on the multistep
-  regression branching ratio rather than the per-tick mean, and publishes the
-  difference between them as `subsampling_bias`.
-
 ## What is wired
 
 This package finds channels with a writer and no reader. Applying that to
@@ -465,10 +565,13 @@ persistence wins and the connectome rule would be the worse choice; at 20 ms the
 connectome rule wins on F1 and on recall. `record_prefetch_rule` stores whichever
 won on this system's own recording and the warm-up uses it.
 
-**`integration`** publishes eight telemetry channels, a health fragment, the
-gate state and the chosen rule. **`invariants`** runs in the structural verifier.
-Everything else is reached by `tools/connectome_report.py` and the four make
-targets.
+**`integration`** publishes eight telemetry channels at 0x1901, a health
+fragment under `runtime_health_report()["connectome"]` that never builds a
+reconstruction to answer a poll, the gate state and the chosen rule.
+**`invariants`** runs in the structural verifier. Four mappings are declared in
+`core/science/neuro_reference.py` at CONNECTIVITY_MATCHED, each with its source,
+its falsifier and a competing hypothesis. Everything else is reached by
+`tools/connectome_report.py` and the make targets.
 
 The policy stays with the caller. Which state closes which route is a decision
 about this system, and a default invented here would be a claim about Aura
