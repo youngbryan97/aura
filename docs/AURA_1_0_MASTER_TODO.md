@@ -88,7 +88,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] R04 Live-validate progress-aware owner cleanup (2aefb6f46); audit other
   eviction paths and cross-client ownership, not only the patched function.
 - [ ] R05 Resolve empty latent answers without exposing private reasoning.
-  PARTIAL 2026-09-07. A cortex reply of 26 characters at `confidence=high` was
+  PARTIAL 2026-09-07, and the canned dead end behind it is closed.
+  "I couldn't get my full attention onto that one" was served over a cortex
+  answer that existed, was on topic, and measured `confidence=high`. The
+  missing proof was `authored_answer_incomplete:retry_exhausted` — a fact about
+  a retry counter, not about the text — and the contract already separated
+  proofs about the ANSWER from proofs about the BOOKKEEPING without acting on
+  the difference. Bookkeeping alone now serves the answer disclosed as bounded;
+  a proof about the text still withholds — 3d2c650b6. Verified live: the same
+  question answered correctly in 28s. A cortex reply of 26 characters at `confidence=high` was
   discarded and the turn reported "the cortex was unavailable" while the cortex
   had just answered; a 9B answered instead. Not reproduced on a second attempt
   and not yet fixed. The corrector that contradicted a TRUE claim is fixed —
