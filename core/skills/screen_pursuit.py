@@ -2300,6 +2300,36 @@ def _no_more_than_a_fresh_one_is_worth(held: Any) -> float:
     return min(1.0, ENOUGH_TO_TRUST / most) if most > ENOUGH_TO_TRUST else 1.0
 
 
+#: How many looks are kept to work out what looking costs here. Enough that
+#: one slow read does not move the bound, few enough that it follows a machine
+#: that has become busy.
+LOOKS_REMEMBERED = 12
+
+#: How much longer than usual a look may take before it is a wedge rather than
+#: a busy machine. Four, because a read competing with a resident model for
+#: the same hardware was measured taking about three times its idle cost, and
+#: a bound at the thing being measured refuses the first read that reaches it.
+LONGER_THAN_USUAL = 4.0
+
+
+def _how_long_a_look_takes(took: Sequence[float]) -> float:
+    """How long to wait for a reading, from how long they have taken here.
+
+    A fixed bound is a guess about a machine. This one is a measurement of the
+    machine she is on, and it widens when the machine gets busy — which is
+    exactly when a read is slow and exactly when calling it broken is wrong.
+
+    Until she has looked enough times to have an opinion, the standing bound
+    applies, which is what every caller assumed before there was anything to
+    measure.
+    """
+    seen = [one for one in took or () if one > 0.0]
+    if len(seen) < 3:
+        return OBSERVE_TIMEOUT_S
+    usual = sorted(seen)[len(seen) // 2]
+    return max(OBSERVE_TIMEOUT_S, usual * LONGER_THAN_USUAL)
+
+
 async def _the_best_reading_available(
     observation: dict[str, Any],
     band: tuple[float, float, float, float] | None,
@@ -2933,6 +2963,9 @@ async def pursue_on_screen(
     #: then took a third of the same still surface, and a reading is a
     #: screenshot and an OCR — about a third of the whole cost of a move.
     at_rest: dict[str, Any] = {"reading": None}
+    #: How long her last few looks took, so a busy machine is not mistaken
+    #: for a wedged one.
+    reading_took: list[float] = []
     #: Whether a restart control has APPEARED — turned up where there was
     #: none — which is a thing saying it has finished.
     #:
@@ -3154,21 +3187,38 @@ async def pursue_on_screen(
             # She has just watched this surface come to rest. Photographing
             # it again asks the same question of the same still picture.
             return ready
+        # As long as reading has taken here, not a number chosen elsewhere.
+        #
+        # A read and a language pass want the same machine, so a read that
+        # takes a second and a half on its own takes many while a resident
+        # model is generating. Bounded by a constant, that difference reads as
+        # a wedged capture: live 2026-09-07, "no reading inside 8.0s" and a
+        # run that ended saying it could not see, on a screen it had been
+        # reading perfectly a moment earlier. A busy machine and a broken one
+        # are not the same thing and do not have the same answer.
+        patience = _how_long_a_look_takes(reading_took)
+        began_looking = time.monotonic()
         try:
-            return await asyncio.wait_for(
-                read_screen(target_app, over=drawn["where"]), timeout=OBSERVE_TIMEOUT_S
+            seen = await asyncio.wait_for(
+                read_screen(target_app, over=drawn["where"]), timeout=patience
             )
         except TimeoutError:
             # A wedged capture is not a reason to keep acting blind.
             logger.info(
-                "the screen did not answer inside %.1fs", OBSERVE_TIMEOUT_S
+                "the screen did not answer inside %.1fs, and looking has been "
+                "taking %.1fs here",
+                patience,
+                (sum(reading_took) / len(reading_took)) if reading_took else 0.0,
             )
             return {
                 "ok": False,
                 "text": "",
                 "layout": [],
-                "error": f"observe_timeout: no reading inside {OBSERVE_TIMEOUT_S:.1f}s",
+                "error": f"observe_timeout: no reading inside {patience:.1f}s",
             }
+        reading_took.append(time.monotonic() - began_looking)
+        del reading_took[:-LOOKS_REMEMBERED]
+        return seen
 
     def satisfied(observation: dict[str, Any]) -> bool:
         reached = goal_reached(
