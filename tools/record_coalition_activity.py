@@ -95,6 +95,12 @@ def _is_probeable(value: Any) -> bool:
     )
 
 
+#: Probe lists, built once per module. Building one instantiates every class the
+#: module defines, and the interleaved pass calls every module many times over,
+#: so rebuilding it each time spends the whole budget on construction.
+_PROBE_CACHE: dict[str, list[Any]] = {}
+
+
 def _probe_module(name: str, budget: float) -> dict[str, Any]:
     """Import one module and call its readers until the budget runs out."""
     import importlib
@@ -107,6 +113,32 @@ def _probe_module(name: str, budget: float) -> dict[str, Any]:
         outcome["error"] = f"{type(exc).__name__}: {exc}"
         return outcome
     outcome["imported"] = True
+
+    cached = _PROBE_CACHE.get(name)
+    if cached is not None:
+        outcome["probes"] = len(cached)
+        if not cached:
+            return outcome
+        while time.monotonic() < deadline:
+            for probe in cached:
+                try:
+                    result = probe()
+                    outcome["called"] += 1
+                except BaseException:  # noqa: BLE001
+                    outcome["failed"] += 1
+                    continue
+                for method_name in _READ_METHODS:
+                    method = getattr(result, method_name, None)
+                    if not callable(method):
+                        continue
+                    try:
+                        method()
+                        outcome["called"] += 1
+                    except BaseException:  # noqa: BLE001
+                        outcome["failed"] += 1
+            if time.monotonic() > deadline:
+                break
+        return outcome
 
     # Find the readers once, then call them until the budget is spent. Calling
     # each one once takes no measurable time, and a recording of a station that
@@ -154,6 +186,7 @@ def _probe_module(name: str, budget: float) -> dict[str, Any]:
                 continue
             probes.append(bound)
 
+    _PROBE_CACHE[name] = probes
     if not probes:
         return outcome
     outcome["probes"] = len(probes)
