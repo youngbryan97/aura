@@ -242,11 +242,18 @@ def _she_may_improve_a_working_answer(
         # than another, and no operator preferring a cheaper one can score
         # better. Measured across a seeded record, every priced action came
         # back at exactly 5.0 — the estimate — including the fallback.
+        # With the cases. Sixteen of seventeen episode writers dropped them,
+        # and `about` is the only thing that makes a family usable as a
+        # held-out probe — so the record grew to 512 episodes across 76
+        # families of which three could be judged on, and a gate weighing
+        # three binary observations refuses a change that helps and one that
+        # does nothing alike.
         note_an_episode(
             family,
             route=None,
             walked=walked,
             tried=decided.action.name,
+            about=pairs,
         )
         note_what_it_did(decided.action.name, kept=False)
         logger.info(
@@ -267,6 +274,7 @@ def _she_may_improve_a_working_answer(
         route=decided.action.name,
         walked=walked,
         admitted=decided.action.kind,
+        about=pairs,
     )
     note_what_it_did(decided.action.name, kept=True, gained=was - now)
     # Canary rather than shadow: it has already been measured on families it
@@ -867,7 +875,7 @@ def _a_word_the_language_was_missing(
         )
         if decided.action is None:
             logger.info("she is not developing: %s", decided.grounds)
-            note_an_episode(family, route=None, walked=costs_now)
+            note_an_episode(family, route=None, walked=costs_now, about=pairs)
             from core.cognition.an_operator_she_invents import note_how_it_went
 
             note_how_it_went(family, solved=False, probes=tuple(pairs[0][0]))
@@ -889,6 +897,7 @@ def _a_word_the_language_was_missing(
             route=decided.action.name if said else None,
             walked=decided.worth.cost if decided.worth else costs_now,
             admitted=decided.action.kind if said else None,
+            about=pairs,
         )
         if said:
             logger.info(
