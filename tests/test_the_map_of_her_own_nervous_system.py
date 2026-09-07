@@ -1144,3 +1144,69 @@ def test_the_paired_comparison_can_be_restricted_to_the_cells_that_differ():
     assert result["cells_identical"] == 200
     assert result["median_significant"] is True
     assert result["median_difference"] < 0
+
+
+# ---------------------------------------------------------------------------
+# The same individual over time
+# ---------------------------------------------------------------------------
+
+
+def test_a_template_separates_what_holds_still_from_what_moves():
+    from core.connectome.longitudinal import build_template, drift_against
+
+    first = _graph_snapshot([("a", "b", 1), ("b", "c", 1), ("c", "d", 1)])
+    second = _graph_snapshot([("a", "b", 1), ("b", "c", 1), ("c", "e", 1)])
+    template = build_template([first, second])
+    assert template.timepoints == 2
+    assert ("a", "b") in template.stable_edges()
+    assert ("c", "d") not in template.stable_edges()
+
+    drift = drift_against(template, second)
+    assert drift["core_edges_lost"] == 0
+    assert "core is intact" in drift["verdict"]
+
+    third = _graph_snapshot([("a", "b", 1)])
+    later = drift_against(template, third)
+    assert later["core_edges_lost"] >= 1
+    assert "had never changed" in later["verdict"]
+
+
+def test_a_rename_survives_connectivity_alignment_and_a_stranger_does_not():
+    from core.connectome.longitudinal import align_by_connectivity
+
+    left = _graph_snapshot([("src", "old_name", 1), ("old_name", "sink", 1)])
+    right = _graph_snapshot([("src", "new_name", 1), ("new_name", "sink", 1)])
+    result = align_by_connectivity(left, right, minimum_overlap=0.5)
+    assert result["matched_by_connectivity"] == 1
+    assert result["pairs"][0]["same_module"] is True
+
+    stranger = _graph_snapshot([("src", "unrelated", 1)])
+    weak = align_by_connectivity(left, stranger, minimum_overlap=0.9)
+    assert weak["matched_by_connectivity"] == 0
+
+
+def test_the_projection_matrix_normalises_by_the_size_of_the_source():
+    from core.connectome.longitudinal import projection_matrix
+
+    units = {
+        "big1": _unit("big1", region="big"),
+        "big2": _unit("big2", region="big"),
+        "big3": _unit("big3", region="big"),
+        "big4": _unit("big4", region="big"),
+        "small1": _unit("small1", region="small"),
+        "target": _unit("target", region="target"),
+    }
+    connections = {}
+    for pre, contacts in (("big1", 4), ("small1", 4)):
+        connections[(pre, "target", str(EdgeKind.DRIVE))] = Connection(
+            pre=pre, post="target", contacts=contacts, sign=1, kind=EdgeKind.DRIVE
+        )
+    snapshot = ConnectomeSnapshot(
+        version=1, units=units, connections=connections, neuropils={}
+    )
+    matrix = projection_matrix(snapshot)
+    weights = {(row["source"], row["target"]): row["weight"] for row in matrix["strongest"]}
+    # The same four contacts from a one-cell package weigh four times what they
+    # weigh from a four-cell one.
+    assert weights[("small", "target")] == pytest.approx(4.0)
+    assert weights[("big", "target")] == pytest.approx(1.0)
