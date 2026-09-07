@@ -117,13 +117,71 @@ def _load():
     return mlx_lm.load(SUBSTRATE)
 
 
-def _say(model, tok, prompt: str) -> str:
+#: The temperature a generation gets when no faculty modulates it. The same
+#: number `inference_gate` falls back to when the circumplex is lesioned, so a
+#: lesioned arm here and a lesioned turn there sample identically.
+NEUTRAL_TEMPERATURE = 0.5
+
+
+def _temperature_under(arm: str) -> float:
+    """What this arm samples at, read through the channel that sets it.
+
+    The affect circumplex is the largest direct actuation in the system — it
+    moves temperature across 0.500..0.858 — and it acts on sampling rather
+    than on the prompt. A protocol that generates at a fixed temperature
+    therefore cannot see it, and the first run of this file reported a delta
+    of exactly 0.000 for endogenous state: true arithmetic, no measurement.
+
+    Read through ``apply_channel`` so that an arm holding the lesion gets the
+    neutral and an arm without it gets the circumplex's number, by the same
+    call the live path makes. The token budget is NOT read this way and stays
+    at MAX_TOKENS for every arm: tokens are a budget dimension and parity is
+    the point, while temperature is not.
+    """
+    try:
+        from core.affect.affective_circumplex import get_circumplex
+        from core.verify import influence_channels
+        from core.verify.lesion_registry import apply_channel
+
+        said = apply_channel(
+            influence_channels.AFFECT_CIRCUMPLEX_SAMPLING,
+            float(get_circumplex().get_llm_params()["temperature"]),
+            neutral=NEUTRAL_TEMPERATURE,
+        )
+    except (ImportError, AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+        return NEUTRAL_TEMPERATURE
+    if said is None:
+        return NEUTRAL_TEMPERATURE
+    return float(said)
+
+
+def _say(model, tok, prompt: str, *, temperature: float = NEUTRAL_TEMPERATURE) -> str:
     import mlx_lm
 
     text = tok.apply_chat_template(
         [{"role": "user", "content": prompt}], tokenize=False, add_generation_prompt=True
     )
-    return str(mlx_lm.generate(model, tok, prompt=text, max_tokens=MAX_TOKENS, verbose=False))
+    try:
+        from mlx_lm.sample_utils import make_sampler
+
+        return str(
+            mlx_lm.generate(
+                model,
+                tok,
+                prompt=text,
+                max_tokens=MAX_TOKENS,
+                verbose=False,
+                sampler=make_sampler(temp=float(temperature)),
+            )
+        )
+    except (ImportError, TypeError):
+        # An mlx_lm without a sampler argument. Every arm then samples the
+        # same way, which is worse and is not silent: the run reports the
+        # temperature each arm asked for beside the delta, so a reader can
+        # see whether the thing being ablated reached the generation.
+        return str(
+            mlx_lm.generate(model, tok, prompt=text, max_tokens=MAX_TOKENS, verbose=False)
+        )
 
 
 def _prompt_for(arm: str, task: AblationTask, history: list[str]) -> str:
@@ -178,8 +236,18 @@ def _run_one(model, tok, arm: str, task: AblationTask) -> float:
             removed.enter_context(registry.lesion(channel))
         if arm == NO_DEVELOPMENTAL:
             removed.enter_context(_nothing_she_has_learned())
-        said = _say(model, tok, _prompt_for(arm, task, history))
+        # Read inside the lesion scope: an arm holding the affect lesion gets
+        # the neutral, and that is the whole difference between the arms.
+        temperature = _temperature_under(arm)
+        _TEMPERATURE_ASKED.setdefault(arm, []).append(temperature)
+        said = _say(model, tok, _prompt_for(arm, task, history), temperature=temperature)
     return grade(said, task)
+
+
+#: What each arm actually sampled at. Reported beside the deltas, because a
+#: faculty delta is only a measurement if the faculty reached the generation,
+#: and two arms that asked for the same temperature did not differ.
+_TEMPERATURE_ASKED: dict[str, list[float]] = {}
 
 
 def _nothing_she_has_learned():
@@ -233,9 +301,39 @@ def _faculty_reading(measured: dict, arm: str) -> dict:
     true, which is the same distinction the validation suite makes about an
     experiment it declined to run.
     """
+    # An arm that sampled at the same temperature as intact did not differ
+    # from it in this path, whatever the delta says. Read from what the run
+    # actually asked for rather than from which channels the arm declares,
+    # because a channel that is registered and never consulted is exactly the
+    # thing this distinction exists to catch.
+    asked = _TEMPERATURE_ASKED.get(arm) or []
+    intact_asked = _TEMPERATURE_ASKED.get(INTACT) or []
+    reached_the_generation = bool(asked) and bool(intact_asked) and (
+        round(sum(asked) / len(asked), 6)
+        != round(sum(intact_asked) / len(intact_asked), 6)
+    )
+    if reached_the_generation:
+        return {
+            "outcome": "MEASURED",
+            "observed_delta_mean": measured["delta_mean"],
+            "separated": measured["separated"],
+            "sampled_at": round(sum(asked) / len(asked), 4),
+            "intact_sampled_at": round(sum(intact_asked) / len(intact_asked), 4),
+            "why_it_counts": (
+                "the ablated arm sampled at a different temperature from "
+                "intact, so the faculty was in the path that produced the "
+                "answer and the delta is a measurement of removing it"
+            ),
+        }
     if measured["delta_mean"] == 0.0 and not measured["separated"]:
         return {
             "outcome": "NOT_MEASURED",
+            "sampled_at": round(sum(asked) / len(asked), 4) if asked else None,
+            "intact_sampled_at": (
+                round(sum(intact_asked) / len(intact_asked), 4)
+                if intact_asked
+                else None
+            ),
             "why": (
                 f"{arm} differs from {INTACT} only by lesion channels that act "
                 "inside the cognitive engine, and this protocol generates by "

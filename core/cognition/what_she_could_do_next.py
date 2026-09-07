@@ -141,6 +141,12 @@ HOW_CHANGES_WERE_JUDGED: dict[str, int] = {
     "held out": 0,
     "unmeasured": 0,
     "judged itself": 0,
+    #: An action that installs nothing. Asking for an example produces a
+    #: question and changes nothing about her, so no probe has anything to
+    #: weigh. Counted apart from "judged itself" because three actions that
+    #: really run a held-out test and one that changes nothing read
+    #: identically once they share a flag.
+    "changes nothing": 0,
     "did not pay": 0,
     "declined": 0,
 }
@@ -159,8 +165,16 @@ def how_changes_were_judged() -> dict[str, Any]:
     """
     kept = sum(
         HOW_CHANGES_WERE_JUDGED[one]
-        for one in ("held out", "unmeasured", "judged itself")
+        for one in ("held out", "unmeasured", "judged itself", "changes nothing")
     )
+    try:
+        from core.cognition.what_a_change_measured_about_itself import (
+            claiming_without_showing,
+        )
+
+        unshown = list(claiming_without_showing())
+    except (ImportError, RuntimeError):
+        unshown = []
     return {
         "schema": "aura.development.evidence.v1",
         "counts": dict(HOW_CHANGES_WERE_JUDGED),
@@ -169,6 +183,8 @@ def how_changes_were_judged() -> dict[str, Any]:
         "share_with_evidence": (
             (kept - HOW_CHANGES_WERE_JUDGED["unmeasured"]) / kept if kept else 0.0
         ),
+        #: Actions that took the self-judging opt-out and showed nothing.
+        "claiming_without_showing": unshown,
     }
 
 
@@ -229,7 +245,26 @@ def _and_takes_itself_back(
                 HOW_CHANGES_WERE_JUDGED["declined"] += 1
                 return None
             if judges_itself:
-                HOW_CHANGES_WERE_JUDGED["judged itself"] += 1
+                # The opt-out has to show its working. It was a boolean in a
+                # table that nothing read except this line deciding to stop
+                # asking, so the strongest thing the layer could say about a
+                # self-judged change was that its author said it was fine.
+                from core.cognition.what_a_change_measured_about_itself import (
+                    note_a_claim,
+                    the_evidence_in,
+                )
+
+                verdict = note_a_claim(name, said)
+                measured = the_evidence_in(said)
+                if measured is not None and not measured.paid:
+                    HOW_CHANGES_WERE_JUDGED["did not pay"] += 1
+                    logger.info(
+                        "%s measured itself on %s and did not pay (%.4f -> %.4f); "
+                        "putting it back",
+                        name, ", ".join(measured.on), measured.before, measured.after,
+                    )
+                    return None
+                HOW_CHANGES_WERE_JUDGED[verdict] += 1
                 trial.keep(str(said))
                 return said
             paid = _held_out_says_it_paid(name, before, probe)

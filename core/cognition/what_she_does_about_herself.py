@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Sequence
+from core.cognition.what_a_change_measured_about_itself import changes_nothing
 
 __all__ = [
     "offer_what_she_can_do_about_what_she_is_made_of",
@@ -116,6 +117,37 @@ def worth_keeping(
     if better:
         return True, f"{cheaper:,} fewer candidates over {len(probe)} families ({why})"
     return False, f"no better than her usual over {len(probe)} families ({why})"
+
+
+def _what_it_measured(
+    said: str, before: dict[str, tuple[int, bool]],
+    probe: Sequence[tuple[str, tuple]], why: str,
+) -> Any:
+    """The held-out reading these actions already take, in a form the gate reads.
+
+    Each of these ran a real before-and-after on families it was not chosen
+    for and then returned a sentence, so the layer above had the action's word
+    and nothing else. The reading was always there; it was never shown.
+
+    Scored as the share of held-out families that got cheaper, which is what
+    ``worth_keeping`` decides on, so the number shown is the number used.
+    """
+    from core.cognition.what_a_change_measured_about_itself import WhatItMeasured
+
+    names = tuple(name for name, _cases in probe)
+    if not names:
+        return said
+    was = sum(before.get(name, (0, False))[0] for name, _cases in probe)
+    now = sum(_costs(cases) for _name, cases in probe)
+    # Higher is better, so a cost becomes what was saved against the start.
+    start = float(was) or 1.0
+    return WhatItMeasured(
+        said=said,
+        on=names,
+        before=0.0,
+        after=(was - now) / start,
+        why_it_counts=why,
+    )
 
 
 def _how_it_stands(probe: Sequence[tuple[str, tuple]]) -> dict[str, tuple[int, bool]]:
@@ -235,7 +267,10 @@ def offer_what_she_can_do_about_what_she_is_made_of() -> None:
                 return None
             trial.keep(why)
         logger.info("she let go of %s: %s", part.at, why)
-        return f"let go of {part.at}"
+        return _what_it_measured(
+            f"let go of {part.at}", before, probe,
+            f"families it was not chosen for: {why}",
+        )
 
     def one_name_for_both(situation: Any = None) -> str | None:
         from core.cognition.a_way_of_computing_she_wrote import as_a_head
@@ -263,7 +298,10 @@ def offer_what_she_can_do_about_what_she_is_made_of() -> None:
                 return None
             trial.keep(why)
         logger.info("she named what two parts share: %s — %s", name, why)
-        return f"one name for what {first.name} and {second.name} share"
+        return _what_it_measured(
+            f"one name for what {first.name} and {second.name} share",
+            before, probe, f"families it was not chosen for: {why}",
+        )
 
     def ask_for_an_example(situation: Any = None) -> str | None:
         from core.cognition.an_invented_kind import (
@@ -280,8 +318,9 @@ def offer_what_she_can_do_about_what_she_is_made_of() -> None:
             logger.info(
                 "she decided to ask rather than to search about %s", family
             )
-            return (
-                f"asked what {list(asked)} gives, which settles {family}"
+            return changes_nothing(
+                f"asked what {list(asked)} gives, which settles {family}",
+                because="asking produces a question and installs nothing",
             )
         for unsure, meanings in list(UNSETTLED.items()):
             if len(meanings) < 2:
@@ -294,8 +333,9 @@ def offer_what_she_can_do_about_what_she_is_made_of() -> None:
                     logger.info(
                         "she decided to ask rather than to search: %s", list(asked)
                     )
-                    return (
-                        f"asked what {list(asked)} gives, which settles {unsure}"
+                    return changes_nothing(
+                        f"asked what {list(asked)} gives, which settles {unsure}",
+                        because="asking produces a question and installs nothing",
                     )
         return None
 
@@ -351,7 +391,24 @@ def offer_what_she_can_do_about_what_she_is_made_of() -> None:
                 "she made the change that pays most: %s at %s (worth %.3f)",
                 best["change"], best["at"], float(best["worth"]),
             )
-            return str(best["change"])
+            # The ranking is the measurement: every cause was made and undone
+            # against the same held-out probe, and this one's worth is what
+            # that comparison gave. Shown rather than described, so the layer
+            # above is not taking the action's word for it.
+            from core.cognition.what_a_change_measured_about_itself import (
+                WhatItMeasured,
+            )
+
+            return WhatItMeasured(
+                said=str(best["change"]),
+                on=tuple(name for name, _cases in probe),
+                before=0.0,
+                after=float(best["worth"]),
+                why_it_counts=(
+                    f"ranked against {len(causes)} causes on the held-out probe, "
+                    f"each made and undone"
+                ),
+            )
         return None
 
     # `judges` says the action already measured itself on held-out families and
