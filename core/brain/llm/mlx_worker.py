@@ -6221,7 +6221,11 @@ class _PromptCacheLRU:
         self._lru.clear()
         self._resume_bindings.clear()
 
-    def clear_model_key(self, model_key: Any) -> None:
+    def clear_model_key(self, model_key: Any) -> None:  # noqa: D401 - see log
+        logger.info("🧊 [PROMPT CACHE] cleared everything under key=%s", model_key)
+        return self._clear_model_key(model_key)
+
+    def _clear_model_key(self, model_key: Any) -> None:
         """Discard one model/scope without erasing unrelated prompt state.
 
         Generation retries need a clean cache for the request that failed. They
@@ -6525,9 +6529,11 @@ class _PromptCacheLRU:
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 divergent = "<undecodable>"
         logger.info(
-            "🧊 [PROMPT CACHE] miss — prefilling all %d tokens; matched %d "
-            "(%.1f%%) before diverging%s",
+            "🧊 [PROMPT CACHE] miss — prefilling all %d tokens; key=%s known_keys=%d "
+            "matched %d (%.1f%%) before diverging%s",
             len(tokens),
+            model_key,
+            len(self._cache),
             matched,
             100.0 * matched / max(1, len(tokens)),
             f"; divergent text begins: {divergent[:160]!r}" if divergent else "",
@@ -6563,8 +6569,20 @@ class _PromptCacheLRU:
         queue_for_lane.append(cache_key)
         while len(queue_for_lane) > self._lane_budget(lane):
             evict_model_key, evict_tokens = queue_for_lane.popleft()
+            # An eviction nobody can see is a cache that looks like it works.
+            logger.info(
+                "🧊 [PROMPT CACHE] evicted %d tokens from lane %s (budget %d)",
+                len(evict_tokens), lane, self._lane_budget(lane),
+            )
             self._delete(evict_model_key, list(evict_tokens))
+        before = self.retained_tokens()
         self._enforce_total_token_budget()
+        after = self.retained_tokens()
+        if after < before:
+            logger.info(
+                "🧊 [PROMPT CACHE] budget drained %d tokens (%d -> %d, cap %d)",
+                before - after, before, after, self.max_total_tokens,
+            )
 
 
 class JobWatchdog(threading.Thread):
@@ -9605,9 +9623,10 @@ def _mlx_worker_loop(
                                         )
                                         logger.info(
                                             "🧊 [PROMPT CACHE] retained %d tokens "
-                                            "scope=%s",
+                                            "scope=%s key=%s",
                                             len(tokens),
                                             _prompt_cache_scope_for_job(job),
+                                            model_key,
                                         )
                                     elif prompt_cache_lru is not None:
                                         # A turn that retains nothing makes the
@@ -9618,7 +9637,7 @@ def _mlx_worker_loop(
                                         logger.info(
                                             "🧊 [PROMPT CACHE] retained nothing: "
                                             "disabled=%s no_cache_object=%s no_tokens=%s "
-                                            "sentinel_aborted=%s scope=%s",
+                                            "sentinel_aborted=%s scope=%s purpose=%s origin=%s",
                                             ",".join(
                                                 _prompt_cache_bypass_reasons(job)
                                             ) or bool(job.get("disable_prompt_cache")),
@@ -9626,6 +9645,8 @@ def _mlx_worker_loop(
                                             not tokens,
                                             sentinel_aborted,
                                             _prompt_cache_scope_for_job(job),
+                                            job.get("purpose") or "-",
+                                            job.get("origin") or "-",
                                         )
 
                                     # Interoception: distil this attempt's measurements.

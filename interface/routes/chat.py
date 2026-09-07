@@ -1657,13 +1657,26 @@ def _store_conversation_resume_handle(
     delivered_hash = hashlib.sha256(
         str(delivered_text or "").encode("utf-8", "replace")
     ).hexdigest()
-    accepted = bool(
-        re.fullmatch(r"[0-9a-f]{32}", handle)
-        and re.fullmatch(r"[0-9a-f]{64}", expected_hash)
-        and expected_hash == delivered_hash
-        and turn_trace.get("cognitive_engine_reply_accepted") is True
-        and turn_trace.get("bounded_contract_used") is not True
-        and turn_trace.get("legacy_fallback_used") is not True
+    reasons: list[str] = []
+    if not re.fullmatch(r"[0-9a-f]{32}", handle):
+        reasons.append("no handle" if not handle else "malformed handle")
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_hash):
+        reasons.append("no output hash")
+    elif expected_hash != delivered_hash:
+        reasons.append("delivered text is not the text the KV authored")
+    if turn_trace.get("cognitive_engine_reply_accepted") is not True:
+        reasons.append("engine reply not accepted")
+    if turn_trace.get("bounded_contract_used") is True:
+        reasons.append("bounded contract used")
+    if turn_trace.get("legacy_fallback_used") is True:
+        reasons.append("legacy fallback used")
+    accepted = not reasons
+    # A refusal nobody can see is a conversation that re-reads its own history
+    # every turn. Rejecting is often right; being silent about it is not.
+    logger.info(
+        "🔗 conversation resume handle %s%s",
+        "kept" if accepted else "refused",
+        "" if accepted else ": " + "; ".join(reasons),
     )
     with _conversation_quality_lock:
         state = _conversation_quality_state_locked(
