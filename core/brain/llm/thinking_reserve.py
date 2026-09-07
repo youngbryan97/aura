@@ -24,6 +24,7 @@ the runtime generates often enough that the window fills within minutes.
 from __future__ import annotations
 
 import json
+import math
 from collections import deque
 from pathlib import Path
 from typing import Any
@@ -374,10 +375,11 @@ def record_read_rate(*, prompt_chars: int, elapsed_s: float) -> None:
         seconds = float(elapsed_s)
     except (TypeError, ValueError):
         return
-    if chars <= 0 or not (seconds > 0.0) or seconds != seconds:
+    if chars <= 0 or not (seconds > 0.0) or not math.isfinite(seconds):
         return
     with _lock:
         _read_rates.append((chars, chars / seconds))
+        del _read_rates[:max(0, len(_read_rates) - _WINDOW)]
     _written_down()
 
 
