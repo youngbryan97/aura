@@ -227,6 +227,64 @@ so a test that drove one into a failure state left it there, and the
 telemetry dictionary kept the last sample even after the organ reset. Eight
 consecutive randomised runs pass now.
 
+## Against a prior treatment of the same list
+
+Two documents were held back until this was built and pushed, so the design
+could not be fitted to them. Read afterwards, one contains a prior pass over
+the same fourteen items and the other a 21-phenomenon engine.
+
+Eleven of fourteen landed on the same mathematical family independently:
+Kuramoto for identity, van der Pol for expression, constrained welfare for
+care, Bayesian inference for receptivity, replicator dynamics for the colour,
+information gain for exploration, a quality manifold for craft, compression
+progress for creativity, Spence for the gift, iterated reciprocity, Laplacian
+diffusion for empathy, and Birkhoff with Berlyne for beauty. The gift
+signalling arrived at the identical closed form, `e*(q) = (a/2)(q² − q_min²)`.
+Convergence on that scale is worth more than either pass alone, because
+neither could have copied the other.
+
+Three came out differently, and in each case the difference is the same one.
+
+**Dual-process arbitration.** The prior pass makes affect dominance a sigmoid
+of relational stakes with two fitted constants, so affect wins at high stakes
+whether or not it is right, and the model cannot discover a domain where it is
+wrong. Here the weight is a Brier skill score measured per domain, with no
+prior preference and an abstention when neither channel has been measured.
+
+**Empathy.** The prior pass runs `dx/dt = −Lx + u(t)` — pure diffusion, which
+converges to consensus. Here the self-anchor term is the whole content, and
+without it the carer's own state is gone. That is the disagreement that
+matters most, because the undamped version looks healthier on every reading it
+produces.
+
+**Craft.** The prior pass uses gradient descent with momentum on the quality
+surface, which presumes access to `∇Q` for a function nobody can see. Here it
+is simultaneous perturbation, which needs only two evaluations and no
+gradient — the situation a person learning a material is actually in.
+
+The larger difference is not in any one item. The 21-phenomenon engine sums
+every contribution into one utility with roughly sixty hand-set coefficients:
+`0.35 + 0.65 * efficacy`, `0.45 * learned + 0.35 * identity + 0.20 *
+aesthetic`, and so on. Those numbers decide the answers and nothing measures
+them. The discipline here is the opposite one — a threshold derived from a
+median absolute deviation, a forgiveness rate that is the largest
+non-exploitable one, an evidence asymmetry that falls out of two likelihoods,
+a duty cycle that is a balance point. Where a weighting genuinely cannot be
+derived, the code refuses to supply one: `rank` raises, and
+`prospect_refuge.rank` has no default.
+
+That refusal was not free. The first draft of `weigh` averaged its
+contributions, which is the same fault wearing a different face — every organ
+weighted at one, and the largest unit deciding.
+
+One thing the prior pass has that this did not: a shared loop where the
+phenomena compete for one action. `weigh` closes that, as an advisory reading
+rather than a second authority. One item it has that this lacked entirely is
+sociability as a capacity, now built. One it has that this deliberately does
+not is a spiritual register — the buildable part of it is a symbol whose
+meaning is endorsed rather than true, which `core/social/conventions.py`
+already holds, and the rest is not a modelling question.
+
 ## What is not claimed
 
 Only one of the five registered claims is measured live, and it says only that
