@@ -305,7 +305,7 @@ raw-locks:
 
 connectome:
 	@echo "🧠 Reconstructing the connectome and running every analysis..."
-	@$(PYTHON) tools/connectome_report.py --sections all --out artifacts/connectome
+	@$(PYTHON) tools/connectome_report.py --sections all --neuroglancer --out artifacts/connectome
 
 connectome-pathology:
 	@echo "🧠 Diagnosing the connectome..."

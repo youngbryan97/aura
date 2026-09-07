@@ -61,6 +61,11 @@ def main() -> int:
     parser.add_argument("--nulls", type=int, default=4)
     parser.add_argument("--triad-sample", type=int, default=1500)
     parser.add_argument("--roots", default="core,interface,skills,security,llm,executors")
+    parser.add_argument(
+        "--neuroglancer",
+        action="store_true",
+        help="also write the viewer state and segment properties",
+    )
     args = parser.parse_args()
 
     wanted = set(SECTIONS) if args.sections == "all" else {
@@ -232,6 +237,14 @@ def main() -> int:
             population = spikes.sum(axis=1).tolist()
             report["criticality"] = assess(population).as_json()
             print("criticality done", flush=True)
+
+    if args.neuroglancer:
+        from core.connectome.microcircuit import assign_layers
+        from core.connectome.neuroglancer import write_export
+
+        laminar = assignment if assignment is not None else assign_layers(snapshot)
+        report["neuroglancer"] = write_export(snapshot, args.out / "neuroglancer", laminar)
+        print("neuroglancer export done", flush=True)
 
     target = args.out / "connectome_report.json"
     target.write_text(json.dumps(report, indent=2, sort_keys=True))
