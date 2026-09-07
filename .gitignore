@@ -154,6 +154,8 @@ artifacts/learning-demo-*/
 artifacts/front_door/
 aura_codebase_ai_audit*.txt
 /aura_codebase_*.txt
+# The sidecar the same export writes beside it.
+/aura_codebase_*.manifest.json
 /aura_clean_source_code_and_tests*.txt
 artifacts/agi/dnu_proof/
 artifacts/agi/live_harness_proof/
