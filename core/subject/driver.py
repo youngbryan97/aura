@@ -35,10 +35,10 @@ import logging
 import os
 import random
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 
@@ -187,6 +187,57 @@ CONDITIONS: tuple[Condition, ...] = (
 )
 
 
+#: Attribute names never carried across a fork. Locks, events, tasks and
+#: sockets are process furniture; copying one is at best useless and at worst a
+#: deadlock, and none of them is state in the sense this battery measures.
+_UNCOPYABLE: tuple[str, ...] = (
+    "_lock",
+    "_loop",
+    "_task",
+    "_thread",
+    "_executor",
+    "_queue",
+    "_event",
+    "_condition",
+    "_socket",
+    "_conn",
+    "_db",
+)
+
+
+def _organ_state(organ: Any) -> dict[str, Any]:
+    """A deep copy of the numbers an organ is carrying, and nothing else.
+
+    Copied by value so that restoring one arm cannot hand the next arm a live
+    reference it then mutates. Anything that will not copy is left out and the
+    organ keeps whatever it had, which is visible as a floor the sham arms
+    cannot get below rather than as a silently shared variable.
+    """
+    if organ is None or not hasattr(organ, "__dict__"):
+        return {}
+    out: dict[str, Any] = {}
+    for name, value in list(vars(organ).items()):
+        if any(marker in name for marker in _UNCOPYABLE):
+            continue
+        if callable(value) or inspect.ismodule(value):
+            continue
+        try:
+            out[name] = copy.deepcopy(value)
+        except (TypeError, ValueError, RecursionError, AttributeError):
+            continue
+    return out
+
+
+def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
+    if organ is None:
+        return
+    for name, value in saved.items():
+        try:
+            setattr(organ, name, copy.deepcopy(value))
+        except (AttributeError, TypeError, ValueError):
+            continue
+
+
 @dataclass
 class Snapshot:
     """Everything a fork has to carry for two arms to start from one place."""
@@ -200,6 +251,12 @@ class Snapshot:
     centre_n: float
     turn: int
     rng_state: tuple
+    #: The organs are process-wide singletons. Without carrying them across the
+    #: fork, whatever the displaced arm did to the workspace, the self model,
+    #: the world model or the agency ledger was still there when the sham arm
+    #: ran, and the comparison was between an untouched organism and one that
+    #: had already been touched.
+    organs: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass
@@ -217,6 +274,13 @@ class SubjectRuntime:
     frames_per_turn: int = 0
     #: Called after every phase when a lesion is in force. See core.subject.clamp.
     after_phase: Any = None
+    #: Host readings held constant for the duration of a paired trial. The body
+    #: senses the real machine, so two arms run seconds apart read different
+    #: CPU and different thermals, and that difference is the environment
+    #: moving rather than the intervention propagating. Freezing it is the
+    #: matched-environment control every arm of a comparison needs.
+    frozen_host: dict[str, float] | None = None
+    frozen_latency: dict[str, float] | None = None
     #: Who the next action is attributed to. "self" is the ordinary case; the
     #: ownership experiment in core.subject.agency sets it to "external" for one
     #: arm and matches everything else, so the two runs differ in authorship
@@ -233,8 +297,44 @@ class SubjectRuntime:
 
     # ── forking ──────────────────────────────────────────────────────────
 
+    #: Which organs are carried across a fork, by the name they are read under.
+    ORGAN_FIELDS: ClassVar[tuple[str, ...]] = (
+        "workspace",
+        "substrate",
+        "free_energy",
+        "self_model",
+        "world_model",
+        "agency",
+    )
+
+    def freeze_host(self) -> dict[str, float]:
+        """Take the body's current reading and hold it for every arm to come."""
+        hardware = dict(getattr(self.state.soma, "hardware", {}) or {})
+        latency = dict(getattr(self.state.soma, "latency", {}) or {})
+        self.frozen_host = {
+            key: float(hardware.get(key, 0.0) or 0.0)
+            for key in ("cpu_usage", "vram_usage", "ram_usage", "temperature")
+        }
+        # Latency is elapsed wall clock, so it differs between two arms run
+        # seconds apart by exactly as much as the machine was busy. Same
+        # argument as the hardware readings: it is the environment, and it
+        # belongs held still.
+        self.frozen_latency = {
+            key: float(latency.get(key, 0.0) or 0.0)
+            for key in ("last_thought_ms", "perception_lag_ms", "token_velocity")
+        }
+        return self.frozen_host
+
+    def thaw_host(self) -> None:
+        self.frozen_host = None
+        self.frozen_latency = None
+
     def snapshot(self) -> Snapshot:
         return Snapshot(
+            organs={
+                name: _organ_state(getattr(self.organs, name, None))
+                for name in self.ORGAN_FIELDS
+            },
             state=copy.deepcopy(self.state),
             hidden=np.array(self.ontogeny.h, copy=True),
             steps=int(self.ontogeny.steps),
@@ -247,6 +347,8 @@ class SubjectRuntime:
         )
 
     def restore(self, snapshot: Snapshot) -> None:
+        for name, saved in snapshot.organs.items():
+            _restore_organ(getattr(self.organs, name, None), saved)
         self.state = copy.deepcopy(snapshot.state)
         self.ontogeny.h = np.array(snapshot.hidden, copy=True)
         self.ontogeny.steps = snapshot.steps
@@ -318,6 +420,10 @@ class SubjectRuntime:
                 self.failures[name] = self.failures.get(name, 0) + 1
                 self.failure_notes[name] = f"{type(exc).__name__}: {exc}"[:200]
                 logger.debug("phase %s failed: %s", name, exc)
+            if self.frozen_host is not None:
+                self.state.soma.hardware.update(self.frozen_host)
+                if self.frozen_latency is not None:
+                    self.state.soma.latency.update(self.frozen_latency)
             if self.after_phase is not None:
                 self.after_phase()
             await capture(name)

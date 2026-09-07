@@ -54,6 +54,14 @@ class MotivationUpdatePhase(Phase):
         social_decay_multiplier = max(0.1, 1.0 - conv_energy) if conv_energy > 0.5 else 1.0
         legacy_metabolism_active = has_runtime_service("will_engine")
 
+        # A surprising world should press harder. The free-energy engine already
+        # computes an action urgency from prediction error and nothing consulted
+        # it here, so the drives ticked at the same rate whether the world was
+        # behaving as modelled or not. The multiplier is the engine's own
+        # reading, bounded by its own scale: urgency runs 0..1, so drives press
+        # between once and twice as fast and never faster.
+        pressure = 1.0 + self._surprise_pressure()
+
         for name, budget in mot.budgets.items():
             if legacy_metabolism_active and name in {"energy", "curiosity"}:
                 continue
@@ -63,6 +71,7 @@ class MotivationUpdatePhase(Phase):
 
             # Slow social decay during active conversation
             effective_decay = decay * social_decay_multiplier if name == "social" else decay
+            effective_decay *= pressure
 
             # Decay: level = current - (decay * dt)
             new_level = max(0.0, min(capacity, level - (effective_decay * dt)))
@@ -135,6 +144,23 @@ class MotivationUpdatePhase(Phase):
             logger.debug("MotivationUpdate: curiosity spike decision=%s", decision.get("reason"))
 
         return next_state
+
+    def _surprise_pressure(self) -> float:
+        """How urgently the world is asking to be acted on. 0.0 when unknown.
+
+        Zero is the honest default: an engine that is not there has not told us
+        the world is calm, so the drives keep their ordinary rate rather than
+        being told to hurry by an absence.
+        """
+        try:
+            from core.container import ServiceContainer
+
+            engine = ServiceContainer.get("free_energy_engine", default=None)
+            if engine is None:
+                return 0.0
+            return max(0.0, min(1.0, float(engine.get_action_urgency())))
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return 0.0
 
     def _conative_spike(self) -> Optional[dict]:
         """A spontaneous goal only when something is actually interesting.

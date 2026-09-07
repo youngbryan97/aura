@@ -274,6 +274,11 @@ async def run_interventions(
             # Let the life move on between trials so the snapshots are taken at
             # different points of the trajectory rather than at one lucky spot.
             await runtime.turn_once(condition)
+            # Hold the machine still for the three arms. What the body senses
+            # is E, not K, and letting it drift between arms puts the host's
+            # own load into the sham floor — measured at ten units of
+            # temperature, which is larger than any effect this looks for.
+            runtime.freeze_host()
             snapshot = runtime.snapshot()
             for source in sources:
                 if source in unwritable:
@@ -308,6 +313,7 @@ async def run_interventions(
                 )
                 out.lags = max(out.lags, max((len(v) for v in trace.values()), default=0))
             runtime.restore(snapshot)
+            runtime.thaw_host()
             if on_progress is not None:
                 on_progress(f"trial {index + 1}/{trials} {condition.name}")
 

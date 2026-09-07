@@ -283,10 +283,14 @@ _SCHEMAS: dict[str, Schema] = {
             ("phenomenal_arousal", "cognition.phenomenal_state.arousal"),
             ("phenomenal_coherence", "cognition.phenomenal_state.coherence"),
             ("phenomenal_energy", "cognition.phenomenal_state.energy"),
-            *(
-                (f"latent_{index}", "cognition.phenomenal_state.latent_snapshot")
-                for index in range(8)
-            ),
+            # `cognition.phenomenal_state.latent_snapshot` is deliberately not
+            # here. It is 128 numbers built by hashing the phenomenal claim, so
+            # two nearby states produce unrelated vectors and the distance
+            # between them means nothing; and grepping the runtime finds it
+            # written once and read by nowhere, which fails the test at the top
+            # of this file — a number nothing computes from is not state. In
+            # the schema it contributed a third of a standard deviation to the
+            # floor between two untouched runs and no signal at all.
             ("substrate_valence", "organ:substrate.valence"),
             ("substrate_arousal", "organ:substrate.arousal"),
             ("substrate_dominance", "organ:substrate.dominance"),
@@ -588,7 +592,6 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
             _f(_dig(state, "cognition.phenomenal_state.energy")),
         ]
     )
-    head.extend(_latent(state, 8))
     affect = _call(organs.substrate, "get_substrate_affect", {}) or {}
     status = _call(organs.substrate, "get_status", {}) or {}
     head.extend(
