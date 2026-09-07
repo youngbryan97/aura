@@ -28,10 +28,16 @@ import numpy as np
 
 __all__ = ["Fit", "fit_predict", "held_out_loss", "split_rows"]
 
-#: Ridge strengths tried. Spread over six decades because the blocks differ in
-#: width by two orders of magnitude and one fixed value would be right for
-#: none of them.
-ALPHAS: tuple[float, ...] = (1e-3, 1e-2, 1e-1, 1.0, 10.0, 100.0, 1000.0)
+#: Ridge strengths tried. The top of this grid matters as much as the bottom.
+#: A cut model is a restriction of the intact model — the same fit with the
+#: cross-block weights held at zero — so the intact model should never lose to
+#: it out of sample. It can anyway, if the grid does not reach far enough for
+#: the wide model to shrink its extra inputs away, and then the irreducibility
+#: score comes out negative, which reads as "cutting helps" and means "the wide
+#: model was not allowed to regularise". Ten decades, so it is.
+ALPHAS: tuple[float, ...] = (
+    1e-3, 1e-2, 1e-1, 1.0, 10.0, 100.0, 1e3, 1e4, 1e5, 1e6,
+)
 
 _FLAT = 1e-9
 

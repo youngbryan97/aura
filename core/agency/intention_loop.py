@@ -423,7 +423,36 @@ class IntentionLoop:
                 rec.surprise,
             )
 
+        # An intention she formed and acted on is hers by construction, so this
+        # is where the agency ledger learns what she actually did. Outcomes she
+        # only watched arrive through the perception path instead, and never
+        # touch her capability beliefs — see core/agency/authorship.py.
+        self._record_authorship(rec, actual_outcome)
+
         return rec.surprise
+
+    def _record_authorship(self, rec: IntentionRecord, actual_outcome: str) -> None:
+        """Tell the agency ledger she caused this. Never raises into observe()."""
+        try:
+            from core.agency.authorship import SELF, Event, get_agency_ledger
+            from core.container import ServiceContainer
+
+            tool = ""
+            if rec.actions_taken:
+                tool = str(getattr(rec.actions_taken[-1], "tool_name", "") or "")
+            get_agency_ledger().observe(
+                Event(
+                    what=tool or "intention",
+                    actor=SELF,
+                    verified=self._actual_outcome_is_success(
+                        rec.observation or "", actual_outcome
+                    ),
+                    detail={"intention_id": rec.id, "surprise": rec.surprise},
+                ),
+                self_model=ServiceContainer.get("self_model", default=None),
+            )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, KeyError) as exc:
+            logger.debug("agency ledger not updated: %s", exc)
 
     # ── REVISE: Update beliefs and self-model ───────────────────────────
 

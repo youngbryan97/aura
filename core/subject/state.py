@@ -128,6 +128,7 @@ class Organs:
     self_model: Any = None
     world_model: Any = None
     ontogeny: Any = None
+    agency: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -149,12 +150,20 @@ class Organs:
             except Exception:  # noqa: BLE001
                 return None
 
+        agency = None
+        try:
+            from core.agency.authorship import get_agency_ledger
+
+            agency = get_agency_ledger()
+        except Exception:  # noqa: BLE001
+            agency = None
         return cls(
             workspace=runtime("global_workspace"),
             substrate=runtime("conscious_substrate"),
             free_energy=service("free_energy_engine"),
             self_model=service("self_model"),
             world_model=service("unified_world_model"),
+            agency=agency,
         )
 
 
@@ -314,6 +323,11 @@ _SCHEMAS: dict[str, Schema] = {
             ("snapshot_count", "organ:self_model.snapshot_count"),
             ("pending_updates", "organ:self_model.pending_update_count"),
             ("belief_digest", "organ:self_model.beliefs"),
+            ("agency_acted", "organ:agency.acted"),
+            ("agency_efficacy", "organ:agency.efficacy"),
+            ("agency_authored_share", "organ:agency.authored_share"),
+            ("agency_capabilities", "organ:agency.capabilities"),
+            ("agency_last_actor", "organ:agency.last_actor"),
         ),
     ),
     "M": _sch(
@@ -616,6 +630,7 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
     )
     introspection = _call(organs.self_model, "get_introspection", {}) or {}
     beliefs = getattr(organs.self_model, "beliefs", {}) or {}
+    agency = _call(organs.agency, "snapshot", {}) or {}
     head.extend(
         [
             _sat(_f(introspection.get("belief_count")), 16.0),
@@ -623,6 +638,11 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             _sat(_f(introspection.get("snapshot_count")), 8.0),
             _sat(_f(introspection.get("pending_update_count")), 4.0),
             _hash_unit(",".join(f"{k}={beliefs[k]}" for k in sorted(beliefs)[:16])),
+            _sat(_f(agency.get("acted")), 16.0),
+            _f(agency.get("efficacy")),
+            _f(agency.get("authored_share")),
+            _sat(_f(agency.get("capabilities")), 8.0),
+            _hash_unit(agency.get("last_actor", "")),
         ]
     )
     return np.array(head, dtype=np.float64)

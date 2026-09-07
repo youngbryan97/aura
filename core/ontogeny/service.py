@@ -265,6 +265,10 @@ class OntogenyCore(AuthorityObservationMixin):
             seed=self._seed,
         )
         self._last_reading: StateReading | None = None
+        #: Running moments for `advance`, kept apart from any control point's
+        #: so that stepping the lifetime state cannot shift a decision's
+        #: standardisation underneath it.
+        self._advance_moments: RunningMoments | None = None
         self._last_train = 0.0
         self._last_checkpoint = time.time()
         self._episodes_seen = 0
@@ -569,6 +573,26 @@ class OntogenyCore(AuthorityObservationMixin):
         )
 
     # ── the day-one surfaces ─────────────────────────────────────────────
+
+    def advance(self, schema: Any, features: Mapping[str, float]) -> Any:
+        """Step the shared reservoir on a moment, without deciding anything.
+
+        `consider` advances the state as a side effect of making a choice, so
+        the state only moved where a control point happened to sit. This is the
+        same step with no choice attached, for the cognitive cycle itself. The
+        state is the one every control point shares, on purpose: it is her
+        state, and what happened in a turn is legitimately context for the next
+        decision wherever that decision is made.
+        """
+        state = self._state_for(schema)
+        moments = self._advance_moments
+        if moments is None or len(moments.count) != len(schema.names):
+            moments = RunningMoments(len(schema.names))
+            self._advance_moments = moments
+        vector = schema.vector(features)
+        reading = state.step(design_row(vector, moments, update=True))
+        self._last_reading = reading
+        return reading
 
     def novelty(self) -> float:
         """How unlike her ordinary life this moment is. 0.5 until she has one."""

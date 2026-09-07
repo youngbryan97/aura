@@ -213,6 +213,12 @@ class AffectUpdatePhase(Phase):
         
         self._ensure_affect_schema(affect)
 
+        # 1b. Advance the lifetime state on this moment, and let what it senses
+        # colour the moment. The reservoir used to step only when a memory
+        # retrieval happened to ask it something, so a day of conversation with
+        # no retrieval left her developmental state exactly where it started.
+        self._advance_lifetime(state, affect)
+
         # 2. Emotional Decay (Entropy & Momentum)
         # Ported from DamasioV2.pulse()
         self._apply_decay(affect)
@@ -283,6 +289,119 @@ class AffectUpdatePhase(Phase):
             severity=severity,
             extra={"stage": stage},
         )
+
+    def _advance_lifetime(self, state: AuraState, affect: AffectVector) -> None:
+        """Step her lifetime state, then blend curiosity toward its novelty.
+
+        The blend weight is the step's own displacement — how far this moment
+        moved her — rather than a number chosen here. A large developmental
+        update pulls the moment toward how unprecedented it is; a quiet step
+        leaves curiosity alone. Nothing else in the runtime reads novelty, so
+        without this the state was advancing and sensing into a void.
+        """
+        try:
+            from core.ontogeny.lifetime import LIFETIME_SCHEMA, advance
+
+            features = {
+                "perception": float(len(state.world.recent_percepts or [])),
+                "interoception": float(
+                    (getattr(state.soma, "hardware", {}) or {}).get("cpu_usage", 0.0) or 0.0
+                ),
+                "affect_valence": float(affect.valence),
+                "affect_arousal": float(affect.arousal),
+                "workspace": float(getattr(state.cognition, "conversation_energy", 0.5) or 0.5),
+                "cognition": float(getattr(state, "phi", 0.0) or 0.0),
+                "self_state": float(getattr(state.identity, "stability", 1.0) or 1.0),
+                "memory": float(len(state.cognition.working_memory or [])),
+                "world": float(len(getattr(state.world, "facts", {}) or {})),
+                "deliberation": float(len(state.cognition.active_goals or [])),
+            }
+            del LIFETIME_SCHEMA
+            reading = advance(features)
+            if reading is None:
+                return
+            weight = max(0.0, min(1.0, float(reading.displacement)))
+            affect.curiosity = max(
+                0.0,
+                min(1.0, (1.0 - weight) * float(affect.curiosity) + weight * float(reading.novelty)),
+            )
+            state.response_modifiers["ontogenetic_novelty"] = round(float(reading.novelty), 4)
+            state.response_modifiers["ontogenetic_displacement"] = round(weight, 4)
+            self._ground_affect(state, affect, novelty=float(reading.novelty))
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="lifetime_state",
+                action="kept affect state after the lifetime reservoir did not advance",
+                severity="warning",
+            )
+
+    def _ground_affect(self, state: AuraState, affect: AffectVector, *, novelty: float) -> None:
+        """Let the measured signals name the feeling, when they have earned it.
+
+        `AffectGroundingEngine` derives affect from sustained evidence —
+        prediction error from the world model, nociceptive pressure from the
+        body, novelty from the lifetime state — and refuses to assert a label
+        until it has enough samples. It was registered as a service and never
+        called, so the three channels it bridges were readers with nothing
+        running them.
+
+        What it returns informs rather than replaces. The grounded label is
+        blended into the emotion of the same name with the engine's own
+        confidence as the weight, so a tentative read moves almost nothing and
+        a well-evidenced one moves most of the way. Nothing here overrides the
+        dominant emotion outright: an evidence layer that can silence the rest
+        of affect is not evidence, it is a second opinion with a veto.
+        """
+        try:
+            from core.container import ServiceContainer
+
+            engine = ServiceContainer.get("affect_grounding", default=None)
+            if engine is None:
+                return
+            control = 0.5
+            try:
+                from core.agency.authorship import get_agency_ledger
+
+                ledger = get_agency_ledger()
+                if ledger.acted:
+                    control = float(ledger.efficacy)
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+                control = 0.5
+            engine.observe(
+                novelty=novelty,
+                valence=float(affect.valence),
+                arousal=float(affect.arousal),
+                control=control,
+                idle=0.0 if (state.cognition.current_objective or "").strip() else 1.0,
+            )
+            engine.gather()
+            grounded = engine.dominant()
+            if grounded is None:
+                return
+            weight = max(0.0, min(1.0, float(grounded.confidence)))
+            channel = grounded.label
+            if channel in affect.emotions:
+                affect.emotions[channel] = max(
+                    0.0,
+                    min(
+                        1.0,
+                        (1.0 - weight) * float(affect.emotions[channel])
+                        + weight * float(grounded.intensity),
+                    ),
+                )
+            markers = dict(getattr(affect, "markers", {}) or {})
+            markers["grounded"] = grounded.to_dict()
+            affect.markers = markers
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="affect_grounding",
+                action="kept affect state after grounded affect could not be read",
+                severity="warning",
+            )
 
     def _schedule_substrate_update(self, substrate: Any, affect: AffectVector, state: AuraState) -> None:
         try:

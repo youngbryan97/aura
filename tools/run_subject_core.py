@@ -163,7 +163,7 @@ async def main() -> int:
         trials=args.trials,
         turns=args.turns,
         seed=args.seed,
-        on_progress=lambda note: None,
+        on_progress=_log,
     )
     edges, tested = build_edges(results, seed=args.seed)
     evidence["edges"] = tested

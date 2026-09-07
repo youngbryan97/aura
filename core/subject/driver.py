@@ -366,17 +366,27 @@ class SubjectRuntime:
                 self.failure_notes["heartbeat"] = f"{type(exc).__name__}: {exc}"[:200]
 
     def _step_ontogeny(self, reading: CoreState) -> None:
-        """Advance the lifetime reservoir on this turn's fast state.
+        """Carry the last lifetime reading onto the reservoir object N reads.
 
-        This is the call `OntogenyCore.consider` makes on every live decision,
-        with the fast domains standing in for the control point's features.
-        Whether anything downstream reads the result is a separate question,
-        and one the battery answers rather than assumes.
+        The step itself happens inside the affect phase now, through
+        `core.ontogeny.lifetime.advance`, which is the runtime's own path. This
+        only copies what that step sensed onto the state object so that the N
+        domain can read novelty and displacement beside the hidden units. If
+        the phase did not advance — the organ was absent, or it degraded — the
+        previous reading stands and N shows a flat step, which is what actually
+        happened.
         """
-        row = np.concatenate([reading.domain(key) for key in FAST_DOMAINS])
-        step = self.ontogeny.step(row)
-        self.ontogeny.last_novelty = step.novelty
-        self.ontogeny.last_displacement = step.displacement
+        del reading
+        try:
+            from core.ontogeny.lifetime import last_reading
+
+            step = last_reading()
+        except ImportError:
+            step = None
+        if step is None or self.ontogeny is None:
+            return
+        self.ontogeny.last_novelty = float(step.novelty)
+        self.ontogeny.last_displacement = float(step.displacement)
 
     def _retrieve(self, query: str) -> None:
         """Run the real retriever over her own memory, ontogeny included.
@@ -434,6 +444,17 @@ class SubjectRuntime:
         }
         self.state.world.facts["last_action"] = record
         self.last_action = dict(record)
+        # The same world state, attributed. This is the one call that separates
+        # the two arms of the ownership experiment.
+        try:
+            from core.agency.authorship import Event, get_agency_ledger
+
+            get_agency_ledger().observe(
+                Event(what="write_notes", actor=actor, verified=ok, detail={"path": "notes.txt"}),
+                self_model=self.organs.self_model,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("authorship ledger unavailable: %s", exc)
         self.state.cognition.active_goals.append(
             {
                 "id": f"act_{self.turn}",
@@ -532,13 +553,40 @@ async def start_organism(runtime: SubjectRuntime) -> dict[str, Any]:
 
     organism = await bring_up()
     runtime.heartbeat = organism.heartbeat
+    # N reads the organ's shared lifetime reservoir, not a private one. A
+    # private reservoir would be a second life running beside the real one and
+    # would show the driver's own arithmetic as a developmental state.
+    try:
+        from core.ontogeny.lifetime import state as lifetime_state
+
+        shared = lifetime_state()
+        if shared is not None:
+            if not hasattr(shared, "last_novelty"):
+                shared.last_novelty = 0.5
+            if not hasattr(shared, "last_displacement"):
+                shared.last_displacement = 0.0
+            runtime.ontogeny = shared
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("lifetime reservoir unavailable; N stays on the local one: %s", exc)
+
+    live = Organs.live()
     runtime.organs = Organs(
-        workspace=Organs.live().workspace,
-        substrate=organism.substrate,
-        free_energy=Organs.live().free_energy,
-        self_model=Organs.live().self_model,
-        world_model=Organs.live().world_model,
+        workspace=live.workspace,
+        substrate=organism.substrate or live.substrate,
+        free_energy=live.free_energy,
+        self_model=live.self_model,
+        world_model=live.world_model,
         ontogeny=runtime.ontogeny,
+        agency=live.agency,
+    )
+    runtime.organs = Organs(
+        workspace=runtime.organs.workspace,
+        substrate=runtime.organs.substrate,
+        free_energy=runtime.organs.free_energy,
+        self_model=runtime.organs.self_model,
+        world_model=runtime.organs.world_model,
+        ontogeny=runtime.ontogeny,
+        agency=runtime.organs.agency,
     )
     runtime.organism = organism
     return organism.summary()
