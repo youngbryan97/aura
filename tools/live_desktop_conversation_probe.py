@@ -57,6 +57,7 @@ def _post_chat(
         response = client.post(
             f"{base_url.rstrip('/')}/api/chat",
             json={"message": message, "session_id": session_id},
+            headers={"X-Idempotency-Key": f"{session_id}:{uuid.uuid4().hex}"},
             timeout=timeout_s,
         )
         latency = time.monotonic() - started
@@ -81,6 +82,7 @@ def run_probe(
     if token:
         headers["X-Api-Token"] = token
     headers["X-Aura-Surface"] = "desktop-ui"
+    headers["X-Aura-Desktop-Request"] = "true"
     headers["X-Aura-Require-CognitiveEngine"] = "required"
     headers["X-Aura-Live-Conversation-Probe"] = "true"
 
@@ -113,9 +115,15 @@ def run_probe(
                     "timestamp": _utc_now(),
                 }
             )
+            if not ok:
+                # A client timeout does not cancel the durable server turn.
+                # Do not enqueue the rest of the script behind unknown work.
+                break
 
     scorecard = score_live_conversation_transcript(responses)
     contract_issues: list[str] = []
+    if len(transcript) != len(DEFAULT_LIVE_CONVERSATION_SCRIPT):
+        contract_issues.append("script_incomplete")
     for row in transcript:
         contract = dict(row.get("live_turn_contract") or {})
         confidence = str(row.get("response_confidence") or "").strip().lower()
