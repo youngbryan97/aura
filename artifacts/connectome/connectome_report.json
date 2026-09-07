@@ -1,42 +1,780 @@
 {
-  "built_at": 1788740348.7030542,
+  "built_at": 1788771772.639332,
+  "celltypes": {
+    "adjusted_rand_mean": 0.8314,
+    "adjusted_rand_min": 0.8278,
+    "cells": 48044,
+    "cells_in_multi_member_types": 41785,
+    "drop_edges": 0.1,
+    "largest_type": 6330,
+    "mean_type_size": 5.772,
+    "multi_member_share": 0.8697,
+    "repeats": 3,
+    "rounds": 1,
+    "seed_labels": "cell_class",
+    "singleton_types": 6259,
+    "types": 8323,
+    "types_under_dropout_mean": 7478.0
+  },
+  "criticality": {
+    "avalanches": {
+      "active_fraction": 0.7371,
+      "count": 96,
+      "largest": 116228197,
+      "longest": 557,
+      "mean_size": 1551321.396,
+      "threshold": 741.0
+    },
+    "branching": {
+      "autocorrelation_time_steps": 109.492,
+      "kmax": 40,
+      "m": 0.99091,
+      "method": "multistep-regression",
+      "offset": 0.0,
+      "r_squared": 0.9245,
+      "regime": "critical",
+      "samples": 2107
+    },
+    "crackling_error": 0.0713,
+    "duration_exponent_alpha": {
+      "alpha": 1.6528,
+      "ks": 0.1433,
+      "n": 96.0,
+      "tail_n": 35.0,
+      "xmin": 4.0
+    },
+    "measured_gamma": 1.512,
+    "naive_branching_ratio": 17.38456,
+    "predicted_gamma": 1.5833,
+    "size_exponent_tau": {
+      "alpha": 1.4123,
+      "ks": 0.0901,
+      "n": 96.0,
+      "tail_n": 79.0,
+      "xmin": 1724.0
+    },
+    "subsampling_bias": -16.39365,
+    "verdict": "consistent with criticality: exponents satisfy the scaling relation, m=0.991"
+  },
+  "delays": {
+    "convergence_cells": 11485,
+    "edges": 71894,
+    "improvement": 0.82758,
+    "jitter_after": 0.13507,
+    "jitter_before": 0.78335,
+    "jitter_random_null": 0.79845,
+    "mean_added_delay": 0.0604,
+    "total_added_delay": 4341.364,
+    "verdict": "solving beats leaving it alone and beats random holds"
+  },
+  "ground_truth": {
+    "base_score": {
+      "expected_run_length": 2.5073,
+      "mean_run_length": 1.746,
+      "observed_pairs": 7802,
+      "recall": 0.8258,
+      "recovered": 6443,
+      "runs": 630,
+      "split_errors": 1359,
+      "suspected_merges": 1287,
+      "suspicion_denominator": 5690
+    },
+    "focused_queue": [
+      {
+        "impact": 0.0031,
+        "kind": "join",
+        "observed_calls": 274826,
+        "post": "5e7ef53d637fad64",
+        "pre": "7a6bf66a2b1d4e6e",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0021,
+        "kind": "join",
+        "observed_calls": 188956,
+        "post": "4f874bc9e5cdc6f6",
+        "pre": "d3e10e2d45bc266d",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0021,
+        "kind": "join",
+        "observed_calls": 188956,
+        "post": "68fd90f7f1f055fe",
+        "pre": "d3e10e2d45bc266d",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0021,
+        "kind": "join",
+        "observed_calls": 188956,
+        "post": "a2d7323b751617be",
+        "pre": "d3e10e2d45bc266d",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0015,
+        "kind": "join",
+        "observed_calls": 133172,
+        "post": "08fb4739210f308c",
+        "pre": "097325dfe3d9b2cc",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0014,
+        "kind": "join",
+        "observed_calls": 127200,
+        "post": "d3e10e2d45bc266d",
+        "pre": "7409be66f8cb1925",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.001,
+        "kind": "join",
+        "observed_calls": 90040,
+        "post": "9ec34f5a01169a72",
+        "pre": "6e6f4741e0bcf63c",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0005,
+        "kind": "join",
+        "observed_calls": 48607,
+        "post": "40974da1e8346317",
+        "pre": "6e6f4741e0bcf63c",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0004,
+        "kind": "join",
+        "observed_calls": 32946,
+        "post": "be7ae739cf2c28e5",
+        "pre": "6e6f4741e0bcf63c",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0003,
+        "kind": "join",
+        "observed_calls": 30993,
+        "post": "45f6ed195ad063e2",
+        "pre": "6e6f4741e0bcf63c",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0003,
+        "kind": "join",
+        "observed_calls": 29343,
+        "post": "3fcbc101bca9b069",
+        "pre": "6e6f4741e0bcf63c",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0002,
+        "kind": "join",
+        "observed_calls": 17582,
+        "post": "6afe09feb7bbadb5",
+        "pre": "d3e10e2d45bc266d",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0002,
+        "kind": "join",
+        "observed_calls": 13766,
+        "post": "ed5f0361f9241e6d",
+        "pre": "6e6f4741e0bcf63c",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0001,
+        "kind": "join",
+        "observed_calls": 13120,
+        "post": "284bb7c24c53970d",
+        "pre": "6e6f4741e0bcf63c",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0001,
+        "kind": "join",
+        "observed_calls": 12152,
+        "post": "0c2afcf28a58e3ce",
+        "pre": "7300bce7860d4d4c",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0001,
+        "kind": "join",
+        "observed_calls": 11979,
+        "post": "ed141d0fd8358946",
+        "pre": "7300bce7860d4d4c",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0001,
+        "kind": "join",
+        "observed_calls": 11968,
+        "post": "acedecd33bfd5b03",
+        "pre": "7300bce7860d4d4c",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0001,
+        "kind": "join",
+        "observed_calls": 11840,
+        "post": "c7ba86153e179c46",
+        "pre": "7300bce7860d4d4c",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0001,
+        "kind": "join",
+        "observed_calls": 11768,
+        "post": "4963cff3343572a6",
+        "pre": "812e45ad879c009b",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0001,
+        "kind": "join",
+        "observed_calls": 11456,
+        "post": "36efae12cc9df20a",
+        "pre": "7300bce7860d4d4c",
+        "reason": "observed firing, absent from the reconstruction"
+      }
+    ],
+    "observed": {
+      "calls": 88675901,
+      "pairs": 7802
+    },
+    "pruning": {
+      "connected_cells_random_mean": 32022.8,
+      "connected_cells_use": 29941,
+      "fraction_removed": 0.4,
+      "mean_degree_random": 1.3468,
+      "mean_degree_use": 1.4414,
+      "random_mean_traffic_retained": 0.51592,
+      "traffic_advantage": 0.48408,
+      "use": {
+        "kept": 43596,
+        "method": "use",
+        "removed": 29064,
+        "removed_fraction": 0.4,
+        "traffic_retained": 1.0
+      },
+      "verdict": "use-based pruning keeps the traffic and costs reach"
+    },
+    "threshold_sweep": [
+      {
+        "attached": 3318,
+        "drive_edges": 75267,
+        "expected_run_length": 2.6377,
+        "left_split": 12556,
+        "margin": 0.2,
+        "mean_run_length": 1.7897,
+        "observed_pairs": 7802,
+        "recall": 0.8504,
+        "recovered": 6635,
+        "runs": 623,
+        "split_errors": 1167,
+        "suspected_merges": 1353,
+        "suspicion_denominator": 5870,
+        "threshold": 0.3
+      },
+      {
+        "attached": 2838,
+        "drive_edges": 74861,
+        "expected_run_length": 2.5935,
+        "left_split": 13036,
+        "margin": 0.2,
+        "mean_run_length": 1.7792,
+        "observed_pairs": 7802,
+        "recall": 0.848,
+        "recovered": 6616,
+        "runs": 625,
+        "split_errors": 1186,
+        "suspected_merges": 1338,
+        "suspicion_denominator": 5845,
+        "threshold": 0.45
+      },
+      {
+        "attached": 2379,
+        "drive_edges": 74514,
+        "expected_run_length": 2.5928,
+        "left_split": 13495,
+        "margin": 0.2,
+        "mean_run_length": 1.776,
+        "observed_pairs": 7802,
+        "recall": 0.8449,
+        "recovered": 6592,
+        "runs": 625,
+        "split_errors": 1210,
+        "suspected_merges": 1328,
+        "suspicion_denominator": 5822,
+        "threshold": 0.6
+      },
+      {
+        "attached": 1620,
+        "drive_edges": 73908,
+        "expected_run_length": 2.5888,
+        "left_split": 14254,
+        "margin": 0.2,
+        "mean_run_length": 1.7716,
+        "observed_pairs": 7802,
+        "recall": 0.8395,
+        "recovered": 6550,
+        "runs": 626,
+        "split_errors": 1252,
+        "suspected_merges": 1306,
+        "suspicion_denominator": 5771,
+        "threshold": 0.8
+      },
+      {
+        "attached": 967,
+        "drive_edges": 73374,
+        "expected_run_length": 2.5122,
+        "left_split": 14907,
+        "margin": 0.2,
+        "mean_run_length": 1.7536,
+        "observed_pairs": 7802,
+        "recall": 0.8327,
+        "recovered": 6497,
+        "runs": 629,
+        "split_errors": 1305,
+        "suspected_merges": 1295,
+        "suspicion_denominator": 5732,
+        "threshold": 1.0
+      },
+      {
+        "attached": 561,
+        "drive_edges": 73102,
+        "expected_run_length": 2.5122,
+        "left_split": 15313,
+        "margin": 0.2,
+        "mean_run_length": 1.7536,
+        "observed_pairs": 7802,
+        "recall": 0.8317,
+        "recovered": 6489,
+        "runs": 629,
+        "split_errors": 1313,
+        "suspected_merges": 1293,
+        "suspicion_denominator": 5723,
+        "threshold": 1.25
+      },
+      {
+        "attached": 283,
+        "drive_edges": 72852,
+        "expected_run_length": 2.5077,
+        "left_split": 15591,
+        "margin": 0.2,
+        "mean_run_length": 1.7476,
+        "observed_pairs": 7802,
+        "recall": 0.8274,
+        "recovered": 6455,
+        "runs": 630,
+        "split_errors": 1347,
+        "suspected_merges": 1288,
+        "suspicion_denominator": 5695,
+        "threshold": 1.45
+      }
+    ]
+  },
+  "layers": {
+    "hub_overlap": {
+      "gap|io": 0.0,
+      "gap|ipc": 0.0,
+      "gap|volume": 0.0,
+      "gap|wired": 0.0,
+      "io|ipc": 0.0,
+      "io|volume": 0.0,
+      "io|wired": 0.0,
+      "ipc|volume": 0.0,
+      "ipc|wired": 0.0,
+      "volume|wired": 0.0
+    },
+    "layers": {
+      "gap": {
+        "cells_touched": 827,
+        "mean_degree": 0.158,
+        "pairs": 3795,
+        "rich_club_normalised": {
+          "16": 1.3551,
+          "2": 1.0246,
+          "32": 1.2587,
+          "4": 1.0564,
+          "64": 0.9231,
+          "8": 1.1588
+        },
+        "top_hubs": [
+          {
+            "cell": "core.service_registration:_register_all_services_body",
+            "degree": 106
+          },
+          {
+            "cell": "core.providers.consciousness_provider:register_consciousness_services",
+            "degree": 103
+          },
+          {
+            "cell": "core.brain.inference_gate:InferenceGate._build_living_mind_context",
+            "degree": 91
+          },
+          {
+            "cell": "core.providers.cognitive_provider:register_cognitive_services",
+            "degree": 71
+          },
+          {
+            "cell": "core.orchestrator.main:RobustOrchestrator.start",
+            "degree": 63
+          },
+          {
+            "cell": "core.orchestrator.mixins.boot.boot_cognitive:BootCognitiveMixin._init_cognitive_architecture",
+            "degree": 59
+          },
+          {
+            "cell": "core.providers.memory_provider:register_memory_services",
+            "degree": 53
+          },
+          {
+            "cell": "core.mind_tick:MindTick._run_loop",
+            "degree": 49
+          },
+          {
+            "cell": "core.brain.inference_gate:InferenceGate._generate_with_metadata_sink",
+            "degree": 48
+          },
+          {
+            "cell": "core.orchestrator.mixins.boot.boot_autonomy:BootAutonomyMixin._init_salvaged_subsystems",
+            "degree": 48
+          },
+          {
+            "cell": "core.orchestrator.boot:OrchestratorBootMixin._async_init_subsystems",
+            "degree": 47
+          },
+          {
+            "cell": "interface.routes.inner_state:get_inner_state",
+            "degree": 43
+          }
+        ],
+        "unique_fraction": 0.986
+      },
+      "io": {
+        "cells_touched": 80,
+        "mean_degree": 0.0045,
+        "pairs": 108,
+        "rich_club_normalised": {
+          "2": 1.1205,
+          "4": 1.2233
+        },
+        "top_hubs": [
+          {
+            "cell": "core.runtime.what_she_learned:recall",
+            "degree": 10
+          },
+          {
+            "cell": "core.consciousness.crsm:ContinuousRecurrentSelfModel._load",
+            "degree": 7
+          },
+          {
+            "cell": "core.agi.skill_synthesizer:SkillSynthesizer._load",
+            "degree": 7
+          },
+          {
+            "cell": "core.agency.commitment_engine:CommitmentEngine._load",
+            "degree": 7
+          },
+          {
+            "cell": "skills.hobbies:HobbyEngine._load_state",
+            "degree": 7
+          },
+          {
+            "cell": "skills.social_media:SocialMediaEngine._load_state",
+            "degree": 7
+          },
+          {
+            "cell": "core.consciousness.synaptic_plasticity:SynapticPlasticityEngine._load_state",
+            "degree": 7
+          },
+          {
+            "cell": "core.consciousness.crsm:ContinuousRecurrentSelfModel._save",
+            "degree": 6
+          },
+          {
+            "cell": "core.consciousness.synaptic_plasticity:SynapticPlasticityEngine._persist_state",
+            "degree": 6
+          },
+          {
+            "cell": "core.agi.skill_synthesizer:SkillSynthesizer._save",
+            "degree": 6
+          },
+          {
+            "cell": "skills.hobbies:HobbyEngine._save_state",
+            "degree": 6
+          },
+          {
+            "cell": "core.consciousness.crsm_lora_bridge:CRSMLoraBridge._persist_buffer",
+            "degree": 6
+          }
+        ],
+        "unique_fraction": 0.9722
+      },
+      "ipc": {
+        "cells_touched": 55,
+        "mean_degree": 0.0108,
+        "pairs": 259,
+        "rich_club_normalised": {
+          "16": 1.4322,
+          "2": 1.0229,
+          "4": 1.0759,
+          "8": 1.4322
+        },
+        "top_hubs": [
+          {
+            "cell": "core.runtime.disk_budget:_is_git_tracked",
+            "degree": 19
+          },
+          {
+            "cell": "core.security.integrity_guardian:IntegrityGuardian._get_git_status_map",
+            "degree": 19
+          },
+          {
+            "cell": "core.senses.soma:Soma._somatic_loop",
+            "degree": 19
+          },
+          {
+            "cell": "core.runtime.launch_provenance:_git_identity",
+            "degree": 19
+          },
+          {
+            "cell": "core.runtime.release_certificate:current_commit",
+            "degree": 19
+          },
+          {
+            "cell": "core.evaluation.source_attestation:_git",
+            "degree": 19
+          },
+          {
+            "cell": "core.factory.rollback_manager:RollbackManager.create_workspace",
+            "degree": 19
+          },
+          {
+            "cell": "core.self_modification.safe_modification:GitIntegration._check_git_available_sync",
+            "degree": 19
+          },
+          {
+            "cell": "core.runtime.launch_provenance:_run_git",
+            "degree": 19
+          },
+          {
+            "cell": "core.self_modification.safe_modification_harness:SafeModificationHarness._workspace_files",
+            "degree": 19
+          },
+          {
+            "cell": "core.soma.source_body:SourceBodyAwareness._git",
+            "degree": 19
+          },
+          {
+            "cell": "core.perception.ambient_developer_stream:AmbientDeveloperStream._collect_git_status",
+            "degree": 19
+          }
+        ],
+        "unique_fraction": 0.9961
+      },
+      "volume": {
+        "cells_touched": 17,
+        "mean_degree": 0.0005,
+        "pairs": 11,
+        "rich_club_normalised": {},
+        "top_hubs": [
+          {
+            "cell": "core.observability.telemetry:TelemetryEngine.broadcast_pulse",
+            "degree": 2
+          },
+          {
+            "cell": "core.brain.alignment_prober:EmpathyProber.audit",
+            "degree": 2
+          },
+          {
+            "cell": "core.fsw.health_checker:install_runtime_pings",
+            "degree": 2
+          },
+          {
+            "cell": "core.orchestrator.main:RobustOrchestrator._publish_telemetry",
+            "degree": 2
+          },
+          {
+            "cell": "core.voice.duplex.mind_bridge:MindBridge._watch_activity",
+            "degree": 2
+          },
+          {
+            "cell": "core.brain.llm.nucleus_manager:NucleusManager._listen_for_updates",
+            "degree": 1
+          },
+          {
+            "cell": "core.coordinators.metabolic_coordinator:MetabolicCoordinator._process_metabolic_tasks",
+            "degree": 1
+          },
+          {
+            "cell": "core.cybernetics.tricorder:Tricorder.scan",
+            "degree": 1
+          },
+          {
+            "cell": "core.senses.neural_bridge:NeuralBridge._run_inference_loop",
+            "degree": 1
+          },
+          {
+            "cell": "core.adaptation.self_optimizer:SelfOptimizer.optimize",
+            "degree": 1
+          },
+          {
+            "cell": "core.autonomy.autonomous_initiative_loop:AutonomousInitiativeLoop.start",
+            "degree": 1
+          },
+          {
+            "cell": "core.cybernetics.tricorder:Tricorder.load",
+            "degree": 1
+          }
+        ],
+        "unique_fraction": 1.0
+      },
+      "wired": {
+        "cells_touched": 38454,
+        "mean_degree": 2.9928,
+        "pairs": 71894,
+        "rich_club_normalised": {
+          "128": 0.2182,
+          "16": 0.7181,
+          "2": 1.0117,
+          "256": 0.5,
+          "32": 0.4781,
+          "4": 1.0179,
+          "64": 0.3581,
+          "8": 0.9508
+        },
+        "top_hubs": [
+          {
+            "cell": "core.runtime.errors:record_degradation",
+            "degree": 3783
+          },
+          {
+            "cell": "core.container:ServiceContainer.get",
+            "degree": 1015
+          },
+          {
+            "cell": "core.runtime.file_write_gateway:get_file_write_gateway",
+            "degree": 412
+          },
+          {
+            "cell": "core.utils.task_tracker:get_task_tracker",
+            "degree": 383
+          },
+          {
+            "cell": "core.utils.task_tracker:TaskTracker.create_task",
+            "degree": 364
+          },
+          {
+            "cell": "core.governance_context:local_internal_governed_scope",
+            "degree": 283
+          },
+          {
+            "cell": "core.interiority.ledger:StandingRegister.norm",
+            "degree": 281
+          },
+          {
+            "cell": "core.runtime.service_registry:get_runtime_service",
+            "degree": 238
+          },
+          {
+            "cell": "core.brain.llm.latent_cortex.engine:LatentCortexEngine._latent_episode",
+            "degree": 219
+          },
+          {
+            "cell": "core.runtime.state_ownership:state_root",
+            "degree": 215
+          },
+          {
+            "cell": "core.runtime.subprocess_gateway:get_subprocess_gateway",
+            "degree": 199
+          },
+          {
+            "cell": "core.container:ServiceContainer.register_instance",
+            "degree": 197
+          }
+        ],
+        "unique_fraction": 0.9992
+      }
+    },
+    "multilink": {
+      "gap": 7537,
+      "gap+wired": 53,
+      "io": 106,
+      "io+wired": 2,
+      "ipc": 517,
+      "ipc+wired": 1,
+      "volume": 11,
+      "wired": 72604
+    },
+    "summary": {
+      "channels": 1245,
+      "combined_pairs": 76804,
+      "gap_pairs": 3795,
+      "io_pairs": 108,
+      "ipc_pairs": 259,
+      "unique_fraction": {
+        "gap": 0.986,
+        "io": 0.9722,
+        "ipc": 0.9961,
+        "volume": 1.0,
+        "wired": 0.9992
+      },
+      "unresolved_channels": 16,
+      "volume_pairs": 11,
+      "wired_pairs": 72660
+    }
+  },
+  "likewise": {
+    "active_cells": 2386,
+    "connected_mean_correlation": 0.77034,
+    "connected_pairs": 3306,
+    "null_mean_correlation": 0.08634,
+    "null_spread": 0.00225,
+    "nulls": 8,
+    "verdict": "connected cells move together more than a degree-preserving rewiring allows, which is MICrONS's like-to-like rule",
+    "within_condition": true,
+    "z": 303.462
+  },
+  "longitudinal": {
+    "skipped": "no --against checkout given, so there is one timepoint"
+  },
   "microcircuit": {
     "against_cortex": {
       "cortical_mean_density": 0.05340625,
-      "mean_density": 6.508746336206913e-05,
+      "mean_density": 5.991913881298727e-05,
       "missing_pathways": [
         {
-          "aura_relative": 0.147,
+          "aura_relative": 0.142,
           "cortex_relative": 6.977,
           "pathway": "L5I->L5E"
         },
         {
-          "aura_relative": 0.198,
-          "cortex_relative": 3.163,
-          "pathway": "L23I->L23E"
-        },
-        {
-          "aura_relative": 0.169,
+          "aura_relative": 0.183,
           "cortex_relative": 2.52,
           "pathway": "L23E->L23I"
         },
         {
-          "aura_relative": 0.18,
+          "aura_relative": 0.225,
           "cortex_relative": 1.889,
           "pathway": "L23E->L23E"
         },
         {
-          "aura_relative": 0.018,
+          "aura_relative": 0.016,
           "cortex_relative": 1.88,
           "pathway": "L23E->L5E"
         },
         {
-          "aura_relative": 0.105,
+          "aura_relative": 0.089,
           "cortex_relative": 1.556,
           "pathway": "L5E->L5E"
         },
         {
-          "aura_relative": 0.004,
+          "aura_relative": 0.006,
           "cortex_relative": 1.532,
           "pathway": "L4I->L23E"
         },
@@ -46,87 +784,92 @@
           "pathway": "L23I->L5E"
         },
         {
-          "aura_relative": 0.113,
+          "aura_relative": 0.065,
           "cortex_relative": 1.123,
           "pathway": "L5E->L5I"
         },
         {
-          "aura_relative": 0.032,
+          "aura_relative": 0.017,
           "cortex_relative": 1.071,
           "pathway": "L5E->L6E"
         },
         {
-          "aura_relative": 0.016,
+          "aura_relative": 0.036,
           "cortex_relative": 1.026,
           "pathway": "L23E->L5I"
         }
       ],
       "orientation_free": {
-        "aura_within_over_between": 0.576,
+        "aura_within_over_between": 0.654,
         "cortex_within_over_between": 5.945,
-        "shortfall": 10.321
+        "shortfall": 9.09
       },
       "over_expressed_pathways": [
         {
-          "aura_relative": 5.805,
+          "aura_relative": 5.119,
           "cortex_relative": 0.0,
           "pathway": "L5I->L4I"
         },
         {
-          "aura_relative": 4.604,
+          "aura_relative": 4.668,
           "cortex_relative": 0.054,
           "pathway": "L23I->L4I"
         },
         {
-          "aura_relative": 3.596,
+          "aura_relative": 4.274,
           "cortex_relative": 0.0,
           "pathway": "L6I->L23I"
         },
         {
-          "aura_relative": 3.574,
-          "cortex_relative": 0.0,
-          "pathway": "L6I->L4I"
-        },
-        {
-          "aura_relative": 3.277,
-          "cortex_relative": 0.062,
-          "pathway": "L5E->L4I"
-        },
-        {
-          "aura_relative": 3.019,
-          "cortex_relative": 0.0,
-          "pathway": "L6I->L5I"
-        },
-        {
-          "aura_relative": 2.356,
+          "aura_relative": 2.966,
           "cortex_relative": 0.0,
           "pathway": "L6I->L23E"
         },
         {
-          "aura_relative": 2.321,
+          "aura_relative": 2.932,
+          "cortex_relative": 0.0,
+          "pathway": "L6I->L5I"
+        },
+        {
+          "aura_relative": 2.905,
+          "cortex_relative": 0.062,
+          "pathway": "L5E->L4I"
+        },
+        {
+          "aura_relative": 2.425,
+          "cortex_relative": 0.142,
+          "pathway": "L6E->L23E"
+        },
+        {
+          "aura_relative": 2.369,
+          "cortex_relative": 0.0,
+          "pathway": "L6I->L4I"
+        },
+        {
+          "aura_relative": 2.083,
           "cortex_relative": 0.006,
           "pathway": "L5I->L4E"
         },
         {
-          "aura_relative": 2.163,
+          "aura_relative": 2.062,
           "cortex_relative": 0.11,
           "pathway": "L23I->L4E"
         }
       ],
-      "spearman": -0.2279,
-      "spearman_if_orientation_reversed": 0.2207
+      "spearman": -0.2301,
+      "spearman_if_orientation_reversed": 0.2604
     },
     "assignment": {
       "anchors": {
         "afferent_cells": 124,
-        "anchor_margin": 0.1058,
-        "efferent_cells": 277,
-        "height_spread": 11.012,
-        "mean_afferent_height": 4.909,
-        "mean_efferent_height": 4.803,
+        "anchor_margin": 0.0969,
+        "efferent_cells": 274,
+        "height_spread": 11.021,
+        "mean_afferent_height": 4.961,
+        "mean_efferent_height": 4.864,
         "orientation_flipped": true
       },
-      "assigned": 38925,
+      "assigned": 38454,
       "cortical_share": {
         "L23E": 0.268,
         "L23I": 0.0756,
@@ -137,180 +880,175 @@
         "L6E": 0.1865,
         "L6I": 0.0382
       },
-      "incoherence": 0.1427,
+      "incoherence": 0.1267,
       "population_share": {
-        "L23E": 0.2688,
-        "L23I": 0.0748,
-        "L4E": 0.2917,
-        "L4I": 0.0632,
-        "L5E": 0.0623,
-        "L5I": 0.0144,
-        "L6E": 0.1864,
-        "L6I": 0.0384
+        "L23E": 0.2735,
+        "L23I": 0.0701,
+        "L4E": 0.2883,
+        "L4I": 0.0667,
+        "L5E": 0.0628,
+        "L5I": 0.0139,
+        "L6E": 0.1857,
+        "L6I": 0.0391
       },
       "populations": {
-        "L23E": 10463,
-        "L23I": 2913,
-        "L4E": 11356,
-        "L4I": 2462,
-        "L5E": 2424,
-        "L5I": 559,
-        "L6E": 7255,
-        "L6I": 1493
+        "L23E": 10517,
+        "L23I": 2697,
+        "L4E": 11087,
+        "L4I": 2564,
+        "L5E": 2413,
+        "L5I": 534,
+        "L6E": 7139,
+        "L6I": 1503
       },
-      "unassigned": 9025
+      "unassigned": 9590
     },
     "matrix": [
       [
-        1.173e-05,
-        1.289e-05,
-        2.9e-07,
-        2.7e-07,
-        4.002e-05,
-        4.633e-05,
-        0.00012918,
-        0.00015332
+        1.345e-05,
+        1.622e-05,
+        2.3e-07,
+        3.3e-07,
+        5.138e-05,
+        6.838e-05,
+        0.00014528,
+        0.00017771
       ],
       [
-        1.102e-05,
-        2.582e-05,
-        4.2e-07,
-        4.2e-07,
-        3.583e-05,
-        8.966e-05,
-        0.00011413,
-        0.00023407
+        1.096e-05,
+        2.998e-05,
+        3e-07,
+        0.0,
+        4.103e-05,
+        0.00010276,
+        0.0001153,
+        0.00025607
       ],
       [
-        0.00011939,
-        0.00014078,
-        4.314e-05,
-        5.565e-05,
-        0.0001298,
-        0.00015107,
-        8.045e-05,
-        0.00011454
+        0.00010538,
+        0.00012354,
+        3.995e-05,
+        4.742e-05,
+        0.00010896,
+        0.00012482,
+        4.467e-05,
+        6.151e-05
       ],
       [
-        0.00018478,
-        0.00029965,
-        4.954e-05,
-        9.589e-05,
-        0.00021331,
-        0.00037784,
-        0.00014495,
-        0.0002326
+        0.00016451,
+        0.00027968,
+        5.048e-05,
+        0.00010363,
+        0.00017408,
+        0.00030675,
+        9.943e-05,
+        0.00014194
       ],
       [
-        1.18e-06,
-        1.7e-06,
+        9.5e-07,
+        1.54e-06,
         0.0,
         0.0,
-        6.81e-06,
-        9.59e-06,
-        7.739e-05,
-        8.124e-05
+        5.33e-06,
+        8.54e-06,
+        8.144e-05,
+        8.327e-05
       ],
       [
-        1.03e-06,
-        2.46e-06,
-        3.2e-07,
+        2.14e-06,
+        2.08e-06,
         0.0,
-        7.38e-06,
-        2.885e-05,
-        8.581e-05,
-        0.0001965
+        0.0,
+        3.88e-06,
+        2.811e-05,
+        9.601e-05,
+        0.00017568
       ],
       [
-        4.3e-07,
-        3.8e-07,
+        3.1e-07,
+        2.1e-07,
         1e-08,
         0.0,
-        2.1e-06,
-        2.47e-06,
-        6.082e-05,
-        6.019e-05
+        1.04e-06,
+        1.57e-06,
+        6.653e-05,
+        6.123e-05
       ],
       [
-        7e-07,
+        2.5e-07,
+        4.9e-07,
+        0.0,
+        0.0,
         1.38e-06,
-        0.0,
-        0.0,
-        1.93e-06,
-        4.79e-06,
-        6.518e-05,
-        0.00012615
+        6.23e-06,
+        7.158e-05,
+        0.0001289
       ]
     ]
   },
+  "neuroglancer": {
+    "segment_properties": "artifacts/connectome/neuroglancer/segment_properties.json",
+    "viewer_state": "artifacts/connectome/neuroglancer/neuroglancer_state.json"
+  },
   "pathology": {
     "by_confidence": {
-      "candidate": 50,
-      "measured": 64,
-      "observed": 0
+      "candidate": 100,
+      "measured": 89,
+      "observed": 25
     },
     "by_kind": {
       "gate_dominated_cell": 25,
-      "half_wired_channel": 50,
-      "interface_used_as_internal": 25,
+      "half_wired_channel": 100,
+      "interface_used_as_internal": 50,
       "missing_local_recurrence": 1,
       "over_inhibited_region": 6,
+      "split_error": 25,
       "unnoticed_hub": 7
     },
-    "confirmed": 64,
+    "confirmed": 114,
     "findings": [
       {
         "closes_when": "a step refines its result against its own level before passing it up, and the ratio rises",
         "confidence": "measured",
         "detail": {
-          "aura_within_over_between": 0.576,
+          "aura_within_over_between": 0.654,
           "cortex_within_over_between": 5.945,
-          "shortfall": 10.321
+          "shortfall": 9.09
         },
-        "evidence": "within-layer density is 0.576 times between-layer, against cortex at 5.945, a shortfall of 10.321x",
+        "evidence": "within-layer density is 0.654 times between-layer, against cortex at 5.945, a shortfall of 9.09x",
         "kind": "missing_local_recurrence",
         "severity": "high",
         "subject": "whole system",
-        "weight": 1032.1
+        "weight": 909.0
       },
       {
         "closes_when": "the pair is joined by one call, or the two modules are one",
         "confidence": "measured",
         "detail": {
+          "carries_nothing": false,
           "contacts": 66,
+          "information": "unmeasured",
           "same_region": true
         },
-        "evidence": "66 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "evidence": "66 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
         "kind": "interface_used_as_internal",
         "severity": "high",
         "subject": "core.brain.llm.latent_cortex.engine:LatentCortexEngine._latent_episode -> core.brain.llm.latent_cortex.types:EpisodeReceipt.flag",
         "weight": 66.0
       },
       {
-        "closes_when": "the pair is joined by one call, or the two modules are one",
-        "confidence": "measured",
+        "closes_when": "a recording shows this store being read, or the writer is removed",
+        "confidence": "candidate",
         "detail": {
-          "contacts": 55,
-          "same_region": false
+          "direction": "write_only",
+          "layer": "io",
+          "writers": 6
         },
-        "evidence": "55 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
-        "kind": "interface_used_as_internal",
+        "evidence": "6 cell(s) write this store and the scan finds no reader",
+        "kind": "half_wired_channel",
         "severity": "high",
-        "subject": "core.brain.llm.mlx_worker:_mlx_worker_loop -> core.utils.memory_monitor:MemoryPressureSnapshot.warning",
-        "weight": 55.0
-      },
-      {
-        "closes_when": "the pair is joined by one call, or the two modules are one",
-        "confidence": "measured",
-        "detail": {
-          "contacts": 50,
-          "same_region": false
-        },
-        "evidence": "50 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
-        "kind": "interface_used_as_internal",
-        "severity": "high",
-        "subject": "interface.routes.chat:_run_cognitive_engine_chat_turn -> core.utils.memory_monitor:MemoryPressureSnapshot.warning",
-        "weight": 50.0
+        "subject": "SCHEMA_VERSION",
+        "weight": 60.0
       },
       {
         "closes_when": "the ratio reaches half of cortex's, by a guard being removed or by the package gaining the productive path it is missing",
@@ -332,10 +1070,12 @@
         "closes_when": "the pair is joined by one call, or the two modules are one",
         "confidence": "measured",
         "detail": {
+          "carries_nothing": false,
           "contacts": 43,
+          "information": "unmeasured",
           "same_region": false
         },
-        "evidence": "43 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "evidence": "43 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
         "kind": "interface_used_as_internal",
         "severity": "high",
         "subject": "interface.routes.chat:_api_chat_turn -> core.runtime.errors:record_degradation",
@@ -345,27 +1085,16 @@
         "closes_when": "the pair is joined by one call, or the two modules are one",
         "confidence": "measured",
         "detail": {
+          "carries_nothing": false,
           "contacts": 42,
+          "information": "unmeasured",
           "same_region": false
         },
-        "evidence": "42 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "evidence": "42 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
         "kind": "interface_used_as_internal",
         "severity": "high",
         "subject": "interface.routes.system:_collect_api_health_payload -> core.container:ServiceContainer.peek",
         "weight": 42.0
-      },
-      {
-        "closes_when": "the pair is joined by one call, or the two modules are one",
-        "confidence": "measured",
-        "detail": {
-          "contacts": 39,
-          "same_region": false
-        },
-        "evidence": "39 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
-        "kind": "interface_used_as_internal",
-        "severity": "high",
-        "subject": "interface.routes.chat:_api_chat_turn -> core.utils.memory_monitor:MemoryPressureSnapshot.warning",
-        "weight": 39.0
       },
       {
         "closes_when": "the ratio reaches half of cortex's, by a guard being removed or by the package gaining the productive path it is missing",
@@ -387,23 +1116,12 @@
         "closes_when": "the pair is joined by one call, or the two modules are one",
         "confidence": "measured",
         "detail": {
-          "contacts": 38,
-          "same_region": false
-        },
-        "evidence": "38 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
-        "kind": "interface_used_as_internal",
-        "severity": "high",
-        "subject": "core.brain.llm.mlx_worker:_mlx_worker_loop -> core.state.aura_state:PhenomenalField.strip",
-        "weight": 38.0
-      },
-      {
-        "closes_when": "the pair is joined by one call, or the two modules are one",
-        "confidence": "measured",
-        "detail": {
+          "carries_nothing": false,
           "contacts": 35,
+          "information": "unmeasured",
           "same_region": false
         },
-        "evidence": "35 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "evidence": "35 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
         "kind": "interface_used_as_internal",
         "severity": "high",
         "subject": "core.orchestrator.initializers.pathways:register_core_pathways -> core.mycelium:MycelialNetwork.register_pathway",
@@ -413,36 +1131,12 @@
         "closes_when": "the pair is joined by one call, or the two modules are one",
         "confidence": "measured",
         "detail": {
-          "contacts": 35,
-          "same_region": false
-        },
-        "evidence": "35 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
-        "kind": "interface_used_as_internal",
-        "severity": "high",
-        "subject": "core.skills.desktop_task:DesktopTaskSkill._verify_step_effect -> core.state.aura_state:PhenomenalField.strip",
-        "weight": 35.0
-      },
-      {
-        "closes_when": "the pair is joined by one call, or the two modules are one",
-        "confidence": "measured",
-        "detail": {
-          "contacts": 34,
-          "same_region": false
-        },
-        "evidence": "34 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
-        "kind": "interface_used_as_internal",
-        "severity": "high",
-        "subject": "core.phases.response_generation_unitary:UnitaryResponsePhase.execute -> core.state.aura_state:PhenomenalField.strip",
-        "weight": 34.0
-      },
-      {
-        "closes_when": "the pair is joined by one call, or the two modules are one",
-        "confidence": "measured",
-        "detail": {
+          "carries_nothing": false,
           "contacts": 32,
+          "information": "unmeasured",
           "same_region": true
         },
-        "evidence": "32 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "evidence": "32 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
         "kind": "interface_used_as_internal",
         "severity": "high",
         "subject": "core.brain.inference_gate:InferenceGate._build_living_mind_context -> core.brain.living_mind_context:LivingMindContext.omit",
@@ -452,10 +1146,12 @@
         "closes_when": "the pair is joined by one call, or the two modules are one",
         "confidence": "measured",
         "detail": {
+          "carries_nothing": false,
           "contacts": 32,
+          "information": "unmeasured",
           "same_region": false
         },
-        "evidence": "32 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "evidence": "32 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
         "kind": "interface_used_as_internal",
         "severity": "high",
         "subject": "interface.routes.system:_collect_api_health_payload -> core.runtime.errors:record_degradation",
@@ -465,10 +1161,12 @@
         "closes_when": "the pair is joined by one call, or the two modules are one",
         "confidence": "measured",
         "detail": {
+          "carries_nothing": false,
           "contacts": 31,
+          "information": "unmeasured",
           "same_region": true
         },
-        "evidence": "31 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "evidence": "31 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
         "kind": "interface_used_as_internal",
         "severity": "high",
         "subject": "core.brain.inference_gate:InferenceGate._build_living_mind_context -> core.brain.living_mind_context:LivingMindContext.add",
@@ -478,23 +1176,12 @@
         "closes_when": "the pair is joined by one call, or the two modules are one",
         "confidence": "measured",
         "detail": {
-          "contacts": 29,
-          "same_region": false
-        },
-        "evidence": "29 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
-        "kind": "interface_used_as_internal",
-        "severity": "high",
-        "subject": "core.phases.response_generation_unitary:UnitaryResponsePhase.execute -> core.utils.memory_monitor:MemoryPressureSnapshot.warning",
-        "weight": 29.0
-      },
-      {
-        "closes_when": "the pair is joined by one call, or the two modules are one",
-        "confidence": "measured",
-        "detail": {
+          "carries_nothing": false,
           "contacts": 28,
+          "information": "unmeasured",
           "same_region": false
         },
-        "evidence": "28 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "evidence": "28 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
         "kind": "interface_used_as_internal",
         "severity": "high",
         "subject": "core.orchestrator.initializers.pathways:register_core_pathways -> core.mycelium:MycelialNetwork.establish_connection",
@@ -504,49 +1191,12 @@
         "closes_when": "the pair is joined by one call, or the two modules are one",
         "confidence": "measured",
         "detail": {
-          "contacts": 26,
-          "same_region": false
-        },
-        "evidence": "26 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
-        "kind": "interface_used_as_internal",
-        "severity": "high",
-        "subject": "core.orchestrator.main:RobustOrchestrator.start -> core.utils.memory_monitor:MemoryPressureSnapshot.warning",
-        "weight": 26.0
-      },
-      {
-        "closes_when": "the pair is joined by one call, or the two modules are one",
-        "confidence": "measured",
-        "detail": {
-          "contacts": 26,
-          "same_region": false
-        },
-        "evidence": "26 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
-        "kind": "interface_used_as_internal",
-        "severity": "high",
-        "subject": "interface.routes.chat:_run_cognitive_engine_chat_turn -> core.state.aura_state:PhenomenalField.strip",
-        "weight": 26.0
-      },
-      {
-        "closes_when": "the pair is joined by one call, or the two modules are one",
-        "confidence": "measured",
-        "detail": {
+          "carries_nothing": false,
           "contacts": 25,
+          "information": "unmeasured",
           "same_region": false
         },
-        "evidence": "25 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
-        "kind": "interface_used_as_internal",
-        "severity": "high",
-        "subject": "core.brain.inference_gate:InferenceGate._generate_with_metadata_sink -> core.state.aura_state:PhenomenalField.strip",
-        "weight": 25.0
-      },
-      {
-        "closes_when": "the pair is joined by one call, or the two modules are one",
-        "confidence": "measured",
-        "detail": {
-          "contacts": 25,
-          "same_region": false
-        },
-        "evidence": "25 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "evidence": "25 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
         "kind": "interface_used_as_internal",
         "severity": "high",
         "subject": "core.brain.llm.context_assembler:ContextAssembler.build_system_prompt -> core.runtime.errors:record_degradation",
@@ -556,23 +1206,12 @@
         "closes_when": "the pair is joined by one call, or the two modules are one",
         "confidence": "measured",
         "detail": {
+          "carries_nothing": false,
           "contacts": 25,
+          "information": "unmeasured",
           "same_region": false
         },
-        "evidence": "25 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
-        "kind": "interface_used_as_internal",
-        "severity": "high",
-        "subject": "core.embodiment.reality_connectors:build_configured_reality_connector_catalog -> core.state.aura_state:PhenomenalField.strip",
-        "weight": 25.0
-      },
-      {
-        "closes_when": "the pair is joined by one call, or the two modules are one",
-        "confidence": "measured",
-        "detail": {
-          "contacts": 25,
-          "same_region": false
-        },
-        "evidence": "25 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "evidence": "25 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
         "kind": "interface_used_as_internal",
         "severity": "high",
         "subject": "core.orchestrator.mixins.boot.boot_autonomy:BootAutonomyMixin._init_salvaged_subsystems -> core.container:ServiceContainer.register_instance",
@@ -582,23 +1221,12 @@
         "closes_when": "the pair is joined by one call, or the two modules are one",
         "confidence": "measured",
         "detail": {
-          "contacts": 24,
-          "same_region": false
-        },
-        "evidence": "24 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
-        "kind": "interface_used_as_internal",
-        "severity": "high",
-        "subject": "core.self_improvement.program_dna:ProgramDNAReconstructionEngine.reconstruct -> core.cognition.transfer_search:DomainIndex.extend",
-        "weight": 24.0
-      },
-      {
-        "closes_when": "the pair is joined by one call, or the two modules are one",
-        "confidence": "measured",
-        "detail": {
+          "carries_nothing": false,
           "contacts": 23,
+          "information": "unmeasured",
           "same_region": false
         },
-        "evidence": "23 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "evidence": "23 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
         "kind": "interface_used_as_internal",
         "severity": "high",
         "subject": "core.embodiment.reality_connectors:build_configured_reality_connector_catalog -> core.runtime.flags:env_str",
@@ -608,10 +1236,12 @@
         "closes_when": "the pair is joined by one call, or the two modules are one",
         "confidence": "measured",
         "detail": {
+          "carries_nothing": false,
           "contacts": 23,
+          "information": "unmeasured",
           "same_region": false
         },
-        "evidence": "23 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "evidence": "23 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
         "kind": "interface_used_as_internal",
         "severity": "high",
         "subject": "core.orchestrator.boot:OrchestratorBootMixin._async_init_subsystems -> core.container:ServiceContainer.register_instance",
@@ -621,53 +1251,596 @@
         "closes_when": "the pair is joined by one call, or the two modules are one",
         "confidence": "measured",
         "detail": {
+          "carries_nothing": false,
           "contacts": 23,
+          "information": "unmeasured",
           "same_region": false
         },
-        "evidence": "23 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "evidence": "23 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
         "kind": "interface_used_as_internal",
         "severity": "high",
         "subject": "core.orchestrator.mixins.tool_execution:ToolExecutionMixin.execute_tool -> core.coordinators.tool_executor:ToolExecutor._record_coding_tool_event",
         "weight": 23.0
       },
       {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 22,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "22 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.brain.inference_gate:InferenceGate._build_living_mind_context -> core.container:ServiceContainer.get",
+        "weight": 22.0
+      },
+      {
+        "closes_when": "a recording shows this store being read, or the writer is removed",
         "confidence": "candidate",
         "detail": {
-          "direction": "publish_only",
-          "publishers": 2
+          "direction": "write_only",
+          "layer": "io",
+          "writers": 2
         },
-        "evidence": "2 cell(s) publish it and the scan finds no subscriber",
+        "evidence": "2 cell(s) write this store and the scan finds no reader",
+        "kind": "half_wired_channel",
+        "severity": "high",
+        "subject": ".jsonl",
+        "weight": 20.0
+      },
+      {
+        "closes_when": "a recording shows this topic being read, or the writer is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "write_only",
+          "layer": "volume",
+          "writers": 2
+        },
+        "evidence": "2 cell(s) write this topic and the scan finds no reader",
         "kind": "half_wired_channel",
         "severity": "high",
         "subject": "Emotion",
         "weight": 20.0
       },
       {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "closes_when": "a recording shows this store being read, or the writer is removed",
         "confidence": "candidate",
         "detail": {
-          "direction": "publish_only",
-          "publishers": 2
+          "direction": "write_only",
+          "layer": "io",
+          "writers": 2
         },
-        "evidence": "2 cell(s) publish it and the scan finds no subscriber",
+        "evidence": "2 cell(s) write this store and the scan finds no reader",
+        "kind": "half_wired_channel",
+        "severity": "high",
+        "subject": "LIGHT",
+        "weight": 20.0
+      },
+      {
+        "closes_when": "a recording shows this topic being read, or the writer is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "write_only",
+          "layer": "volume",
+          "writers": 2
+        },
+        "evidence": "2 cell(s) write this topic and the scan finds no reader",
         "kind": "half_wired_channel",
         "severity": "high",
         "subject": "System",
         "weight": 20.0
       },
       {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "closes_when": "a recording shows this topic being read, or the writer is removed",
         "confidence": "candidate",
         "detail": {
-          "direction": "publish_only",
-          "publishers": 2
+          "direction": "write_only",
+          "layer": "volume",
+          "writers": 2
         },
-        "evidence": "2 cell(s) publish it and the scan finds no subscriber",
+        "evidence": "2 cell(s) write this topic and the scan finds no reader",
         "kind": "half_wired_channel",
         "severity": "high",
         "subject": "Waking",
         "weight": 20.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 20,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "20 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "interface.routes.chat:_run_cognitive_engine_chat_turn -> core.runtime.errors:record_degradation",
+        "weight": 20.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 19,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "19 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.engineering.analysis.fluids:pipe_pressure_drop -> core.engineering.units:Q",
+        "weight": 19.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 19,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "19 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.phases.response_generation:ResponseGenerationPhase.execute -> core.brain.live_mind_contract:append_text_mutation",
+        "weight": 19.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 19,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "19 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "interface.routes.inner_state:get_inner_state -> core.runtime.errors:record_degradation",
+        "weight": 19.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 18,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "18 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.brain.imagination:ImaginationFrame.prompt_block -> core.brain.imagination_text:_prompt_safe",
+        "weight": 18.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 18,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "18 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.cognition.the_floor_reading_itself:_the_dispatch -> core.cognition.the_floor_she_stands_on:V",
+        "weight": 18.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 18,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "18 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "interface.routes.chat:_api_chat_turn -> interface.routes.chat_desktop_repair:_apply_aura_voice_shaping",
+        "weight": 18.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 17,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "17 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.brain.inference_gate:InferenceGate._generate_with_metadata_sink -> core.runtime.errors:record_degradation",
+        "weight": 17.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 17,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "17 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.environment.strategy.goal_seeder:seed_aura_goals -> core.environment.strategy.htn_planner:HTNPlanner.add_subtask",
+        "weight": 17.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 17,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "17 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.social.stance_inference:StanceInference.assess -> core.runtime.reconcile:ObjectMeta.bump",
+        "weight": 17.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 17,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "17 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "interface.routes.chat:_api_chat_turn -> interface.routes.chat_preflight:_complete_logged_exchange",
+        "weight": 17.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 16,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "16 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.cognition.the_proposer_she_can_replace:_the_deeper_proposer_as_written -> core.cognition.the_floor_she_stands_on:V",
+        "weight": 16.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 16,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "16 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.consciousness.system:ConsciousnessSystem.start -> core.runtime.service_registry:register_runtime_service",
+        "weight": 16.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 274826
+        },
+        "evidence": "seen firing 274826 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.connectome.volume:VolumeReconstructor._record_unit -> core.connectome.types:stable_id",
+        "weight": 274826.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 188956
+        },
+        "evidence": "seen firing 188956 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.an_invented_kind:Induced.read -> core.cognition.an_invented_kind:_both_together",
+        "weight": 188956.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 188956
+        },
+        "evidence": "seen firing 188956 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.an_invented_kind:Induced.read -> core.cognition.an_invented_kind:_the_larger",
+        "weight": 188956.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 188956
+        },
+        "evidence": "seen firing 188956 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.an_invented_kind:Induced.read -> core.cognition.an_invented_kind:_the_smaller",
+        "weight": 188956.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 133172
+        },
+        "evidence": "seen firing 133172 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.one_algebra:_undone -> core.cognition.one_algebra:_after",
+        "weight": 133172.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 127200
+        },
+        "evidence": "seen firing 127200 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.what_it_costs_to_say:what_it_means -> core.cognition.an_invented_kind:Induced.read",
+        "weight": 127200.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 90040
+        },
+        "evidence": "seen firing 90040 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.the_floor_she_stands_on:run -> core.cognition.the_floor_she_stands_on:_below",
+        "weight": 90040.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 48607
+        },
+        "evidence": "seen firing 48607 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.the_floor_she_stands_on:run -> core.cognition.the_floor_she_stands_on:_left_over",
+        "weight": 48607.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 32946
+        },
+        "evidence": "seen firing 32946 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.the_floor_she_stands_on:run -> core.cognition.the_floor_she_stands_on:_plus",
+        "weight": 32946.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 30993
+        },
+        "evidence": "seen firing 30993 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.the_floor_she_stands_on:run -> core.cognition.the_floor_she_stands_on:_minus",
+        "weight": 30993.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 29343
+        },
+        "evidence": "seen firing 29343 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.the_floor_she_stands_on:run -> core.cognition.the_floor_she_stands_on:_same",
+        "weight": 29343.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 17582
+        },
+        "evidence": "seen firing 17582 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.an_invented_kind:Induced.read -> core.cognition.an_invented_kind:_as_it_is",
+        "weight": 17582.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 13766
+        },
+        "evidence": "seen firing 13766 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.the_floor_she_stands_on:run -> core.cognition.the_floor_she_stands_on:_times",
+        "weight": 13766.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 13120
+        },
+        "evidence": "seen firing 13120 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.the_floor_she_stands_on:run -> core.cognition.the_floor_she_stands_on:_over",
+        "weight": 13120.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 12152
+        },
+        "evidence": "seen firing 12152 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.an_operation_that_generalises:Expression.__call__ -> core.cognition.an_operation_that_generalises:_difference",
+        "weight": 12152.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 11979
+        },
+        "evidence": "seen firing 11979 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.an_operation_that_generalises:Expression.__call__ -> core.cognition.an_operation_that_generalises:_how_far_apart",
+        "weight": 11979.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 11968
+        },
+        "evidence": "seen firing 11968 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.an_operation_that_generalises:Expression.__call__ -> core.cognition.an_operation_that_generalises:_sum",
+        "weight": 11968.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 11840
+        },
+        "evidence": "seen firing 11840 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.an_operation_that_generalises:Expression.__call__ -> core.cognition.an_operation_that_generalises:_product",
+        "weight": 11840.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 11768
+        },
+        "evidence": "seen firing 11768 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.resilience.unknown_failure:_KeptOntology.keep -> core.resilience.unknown_failure:Signature.to_dict",
+        "weight": 11768.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 11456
+        },
+        "evidence": "seen firing 11456 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.an_operation_that_generalises:Expression.__call__ -> core.cognition.an_operation_that_generalises:_the_larger",
+        "weight": 11456.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 11456
+        },
+        "evidence": "seen firing 11456 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.an_operation_that_generalises:Expression.__call__ -> core.cognition.an_operation_that_generalises:_the_smaller",
+        "weight": 11456.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 11392
+        },
+        "evidence": "seen firing 11392 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.an_operation_that_generalises:Expression.__call__ -> core.cognition.an_operation_that_generalises:_how_many_times",
+        "weight": 11392.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 11392
+        },
+        "evidence": "seen firing 11392 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.an_operation_that_generalises:Expression.__call__ -> core.cognition.an_operation_that_generalises:_what_is_left_over",
+        "weight": 11392.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 10032
+        },
+        "evidence": "seen firing 10032 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.connectome.synaptology:measure_multiplicity -> core.connectome.types:_Reference.get",
+        "weight": 10032.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 9600
+        },
+        "evidence": "seen firing 9600 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.cognition.what_the_old_language_cannot_say:the_bound -> core.cognition.one_algebra:Term.how_long",
+        "weight": 9600.0
       },
       {
         "closes_when": "the ratio reaches half of cortex's, by a guard being removed or by the package gaining the productive path it is missing",
@@ -748,9 +1921,9 @@
         "confidence": "measured",
         "detail": {
           "gap_degree": 30,
-          "wired_degree": 4
+          "wired_degree": 3
         },
-        "evidence": "30 shared-state neighbours against 4 call-graph neighbours",
+        "evidence": "30 shared-state neighbours against 3 call-graph neighbours",
         "kind": "unnoticed_hub",
         "severity": "medium",
         "subject": "core.cognition.cognitive_kernel:CognitiveKernel.start",
@@ -826,80 +1999,164 @@
         "weight": 23.0
       },
       {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 4,
-          "cell": "core.brain.cognitive_engine:CognitiveEngine._qualified_recurrent_direct_reply",
-          "guards": 5,
-          "inhibitory_on_initial_segment": 0,
-          "initial_segment_contacts": 19,
-          "initial_segment_share": 0.8261
-        },
-        "evidence": "19 of 23 incoming contacts land on the decision to fire, 5 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.brain.cognitive_engine:CognitiveEngine._qualified_recurrent_direct_reply",
-        "weight": 19.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 1,
-          "cell": "core.runtime.settings_control_plane:RuntimeSettingsStore._load_application_entries_locked",
-          "guards": 13,
-          "inhibitory_on_initial_segment": 0,
-          "initial_segment_contacts": 17,
-          "initial_segment_share": 0.9444
-        },
-        "evidence": "17 of 18 incoming contacts land on the decision to fire, 13 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.runtime.settings_control_plane:RuntimeSettingsStore._load_application_entries_locked",
-        "weight": 17.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 2,
-          "cell": "core.brain.cognitive_engine:CognitiveEngine._observe_compositional_semantic_shadow",
-          "guards": 3,
-          "inhibitory_on_initial_segment": 0,
-          "initial_segment_contacts": 16,
-          "initial_segment_share": 0.8889
-        },
-        "evidence": "16 of 18 incoming contacts land on the decision to fire, 3 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.brain.cognitive_engine:CognitiveEngine._observe_compositional_semantic_shadow",
-        "weight": 16.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "closes_when": "a recording shows this store being written, or the reader is removed",
         "confidence": "candidate",
         "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 3
+          "direction": "read_only",
+          "layer": "io",
+          "readers": 4
         },
-        "evidence": "3 cell(s) subscribe and the scan finds no publisher",
+        "evidence": "4 cell(s) read this store and the scan finds no writer",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "_MAX_JOURNAL_BYTES",
+        "weight": 20.0
+      },
+      {
+        "closes_when": "a recording shows this store being written, or the reader is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "read_only",
+          "layer": "io",
+          "readers": 4
+        },
+        "evidence": "4 cell(s) read this store and the scan finds no writer",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "config.json",
+        "weight": 20.0
+      },
+      {
+        "closes_when": "a recording shows this topic being written, or the reader is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "read_only",
+          "layer": "volume",
+          "readers": 3
+        },
+        "evidence": "3 cell(s) read this topic and the scan finds no writer",
         "kind": "half_wired_channel",
         "severity": "medium",
         "subject": "*",
         "weight": 15.0
       },
       {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "closes_when": "a recording shows this topic being written, or the reader is removed",
         "confidence": "candidate",
         "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 3
+          "direction": "read_only",
+          "layer": "volume",
+          "readers": 3
         },
-        "evidence": "3 cell(s) subscribe and the scan finds no publisher",
+        "evidence": "3 cell(s) read this topic and the scan finds no writer",
         "kind": "half_wired_channel",
         "severity": "medium",
         "subject": "core/security/executive_violation",
+        "weight": 15.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 15,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "15 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.brain.latent_cortex_service:LatentCortexService._receipt_contract_errors -> core.brain.llm.latent_cortex.worker_handler:config_from_job",
+        "weight": 15.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 15,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "15 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.engine:LatentCortexEngine._reason_episode -> core.brain.llm.latent_cortex.types:EpisodeReceipt.flag",
+        "weight": 15.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 15,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "15 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.cognition.the_old_language_on_the_floor:LET_UNDO -> core.cognition.the_floor_she_stands_on:V",
+        "weight": 15.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 15,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "15 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.orchestrator.mixins.boot.boot_autonomy:BootAutonomyMixin._init_salvaged_subsystems -> core.container:ServiceContainer.get",
+        "weight": 15.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 15,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "15 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.orchestrator.mixins.boot.boot_cognitive:BootCognitiveMixin._init_cognitive_architecture -> core.container:ServiceContainer.register_instance",
+        "weight": 15.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 15,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "15 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "interface.routes.chat:_api_chat_turn -> interface.routes.chat_preflight:_collect_conversation_lane_status",
+        "weight": 15.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 15,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "15 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "interface.routes.inner_state:get_inner_state -> core.container:ServiceContainer.get",
         "weight": 15.0
       },
       {
@@ -920,20 +2177,93 @@
         "weight": 14.0
       },
       {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "closes_when": "the pair is joined by one call, or the two modules are one",
         "confidence": "measured",
         "detail": {
-          "body_contacts": 3,
-          "cell": "core.runtime.settings_control_plane:RuntimeSettingsStore._load_audit_entries_locked",
-          "guards": 15,
-          "inhibitory_on_initial_segment": 2,
-          "initial_segment_contacts": 14,
-          "initial_segment_share": 0.8235
+          "carries_nothing": false,
+          "contacts": 14,
+          "information": "unmeasured",
+          "same_region": true
         },
-        "evidence": "14 of 17 incoming contacts land on the decision to fire, 15 guards",
-        "kind": "gate_dominated_cell",
+        "evidence": "14 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
         "severity": "medium",
-        "subject": "core.runtime.settings_control_plane:RuntimeSettingsStore._load_audit_entries_locked",
+        "subject": "core.brain.imagination:ImaginationEngine.imagine -> core.brain.imagination_text:_clamp",
+        "weight": 14.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 14,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "14 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.engine:LatentCortexEngine._latent_episode -> core.brain.llm.latent_cortex.verified_best:tensor_sha256",
+        "weight": 14.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 14,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "14 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.cognition.the_old_language_on_the_floor:_how_they_combine -> core.cognition.the_floor_she_stands_on:V",
+        "weight": 14.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 14,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "14 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.consciousness.heartbeat:CognitiveHeartbeat._tick -> core.container:ServiceContainer.get",
+        "weight": 14.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 14,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "14 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.orchestrator.initializers.cognitive_sensory:init_cognitive_sensory_layer -> core.container:ServiceContainer.register_instance",
+        "weight": 14.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 14,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "14 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "interface.routes.chat:_run_cognitive_engine_chat_turn -> core.conversation.response_reliability:assess_user_facing_reply",
         "weight": 14.0
       },
       {
@@ -951,6 +2281,36 @@
         "kind": "gate_dominated_cell",
         "severity": "medium",
         "subject": "core.brain.llm.latent_cortex.stop_gate:validate_stop_gate_receipt",
+        "weight": 13.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 13,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "13 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.reality_reach.digital_twin:RealityDigitalTwinGraph.status -> core.memory.db_writer_queue:SerializedDBWriter.fetchone",
+        "weight": 13.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 13,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "13 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.voice.duplex.spoken_form:to_spoken_form -> core.phenomenal_substrate.maths:sub",
         "weight": 13.0
       },
       {
@@ -984,6 +2344,126 @@
         "kind": "gate_dominated_cell",
         "severity": "medium",
         "subject": "core.brain.llm.latent_cortex.contradiction_perturber:validate_contradiction_perturbation_receipt",
+        "weight": 12.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 12,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "12 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.virtual_quanta:run_virtual_quanta -> core.brain.llm.latent_cortex.verified_best:tensor_sha256",
+        "weight": 12.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 12,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "12 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.cognition.the_floor_reading_itself:_the_dispatch -> core.cognition.the_floor_she_stands_on:IF",
+        "weight": 12.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 12,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "12 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.cognition.the_floor_reading_itself:_the_dispatch -> core.cognition.the_floor_she_stands_on:N",
+        "weight": 12.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 12,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "12 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.consciousness.evidence_engine:ConsciousnessEvidenceEngine.snapshot -> core.runtime.service_registry:get_runtime_service",
+        "weight": 12.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 12,
+          "information": "unmeasured",
+          "same_region": true
+        },
+        "evidence": "12 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.engineering.draw.sheet:compose_sheet -> core.engineering.draw.canvas:Canvas.layer",
+        "weight": 12.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 12,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "12 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.initiative_synthesis:InitiativeSynthesizer._gather_system_impulses -> core.runtime.errors:record_degradation",
+        "weight": 12.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 12,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "12 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.learning.semantic_program_floor:_list_extreme -> core.cognition.the_floor_she_stands_on:V",
+        "weight": 12.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "carries_nothing": false,
+          "contacts": 12,
+          "information": "unmeasured",
+          "same_region": false
+        },
+        "evidence": "12 call sites across a module boundary carrying unmeasured values; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "medium",
+        "subject": "core.learning.semantic_program_floor:_unique_sorted -> core.cognition.the_floor_she_stands_on:V",
         "weight": 12.0
       },
       {
@@ -1021,883 +2501,306 @@
         "weight": 10.0
       },
       {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
+        "closes_when": "a recording shows this store being read, or the writer is removed",
+        "confidence": "candidate",
         "detail": {
-          "body_contacts": 0,
-          "cell": "core.runtime.settings_control_plane:RuntimeSettingsStore._verify_state_receipt_locked",
-          "guards": 7,
-          "inhibitory_on_initial_segment": 0,
-          "initial_segment_contacts": 10,
-          "initial_segment_share": 1.0
+          "direction": "write_only",
+          "layer": "io",
+          "writers": 1
         },
-        "evidence": "10 of 10 incoming contacts land on the decision to fire, 7 guards",
-        "kind": "gate_dominated_cell",
+        "evidence": "1 cell(s) write this store and the scan finds no reader",
+        "kind": "half_wired_channel",
         "severity": "medium",
-        "subject": "core.runtime.settings_control_plane:RuntimeSettingsStore._verify_state_receipt_locked",
+        "subject": ".manifest.json",
         "weight": 10.0
       },
       {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "closes_when": "a recording shows this store being read, or the writer is removed",
         "confidence": "candidate",
         "detail": {
-          "direction": "publish_only",
-          "publishers": 1
+          "direction": "write_only",
+          "layer": "io",
+          "writers": 1
         },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "evidence": "1 cell(s) write this store and the scan finds no reader",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": ".md",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows this store being read, or the writer is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "write_only",
+          "layer": "io",
+          "writers": 1
+        },
+        "evidence": "1 cell(s) write this store and the scan finds no reader",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": ".npy",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows this store being read, or the writer is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "write_only",
+          "layer": "io",
+          "writers": 1
+        },
+        "evidence": "1 cell(s) write this store and the scan finds no reader",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": ".npz",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows this store being read, or the writer is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "write_only",
+          "layer": "io",
+          "writers": 1
+        },
+        "evidence": "1 cell(s) write this store and the scan finds no reader",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": ".quarantine",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows this store being read, or the writer is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "write_only",
+          "layer": "io",
+          "writers": 1
+        },
+        "evidence": "1 cell(s) write this store and the scan finds no reader",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": ">IIBBBBB",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows this store being read, or the writer is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "write_only",
+          "layer": "io",
+          "writers": 1
+        },
+        "evidence": "1 cell(s) write this store and the scan finds no reader",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "ALERT_LOG_PATH",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows this topic being read, or the writer is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "write_only",
+          "layer": "volume",
+          "writers": 1
+        },
+        "evidence": "1 cell(s) write this topic and the scan finds no reader",
         "kind": "half_wired_channel",
         "severity": "medium",
         "subject": "AURA",
         "weight": 10.0
       },
       {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "closes_when": "a recording shows this store being read, or the writer is removed",
         "confidence": "candidate",
         "detail": {
-          "direction": "publish_only",
-          "publishers": 1
+          "direction": "write_only",
+          "layer": "io",
+          "writers": 1
         },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "evidence": "1 cell(s) write this store and the scan finds no reader",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "BACKGROUND",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows this store being written, or the reader is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "read_only",
+          "layer": "io",
+          "readers": 2
+        },
+        "evidence": "2 cell(s) read this store and the scan finds no writer",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "BASELINE",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows this topic being read, or the writer is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "write_only",
+          "layer": "volume",
+          "writers": 1
+        },
+        "evidence": "1 cell(s) write this topic and the scan finds no reader",
         "kind": "half_wired_channel",
         "severity": "medium",
         "subject": "Browsing",
         "weight": 10.0
       },
       {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "closes_when": "a recording shows this topic being read, or the writer is removed",
         "confidence": "candidate",
         "detail": {
-          "direction": "publish_only",
-          "publishers": 1
+          "direction": "write_only",
+          "layer": "volume",
+          "writers": 1
         },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "evidence": "1 cell(s) write this topic and the scan finds no reader",
         "kind": "half_wired_channel",
         "severity": "medium",
         "subject": "Cognition",
         "weight": 10.0
       },
       {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "closes_when": "a recording shows this topic being read, or the writer is removed",
         "confidence": "candidate",
         "detail": {
-          "direction": "publish_only",
-          "publishers": 1
+          "direction": "write_only",
+          "layer": "volume",
+          "writers": 1
         },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "evidence": "1 cell(s) write this topic and the scan finds no reader",
         "kind": "half_wired_channel",
         "severity": "medium",
         "subject": "Curiosity",
         "weight": 10.0
       },
       {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "closes_when": "a recording shows this store being read, or the writer is removed",
         "confidence": "candidate",
         "detail": {
-          "direction": "publish_only",
-          "publishers": 1
+          "direction": "write_only",
+          "layer": "io",
+          "writers": 1
         },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "evidence": "1 cell(s) write this store and the scan finds no reader",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "DAEMON_PID_FILE",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows this topic being read, or the writer is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "write_only",
+          "layer": "volume",
+          "writers": 1
+        },
+        "evidence": "1 cell(s) write this topic and the scan finds no reader",
         "kind": "half_wired_channel",
         "severity": "medium",
         "subject": "Dream",
         "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "EVENT_CALIBRATION_STATUS",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "EVENT_PARTITIONED",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "Monologue",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "Orientation",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "Pedagogy",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "Reconstruction",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "Reflection",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "Senses",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "Silence",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "Sleep",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "TOPIC_VOICE_EVENT",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "action_state_runtime.admission",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "assertion_failed",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "atomspace.derived",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "aura.system.recovery",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "aura.voice.presence",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "publish_only",
-          "publishers": 1
-        },
-        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "aura/events/mind_tick",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 2
-        },
-        "evidence": "2 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "ping",
-        "weight": 10.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 1,
-          "cell": "core.brain.llm.endogenous_state:EndogenousState.from_payload",
-          "guards": 6,
-          "inhibitory_on_initial_segment": 0,
-          "initial_segment_contacts": 9,
-          "initial_segment_share": 0.9
-        },
-        "evidence": "9 of 10 incoming contacts land on the decision to fire, 6 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.brain.llm.endogenous_state:EndogenousState.from_payload",
-        "weight": 9.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 1,
-          "cell": "core.brain.llm.unified_recurrent_qualified_activation:seal_qualified_activation",
-          "guards": 2,
-          "inhibitory_on_initial_segment": 5,
-          "initial_segment_contacts": 9,
-          "initial_segment_share": 0.9
-        },
-        "evidence": "9 of 10 incoming contacts land on the decision to fire, 2 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.brain.llm.unified_recurrent_qualified_activation:seal_qualified_activation",
-        "weight": 9.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 0,
-          "cell": "core.security.integrity_guardian:IntegrityGuardian._current_source_revision",
-          "guards": 1,
-          "inhibitory_on_initial_segment": 0,
-          "initial_segment_contacts": 9,
-          "initial_segment_share": 1.0
-        },
-        "evidence": "9 of 9 incoming contacts land on the decision to fire, 1 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.security.integrity_guardian:IntegrityGuardian._current_source_revision",
-        "weight": 9.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 2,
-          "cell": "core.learning.recurrent_grpo:validate_causal_recurrent_transition_pair_receipt",
-          "guards": 7,
-          "inhibitory_on_initial_segment": 2,
-          "initial_segment_contacts": 8,
-          "initial_segment_share": 0.8
-        },
-        "evidence": "8 of 10 incoming contacts land on the decision to fire, 7 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.learning.recurrent_grpo:validate_causal_recurrent_transition_pair_receipt",
-        "weight": 8.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 1,
-          "cell": "core.learning.semantic_program_transducer:SemanticProgramTransducer.__post_init__",
-          "guards": 4,
-          "inhibitory_on_initial_segment": 2,
-          "initial_segment_contacts": 8,
-          "initial_segment_share": 0.8889
-        },
-        "evidence": "8 of 9 incoming contacts land on the decision to fire, 4 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.learning.semantic_program_transducer:SemanticProgramTransducer.__post_init__",
-        "weight": 8.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 0,
-          "cell": "core.memory.black_hole_vault:BlackHoleVault._ensure_memory_ids_locked",
-          "guards": 1,
-          "inhibitory_on_initial_segment": 0,
-          "initial_segment_contacts": 8,
-          "initial_segment_share": 1.0
-        },
-        "evidence": "8 of 8 incoming contacts land on the decision to fire, 1 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.memory.black_hole_vault:BlackHoleVault._ensure_memory_ids_locked",
-        "weight": 8.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 2,
-          "cell": "core.ops.daemon:CognitiveDaemon.start",
-          "guards": 1,
-          "inhibitory_on_initial_segment": 0,
-          "initial_segment_contacts": 8,
-          "initial_segment_share": 0.8
-        },
-        "evidence": "8 of 10 incoming contacts land on the decision to fire, 1 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.ops.daemon:CognitiveDaemon.start",
-        "weight": 8.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 0,
-          "cell": "core.brain.llm.latent_cortex.loop_core:validate_loop_core_contract",
-          "guards": 4,
-          "inhibitory_on_initial_segment": 6,
-          "initial_segment_contacts": 7,
-          "initial_segment_share": 1.0
-        },
-        "evidence": "7 of 7 incoming contacts land on the decision to fire, 4 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.brain.llm.latent_cortex.loop_core:validate_loop_core_contract",
-        "weight": 7.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 0,
-          "cell": "core.engineering.analysis.process:mass_balance",
-          "guards": 4,
-          "inhibitory_on_initial_segment": 0,
-          "initial_segment_contacts": 7,
-          "initial_segment_share": 1.0
-        },
-        "evidence": "7 of 7 incoming contacts land on the decision to fire, 4 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.engineering.analysis.process:mass_balance",
-        "weight": 7.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 0,
-          "cell": "core.brain.llm.latent_cortex.incumbent_artifact:validate_incumbent_receipt",
-          "guards": 15,
-          "inhibitory_on_initial_segment": 4,
-          "initial_segment_contacts": 6,
-          "initial_segment_share": 1.0
-        },
-        "evidence": "6 of 6 incoming contacts land on the decision to fire, 15 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.brain.llm.latent_cortex.incumbent_artifact:validate_incumbent_receipt",
-        "weight": 6.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 0,
-          "cell": "core.brain.llm.latent_cortex.recurrent_grounding:validate_recurrent_grounding_receipt",
-          "guards": 14,
-          "inhibitory_on_initial_segment": 5,
-          "initial_segment_contacts": 6,
-          "initial_segment_share": 1.0
-        },
-        "evidence": "6 of 6 incoming contacts land on the decision to fire, 14 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.brain.llm.latent_cortex.recurrent_grounding:validate_recurrent_grounding_receipt",
-        "weight": 6.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 1,
-          "cell": "core.brain.llm.latent_cortex.terminal_disposition:validate_terminal_disposition_receipt",
-          "guards": 6,
-          "inhibitory_on_initial_segment": 0,
-          "initial_segment_contacts": 6,
-          "initial_segment_share": 0.8571
-        },
-        "evidence": "6 of 7 incoming contacts land on the decision to fire, 6 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.brain.llm.latent_cortex.terminal_disposition:validate_terminal_disposition_receipt",
-        "weight": 6.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 1,
-          "cell": "core.conversation.response_reliability:repair_verbatim_repeats",
-          "guards": 2,
-          "inhibitory_on_initial_segment": 0,
-          "initial_segment_contacts": 6,
-          "initial_segment_share": 0.8571
-        },
-        "evidence": "6 of 7 incoming contacts land on the decision to fire, 2 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.conversation.response_reliability:repair_verbatim_repeats",
-        "weight": 6.0
-      },
-      {
-        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
-        "confidence": "measured",
-        "detail": {
-          "body_contacts": 0,
-          "cell": "core.learning.neural_uncertainty:NeuralUncertaintyHead.validate",
-          "guards": 7,
-          "inhibitory_on_initial_segment": 4,
-          "initial_segment_contacts": 6,
-          "initial_segment_share": 1.0
-        },
-        "evidence": "6 of 6 incoming contacts land on the decision to fire, 7 guards",
-        "kind": "gate_dominated_cell",
-        "severity": "medium",
-        "subject": "core.learning.neural_uncertainty:NeuralUncertaintyHead.validate",
-        "weight": 6.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "SensoryGate",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "action_regret",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "branch.steps",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "bridge.on_fault",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "browse",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "chat_stream",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "commit",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "controllers",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "diagnostics",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "event_bus",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "get_state",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "handle.intention_id",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "human_consent_response",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "incentive.key",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "located.control_point",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "lockdep",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "morphogenesis_runtime",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "pressure_stall",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "proposal.claim",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "search",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "shutdown",
-        "weight": 5.0
-      },
-      {
-        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
-        "confidence": "candidate",
-        "detail": {
-          "direction": "subscribe_only",
-          "subscribers": 1
-        },
-        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
-        "kind": "half_wired_channel",
-        "severity": "medium",
-        "subject": "stop",
-        "weight": 5.0
       }
     ],
     "scanned": {
-      "cells": 47950,
-      "gap_pairs": 3804,
-      "heavy_pairs_crossing_modules": 1059,
+      "cells": 48044,
+      "gap_pairs": 3795,
+      "heavy_pairs_crossing_modules": 615,
+      "observed_pairs": 7802,
+      "stores": 113,
+      "stores_read_only": 25,
+      "stores_write_only": 64,
       "topics": 120,
-      "topics_publish_only": 87,
-      "topics_subscribe_only": 26,
-      "within_over_between": 0.576
+      "topics_read_only": 26,
+      "topics_write_only": 87,
+      "within_over_between": 0.654
     },
-    "total": 114
+    "total": 214
+  },
+  "prefetch": {
+    "best": "persistent",
+    "hops": 1,
+    "rules": [
+      {
+        "f1": 0.5595,
+        "frames": 600,
+        "mean_actual": 46.76,
+        "mean_predicted": 77.3,
+        "precision": 0.44897,
+        "recall": 0.74221,
+        "rule": "connectome"
+      },
+      {
+        "f1": 0.65719,
+        "frames": 600,
+        "mean_actual": 46.76,
+        "mean_predicted": 56.48,
+        "precision": 0.60065,
+        "recall": 0.72549,
+        "rule": "connectome_weighted"
+      },
+      {
+        "f1": 0.0971,
+        "frames": 600,
+        "mean_actual": 46.76,
+        "mean_predicted": 77.0,
+        "precision": 0.07803,
+        "recall": 0.1285,
+        "rule": "frequent"
+      },
+      {
+        "f1": 0.6822,
+        "frames": 600,
+        "mean_actual": 46.76,
+        "mean_predicted": 52.3,
+        "precision": 0.64605,
+        "recall": 0.72264,
+        "rule": "persistent"
+      }
+    ],
+    "verdict": "the connectome does not beat its nulls; persistent wins"
+  },
+  "proofreading": {
+    "digest_after": "b0dccb97ff4d4124b6e22e8faf00ecc0",
+    "digest_before": "e4efd59447af2fb510ddb7f2647634e5",
+    "joins_written": 1340,
+    "observed_pairs": 7802
   },
   "reconstruction": {
     "afferent_cells": 133,
-    "bytes_read": 64340752,
-    "call_sites": 437688,
-    "calls_ambiguous": 89300,
-    "calls_out_of_volume": 209750,
-    "calls_resolved": 114280,
-    "calls_unresolved": 24358,
-    "cells": 47950,
+    "bytes_read": 64516655,
+    "call_sites": 438557,
+    "calls_ambiguous": 15874,
+    "calls_out_of_volume": 303212,
+    "calls_resolved": 99657,
+    "calls_unresolved": 19814,
+    "cells": 48044,
     "class_counts": {
-      "excitatory": 33839,
+      "excitatory": 33929,
       "glial": 529,
       "inhibitory": 8546,
-      "modulatory": 5036
+      "modulatory": 5040
     },
-    "connections": 138863,
-    "contacts": 192349,
-    "digest": "7375c6ac645f70babc7400dd9f3d56bc",
-    "drive_connections": 81066,
+    "connections": 124661,
+    "contacts": 167640,
+    "digest": "e4efd59447af2fb510ddb7f2647634e5",
+    "drive_connections": 72660,
     "efferent_cells": 293,
-    "ei_ratio": 3.9596,
-    "files_read": 3598,
-    "in_volume_coverage": 0.5014,
-    "neuropils": 3592,
+    "ei_ratio": 3.9702,
+    "files_read": 3615,
+    "in_volume_coverage": 0.7363,
+    "neuropils": 3609,
     "parse_failures": 0,
-    "return_connections": 57797,
+    "return_connections": 52001,
     "roots": [
       "core",
       "interface",
@@ -1910,27 +2813,638 @@
     "version": 1
   },
   "repo": "/Users/bryan/.aura/live-source",
+  "serial_homology": {
+    "share_spanning": 0.1288,
+    "types": 8323,
+    "types_spanning_regions": 1072,
+    "widest": [
+      {
+        "cells": 6330,
+        "example": "core.agency_core:__getattr__",
+        "region_names": [
+          "actuators",
+          "adaptation",
+          "adapters",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "agency_core",
+          "agi"
+        ],
+        "regions": 192,
+        "type": "ca32082699af87f2"
+      },
+      {
+        "cells": 1878,
+        "example": "core.capability_engine:Shell.__init__",
+        "region_names": [
+          "_local_media_generation",
+          "actuators",
+          "adaptation",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "agi",
+          "architect"
+        ],
+        "regions": 171,
+        "type": "af7788ebade8ecba"
+      },
+      {
+        "cells": 3595,
+        "example": "core.capability_engine:_humanize_skill_name",
+        "region_names": [
+          "actuation",
+          "actuators",
+          "adaptation",
+          "adapters",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "agi"
+        ],
+        "regions": 165,
+        "type": "b22bcde31cb1941c"
+      },
+      {
+        "cells": 1941,
+        "example": "core.capability_engine:CapabilityEngine.check_package",
+        "region_names": [
+          "actuation",
+          "actuators",
+          "adaptation",
+          "adapters",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "agi"
+        ],
+        "regions": 149,
+        "type": "5bc6fb081e7453e0"
+      },
+      {
+        "cells": 1319,
+        "example": "core.capability_engine:_generic_skill_invocation_patterns",
+        "region_names": [
+          "_local_media_generation",
+          "actuation",
+          "actuators",
+          "adaptation",
+          "adapters",
+          "advanced_cognition",
+          "affect",
+          "agency"
+        ],
+        "regions": 131,
+        "type": "ab220f7ec2bbf487"
+      },
+      {
+        "cells": 1248,
+        "example": "core.capability_engine:SkillMetadata.declares_its_result",
+        "region_names": [
+          "actuators",
+          "adaptation",
+          "adapters",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "agi",
+          "architect"
+        ],
+        "regions": 116,
+        "type": "e55bacfd61e7ce04"
+      },
+      {
+        "cells": 811,
+        "example": "core.capability_engine:SkillMetadata.to_json_schema",
+        "region_names": [
+          "actuation",
+          "actuators",
+          "adaptation",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "agi",
+          "architect"
+        ],
+        "regions": 116,
+        "type": "6c7d94d7b01661bc"
+      },
+      {
+        "cells": 624,
+        "example": "core.capability_engine:WebClient._is_allowed",
+        "region_names": [
+          "actuators",
+          "adaptation",
+          "adapters",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "agi",
+          "architect"
+        ],
+        "regions": 108,
+        "type": "692e0e07d30328bb"
+      },
+      {
+        "cells": 726,
+        "example": "core.capability_engine:SkillMetadata.schema_def",
+        "region_names": [
+          "actuation",
+          "actuators",
+          "adaptation",
+          "adapters",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "agi"
+        ],
+        "regions": 107,
+        "type": "6573e6b9e9bd8974"
+      },
+      {
+        "cells": 530,
+        "example": "core.capability_engine:_is_transient",
+        "region_names": [
+          "actuation",
+          "actuators",
+          "adaptation",
+          "adapters",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "architect"
+        ],
+        "regions": 104,
+        "type": "f6a7e2365e699a24"
+      },
+      {
+        "cells": 453,
+        "example": "core.constitution:ConstitutionalCore.__init__",
+        "region_names": [
+          "actuation",
+          "actuators",
+          "adaptation",
+          "adapters",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "agi"
+        ],
+        "regions": 104,
+        "type": "49c9ff58ee399003"
+      },
+      {
+        "cells": 363,
+        "example": "core.curiosity_engine:_PassiveProactiveComm.get_boredom_level",
+        "region_names": [
+          "actuators",
+          "adaptation",
+          "advanced_cognition",
+          "agency",
+          "agi",
+          "architecture_quality",
+          "audit",
+          "autonomic"
+        ],
+        "regions": 92,
+        "type": "0145d14f689beede"
+      },
+      {
+        "cells": 608,
+        "example": "core.mycelium:MycelialNetwork.get_unity_report",
+        "region_names": [
+          "actuation",
+          "adaptation",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "agi",
+          "architect",
+          "autonomy"
+        ],
+        "regions": 90,
+        "type": "e9b5efca8329df7b"
+      },
+      {
+        "cells": 344,
+        "example": "core.container:ServiceContainer._manifest_snapshot",
+        "region_names": [
+          "actuators",
+          "adaptation",
+          "adapters",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "agi",
+          "architecture_quality"
+        ],
+        "regions": 79,
+        "type": "ada6004505d7518e"
+      },
+      {
+        "cells": 344,
+        "example": "core.capability_engine:_minimal_model_payload",
+        "region_names": [
+          "actuators",
+          "adaptation",
+          "affect",
+          "agency",
+          "agi",
+          "architect",
+          "autonomy",
+          "being"
+        ],
+        "regions": 78,
+        "type": "93d6b4d92c88065f"
+      },
+      {
+        "cells": 421,
+        "example": "core.capability_engine:CapabilityEngine.maturity_backlog",
+        "region_names": [
+          "actuation",
+          "actuators",
+          "adaptation",
+          "adapters",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "agi"
+        ],
+        "regions": 76,
+        "type": "d2e1ea93827f3b1f"
+      },
+      {
+        "cells": 436,
+        "example": "core.capability_engine:CapabilityEngine._explicitly_named_skills",
+        "region_names": [
+          "adaptation",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "agi",
+          "architect",
+          "autonomic",
+          "autonomy"
+        ],
+        "regions": 74,
+        "type": "359af0a61896f956"
+      },
+      {
+        "cells": 355,
+        "example": "core.capability_engine:CapabilityEngine._user_benefit_for_execution",
+        "region_names": [
+          "actuators",
+          "adaptation",
+          "advanced_cognition",
+          "agency",
+          "agi",
+          "architect",
+          "architecture_quality",
+          "autonomic"
+        ],
+        "regions": 73,
+        "type": "14759775ec5cc31f"
+      },
+      {
+        "cells": 291,
+        "example": "core.capability_engine:CapabilityEngine._is_mention_rather_than_request",
+        "region_names": [
+          "actuators",
+          "adaptation",
+          "agency",
+          "architect",
+          "auth",
+          "autonomy",
+          "being",
+          "brain"
+        ],
+        "regions": 73,
+        "type": "62483e3cae1bf32d"
+      },
+      {
+        "cells": 213,
+        "example": "core.capability_engine:CapabilityEngine._call_method",
+        "region_names": [
+          "actuators",
+          "adaptation",
+          "adapters",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "architect",
+          "architecture_quality"
+        ],
+        "regions": 73,
+        "type": "ec3a411167de78cc"
+      }
+    ]
+  },
+  "spine": {
+    "afferent": 125,
+    "concentration": {
+      "cells_carrying_half": 9.0,
+      "top_10": 0.5425,
+      "top_100": 1.0,
+      "top_25": 0.8402,
+      "top_250": 1.0,
+      "top_50": 0.926
+    },
+    "descending_directness": {
+      "effectors": 211,
+      "effectors_over_twenty_percent": 14,
+      "fly_neck_motor_neuron_range": "0.20 to 0.60",
+      "fly_typical_motor_neuron_share": 0.07,
+      "mean_direct_share": 0.0535,
+      "median_direct_share": 0.0,
+      "most_direct": [
+        {
+          "cell": "core.runtime.secure_path_custody:DirectoryCustody._open_parent",
+          "direct_share": 1.0,
+          "incoming_contacts": 6
+        },
+        {
+          "cell": "core.runtime.process_identity:_pid_alive",
+          "direct_share": 1.0,
+          "incoming_contacts": 1
+        },
+        {
+          "cell": "security.sandbox:SecureSandbox._validate_canonical_binary",
+          "direct_share": 1.0,
+          "incoming_contacts": 1
+        },
+        {
+          "cell": "core.perception.screen_blueprint:_raw_window_list",
+          "direct_share": 1.0,
+          "incoming_contacts": 1
+        },
+        {
+          "cell": "core.runtime.subprocess_gateway:_dynamic_command_accelerator_use",
+          "direct_share": 1.0,
+          "incoming_contacts": 1
+        },
+        {
+          "cell": "core.runtime.secure_path_custody:_open_absolute_directory",
+          "direct_share": 1.0,
+          "incoming_contacts": 4
+        },
+        {
+          "cell": "core.runtime.file_write_primitives:write_all",
+          "direct_share": 1.0,
+          "incoming_contacts": 1
+        },
+        {
+          "cell": "core.runtime.secure_path_custody:DirectoryCustody.open_directory",
+          "direct_share": 1.0,
+          "incoming_contacts": 1
+        },
+        {
+          "cell": "core.runtime.secure_path_custody:DirectoryCustody._publish_temp",
+          "direct_share": 1.0,
+          "incoming_contacts": 2
+        },
+        {
+          "cell": "core.brain.llm.latent_cortex.action_state_capture:PrivateActionSnapshotStore._open_directory",
+          "direct_share": 0.5,
+          "incoming_contacts": 4
+        }
+      ],
+      "verdict": "cognition mostly reaches the world through local circuitry, as in the fly"
+    },
+    "efferent": 275,
+    "evidence": "thin: only 190 statically reachable pairs; proofread the snapshot first",
+    "graph_mean_indegree": 1.887,
+    "integration_ratio": 109.099,
+    "integrator_indegree": 205.88,
+    "mean_path": 6.784,
+    "median_path": 6.0,
+    "reachable_pairs": 190,
+    "top_cells": [
+      {
+        "cell": "core.runtime.errors:record_degradation",
+        "cell_class": "inhibitory",
+        "flow_share": 0.11416,
+        "in_degree": 3760,
+        "out_degree": 27,
+        "region": "runtime"
+      },
+      {
+        "cell": "core.runtime.receipts:ReceiptStore.emit",
+        "cell_class": "excitatory",
+        "flow_share": 0.0758,
+        "in_degree": 3,
+        "out_degree": 10,
+        "region": "runtime"
+      },
+      {
+        "cell": "core.runtime.atomic_writer:atomic_write_text",
+        "cell_class": "excitatory",
+        "flow_share": 0.05753,
+        "in_degree": 177,
+        "out_degree": 1,
+        "region": "runtime"
+      },
+      {
+        "cell": "core.container:ServiceContainer.get",
+        "cell_class": "inhibitory",
+        "flow_share": 0.04749,
+        "in_degree": 1013,
+        "out_degree": 10,
+        "region": "container"
+      },
+      {
+        "cell": "core.service_registration:_register_all_services_body",
+        "cell_class": "excitatory",
+        "flow_share": 0.04749,
+        "in_degree": 2,
+        "out_degree": 61,
+        "region": "service_registration"
+      },
+      {
+        "cell": "core.runtime.atomic_writer:atomic_write_json",
+        "cell_class": "inhibitory",
+        "flow_share": 0.04658,
+        "in_degree": 14,
+        "out_degree": 1,
+        "region": "runtime"
+      },
+      {
+        "cell": "core.resilience.degradation_repair:DegradationRepairRouter.route",
+        "cell_class": "excitatory",
+        "flow_share": 0.03836,
+        "in_degree": 1,
+        "out_degree": 3,
+        "region": "resilience"
+      },
+      {
+        "cell": "core.resilience.degradation_repair:DegradationRepairRouter._route_to_adaptive_immunity",
+        "cell_class": "modulatory",
+        "flow_share": 0.03836,
+        "in_degree": 1,
+        "out_degree": 4,
+        "region": "resilience"
+      },
+      {
+        "cell": "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem.observe_event",
+        "cell_class": "excitatory",
+        "flow_share": 0.03836,
+        "in_degree": 1,
+        "out_degree": 7,
+        "region": "adaptation"
+      },
+      {
+        "cell": "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._maybe_execute_artifact",
+        "cell_class": "excitatory",
+        "flow_share": 0.03836,
+        "in_degree": 1,
+        "out_degree": 13,
+        "region": "adaptation"
+      },
+      {
+        "cell": "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._get_service",
+        "cell_class": "excitatory",
+        "flow_share": 0.03836,
+        "in_degree": 6,
+        "out_degree": 2,
+        "region": "adaptation"
+      },
+      {
+        "cell": "core.runtime.secure_path_custody:DirectoryCustody.verify",
+        "cell_class": "inhibitory",
+        "flow_share": 0.03014,
+        "in_degree": 12,
+        "out_degree": 2,
+        "region": "runtime"
+      },
+      {
+        "cell": "core.runtime.audit_chain:AuditChain.append",
+        "cell_class": "inhibitory",
+        "flow_share": 0.02922,
+        "in_degree": 1,
+        "out_degree": 6,
+        "region": "runtime"
+      },
+      {
+        "cell": "core.runtime.secure_path_custody:DirectoryCustody.fileno",
+        "cell_class": "excitatory",
+        "flow_share": 0.02831,
+        "in_degree": 25,
+        "out_degree": 1,
+        "region": "runtime"
+      },
+      {
+        "cell": "core.providers.memory_provider:register_memory_services",
+        "cell_class": "excitatory",
+        "flow_share": 0.02374,
+        "in_degree": 1,
+        "out_degree": 9,
+        "region": "providers"
+      },
+      {
+        "cell": "core.runtime.file_write_gateway:FileWriteGateway.move_path",
+        "cell_class": "excitatory",
+        "flow_share": 0.02374,
+        "in_degree": 8,
+        "out_degree": 4,
+        "region": "runtime"
+      },
+      {
+        "cell": "core.runtime.file_write_gateway:FileWriteGateway.replace_file",
+        "cell_class": "excitatory",
+        "flow_share": 0.02374,
+        "in_degree": 2,
+        "out_degree": 4,
+        "region": "runtime"
+      },
+      {
+        "cell": "core.security.defensive_runtime:ensure_defensive_runtime_active",
+        "cell_class": "excitatory",
+        "flow_share": 0.02374,
+        "in_degree": 2,
+        "out_degree": 2,
+        "region": "security"
+      },
+      {
+        "cell": "core.security.enforcement:install_default_enforcement",
+        "cell_class": "excitatory",
+        "flow_share": 0.02374,
+        "in_degree": 6,
+        "out_degree": 7,
+        "region": "security"
+      },
+      {
+        "cell": "core.governance_context:governance_runtime_active",
+        "cell_class": "excitatory",
+        "flow_share": 0.01553,
+        "in_degree": 51,
+        "out_degree": 3,
+        "region": "governance_context"
+      },
+      {
+        "cell": "core.orchestrator.main:RobustOrchestrator.process_event",
+        "cell_class": "inhibitory",
+        "flow_share": 0.00822,
+        "in_degree": 1,
+        "out_degree": 2,
+        "region": "orchestrator"
+      },
+      {
+        "cell": "core.orchestrator.mixins.message_handling:MessageHandlingMixin._authorize_background_enqueue_sync",
+        "cell_class": "inhibitory",
+        "flow_share": 0.00822,
+        "in_degree": 3,
+        "out_degree": 5,
+        "region": "orchestrator"
+      },
+      {
+        "cell": "core.autonomy.content_fetcher:_record_fetch_degradation",
+        "cell_class": "excitatory",
+        "flow_share": 0.00731,
+        "in_degree": 11,
+        "out_degree": 1,
+        "region": "autonomy"
+      },
+      {
+        "cell": "core.capabilities.clipboard_manager:ClipboardManager.paste",
+        "cell_class": "excitatory",
+        "flow_share": 0.00731,
+        "in_degree": 3,
+        "out_degree": 2,
+        "region": "capabilities"
+      },
+      {
+        "cell": "core.constitution:get_constitutional_core",
+        "cell_class": "excitatory",
+        "flow_share": 0.00639,
+        "in_degree": 42,
+        "out_degree": 4,
+        "region": "constitution"
+      }
+    ],
+    "unreachable_pairs": 34185,
+    "verdict": "neck present: flow concentrates and the carriers integrate"
+  },
   "synaptology": {
     "compartments": {
       "by_compartment": {
-        "axon_initial_segment": 3638,
-        "dendrite": 75584
+        "axon_initial_segment": 2671,
+        "dendrite": 65868
       },
-      "excitatory_on_initial_segment": 2328,
-      "inhibitory_on_dendrite": 12140,
-      "inhibitory_on_initial_segment": 1310,
-      "total": 79222
+      "excitatory_on_initial_segment": 1388,
+      "inhibitory_on_dendrite": 11855,
+      "inhibitory_on_initial_segment": 1283,
+      "total": 68539
     },
     "excitation_inhibition": {
       "class_counts": {
-        "excitatory": 33839,
+        "excitatory": 33929,
         "glial": 529,
         "inhibitory": 8546,
-        "modulatory": 5036
+        "modulatory": 5040
       },
       "cortical_ei_ratio": 4.0352,
-      "ei_ratio": 3.9596,
-      "inhibition_excess": 1.019,
+      "ei_ratio": 3.9702,
+      "inhibition_excess": 1.016,
       "least_inhibited_regions": [
         {
           "cells": 23,
@@ -2072,44 +3586,12 @@
         "initial_segment_share": 0.9583
       },
       {
-        "body_contacts": 4,
-        "cell": "core.brain.cognitive_engine:CognitiveEngine._qualified_recurrent_direct_reply",
-        "guards": 5,
-        "inhibitory_on_initial_segment": 0,
-        "initial_segment_contacts": 19,
-        "initial_segment_share": 0.8261
-      },
-      {
-        "body_contacts": 1,
-        "cell": "core.runtime.settings_control_plane:RuntimeSettingsStore._load_application_entries_locked",
-        "guards": 13,
-        "inhibitory_on_initial_segment": 0,
-        "initial_segment_contacts": 17,
-        "initial_segment_share": 0.9444
-      },
-      {
-        "body_contacts": 2,
-        "cell": "core.brain.cognitive_engine:CognitiveEngine._observe_compositional_semantic_shadow",
-        "guards": 3,
-        "inhibitory_on_initial_segment": 0,
-        "initial_segment_contacts": 16,
-        "initial_segment_share": 0.8889
-      },
-      {
         "body_contacts": 2,
         "cell": "core.brain.llm.latent_cortex.runtime_integrity:validate_runtime_integrity_receipt",
         "guards": 37,
         "inhibitory_on_initial_segment": 7,
         "initial_segment_contacts": 14,
         "initial_segment_share": 0.875
-      },
-      {
-        "body_contacts": 3,
-        "cell": "core.runtime.settings_control_plane:RuntimeSettingsStore._load_audit_entries_locked",
-        "guards": 15,
-        "inhibitory_on_initial_segment": 2,
-        "initial_segment_contacts": 14,
-        "initial_segment_share": 0.8235
       },
       {
         "body_contacts": 2,
@@ -2144,22 +3626,6 @@
         "initial_segment_share": 0.9091
       },
       {
-        "body_contacts": 0,
-        "cell": "core.runtime.settings_control_plane:RuntimeSettingsStore._verify_state_receipt_locked",
-        "guards": 7,
-        "inhibitory_on_initial_segment": 0,
-        "initial_segment_contacts": 10,
-        "initial_segment_share": 1.0
-      },
-      {
-        "body_contacts": 1,
-        "cell": "core.brain.llm.endogenous_state:EndogenousState.from_payload",
-        "guards": 6,
-        "inhibitory_on_initial_segment": 0,
-        "initial_segment_contacts": 9,
-        "initial_segment_share": 0.9
-      },
-      {
         "body_contacts": 1,
         "cell": "core.brain.llm.unified_recurrent_qualified_activation:seal_qualified_activation",
         "guards": 2,
@@ -2168,95 +3634,122 @@
         "initial_segment_share": 0.9
       },
       {
-        "body_contacts": 0,
-        "cell": "core.security.integrity_guardian:IntegrityGuardian._current_source_revision",
-        "guards": 1,
-        "inhibitory_on_initial_segment": 0,
-        "initial_segment_contacts": 9,
-        "initial_segment_share": 1.0
-      },
-      {
         "body_contacts": 2,
         "cell": "core.learning.recurrent_grpo:validate_causal_recurrent_transition_pair_receipt",
         "guards": 7,
         "inhibitory_on_initial_segment": 2,
         "initial_segment_contacts": 8,
         "initial_segment_share": 0.8
+      },
+      {
+        "body_contacts": 2,
+        "cell": "core.ops.daemon:CognitiveDaemon.start",
+        "guards": 1,
+        "inhibitory_on_initial_segment": 0,
+        "initial_segment_contacts": 8,
+        "initial_segment_share": 0.8
+      },
+      {
+        "body_contacts": 0,
+        "cell": "core.brain.llm.latent_cortex.loop_core:validate_loop_core_contract",
+        "guards": 4,
+        "inhibitory_on_initial_segment": 6,
+        "initial_segment_contacts": 7,
+        "initial_segment_share": 1.0
+      },
+      {
+        "body_contacts": 0,
+        "cell": "core.engineering.analysis.process:mass_balance",
+        "guards": 4,
+        "inhibitory_on_initial_segment": 0,
+        "initial_segment_contacts": 7,
+        "initial_segment_share": 1.0
+      },
+      {
+        "body_contacts": 0,
+        "cell": "core.brain.llm.latent_cortex.incumbent_artifact:validate_incumbent_receipt",
+        "guards": 15,
+        "inhibitory_on_initial_segment": 4,
+        "initial_segment_contacts": 6,
+        "initial_segment_share": 1.0
+      },
+      {
+        "body_contacts": 0,
+        "cell": "core.brain.llm.latent_cortex.recurrent_grounding:validate_recurrent_grounding_receipt",
+        "guards": 14,
+        "inhibitory_on_initial_segment": 5,
+        "initial_segment_contacts": 6,
+        "initial_segment_share": 1.0
+      },
+      {
+        "body_contacts": 1,
+        "cell": "core.brain.llm.latent_cortex.terminal_disposition:validate_terminal_disposition_receipt",
+        "guards": 6,
+        "inhibitory_on_initial_segment": 0,
+        "initial_segment_contacts": 6,
+        "initial_segment_share": 0.8571
+      },
+      {
+        "body_contacts": 0,
+        "cell": "core.learning.neural_uncertainty:NeuralUncertaintyHead.validate",
+        "guards": 7,
+        "inhibitory_on_initial_segment": 4,
+        "initial_segment_contacts": 6,
+        "initial_segment_share": 1.0
       }
     ],
     "multiplicity": {
-      "contacts": 114280,
-      "four_or_more_fraction": 0.041583,
-      "heavy_excess_over_reference": 45.2,
+      "contacts": 99657,
+      "four_or_more_fraction": 0.038426,
+      "heavy_excess_over_reference": 41.77,
       "histogram": {
-        "1": 66320,
-        "10": 74,
-        "11": 59,
-        "12": 55,
-        "13": 33,
-        "14": 31,
-        "15": 24,
-        "16": 21,
-        "17": 16,
-        "18": 11,
-        "19": 10,
-        "2": 8752,
-        "20": 12,
+        "1": 60443,
+        "10": 66,
+        "11": 47,
+        "12": 49,
+        "13": 26,
+        "14": 24,
+        "15": 21,
+        "16": 20,
+        "17": 10,
+        "18": 8,
+        "19": 8,
+        "2": 7302,
+        "20": 9,
         "21": 5,
-        "22": 10,
+        "22": 6,
         "23": 10,
-        "24": 6,
-        "25": 6,
-        "26": 6,
-        "28": 5,
-        "29": 4,
-        "3": 2623,
+        "24": 4,
+        "25": 4,
+        "26": 4,
+        "28": 4,
+        "29": 3,
+        "3": 2123,
         "31": 3,
         "32": 2,
         "33": 1,
-        "34": 4,
-        "4": 1278,
-        "5": 713,
-        "6": 385,
-        "7": 269,
-        "8": 173,
-        "9": 124
+        "34": 2,
+        "4": 1040,
+        "5": 610,
+        "6": 316,
+        "7": 226,
+        "8": 152,
+        "9": 102
       },
-      "maximum": 113,
-      "mean": 1.4097,
-      "pairs": 81066,
+      "maximum": 83,
+      "mean": 1.3716,
+      "pairs": 72660,
       "reference": "H01",
       "reference_four_or_more_fraction": 0.00092,
       "reference_maximum": 50.0,
       "reference_single_fraction": 0.965,
-      "single_fraction": 0.8181
+      "single_fraction": 0.83186
     },
     "strongest": [
-      {
-        "contacts": 113,
-        "post": "core.brain.cognitive_engine:_RuntimeServiceAdapter.get",
-        "pre": "core.brain.cognitive_engine:CognitiveEngine._direct_desktop_quick_reply",
-        "same_module": true,
-        "same_region": true
-      },
       {
         "contacts": 83,
         "post": "core.brain.llm.latent_cortex.worker_handler:_typed_value",
         "pre": "core.brain.llm.latent_cortex.worker_handler:config_from_job",
-        "same_module": true,
-        "same_region": true
-      },
-      {
-        "contacts": 73,
-        "post": "core.learning.semantic_program_corpus:_AnnotatedText.append",
-        "pre": "core.learning.semantic_program_corpus:_render_sequence_cataphoric_chain",
-        "same_module": true,
-        "same_region": true
-      },
-      {
-        "contacts": 69,
-        "post": "core.learning.semantic_program_corpus:_AnnotatedText.append",
-        "pre": "core.learning.semantic_program_corpus:_render_sequence_reserved_alias_chain",
         "same_module": true,
         "same_region": true
       },
@@ -2266,41 +3759,6 @@
         "pre": "core.brain.llm.latent_cortex.engine:LatentCortexEngine._latent_episode",
         "same_module": false,
         "same_region": true
-      },
-      {
-        "contacts": 63,
-        "post": "core.learning.semantic_program_corpus:_AnnotatedText.append",
-        "pre": "core.learning.semantic_program_corpus:_render_sequence_binary_chain",
-        "same_module": true,
-        "same_region": true
-      },
-      {
-        "contacts": 59,
-        "post": "core.learning.semantic_program_corpus:_AnnotatedText.append",
-        "pre": "core.learning.semantic_program_corpus:_render_sequence_chain",
-        "same_module": true,
-        "same_region": true
-      },
-      {
-        "contacts": 55,
-        "post": "core.utils.memory_monitor:MemoryPressureSnapshot.warning",
-        "pre": "core.brain.llm.mlx_worker:_mlx_worker_loop",
-        "same_module": false,
-        "same_region": false
-      },
-      {
-        "contacts": 53,
-        "post": "core.brain.cognitive_engine:_RuntimeServiceAdapter.get",
-        "pre": "core.brain.cognitive_engine:CognitiveEngine._run_thinking_loop",
-        "same_module": true,
-        "same_region": true
-      },
-      {
-        "contacts": 50,
-        "post": "core.utils.memory_monitor:MemoryPressureSnapshot.warning",
-        "pre": "interface.routes.chat:_run_cognitive_engine_chat_turn",
-        "same_module": false,
-        "same_region": false
       },
       {
         "contacts": 45,
@@ -2336,6 +3794,672 @@
         "pre": "core.brain.llm.mlx_worker:_mlx_worker_loop",
         "same_module": true,
         "same_region": true
+      },
+      {
+        "contacts": 39,
+        "post": "core.organism.model_validation:ValidationSuite.add_claim",
+        "pre": "core.organism.model_validation:install_runtime_validation",
+        "same_module": true,
+        "same_region": true
+      },
+      {
+        "contacts": 38,
+        "post": "core.organism.model_validation:ValidationSuite.add_test",
+        "pre": "core.organism.model_validation:install_runtime_validation",
+        "same_module": true,
+        "same_region": true
+      },
+      {
+        "contacts": 35,
+        "post": "core.mycelium:MycelialNetwork.register_pathway",
+        "pre": "core.orchestrator.initializers.pathways:register_core_pathways",
+        "same_module": false,
+        "same_region": false
+      },
+      {
+        "contacts": 34,
+        "post": "core.brain.llm.mlx_worker:IPCWriterThread.put",
+        "pre": "core.brain.llm.mlx_worker:_mlx_worker_loop",
+        "same_module": true,
+        "same_region": true
+      },
+      {
+        "contacts": 34,
+        "post": "core.orchestrator.main:_record_main_degradation",
+        "pre": "core.orchestrator.main:RobustOrchestrator.start",
+        "same_module": true,
+        "same_region": true
+      },
+      {
+        "contacts": 33,
+        "post": "core.brain.llm.latent_cortex.campaign_trust:_fail",
+        "pre": "core.brain.llm.latent_cortex.campaign_trust:_validate_campaign_trust_policy_document",
+        "same_module": true,
+        "same_region": true
+      },
+      {
+        "contacts": 32,
+        "post": "core.brain.living_mind_context:LivingMindContext.omit",
+        "pre": "core.brain.inference_gate:InferenceGate._build_living_mind_context",
+        "same_module": false,
+        "same_region": true
+      },
+      {
+        "contacts": 32,
+        "post": "core.runtime.errors:record_degradation",
+        "pre": "interface.routes.system:_collect_api_health_payload",
+        "same_module": false,
+        "same_region": false
+      }
+    ]
+  },
+  "topology": {
+    "communities": 1130,
+    "edges": 71894,
+    "in_degree_fit": {
+      "alpha": 2.2506,
+      "ks": 0.0564,
+      "n": 29838.0,
+      "tail_n": 164.0,
+      "xmin": 20.0
+    },
+    "modularity": 0.8331,
+    "nodes": 38454,
+    "out_degree_fit": {
+      "alpha": 2.9115,
+      "ks": 0.0757,
+      "n": 26371.0,
+      "tail_n": 74.0,
+      "xmin": 24.0
+    },
+    "reciprocity": 0.00223,
+    "reciprocity_null": 7e-05,
+    "reciprocity_z": 37.593,
+    "rich_club": {
+      "128": 0.01449,
+      "16": 0.00383,
+      "2": 0.00014,
+      "256": 0.02381,
+      "32": 0.0106,
+      "4": 0.00032,
+      "64": 0.01572,
+      "8": 0.00105
+    },
+    "rich_club_normalised": {
+      "128": 0.2051,
+      "16": 0.7187,
+      "2": 1.0128,
+      "256": 0.5,
+      "32": 0.4926,
+      "4": 1.0183,
+      "64": 0.3614,
+      "8": 0.9473
+    },
+    "rich_club_null": {
+      "128": 0.07065,
+      "16": 0.00532,
+      "2": 0.00013,
+      "256": 0.04762,
+      "32": 0.02152,
+      "4": 0.00031,
+      "64": 0.0435,
+      "8": 0.00111
+    },
+    "significant_motifs": [
+      [
+        "030T",
+        25.647215463222302
+      ],
+      [
+        "021C",
+        -4.714951667914447
+      ]
+    ],
+    "small_world": {
+      "clustering": 0.1229,
+      "clustering_null": 0.0108,
+      "gamma": 11.3743,
+      "lambda": 1.0074,
+      "path": 4.851,
+      "path_null": 4.8152,
+      "sigma": 11.2905
+    },
+    "triad_sample": 1500,
+    "triad_z": {
+      "003": 0.0,
+      "012": 0.0,
+      "021C": -4.715,
+      "021D": -1.481,
+      "021U": 1.027,
+      "030C": 0.0,
+      "030T": 25.647,
+      "102": 0.0,
+      "111D": 1.732,
+      "111U": 0.0,
+      "120C": 0.0,
+      "120D": 0.0,
+      "120U": 0.0,
+      "201": 0.0,
+      "210": 0.0,
+      "300": 0.0
+    },
+    "triads_over_connected_triples": {
+      "003": 0,
+      "012": 0,
+      "021C": 345,
+      "021D": 488,
+      "021U": 595,
+      "030C": 1,
+      "030T": 52,
+      "102": 0,
+      "111D": 1,
+      "111U": 6,
+      "120C": 0,
+      "120D": 0,
+      "120U": 1,
+      "201": 0,
+      "210": 1,
+      "300": 0
+    }
+  },
+  "whorls": {
+    "census": [
+      {
+        "density": 0.2083,
+        "external_in": 21,
+        "external_out": 30,
+        "internal_edges": 15,
+        "members": [
+          "core.runtime.settings_control_plane:RuntimeSettingsStore._notify_subscribers",
+          "core.runtime.settings_control_plane:RuntimeSettingsStore.set",
+          "core.runtime.settings_control_plane:RuntimeSettingsStore.snapshot",
+          "core.runtime.settings_control_plane:RuntimeSettingsStore._load_audit_entries_locked",
+          "core.runtime.settings_control_plane:RuntimeSettingsStore._load_verified_snapshot_locked",
+          "core.runtime.settings_control_plane:RuntimeSettingsStore._record_application_receipt",
+          "core.runtime.settings_control_plane:RuntimeSettingsStore._commit",
+          "core.runtime.settings_control_plane:RuntimeSettingsStore._load_application_entries_locked"
+        ],
+        "size": 9
+      },
+      {
+        "density": 0.2143,
+        "external_in": 5,
+        "external_out": 19,
+        "internal_edges": 12,
+        "members": [
+          "core.state.state_repository:StateRepository._defer_proxy_commit",
+          "core.state.state_repository:StateRepository._ensure_proxy_outbox_schema",
+          "core.state.state_repository:StateRepository._commit_shutdown_snapshot_sync",
+          "core.state.state_repository:StateRepository._write_shutdown_snapshot_with_governance",
+          "core.state.state_repository:StateRepository.commit",
+          "core.state.state_repository:StateRepository._persist_pending_proxy_commit",
+          "core.state.state_repository:StateRepository._clear_pending_proxy_commit",
+          "core.state.state_repository:StateRepository._commit_shutdown_direct_snapshot"
+        ],
+        "size": 8
+      },
+      {
+        "density": 0.1786,
+        "external_in": 1,
+        "external_out": 111,
+        "internal_edges": 10,
+        "members": [
+          "core.brain.llm_health_router:HealthAwareLLMRouter.think_and_act",
+          "core.brain.llm_health_router:HealthAwareLLMRouter.generate_with_metadata",
+          "core.brain.llm_health_router:HealthAwareLLMRouter.think",
+          "core.brain.llm_health_router:HealthAwareLLMRouter.generate",
+          "core.brain.llm_health_router:HealthAwareLLMRouter._generate_with_metadata_gated",
+          "core.brain.llm_health_router:HealthAwareLLMRouter._generate_core",
+          "core.brain.llm_health_router:HealthAwareLLMRouter._call_endpoint",
+          "core.brain.llm_health_router:HealthAwareLLMRouter._think_with_generation_metadata_sink"
+        ],
+        "size": 8
+      },
+      {
+        "density": 0.2857,
+        "external_in": 2,
+        "external_out": 66,
+        "internal_edges": 12,
+        "members": [
+          "core.mind_tick:MindTick._attempt_liveness_repair",
+          "core.mind_tick:MindTick.start",
+          "core.mind_tick:MindTick._run_loop",
+          "core.mind_tick:MindTick._liveness",
+          "core.mind_tick:MindTick._install_loop_done_callback",
+          "core.mind_tick:MindTick._schedule_restart_after",
+          "core.mind_tick:MindTick.is_alive"
+        ],
+        "size": 7
+      },
+      {
+        "density": 0.3,
+        "external_in": 43,
+        "external_out": 40,
+        "internal_edges": 9,
+        "members": [
+          "core.brain.inference_gate:InferenceGate.ensure_foreground_ready",
+          "core.brain.inference_gate:InferenceGate._schedule_background_cortex_prewarm_from_status",
+          "core.brain.inference_gate:InferenceGate._schedule_background_cortex_prewarm",
+          "core.brain.inference_gate:InferenceGate.get_lane_status",
+          "core.brain.inference_gate:InferenceGate.get_conversation_status",
+          "core.brain.inference_gate:InferenceGate._await_warmup_deferral_clear"
+        ],
+        "size": 6
+      },
+      {
+        "density": 0.3,
+        "external_in": 5,
+        "external_out": 12,
+        "internal_edges": 9,
+        "members": [
+          "core.memory.memory_facade:_probe_harness_reason",
+          "core.memory.memory_facade:MemoryFacade._looks_technical_memory",
+          "core.memory.memory_facade:MemoryFacade.search",
+          "core.memory.memory_facade:MemoryFacade._extract_candidate_signature",
+          "core.memory.memory_facade:MemoryFacade._extract_candidate_path",
+          "core.memory.memory_facade:MemoryFacade._verify_memory_result"
+        ],
+        "size": 6
+      },
+      {
+        "density": 0.2667,
+        "external_in": 3,
+        "external_out": 23,
+        "internal_edges": 8,
+        "members": [
+          "core.senses.voice_engine:SovereignVoiceEngine.start_listening",
+          "core.senses.voice_engine:SovereignVoiceEngine._recover_microphone",
+          "core.senses.voice_engine:SovereignVoiceEngine._monitor_microphone_stream",
+          "core.senses.voice_engine:SovereignVoiceEngine._finish_late_mic_start",
+          "core.senses.voice_engine:SovereignVoiceEngine._schedule_microphone_recovery",
+          "core.senses.voice_engine:SovereignVoiceEngine._start_microphone_monitor"
+        ],
+        "size": 6
+      },
+      {
+        "density": 0.2667,
+        "external_in": 2,
+        "external_out": 126,
+        "internal_edges": 8,
+        "members": [
+          "core.brain.cognitive_engine:CognitiveEngine._direct_user_facing_recovery",
+          "core.brain.cognitive_engine:CognitiveEngine.think",
+          "core.brain.cognitive_engine:CognitiveEngine._run_thinking_loop",
+          "core.brain.cognitive_engine:CognitiveEngine._reactive_recovery",
+          "core.brain.cognitive_engine:CognitiveEngine._think_within_turn",
+          "core.brain.cognitive_engine:CognitiveEngine._direct_desktop_quick_reply"
+        ],
+        "size": 6
+      },
+      {
+        "density": 0.2333,
+        "external_in": 368,
+        "external_out": 11,
+        "internal_edges": 7,
+        "members": [
+          "core.utils.task_tracker:TaskTracker.track",
+          "core.runtime.task_ownership:_create_owned_asyncio_task",
+          "core.utils.task_tracker:TaskTracker._suppress_shutdown_start",
+          "core.runtime.task_ownership:create_owned_asyncio_task",
+          "core.utils.task_tracker:TaskTracker.create_task",
+          "core.runtime.task_ownership:_raw_asyncio_create_task"
+        ],
+        "size": 6
+      },
+      {
+        "density": 0.2,
+        "external_in": 18,
+        "external_out": 17,
+        "internal_edges": 6,
+        "members": [
+          "core.agency.skill_library:SkillLibrary.publish_as_tool",
+          "core.capability_engine:CapabilityEngine.reload_skills",
+          "core.capability_engine:CapabilityEngine.register_skill",
+          "core.capability_engine:CapabilityEngine._ensure_catalog_loaded",
+          "core.agency.skill_library:SkillLibrary.publish_all",
+          "core.capability_engine:CapabilityEngine._republish_runtime_macros"
+        ],
+        "size": 6
+      },
+      {
+        "density": 0.3,
+        "external_in": 1,
+        "external_out": 42,
+        "internal_edges": 6,
+        "members": [
+          "core.agency.task_commitment_verifier:TaskCommitmentVerifier._finalize_background_task",
+          "core.agency.task_commitment_verifier:TaskCommitmentVerifier._dispatch_async",
+          "core.agency.task_commitment_verifier:TaskCommitmentVerifier._dispatch_inline",
+          "core.agency.task_commitment_verifier:TaskCommitmentVerifier._retry_deferred_task",
+          "core.agency.task_commitment_verifier:TaskCommitmentVerifier.verify_and_dispatch"
+        ],
+        "size": 5
+      },
+      {
+        "density": 0.3,
+        "external_in": 11,
+        "external_out": 22,
+        "internal_edges": 6,
+        "members": [
+          "core.brain.llm.mlx_client:_safe_close_queue",
+          "core.brain.llm.mlx_client:MLXLocalClient._retire_worker_process_handle",
+          "core.brain.llm.mlx_client:MLXLocalClient._close_ipc_queues",
+          "core.brain.llm.mlx_client:MLXLocalClient.close",
+          "core.brain.llm.mlx_client:MLXLocalClient._kill_and_join_blocking"
+        ],
+        "size": 5
+      },
+      {
+        "density": 0.25,
+        "external_in": 1,
+        "external_out": 9,
+        "internal_edges": 5,
+        "members": [
+          "core.brain.llm.latent_cortex.objective_program_verifier:_BooleanParser._or",
+          "core.brain.llm.latent_cortex.objective_program_verifier:_BooleanParser._xor",
+          "core.brain.llm.latent_cortex.objective_program_verifier:_BooleanParser._and",
+          "core.brain.llm.latent_cortex.objective_program_verifier:_BooleanParser._atom",
+          "core.brain.llm.latent_cortex.objective_program_verifier:_BooleanParser._not"
+        ],
+        "size": 5
+      },
+      {
+        "density": 0.6667,
+        "external_in": 1,
+        "external_out": 29,
+        "internal_edges": 8,
+        "members": [
+          "core.cognition.the_old_language_on_the_floor:LET_OVER_AGAIN",
+          "core.cognition.the_old_language_on_the_floor:LET_UNDO",
+          "core.cognition.the_old_language_on_the_floor:_applied_at",
+          "core.cognition.the_old_language_on_the_floor:_compile"
+        ],
+        "size": 4
+      },
+      {
+        "density": 0.5,
+        "external_in": 0,
+        "external_out": 66,
+        "internal_edges": 6,
+        "members": [
+          "core.skills.desktop_task:DesktopTaskSkill._delegate_page_objective",
+          "core.skills.desktop_task:DesktopTaskSkill._execute_os_automation_escalation",
+          "core.skills.desktop_task:DesktopTaskSkill.execute",
+          "core.skills.desktop_task:DesktopTaskSkill._collect_research_context"
+        ],
+        "size": 4
+      },
+      {
+        "density": 0.5,
+        "external_in": 10,
+        "external_out": 4,
+        "internal_edges": 6,
+        "members": [
+          "core.cognition.one_algebra:_a_head_she_wrote",
+          "core.cognition.one_algebra:_apply",
+          "core.cognition.one_algebra:run",
+          "core.cognition.one_algebra:_what_a_part_says"
+        ],
+        "size": 4
+      },
+      {
+        "density": 0.5,
+        "external_in": 1,
+        "external_out": 1,
+        "internal_edges": 6,
+        "members": [
+          "core.brain.llm.latent_cortex.trial_journal:TrialJournal._read_lines",
+          "core.brain.llm.latent_cortex.trial_journal:TrialJournal._write_header",
+          "core.brain.llm.latent_cortex.trial_journal:TrialJournal._resume",
+          "core.brain.llm.latent_cortex.trial_journal:TrialJournal.open"
+        ],
+        "size": 4
+      },
+      {
+        "density": 0.5,
+        "external_in": 1,
+        "external_out": 21,
+        "internal_edges": 6,
+        "members": [
+          "core.learning.rsi_gauntlet:RSIGauntlet.run",
+          "core.learning.rsi_gauntlet:RSIGauntlet._check_autonomous_successor_engine",
+          "core.learning.rsi_gauntlet:RSIGauntlet._check_architecture_search",
+          "core.learning.rsi_gauntlet:RSIGauntlet._check_successor_lab"
+        ],
+        "size": 4
+      },
+      {
+        "density": 0.5,
+        "external_in": 8,
+        "external_out": 12,
+        "internal_edges": 6,
+        "members": [
+          "core.creativity.aesthetic_engine:AestheticEngine._refresh_state",
+          "core.creativity.aesthetic_engine:AestheticEngine.get_color_palette",
+          "core.creativity.aesthetic_engine:AestheticEngine.get_aesthetic_sensibility",
+          "core.creativity.aesthetic_engine:AestheticEngine.get_status"
+        ],
+        "size": 4
+      },
+      {
+        "density": 0.4167,
+        "external_in": 3,
+        "external_out": 7,
+        "internal_edges": 5,
+        "members": [
+          "core.consciousness.endogenous_fitness:EndogenousFitness._sample_system_state",
+          "core.consciousness.endogenous_fitness:EndogenousFitness.get_status",
+          "core.consciousness.endogenous_fitness:EndogenousFitness._get_behavioral_state_vector",
+          "core.consciousness.endogenous_fitness:EndogenousFitness.get_behavioral_preferences"
+        ],
+        "size": 4
+      }
+    ],
+    "explained": [
+      {
+        "lesion": {
+          "components_after": 991,
+          "components_before": 991,
+          "excess_reach_loss": 0.0,
+          "flow_loss": 0.0,
+          "null_flow_loss": 0.0,
+          "null_reach_loss": 0.0,
+          "null_samples": 9,
+          "reach_after": 1051,
+          "reach_before": 1051,
+          "reach_loss": 0.0,
+          "removed": [
+            "core.runtime.settings_control_plane:RuntimeSettingsStore._notify_subscribers",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore.set",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore.snapshot",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore._load_audit_entries_locked",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore._load_verified_snapshot_locked",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore._record_application_receipt",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore._commit",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore._load_application_entries_locked",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore.patch"
+          ],
+          "verdict": "no more than a cell of its degree would"
+        },
+        "whorl": {
+          "density": 0.2083,
+          "external_in": 21,
+          "external_out": 30,
+          "internal_edges": 15,
+          "members": [
+            "core.runtime.settings_control_plane:RuntimeSettingsStore._notify_subscribers",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore.set",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore.snapshot",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore._load_audit_entries_locked",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore._load_verified_snapshot_locked",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore._record_application_receipt",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore._commit",
+            "core.runtime.settings_control_plane:RuntimeSettingsStore._load_application_entries_locked"
+          ],
+          "size": 9
+        }
+      },
+      {
+        "lesion": {
+          "components_after": 991,
+          "components_before": 991,
+          "excess_reach_loss": 0.0,
+          "flow_loss": 0.0,
+          "null_flow_loss": 0.0,
+          "null_reach_loss": 0.0,
+          "null_samples": 8,
+          "reach_after": 1051,
+          "reach_before": 1051,
+          "reach_loss": 0.0,
+          "removed": [
+            "core.state.state_repository:StateRepository._defer_proxy_commit",
+            "core.state.state_repository:StateRepository._ensure_proxy_outbox_schema",
+            "core.state.state_repository:StateRepository._commit_shutdown_snapshot_sync",
+            "core.state.state_repository:StateRepository._write_shutdown_snapshot_with_governance",
+            "core.state.state_repository:StateRepository.commit",
+            "core.state.state_repository:StateRepository._persist_pending_proxy_commit",
+            "core.state.state_repository:StateRepository._clear_pending_proxy_commit",
+            "core.state.state_repository:StateRepository._commit_shutdown_direct_snapshot"
+          ],
+          "verdict": "no more than a cell of its degree would"
+        },
+        "whorl": {
+          "density": 0.2143,
+          "external_in": 5,
+          "external_out": 19,
+          "internal_edges": 12,
+          "members": [
+            "core.state.state_repository:StateRepository._defer_proxy_commit",
+            "core.state.state_repository:StateRepository._ensure_proxy_outbox_schema",
+            "core.state.state_repository:StateRepository._commit_shutdown_snapshot_sync",
+            "core.state.state_repository:StateRepository._write_shutdown_snapshot_with_governance",
+            "core.state.state_repository:StateRepository.commit",
+            "core.state.state_repository:StateRepository._persist_pending_proxy_commit",
+            "core.state.state_repository:StateRepository._clear_pending_proxy_commit",
+            "core.state.state_repository:StateRepository._commit_shutdown_direct_snapshot"
+          ],
+          "size": 8
+        }
+      },
+      {
+        "lesion": {
+          "components_after": 993,
+          "components_before": 991,
+          "excess_reach_loss": 0.0,
+          "flow_loss": 0.0,
+          "null_flow_loss": 0.0,
+          "null_reach_loss": 0.0,
+          "null_samples": 7,
+          "reach_after": 1051,
+          "reach_before": 1051,
+          "reach_loss": 0.0,
+          "removed": [
+            "core.mind_tick:MindTick._attempt_liveness_repair",
+            "core.mind_tick:MindTick.start",
+            "core.mind_tick:MindTick._run_loop",
+            "core.mind_tick:MindTick._liveness",
+            "core.mind_tick:MindTick._install_loop_done_callback",
+            "core.mind_tick:MindTick._schedule_restart_after",
+            "core.mind_tick:MindTick.is_alive"
+          ],
+          "verdict": "no more than a cell of its degree would"
+        },
+        "whorl": {
+          "density": 0.2857,
+          "external_in": 2,
+          "external_out": 66,
+          "internal_edges": 12,
+          "members": [
+            "core.mind_tick:MindTick._attempt_liveness_repair",
+            "core.mind_tick:MindTick.start",
+            "core.mind_tick:MindTick._run_loop",
+            "core.mind_tick:MindTick._liveness",
+            "core.mind_tick:MindTick._install_loop_done_callback",
+            "core.mind_tick:MindTick._schedule_restart_after",
+            "core.mind_tick:MindTick.is_alive"
+          ],
+          "size": 7
+        }
+      },
+      {
+        "lesion": {
+          "components_after": 991,
+          "components_before": 991,
+          "excess_reach_loss": 0.0,
+          "flow_loss": 0.0,
+          "null_flow_loss": 0.0,
+          "null_reach_loss": 0.0,
+          "null_samples": 6,
+          "reach_after": 1051,
+          "reach_before": 1051,
+          "reach_loss": 0.0,
+          "removed": [
+            "core.brain.inference_gate:InferenceGate.ensure_foreground_ready",
+            "core.brain.inference_gate:InferenceGate._schedule_background_cortex_prewarm_from_status",
+            "core.brain.inference_gate:InferenceGate._schedule_background_cortex_prewarm",
+            "core.brain.inference_gate:InferenceGate.get_lane_status",
+            "core.brain.inference_gate:InferenceGate.get_conversation_status",
+            "core.brain.inference_gate:InferenceGate._await_warmup_deferral_clear"
+          ],
+          "verdict": "no more than a cell of its degree would"
+        },
+        "whorl": {
+          "density": 0.3,
+          "external_in": 43,
+          "external_out": 40,
+          "internal_edges": 9,
+          "members": [
+            "core.brain.inference_gate:InferenceGate.ensure_foreground_ready",
+            "core.brain.inference_gate:InferenceGate._schedule_background_cortex_prewarm_from_status",
+            "core.brain.inference_gate:InferenceGate._schedule_background_cortex_prewarm",
+            "core.brain.inference_gate:InferenceGate.get_lane_status",
+            "core.brain.inference_gate:InferenceGate.get_conversation_status",
+            "core.brain.inference_gate:InferenceGate._await_warmup_deferral_clear"
+          ],
+          "size": 6
+        }
+      },
+      {
+        "lesion": {
+          "components_after": 995,
+          "components_before": 991,
+          "excess_reach_loss": -0.00024,
+          "flow_loss": 0.0,
+          "null_flow_loss": 0.0,
+          "null_reach_loss": 0.00024,
+          "null_samples": 8,
+          "reach_after": 1051,
+          "reach_before": 1051,
+          "reach_loss": 0.0,
+          "removed": [
+            "core.brain.llm_health_router:HealthAwareLLMRouter.think_and_act",
+            "core.brain.llm_health_router:HealthAwareLLMRouter.generate_with_metadata",
+            "core.brain.llm_health_router:HealthAwareLLMRouter.think",
+            "core.brain.llm_health_router:HealthAwareLLMRouter.generate",
+            "core.brain.llm_health_router:HealthAwareLLMRouter._generate_with_metadata_gated",
+            "core.brain.llm_health_router:HealthAwareLLMRouter._generate_core",
+            "core.brain.llm_health_router:HealthAwareLLMRouter._call_endpoint",
+            "core.brain.llm_health_router:HealthAwareLLMRouter._think_with_generation_metadata_sink"
+          ],
+          "verdict": "no more than a cell of its degree would"
+        },
+        "whorl": {
+          "density": 0.1786,
+          "external_in": 1,
+          "external_out": 111,
+          "internal_edges": 10,
+          "members": [
+            "core.brain.llm_health_router:HealthAwareLLMRouter.think_and_act",
+            "core.brain.llm_health_router:HealthAwareLLMRouter.generate_with_metadata",
+            "core.brain.llm_health_router:HealthAwareLLMRouter.think",
+            "core.brain.llm_health_router:HealthAwareLLMRouter.generate",
+            "core.brain.llm_health_router:HealthAwareLLMRouter._generate_with_metadata_gated",
+            "core.brain.llm_health_router:HealthAwareLLMRouter._generate_core",
+            "core.brain.llm_health_router:HealthAwareLLMRouter._call_endpoint",
+            "core.brain.llm_health_router:HealthAwareLLMRouter._think_with_generation_metadata_sink"
+          ],
+          "size": 8
+        }
       }
     ]
   }

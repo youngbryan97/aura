@@ -53,7 +53,11 @@ def _load_observed(path: Path) -> Any:
         pre, _, post = key.partition(">")
         observed.counts[(pre, post)] = int(count)
     observed.unresolved = int(payload.get("summary", {}).get("unresolved", 0))
-    return observed
+    # A closure carries its parent's identity on both sides, so a comprehension
+    # shows up as a cell calling itself. Those are not connections and counting
+    # them as edges the reconstruction is missing reads as thousands of split
+    # errors that are not errors.
+    return observed.without_self_pairs()
 
 
 def main() -> int:
@@ -98,6 +102,24 @@ def main() -> int:
     print(f"reconstructed in {time.time() - started:.1f}s", flush=True)
 
     observed = _load_observed(args.observed) if args.observed and args.observed.exists() else None
+
+    # Analyses that ask about paths run on the proofread map. A static
+    # reconstruction cannot see a call made through a service lookup, so the
+    # sense-to-action question answered on the raw graph is a question about the
+    # reconstruction rather than about her.
+    proofread = snapshot
+    if observed is not None:
+        from core.connectome.proofreading import repair_observed_splits
+
+        ledger = repair_observed_splits(snapshot, observed)
+        proofread = ledger.apply(snapshot)
+        report["proofreading"] = {
+            "joins_written": len(ledger),
+            "observed_pairs": len(observed.counts),
+            "digest_before": snapshot.digest(),
+            "digest_after": proofread.digest(),
+        }
+        print(f"proofread with {len(ledger)} joins", flush=True)
 
     if "synaptology" in wanted:
         from core.connectome.synaptology import (
@@ -190,14 +212,14 @@ def main() -> int:
                 conditions=tuple(manifest["conditions"]),
                 spikes=[list(map(float, row)) for row in spikes],
             )
-            report["prefetch"] = evaluate_prefetch(trace, snapshot, hops=1).as_json()
+            report["prefetch"] = evaluate_prefetch(trace, proofread, hops=1).as_json()
             print("prefetch done", flush=True)
 
     if "spine" in wanted:
         from core.connectome.spine import analyse_spine, descending_directness
 
-        report["spine"] = analyse_spine(snapshot).as_json()
-        report["spine"]["descending_directness"] = descending_directness(snapshot)
+        report["spine"] = analyse_spine(proofread).as_json()
+        report["spine"]["descending_directness"] = descending_directness(proofread)
         print("spine done", flush=True)
 
     if "likewise" in wanted and args.observed:
@@ -216,7 +238,7 @@ def main() -> int:
                 spikes=[],
                 array=np.load(matrix_path)["spikes"],
             )
-            report["likewise"] = test_like_to_like(trace, snapshot).as_json()
+            report["likewise"] = test_like_to_like(trace, proofread).as_json()
             print("like-to-like done", flush=True)
 
     if "longitudinal" in wanted and args.against and args.against.is_dir():
