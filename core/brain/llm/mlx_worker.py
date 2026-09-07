@@ -517,6 +517,21 @@ def _surface_generation_contract_enabled(job: dict[str, Any]) -> bool:
     return True
 
 
+_PROMPT_CACHE_BYPASS_FLAGS = (
+    "health_probe",
+    "strict_answer_contract",
+    "strict_value_contract",
+    "proof_evaluation_contract",
+    "operator_evidence_contract",
+)
+
+
+def _prompt_cache_bypass_reasons(job: dict[str, Any]) -> list[str]:
+    """WHICH contract bypassed the cache. A bypass with no name is unfixable."""
+
+    return [flag for flag in _PROMPT_CACHE_BYPASS_FLAGS if job.get(flag, False)]
+
+
 def _job_requires_prompt_cache_bypass(job: dict[str, Any]) -> bool:
     """Return True for jobs that must neither read nor write the prompt cache.
 
@@ -6438,6 +6453,7 @@ class _PromptCacheLRU:
         *,
         can_trim_prompt_cache: Any,
         trim_prompt_cache: Any,
+        describe: Any = None,
     ) -> tuple[list[Any] | None, list[int]]:
         result = self._search(model_key, tokens)
         # Whether prefix reuse actually happens decides whether a conversation
@@ -6494,11 +6510,38 @@ class _PromptCacheLRU:
                 )
                 return trimmed.prompt_cache, tokens[prefix:]
 
-        logger.info("🧊 [PROMPT CACHE] miss — prefilling all %d tokens.", len(tokens))
+        # A total miss was the one case with no diagnosis: the partial-hit
+        # path named the divergent block, and the case that costs a FULL
+        # prefill said only that it had happened. The trie walk already knows
+        # how far the prompt matched before it left the tree, and that number
+        # is the whole answer — a handful of tokens means something volatile
+        # sits at the front of the prompt and no conversation will ever reuse
+        # anything.
+        matched = result.common_prefix
+        divergent = ""
+        if describe is not None and matched < len(tokens):
+            try:
+                divergent = describe(tokens[matched : matched + 24])
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                divergent = "<undecodable>"
+        logger.info(
+            "🧊 [PROMPT CACHE] miss — prefilling all %d tokens; matched %d "
+            "(%.1f%%) before diverging%s",
+            len(tokens),
+            matched,
+            100.0 * matched / max(1, len(tokens)),
+            f"; divergent text begins: {divergent[:160]!r}" if divergent else "",
+        )
         return None, tokens
 
     def insert_cache(self, model_key: Any, tokens: list[int], prompt_cache: list[Any]) -> None:
         if self.max_entry_tokens > 0 and len(tokens) > self.max_entry_tokens:
+            # Silent before: a prompt too long to retain made every later turn
+            # re-prefill from zero, and nothing anywhere said so.
+            logger.info(
+                "🧊 [PROMPT CACHE] not retained: %d tokens over the %d-token "
+                "per-entry cap.", len(tokens), self.max_entry_tokens,
+            )
             return
         if model_key not in self._cache:
             self._cache[model_key] = {}
@@ -8964,6 +9007,7 @@ def _mlx_worker_loop(
                                                 tokens,
                                                 can_trim_prompt_cache=_can_trim,
                                                 trim_prompt_cache=_do_trim,
+                                                describe=getattr(tokenizer, "decode", None),
                                             )
                                         )
                                         if cache is None:
@@ -9558,6 +9602,30 @@ def _mlx_worker_loop(
                                     ):
                                         prompt_cache_lru.insert_cache(
                                             model_key, list(tokens), final_prompt_cache
+                                        )
+                                        logger.info(
+                                            "🧊 [PROMPT CACHE] retained %d tokens "
+                                            "scope=%s",
+                                            len(tokens),
+                                            _prompt_cache_scope_for_job(job),
+                                        )
+                                    elif prompt_cache_lru is not None:
+                                        # A turn that retains nothing makes the
+                                        # NEXT turn pay a full prefill, and the
+                                        # miss line on that turn cannot say why.
+                                        # Name the condition here, where it is
+                                        # still known.
+                                        logger.info(
+                                            "🧊 [PROMPT CACHE] retained nothing: "
+                                            "disabled=%s no_cache_object=%s no_tokens=%s "
+                                            "sentinel_aborted=%s scope=%s",
+                                            ",".join(
+                                                _prompt_cache_bypass_reasons(job)
+                                            ) or bool(job.get("disable_prompt_cache")),
+                                            final_prompt_cache is None,
+                                            not tokens,
+                                            sentinel_aborted,
+                                            _prompt_cache_scope_for_job(job),
                                         )
 
                                     # Interoception: distil this attempt's measurements.
