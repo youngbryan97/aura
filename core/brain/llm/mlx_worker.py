@@ -2079,10 +2079,10 @@ def _shrink_scaffold_to_context_window(
 
     def _render(candidate_messages: list[Any]) -> tuple[str, list[int]] | None:
         try:
-            from core.brain.llm.chat_format import system_first
+            from core.brain.llm.chat_format import for_this_template
 
             rendered = tokenizer.apply_chat_template(
-                system_first(candidate_messages),
+                for_this_template(tokenizer, candidate_messages),
                 tools=tools,
                 add_generation_prompt=True,
                 tokenize=False,
@@ -11739,15 +11739,23 @@ def _mlx_worker_loop(
                         severity="critical",
                     )
                     response.update(_state_application_quarantine_response(quarantine_exc))
-                except (
-                    ImportError,
-                    RuntimeError,
-                    AttributeError,
-                    TypeError,
-                    ValueError,
-                    KeyError,
-                    OSError,
-                ) as latent_exc:
+                except Exception as latent_exc:  # noqa: BLE001 — see below
+                    # Every consumed job gets a terminal answer, whatever went
+                    # wrong. This used to name seven exception types, and the
+                    # parent's future is resolved by the reply this block
+                    # writes — so an eighth type does not fail the request, it
+                    # abandons it, and the person waits until something else
+                    # gives up.
+                    #
+                    # LIVE, 2026-09-07: jinja2.TemplateError("Unexpected
+                    # message role.") is not one of the seven. A file-read
+                    # request went to the worker at 15:44:48 and had no
+                    # answer thirteen minutes later; the client had given up
+                    # at five. The same escape was found in this file on
+                    # 2026-08-19 and fixed at one site.
+                    #
+                    # tests/test_every_consumed_job_gets_an_answer.py fails if
+                    # this guard narrows again.
                     _record_mlx_degradation(
                         latent_exc,
                         action="reported latent_reason failure to parent IPC",
@@ -11787,7 +11795,11 @@ def _mlx_worker_loop(
         except KeyboardInterrupt:
             logger.info("🛑 [WORKER] Shutdown signal received; exiting quietly.")
             break
-        except (RuntimeError, TypeError, ValueError, OSError, AttributeError) as e:
+        except Exception as e:  # noqa: BLE001 — a job without an answer is worse
+            # The last guard before a job disappears. KeyboardInterrupt and
+            # SystemExit are BaseException and are handled above, so shutdown
+            # still shuts down; everything else becomes the typed error the
+            # parent is waiting for.
             _record_mlx_degradation(
                 e,
                 action="reported worker action error to parent IPC and continued request loop",

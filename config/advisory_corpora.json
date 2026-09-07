@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "note": "Every external review whose items must reach a disposition. An item is adopted, superseded, rejected with a reason, or open — and 'read' is not a disposition. Extraction is structural so a corpus cannot be counted as reviewed by asserting it was.",
+  "corpora": [
+    {
+      "id": "gap_atlas",
+      "source": "docs/gap_atlas/cards.json",
+      "adjudication": "docs/gap_atlas/adjudication.json",
+      "kind": "adjudicated_json",
+      "description": "414 cards from two external architecture reviews."
+    },
+    {
+      "id": "developmental_agency_council",
+      "source": "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_COUNCIL_ITEMS.md",
+      "adjudication": "config/advisory_dispositions.json",
+      "kind": "numbered_markdown",
+      "description": "Council responses on autonomous developmental agency."
+    },
+    {
+      "id": "interiority_council",
+      "source": "docs/evidence/INTERIORITY_COUNCIL_DOCKET.md",
+      "adjudication": "config/advisory_dispositions.json",
+      "kind": "sectioned_table",
+      "description": "Six council submissions on interiority; two run adversarially."
+    },
+    {
+      "id": "agi_gauntlet_review",
+      "source": "docs/AGI_GAUNTLET_TRACKER.md",
+      "adjudication": "config/advisory_dispositions.json",
+      "kind": "sectioned_table",
+      "description": "The D-series review findings on the gauntlet itself."
+    }
+  ]
+}

@@ -1,0 +1,327 @@
+{
+  "dispositions": {
+    "developmental_agency_council:1": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_could_do_next.py:ADevelopmentalAction \u2014 probe, budget, succeeded and undo are fields on the action itself"
+    },
+    "developmental_agency_council:10": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:THE_READINGS['redundancy'] and ['progress']; core/cognition/the_shape_of_her_library.py:how_long_the_library_is is the joint description length"
+    },
+    "developmental_agency_council:11": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:THE_READINGS['disuse']; core/cognition/an_ecology_of_words.py:what_can_be_forgotten"
+    },
+    "developmental_agency_council:12": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:THE_READINGS['nothing she has'] and ['silence'] \u2014 a family the language cannot construct for"
+    },
+    "developmental_agency_council:13": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:THE_READINGS['unevenness'] for the variance; core/cognition/the_experiment_that_settles_it.py:what_to_try is the experiment that reduces it"
+    },
+    "developmental_agency_council:14": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:THE_READINGS['slack']"
+    },
+    "developmental_agency_council:15": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:THE_READINGS['a hint of transfer']; core/cognition/what_this_reminds_her_of.py:a_fingerprint"
+    },
+    "developmental_agency_council:16": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:THE_READINGS['the slow route'] \u2014 which route spends most per answer it gives"
+    },
+    "developmental_agency_council:17": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:THE_READINGS['a flat improver']"
+    },
+    "developmental_agency_council:18": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:THE_READINGS['waste']; core/cognition/how_far_the_search_reaches.py for the denominator"
+    },
+    "developmental_agency_council:19": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:THE_READINGS['yield'] \u2014 answers per candidate, now against before"
+    },
+    "developmental_agency_council:2": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/why_it_is_not_better.py:a_cause_she_wrote \u2014 a cause is a term admitted at runtime, so the taxonomy has an open constructor"
+    },
+    "developmental_agency_council:20": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:THE_READINGS['progress'] \u2014 whether the corpus is getting shorter, not raw surprise"
+    },
+    "developmental_agency_council:21": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:a_reading_she_wrote \u2014 a fourteenth reading is an admission, not an edit"
+    },
+    "developmental_agency_council:22": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_far_the_search_reaches.py:what_the_library_buys \u2014 the same depth with L leaves against L+k, which is reach rather than cost; core/cognition/what_an_invention_buys.py measures it per admission"
+    },
+    "developmental_agency_council:23": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_sure_she_is.py:which_to_try \u2014 a sample from the Beta the counts imply, not the argmax"
+    },
+    "developmental_agency_council:24": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_expects_of_herself.py:what_she_expects then what_actually_happened; how_well_she_knows_herself is the calibration reading"
+    },
+    "developmental_agency_council:25": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_sure_she_is.py:sure_enough \u2014 the sequential version, stopping when the interval clears zero"
+    },
+    "developmental_agency_council:26": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_sure_she_is.py:enough_families_to_say \u2014 Hoeffding, n >= ln(2/delta)/(2 eps^2)"
+    },
+    "developmental_agency_council:27": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_it_is_worth_by_the_time_it_comes.py and core/cognition/what_an_act_costs_beyond_now.py \u2014 a cost now against a later gain, with the rate read off the record rather than chosen. Distinct from item 80, which is rejected."
+    },
+    "developmental_agency_council:28": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/the_shape_of_her_library.py:where_the_budget_is \u2014 the branch tax an entry adds to every later search against what admissions have measurably saved"
+    },
+    "developmental_agency_council:29": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_sure_she_is.py:how_much_to_spend_on_developing \u2014 the share follows what development returned against what answering returned, both measured. The allocation is a measured ratio rather than a bandit; the requirement it serves, a development budget set against ordinary work, holds."
+    },
+    "developmental_agency_council:3": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:AnOpportunity, the_agenda, HOW_MANY_ARE_QUEUED \u2014 an opportunity is a record and it queues"
+    },
+    "developmental_agency_council:30": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_sure_she_is.py:the_bar_right_now \u2014 a live question in front of her raises the threshold"
+    },
+    "developmental_agency_council:31": {
+      "disposition": "open",
+      "reason": "Open. Promotion evidence comes from held-out families (how_a_change_is_promoted.WHAT_A_TIER_WANTS), and nothing states that the evaluation sample must be disjoint from the trigger that raised the opportunity. Owned by L06."
+    },
+    "developmental_agency_council:32": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_a_change_is_promoted.py:WHAT_A_TIER_WANTS \u2014 five tiers, the number of families each wants derived from Hoeffding at that tier's claim size"
+    },
+    "developmental_agency_council:33": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_a_change_is_promoted.py:the_stack, put_it_back, archived"
+    },
+    "developmental_agency_council:34": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_a_change_is_promoted.py:AReceipt \u2014 after is a digest of the line before, started_by is the initiator, asked_from_outside is empty for everything she started"
+    },
+    "developmental_agency_council:35": {
+      "disposition": "open",
+      "reason": "Open. The probes are priced (ADevelopmentalAction.price, the_price_of_finding_out) and nothing orders them cheap-first within one decision. Owned by L06."
+    },
+    "developmental_agency_council:36": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_a_change_is_promoted.py \u2014 a change becomes active only after it has paid over a stretch of ordinary work, and a probe regression rolls it back; core/cognition/getting_better_at_it.py:did_keeping_it_help is the held-out arm"
+    },
+    "developmental_agency_council:37": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_a_change_is_promoted.py:nothing_installs_to_the_gate; core/cognition/what_counts_as_better.py:a_gate_inside_the_space"
+    },
+    "developmental_agency_council:38": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_expects_of_herself.py:what_she_expects \u2014 the prediction is written before the change is made, and what_actually_happened scores it"
+    },
+    "developmental_agency_council:39": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/why_it_is_not_better.py:why_it_is_not_better returns causes with what each turned out to be worth, scored by intervening"
+    },
+    "developmental_agency_council:4": {
+      "disposition": "open",
+      "reason": "Open. The four parts exist separately \u2014 she_decides_to_develop.what_it_may_spend is the budget, something_she_keeps_true.py the invariants, what_she_expects_of_herself.what_she_expects the desired change \u2014 and no single term carries them. Owned by L06."
+    },
+    "developmental_agency_council:40": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/why_it_is_not_better.py \u2014 a searched classifier over ACause terms, with a_cause_she_wrote as the constructor, replacing a switch"
+    },
+    "developmental_agency_council:41": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/why_it_is_not_better.py:spend_a_little_on_both"
+    },
+    "developmental_agency_council:42": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_expects_of_herself.py:how_long_this_will_take, held against what_actually_happened"
+    },
+    "developmental_agency_council:43": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/why_it_is_not_better.py \u2014 the bottleneck is the value of intervening, measured over rival interventions rather than by lesion alone"
+    },
+    "developmental_agency_council:44": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_this_reminds_her_of.py:a_fingerprint, how_much_they_share \u2014 retrieval by shape"
+    },
+    "developmental_agency_council:45": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_this_reminds_her_of.py:did_it_help, WHAT_HELPED_WHERE"
+    },
+    "developmental_agency_council:46": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_this_reminds_her_of.py:WHAT_HELPED_WHERE keeps the pairing only where the probe won; core/cognition/transfer_search.py finds the analogue"
+    },
+    "developmental_agency_council:47": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_this_reminds_her_of.py:what_keeps_coming_up \u2014 over the whole corpus rather than pairwise"
+    },
+    "developmental_agency_council:48": {
+      "disposition": "open",
+      "reason": "Open. specialise and recompress exist in the_shape_of_her_library.py; merging two artifacts into one does not. Owned by L06."
+    },
+    "developmental_agency_council:49": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/the_shape_of_her_library.py:specialise"
+    },
+    "developmental_agency_council:5": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_a_change_is_promoted.py \u2014 shadow, canary, active, retired; core/cognition/what_rests_on_what.py:QUARANTINED for the fifth"
+    },
+    "developmental_agency_council:50": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/the_shape_of_her_library.py:recompress; core/cognition/library_compression.py"
+    },
+    "developmental_agency_council:51": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/the_shape_of_her_library.py:where_the_budget_is with core/cognition/what_rests_on_what.py for the dependencies"
+    },
+    "developmental_agency_council:52": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/the_shape_of_her_library.py:what_the_library_costs, how_long_the_library_is \u2014 one objective over the library rather than a per-entry gate"
+    },
+    "developmental_agency_council:53": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_could_do_next.py:the_action_she_wrote admits an action from a term, and core/cognition/growing_at_any_level.py:REGISTRY makes the growing itself a term"
+    },
+    "developmental_agency_council:54": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/an_operator_she_invents.py \u2014 the operator kernel given a caller, priced by the ranking rather than fired by a rung returning nothing"
+    },
+    "developmental_agency_council:55": {
+      "disposition": "adopted",
+      "evidence": "core/autonomy/autonomous_initiative_loop.py calls what_is_worth_doing_now then she_develops_herself \u2014 the loop offers, the policy decides"
+    },
+    "developmental_agency_council:56": {
+      "disposition": "adopted",
+      "evidence": "core/agency/agency_core.py:_pathway_cognitive_loop \u2014 'Is changing herself the best thing to do right now?'"
+    },
+    "developmental_agency_council:57": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_sure_she_is.py:tell_her_the_drives \u2014 drives are told to the value and change what a change has to be worth; they never choose the work"
+    },
+    "developmental_agency_council:58": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_can_take_back.py with core/cognition/what_rests_on_what.py \u2014 a retraction's rebuild is the controller's, and re-entry into the policy is guarded in she_decides_to_develop.py"
+    },
+    "developmental_agency_council:59": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/the_proposer_she_can_replace.py \u2014 the proposer is a term she can replace, so depth is not fixed at two"
+    },
+    "developmental_agency_council:6": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/abstraction_lineage.py:Lineage for provenance; core/cognition/how_sure_she_is.py:which_to_try draws from the Beta the counts imply, which is the posterior"
+    },
+    "developmental_agency_council:60": {
+      "disposition": "open",
+      "reason": "Open as an experiment. The mechanism it would test is wired (item 55); the lesion has not been run. Owned by L06 and G09."
+    },
+    "developmental_agency_council:61": {
+      "disposition": "open",
+      "reason": "Open as an experiment. Owned by L06 and G09."
+    },
+    "developmental_agency_council:62": {
+      "disposition": "open",
+      "reason": "Open as an experiment. Owned by L06 and G09."
+    },
+    "developmental_agency_council:63": {
+      "disposition": "open",
+      "reason": "Open. core/verify/ carries lesion and influence machinery; no static check asserts the harness calls no developmental routine. Owned by Q08."
+    },
+    "developmental_agency_council:64": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/does_improving_compound.py:the_generations, Generation, against_its_null \u2014 three generations with the initiator on every receipt (how_a_change_is_promoted.AReceipt.started_by)"
+    },
+    "developmental_agency_council:65": {
+      "disposition": "open",
+      "reason": "Open as an experiment: a task with a hidden bit no search can reach. Owned by G09."
+    },
+    "developmental_agency_council:66": {
+      "disposition": "open",
+      "reason": "Open as an experiment: transfer against isomorphic, superficially similar and unrelated controls. Owned by G09."
+    },
+    "developmental_agency_council:67": {
+      "disposition": "open",
+      "reason": "Open as an experiment. Owned by G09."
+    },
+    "developmental_agency_council:68": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/growth_report.py \u2014 what the developmental machinery has done, on channels; core/cognition/language_telemetry.py carries the decay"
+    },
+    "developmental_agency_council:69": {
+      "disposition": "open",
+      "reason": "Open. Ablations exist per mechanism; no table names, row by row, what must collapse. Owned by G09."
+    },
+    "developmental_agency_council:7": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_a_change_is_promoted.py:what_it_replaced, the_stack, put_it_back; tests/test_a_change_that_can_go_back.py fails if a promotion stops carrying what it replaced"
+    },
+    "developmental_agency_council:70": {
+      "disposition": "open",
+      "reason": "Open. This is a long run rather than code. Owned by Q10."
+    },
+    "developmental_agency_council:71": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_growth_cannot_do.py names reach as the operative quantity; core/cognition/how_a_change_is_promoted.py:the_stack keeps the predecessor, which is what inclusion needs"
+    },
+    "developmental_agency_council:72": {
+      "disposition": "open",
+      "reason": "Open, as a note to write. Blum's speedup is not recorded anywhere in the tree. Owned by G13."
+    },
+    "developmental_agency_council:73": {
+      "disposition": "open",
+      "reason": "Open, as a note to write. Loeb's theorem is not recorded anywhere in the tree. Owned by G13."
+    },
+    "developmental_agency_council:74": {
+      "disposition": "open",
+      "reason": "Open, as a note to write. core/cognition/where_the_tower_has_a_top.py proves the tower ends at universality and does not state the completeness result or its lack of a useful bound. Owned by G13."
+    },
+    "developmental_agency_council:75": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/how_far_the_search_reaches.py \u2014 Levin's bound named as the reason reach, not budget, is the operative quantity"
+    },
+    "developmental_agency_council:8": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:THE_READINGS['recurrence']"
+    },
+    "developmental_agency_council:9": {
+      "disposition": "adopted",
+      "evidence": "core/cognition/what_she_notices_about_herself.py:THE_READINGS['expense'] \u2014 cost against what comparable families cost"
+    },
+    "interiority_council:L1": {
+      "disposition": "adopted",
+      "evidence": "docs/evidence/INTERIORITY_COUNCIL_DOCKET.md 'What running it found'; core/interiority/service.py records the registrar contract the boot path broke"
+    },
+    "interiority_council:L2": {
+      "disposition": "adopted",
+      "evidence": "docs/evidence/INTERIORITY_COUNCIL_DOCKET.md 'What running it found' \u2014 the affect engine's own magnitude no longer goes to the instrument channel"
+    },
+    "interiority_council:L3": {
+      "disposition": "adopted",
+      "evidence": "docs/evidence/INTERIORITY_COUNCIL_DOCKET.md 'What running it found' \u2014 the layer no longer waits on the affect engine reacting"
+    },
+    "interiority_council:L4": {
+      "disposition": "adopted",
+      "evidence": "docs/evidence/INTERIORITY_COUNCIL_DOCKET.md 'What running it found' \u2014 it runs where every turn is recorded, whichever lane produced it"
+    },
+    "interiority_council:L5": {
+      "disposition": "adopted",
+      "evidence": "docs/evidence/INTERIORITY_COUNCIL_DOCKET.md 'What running it found' \u2014 the ledger hydrates from the runtime's own active goals; bonds are deliberately not hydrated"
+    }
+  },
+  "note": "A verdict on every advisory item the corpus does not decide for itself. Adopted names what in this repository holds it. Open names the master-queue item that owns it. Rejected carries a reason. Read is not a disposition.",
+  "schema_version": 1,
+  "seed": "aura-1.0-advisory"
+}

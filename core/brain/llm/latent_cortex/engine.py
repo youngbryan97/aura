@@ -1334,11 +1334,11 @@ class LatentCortexEngine:
         if self.tokenizer is None:
             raise ValueError("no tokenizer: pass token_ids for substrate-level use")
         if messages:
-            from core.brain.llm.chat_format import system_first
+            from core.brain.llm.chat_format import for_this_template
 
             return self._validate_token_ids(
                 self.tokenizer.apply_chat_template(
-                    system_first(messages),
+                    for_this_template(self.tokenizer, messages),
                     add_generation_prompt=True,
                     tokenize=True,
                 )

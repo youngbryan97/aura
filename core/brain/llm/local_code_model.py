@@ -707,9 +707,13 @@ class LocalCodeModel:
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
+            from core.brain.llm.chat_format import for_this_template
+
             full_prompt = str(
                 _tokenizer.apply_chat_template(
-                    messages, add_generation_prompt=True, tokenize=False
+                    for_this_template(_tokenizer, messages),
+                    add_generation_prompt=True,
+                    tokenize=False,
                 )
             )
             input_tokens = len(_encode_tokens(_tokenizer, full_prompt))

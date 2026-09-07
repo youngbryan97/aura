@@ -825,8 +825,12 @@ class PostTrainingValidator:
         try:
             # Use the tokenizer's chat template if available
             if hasattr(tokenizer, "apply_chat_template"):
+                from core.brain.llm.chat_format import for_this_template
+
                 return tokenizer.apply_chat_template(
-                    messages, tokenize=False, add_generation_prompt=True,
+                    for_this_template(tokenizer, messages),
+                    tokenize=False,
+                    add_generation_prompt=True,
                 )
         except (RuntimeError, AttributeError, TypeError) as _exc:
             record_degradation('post_training_validator', _exc)

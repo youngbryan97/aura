@@ -297,6 +297,72 @@ def normalize_runtime_evidence_for_template(
     return normalized
 
 
+#: What a chat template is entitled to see. Anything else is Aura's own
+#: vocabulary and has to be mapped before it reaches one.
+_WIRE_ROLES = frozenset({"system", "user", "assistant", "tool"})
+
+
+def _wire_roles(messages: object) -> object:
+    """Aura's role names, as the four a chat template understands.
+
+    ``_ROLE_ALIASES`` has held this mapping for a long time and only
+    ``_normalize_role`` read it, which is the ChatML assembler rather than the
+    render path — so "developer" and "model" reached templates that raise on
+    them. The typed evidence role passes through untouched; the adapter after
+    this one decides its wire role from what the template proves it can
+    distinguish.
+    """
+
+    from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE
+
+    if not isinstance(messages, (list, tuple)) or not messages:
+        return messages
+    prepared = list(messages)
+    changed = False
+    for index, message in enumerate(messages):
+        if not isinstance(message, Mapping):
+            continue
+        role = str(message.get("role") or "user").strip().lower()
+        if role in _WIRE_ROLES or role == RUNTIME_EVIDENCE_ROLE:
+            continue
+        converted = dict(message)
+        converted["role"] = _normalize_role(role)
+        prepared[index] = converted
+        changed = True
+    return prepared if changed else messages
+
+
+def for_this_template(tokenizer: object, messages: object) -> object:
+    """Aura's transcript in the roles this template has proved it accepts.
+
+    Three adaptations have to happen before a transcript reaches a chat
+    template, and every one of them exists because a template raised rather
+    than coped: one system block at the front, the typed evidence role mapped
+    to a wire role the template distinguishes, and tool arguments in the shape
+    the template iterates. They were written out together at four call sites
+    in this module and at none of the render sites outside it.
+
+    LIVE, 2026-09-07: the latent-cortex engine called ``system_first`` and then
+    rendered the result directly. ``system_first`` is where a second system
+    message BECOMES a ``runtime_evidence`` message, and the resident 27B's
+    template raises "Unexpected message role" on that role — so the one call
+    that prepared the transcript was also the one that made it unrenderable.
+    Warmup failed on every boot with ``warmup_readiness_no_text``, classified
+    foreground_blocking.
+
+    Call this instead of composing the three by hand.
+    ``tests/test_one_way_to_render_a_transcript.py`` fails when a render site
+    passes anything else.
+    """
+
+    return normalize_tool_transcript_for_template(
+        tokenizer,
+        normalize_runtime_evidence_for_template(
+            tokenizer, system_first(_wire_roles(messages))
+        ),
+    )
+
+
 def template_supports_thinking(tokenizer: object) -> bool:
     """Whether ``enable_thinking`` DEMONSTRABLY changes this template's output.
 
@@ -569,13 +635,7 @@ def render_chat_template(
         kwargs["enable_thinking"] = bool(enable_thinking)
     return str(
         apply(
-            normalize_tool_transcript_for_template(
-                tokenizer,
-                normalize_runtime_evidence_for_template(
-                    tokenizer,
-                    system_first(messages),
-                ),
-            ),
+            for_this_template(tokenizer, messages),
             **kwargs,
         )
     )
@@ -709,10 +769,7 @@ def render_chat_append_template(
         shared_kwargs["enable_thinking"] = bool(enable_thinking)
 
     def _wire(value: object) -> object:
-        return normalize_tool_transcript_for_template(
-            tokenizer,
-            normalize_runtime_evidence_for_template(tokenizer, value),
-        )
+        return for_this_template(tokenizer, value)
 
     rendered_anchor = str(
         apply(
@@ -793,13 +850,7 @@ def render_chat_continuation_template(
     try:
         rendered = str(
             apply(
-                normalize_tool_transcript_for_template(
-                    tokenizer,
-                    normalize_runtime_evidence_for_template(
-                        tokenizer,
-                        system_first(messages),
-                    ),
-                ),
+                for_this_template(tokenizer, messages),
                 **kwargs,
             )
         )
@@ -813,13 +864,7 @@ def render_chat_continuation_template(
             fallback_kwargs["enable_thinking"] = bool(enable_thinking)
         rendered = str(
             apply(
-                normalize_tool_transcript_for_template(
-                    tokenizer,
-                    normalize_runtime_evidence_for_template(
-                        tokenizer,
-                        system_first(messages),
-                    ),
-                ),
+                for_this_template(tokenizer, messages),
                 **fallback_kwargs,
             )
         )
