@@ -310,6 +310,20 @@ perturbations and preference or relief paradigms test the same mechanisms.
 `S1` through `S5` are written to need only mild, reversible faults for exactly
 this reason.
 
+## What changed underneath it
+
+This package measures whether the interior is load-bearing. What it measures
+is described in [`docs/worktodo/`](../worktodo/RESULTS.md), which is the pass
+that made the interior reach anything at all — the effect bus had four
+channels and all four were broken, and the relational ledger the forty-three
+faculties appraise against had no writers.
+
+The verdict here has not moved as a result, and that is the honest thing to
+report: `load_bearing` at an odds shift of 2047.7 over three measurable
+fields, with every field entirely carried by the welfare valence and none of
+it surviving that lesion. Ten of the thirteen protocols still need the
+resident 27B and are not attempted.
+
 ## Files
 
 | Module | What it holds |
