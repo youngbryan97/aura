@@ -416,6 +416,37 @@ test.
   regression branching ratio rather than the per-tick mean, and publishes the
   difference between them as `subsampling_bias`.
 
+## What is wired, and what is not
+
+This package finds channels with a writer and no reader. Applying that to itself:
+
+**Wired to something that runs.**
+`criticality` drives the branching estimate in
+`core/consciousness/criticality_regulator.py`, which sets gain, noise and the
+E/I target through a PID.
+`laminar` decides whether a draft competition in
+`core/consciousness/multiple_drafts.py` produced a decision or a coin landing.
+`integration` publishes eight telemetry channels and a health fragment.
+`invariants` runs in the structural verifier.
+Everything else in the package is reached by `tools/connectome_report.py` and
+the four make targets.
+
+**Available and not yet called by anything that runs.**
+`neuromodulation` needs a caller holding modulator levels, and the honest
+version of that wiring is an interventional fit — set the level, record, set it
+again — which needs a controller that does not exist yet. Ships with the
+grading that refuses a causal claim from observational data, so it cannot be
+misused before then.
+`gating` needs a live state to gate on. It is exercised against the
+reconstruction and reports whether a state change rerouted anything, which is
+the check that has to exist before the mechanism is worth wiring.
+`prefetch.warm` has an evaluation and no caller: the measurement says the
+connectome rule loses to persistence at this frame rate, so wiring it would be
+wiring the worse rule.
+
+Each of those is a channel with a writer and no reader, by this package's own
+definition, and naming them is the alternative to discovering them later.
+
 ## Sources
 
 - Shapson-Coe et al., *A petavoxel fragment of human cerebral cortex

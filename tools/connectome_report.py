@@ -29,6 +29,7 @@ SECTIONS = (
     "layers",
     "likewise",
     "stereotypy",
+    "longitudinal",
     "pathology",
     "prefetch",
     "synaptology",
@@ -60,6 +61,12 @@ def main() -> int:
     parser.add_argument("--sections", default="all", help="comma-separated, or 'all'")
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "connectome")
     parser.add_argument("--observed", type=Path, default=None)
+    parser.add_argument(
+        "--against",
+        type=Path,
+        default=None,
+        help="another checkout of the same system, for the longitudinal sections",
+    )
     parser.add_argument("--nulls", type=int, default=4)
     parser.add_argument("--triad-sample", type=int, default=1500)
     parser.add_argument("--roots", default="core,interface,skills,security,llm,executors")
@@ -211,6 +218,34 @@ def main() -> int:
             )
             report["likewise"] = test_like_to_like(trace, snapshot).as_json()
             print("like-to-like done", flush=True)
+
+    if "longitudinal" in wanted and args.against and args.against.is_dir():
+        from core.connectome.celltypes import stereotypy
+        from core.connectome.longitudinal import (
+            align_by_connectivity,
+            build_template,
+            drift_against,
+            projection_matrix,
+        )
+
+        other = VolumeReconstructor(args.against)
+        other.scan()
+        earlier = other.build()
+        template = build_template([earlier, snapshot])
+        report["longitudinal"] = {
+            "against": str(args.against),
+            "earlier": earlier.summary(),
+            "template": template.summary(),
+            "drift": drift_against(template, snapshot),
+            "alignment": align_by_connectivity(earlier, snapshot),
+            "stereotypy": stereotypy(earlier, snapshot),
+            "projection": projection_matrix(snapshot),
+        }
+        print("longitudinal done", flush=True)
+    elif "longitudinal" in wanted:
+        report["longitudinal"] = {
+            "skipped": "no --against checkout given, so there is one timepoint"
+        }
 
     if "stereotypy" in wanted:
         from core.connectome.celltypes import refine_types, serial_homology
