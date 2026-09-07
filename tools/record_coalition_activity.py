@@ -121,18 +121,34 @@ def _probe_module(name: str, budget: float) -> dict[str, Any]:
             continue
         if getattr(value, "__module__", None) != name:
             continue
-        try:
-            signature = inspect.signature(value)
-        except (TypeError, ValueError):
-            continue
-        if any(
-            parameter.default is inspect.Parameter.empty
-            and parameter.kind
-            in (parameter.POSITIONAL_ONLY, parameter.POSITIONAL_OR_KEYWORD)
-            for parameter in signature.parameters.values()
-        ):
+        if inspect.isclass(value) or not _is_probeable(value):
             continue
         probes.append(value)
+
+    # Some stations put their whole surface on classes and define no module-level
+    # reader at all. Every workspace module is like that, and without this the
+    # workspace station made zero calls across six rounds while its twelve
+    # modules imported cleanly — which read as a station that does nothing and
+    # was a station nothing asked.
+    for attribute in sorted(dir(module)):
+        value = getattr(module, attribute, None)
+        if not inspect.isclass(value) or getattr(value, "__module__", None) != name:
+            continue
+        if not _is_probeable(value):
+            continue
+        try:
+            instance = value()
+        except BaseException:  # noqa: BLE001 - a class that will not build is skipped
+            outcome["failed"] += 1
+            continue
+        for member in sorted(dir(instance)):
+            if not (member.startswith(_READ_PREFIXES) or member in _READ_METHODS):
+                continue
+            bound = getattr(instance, member, None)
+            if not callable(bound) or not _is_probeable(bound):
+                continue
+            probes.append(bound)
+
     if not probes:
         return outcome
     outcome["probes"] = len(probes)
