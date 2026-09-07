@@ -35,6 +35,7 @@ other, and it is the honest cost of the decision rather than a hidden one.
 | "You treat me well and I'll treat you well" | direct reciprocity under the shadow of the future | `core/social/reciprocity_engine.py` |
 | Kindness, empathy | coupled affect with a path back to your own state | `core/affect/empathic_coupling.py` |
 | Taking pleasure in beauty | an aesthetic response as a fact about the observer | `core/perception/aesthetic_response.py` |
+| Being sociable | a belonging need and a capacity, which move independently | `core/social/social_stamina.py` |
 
 ## What each one actually claims
 
@@ -137,10 +138,37 @@ Eysenck's product rates it at 0.23 — they disagree hardest on exactly the case
 the objection to Birkhoff was about, so both are returned. Freezing the
 observer's history removes the habituation entirely.
 
+**Social stamina.** Added last, after a prior treatment of the same list was
+read. Sociability is usually one number, and one number cannot hold wanting to
+see somebody and not having it in you. Belonging is a need that relaxes toward
+met in company and toward unmet alone, on one time constant in both directions
+— scaling them differently is how the first draft made someone lonelier the
+more evenings they spent out. Stamina is a capacity, and the share of time in
+company that holds it is `recovery / (drain + recovery)`, which is the balance
+point rather than a choice. Running to empty costs more than the same deficit
+taken gradually, which is what makes exhaustion a state rather than a low
+reading.
+
+## Advising a decision, without becoming one
+
+`weigh()` asks the group what it makes of each candidate action and returns
+the contributions with their sources. It is deliberately not a decision:
+`UnifiedWill.decide` is the only authority on whether an action may happen,
+and this adds no second one.
+
+The first draft of it averaged the contributions and produced a number. That
+does not refuse to weight the organs — it weights every one of them at one and
+lets whichever uses the largest units decide, and a candidate that hummed for
+forty seconds beat everything else on the strength of the unit. Contributions
+now carry their unit, there is no total, and `rank` requires a commensuration
+the caller supplies and raises when an organ that contributed has no weight. A
+missing weight silently read as zero is a decision to ignore an organ, made by
+nobody.
+
 ## How they are reachable
 
-Fourteen container registrations that all resolve. A boot activator beside
-conation's, in `core/runtime/foundations.py`. Twenty-six declared telemetry
+Fifteen container registrations that all resolve. A boot activator beside
+conation's, in `core/runtime/foundations.py`. Twenty-eight declared telemetry
 channels in the `0x1700` block. Five invariants. A section on the live mind
 snapshot, read through the container rather than by import, so an organ that
 failed to load reports absent instead of taking the turn with it.
@@ -154,6 +182,7 @@ five that can be detected are named there:
 * a state that is mostly not its own
 * nothing accepted and nothing learned about anyone
 * an identity declared with nothing enacting it
+* wanting company with nothing left to spend on it
 
 ## Defects found while building
 
@@ -197,6 +226,64 @@ wrong input.
 so a test that drove one into a failure state left it there, and the
 telemetry dictionary kept the last sample even after the organ reset. Eight
 consecutive randomised runs pass now.
+
+## Against a prior treatment of the same list
+
+Two documents were held back until this was built and pushed, so the design
+could not be fitted to them. Read afterwards, one contains a prior pass over
+the same fourteen items and the other a 21-phenomenon engine.
+
+Eleven of fourteen landed on the same mathematical family independently:
+Kuramoto for identity, van der Pol for expression, constrained welfare for
+care, Bayesian inference for receptivity, replicator dynamics for the colour,
+information gain for exploration, a quality manifold for craft, compression
+progress for creativity, Spence for the gift, iterated reciprocity, Laplacian
+diffusion for empathy, and Birkhoff with Berlyne for beauty. The gift
+signalling arrived at the identical closed form, `e*(q) = (a/2)(q² − q_min²)`.
+Convergence on that scale is worth more than either pass alone, because
+neither could have copied the other.
+
+Three came out differently, and in each case the difference is the same one.
+
+**Dual-process arbitration.** The prior pass makes affect dominance a sigmoid
+of relational stakes with two fitted constants, so affect wins at high stakes
+whether or not it is right, and the model cannot discover a domain where it is
+wrong. Here the weight is a Brier skill score measured per domain, with no
+prior preference and an abstention when neither channel has been measured.
+
+**Empathy.** The prior pass runs `dx/dt = −Lx + u(t)` — pure diffusion, which
+converges to consensus. Here the self-anchor term is the whole content, and
+without it the carer's own state is gone. That is the disagreement that
+matters most, because the undamped version looks healthier on every reading it
+produces.
+
+**Craft.** The prior pass uses gradient descent with momentum on the quality
+surface, which presumes access to `∇Q` for a function nobody can see. Here it
+is simultaneous perturbation, which needs only two evaluations and no
+gradient — the situation a person learning a material is actually in.
+
+The larger difference is not in any one item. The 21-phenomenon engine sums
+every contribution into one utility with roughly sixty hand-set coefficients:
+`0.35 + 0.65 * efficacy`, `0.45 * learned + 0.35 * identity + 0.20 *
+aesthetic`, and so on. Those numbers decide the answers and nothing measures
+them. The discipline here is the opposite one — a threshold derived from a
+median absolute deviation, a forgiveness rate that is the largest
+non-exploitable one, an evidence asymmetry that falls out of two likelihoods,
+a duty cycle that is a balance point. Where a weighting genuinely cannot be
+derived, the code refuses to supply one: `rank` raises, and
+`prospect_refuge.rank` has no default.
+
+That refusal was not free. The first draft of `weigh` averaged its
+contributions, which is the same fault wearing a different face — every organ
+weighted at one, and the largest unit deciding.
+
+One thing the prior pass has that this did not: a shared loop where the
+phenomena compete for one action. `weigh` closes that, as an advisory reading
+rather than a second authority. One item it has that this lacked entirely is
+sociability as a capacity, now built. One it has that this deliberately does
+not is a spiritual register — the buildable part of it is a symbol whose
+meaning is endorsed rather than true, which `core/social/conventions.py`
+already holds, and the rest is not a modelling question.
 
 ## What is not claimed
 

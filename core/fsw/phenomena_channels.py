@@ -52,6 +52,8 @@ CHANNEL_AUTONOMY = "empathy.autonomy"
 CHANNEL_MERGED = "empathy.merged"
 CHANNEL_PLEASURE = "aesthetic.pleasure"
 CHANNEL_MARKERS = "conventions.arbitrary_markers"
+CHANNEL_STAMINA = "sociability.stamina"
+CHANNEL_BELONGING = "sociability.belonging"
 
 EVENT_IDENTITY_UNSUPPORTED = "identity.declared_without_practice"
 EVENT_CARE_REFUSED = "care.refused_for_floor"
@@ -113,6 +115,20 @@ def declare() -> list[str]:
             # there is no absolute amount that means anything, and a limit at
             # zero would fire on a healthy system because the comparison is
             # inclusive. The condition lives on its own channel below.
+        ),
+        dict(
+            identifier=0x1716, name=CHANNEL_STAMINA, unit="fraction",
+            description="capacity remaining for company",
+            owner="core/social/social_stamina.py",
+            # Empty is a state rather than a low reading: recovery from it
+            # runs slower than recovery from nearly empty, so the schedule
+            # that produced it costs more than the deficit suggests.
+            yellow_low=0.20, red_low=0.0,
+        ),
+        dict(
+            identifier=0x1717, name=CHANNEL_BELONGING, unit="fraction",
+            description="unmet need for company",
+            owner="core/social/social_stamina.py",
         ),
         dict(
             identifier=0x1715, name=CHANNEL_CARE_DEPLETED, unit="bool",
@@ -275,7 +291,7 @@ def channel_names() -> list[str]:
         CHANNEL_AFFECT_LED, CHANNEL_ASYMMETRY, CHANNEL_IMPROVEMENT,
         CHANNEL_NOVELTY_VALUE, CHANNEL_PREMIUM, CHANNEL_INFORMATIVE,
         CHANNEL_CONTINUATION, CHANNEL_AUTONOMY, CHANNEL_MERGED,
-        CHANNEL_PLEASURE, CHANNEL_MARKERS,
+        CHANNEL_PLEASURE, CHANNEL_MARKERS, CHANNEL_STAMINA, CHANNEL_BELONGING,
     ]
 
 

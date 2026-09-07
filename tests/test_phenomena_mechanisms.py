@@ -878,3 +878,87 @@ def test_the_same_object_scores_differently_to_two_observers():
     for _ in range(4):
         steeped.look("family", b"ABCABDABCABF" * 16)
     assert fresh.consider("x", stimulus).novelty > steeped.consider("x", stimulus).novelty
+
+
+# ---------------------------------------------------------------------------
+# 15. Wanting company against being able to sustain it
+
+
+def test_the_duty_cycle_is_derived_from_the_two_rates():
+    from core.social.social_stamina import SocialStamina, sustainable_hours_per_week
+
+    assert sustainable_hours_per_week(1 / 6, 1 / 12) == pytest.approx(56.0)
+    assert sustainable_hours_per_week(1 / 12, 1 / 6) == pytest.approx(112.0)
+    stamina = SocialStamina(drain_per_s=2.0, recovery_per_s=1.0)
+    assert stamina.sustainable_share() == pytest.approx(1 / 3)
+
+
+def test_where_belonging_settles_follows_the_share_of_time_in_company():
+    """One time constant in both directions, or more company means lonelier."""
+    from core.social.social_stamina import SocialStamina
+
+    hour = 3600.0
+    settled = []
+    for hours in (1, 4, 8, 12, 18):
+        stamina = SocialStamina(
+            drain_per_s=1 / (40 * hour), recovery_per_s=1 / (8 * hour),
+            belonging_per_s=1 / (2 * 86400.0),
+        )
+        moment = 0.0
+        for _ in range(30):
+            stamina.spend(hours * hour, at=moment)
+            moment += hours * hour
+            stamina.rest((24 - hours) * hour, at=moment)
+            moment += (24 - hours) * hour
+        settled.append(stamina.belonging)
+    assert settled == sorted(settled, reverse=True), f"more company, not less need: {settled}"
+
+
+def test_exhaustion_costs_more_than_the_deficit_suggests():
+    from core.social.social_stamina import SocialStamina
+
+    hour = 3600.0
+    emptied = SocialStamina(drain_per_s=1 / (2 * hour), recovery_per_s=1 / (8 * hour))
+    emptied.spend(2 * hour)
+    nearly = SocialStamina(drain_per_s=1 / (2 * hour), recovery_per_s=1 / (8 * hour))
+    nearly.spend(1.9 * hour)
+    assert emptied.stamina == pytest.approx(0.0)
+    # Twenty times the remaining deficit, and more than twice the recovery.
+    assert emptied.recovery_time() > 2.0 * nearly.recovery_time()
+
+
+def test_wanting_company_and_having_nothing_left_is_a_readable_state():
+    """The case a single sociability number cannot hold."""
+    from core.social.social_stamina import SocialStamina
+
+    hour = 3600.0
+    stamina = SocialStamina(
+        drain_per_s=1 / (6 * hour), recovery_per_s=1 / (40 * hour),
+        belonging_per_s=1 / (4 * 86400.0),
+    )
+    moment = 0.0
+    fired = False
+    for _ in range(9):
+        stamina.rest(16 * hour, at=moment)
+        moment += 16 * hour
+        stamina.spend(8 * hour, with_person="the office", at=moment)
+        moment += 8 * hour
+        fired = fired or stamina.read(at=moment).wants_but_cannot
+    reading = stamina.read(at=moment)
+    assert fired, "the state never became readable"
+    assert reading.overdrawn and reading.exhausted
+    assert stamina.overdrawn_for(at=moment) > 0
+
+
+def test_what_company_costs_is_measured_rather_than_declared():
+    from core.social.social_stamina import SocialStamina
+
+    hour = 3600.0
+    stamina = SocialStamina(drain_per_s=1 / (4 * hour), recovery_per_s=1 / (8 * hour))
+    for _ in range(5):
+        stamina.company("a quiet friend").observe(2 * hour, 0.02)
+        stamina.company("a loud room").observe(2 * hour, 0.60)
+    assert (
+        stamina.sustainable_share(with_person="a quiet friend")
+        > stamina.sustainable_share(with_person="a loud room")
+    )

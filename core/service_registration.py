@@ -572,6 +572,9 @@ def _register_all_services_body(container, is_proxy: bool):
         # visibility relation.
         ('prospect_refuge', 'core.environment.prospect_refuge',
          'get_position_registry'),
+        # Wanting company and being able to sustain it, which are two
+        # quantities and move independently.
+        ('social_stamina', 'core.social.social_stamina', 'get_social_stamina'),
     ):
         container.register(
             name,
