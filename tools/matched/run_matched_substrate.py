@@ -184,6 +184,35 @@ def _say(model, tok, prompt: str, *, temperature: float = NEUTRAL_TEMPERATURE) -
         )
 
 
+def _what_she_has_learned_to_say() -> str:
+    """Her own terms, as a block the Aura arms are given.
+
+    Developmental learning had no path to the answer in this protocol. The
+    lesion emptied her registries and the prompt was a fixed scaffold, so
+    removing everything she had ever learned changed nothing by construction
+    and the arm read NOT_MEASURED forever.
+
+    Read inside the lesion scope, so the ablated arm gets an empty block and
+    every other arm gets what she has. Where the library is empty this is
+    empty for all of them, and that is a different reading from the faculty
+    not being in the path — it is the faculty being in the path with nothing
+    in it, which is the honest state of a library nobody has filled.
+    """
+    try:
+        from core.cognition.the_floor_she_stands_on import how_long
+        from core.cognition.what_she_already_knows_how_to_say import (
+            what_she_already_knows_how_to_say,
+        )
+
+        hers = what_she_already_knows_how_to_say()
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        return ""
+    if not hers:
+        return ""
+    said = ", ".join(f"a term of {how_long(one)} symbols" for one in hers[:12])
+    return f"\n\nWays of putting things you have worked out before: {said}."
+
+
 def _prompt_for(arm: str, task: AblationTask, history: list[str]) -> str:
     """What each arm is given. The ONLY thing that differs between arms."""
     current = task.turns[-1]
@@ -195,13 +224,17 @@ def _prompt_for(arm: str, task: AblationTask, history: list[str]) -> str:
     # Every Aura arm gets the assembled context. The faculties are what the
     # lesions remove, and they act on generation rather than on this string —
     # so the arms below differ from INTACT in the runtime, not in the prompt.
+    learned = _what_she_has_learned_to_say()
     if history:
         said = "\n".join(
             f"{'User' if at % 2 == 0 else 'Assistant'}: {one}"
             for at, one in enumerate(history)
         )
-        return f"{_SCAFFOLD}\n\nEarlier in this conversation:\n{said}\n\nUser: {current}"
-    return f"{_SCAFFOLD}\n\n{current}"
+        return (
+            f"{_SCAFFOLD}{learned}\n\nEarlier in this conversation:\n{said}"
+            f"\n\nUser: {current}"
+        )
+    return f"{_SCAFFOLD}{learned}\n\n{current}"
 
 
 def _run_one(model, tok, arm: str, task: AblationTask) -> float:
@@ -240,7 +273,9 @@ def _run_one(model, tok, arm: str, task: AblationTask) -> float:
         # the neutral, and that is the whole difference between the arms.
         temperature = _temperature_under(arm)
         _TEMPERATURE_ASKED.setdefault(arm, []).append(temperature)
-        said = _say(model, tok, _prompt_for(arm, task, history), temperature=temperature)
+        prompt = _prompt_for(arm, task, history)
+        _PROMPT_LENGTH.setdefault(arm, []).append(len(prompt))
+        said = _say(model, tok, prompt, temperature=temperature)
     return grade(said, task)
 
 
@@ -248,6 +283,11 @@ def _run_one(model, tok, arm: str, task: AblationTask) -> float:
 #: faculty delta is only a measurement if the faculty reached the generation,
 #: and two arms that asked for the same temperature did not differ.
 _TEMPERATURE_ASKED: dict[str, list[float]] = {}
+
+#: How long each arm's prompt was. The second way a faculty can reach the
+#: generation here: what she has learned goes into the context, so emptying
+#: her registries shortens it.
+_PROMPT_LENGTH: dict[str, list[int]] = {}
 
 
 def _nothing_she_has_learned():
@@ -288,6 +328,32 @@ def _budgets() -> list[ConditionBudget]:
     ]
 
 
+def _why_it_could_not_be_measured(arm: str) -> str:
+    """Two different reasons, and only one of them is about the protocol.
+
+    An arm whose faculty is not in this path cannot be measured here however
+    long it runs. An arm whose faculty IS in the path and has nothing in it —
+    a library nobody has filled — is measured perfectly and finds nothing,
+    which is a fact about her rather than about the harness. Reporting both as
+    "not in the path" would hide the second behind the first.
+    """
+    if arm == NO_DEVELOPMENTAL:
+        learned = _what_she_has_learned_to_say()
+        if not learned:
+            return (
+                "what she has learned is in the path — it goes into the "
+                "context — and there is nothing in it, so emptying it changes "
+                "nothing. That is a reading of her library rather than of this "
+                "protocol"
+            )
+    return (
+        f"{arm} sampled as {INTACT} did and was given the same context, so "
+        "whatever it removes was not in the path that produced the answer: "
+        "the channels act inside the cognitive engine and this protocol "
+        "generates by calling the model directly"
+    )
+
+
 def _faculty_reading(measured: dict, arm: str) -> dict:
     """A faculty delta, or the reason there isn't one.
 
@@ -324,6 +390,28 @@ def _faculty_reading(measured: dict, arm: str) -> dict:
     intact_did_not = (
         intact_at is not None and abs(intact_at - NEUTRAL_TEMPERATURE) >= 1e-9
     )
+
+    # The second way a faculty reaches the generation: what she has learned
+    # goes into the context, so an arm that empties her registries gets a
+    # shorter prompt. Whole characters, because the block is either there or
+    # it is not — there is no drift in a string length.
+    mine = _PROMPT_LENGTH.get(arm) or []
+    theirs = _PROMPT_LENGTH.get(INTACT) or []
+    shorter = bool(mine) and bool(theirs) and (
+        sum(mine) / len(mine) != sum(theirs) / len(theirs)
+    )
+    if shorter:
+        return {
+            "outcome": "MEASURED",
+            "observed_delta_mean": measured["delta_mean"],
+            "separated": measured["separated"],
+            "prompt_characters": round(sum(mine) / len(mine)),
+            "intact_prompt_characters": round(sum(theirs) / len(theirs)),
+            "why_it_counts": (
+                "this arm was given a shorter context than intact, so what it "
+                "removes was in the path that produced the answer"
+            ),
+        }
     if sampled_at_the_neutral and intact_did_not:
         return {
             "outcome": "MEASURED",
@@ -341,12 +429,7 @@ def _faculty_reading(measured: dict, arm: str) -> dict:
         "outcome": "NOT_MEASURED",
         "sampled_at": at,
         "intact_sampled_at": intact_at,
-        "why": (
-            f"{arm} sampled as {INTACT} did, so whatever it removes was not in "
-            "the path that produced the answer: the channels act inside the "
-            "cognitive engine and this protocol generates by calling the model "
-            "directly"
-        ),
+        "why": _why_it_could_not_be_measured(arm),
         "what_would_measure_it": (
             "route every arm's generation through the cognitive engine with "
             "the faculties constructed, so the channels are in the path they "
