@@ -29,6 +29,15 @@ from core.state.aura_state import (
 
 logger = logging.getLogger(__name__)
 _CONTINUITY_PATH: Path | None = None
+_PENDING_WRITES: set[asyncio.Task] = set()
+
+
+async def flush_continuity_writes() -> None:
+    """Wait until writes submitted on this event loop have completed."""
+    loop = asyncio.get_running_loop()
+    pending = [task for task in _PENDING_WRITES if task.get_loop() is loop]
+    if pending:
+        await asyncio.gather(*pending)
 
 _EVALUATION_CONTAMINATION_RE = re.compile(
     r"(?:"
@@ -95,7 +104,9 @@ def _persist_continuity_record(path: Path, record: "ContinuityRecord", source: s
         with governed_scope_sync(receipt):
             get_file_write_gateway().write_text(path, payload, source=source)
     else:
-        loop.create_task(_deferred())
+        task = loop.create_task(_deferred())
+        _PENDING_WRITES.add(task)
+        task.add_done_callback(_PENDING_WRITES.discard)
 
 
 def _sanitize_restored_text(value: Any) -> str:
