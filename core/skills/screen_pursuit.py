@@ -5569,6 +5569,31 @@ async def pursue_on_screen(
     # She has taken something on, and the rest of her should know it.
     doing.taking_on(goal, where=target_app or "")
     executor = FluidExecutor(verifier=None, gateway=None)
+    # And it holds the foreground while it runs.
+    #
+    # A task somebody asked for is foreground for as long as it takes, not for
+    # the length of the sentence that started it. Her background thinking
+    # already stands aside for a foreground turn — it checks — and a turn ends
+    # the moment the reply is composed, so everything she does AFTER that,
+    # which is the whole of the task, ran as background beside her own
+    # research loops.
+    #
+    # Live 2026-09-07, playing a game on this machine: thirty-two decisions
+    # about what to do next, nine of them refused outright because the
+    # inference lanes were exhausted — by her own reimplementation lab and
+    # curriculum loop, running against the model she needed to choose a move.
+    holding_the_foreground = None
+    try:
+        from core.runtime.foreground_guard import begin_foreground_turn  # noqa: PLC0415
+
+        holding_the_foreground = begin_foreground_turn(
+            owner="screen_pursuit", source="desktop_task"
+        )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "screen_pursuit", exc, severity="info",
+            action="pursued a task without holding the foreground",
+        )
     try:
         receipt = await executor.pursue(
             goal,
@@ -5582,6 +5607,8 @@ async def pursue_on_screen(
     finally:
         if speaker is not None:
             await speaker.stop()
+        if holding_the_foreground is not None:
+            holding_the_foreground.close()
     result = receipt.to_dict()
     if blocker_attempts["count"] >= MAX_BLOCKER_ATTEMPTS and not receipt.completed:
         # Say what stopped it. "out_of_cycles" describes the budget running
