@@ -4223,10 +4223,25 @@ async def readyz(request: Request):
             or snapshot.get("required_probes")
             or {}
         )
+        # A server actively serving a request is ready, never un-ready — the
+        # Kubernetes rule, and the one `boot_status` already applies through
+        # `conversation_lane_is_serving`. This endpoint re-derived readiness
+        # from the raw `conversation_ready` flag instead, so it answered 503
+        # for the whole of every turn: measured live 2026-09-07, `state=ready
+        # active_generations=1 blockers=['active_generation_in_flight']` and
+        # `/api/readyz` 503 while the runtime was answering perfectly. Two
+        # readiness deciders, and the endpoint used the one that reads busy as
+        # broken.
+        from core.health.conversation_lane import conversation_lane_is_serving
+
+        conversation_can_serve = bool(
+            readiness.get("conversation_ready") is True
+            or conversation_lane_is_serving(snapshot.get("conversation_lane"))
+        )
         ready = bool(
             readiness.get("healthy") is True
             and readiness.get("system_ready") is True
-            and readiness.get("conversation_ready") is True
+            and conversation_can_serve
             and readiness.get("runtime_probe_healthy") is True
             and required_probe_groups_pass(required_probes)
         )
@@ -4243,7 +4258,7 @@ async def readyz(request: Request):
         if not ready and not issues:
             if readiness.get("system_ready") is not True:
                 issues.append("system_not_ready")
-            if readiness.get("conversation_ready") is not True:
+            if not conversation_can_serve:
                 issues.append("conversation_lane_not_ready")
             if readiness.get("runtime_probe_healthy") is not True:
                 issues.append("runtime_probe_unhealthy")
@@ -4255,7 +4270,11 @@ async def readyz(request: Request):
             "ready": ready,
             "issues": issues,
             "uptime_s": round(float(snapshot.get("uptime", 0.0) or 0.0), 1),
-            "conversation_ready": readiness.get("conversation_ready") is True,
+            "conversation_ready": conversation_can_serve,
+            # Busy is a different fact from not ready, and a caller that wants
+            # to know whether a turn is in flight is entitled to ask for it by
+            # name rather than inferring it from a refusal.
+            "conversation_busy": bool(snapshot.get("conversation_busy", False)),
             "runtime_probe_healthy": readiness.get("runtime_probe_healthy") is True,
             "required_probes_passed": required_probe_groups_pass(required_probes),
             "snapshot_generation": int(metadata.get("snapshot_generation", 0) or 0),
