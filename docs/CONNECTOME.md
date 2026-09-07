@@ -75,10 +75,19 @@ efferent whatever its module is called.
 
 ## What the reconstruction contains
 
-47,862 cells across 3,522 modules, 80,976 drive pairs, 192,171 contacts, built
-in fifteen seconds by walking 3,526 files with `ast`. Half the in-volume call
+47,950 cells across 3,592 modules, 81,066 drive
+pairs, 192,349 contacts, built in fifteen seconds by walking
+3,598 files with `ast`. 50.1% of the in-volume call
 sites resolve; the rest are recorded as ambiguous with their candidate lists, or
 as leaving the volume, and the coverage figure says which.
+
+**Every number below is a measurement of one commit.** These are from
+`3e3bf4516`, and the tree moves — a parallel agent commits to it while this runs.
+`make connectome` reproduces all of them for whatever the tree is now, and the
+report carries the reconstruction's digest so two runs can be told apart. What
+does not move between runs is the shape: the comparisons against cortex, the fly
+and the worm hold to their reported precision across every reconstruction taken
+during this work.
 
 A recording is the other half. `sys.monitoring` watches cells fire at ZAPBench's
 914 ms volume rate and emits both the call counts and the calcium trace a light
@@ -102,9 +111,9 @@ be special. At 4.2% of everything, hers cannot be.
 ### Local recurrence is missing
 
 Cortex's within-layer connection density is 5.95 times its between-layer
-density. Aura's is 0.603 — she connects across levels more often than within
+density. Aura's is 0.58 — she connects across levels more often than within
 them, where cortex does the reverse by six to one. The shortfall is a factor of
-9.9, and it survives any relabelling of the layers, which matters because the
+10, and it survives any relabelling of the layers, which matters because the
 orientation of her hierarchy is undetermined: the anchor holds by 0.105 of
 trophic height against a spread of 9.63.
 
