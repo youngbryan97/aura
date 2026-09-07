@@ -1,11 +1,41 @@
 import asyncio
 import json
+import threading
 
 import pytest
 
 from core.runtime import autonomy_conductor as conductor_module
 from core.runtime.autonomy_conductor import AutonomyConductor
 from core.runtime.errors import get_degradation_tracker
+
+
+def test_keeper_completion_waits_for_durable_work_off_loop(monkeypatch, tmp_path):
+    from core.container import ServiceContainer
+
+    async def scenario():
+        loop = asyncio.get_running_loop()
+        loop_thread = threading.get_ident()
+        started = asyncio.Event()
+        release = threading.Event()
+
+        class Keeper:
+            def keep(self):
+                assert threading.get_ident() != loop_thread
+                loop.call_soon_threadsafe(started.set)
+                assert release.wait(5)
+                return {"kept": True}
+
+        monkeypatch.setattr(ServiceContainer, "get", lambda *a, **kw: Keeper())
+        conductor = AutonomyConductor(tmp_path / "autonomy.jsonl")
+        task = asyncio.create_task(conductor._job_remember_what_she_invented())
+        try:
+            await asyncio.wait_for(started.wait(), 2)
+            assert not task.done()
+        finally:
+            release.set()
+        assert await asyncio.wait_for(task, 2) == {"kept": True}
+
+    asyncio.run(scenario())
 
 
 @pytest.mark.parametrize("deferred", [False, True])

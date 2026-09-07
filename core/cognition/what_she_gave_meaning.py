@@ -28,7 +28,6 @@ constructor that does not already exist in the source.
 from __future__ import annotations
 
 import json
-import asyncio
 import logging
 from pathlib import Path
 from typing import Any
@@ -208,10 +207,7 @@ def keep() -> bool:
                     _kept_at(), written, source="what_she_gave_meaning"
                 )
 
-        try:
-            asyncio.get_running_loop().create_task(asyncio.to_thread(_write))
-        except RuntimeError:
-            _write()
+        _write()
         logger.info(
             "kept %d meaning(s) and %d derived word(s) in %d way(s) of building",
             len(kinds),
