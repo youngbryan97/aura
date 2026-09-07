@@ -67,7 +67,6 @@ class AMistake:
 #: it says.
 THE_CHECKS: tuple[str, ...] = (
     "a coroutine created and dropped",
-    "a blocking await while holding a lock",
     "reaching inside a queue instead of using it",
     "a lock released by cancellation",
     "a bare except swallowing cancellation",
@@ -77,7 +76,10 @@ THE_CHECKS: tuple[str, ...] = (
 #: is a legitimate choice — an awaitable interface whose implementation is
 #: synchronous today — and 253 of them in this tree are that rather than
 #: mistakes. Reported separately so a real finding is not buried in them.
-THE_SMELLS: tuple[str, ...] = ("an async function that never awaits",)
+THE_SMELLS: tuple[str, ...] = (
+    "an async function that never awaits",
+    "a blocking await while holding a lock",
+)
 
 #: Calls that return a coroutine and do nothing unless awaited. Names rather
 #: than resolved symbols: generated code names things this process has never
@@ -85,18 +87,17 @@ THE_SMELLS: tuple[str, ...] = ("an async function that never awaits",)
 _ASYNC_LIBRARY_CALLS = frozenset(
     {
         "sleep",
-        "gather",
         "wait",
         "wait_for",
         "to_thread",
-        "run_in_executor",
         "start_server",
         "open_connection",
     }
 )
 
-#: Awaits that block until something else happens. Doing one under a lock is
-#: the deadlock: the thing you are waiting for needs the lock to proceed.
+#: Awaits that can block until something else happens. Holding a lock across
+#: them merits inspection, but a deadlock requires a dependency cycle that
+#: this local syntax scan cannot establish.
 #:
 #: ``put`` is not here. It blocks only on a bounded queue, and nothing in the
 #: syntax says whether this queue has a bound, so flagging it calls correct
@@ -236,8 +237,9 @@ def _blocking_await_under_a_lock(tree: ast.AST, source: str) -> list[AMistake]:
                     kind="a blocking await while holding a lock",
                     line=inner.lineno,
                     what_happens=(
-                        f"awaiting {called}() while holding the lock: whatever this "
-                        "waits for needs the same lock to proceed, so neither moves"
+                        f"awaiting {called}() while holding the lock may deadlock "
+                        "if the operation that unblocks it needs this same lock; "
+                        "the syntax alone does not establish that dependency"
                     ),
                     said=_line(source, inner.lineno),
                 )
@@ -371,13 +373,12 @@ def _swallowing_cancellation(tree: ast.AST, source: str) -> list[AMistake]:
 
 _THE_CHECKS = (
     _a_coroutine_dropped,
-    _blocking_await_under_a_lock,
     _reaching_inside_a_queue,
     _a_lock_released_by_cancellation,
     _swallowing_cancellation,
 )
 
-_THE_SMELLS = (_an_async_function_that_never_awaits,)
+_THE_SMELLS = (_an_async_function_that_never_awaits, _blocking_await_under_a_lock)
 
 
 def what_is_wrong_with(code: str) -> tuple[AMistake, ...]:

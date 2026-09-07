@@ -1,0 +1,2342 @@
+{
+  "built_at": 1788740348.7030542,
+  "microcircuit": {
+    "against_cortex": {
+      "cortical_mean_density": 0.05340625,
+      "mean_density": 6.508746336206913e-05,
+      "missing_pathways": [
+        {
+          "aura_relative": 0.147,
+          "cortex_relative": 6.977,
+          "pathway": "L5I->L5E"
+        },
+        {
+          "aura_relative": 0.198,
+          "cortex_relative": 3.163,
+          "pathway": "L23I->L23E"
+        },
+        {
+          "aura_relative": 0.169,
+          "cortex_relative": 2.52,
+          "pathway": "L23E->L23I"
+        },
+        {
+          "aura_relative": 0.18,
+          "cortex_relative": 1.889,
+          "pathway": "L23E->L23E"
+        },
+        {
+          "aura_relative": 0.018,
+          "cortex_relative": 1.88,
+          "pathway": "L23E->L5E"
+        },
+        {
+          "aura_relative": 0.105,
+          "cortex_relative": 1.556,
+          "pathway": "L5E->L5E"
+        },
+        {
+          "aura_relative": 0.004,
+          "cortex_relative": 1.532,
+          "pathway": "L4I->L23E"
+        },
+        {
+          "aura_relative": 0.026,
+          "cortex_relative": 1.165,
+          "pathway": "L23I->L5E"
+        },
+        {
+          "aura_relative": 0.113,
+          "cortex_relative": 1.123,
+          "pathway": "L5E->L5I"
+        },
+        {
+          "aura_relative": 0.032,
+          "cortex_relative": 1.071,
+          "pathway": "L5E->L6E"
+        },
+        {
+          "aura_relative": 0.016,
+          "cortex_relative": 1.026,
+          "pathway": "L23E->L5I"
+        }
+      ],
+      "orientation_free": {
+        "aura_within_over_between": 0.576,
+        "cortex_within_over_between": 5.945,
+        "shortfall": 10.321
+      },
+      "over_expressed_pathways": [
+        {
+          "aura_relative": 5.805,
+          "cortex_relative": 0.0,
+          "pathway": "L5I->L4I"
+        },
+        {
+          "aura_relative": 4.604,
+          "cortex_relative": 0.054,
+          "pathway": "L23I->L4I"
+        },
+        {
+          "aura_relative": 3.596,
+          "cortex_relative": 0.0,
+          "pathway": "L6I->L23I"
+        },
+        {
+          "aura_relative": 3.574,
+          "cortex_relative": 0.0,
+          "pathway": "L6I->L4I"
+        },
+        {
+          "aura_relative": 3.277,
+          "cortex_relative": 0.062,
+          "pathway": "L5E->L4I"
+        },
+        {
+          "aura_relative": 3.019,
+          "cortex_relative": 0.0,
+          "pathway": "L6I->L5I"
+        },
+        {
+          "aura_relative": 2.356,
+          "cortex_relative": 0.0,
+          "pathway": "L6I->L23E"
+        },
+        {
+          "aura_relative": 2.321,
+          "cortex_relative": 0.006,
+          "pathway": "L5I->L4E"
+        },
+        {
+          "aura_relative": 2.163,
+          "cortex_relative": 0.11,
+          "pathway": "L23I->L4E"
+        }
+      ],
+      "spearman": -0.2279,
+      "spearman_if_orientation_reversed": 0.2207
+    },
+    "assignment": {
+      "anchors": {
+        "afferent_cells": 124,
+        "anchor_margin": 0.1058,
+        "efferent_cells": 277,
+        "height_spread": 11.012,
+        "mean_afferent_height": 4.909,
+        "mean_efferent_height": 4.803,
+        "orientation_flipped": true
+      },
+      "assigned": 38925,
+      "cortical_share": {
+        "L23E": 0.268,
+        "L23I": 0.0756,
+        "L4E": 0.284,
+        "L4I": 0.071,
+        "L5E": 0.0628,
+        "L5I": 0.0138,
+        "L6E": 0.1865,
+        "L6I": 0.0382
+      },
+      "incoherence": 0.1427,
+      "population_share": {
+        "L23E": 0.2688,
+        "L23I": 0.0748,
+        "L4E": 0.2917,
+        "L4I": 0.0632,
+        "L5E": 0.0623,
+        "L5I": 0.0144,
+        "L6E": 0.1864,
+        "L6I": 0.0384
+      },
+      "populations": {
+        "L23E": 10463,
+        "L23I": 2913,
+        "L4E": 11356,
+        "L4I": 2462,
+        "L5E": 2424,
+        "L5I": 559,
+        "L6E": 7255,
+        "L6I": 1493
+      },
+      "unassigned": 9025
+    },
+    "matrix": [
+      [
+        1.173e-05,
+        1.289e-05,
+        2.9e-07,
+        2.7e-07,
+        4.002e-05,
+        4.633e-05,
+        0.00012918,
+        0.00015332
+      ],
+      [
+        1.102e-05,
+        2.582e-05,
+        4.2e-07,
+        4.2e-07,
+        3.583e-05,
+        8.966e-05,
+        0.00011413,
+        0.00023407
+      ],
+      [
+        0.00011939,
+        0.00014078,
+        4.314e-05,
+        5.565e-05,
+        0.0001298,
+        0.00015107,
+        8.045e-05,
+        0.00011454
+      ],
+      [
+        0.00018478,
+        0.00029965,
+        4.954e-05,
+        9.589e-05,
+        0.00021331,
+        0.00037784,
+        0.00014495,
+        0.0002326
+      ],
+      [
+        1.18e-06,
+        1.7e-06,
+        0.0,
+        0.0,
+        6.81e-06,
+        9.59e-06,
+        7.739e-05,
+        8.124e-05
+      ],
+      [
+        1.03e-06,
+        2.46e-06,
+        3.2e-07,
+        0.0,
+        7.38e-06,
+        2.885e-05,
+        8.581e-05,
+        0.0001965
+      ],
+      [
+        4.3e-07,
+        3.8e-07,
+        1e-08,
+        0.0,
+        2.1e-06,
+        2.47e-06,
+        6.082e-05,
+        6.019e-05
+      ],
+      [
+        7e-07,
+        1.38e-06,
+        0.0,
+        0.0,
+        1.93e-06,
+        4.79e-06,
+        6.518e-05,
+        0.00012615
+      ]
+    ]
+  },
+  "pathology": {
+    "by_confidence": {
+      "candidate": 50,
+      "measured": 64,
+      "observed": 0
+    },
+    "by_kind": {
+      "gate_dominated_cell": 25,
+      "half_wired_channel": 50,
+      "interface_used_as_internal": 25,
+      "missing_local_recurrence": 1,
+      "over_inhibited_region": 6,
+      "unnoticed_hub": 7
+    },
+    "confirmed": 64,
+    "findings": [
+      {
+        "closes_when": "a step refines its result against its own level before passing it up, and the ratio rises",
+        "confidence": "measured",
+        "detail": {
+          "aura_within_over_between": 0.576,
+          "cortex_within_over_between": 5.945,
+          "shortfall": 10.321
+        },
+        "evidence": "within-layer density is 0.576 times between-layer, against cortex at 5.945, a shortfall of 10.321x",
+        "kind": "missing_local_recurrence",
+        "severity": "high",
+        "subject": "whole system",
+        "weight": 1032.1
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 66,
+          "same_region": true
+        },
+        "evidence": "66 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.brain.llm.latent_cortex.engine:LatentCortexEngine._latent_episode -> core.brain.llm.latent_cortex.types:EpisodeReceipt.flag",
+        "weight": 66.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 55,
+          "same_region": false
+        },
+        "evidence": "55 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.brain.llm.mlx_worker:_mlx_worker_loop -> core.utils.memory_monitor:MemoryPressureSnapshot.warning",
+        "weight": 55.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 50,
+          "same_region": false
+        },
+        "evidence": "50 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "interface.routes.chat:_run_cognitive_engine_chat_turn -> core.utils.memory_monitor:MemoryPressureSnapshot.warning",
+        "weight": 50.0
+      },
+      {
+        "closes_when": "the ratio reaches half of cortex's, by a guard being removed or by the package gaining the productive path it is missing",
+        "confidence": "measured",
+        "detail": {
+          "cells": 63,
+          "excitatory": 33,
+          "inhibitory": 23,
+          "ratio": 1.435,
+          "region": "social_media"
+        },
+        "evidence": "33 excitatory to 23 inhibitory cells across 63, a ratio of 1.435 against cortex at 4.035",
+        "kind": "over_inhibited_region",
+        "severity": "high",
+        "subject": "social_media",
+        "weight": 43.90244
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 43,
+          "same_region": false
+        },
+        "evidence": "43 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "interface.routes.chat:_api_chat_turn -> core.runtime.errors:record_degradation",
+        "weight": 43.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 42,
+          "same_region": false
+        },
+        "evidence": "42 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "interface.routes.system:_collect_api_health_payload -> core.container:ServiceContainer.peek",
+        "weight": 42.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 39,
+          "same_region": false
+        },
+        "evidence": "39 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "interface.routes.chat:_api_chat_turn -> core.utils.memory_monitor:MemoryPressureSnapshot.warning",
+        "weight": 39.0
+      },
+      {
+        "closes_when": "the ratio reaches half of cortex's, by a guard being removed or by the package gaining the productive path it is missing",
+        "confidence": "measured",
+        "detail": {
+          "cells": 42,
+          "excitatory": 21,
+          "inhibitory": 19,
+          "ratio": 1.105,
+          "region": "auth"
+        },
+        "evidence": "21 excitatory to 19 inhibitory cells across 42, a ratio of 1.105 against cortex at 4.035",
+        "kind": "over_inhibited_region",
+        "severity": "high",
+        "subject": "auth",
+        "weight": 38.00905
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 38,
+          "same_region": false
+        },
+        "evidence": "38 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.brain.llm.mlx_worker:_mlx_worker_loop -> core.state.aura_state:PhenomenalField.strip",
+        "weight": 38.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 35,
+          "same_region": false
+        },
+        "evidence": "35 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.orchestrator.initializers.pathways:register_core_pathways -> core.mycelium:MycelialNetwork.register_pathway",
+        "weight": 35.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 35,
+          "same_region": false
+        },
+        "evidence": "35 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.skills.desktop_task:DesktopTaskSkill._verify_step_effect -> core.state.aura_state:PhenomenalField.strip",
+        "weight": 35.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 34,
+          "same_region": false
+        },
+        "evidence": "34 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.phases.response_generation_unitary:UnitaryResponsePhase.execute -> core.state.aura_state:PhenomenalField.strip",
+        "weight": 34.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 32,
+          "same_region": true
+        },
+        "evidence": "32 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.brain.inference_gate:InferenceGate._build_living_mind_context -> core.brain.living_mind_context:LivingMindContext.omit",
+        "weight": 32.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 32,
+          "same_region": false
+        },
+        "evidence": "32 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "interface.routes.system:_collect_api_health_payload -> core.runtime.errors:record_degradation",
+        "weight": 32.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 31,
+          "same_region": true
+        },
+        "evidence": "31 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.brain.inference_gate:InferenceGate._build_living_mind_context -> core.brain.living_mind_context:LivingMindContext.add",
+        "weight": 31.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 29,
+          "same_region": false
+        },
+        "evidence": "29 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.phases.response_generation_unitary:UnitaryResponsePhase.execute -> core.utils.memory_monitor:MemoryPressureSnapshot.warning",
+        "weight": 29.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 28,
+          "same_region": false
+        },
+        "evidence": "28 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.orchestrator.initializers.pathways:register_core_pathways -> core.mycelium:MycelialNetwork.establish_connection",
+        "weight": 28.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 26,
+          "same_region": false
+        },
+        "evidence": "26 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.orchestrator.main:RobustOrchestrator.start -> core.utils.memory_monitor:MemoryPressureSnapshot.warning",
+        "weight": 26.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 26,
+          "same_region": false
+        },
+        "evidence": "26 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "interface.routes.chat:_run_cognitive_engine_chat_turn -> core.state.aura_state:PhenomenalField.strip",
+        "weight": 26.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 25,
+          "same_region": false
+        },
+        "evidence": "25 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.brain.inference_gate:InferenceGate._generate_with_metadata_sink -> core.state.aura_state:PhenomenalField.strip",
+        "weight": 25.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 25,
+          "same_region": false
+        },
+        "evidence": "25 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.brain.llm.context_assembler:ContextAssembler.build_system_prompt -> core.runtime.errors:record_degradation",
+        "weight": 25.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 25,
+          "same_region": false
+        },
+        "evidence": "25 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.embodiment.reality_connectors:build_configured_reality_connector_catalog -> core.state.aura_state:PhenomenalField.strip",
+        "weight": 25.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 25,
+          "same_region": false
+        },
+        "evidence": "25 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.orchestrator.mixins.boot.boot_autonomy:BootAutonomyMixin._init_salvaged_subsystems -> core.container:ServiceContainer.register_instance",
+        "weight": 25.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 24,
+          "same_region": false
+        },
+        "evidence": "24 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.self_improvement.program_dna:ProgramDNAReconstructionEngine.reconstruct -> core.cognition.transfer_search:DomainIndex.extend",
+        "weight": 24.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 23,
+          "same_region": false
+        },
+        "evidence": "23 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.embodiment.reality_connectors:build_configured_reality_connector_catalog -> core.runtime.flags:env_str",
+        "weight": 23.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 23,
+          "same_region": false
+        },
+        "evidence": "23 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.orchestrator.boot:OrchestratorBootMixin._async_init_subsystems -> core.container:ServiceContainer.register_instance",
+        "weight": 23.0
+      },
+      {
+        "closes_when": "the pair is joined by one call, or the two modules are one",
+        "confidence": "measured",
+        "detail": {
+          "contacts": 23,
+          "same_region": false
+        },
+        "evidence": "23 call sites across a module boundary; H01 puts 0.092% of human cortical pairs at four or more contacts",
+        "kind": "interface_used_as_internal",
+        "severity": "high",
+        "subject": "core.orchestrator.mixins.tool_execution:ToolExecutionMixin.execute_tool -> core.coordinators.tool_executor:ToolExecutor._record_coding_tool_event",
+        "weight": 23.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 2
+        },
+        "evidence": "2 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "high",
+        "subject": "Emotion",
+        "weight": 20.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 2
+        },
+        "evidence": "2 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "high",
+        "subject": "System",
+        "weight": 20.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 2
+        },
+        "evidence": "2 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "high",
+        "subject": "Waking",
+        "weight": 20.0
+      },
+      {
+        "closes_when": "the ratio reaches half of cortex's, by a guard being removed or by the package gaining the productive path it is missing",
+        "confidence": "measured",
+        "detail": {
+          "cells": 989,
+          "excitatory": 571,
+          "inhibitory": 341,
+          "ratio": 1.674,
+          "region": "reality_reach"
+        },
+        "evidence": "571 excitatory to 341 inhibitory cells across 989, a ratio of 1.674 against cortex at 4.035",
+        "kind": "over_inhibited_region",
+        "severity": "medium",
+        "subject": "reality_reach",
+        "weight": 590.80048
+      },
+      {
+        "closes_when": "the ratio reaches half of cortex's, by a guard being removed or by the package gaining the productive path it is missing",
+        "confidence": "measured",
+        "detail": {
+          "cells": 598,
+          "excitatory": 341,
+          "inhibitory": 175,
+          "ratio": 1.949,
+          "region": "embodiment"
+        },
+        "evidence": "341 excitatory to 175 inhibitory cells across 598, a ratio of 1.949 against cortex at 4.035",
+        "kind": "over_inhibited_region",
+        "severity": "medium",
+        "subject": "embodiment",
+        "weight": 306.82401
+      },
+      {
+        "closes_when": "the ratio reaches half of cortex's, by a guard being removed or by the package gaining the productive path it is missing",
+        "confidence": "measured",
+        "detail": {
+          "cells": 78,
+          "excitatory": 40,
+          "inhibitory": 22,
+          "ratio": 1.818,
+          "region": "collective"
+        },
+        "evidence": "40 excitatory to 22 inhibitory cells across 78, a ratio of 1.818 against cortex at 4.035",
+        "kind": "over_inhibited_region",
+        "severity": "medium",
+        "subject": "collective",
+        "weight": 42.90429
+      },
+      {
+        "closes_when": "the coupling is made a call, or the shared key is owned by one cell and read through it",
+        "confidence": "measured",
+        "detail": {
+          "gap_degree": 33,
+          "wired_degree": 2
+        },
+        "evidence": "33 shared-state neighbours against 2 call-graph neighbours",
+        "kind": "unnoticed_hub",
+        "severity": "medium",
+        "subject": "core.evolution.evolution_orchestrator:EvolutionOrchestrator._eval_resilience",
+        "weight": 33.0
+      },
+      {
+        "closes_when": "the coupling is made a call, or the shared key is owned by one cell and read through it",
+        "confidence": "measured",
+        "detail": {
+          "gap_degree": 31,
+          "wired_degree": 2
+        },
+        "evidence": "31 shared-state neighbours against 2 call-graph neighbours",
+        "kind": "unnoticed_hub",
+        "severity": "medium",
+        "subject": "core.providers.ops_provider:register_ops_services",
+        "weight": 31.0
+      },
+      {
+        "closes_when": "the coupling is made a call, or the shared key is owned by one cell and read through it",
+        "confidence": "measured",
+        "detail": {
+          "gap_degree": 30,
+          "wired_degree": 4
+        },
+        "evidence": "30 shared-state neighbours against 4 call-graph neighbours",
+        "kind": "unnoticed_hub",
+        "severity": "medium",
+        "subject": "core.cognition.cognitive_kernel:CognitiveKernel.start",
+        "weight": 30.0
+      },
+      {
+        "closes_when": "the coupling is made a call, or the shared key is owned by one cell and read through it",
+        "confidence": "measured",
+        "detail": {
+          "gap_degree": 30,
+          "wired_degree": 1
+        },
+        "evidence": "30 shared-state neighbours against 1 call-graph neighbours",
+        "kind": "unnoticed_hub",
+        "severity": "medium",
+        "subject": "core.providers.sensory_provider:register_sensory_services",
+        "weight": 30.0
+      },
+      {
+        "closes_when": "the coupling is made a call, or the shared key is owned by one cell and read through it",
+        "confidence": "measured",
+        "detail": {
+          "gap_degree": 25,
+          "wired_degree": 3
+        },
+        "evidence": "25 shared-state neighbours against 3 call-graph neighbours",
+        "kind": "unnoticed_hub",
+        "severity": "medium",
+        "subject": "core.brain.react_loop:ActionExecutor._execute_memory_query",
+        "weight": 25.0
+      },
+      {
+        "closes_when": "the coupling is made a call, or the shared key is owned by one cell and read through it",
+        "confidence": "measured",
+        "detail": {
+          "gap_degree": 25,
+          "wired_degree": 4
+        },
+        "evidence": "25 shared-state neighbours against 4 call-graph neighbours",
+        "kind": "unnoticed_hub",
+        "severity": "medium",
+        "subject": "core.conversation.demo_support:_record_recent_activity",
+        "weight": 25.0
+      },
+      {
+        "closes_when": "the coupling is made a call, or the shared key is owned by one cell and read through it",
+        "confidence": "measured",
+        "detail": {
+          "gap_degree": 25,
+          "wired_degree": 4
+        },
+        "evidence": "25 shared-state neighbours against 4 call-graph neighbours",
+        "kind": "unnoticed_hub",
+        "severity": "medium",
+        "subject": "core.orchestrator.mixins.boot.boot_resilience:BootResilienceMixin._init_system_guardians",
+        "weight": 25.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 1,
+          "cell": "core.brain.llm.latent_cortex.fast_weight_learning:validate_fast_weight_learning_receipt",
+          "guards": 55,
+          "inhibitory_on_initial_segment": 21,
+          "initial_segment_contacts": 23,
+          "initial_segment_share": 0.9583
+        },
+        "evidence": "23 of 24 incoming contacts land on the decision to fire, 55 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.fast_weight_learning:validate_fast_weight_learning_receipt",
+        "weight": 23.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 4,
+          "cell": "core.brain.cognitive_engine:CognitiveEngine._qualified_recurrent_direct_reply",
+          "guards": 5,
+          "inhibitory_on_initial_segment": 0,
+          "initial_segment_contacts": 19,
+          "initial_segment_share": 0.8261
+        },
+        "evidence": "19 of 23 incoming contacts land on the decision to fire, 5 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.brain.cognitive_engine:CognitiveEngine._qualified_recurrent_direct_reply",
+        "weight": 19.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 1,
+          "cell": "core.runtime.settings_control_plane:RuntimeSettingsStore._load_application_entries_locked",
+          "guards": 13,
+          "inhibitory_on_initial_segment": 0,
+          "initial_segment_contacts": 17,
+          "initial_segment_share": 0.9444
+        },
+        "evidence": "17 of 18 incoming contacts land on the decision to fire, 13 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.runtime.settings_control_plane:RuntimeSettingsStore._load_application_entries_locked",
+        "weight": 17.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 2,
+          "cell": "core.brain.cognitive_engine:CognitiveEngine._observe_compositional_semantic_shadow",
+          "guards": 3,
+          "inhibitory_on_initial_segment": 0,
+          "initial_segment_contacts": 16,
+          "initial_segment_share": 0.8889
+        },
+        "evidence": "16 of 18 incoming contacts land on the decision to fire, 3 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.brain.cognitive_engine:CognitiveEngine._observe_compositional_semantic_shadow",
+        "weight": 16.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 3
+        },
+        "evidence": "3 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "*",
+        "weight": 15.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 3
+        },
+        "evidence": "3 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "core/security/executive_violation",
+        "weight": 15.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 2,
+          "cell": "core.brain.llm.latent_cortex.runtime_integrity:validate_runtime_integrity_receipt",
+          "guards": 37,
+          "inhibitory_on_initial_segment": 7,
+          "initial_segment_contacts": 14,
+          "initial_segment_share": 0.875
+        },
+        "evidence": "14 of 16 incoming contacts land on the decision to fire, 37 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.runtime_integrity:validate_runtime_integrity_receipt",
+        "weight": 14.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 3,
+          "cell": "core.runtime.settings_control_plane:RuntimeSettingsStore._load_audit_entries_locked",
+          "guards": 15,
+          "inhibitory_on_initial_segment": 2,
+          "initial_segment_contacts": 14,
+          "initial_segment_share": 0.8235
+        },
+        "evidence": "14 of 17 incoming contacts land on the decision to fire, 15 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.runtime.settings_control_plane:RuntimeSettingsStore._load_audit_entries_locked",
+        "weight": 14.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 2,
+          "cell": "core.brain.llm.latent_cortex.stop_gate:validate_stop_gate_receipt",
+          "guards": 19,
+          "inhibitory_on_initial_segment": 10,
+          "initial_segment_contacts": 13,
+          "initial_segment_share": 0.8667
+        },
+        "evidence": "13 of 15 incoming contacts land on the decision to fire, 19 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.stop_gate:validate_stop_gate_receipt",
+        "weight": 13.0
+      },
+      {
+        "closes_when": "the ratio reaches half of cortex's, by a guard being removed or by the package gaining the productive path it is missing",
+        "confidence": "measured",
+        "detail": {
+          "cells": 25,
+          "excitatory": 14,
+          "inhibitory": 7,
+          "ratio": 2.0,
+          "region": "joy_social_integration"
+        },
+        "evidence": "14 excitatory to 7 inhibitory cells across 25, a ratio of 2.0 against cortex at 4.035",
+        "kind": "over_inhibited_region",
+        "severity": "medium",
+        "subject": "joy_social_integration",
+        "weight": 12.5
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 1,
+          "cell": "core.brain.llm.latent_cortex.contradiction_perturber:validate_contradiction_perturbation_receipt",
+          "guards": 18,
+          "inhibitory_on_initial_segment": 10,
+          "initial_segment_contacts": 12,
+          "initial_segment_share": 0.9231
+        },
+        "evidence": "12 of 13 incoming contacts land on the decision to fire, 18 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.contradiction_perturber:validate_contradiction_perturbation_receipt",
+        "weight": 12.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 1,
+          "cell": "core.brain.llm.latent_cortex.heterogeneous_integrator:IntegrationPolicyResult.normalized",
+          "guards": 1,
+          "inhibitory_on_initial_segment": 10,
+          "initial_segment_contacts": 10,
+          "initial_segment_share": 0.9091
+        },
+        "evidence": "10 of 11 incoming contacts land on the decision to fire, 1 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.heterogeneous_integrator:IntegrationPolicyResult.normalized",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 1,
+          "cell": "core.brain.llm.latent_cortex.verified_best:validate_verified_best_receipt",
+          "guards": 14,
+          "inhibitory_on_initial_segment": 8,
+          "initial_segment_contacts": 10,
+          "initial_segment_share": 0.9091
+        },
+        "evidence": "10 of 11 incoming contacts land on the decision to fire, 14 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.verified_best:validate_verified_best_receipt",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 0,
+          "cell": "core.runtime.settings_control_plane:RuntimeSettingsStore._verify_state_receipt_locked",
+          "guards": 7,
+          "inhibitory_on_initial_segment": 0,
+          "initial_segment_contacts": 10,
+          "initial_segment_share": 1.0
+        },
+        "evidence": "10 of 10 incoming contacts land on the decision to fire, 7 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.runtime.settings_control_plane:RuntimeSettingsStore._verify_state_receipt_locked",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "AURA",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "Browsing",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "Cognition",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "Curiosity",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "Dream",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "EVENT_CALIBRATION_STATUS",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "EVENT_PARTITIONED",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "Monologue",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "Orientation",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "Pedagogy",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "Reconstruction",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "Reflection",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "Senses",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "Silence",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "Sleep",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "TOPIC_VOICE_EVENT",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "action_state_runtime.admission",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "assertion_failed",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "atomspace.derived",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "aura.system.recovery",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "aura.voice.presence",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows a handler firing for this topic, or the publisher is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "publish_only",
+          "publishers": 1
+        },
+        "evidence": "1 cell(s) publish it and the scan finds no subscriber",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "aura/events/mind_tick",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 2
+        },
+        "evidence": "2 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "ping",
+        "weight": 10.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 1,
+          "cell": "core.brain.llm.endogenous_state:EndogenousState.from_payload",
+          "guards": 6,
+          "inhibitory_on_initial_segment": 0,
+          "initial_segment_contacts": 9,
+          "initial_segment_share": 0.9
+        },
+        "evidence": "9 of 10 incoming contacts land on the decision to fire, 6 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.brain.llm.endogenous_state:EndogenousState.from_payload",
+        "weight": 9.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 1,
+          "cell": "core.brain.llm.unified_recurrent_qualified_activation:seal_qualified_activation",
+          "guards": 2,
+          "inhibitory_on_initial_segment": 5,
+          "initial_segment_contacts": 9,
+          "initial_segment_share": 0.9
+        },
+        "evidence": "9 of 10 incoming contacts land on the decision to fire, 2 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.brain.llm.unified_recurrent_qualified_activation:seal_qualified_activation",
+        "weight": 9.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 0,
+          "cell": "core.security.integrity_guardian:IntegrityGuardian._current_source_revision",
+          "guards": 1,
+          "inhibitory_on_initial_segment": 0,
+          "initial_segment_contacts": 9,
+          "initial_segment_share": 1.0
+        },
+        "evidence": "9 of 9 incoming contacts land on the decision to fire, 1 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.security.integrity_guardian:IntegrityGuardian._current_source_revision",
+        "weight": 9.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 2,
+          "cell": "core.learning.recurrent_grpo:validate_causal_recurrent_transition_pair_receipt",
+          "guards": 7,
+          "inhibitory_on_initial_segment": 2,
+          "initial_segment_contacts": 8,
+          "initial_segment_share": 0.8
+        },
+        "evidence": "8 of 10 incoming contacts land on the decision to fire, 7 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.learning.recurrent_grpo:validate_causal_recurrent_transition_pair_receipt",
+        "weight": 8.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 1,
+          "cell": "core.learning.semantic_program_transducer:SemanticProgramTransducer.__post_init__",
+          "guards": 4,
+          "inhibitory_on_initial_segment": 2,
+          "initial_segment_contacts": 8,
+          "initial_segment_share": 0.8889
+        },
+        "evidence": "8 of 9 incoming contacts land on the decision to fire, 4 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.learning.semantic_program_transducer:SemanticProgramTransducer.__post_init__",
+        "weight": 8.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 0,
+          "cell": "core.memory.black_hole_vault:BlackHoleVault._ensure_memory_ids_locked",
+          "guards": 1,
+          "inhibitory_on_initial_segment": 0,
+          "initial_segment_contacts": 8,
+          "initial_segment_share": 1.0
+        },
+        "evidence": "8 of 8 incoming contacts land on the decision to fire, 1 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.memory.black_hole_vault:BlackHoleVault._ensure_memory_ids_locked",
+        "weight": 8.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 2,
+          "cell": "core.ops.daemon:CognitiveDaemon.start",
+          "guards": 1,
+          "inhibitory_on_initial_segment": 0,
+          "initial_segment_contacts": 8,
+          "initial_segment_share": 0.8
+        },
+        "evidence": "8 of 10 incoming contacts land on the decision to fire, 1 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.ops.daemon:CognitiveDaemon.start",
+        "weight": 8.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 0,
+          "cell": "core.brain.llm.latent_cortex.loop_core:validate_loop_core_contract",
+          "guards": 4,
+          "inhibitory_on_initial_segment": 6,
+          "initial_segment_contacts": 7,
+          "initial_segment_share": 1.0
+        },
+        "evidence": "7 of 7 incoming contacts land on the decision to fire, 4 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.loop_core:validate_loop_core_contract",
+        "weight": 7.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 0,
+          "cell": "core.engineering.analysis.process:mass_balance",
+          "guards": 4,
+          "inhibitory_on_initial_segment": 0,
+          "initial_segment_contacts": 7,
+          "initial_segment_share": 1.0
+        },
+        "evidence": "7 of 7 incoming contacts land on the decision to fire, 4 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.engineering.analysis.process:mass_balance",
+        "weight": 7.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 0,
+          "cell": "core.brain.llm.latent_cortex.incumbent_artifact:validate_incumbent_receipt",
+          "guards": 15,
+          "inhibitory_on_initial_segment": 4,
+          "initial_segment_contacts": 6,
+          "initial_segment_share": 1.0
+        },
+        "evidence": "6 of 6 incoming contacts land on the decision to fire, 15 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.incumbent_artifact:validate_incumbent_receipt",
+        "weight": 6.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 0,
+          "cell": "core.brain.llm.latent_cortex.recurrent_grounding:validate_recurrent_grounding_receipt",
+          "guards": 14,
+          "inhibitory_on_initial_segment": 5,
+          "initial_segment_contacts": 6,
+          "initial_segment_share": 1.0
+        },
+        "evidence": "6 of 6 incoming contacts land on the decision to fire, 14 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.recurrent_grounding:validate_recurrent_grounding_receipt",
+        "weight": 6.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 1,
+          "cell": "core.brain.llm.latent_cortex.terminal_disposition:validate_terminal_disposition_receipt",
+          "guards": 6,
+          "inhibitory_on_initial_segment": 0,
+          "initial_segment_contacts": 6,
+          "initial_segment_share": 0.8571
+        },
+        "evidence": "6 of 7 incoming contacts land on the decision to fire, 6 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.terminal_disposition:validate_terminal_disposition_receipt",
+        "weight": 6.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 1,
+          "cell": "core.conversation.response_reliability:repair_verbatim_repeats",
+          "guards": 2,
+          "inhibitory_on_initial_segment": 0,
+          "initial_segment_contacts": 6,
+          "initial_segment_share": 0.8571
+        },
+        "evidence": "6 of 7 incoming contacts land on the decision to fire, 2 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.conversation.response_reliability:repair_verbatim_repeats",
+        "weight": 6.0
+      },
+      {
+        "closes_when": "an input reaches the body of the cell, so a caller can change what it does rather than only whether it runs",
+        "confidence": "measured",
+        "detail": {
+          "body_contacts": 0,
+          "cell": "core.learning.neural_uncertainty:NeuralUncertaintyHead.validate",
+          "guards": 7,
+          "inhibitory_on_initial_segment": 4,
+          "initial_segment_contacts": 6,
+          "initial_segment_share": 1.0
+        },
+        "evidence": "6 of 6 incoming contacts land on the decision to fire, 7 guards",
+        "kind": "gate_dominated_cell",
+        "severity": "medium",
+        "subject": "core.learning.neural_uncertainty:NeuralUncertaintyHead.validate",
+        "weight": 6.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "SensoryGate",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "action_regret",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "branch.steps",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "bridge.on_fault",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "browse",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "chat_stream",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "commit",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "controllers",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "diagnostics",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "event_bus",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "get_state",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "handle.intention_id",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "human_consent_response",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "incentive.key",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "located.control_point",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "lockdep",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "morphogenesis_runtime",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "pressure_stall",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "proposal.claim",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "search",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "shutdown",
+        "weight": 5.0
+      },
+      {
+        "closes_when": "a recording shows the topic being published, or the subscriber is removed",
+        "confidence": "candidate",
+        "detail": {
+          "direction": "subscribe_only",
+          "subscribers": 1
+        },
+        "evidence": "1 cell(s) subscribe and the scan finds no publisher",
+        "kind": "half_wired_channel",
+        "severity": "medium",
+        "subject": "stop",
+        "weight": 5.0
+      }
+    ],
+    "scanned": {
+      "cells": 47950,
+      "gap_pairs": 3804,
+      "heavy_pairs_crossing_modules": 1059,
+      "topics": 120,
+      "topics_publish_only": 87,
+      "topics_subscribe_only": 26,
+      "within_over_between": 0.576
+    },
+    "total": 114
+  },
+  "reconstruction": {
+    "afferent_cells": 133,
+    "bytes_read": 64340752,
+    "call_sites": 437688,
+    "calls_ambiguous": 89300,
+    "calls_out_of_volume": 209750,
+    "calls_resolved": 114280,
+    "calls_unresolved": 24358,
+    "cells": 47950,
+    "class_counts": {
+      "excitatory": 33839,
+      "glial": 529,
+      "inhibitory": 8546,
+      "modulatory": 5036
+    },
+    "connections": 138863,
+    "contacts": 192349,
+    "digest": "7375c6ac645f70babc7400dd9f3d56bc",
+    "drive_connections": 81066,
+    "efferent_cells": 293,
+    "ei_ratio": 3.9596,
+    "files_read": 3598,
+    "in_volume_coverage": 0.5014,
+    "neuropils": 3592,
+    "parse_failures": 0,
+    "return_connections": 57797,
+    "roots": [
+      "core",
+      "interface",
+      "skills",
+      "security",
+      "llm",
+      "executors"
+    ],
+    "source": "/Users/bryan/.aura/live-source",
+    "version": 1
+  },
+  "repo": "/Users/bryan/.aura/live-source",
+  "synaptology": {
+    "compartments": {
+      "by_compartment": {
+        "axon_initial_segment": 3638,
+        "dendrite": 75584
+      },
+      "excitatory_on_initial_segment": 2328,
+      "inhibitory_on_dendrite": 12140,
+      "inhibitory_on_initial_segment": 1310,
+      "total": 79222
+    },
+    "excitation_inhibition": {
+      "class_counts": {
+        "excitatory": 33839,
+        "glial": 529,
+        "inhibitory": 8546,
+        "modulatory": 5036
+      },
+      "cortical_ei_ratio": 4.0352,
+      "ei_ratio": 3.9596,
+      "inhibition_excess": 1.019,
+      "least_inhibited_regions": [
+        {
+          "cells": 23,
+          "excitatory": 22,
+          "inhibitory": 1,
+          "ratio": 22.0,
+          "region": "config"
+        },
+        {
+          "cells": 67,
+          "excitatory": 46,
+          "inhibitory": 2,
+          "ratio": 23.0,
+          "region": "pneuma"
+        },
+        {
+          "cells": 39,
+          "excitatory": 32,
+          "inhibitory": 0,
+          "ratio": null,
+          "region": "creativity"
+        },
+        {
+          "cells": 34,
+          "excitatory": 22,
+          "inhibitory": 0,
+          "ratio": null,
+          "region": "guardians"
+        },
+        {
+          "cells": 55,
+          "excitatory": 49,
+          "inhibitory": 0,
+          "ratio": null,
+          "region": "phenomenal_substrate"
+        },
+        {
+          "cells": 90,
+          "excitatory": 76,
+          "inhibitory": 0,
+          "ratio": null,
+          "region": "world"
+        }
+      ],
+      "most_inhibited_regions": [
+        {
+          "cells": 42,
+          "excitatory": 21,
+          "inhibitory": 19,
+          "ratio": 1.105,
+          "region": "auth"
+        },
+        {
+          "cells": 63,
+          "excitatory": 33,
+          "inhibitory": 23,
+          "ratio": 1.435,
+          "region": "social_media"
+        },
+        {
+          "cells": 989,
+          "excitatory": 571,
+          "inhibitory": 341,
+          "ratio": 1.674,
+          "region": "reality_reach"
+        },
+        {
+          "cells": 78,
+          "excitatory": 40,
+          "inhibitory": 22,
+          "ratio": 1.818,
+          "region": "collective"
+        },
+        {
+          "cells": 598,
+          "excitatory": 341,
+          "inhibitory": 175,
+          "ratio": 1.949,
+          "region": "embodiment"
+        },
+        {
+          "cells": 25,
+          "excitatory": 14,
+          "inhibitory": 7,
+          "ratio": 2.0,
+          "region": "joy_social_integration"
+        },
+        {
+          "cells": 29,
+          "excitatory": 17,
+          "inhibitory": 8,
+          "ratio": 2.125,
+          "region": "volition"
+        },
+        {
+          "cells": 139,
+          "excitatory": 84,
+          "inhibitory": 38,
+          "ratio": 2.211,
+          "region": "mycelium"
+        },
+        {
+          "cells": 453,
+          "excitatory": 210,
+          "inhibitory": 89,
+          "ratio": 2.36,
+          "region": "orchestrator"
+        },
+        {
+          "cells": 51,
+          "excitatory": 36,
+          "inhibitory": 15,
+          "ratio": 2.4,
+          "region": "phenomenology"
+        },
+        {
+          "cells": 77,
+          "excitatory": 46,
+          "inhibitory": 19,
+          "ratio": 2.421,
+          "region": "communication"
+        },
+        {
+          "cells": 30,
+          "excitatory": 15,
+          "inhibitory": 6,
+          "ratio": 2.5,
+          "region": "persistence"
+        }
+      ]
+    },
+    "gate_dominated": [
+      {
+        "body_contacts": 1,
+        "cell": "core.brain.llm.latent_cortex.fast_weight_learning:validate_fast_weight_learning_receipt",
+        "guards": 55,
+        "inhibitory_on_initial_segment": 21,
+        "initial_segment_contacts": 23,
+        "initial_segment_share": 0.9583
+      },
+      {
+        "body_contacts": 4,
+        "cell": "core.brain.cognitive_engine:CognitiveEngine._qualified_recurrent_direct_reply",
+        "guards": 5,
+        "inhibitory_on_initial_segment": 0,
+        "initial_segment_contacts": 19,
+        "initial_segment_share": 0.8261
+      },
+      {
+        "body_contacts": 1,
+        "cell": "core.runtime.settings_control_plane:RuntimeSettingsStore._load_application_entries_locked",
+        "guards": 13,
+        "inhibitory_on_initial_segment": 0,
+        "initial_segment_contacts": 17,
+        "initial_segment_share": 0.9444
+      },
+      {
+        "body_contacts": 2,
+        "cell": "core.brain.cognitive_engine:CognitiveEngine._observe_compositional_semantic_shadow",
+        "guards": 3,
+        "inhibitory_on_initial_segment": 0,
+        "initial_segment_contacts": 16,
+        "initial_segment_share": 0.8889
+      },
+      {
+        "body_contacts": 2,
+        "cell": "core.brain.llm.latent_cortex.runtime_integrity:validate_runtime_integrity_receipt",
+        "guards": 37,
+        "inhibitory_on_initial_segment": 7,
+        "initial_segment_contacts": 14,
+        "initial_segment_share": 0.875
+      },
+      {
+        "body_contacts": 3,
+        "cell": "core.runtime.settings_control_plane:RuntimeSettingsStore._load_audit_entries_locked",
+        "guards": 15,
+        "inhibitory_on_initial_segment": 2,
+        "initial_segment_contacts": 14,
+        "initial_segment_share": 0.8235
+      },
+      {
+        "body_contacts": 2,
+        "cell": "core.brain.llm.latent_cortex.stop_gate:validate_stop_gate_receipt",
+        "guards": 19,
+        "inhibitory_on_initial_segment": 10,
+        "initial_segment_contacts": 13,
+        "initial_segment_share": 0.8667
+      },
+      {
+        "body_contacts": 1,
+        "cell": "core.brain.llm.latent_cortex.contradiction_perturber:validate_contradiction_perturbation_receipt",
+        "guards": 18,
+        "inhibitory_on_initial_segment": 10,
+        "initial_segment_contacts": 12,
+        "initial_segment_share": 0.9231
+      },
+      {
+        "body_contacts": 1,
+        "cell": "core.brain.llm.latent_cortex.heterogeneous_integrator:IntegrationPolicyResult.normalized",
+        "guards": 1,
+        "inhibitory_on_initial_segment": 10,
+        "initial_segment_contacts": 10,
+        "initial_segment_share": 0.9091
+      },
+      {
+        "body_contacts": 1,
+        "cell": "core.brain.llm.latent_cortex.verified_best:validate_verified_best_receipt",
+        "guards": 14,
+        "inhibitory_on_initial_segment": 8,
+        "initial_segment_contacts": 10,
+        "initial_segment_share": 0.9091
+      },
+      {
+        "body_contacts": 0,
+        "cell": "core.runtime.settings_control_plane:RuntimeSettingsStore._verify_state_receipt_locked",
+        "guards": 7,
+        "inhibitory_on_initial_segment": 0,
+        "initial_segment_contacts": 10,
+        "initial_segment_share": 1.0
+      },
+      {
+        "body_contacts": 1,
+        "cell": "core.brain.llm.endogenous_state:EndogenousState.from_payload",
+        "guards": 6,
+        "inhibitory_on_initial_segment": 0,
+        "initial_segment_contacts": 9,
+        "initial_segment_share": 0.9
+      },
+      {
+        "body_contacts": 1,
+        "cell": "core.brain.llm.unified_recurrent_qualified_activation:seal_qualified_activation",
+        "guards": 2,
+        "inhibitory_on_initial_segment": 5,
+        "initial_segment_contacts": 9,
+        "initial_segment_share": 0.9
+      },
+      {
+        "body_contacts": 0,
+        "cell": "core.security.integrity_guardian:IntegrityGuardian._current_source_revision",
+        "guards": 1,
+        "inhibitory_on_initial_segment": 0,
+        "initial_segment_contacts": 9,
+        "initial_segment_share": 1.0
+      },
+      {
+        "body_contacts": 2,
+        "cell": "core.learning.recurrent_grpo:validate_causal_recurrent_transition_pair_receipt",
+        "guards": 7,
+        "inhibitory_on_initial_segment": 2,
+        "initial_segment_contacts": 8,
+        "initial_segment_share": 0.8
+      }
+    ],
+    "multiplicity": {
+      "contacts": 114280,
+      "four_or_more_fraction": 0.041583,
+      "heavy_excess_over_reference": 45.2,
+      "histogram": {
+        "1": 66320,
+        "10": 74,
+        "11": 59,
+        "12": 55,
+        "13": 33,
+        "14": 31,
+        "15": 24,
+        "16": 21,
+        "17": 16,
+        "18": 11,
+        "19": 10,
+        "2": 8752,
+        "20": 12,
+        "21": 5,
+        "22": 10,
+        "23": 10,
+        "24": 6,
+        "25": 6,
+        "26": 6,
+        "28": 5,
+        "29": 4,
+        "3": 2623,
+        "31": 3,
+        "32": 2,
+        "33": 1,
+        "34": 4,
+        "4": 1278,
+        "5": 713,
+        "6": 385,
+        "7": 269,
+        "8": 173,
+        "9": 124
+      },
+      "maximum": 113,
+      "mean": 1.4097,
+      "pairs": 81066,
+      "reference": "H01",
+      "reference_four_or_more_fraction": 0.00092,
+      "reference_maximum": 50.0,
+      "reference_single_fraction": 0.965,
+      "single_fraction": 0.8181
+    },
+    "strongest": [
+      {
+        "contacts": 113,
+        "post": "core.brain.cognitive_engine:_RuntimeServiceAdapter.get",
+        "pre": "core.brain.cognitive_engine:CognitiveEngine._direct_desktop_quick_reply",
+        "same_module": true,
+        "same_region": true
+      },
+      {
+        "contacts": 83,
+        "post": "core.brain.llm.latent_cortex.worker_handler:_typed_value",
+        "pre": "core.brain.llm.latent_cortex.worker_handler:config_from_job",
+        "same_module": true,
+        "same_region": true
+      },
+      {
+        "contacts": 73,
+        "post": "core.learning.semantic_program_corpus:_AnnotatedText.append",
+        "pre": "core.learning.semantic_program_corpus:_render_sequence_cataphoric_chain",
+        "same_module": true,
+        "same_region": true
+      },
+      {
+        "contacts": 69,
+        "post": "core.learning.semantic_program_corpus:_AnnotatedText.append",
+        "pre": "core.learning.semantic_program_corpus:_render_sequence_reserved_alias_chain",
+        "same_module": true,
+        "same_region": true
+      },
+      {
+        "contacts": 66,
+        "post": "core.brain.llm.latent_cortex.types:EpisodeReceipt.flag",
+        "pre": "core.brain.llm.latent_cortex.engine:LatentCortexEngine._latent_episode",
+        "same_module": false,
+        "same_region": true
+      },
+      {
+        "contacts": 63,
+        "post": "core.learning.semantic_program_corpus:_AnnotatedText.append",
+        "pre": "core.learning.semantic_program_corpus:_render_sequence_binary_chain",
+        "same_module": true,
+        "same_region": true
+      },
+      {
+        "contacts": 59,
+        "post": "core.learning.semantic_program_corpus:_AnnotatedText.append",
+        "pre": "core.learning.semantic_program_corpus:_render_sequence_chain",
+        "same_module": true,
+        "same_region": true
+      },
+      {
+        "contacts": 55,
+        "post": "core.utils.memory_monitor:MemoryPressureSnapshot.warning",
+        "pre": "core.brain.llm.mlx_worker:_mlx_worker_loop",
+        "same_module": false,
+        "same_region": false
+      },
+      {
+        "contacts": 53,
+        "post": "core.brain.cognitive_engine:_RuntimeServiceAdapter.get",
+        "pre": "core.brain.cognitive_engine:CognitiveEngine._run_thinking_loop",
+        "same_module": true,
+        "same_region": true
+      },
+      {
+        "contacts": 50,
+        "post": "core.utils.memory_monitor:MemoryPressureSnapshot.warning",
+        "pre": "interface.routes.chat:_run_cognitive_engine_chat_turn",
+        "same_module": false,
+        "same_region": false
+      },
+      {
+        "contacts": 45,
+        "post": "core.brain.llm.latent_cortex.recurrence_adapter_identity_v2:_fail",
+        "pre": "core.brain.llm.latent_cortex.recurrence_adapter_identity_v2:validate_v2_adapter_identity",
+        "same_module": true,
+        "same_region": true
+      },
+      {
+        "contacts": 43,
+        "post": "core.brain.latent_cortex_service:LatentCortexService._record_failure",
+        "pre": "core.brain.latent_cortex_service:LatentCortexService.deep_reason",
+        "same_module": true,
+        "same_region": true
+      },
+      {
+        "contacts": 43,
+        "post": "core.runtime.errors:record_degradation",
+        "pre": "interface.routes.chat:_api_chat_turn",
+        "same_module": false,
+        "same_region": false
+      },
+      {
+        "contacts": 42,
+        "post": "core.container:ServiceContainer.peek",
+        "pre": "interface.routes.system:_collect_api_health_payload",
+        "same_module": false,
+        "same_region": false
+      },
+      {
+        "contacts": 41,
+        "post": "core.brain.llm.mlx_worker:_record_mlx_degradation",
+        "pre": "core.brain.llm.mlx_worker:_mlx_worker_loop",
+        "same_module": true,
+        "same_region": true
+      }
+    ]
+  }
+}

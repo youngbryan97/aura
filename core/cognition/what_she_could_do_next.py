@@ -93,6 +93,14 @@ class ADevelopmentalAction:
     #: shadow, canary, active or retired. A change starts in shadow and is
     #: promoted by evidence rather than by being installed.
     status: str = "active"
+    #: Whether this action runs its own held-out test before returning.
+    #:
+    #: Letting go of a part and naming what two parts share both measure
+    #: themselves on families they were not chosen for, and return None when
+    #: the change did not pay. Anything that does not say so here is judged by
+    #: the generic gate in _and_takes_itself_back, so "it returned a sentence"
+    #: stops being the whole of the evidence for keeping a change.
+    judges_itself: bool = False
     #: Whether it is about a case in hand or about her.
     #:
     #: Widening a language needs something the language could not say; there is
@@ -122,18 +130,91 @@ WHERE_A_TERM_CAN_GO: tuple[str, ...] = (
 WHAT_SHE_COULD_DO: dict[str, ADevelopmentalAction] = {}
 
 
-def _and_takes_itself_back(name: str, do_it: Callable[..., Any]) -> Callable[..., Any]:
-    """Wrap an action so that declining to act leaves nothing behind.
+#: How each kept change was judged, counted since the process started.
+#:
+#: "held out" means a probe on families the change was not chosen for said it
+#: paid. "unmeasured" means the change was kept because it reported doing
+#: something and no probe could be built to check it — which is the honest
+#: name for what every kept change used to be. "declined" and "did not pay"
+#: are the two ways a change leaves nothing behind.
+HOW_CHANGES_WERE_JUDGED: dict[str, int] = {
+    "held out": 0,
+    "unmeasured": 0,
+    "judged itself": 0,
+    "did not pay": 0,
+    "declined": 0,
+}
 
-    Every action here answers the same way: a sentence when it did something,
-    None when it decided not to. That convention is the invariant worth
-    enforcing — a change that reports it did nothing must have left nothing.
 
-    It used to be each author's job. Naming what two parts share popped the
-    head it added; letting go of a part did not put the part back, logged
-    "she kept it after all", and returned None over a registry that no longer
-    held it. Doing this at the one place actions are admitted means the next
-    action gets it without its author knowing this paragraph exists.
+def how_changes_were_judged() -> dict[str, Any]:
+    """The evidence behind every change kept this process.
+
+    An external review put the missing invariant as: keeping a candidate
+    should require E[capability | candidate] > E[capability | incumbent] under
+    an evaluation the candidate was not optimised against. The generic layer
+    did not require that — it kept anything that returned a sentence. It
+    requires it now wherever a probe can be built, and where one cannot it
+    says so instead of pretending, because a number that counts unmeasured
+    keeps is what closing the gap is measured against.
+    """
+    kept = sum(
+        HOW_CHANGES_WERE_JUDGED[one]
+        for one in ("held out", "unmeasured", "judged itself")
+    )
+    return {
+        "schema": "aura.development.evidence.v1",
+        "counts": dict(HOW_CHANGES_WERE_JUDGED),
+        "kept": kept,
+        "kept_without_evidence": HOW_CHANGES_WERE_JUDGED["unmeasured"],
+        "share_with_evidence": (
+            (kept - HOW_CHANGES_WERE_JUDGED["unmeasured"]) / kept if kept else 0.0
+        ),
+    }
+
+
+def _held_out_says_it_paid(name: str, before: Any, probe: Any) -> bool | None:
+    """Did this change pay on families it was not chosen for?
+
+    None where no probe could be built, which is a different answer from no
+    and has to stay different: refusing every change nobody can measure would
+    stop development on any faculty without a probe, and calling it evidence
+    would be a lie.
+    """
+    if not probe:
+        return None
+    try:
+        from core.cognition.what_she_does_about_herself import worth_keeping
+
+        paid, _why = worth_keeping(before, probe)
+    except (ImportError, RuntimeError, TypeError, ValueError, ZeroDivisionError) as exc:
+        logger.debug("could not judge %s on held-out families: %s", name, exc)
+        return None
+    return bool(paid)
+
+
+def _and_takes_itself_back(
+    name: str, do_it: Callable[..., Any], *, judges_itself: bool = False
+) -> Callable[..., Any]:
+    """Wrap an action so a change is kept only on evidence, and undone otherwise.
+
+    Two rules, and the second was missing.
+
+    A change that reports it did nothing must have left nothing. That used to
+    be each author's job. Naming what two parts share popped the head it
+    added; letting go of a part did not put the part back, logged "she kept it
+    after all", and returned None over a registry that no longer held it.
+
+    And a change that reports it DID something must have paid for it. The
+    generic layer kept anything returning a sentence, so "it returned a
+    sentence" was the whole of the evidence for a self-authored mutation.
+    Individual actions did better; the layer they all pass through did not.
+    Now a held-out probe is taken before and after, and a change that does not
+    pay on families it was not chosen for is put back exactly.
+
+    Where no probe can be built the change is kept and counted as unmeasured.
+    That is not a gate, and it is not pretending to be one — refusing every
+    change nobody can measure would stop development on any faculty without a
+    probe, so what happens instead is that the number is visible.
     """
     from functools import wraps
 
@@ -141,13 +222,49 @@ def _and_takes_itself_back(name: str, do_it: Callable[..., Any]) -> Callable[...
     def acted(*args: Any, **kwargs: Any) -> Any:
         from core.cognition.what_she_can_take_back import only_if_it_pays
 
+        before, probe = _how_things_stand()
         with only_if_it_pays(name) as trial:
             said = do_it(*args, **kwargs)
-            if said is not None:
+            if said is None:
+                HOW_CHANGES_WERE_JUDGED["declined"] += 1
+                return None
+            if judges_itself:
+                HOW_CHANGES_WERE_JUDGED["judged itself"] += 1
                 trial.keep(str(said))
+                return said
+            paid = _held_out_says_it_paid(name, before, probe)
+            if paid is False:
+                HOW_CHANGES_WERE_JUDGED["did not pay"] += 1
+                logger.info(
+                    "%s changed something and did not pay on held-out families; "
+                    "putting it back", name
+                )
+                return None
+            HOW_CHANGES_WERE_JUDGED["held out" if paid else "unmeasured"] += 1
+            trial.keep(str(said))
         return said
 
     return acted
+
+
+def _how_things_stand() -> tuple[Any, Any]:
+    """The held-out probe, and how it stands before a change is made.
+
+    Read before the action runs, because reading it afterwards reads a world
+    the action has already changed — which is the same reason `retract` reads
+    what rests on a head before removing it.
+    """
+    try:
+        from core.cognition.what_she_does_about_herself import (
+            _how_it_stands,  # noqa: PLC2701
+            _probe,  # noqa: PLC2701
+        )
+
+        probe = _probe()
+        return _how_it_stands(probe), probe
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("no held-out probe available: %s", exc)
+        return {}, ()
 
 
 def what_she_could_do(
@@ -165,6 +282,7 @@ def what_she_could_do(
     succeeded: Callable[[Any], bool] | None = None,
     undo: Callable[[], None] | None = None,
     status: str = "active",
+    judges_itself: bool = False,
 ) -> ADevelopmentalAction:
     """Put an action in the registry. The one call, for hers and for ours."""
     if over not in WHERE_A_TERM_CAN_GO:
@@ -173,10 +291,13 @@ def what_she_could_do(
         name=str(name),
         over=over,
         kind=str(kind),
-        do_it=_and_takes_itself_back(str(name), do_it),
+        do_it=_and_takes_itself_back(
+            str(name), do_it, judges_itself=bool(judges_itself)
+        ),
         price=max(0, int(price)),
         written=written,
         hers=bool(hers),
+        judges_itself=bool(judges_itself),
         needs_a_case=bool(needs_a_case),
         probe=probe,
         budget=max(0, int(budget)),

@@ -1279,6 +1279,19 @@ def _attach_causal_evidence(block: dict[str, Any]) -> None:
         block["decorative_direct_channels"] = decorative
         if decorative:
             block["decorative_direct_channel_count"] = len(decorative)
+
+        # How much of the apparatus has actually been used. Without this, a
+        # campaign that is wired, admitted and never actually running looks
+        # exactly like one that ran and found nothing: both report no
+        # measured channels and no decorative ones, which reads as a clean
+        # bill of health. The number that separates them is how many
+        # registered channels have never been measured at all.
+        measured = set(influence.get("channels") or {})
+        never = sorted(set(registered) - measured)
+        block["influence_channels_registered"] = len(registered)
+        block["influence_channels_never_measured"] = len(never)
+        if never:
+            block["influence_channels_awaiting_evidence"] = never[:20]
     except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
         block["causal_influence_error"] = repr(exc)
 

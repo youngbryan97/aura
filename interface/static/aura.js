@@ -3483,8 +3483,9 @@ const PLAIN_LANGUAGE_RULES = [
      (m) => `Put off ${humanTool(m[1])} for now (${humanReason(m[2])}).`],
     [/^Tool Dispatch:\s*(\w+)/i, (m) => `Started ${humanTool(m[1])}.`],
     [/^stem cell captured: organ=(\w+)/i, (m) => `Saved a recovery snapshot of ${humanOrgan(m[1])}.`],
-    [/^\[health_poll\].*conversation ready/i, () => 'Health check passed — ready to talk.'],
-    [/^\[websocket_heartbeat\].*conversation ready/i, () => 'Connection to the interface is healthy.'],
+    // Health headlines are decided from structured state in
+    // publishHealthNeuralPulse. A ready conversation cannot erase a failing
+    // probe or proof-integrity result elsewhere in the same report.
     [/^Flagged response for distillation \(confidence=([\d.]+)/i,
      (m) => `Marked an answer she was only ${Math.round(+m[1] * 100)}% sure of, to learn from later.`],
     [/max-phi complex.*?phi=([\d.]+)/i,

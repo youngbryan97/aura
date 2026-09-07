@@ -2745,6 +2745,14 @@ class LatentCortexEngine:
                 break
             newline_run = newline_run + 1 if self._is_pure_newline_token(token) else 0
             sentence_done = self.tokenizer is None or self._token_ends_sentence(token)
+            if sentence_done and self.tokenizer is not None and (
+                self._episode_native_thinking
+                if native_thinking is None else native_thinking
+            ):
+                # Punctuation in private reasoning is not an answer boundary.
+                # Reuse the same channel parser as final answer extraction.
+                surface = self._decode_public_text(out, native_thinking=native_thinking)
+                sentence_done = bool(surface.rstrip().endswith(_SENTENCE_TERMINALS))
             if index + 1 >= int(limit):
                 if contract_required:
                     if index + 1 >= int(limit) + contract_grace:

@@ -51,6 +51,14 @@ def _env_float(name: str, default: float, *, low: float, high: float) -> float:
 _CHECKING = threading.local()
 
 
+
+#: Times the payload checker itself raised, by exception name.
+#:
+#: A checker that fails silently reports exactly like a bus with no violations
+#: to report, and those are opposite conditions. It cannot record a degradation
+#: — that publishes, and publishing checks — so the count is the report.
+WHEN_CHECKING_ITSELF_FAILED: dict[str, int] = {}
+
 def _the_payload_matches_what_the_topic_declared(topic: Any, data: Any) -> None:
     """Check a declared topic's payload, and never raise doing it.
 
@@ -88,7 +96,14 @@ def _the_payload_matches_what_the_topic_declared(topic: Any, data: Any) -> None:
             severity="warning",
             action="delivered the event anyway; the topic's declaration and its payload disagree",
         )
-    except Exception:  # noqa: BLE001 — checking must never stop a publish
+    except Exception as exc:  # noqa: BLE001 — checking must never stop a publish
+        # Counted, not recorded. Recording a degradation publishes, publishing
+        # checks, and checking is what just failed — so reporting this the
+        # ordinary way is the loop the reentrancy guard above exists to stop.
+        # A number the health surface can read is the one report that cannot
+        # re-enter.
+        kind = type(exc).__name__
+        WHEN_CHECKING_ITSELF_FAILED[kind] = WHEN_CHECKING_ITSELF_FAILED.get(kind, 0) + 1
         return
     finally:
         _CHECKING.inside = False

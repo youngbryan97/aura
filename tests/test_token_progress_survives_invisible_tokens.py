@@ -52,10 +52,24 @@ def test_generate_retries_report_cumulative_decoded_work():
     observed = []
     for attempt, size in enumerate((397, 244, 12)):
         scope["internal_attempt"] = attempt
-        exec(compile(ast.Module(body=[advance], type_ignores=[]), "retry", "exec"), scope)
+        # noqa: S102 — the statement under test is lifted from the real
+        # source, so running it here is what makes this a test of the
+        # shipped arithmetic instead of a restatement of it.
+        exec(  # noqa: S102
+            compile(  # noqa: S102
+                ast.Module(body=[advance], type_ignores=[]), "retry", "exec"
+            ),
+            scope,
+        )
         for token in range(1, size + 1):
             scope["token_count"] = token
-            observed.append(eval(compile(ast.Expression(count), "progress", "eval"), scope))
+            observed.append(
+                # Same reason: the expression comes from the shipped source.
+                eval(  # noqa: S102,S307
+                    compile(ast.Expression(count), "progress", "eval"),  # noqa: S102
+                    scope,
+                )
+            )
     assert observed == list(range(1, 654))
 
 

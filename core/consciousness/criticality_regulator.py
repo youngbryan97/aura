@@ -98,6 +98,18 @@ class CriticalityConfig:
     # mean absolute activation exceeds this value.
     activation_threshold: float = 0.15
 
+    # Population-activity history kept for the multistep regression estimator.
+    # The per-tick mean is biased towards zero when only part of a system is
+    # observed, and 64 columns of a larger mesh is exactly that case, so the
+    # unbiased estimator needs a run of total activity rather than per-tick
+    # ratios. 512 ticks is about fifty autocorrelation times near criticality.
+    activity_history: int = 512
+
+    # Fewer samples than this and the regression has nothing to fit, so the
+    # per-tick mean is used and the state says which estimator produced the
+    # number.
+    min_history_for_regression: int = 64
+
     # Minimum number of avalanches required before fitting the power law.
     # With fewer samples the fit is unreliable so we return a neutral
     # exponent of -1.5 (assumed critical).
@@ -133,6 +145,9 @@ class CriticalityState:
     ei_ratio: float = 1.0
 
     # Diagnostics
+    branching_ratio_naive: float = 1.0  # the per-tick mean, kept to show its bias
+    branching_estimator: str = "per-tick-mean"
+    subsampling_bias: float = 0.0       # unbiased estimate minus the naive one
     avalanche_count: int = 0           # avalanches observed in window
     mean_avalanche_size: float = 0.0   # mean columns activated per cascade
     herfindahl_index: float = 0.0      # activation concentration (0=uniform, 1=one column)
@@ -239,6 +254,9 @@ class CriticalityRegulator:
             maxlen=self.cfg.branching_measurement_interval
         )
         self._branching_ratio: float = 1.0  # assume critical at startup
+        self._branching_ratio_naive: float = 1.0
+        self._branching_estimator: str = "per-tick-mean"
+        self._activity_history: Deque[float] = deque(maxlen=self.cfg.activity_history)
 
         # --- Avalanche tracking ---
         # We track avalanches as contiguous sequences of ticks where at least
@@ -416,6 +434,9 @@ class CriticalityRegulator:
             )
             self._branching_samples.append(br_sample)
 
+        # --- Population activity, for the unbiased branching estimator ---
+        self._activity_history.append(float(active.sum()))
+
         # --- Avalanche tracking ---
         self._track_avalanche(active)
 
@@ -433,6 +454,29 @@ class CriticalityRegulator:
             self._run_measurement_and_pid()
 
         return self._cached_state
+
+    def _regression_branching_ratio(self):
+        """Unbiased branching ratio from the population-activity run.
+
+        Returns ``None`` when the fit does not hold together, and the caller
+        then keeps the per-tick mean rather than acting on a number the data
+        does not support. A poor fit here usually means the activity run is too
+        short or too flat, both of which are conditions where no estimator
+        should be trusted.
+        """
+        try:
+            from core.connectome.criticality import branching_ratio_mr
+        except ImportError as exc:
+            logger.debug("unbiased branching estimator unavailable: %s", exc)
+            return None
+        try:
+            estimate = branching_ratio_mr(list(self._activity_history))
+        except (ValueError, FloatingPointError, ZeroDivisionError) as exc:
+            logger.debug("branching regression failed: %s", exc)
+            return None
+        if estimate.r_squared < 0.5 or estimate.m <= 0.0:
+            return None
+        return estimate
 
     def _compute_branching_sample(
         self,
@@ -595,14 +639,28 @@ class CriticalityRegulator:
         """Run the full measurement cycle and update PID outputs.
 
         Called every `branching_measurement_interval` ticks.  This is the
-        expensive path (~1-3 ms for 64 columns).
+        expensive path: the regression over 512 activity samples costs
+        0.30 ms, measured, on top of the avalanche fit.
         """
-        # 1. Average the branching ratio samples collected over the interval
+        # 1. Estimate the branching ratio.
+        #
+        # The per-tick mean is kept because it is what every consumer read
+        # before, and it is not what drives the controller any more. It is
+        # biased towards zero under subsampling — a system sitting exactly at
+        # the critical point reads as subcritical — and a PID wired to that
+        # reading raises gain until the real system is supercritical. The
+        # multistep regression estimator is unbiased under subsampling because
+        # subsampling changes the amplitude of the correlation decay and not
+        # its rate. Wilting & Priesemann, Nat Commun 9:2325 (2018).
         if self._branching_samples:
-            self._branching_ratio = float(
-                np.mean(list(self._branching_samples))
-            )
-        # else: keep previous value
+            self._branching_ratio_naive = float(np.mean(list(self._branching_samples)))
+        self._branching_ratio = self._branching_ratio_naive
+        self._branching_estimator = "per-tick-mean"
+        if len(self._activity_history) >= self.cfg.min_history_for_regression:
+            estimate = self._regression_branching_ratio()
+            if estimate is not None:
+                self._branching_ratio = estimate.m
+                self._branching_estimator = estimate.method
 
         # 2. Fit the avalanche exponent
         self._avalanche_exponent = self._fit_avalanche_exponent()
@@ -637,6 +695,9 @@ class CriticalityRegulator:
         # 6. Build and cache the state
         self._cached_state = CriticalityState(
             branching_ratio=round(self._branching_ratio, 4),
+            branching_ratio_naive=round(self._branching_ratio_naive, 4),
+            branching_estimator=self._branching_estimator,
+            subsampling_bias=round(self._branching_ratio - self._branching_ratio_naive, 4),
             avalanche_exponent=round(self._avalanche_exponent, 4),
             criticality_score=round(score, 4),
             gain_adjustment=round(self._gain_adjustment, 4),

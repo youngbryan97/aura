@@ -52,7 +52,6 @@ class Jobs:
     "kind",
     [
         "a coroutine created and dropped",
-        "a blocking await while holding a lock",
         "reaching inside a queue instead of using it",
         "a lock released by cancellation",
         "a bare except swallowing cancellation",
@@ -194,13 +193,50 @@ def test_the_tree_itself_is_clean() -> None:
 def test_the_checks_are_named_so_a_caller_can_say_what_it_checked() -> None:
     verdict = is_it_correct("x = 1")
     assert verdict["checked"] == list(THE_CHECKS)
-    assert len(THE_CHECKS) == 5
+    assert len(THE_CHECKS) == 4
+
+
+def test_wait_under_lock_is_not_a_proven_dependency_cycle() -> None:
+    code = '''
+import asyncio
+lock = asyncio.Lock()
+queue = asyncio.Queue()
+async def consume():
+    async with lock:
+        return await queue.get()
+async def produce():
+    await queue.put(1)
+'''
+    assert what_is_wrong_with(code) == ()
+    assert any(
+        item.kind == "a blocking await while holding a lock"
+        for item in what_is_worth_a_look_in(code)
+    )
+
+
+def test_gather_schedules_work_without_awaiting_its_future() -> None:
+    import asyncio
+
+    source = '''
+import asyncio
+async def child():
+    completed.set()
+async def main():
+    asyncio.gather(child())
+    await completed.wait()
+'''
+    assert what_is_wrong_with(source) == ()
+    namespace = {"completed": asyncio.Event()}
+    # noqa: S102 — the checker's verdict is only worth anything if the
+    # source it approved actually runs, so running it IS the assertion.
+    exec(source, namespace)  # noqa: S102
+    asyncio.run(namespace["main"]())
+    assert namespace["completed"].is_set()
 
 
 def test_the_generator_checks_what_it_wrote_before_returning_it() -> None:
     """Wired, not beside it: the check is on the path generated code takes."""
     import asyncio
-    from types import SimpleNamespace
 
     from core.brain.llm.code_generator import LLMCodeGenerator
 

@@ -129,7 +129,11 @@ def _same(a: Any, b: Any) -> bool:
     """Equality that survives values which refuse to compare."""
     try:
         return bool(a == b)
-    except Exception:
+    except Exception:  # noqa: BLE001 — identity is the answer when equality refuses
+        # Not a loss and not a guess. A value whose __eq__ raises (a numpy
+        # array, a lazily-loading proxy, a half-built object) has no equality
+        # to report, and "the same object" is true of exactly the cases where
+        # nothing changed. Nothing needs counting because nothing was dropped.
         return a is b
 
 
@@ -194,16 +198,24 @@ def _snapshot(state: Any, fields: tuple[str, ...] | None) -> dict[str, Any]:
     if fields is not None:
         return {k: getattr(state, k, None) for k in fields}
     out: dict[str, Any] = {}
+    unreadable: list[str] = []
     for name in dir(state):
         if name.startswith("_"):
             continue
         try:
             value = getattr(state, name)
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 — a property that raises is data
+            # Named rather than dropped. A state object whose properties raise
+            # produces a smaller dict, and a smaller dict is indistinguishable
+            # from a state that genuinely holds less — which is how a reader
+            # comes to believe a field simply is not there.
+            unreadable.append(f"{name} ({type(exc).__name__})")
             continue
         if callable(value):
             continue
         out[name] = value
+    if unreadable:
+        out["_unreadable"] = unreadable
     return out
 
 

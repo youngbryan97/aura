@@ -49,6 +49,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
+from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
@@ -208,7 +209,73 @@ class SkillSynthesizer:
             for s in self._synthesized
         ]
 
+    @staticmethod
+    def _what_it_has_done_since(name: str) -> dict[str, Any]:
+        """What a forged skill actually did after it was installed.
+
+        Read from the skill library rather than from a counter here.
+        ``SynthesizedSkill.use_count`` was declared, serialised and loaded,
+        and incremented by nothing anywhere — so it read 0 for every forged
+        skill forever, and the question "did the thing she built help?" had a
+        field and no answer.
+
+        The library already counts successes and failures per skill because
+        that is what running one produces. A second counter would be a second
+        thing to forget to write.
+        """
+        try:
+            from core.container import ServiceContainer
+
+            library = ServiceContainer.get("skill_library", default=None)
+            held = getattr(library, "skills", {}).get(name) if library else None
+        except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
+            return {"known": False, "why": f"{type(exc).__name__}: {exc}"}
+        if held is None:
+            # Not an error. A forged skill the library has never heard of is
+            # one that was never installed, which is itself the answer.
+            return {"known": False, "why": "the library does not hold it"}
+        successes = int(getattr(held, "successes", 0) or 0)
+        failures = int(getattr(held, "failures", 0) or 0)
+        return {
+            "known": True,
+            "successes": successes,
+            "failures": failures,
+            "taken": successes + failures,
+            "reliability": getattr(held, "reliability", None),
+        }
+
+    def what_the_forge_has_produced(self) -> dict[str, Any]:
+        """Every forged skill, and what it has done since — the last arrow.
+
+        A gap becomes a candidate, a candidate is verified, a verified skill
+        is installed. Whether the installed skill was ever taken, and whether
+        it worked when it was, is the arrow that closes the loop, and it was
+        the one nothing wrote down.
+        """
+        rows = [
+            {
+                "name": one.name,
+                "gap": one.gap,
+                "verified": one.verified,
+                "since": self._what_it_has_done_since(one.name),
+            }
+            for one in self._synthesized
+        ]
+        installed = [one for one in rows if one["since"].get("known")]
+        taken = [one for one in installed if one["since"].get("taken", 0) > 0]
+        return {
+            "schema": "aura.forge.outcomes.v1",
+            "forged": len(rows),
+            "verified": sum(1 for one in rows if one["verified"]),
+            "installed": len(installed),
+            # Forged, verified, installed and never once taken is the honest
+            # reading of a forge that is running and not paying.
+            "taken_at_least_once": len(taken),
+            "skills": rows,
+        }
+
     def get_status(self) -> dict:
+        outcomes = self.what_the_forge_has_produced()
         return {
             "gap_count": len(self._gap_counts),
             "gaps_at_threshold": sum(
@@ -216,6 +283,8 @@ class SkillSynthesizer:
             ),
             "attempted": len(self._synthesized),
             "verified": sum(1 for s in self._synthesized if s.verified),
+            "installed": outcomes["installed"],
+            "taken_at_least_once": outcomes["taken_at_least_once"],
         }
 
     # ── Forging ───────────────────────────────────────────────────────────

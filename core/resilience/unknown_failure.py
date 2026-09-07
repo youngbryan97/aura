@@ -622,6 +622,7 @@ HOW_OFTEN_IT_IS_WRITTEN = 8
 _ONTOLOGY: _KeptOntology | None = None
 _ONTOLOGY_LOCK = _checked_lock("unknown_failure.ontology")
 _ASKED_TO_WRITE = threading.Event()
+_STOP_WRITING = threading.Event()
 _WRITER: threading.Thread | None = None
 _ATTACHED = [False]
 
@@ -643,9 +644,17 @@ def get_failure_ontology() -> FailureOntology:
 
 
 def _write_when_asked() -> None:
-    while True:
+    """One writer, coalescing. Ends when asked to.
+
+    `while True` on a daemon thread is a thread that cannot be stopped, only
+    outlived — fine at process exit and wrong in a test, which leaves it
+    running for everything after.
+    """
+    while not _STOP_WRITING.is_set():
         _ASKED_TO_WRITE.wait()
         _ASKED_TO_WRITE.clear()
+        if _STOP_WRITING.is_set():
+            return
         held = _ONTOLOGY
         if held is None:
             continue
@@ -653,6 +662,12 @@ def _write_when_asked() -> None:
             held.keep()
         except Exception as exc:  # noqa: BLE001 - a writer thread may not die
             logger.debug("could not keep what failure looks like: %s", exc)
+
+
+def stop_writing_in_the_background() -> None:
+    """Ask the writer to finish. Idempotent, and safe with no writer running."""
+    _STOP_WRITING.set()
+    _ASKED_TO_WRITE.set()
 
 
 def signature_of(record: Any, *, broken_invariants: Sequence[str] = ()) -> Signature:

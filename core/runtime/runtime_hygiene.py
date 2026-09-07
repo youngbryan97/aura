@@ -260,6 +260,7 @@ class ProcessRecord:
     pid: int | None = None
     exit_code: int | None = None
     finished_at: float | None = None
+    successor_of_pid: int | None = None
 
     def age_s(self, now: float | None = None) -> float:
         current_time = now if now is not None else time.monotonic()
@@ -1472,6 +1473,18 @@ class RuntimeHygieneManager:
             for other in list(self._process_records.values())
         )
 
+    def handoff_successor(self, proc: Any, *, predecessor_pid: int) -> None:
+        """Keep an exact registered successor alive through its parent's teardown."""
+        key = id(proc)
+        record = self._process_records.get(key)
+        if predecessor_pid != os.getpid():
+            raise ValueError("successor_predecessor_must_be_current_process")
+        if record is None or self._process_refs.get(key) is not proc:
+            raise ValueError("successor_handle_not_registered")
+        if record.finished_at is not None or proc.poll() is not None:
+            raise ValueError("successor_already_exited")
+        record.successor_of_pid = predecessor_pid
+
     def retire_process_handle(self, proc: Any, *, exit_code: int | None = None) -> bool:
         """Retire one exact process handle after its owner proved termination.
 
@@ -2151,6 +2164,13 @@ class RuntimeHygieneManager:
 
     async def _cleanup_child_processes(self) -> None:
         async def _cleanup_one(proc: Any) -> None:
+            record = self._process_records.get(id(proc))
+            if (
+                record is not None
+                and self._process_refs.get(id(proc)) is proc
+                and record.successor_of_pid == os.getpid()
+            ):
+                return
             if _is_python_resource_tracker_process(proc):
                 return
             if hasattr(proc, "poll"):

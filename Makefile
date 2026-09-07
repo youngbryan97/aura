@@ -1,4 +1,4 @@
-.PHONY: interiority skill-scope skill-scope-baseline lock-advisories release-dry-run release-ready lint-surface lint-surface-grow product-facts threat-model red-team method-size-changed deps-generate deps-check deps-gate lockfiles lockfiles-check review-policy branch-protection branch-protection-policy typed-surface typed-surface-baseline typecheck-changed coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline state-ownership epistemic-independence architecture-lint gap-atlas campaigns cognitive-complexity reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report rlc-27b-inventory rlc-27b-tissue rlc-27b-grounding rlc-27b-mtp rlc-27b-package rlc-27b-steering-plan rlc-27b-queue rlc-27b-critical-path rlc-27b-execution-plan rlc-27b-readiness rlc-27b-preflight convergence agi-gauntlet agi-gauntlet-quick
+.PHONY: connectome connectome-pathology connectome-record connectome-zapbench interiority skill-scope skill-scope-baseline lock-advisories release-dry-run release-ready lint-surface lint-surface-grow product-facts threat-model red-team method-size-changed deps-generate deps-check deps-gate lockfiles lockfiles-check review-policy branch-protection branch-protection-policy typed-surface typed-surface-baseline typecheck-changed coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline state-ownership epistemic-independence architecture-lint gap-atlas campaigns cognitive-complexity reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report rlc-27b-inventory rlc-27b-tissue rlc-27b-grounding rlc-27b-mtp rlc-27b-package rlc-27b-steering-plan rlc-27b-queue rlc-27b-critical-path rlc-27b-execution-plan rlc-27b-readiness rlc-27b-preflight convergence agi-gauntlet agi-gauntlet-quick
 
 
 PYTHON ?= python
@@ -302,6 +302,22 @@ campaigns:
 
 raw-locks:
 	@$(PYTHON) tools/lint_raw_locks.py
+
+connectome:
+	@echo "🧠 Reconstructing the connectome and running every analysis..."
+	@$(PYTHON) tools/connectome_report.py --sections all --neuroglancer --out artifacts/connectome
+
+connectome-pathology:
+	@echo "🧠 Diagnosing the connectome..."
+	@$(PYTHON) tools/connectome_report.py --sections synaptology,microcircuit,pathology --out artifacts/connectome
+
+connectome-record:
+	@echo "🧠 Recording activity under nine workloads..."
+	@$(PYTHON) tools/record_connectome_activity.py --budget 240
+
+connectome-zapbench:
+	@echo "🧠 Forecasting whole-mind activity..."
+	@$(PYTHON) tools/run_zapbench.py --data artifacts/connectome
 
 layering:
 	@echo "🏛  Checking architectural layering (DEPS include rules)..."

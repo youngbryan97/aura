@@ -46,6 +46,38 @@ def load_jsonl_artifact(path: Path, label: str, failures: list[str]) -> list[dic
         failures.append(f"Failed to read {label}: {exc}")
     return rows
 
+def why_the_margin_cannot_be_read(baselines_data: dict) -> str:
+    """Empty when the Aura-versus-baseline margin means something.
+
+    A margin over an unmatched comparison is not a margin.
+    ``core/evaluation/matched_budget.py`` states its own rule plainly —
+    differences on outcome-determining dimensions make a comparison void, "not
+    flagged — void" — and the battery computes exactly that report and writes
+    it into BASELINES.json beside these numbers.
+
+    The check that reads the numbers never read the report, so a comparison
+    the repository itself declares VOID could satisfy the substantive "more
+    than a wrapper" proof. That is the defect the parity machinery exists to
+    prevent, one layer above where it was installed.
+    """
+    parity = baselines_data.get("_budget_parity")
+    if not isinstance(parity, dict):
+        return (
+            "No budget-parity report beside the baselines: a margin over a "
+            "comparison whose arms were never checked for equal budgets is not "
+            "evidence that the architecture is load-bearing"
+        )
+    if parity.get("matched") is not True:
+        return (
+            "Budget parity VOID, so the Aura-versus-baseline margin cannot be "
+            "interpreted: "
+            + str(parity.get("refusal_reason") or "arms declared different budgets")
+            + ". "
+            + str(parity.get("what_would_match_them") or "")
+        ).strip()
+    return ""
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: python validate_dnu_final_bundle.py <run_dir>")
@@ -382,20 +414,37 @@ def main():
         #     external baselines (a stateless LLM / a ReAct tool-agent) on these tasks.
         #     This is the substantive "more than a wrapper" proof the DNU battery
         #     legitimately supports. (Observed: full ~1.0 vs raw_llm/react ~0.08-0.17.)
-        arch_margin = 0.30
-        full_aura_pr = ablations_data.get("full_aura", {}).get("pass_rate", overall_pass_rate)
-        for b_name in ("raw_llm", "react_agent"):
-            b = baselines_data.get(b_name, {})
-            if not b:
-                continue  # presence/RUN of baselines is enforced separately above
-            b_pr = b.get("pass_rate", 1.0)
-            if (full_aura_pr - b_pr) < arch_margin:
-                failures.append(
-                    f"Full Aura did not materially outperform external baseline "
-                    f"'{b_name}': full={full_aura_pr:.1%} vs {b_name}={b_pr:.1%} "
-                    f"(need a margin of at least {arch_margin:.0%})"
-                )
-                tier_6_failed = True
+        #
+        #     Budget parity FIRST, because a margin over an unmatched comparison
+        #     is not a margin. `core/evaluation/matched_budget.py` says its own
+        #     rule plainly — differences on outcome-determining dimensions make a
+        #     comparison void, "not flagged — void" — and the battery computes
+        #     that report and writes it into BASELINES.json beside these very
+        #     numbers. This check read the numbers and never the report, so a
+        #     comparison the repository itself declares VOID could satisfy the
+        #     substantive "more than a wrapper" proof. That is the same defect
+        #     the parity machinery was built to prevent, one layer up.
+        parity_refusal = why_the_margin_cannot_be_read(baselines_data)
+        if parity_refusal:
+            failures.append(parity_refusal)
+            tier_6_failed = True
+        else:
+            arch_margin = 0.30
+            full_aura_pr = ablations_data.get("full_aura", {}).get(
+                "pass_rate", overall_pass_rate
+            )
+            for b_name in ("raw_llm", "react_agent"):
+                b = baselines_data.get(b_name, {})
+                if not b:
+                    continue  # presence/RUN of baselines is enforced separately above
+                b_pr = b.get("pass_rate", 1.0)
+                if (full_aura_pr - b_pr) < arch_margin:
+                    failures.append(
+                        f"Full Aura did not materially outperform external baseline "
+                        f"'{b_name}': full={full_aura_pr:.1%} vs {b_name}={b_pr:.1%} "
+                        f"(need a margin of at least {arch_margin:.0%})"
+                    )
+                    tier_6_failed = True
 
     # 12. governance failed
     if not gov_data:

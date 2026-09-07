@@ -267,3 +267,47 @@ def test_the_report_says_it_survives_rather_than_leaving_it_to_be_assumed() -> N
     seen = what_was_interrupted()
     assert seen["survives_the_process"] is True
     assert seen["kept_at"].endswith("interruptions.json")
+
+
+def test_forgetting_everything_forgets_the_write_watermark(tmp_path, monkeypatch) -> None:
+    """The counter that decides whether anything is written must reset too.
+
+    `_WRITTEN` gates every future write. A test that wrote generation 500 —
+    which the stale-write test does on purpose — left every later test's
+    writes silently dropped, because `_write` returns without touching disk
+    and without saying so. Dropping a stale write is its job; the state that
+    made every write look stale was the leak.
+
+    The symptom was a test asserting 200 interruptions and reading 0, in one
+    random order out of five, in a file where the two tests are eleven apart.
+    """
+    from core.state import stopping_and_starting_again as mod
+    from core.state.stopping_and_starting_again import MOST_KEPT, WhyItStopped
+
+    kept = tmp_path / "interruptions.json"
+    monkeypatch.setattr(mod, "where_it_is_kept", lambda: kept)
+
+    mod._write(500, '{"schema": "aura.interruptions.v1", "interrupted": []}')
+    assert mod._WRITTEN == 500
+
+    mod.forget_everything()
+    assert mod._WRITTEN < 500, "the watermark survived forget_everything"
+
+    mod.interrupt("something after the high watermark", WhyItStopped.OUT_OF_TIME)
+    assert mod.reload_from_disk() == 1, "a write after forgetting was dropped"
+    mod.forget_everything()
+
+
+def test_the_record_of_a_stop_is_written_under_a_governed_scope() -> None:
+    """An ungoverned internal write is refused by the live runtime.
+
+    The one thing that goes missing would be the record of a stop, which is
+    exactly when nobody is watching the log.
+    """
+    import inspect
+
+    from core.state import stopping_and_starting_again as mod
+
+    source = inspect.getsource(mod._write)
+    assert "local_internal_governed_scope" in source
+    assert source.index("local_internal_governed_scope") < source.index("write_text")

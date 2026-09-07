@@ -103,11 +103,24 @@ def _a_candidate_for(family: str, probes: Sequence[Any], *, how_many: int = 4000
     least compute.
     """
     from core.cognition.the_floor_she_stands_on import every_code, how_long
+    from core.cognition.what_she_already_knows_how_to_say import (
+        what_she_already_knows_how_to_say,
+    )
 
+    # Her own terms as leaves. `every_code` names `also` as the only channel
+    # by which a long term becomes reachable, and this call passed `()` — so
+    # the operator search walked the same 380 terms at depth three forever,
+    # over a language that is computationally universal. The budget was never
+    # the bottleneck; the horizon was, and a library is what moves it.
     offered = 0
     for at, body in enumerate(
         itertools.islice(
-            every_code(deepest=3, variables=1, constants=(0, 1, 2), also=()),
+            every_code(
+                deepest=3,
+                variables=1,
+                constants=(0, 1, 2),
+                also=what_she_already_knows_how_to_say(),
+            ),
             how_many,
         )
     ):

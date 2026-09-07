@@ -4009,6 +4009,22 @@
       "scope": "<module>.AuraConfig.save"
     },
     {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/connectome/neuroglancer.py",
+      "scope": "<module>.write_export"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 2,
+      "path": "core/connectome/neuroglancer.py",
+      "scope": "<module>.write_export"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -6295,6 +6311,22 @@
       "count": 1,
       "path": "core/self_modification/shadow_runtime.py",
       "scope": "<module>.ShadowRuntime.test_mutation"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/standing_authorization.py",
+      "scope": "<module>._keep"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/self_modification/standing_authorization.py",
+      "scope": "<module>._keep"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
@@ -16314,6 +16346,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "1279b3a3b82cb79d4c517f8694f82ab8bb91204a3c726abbb7149c305a0d8cc5",
+  "inventory_sha256": "e43d73ed316c99622d18db95a81885d299c397107105a43445f9ff97ba499b58",
   "schema_version": 1
 }

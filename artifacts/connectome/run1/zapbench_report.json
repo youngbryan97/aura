@@ -1,0 +1,280 @@
+{
+  "adjacency": {
+    "connectome": {
+      "cells": 12724,
+      "cells_with_inputs": 4328,
+      "cells_with_outputs": 3200,
+      "in_edges": 7729,
+      "out_edges": 7729,
+      "rewired": false
+    },
+    "rewired": {
+      "cells": 12724,
+      "cells_with_inputs": 4328,
+      "cells_with_outputs": 3200,
+      "in_edges": 7729,
+      "out_edges": 7729,
+      "rewired": true
+    }
+  },
+  "arms": [
+    {
+      "arm": "mean",
+      "context": 4,
+      "examples": 4529744,
+      "mae": 0.103019,
+      "mae_step_1": 0.104441,
+      "mae_step_32": 0.097504,
+      "mae_step_8": 0.105215
+    },
+    {
+      "arm": "condition_mean",
+      "context": 4,
+      "examples": 4529744,
+      "mae": 0.103019,
+      "mae_step_1": 0.104441,
+      "mae_step_32": 0.097504,
+      "mae_step_8": 0.105215
+    },
+    {
+      "arm": "persistence",
+      "context": 4,
+      "examples": 4529744,
+      "mae": 0.148765,
+      "mae_step_1": 0.107793,
+      "mae_step_32": 0.150831,
+      "mae_step_8": 0.153539
+    },
+    {
+      "arm": "blind",
+      "context": 4,
+      "examples": 4529744,
+      "mae": 0.107532,
+      "mae_step_1": 0.097791,
+      "mae_step_32": 0.102072,
+      "mae_step_8": 0.111528
+    },
+    {
+      "arm": "global",
+      "context": 4,
+      "examples": 4529744,
+      "mae": 0.140062,
+      "mae_step_1": 0.129087,
+      "mae_step_32": 0.13663,
+      "mae_step_8": 0.140976
+    },
+    {
+      "arm": "connectome",
+      "context": 4,
+      "examples": 4529744,
+      "mae": 0.109945,
+      "mae_step_1": 0.102025,
+      "mae_step_32": 0.104302,
+      "mae_step_8": 0.113957
+    },
+    {
+      "arm": "rewired",
+      "context": 4,
+      "examples": 4529744,
+      "mae": 0.109738,
+      "mae_step_1": 0.099503,
+      "mae_step_32": 0.104078,
+      "mae_step_8": 0.11338
+    },
+    {
+      "arm": "mean",
+      "context": 256,
+      "examples": 1323296,
+      "mae": 0.116281,
+      "mae_step_1": 0.109965,
+      "mae_step_32": 0.11854,
+      "mae_step_8": 0.115579
+    },
+    {
+      "arm": "condition_mean",
+      "context": 256,
+      "examples": 1323296,
+      "mae": 0.116281,
+      "mae_step_1": 0.109965,
+      "mae_step_32": 0.11854,
+      "mae_step_8": 0.115579
+    },
+    {
+      "arm": "persistence",
+      "context": 256,
+      "examples": 1323296,
+      "mae": 0.156077,
+      "mae_step_1": 0.086833,
+      "mae_step_32": 0.169067,
+      "mae_step_8": 0.162432
+    },
+    {
+      "arm": "blind",
+      "context": 256,
+      "examples": 1323296,
+      "mae": 0.165438,
+      "mae_step_1": 0.123201,
+      "mae_step_32": 0.164144,
+      "mae_step_8": 0.166513
+    },
+    {
+      "arm": "global",
+      "context": 256,
+      "examples": 1323296,
+      "mae": 2.698353,
+      "mae_step_1": 2.086845,
+      "mae_step_32": 3.12812,
+      "mae_step_8": 2.211495
+    },
+    {
+      "arm": "connectome",
+      "context": 256,
+      "examples": 1323296,
+      "mae": 0.262094,
+      "mae_step_1": 0.220749,
+      "mae_step_32": 0.253141,
+      "mae_step_8": 0.260082
+    },
+    {
+      "arm": "rewired",
+      "context": 256,
+      "examples": 1323296,
+      "mae": 0.249875,
+      "mae_step_1": 0.157193,
+      "mae_step_32": 0.255468,
+      "mae_step_8": 0.19691
+    }
+  ],
+  "dataset": {
+    "cells": 12724,
+    "conditions": [
+      "reconstruction",
+      "serialisation",
+      "tests_conversation",
+      "tests_governance",
+      "tests_memory",
+      "tests_runtime",
+      "tests_verify",
+      "topology",
+      "typing"
+    ],
+    "frame_seconds": 0.914,
+    "frames": 2107,
+    "held_out_condition": "tests_memory",
+    "held_out_frames": 154,
+    "horizon": 32,
+    "signal": "calcium",
+    "silent_cells_dropped": 0,
+    "test_conditions": [
+      "tests_conversation",
+      "tests_governance"
+    ],
+    "test_conditions_unseen_in_training": [
+      "tests_conversation",
+      "tests_governance"
+    ],
+    "test_frames": 391,
+    "train_frames": 1367
+  },
+  "held_out": {
+    "context_4": {
+      "cells_over_100x_median": 192,
+      "condition": "tests_memory",
+      "frames": 154,
+      "mae": 2066340.092280814,
+      "median_cell_mae": 0.010345463199681448,
+      "note": "the mean is carried by cells the training split never saw fire, whose standardised values are unbounded; the median is the number to read"
+    }
+  },
+  "predictability": {
+    "autocorrelation": {
+      "1": 0.12327,
+      "16": 0.02337,
+      "2": 0.07487,
+      "32": 0.01355,
+      "4": 0.03085,
+      "8": 0.01572
+    },
+    "between_condition_variance_share": 0.007,
+    "cells": 12724,
+    "frames": 1953,
+    "median_active_cells_per_frame": 3910.0,
+    "verdict": "the recent past says almost nothing about the next frame, so no forecaster can separate from any other and a tie between arms is not evidence about structure"
+  },
+  "structure_test": {
+    "context_256": {
+      "connectome_vs_blind": {
+        "cells_better": 1419,
+        "cells_compared": 5265,
+        "cells_identical": 7459,
+        "cells_worse": 3846,
+        "draws": 400,
+        "largest_shared_value_share": 0.0957,
+        "mean_ci_high": 0.2835106875426802,
+        "mean_ci_low": 0.18959747366956153,
+        "mean_difference": 0.23514660363580756,
+        "mean_significant": true,
+        "median_ci_high": 0.002780980592741986,
+        "median_ci_low": 0.002503685699040737,
+        "median_difference": 0.002530705567465187,
+        "median_significant": true,
+        "share_better": 0.2695
+      },
+      "connectome_vs_rewired": {
+        "cells_better": 2700,
+        "cells_compared": 5265,
+        "cells_identical": 7459,
+        "cells_worse": 2565,
+        "draws": 400,
+        "largest_shared_value_share": 0.0078,
+        "mean_ci_high": 0.09145732231067889,
+        "mean_ci_low": -0.025976585597564574,
+        "mean_difference": 0.0308409119093409,
+        "mean_significant": false,
+        "median_ci_high": 5.351908492041346e-05,
+        "median_ci_low": -0.00036924402906014157,
+        "median_difference": -0.00012162623060729292,
+        "median_significant": false,
+        "share_better": 0.5128
+      },
+      "verdict": "no detectable effect of wiring on activity under a linear model over neighbour means"
+    },
+    "context_4": {
+      "connectome_vs_blind": {
+        "cells_better": 1355,
+        "cells_compared": 5265,
+        "cells_identical": 7459,
+        "cells_worse": 3910,
+        "draws": 400,
+        "largest_shared_value_share": 0.0957,
+        "mean_ci_high": 0.007242050080779143,
+        "mean_ci_low": 0.004427502437699925,
+        "mean_difference": 0.005726298994012086,
+        "mean_significant": true,
+        "median_ci_high": 0.0005687465430033632,
+        "median_ci_low": 0.0005687443717974222,
+        "median_difference": 0.00056874499503742,
+        "median_significant": true,
+        "share_better": 0.2574
+      },
+      "connectome_vs_rewired": {
+        "cells_better": 3045,
+        "cells_compared": 5265,
+        "cells_identical": 7459,
+        "cells_worse": 2220,
+        "draws": 400,
+        "largest_shared_value_share": 0.0078,
+        "mean_ci_high": 0.0019328137728643802,
+        "mean_ci_low": -0.0010217338423142474,
+        "mean_difference": 0.0003951925894020403,
+        "mean_significant": false,
+        "median_ci_high": -0.0002015126883048632,
+        "median_ci_low": -0.00030485101869171373,
+        "median_difference": -0.0002507580803643508,
+        "median_significant": true,
+        "share_better": 0.5783
+      },
+      "verdict": "wiring predicts activity: the connectome beats its own rewiring on 57.8% of cells and on the median"
+    }
+  }
+}

@@ -17,8 +17,8 @@ answered. This package answers the two and refuses the third in writing.
     core.phenomenology.gauntlet        scores them, or says why it cannot
 
 Nothing here runs against the live model yet. What exists is the instrument
-and its refusals, which is the part that has to be right before any number
-from it is worth reading.
+and its refusals. Those have to be right before any number it produces means
+anything.
 """
 
 from core.phenomenology.hypothesis import (

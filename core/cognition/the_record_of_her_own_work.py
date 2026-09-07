@@ -524,11 +524,19 @@ def _remember_what_she_had() -> None:
 
 
 def _write_when_asked() -> None:
-    """One writer, coalescing. Never more than one save in flight."""
+    """One writer, coalescing. Never more than one save in flight.
 
-    while True:
+    The loop ends when asked to. It used to be `while True` on a daemon
+    thread, which is a thread that cannot be stopped — only outlived. That is
+    survivable at process exit and wrong everywhere else: the atexit save can
+    run while this one is mid-write, and a test that starts the writer leaves
+    it running for every test after it.
+    """
+    while not _STOP_WRITING.is_set():
         _ASKED_TO_WRITE.wait()
         _ASKED_TO_WRITE.clear()
+        if _STOP_WRITING.is_set():
+            return
         try:
             keep_the_record()
         except Exception as exc:  # noqa: BLE001 - a writer thread may not die
@@ -538,7 +546,14 @@ def _write_when_asked() -> None:
             )
 
 
+def stop_writing_in_the_background() -> None:
+    """Ask the writer to finish. Idempotent, and safe with no writer running."""
+    _STOP_WRITING.set()
+    _ASKED_TO_WRITE.set()
+
+
 _ASKED_TO_WRITE = threading.Event()
+_STOP_WRITING = threading.Event()
 
 
 def _write_it_out_now() -> bool:

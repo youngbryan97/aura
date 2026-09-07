@@ -392,7 +392,7 @@ export OBJC_PRINT_LOAD_METHODS=NO
 if [ "$AURA_ATTACH_LAUNCHER" = "1" ]; then
     "$PYTHON_CMD" -u aura_main.py --desktop --port "$AURA_PORT" "$@" &
 else
-    nohup "$PYTHON_CMD" -u aura_main.py --desktop --port "$AURA_PORT" "$@" >>"$ACTIVE_LAUNCH_LOG" 2>&1 &
+    nohup "$PYTHON_CMD" tools/exec_detached.py "$PYTHON_CMD" -u aura_main.py --desktop --port "$AURA_PORT" "$@" </dev/null >>"$ACTIVE_LAUNCH_LOG" 2>&1 &
 fi
 AURA_PID=$!
 

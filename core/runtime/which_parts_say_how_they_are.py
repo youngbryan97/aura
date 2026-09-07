@@ -92,21 +92,41 @@ class AStatus:
         }
 
 
+#: How many attributes refused to answer, by the exception they raised.
+#:
+#: A part that raises on every attribute reports exactly like a part with
+#: nothing to say, and those mean opposite things: one is silent, the other is
+#: broken and being read as silent. Counting is what tells them apart, and it
+#: is the smallest thing that could.
+WHAT_WOULD_NOT_ANSWER: dict[str, int] = {}
+
+
+def _would_not_answer(exc: BaseException) -> None:
+    kind = type(exc).__name__
+    WHAT_WOULD_NOT_ANSWER[kind] = WHAT_WOULD_NOT_ANSWER.get(kind, 0) + 1
+
+
 def _first(obj: Any, *names: str) -> Any:
-    """The first of these attributes the object actually has."""
+    """The first of these attributes the object actually has.
+
+    Asking must not take the report down, so every refusal is caught. Each one
+    is counted rather than dropped: an object that raises on all five looks
+    identical to one that simply has none of them, and only the count says
+    which happened.
+    """
     for name in names:
-        # A property that raises is still an answer of a kind, and asking must
-        # not take the report down with it.
         try:
             found = getattr(obj, name, None)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 — asking must never break the report
+            _would_not_answer(exc)
             continue
         if found is None:
             continue
         if callable(found):
             try:
                 found = found()
-            except Exception:  # noqa: BLE001 - asking must never break the report
+            except Exception as exc:  # noqa: BLE001 — same reason, one call later
+                _would_not_answer(exc)
                 continue
         if found not in (None, ""):
             return found

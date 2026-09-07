@@ -49,6 +49,7 @@ def contract_health_fragment() -> dict[str, Any]:
     from core.cognition.concept_handle import get_concept_registry
     from core.cognition.entity_track import get_track_store
     from core.cognition.procedure import get_procedure_registry
+    from core.cognition.what_she_could_do_next import how_changes_were_judged
     from core.cognition.situation import get_coordinator
     from core.cognition.substate import get_impasse_bus
     from core.cognition.what_a_change_means import what_a_change_means
@@ -71,6 +72,13 @@ def contract_health_fragment() -> dict[str, Any]:
         "mutation_semantics": _safe(
             "mutation_semantics",
             lambda: what_a_change_means(execute_checks=False),
+        ),
+        # How every kept developmental change was judged. The share with
+        # evidence is the number that says whether "she improved herself"
+        # rests on a held-out measurement or on the change having reported
+        # that it did something.
+        "development_evidence": _safe(
+            "development_evidence", how_changes_were_judged
         ),
     }
 

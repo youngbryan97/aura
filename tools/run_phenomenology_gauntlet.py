@@ -129,7 +129,10 @@ def _load(name: str, *, lesion: str = "") -> Any:
             )
     module = types.ModuleType(name)
     sys.modules[name] = module
-    exec(compile(text, f"{name}.py", "exec"), module.__dict__)
+    # noqa: S102 — the gauntlet loads a module from text on purpose: it is
+    # measuring a module it constructs, and importing from disk would
+    # measure whatever was left there by the last run.
+    exec(compile(text, f"{name}.py", "exec"), module.__dict__)  # noqa: S102
     return module
 
 

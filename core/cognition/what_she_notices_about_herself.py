@@ -223,10 +223,18 @@ def nothing_she_has() -> list[AnOpportunity]:
     what was tried rather than only what worked.
 
     Strength is the share of what she has that this family has already
-    defeated, scaled by how often the family comes back. A family met twice
+    defeated, read at its lower bound over the episodes. A family met twice
     that beat both actions she owns is weaker evidence than one met forty
-    times that beat all nine.
+    times that beat all nine, and the lower bound is what makes that true of
+    the number rather than only of the sentence.
+
+    The first version of this multiplied the share by the episode count and
+    divided by it again inside ``_share``, so the count cancelled and both
+    families above scored 1.000. An authored metric that does not measure
+    what its docstring says is worse than no metric, because the docstring is
+    what anyone reads.
     """
+    from core.cognition.how_sure_she_is import how_sure
     from core.cognition.what_she_could_do_next import the_actions_she_has
 
     has = {one.name for one in the_actions_she_has()}
@@ -241,15 +249,22 @@ def nothing_she_has() -> list[AnOpportunity]:
             # gap in what she can do.
             continue
         beaten = len(tried) / len(has)
+        # One observation per episode: on this occasion, did what she has
+        # answer it. The mean is `beaten`; the half-width is what the episode
+        # count buys. Reading the LOWER bound is what makes forty episodes
+        # stronger evidence than two, rather than the same number.
+        middle, width = how_sure([beaten] * len(each))
         found.append(
             AnOpportunity(
                 "nothing she has",
                 family,
-                _share(beaten * len(each), max(1, len(each))),
+                _share(middle - width, 1.0),
                 {
                     "tried": sorted(tried),
                     "of": len(has),
                     "over": len(each),
+                    "share": round(beaten, 3),
+                    "how_far_out": round(width, 3),
                     "what it wants": "an action of a kind she does not have",
                 },
                 costs=int(statistics.mean(one.walked for one in each)),

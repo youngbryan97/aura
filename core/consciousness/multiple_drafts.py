@@ -130,6 +130,13 @@ class DraftCompetition:
     probe_delay_ms: float  # Time between input and probe (key MD metric)
     divergence: float  # How much the drafts disagreed
     timestamp: float = field(default_factory=time.time)
+    # Whether the winner actually won. Taking the maximum of three coherences
+    # that sit inside their own spread is a coin flip that reports as a
+    # decision, and it lands differently on the next process. The margin is
+    # measured rather than assumed; see core/connectome/laminar.decisive_margin.
+    decisive: bool = True
+    decision_z: float = 0.0
+    decision_reason: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -579,16 +586,20 @@ class MultipleDraftsEngine:
                 # Literal peaks early, then plateaus
                 time_factor = min(1.0, 1.0 - 0.1 * math.log1p(age_ms / 500.0))
             elif stream_name == "inferential":
-                # Inferential ramps up over 0.5-2s
+                # Inferential ramps up between 500 ms and 2 s
                 time_factor = min(1.0, 0.7 + 0.3 * math.tanh((age_ms - 500.0) / 1000.0))
             else:
-                # Associative ramps up slowly over 1-5s
+                # Associative ramps up slowly between 1 s and 5 s
                 time_factor = min(1.0, 0.5 + 0.5 * math.tanh((age_ms - 1000.0) / 2000.0))
 
             draft.coherence = float(np.clip(draft.coherence * time_factor, 0.05, 1.0))
 
-        # Select winner by coherence (highest wins)
+        # Select winner by coherence (highest wins), and measure whether the
+        # win means anything. A lead smaller than the spread among the drafts
+        # that lost is not a decision, and saying so is the difference between
+        # a choice and a coin landing.
         winner = max(self._current_drafts, key=lambda d: d.coherence)
+        decisive, decision_z, decision_reason = self._winner_margin()
 
         # Compute divergence: how much did the drafts disagree?
         coherences = [d.coherence for d in self._current_drafts]
@@ -618,8 +629,19 @@ class MultipleDraftsEngine:
             probe_source=source,
             probe_delay_ms=probe_delay_ms,
             divergence=divergence,
+            decisive=decisive,
+            decision_z=decision_z,
+            decision_reason=decision_reason,
         )
         self._competition_history.append(competition)
+        if not decisive:
+            logger.info(
+                "MultipleDrafts probe [%s]: the drafts did not separate "
+                "(lead %.3f standard errors, %s); the winner is the first of a tie",
+                source,
+                decision_z,
+                decision_reason,
+            )
 
         # Store results
         self._last_winner = winner
@@ -639,6 +661,58 @@ class MultipleDraftsEngine:
         )
 
         return winner
+
+    def _winner_margin(self) -> tuple[bool, float, str]:
+        """Measure whether the leading draft leads by more than the noise.
+
+        Falls back to reporting the competition as decisive when the check is
+        unavailable, because an unavailable check must not turn every draft
+        competition into a reported tie.
+        """
+        try:
+            from core.connectome.laminar import config_for, decisive_margin
+        except ImportError as exc:
+            logger.debug("draft margin check unavailable: %s", exc)
+            return True, 0.0, "margin check unavailable"
+        scores = {
+            f"{self._stream_name(draft.stream_index)}:{index}": float(draft.coherence)
+            for index, draft in enumerate(self._current_drafts)
+        }
+        bound = self._decision_bound(config_for)
+        try:
+            decision = decisive_margin(scores, z=bound)
+        except (ValueError, TypeError, ZeroDivisionError) as exc:
+            logger.debug("draft margin check failed: %s", exc)
+            return True, 0.0, "margin check failed"
+        return decision.decisive, decision.z, decision.reason
+
+    def _decision_bound(self, config_for) -> float:
+        """How much lead a draft needs, at the noradrenaline level right now.
+
+        The bound is the speed-accuracy trade-off and noradrenaline is the
+        modulator with an established role there: more of it, less evidence
+        needed, faster and less accurate. The direction is published; how far
+        this region moves is whatever has been measured for it, and with nothing
+        measured the bound does not move at all.
+        """
+        try:
+            from core.connectome.laminar import LaminarConfig
+            from core.connectome.neuromodulation import get_receptor_field, live_levels
+
+            levels = live_levels()
+            bound = (
+                LaminarConfig().z
+                if not levels
+                else config_for("consciousness", levels, get_receptor_field()).z
+            )
+            self._last_decision_bound = float(bound)
+            return float(bound)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("modulated decision bound unavailable: %s", exc)
+            from core.connectome.laminar import LaminarConfig
+
+            self._last_decision_bound = float(LaminarConfig().z)
+            return self._last_decision_bound
 
     # ── Query API ────────────────────────────────────────────────────
 
@@ -721,6 +795,18 @@ class MultipleDraftsEngine:
             ),
             "competition_count": len(self._competition_history),
             "has_mesh": self._get_mesh() is not None,
+            "undecided_competitions": sum(
+                1 for c in self._competition_history if not c.decisive
+            ),
+            "last_decision_z": (
+                round(self._competition_history[-1].decision_z, 3)
+                if self._competition_history
+                else 0.0
+            ),
+            "last_decision_decisive": (
+                self._competition_history[-1].decisive if self._competition_history else None
+            ),
+            "decision_bound": round(getattr(self, "_last_decision_bound", 0.0), 4),
         }
 
 

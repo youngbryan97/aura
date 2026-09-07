@@ -223,6 +223,15 @@ def test_runtime_snapshot_binds_once_and_survives_later_source_movement(
     assert env["AURA_RUNTIME_SOURCE_COMMIT"] == "c" * 40
     assert env["AURA_RUNTIME_SOURCE_SHELL_SHA256"] == "e" * 64
 
+    signed = {key: value for key, value in env.items() if key.startswith("AURA_LAUNCH_")}
+    successor = launch_provenance.bind_runtime_source_snapshot(
+        tmp_path, env=env, new_launch=True
+    )
+    assert successor["reused"] is False
+    assert successor["commit_sha"] == "f" * 40
+    assert env["AURA_RUNTIME_SOURCE_COMMIT"] == "f" * 40
+    assert {key: env[key] for key in signed} == signed
+
 
 def test_direct_runtime_snapshot_binds_once_without_app_identity(
     monkeypatch,

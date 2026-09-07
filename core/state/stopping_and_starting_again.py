@@ -217,12 +217,22 @@ def _write(generation: int, body: str) -> None:
     if generation <= _WRITTEN:
         return
     try:
+        from core.governance_context import local_internal_governed_scope
         from core.runtime.file_write_gateway import get_file_write_gateway
 
         gateway = get_file_write_gateway()
         path = where_it_is_kept()
-        gateway.ensure_directory(path.parent, source="stopping_and_starting_again")
-        gateway.write_text(path, body, source="stopping_and_starting_again")
+        # Inside a governed scope, like every other internal maintenance
+        # write. Without it the live runtime refuses this as a governance
+        # violation and the record of a stop is the thing that goes missing —
+        # which is exactly when nobody is watching the log.
+        with local_internal_governed_scope(
+            "stopping_and_starting_again.write", domain="state_mutation"
+        ):
+            gateway.ensure_directory(
+                path.parent, source="stopping_and_starting_again"
+            )
+            gateway.write_text(path, body, source="stopping_and_starting_again")
         _WRITTEN = max(_WRITTEN, generation)
     except Exception as exc:  # noqa: BLE001 - recording a stop must not stop anything
         logger.warning("interruptions could not be written down: %s", exc)
@@ -320,10 +330,23 @@ def what_was_interrupted() -> dict[str, Any]:
 
 
 def forget_everything() -> None:
-    """For tests. The live runtime never calls this."""
-    global _LOADED
+    """For tests. The live runtime never calls this.
+
+    Resets the write watermark too. It did not, and that is a state a test
+    cannot recover from by itself: `_WRITTEN` gates every future write, so a
+    test that wrote generation 500 left every later test's writes silently
+    dropped — `_write` returns without touching disk and without saying so,
+    because dropping a stale write is its job.
+
+    The symptom was a test asserting 200 interruptions and reading 0, in one
+    random order out of five, in a file where the two tests are eleven apart.
+    A helper that claims to forget everything and keeps the counter that
+    decides whether anything is written has not forgotten everything.
+    """
+    global _LOADED, _WRITTEN
     with _LOCK:
         _INTERRUPTED.clear()
         _LOADED = True
+        _WRITTEN = 0
         generation, body = _snapshot()
     _write(generation, body)

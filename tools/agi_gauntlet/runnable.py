@@ -800,6 +800,7 @@ def _what_her_own_generator_offers(
         )
     )
     behaviours: dict[tuple[int, ...], str] = {}
+    would_not_run: dict[str, int] = {}
     functions = 0
     for term in walked:
         if term.head != "given a thing":
@@ -810,12 +811,18 @@ def _what_her_own_generator_offers(
                 run(Code("of", parts=(term, Code("a number", value=one))))
                 for one in probe
             )
-        except Exception:  # noqa: BLE001 — a term that will not run proposes nothing
+        except Exception as exc:  # noqa: BLE001 — a term that will not run proposes nothing
+            # Counted by kind. "the search found few behaviours" and "most of
+            # what it walked would not run" are different findings about the
+            # search, and without this they come back as the same number.
+            kind = type(exc).__name__
+            would_not_run[kind] = would_not_run.get(kind, 0) + 1
             continue
         if all(isinstance(one, int) for one in said):
             behaviours.setdefault(said, repr(term)[:60])
     return {
         "terms_walked": len(walked),
+        "would_not_run": would_not_run,
         "of_those_functions": functions,
         "distinct_behaviours_over_the_probe": len(behaviours),
         "what_they_are": [

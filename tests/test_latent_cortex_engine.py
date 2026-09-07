@@ -2319,7 +2319,8 @@ def test_repetition_penalty_breaks_forced_loop(tiny_model, monkeypatch):
     assert longest < len(guarded), "penalty must break the monoculture"
 
 
-def test_sentence_grace_finishes_the_sentence(tiny_model, monkeypatch):
+@pytest.mark.parametrize("native_thinking", [False, True])
+def test_sentence_grace_finishes_the_sentence(tiny_model, monkeypatch, native_thinking):
     """When the token limit lands mid-sentence, the decoder may sample up to
     the grace window until sentence-final punctuation — model tokens only,
     receipted as its own termination kind."""
@@ -2330,7 +2331,7 @@ def test_sentence_grace_finishes_the_sentence(tiny_model, monkeypatch):
     from core.brain.llm.latent_cortex import engine as engine_mod
     from core.brain.llm.latent_cortex.types import ComputeBudget
 
-    word_id, period_id, vocab = 9, 13, 128
+    word_id, period_id, close_id, vocab = 9, 13, 14, 128
 
     class GraceTokenizer:
         eos_token_id = 0
@@ -2339,7 +2340,10 @@ def test_sentence_grace_finishes_the_sentence(tiny_model, monkeypatch):
             return [1, 2, 3]
 
         def decode(self, ids):
-            return "".join("." if i == period_id else "w" for i in ids)
+            return "".join(
+                "." if i == period_id else "</think>" if i == close_id else "w"
+                for i in ids
+            )
 
     calls = {"n": 0}
 
@@ -2347,7 +2351,10 @@ def test_sentence_grace_finishes_the_sentence(tiny_model, monkeypatch):
         # Words until well past the limit, then a period.
         calls["n"] += 1
         spiked = mx.full((1, 1, vocab), -20.0)
-        spiked[0, 0, period_id if calls["n"] >= 10 else word_id] = 8.0
+        selected = period_id if calls["n"] >= 10 else word_id
+        if native_thinking and calls["n"] == 12:
+            selected = close_id
+        spiked[0, 0, selected] = 8.0
         return spiked
 
     monkeypatch.setattr(engine_mod.LatentCortexEngine, "_logits", scripted_logits)
@@ -2364,11 +2371,15 @@ def test_sentence_grace_finishes_the_sentence(tiny_model, monkeypatch):
     first = mx.full((1, 1, vocab), -20.0)
     first[0, 0, word_id] = 8.0
     out, termination = engine._decode(
-        cache, ComputeBudget(), first[0, 0], max_tokens=6, temperature=0.0
+        cache, ComputeBudget(), first[0, 0], max_tokens=6, temperature=0.0,
+        native_thinking=native_thinking,
     )
     assert termination == "token_limit_sentence_grace"
     assert out[-1] == period_id, "grace must end at the model's own period"
     assert 6 < len(out) <= 6 + 48
+    if native_thinking:
+        assert close_id in out, "private punctuation must not end answer grace"
+        assert engine._decode_public_text(out, native_thinking=True) == "."
 
 
 def test_eos_floor_suppresses_early_stop(tiny_model, monkeypatch):
