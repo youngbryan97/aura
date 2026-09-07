@@ -755,6 +755,71 @@ def _run_chat_delivery_commit_hooks(
             )
 
 
+#: Statuses that assert the turn produced an answer. An empty body under one of
+#: these is a turn that looks answered to everything downstream and says nothing
+#: to the person.
+_A_STATUS_THAT_CLAIMS_AN_ANSWER = ("completed", "served", "cognitive_engine", "ok")
+
+
+def _no_empty_answer_leaves_this_boundary(response: Any) -> Any:
+    """Refuse to present an empty reply as a completed turn.
+
+    Forty-one places in the chat route build a `"response"` field and there is
+    no finalizer between them and the person, so a guard at any one of them
+    covers one path. This is the boundary every turn already passes through.
+
+    LIVE 2026-09-07: "does the file X exist, and what is in it?" came back with
+    `"response": ""` and `"status": "desktop_objective_completed"`. Before that
+    the same turn came back as a bare "…", which is the same defect wearing a
+    character.
+
+    It replaces nothing and generates nothing. It changes what the turn CLAIMS
+    — an empty answer is reported as one, so the recovery and the receipts see
+    a failure instead of a success. Turning this into a refusal to respond at
+    all would be the other failure: gating a working runtime into silence.
+    """
+
+    # The envelope-coercion guard further down is located by a test that
+    # searches this file for its opening type check, so this one is written
+    # inverted: an identical line here would send that test to the wrong guard.
+    if isinstance(response, JSONResponse):
+        try:
+            payload = json.loads(bytes(response.body).decode("utf-8"))
+        except (AttributeError, TypeError, ValueError, UnicodeDecodeError):
+            return response
+        return _report_an_empty_answer_as_one(response, payload)
+    return response
+
+
+def _report_an_empty_answer_as_one(response: Any, payload: Any) -> Any:
+    """Rewrite the CLAIM of a turn whose answer is empty. Generates nothing."""
+
+    if not isinstance(payload, dict) or "response" not in payload:
+        return response
+    if str(payload.get("response") or "").strip():
+        return response
+    status = str(payload.get("status") or "")
+    if not any(token in status for token in _A_STATUS_THAT_CLAIMS_AN_ANSWER):
+        return response
+
+    logger.warning(
+        "⚠️ An empty reply was about to be served as %r; reporting it as a turn "
+        "that produced no answer instead.",
+        status,
+    )
+    try:
+        from core.conversation.reply_provenance import THE_HONEST_FAILURE
+
+        honest = str(THE_HONEST_FAILURE)
+    except (ImportError, AttributeError):
+        honest = "No answer formed for that turn."
+    payload["response"] = honest
+    payload["status"] = f"empty_answer_withheld:{status}" if status else "empty_answer_withheld"
+    payload["response_confidence"] = "failed"
+    payload["empty_answer_original_status"] = status
+    return JSONResponse(payload, status_code=response.status_code)
+
+
 def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[..., Any]:
     """Fence every chat turn before side effects and durably seal its outcome."""
 
@@ -894,6 +959,7 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                         details={"surface": request_access_profile(request).get("surface", "")},
                     )
                     response = await handler(*args, **kwargs)
+                    response = _no_empty_answer_leaves_this_boundary(response)
                     await report_chat_delivery_progress(
                         phase="finalizing",
                         message="Checking the result and its evidence before replying.",
