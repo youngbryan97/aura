@@ -4072,6 +4072,8 @@ def _reply_topic_forms(reply_text: Any) -> set[str]:
 
 def _has_punctuation_join_artifact(reply_text: Any) -> bool:
     raw = str(reply_text or "")
+    raw = _FENCED_CODE_BLOCK_RE.sub("", raw)
+    raw = re.sub(r"(`+)(?!`)([\s\S]*?)(?<!`)\1(?!`)", "", raw)
     for match in _PUNCTUATION_JOIN_ARTIFACT_RE.finditer(raw):
         before = raw[max(0, match.start() - 16) : match.start()]
         after = raw[match.end() : match.end() + 24]
