@@ -35,10 +35,18 @@ from core.cognition.what_she_could_do_next import (
 
 
 @pytest.fixture
-def an_action_that_writes_a_word():
+def an_action_that_writes_a_word(monkeypatch):
     held = dict(WHAT_SHE_COULD_DO)
     was = as_it_stands()
     WHAT_SHE_COULD_DO.clear()
+
+    # What is held here is that a promotion carries what it replaced. The
+    # evidence gate is a different subject with its own tests, and a word
+    # written by a fixture pays nothing on any held-out family, so without
+    # this the promotion under test never happens.
+    from core.cognition import what_she_could_do_next as gate
+
+    monkeypatch.setattr(gate, "_held_out_says_it_paid", lambda *a, **k: None)
 
     def writes_a_word(situation=None):
         WHERE_FROM["a_word_she_promoted"] = lambda a, b: a

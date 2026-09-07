@@ -58,7 +58,12 @@ def _a_part() -> APart:
 
 def _letting_go(verdict: tuple[bool, str]) -> tuple[Any, bool]:
     part = _a_part()
+    # What the removal measured about itself has its own tests. Here the
+    # verdict is stubbed, so the reading behind it would be a stub too, and a
+    # stubbed reading judged by the gate is a test of nothing.
     with patch.object(W, "_probe", return_value=[("fam", ())]), patch.object(
+        W, "_what_it_measured", side_effect=lambda said, *a, **k: said
+    ), patch.object(
         W, "the_one_she_should_let_go", return_value=part
     ), patch.object(W, "worth_keeping", return_value=verdict):
         W.offer_what_she_can_do_about_what_she_is_made_of()
@@ -101,20 +106,38 @@ def test_an_action_that_says_it_did_nothing_leaves_nothing_behind():
     assert "written_by_a_forgetful_author" not in WHERE_FROM
 
 
-def test_an_action_that_says_it_acted_keeps_what_it_did():
+def _says_it_acted(key: str):
     def mutates_and_says_so(situation: Any = None) -> str | None:
-        WHERE_FROM["kept_on_purpose"] = lambda a, b: a
+        WHERE_FROM[key] = lambda a, b: a
         return "wrote a word"
 
-    action = what_she_could_do(
+    return what_she_could_do(
         "an action that says what it did",
         over="the words",
         kind="a test",
         do_it=mutates_and_says_so,
         needs_a_case=False,
     )
-    assert action.do_it(None) == "wrote a word"
+
+
+def test_an_action_nothing_can_measure_keeps_what_it_did():
+    """Unmeasured is not refused. Refusing it would stop development."""
+    from core.cognition import what_she_could_do_next as gate
+
+    action = _says_it_acted("kept_on_purpose")
+    with patch.object(gate, "_held_out_says_it_paid", return_value=None):
+        assert action.do_it(None) == "wrote a word"
     assert "kept_on_purpose" in WHERE_FROM
+
+
+def test_an_action_that_says_it_acted_and_did_not_pay_is_put_back():
+    """Saying it acted was the whole of the evidence. Now it is not."""
+    from core.cognition import what_she_could_do_next as gate
+
+    action = _says_it_acted("kept_without_paying")
+    with patch.object(gate, "_held_out_says_it_paid", return_value=False):
+        assert action.do_it(None) is None
+    assert "kept_without_paying" not in WHERE_FROM
 
 
 def test_a_change_that_raises_halfway_leaves_nothing_behind():
