@@ -28,6 +28,7 @@ constructor that does not already exist in the source.
 from __future__ import annotations
 
 import json
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
@@ -196,18 +197,21 @@ def keep() -> bool:
         if len(written) > _MOST_KEPT:
             logger.info("what she gave meaning to is too big to keep (%d)", len(written))
             return False
-        # Making the directory is a write like any other, and it was outside
-        # the scope — so every keep logged a governance violation while the
-        # write beside it was fine.
-        with local_internal_governed_scope(
-            "what_she_gave_meaning.keep", domain="state_mutation"
-        ):
-            get_file_write_gateway().ensure_directory(
-                _kept_at().parent, source="what_she_gave_meaning"
-            )
-            get_file_write_gateway().write_text(
-                _kept_at(), written, source="what_she_gave_meaning"
-            )
+        def _write() -> None:
+            with local_internal_governed_scope(
+                "what_she_gave_meaning.keep", domain="state_mutation"
+            ):
+                get_file_write_gateway().ensure_directory(
+                    _kept_at().parent, source="what_she_gave_meaning"
+                )
+                get_file_write_gateway().write_text(
+                    _kept_at(), written, source="what_she_gave_meaning"
+                )
+
+        try:
+            asyncio.get_running_loop().create_task(asyncio.to_thread(_write))
+        except RuntimeError:
+            _write()
         logger.info(
             "kept %d meaning(s) and %d derived word(s) in %d way(s) of building",
             len(kinds),
