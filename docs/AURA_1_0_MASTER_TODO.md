@@ -237,6 +237,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  FOUND 2026-09-07, not fixed.
+  `tests/test_cognitive_ingress.py::test_conversation_recall_requires_subject_overlap_but_admits_relevant_quality`
+  fails 4 runs in 5 IN ISOLATION, so it is not order-dependence but genuine
+  nondeterminism: the memory signal is absent where the test expects 0.25. It
+  is not hash-seed determined — it varies within a fixed `PYTHONHASHSEED`. Two
+  other tests were red on main when this session started and are now fixed:
+  `test_analyze_turn_ignores_continuity_resume_wrapper_for_live_followup` and
+  `test_analyze_turn_upgrades_multi_step_skill_chain_to_task` (de076835e), plus
+  `test_simple_affect_check_uses_canonical_self_condition_projection`, which
+  patched a seam the function had moved away from (b442924f2).
 - [ ] Q10 Run source-matched multi-hour soak only after short gates pass;
   inspect latency, growth, errors, capability retention, and recovery.
 - [ ] Q11 Validate installation/update/uninstall and ordinary desktop launch.
