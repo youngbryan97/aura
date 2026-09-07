@@ -4055,7 +4055,12 @@ class LatentCortexService:
                     value if isinstance(value, (int, float, bool)) or value is None
                     else str(value)[:400]
                 )
-        return {"ok": False, "reason": self._last_refusal, "refusal_receipt": receipt}
+        return {
+            "ok": False,
+            "reason": self._last_refusal,
+            "receipt": receipt,
+            "refusal_receipt": receipt,
+        }
 
     def foreground_admission(self) -> dict[str, Any]:
         """Return whether the unchanged general foreground path can succeed.
@@ -5406,7 +5411,13 @@ class LatentCortexService:
                     self._last_allocation["config"] = dict(config)
                     self._last_allocation["budget"] = dict(budget)
                     return self._record_failure(
-                        "answer_surface_unaffordable_before_execution"
+                        "answer_surface_unaffordable_before_execution",
+                        stage="answer_surface_admission",
+                        evidence={
+                            key: value
+                            for key, value in self._last_allocation.items()
+                            if key.startswith("answer_surface_")
+                        },
                     )
         if require_full_stack:
             config["latent_opt"] = True

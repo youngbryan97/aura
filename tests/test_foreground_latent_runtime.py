@@ -198,6 +198,7 @@ async def test_foreground_latent_runner_allows_fallback_after_terminal_receipt_f
     assert outcome.succeeded is False
     assert outcome.fallback_allowed is True
     assert outcome.trace["latent_cortex_fallback_used"] is True
+    assert outcome.trace["latent_cortex_receipt"]["episode_id"] == "ep-2"
 
 
 def test_host_reconstructed_incumbent_is_served_without_worker_fallback_flag(

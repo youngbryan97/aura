@@ -76,3 +76,21 @@ def test_legacy_visible_token_still_advances(progress_client):
     )
     assert client._tokens_this_request == 17
     assert renewals == [True]
+
+
+def test_first_token_wait_is_not_recorded_as_prefill(progress_client, monkeypatch):
+    client, renewals = progress_client
+    client._current_first_token_at = 0.0
+    client._current_request_started_at = 1.0
+    client._current_prompt_chars = 1200
+    readings = []
+    monkeypatch.setattr(
+        "core.brain.llm.thinking_reserve.record_read_rate",
+        lambda **kwargs: readings.append(kwargs),
+    )
+    client._record_worker_stream_progress(
+        {"id": "active", "tokens_generated": 17}, status="progress", action="generate"
+    )
+    assert client._current_first_token_at == 102.0
+    assert renewals == [True]
+    assert readings == []

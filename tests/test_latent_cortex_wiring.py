@@ -3526,6 +3526,12 @@ def test_compound_objective_expands_answer_surface(monkeypatch):
     )
     assert result["ok"] is False
     assert result["reason"] == "answer_surface_unaffordable_before_execution"
+    refusal = result["refusal_receipt"]
+    assert result["receipt"] == refusal
+    assert refusal["stage"] == "answer_surface_admission"
+    assert refusal["answer_surface_required_wall_clock_s"] > refusal[
+        "answer_surface_available_wall_clock_s"
+    ]
     assert captured == {}
 
     # A resident with measured rates need not wait for a task-bucket history.
