@@ -46,6 +46,12 @@ The kinds, and what each one is grounded in:
 ``split_error``
     An edge seen firing that the reconstruction does not contain. Confirmed by
     observation, not inferred.
+``coalition_link_missing``
+    A link the intended architecture needs and the graph does not carry. The
+    ring from interoception through affect, workspace, higher-order monitoring,
+    the self model and planning to action is drawn in every design document; a
+    link on it whose enrichment is near zero is a place the diagram and the
+    system disagree.
 """
 
 from __future__ import annotations
@@ -55,6 +61,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+
+from .coalition import ENRICHMENT_THRESHOLD
 
 logger = logging.getLogger("Aura.Connectome.Pathology")
 
@@ -157,6 +165,7 @@ def diagnose(
     observed: Any = None,
     laminar: Any = None,
     dataflow: Any = None,
+    closure: Any = None,
     limit_per_kind: int = 25,
 ) -> PathologyReport:
     """Run every check that has a measurement behind it.
@@ -422,6 +431,40 @@ def diagnose(
                     closes_when="the edge is in the reconstruction, or the ledger records the join",
                     weight=float(row.observed_calls),
                     detail={"observed_calls": row.observed_calls},
+                )
+            )
+
+    # -- the ring the architecture intends ---------------------------------
+    if closure is not None:
+        scanned["coalition_links_carrying"] = closure.links_present
+        scanned["coalition_enrichment_z"] = round(closure.enrichment_z, 3)
+        for link in closure.links:
+            if link.present:
+                continue
+            findings.append(
+                Finding(
+                    kind="coalition_link_missing",
+                    subject=f"{link.source} -> {link.target}",
+                    severity=Severity.HIGH,
+                    confidence=Confidence.MEASURED,
+                    evidence=(
+                        f"of the influence leaving {link.source} that reaches any other "
+                        f"station, {link.target} receives {link.enrichment:.2f} times "
+                        "its share by size, where a link that carries is at least "
+                        f"{ENRICHMENT_THRESHOLD}"
+                    ),
+                    closes_when=(
+                        f"{link.source} reaches {link.target} preferentially — a call, a "
+                        "topic it publishes and the other subscribes to, or a store one "
+                        "writes and the other reads"
+                    ),
+                    weight=100.0 - link.enrichment,
+                    detail={
+                        "enrichment": round(link.enrichment, 4),
+                        "share": round(link.share, 6),
+                        "expected": round(link.expected, 6),
+                        "hops": link.hops,
+                    },
                 )
             )
 
