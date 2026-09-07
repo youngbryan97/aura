@@ -19,7 +19,23 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from core.brain.llm import thinking_reserve
+
+
+@pytest.fixture(autouse=True)
+def _isolated_store(tmp_path, monkeypatch):
+    """Its own store per test.
+
+    These measurements persist on purpose, so tests that share a store share
+    their readings — and one that records a proof of insufficiency changes what
+    another one measures.
+    """
+    monkeypatch.setenv("AURA_STATE_ROOT", str(tmp_path))
+    thinking_reserve.forget()
+    yield
+    thinking_reserve.forget()
 
 
 def _reset() -> None:
@@ -129,3 +145,37 @@ def test_the_raise_is_bounded_by_what_was_needed() -> None:
     assert "max(max_tokens, _ever_needed)" in body, (
         "the lane's own ask must remain a floor, so this can only ever add"
     )
+
+
+def test_the_delivery_reserve_survives_a_restart() -> None:
+    """A measurement that does not survive is a measurement nobody has.
+
+    The first version of this recorded the cost and never persisted it, which
+    is the mistake `save()` already carries a note about for the read rates. A
+    fresh boot then had no reserve until ten more turns had paid for one — and
+    a restart is exactly when a budget most needs to know what delivery costs.
+
+    `forget()` removes the store as well as the memory, so a restart is
+    modelled by emptying the WINDOW and reading the file back, which is what a
+    new process does.
+    """
+    for _ in range(12):
+        thinking_reserve.record_delivery_cost(3.6)
+    before = thinking_reserve.seconds_to_deliver()
+    assert before > 0.0
+    assert thinking_reserve.save() is True
+
+    thinking_reserve._delivery_costs.clear()
+    assert thinking_reserve.seconds_to_deliver() == 0.0
+    assert thinking_reserve.load() > 0
+    assert thinking_reserve.seconds_to_deliver() == pytest.approx(before)
+
+
+def test_a_stored_stall_is_still_refused_on_the_way_back_in() -> None:
+    for _ in range(12):
+        thinking_reserve.record_delivery_cost(2.0)
+    thinking_reserve.record_delivery_cost(600.0)
+    thinking_reserve.save()
+    thinking_reserve._delivery_costs.clear()
+    thinking_reserve.load()
+    assert thinking_reserve.seconds_to_deliver() <= 2.0

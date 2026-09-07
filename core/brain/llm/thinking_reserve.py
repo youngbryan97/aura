@@ -171,6 +171,13 @@ def record_budget_that_ran_out_thinking(
 #: rates because they are the same kind of fact about the same generations.
 _read_rates: list[tuple[int, float]] = []
 
+#: What a turn spends AFTER the model stops decoding: stabilizing, shaping,
+#: classifying, persisting, emitting a receipt, writing the response. Declared
+#: here beside the other measured windows so save, restore and reset all see
+#: it — the first version of this lived at the bottom of the file and none of
+#: the three did.
+_delivery_costs: deque[float] = deque(maxlen=_WINDOW)
+
 #: When the store was last read, so a proof another process wrote is taken
 #: back without re-reading a file that has not changed.
 _last_seen_store_mtime: int = -1
@@ -462,6 +469,7 @@ def forget() -> None:
         _observed_by_model.clear()
         _rates.clear()
         _read_rates.clear()
+        _delivery_costs.clear()
         _proved_insufficient_by_model.clear()
         # And forget having read the store, or a re-read would take it back.
         _last_seen_store_mtime = -1
@@ -543,6 +551,13 @@ def _merge_in_what_is_already_stored(target: Path) -> None:
             if row is not None and row not in _read_rates
         ]
         del _read_rates[: max(0, len(_read_rates) - _WINDOW)]
+        for item in stored.get("delivery_costs") or ():
+            try:
+                value = float(item)
+            except (TypeError, ValueError):
+                continue
+            if 0.0 <= value <= 60.0:
+                _delivery_costs.append(value)
 
 
 def _merge_reasoning_measurements(stored: dict[str, Any]) -> None:
@@ -663,6 +678,12 @@ def save() -> bool:
                 # a prompt takes to read. A measurement that does not survive
                 # is a measurement nobody has.
                 "read_rates": [[size, rate] for size, rate in _read_rates],
+                # And what a turn spends AFTER the last token. Added without
+                # its persistence at first, which is the mistake the note above
+                # this line describes: a fresh boot had no reserve until ten
+                # more turns had paid for one, and a restart is exactly when a
+                # budget most needs to know what delivery costs.
+                "delivery_costs": [round(value, 4) for value in _delivery_costs],
             }
         )
     try:
@@ -723,6 +744,14 @@ def load() -> int:
                     taken += 1
             except (TypeError, ValueError):
                 continue
+        for item in raw.get("delivery_costs") or ():
+            try:
+                value = float(item)
+            except (TypeError, ValueError):
+                continue
+            if 0.0 <= value <= 60.0:
+                _delivery_costs.append(value)
+                taken += 1
     return taken
 
 
@@ -758,13 +787,6 @@ def chars_readable_in(seconds: float, *, ceiling: int = 1_000_000) -> int:
         else:
             high = middle - 1
     return low
-
-
-#: What a turn spends AFTER the model stops decoding: stabilizing, shaping,
-#: classifying, persisting, emitting a receipt, writing the response. Measured
-#: rather than assumed, in the same window and with the same pessimism as the
-#: rates above.
-_delivery_costs: deque[float] = deque(maxlen=_WINDOW)
 
 
 def record_delivery_cost(elapsed_s: float) -> None:
