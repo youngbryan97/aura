@@ -142,6 +142,7 @@ process-local; durable cross-restart action authorization is not claimed.
 | `notify.quiet_hours_start/end` | wired | local-time quiet window, including midnight wrap |
 | `theme.mode` | frontend-only | desktop presentation |
 | `theme.reduced_motion` | frontend-only | animation/motion presentation |
+| `onboarding.completed` | frontend-only | the first-run wizard sets it when it finishes; the desktop reads it to decide whether to offer setup |
 | `voice.auto_listen` | wired | live canonical server-capture owner; browser capture is a non-duplicating fallback |
 | `permissions.files_workspace` | known dead/open | central workspace file-gateway enforcement is not implemented |
 | `memory.review_window` | known dead/open | no canonical age-windowed narrative consolidation owner exists yet |

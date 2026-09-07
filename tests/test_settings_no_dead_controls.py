@@ -46,6 +46,11 @@ FRONTEND_ONLY = {
     "theme.mode",
     "theme.reduced_motion",
     "voice.auto_listen",
+    # The first-run wizard sets it when it finishes and the desktop reads it
+    # to decide whether to offer setup. Nothing in the Python runtime enforces
+    # it, and nothing should: it is a fact about what this person has already
+    # been shown.
+    "onboarding.completed",
 }
 
 # Tracked debt: persisted but NOT yet enforced by the runtime. Each needs a
