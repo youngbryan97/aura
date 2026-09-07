@@ -36,6 +36,7 @@ _SINGLETON_RESETS = (
     ("core.social.reciprocity_engine", "reset_reciprocity_engine_for_test"),
     ("core.affect.empathic_coupling", "reset_empathic_field_for_test"),
     ("core.perception.aesthetic_response", "reset_aesthetic_observer_for_test"),
+    ("core.social.social_stamina", "reset_social_stamina_for_test"),
 )
 
 
@@ -89,7 +90,7 @@ def test_every_disposition_resolves_from_the_container(wired):
         assert hasattr(service, "status") or hasattr(service, "names"), (
             f"{name} resolved to something with no readout"
         )
-    assert len(wired.SERVICE_NAMES) == 14
+    assert len(wired.SERVICE_NAMES) == 15
 
 
 def test_boot_declares_the_channels_and_registers_the_invariants(wired):
@@ -153,7 +154,7 @@ def test_a_reading_reaches_the_live_mind_snapshot(wired):
     from core.runtime.live_mind_snapshot import _phenomena_snapshot
 
     section = _phenomena_snapshot()
-    assert section["running"] == section["of"] == 14
+    assert section["running"] == section["of"] == 15
     assert section["absent"] == []
     assert section["concerns"] == []
 
@@ -236,4 +237,50 @@ def test_a_missing_organ_is_reported_rather_than_raised(monkeypatch, wired):
     )
     section = module.snapshot()
     assert "care_allocation" in [k for k, v in section["present"].items() if not v]
-    assert section["running"] == 13
+    assert section["running"] == 14
+
+
+def test_the_advisory_reading_never_invents_a_common_currency(wired):
+    """The fault the first draft had, held closed by a test.
+
+    Averaging the contributions does not refuse to weight them: it weights
+    every organ at one and lets whichever uses the largest units decide. A
+    candidate that hums for forty seconds beat every other candidate on the
+    strength of the unit.
+    """
+    from core.container import get_container
+
+    container = get_container()
+    container.get("care_allocation").set_need("a friend", 6.0)
+
+    readings = wired.weigh({
+        "sit with them": {"relieves_need": ("a friend", 4.0)},
+        "hum while working": {"is_expressive": 40.0},
+    })
+    assert not any(hasattr(r, "total") for r in readings)
+    units = {c.unit for r in readings for c in r.contributions}
+    assert len(units) > 1, "the probe did not actually mix units"
+
+    with pytest.raises(wired.IncommensurableError):
+        wired.rank(readings, weights={"care_allocation": 1.0})
+
+    ranked = wired.rank(
+        readings, weights={"care_allocation": 1.0, "expressive_dynamics": 0.02}
+    )
+    assert ranked[0][0].candidate == "sit with them"
+
+
+def test_an_organ_with_no_evidence_abstains_rather_than_contributing_zero(wired):
+    """A zero and a silence are different facts, and a sum cannot tell them apart."""
+    readings = wired.weigh({
+        "return a favour to a stranger": {"returns_in_kind": "somebody new"},
+    })
+    reading = readings[0]
+    assert reading.contributions == ()
+    assert "reciprocity" in reading.abstained
+
+
+def test_every_priced_effect_names_an_organ_that_is_registered(wired):
+    """A pricing branch for an organ nobody registers can never run."""
+    for _effect, organ in wired.PRICED_EFFECTS:
+        assert organ in wired.SERVICE_NAMES, f"{organ} is priced but never registered"

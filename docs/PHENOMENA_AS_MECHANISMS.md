@@ -35,6 +35,7 @@ other, and it is the honest cost of the decision rather than a hidden one.
 | "You treat me well and I'll treat you well" | direct reciprocity under the shadow of the future | `core/social/reciprocity_engine.py` |
 | Kindness, empathy | coupled affect with a path back to your own state | `core/affect/empathic_coupling.py` |
 | Taking pleasure in beauty | an aesthetic response as a fact about the observer | `core/perception/aesthetic_response.py` |
+| Being sociable | a belonging need and a capacity, which move independently | `core/social/social_stamina.py` |
 
 ## What each one actually claims
 
@@ -137,10 +138,37 @@ Eysenck's product rates it at 0.23 — they disagree hardest on exactly the case
 the objection to Birkhoff was about, so both are returned. Freezing the
 observer's history removes the habituation entirely.
 
+**Social stamina.** Added last, after a prior treatment of the same list was
+read. Sociability is usually one number, and one number cannot hold wanting to
+see somebody and not having it in you. Belonging is a need that relaxes toward
+met in company and toward unmet alone, on one time constant in both directions
+— scaling them differently is how the first draft made someone lonelier the
+more evenings they spent out. Stamina is a capacity, and the share of time in
+company that holds it is `recovery / (drain + recovery)`, which is the balance
+point rather than a choice. Running to empty costs more than the same deficit
+taken gradually, which is what makes exhaustion a state rather than a low
+reading.
+
+## Advising a decision, without becoming one
+
+`weigh()` asks the group what it makes of each candidate action and returns
+the contributions with their sources. It is deliberately not a decision:
+`UnifiedWill.decide` is the only authority on whether an action may happen,
+and this adds no second one.
+
+The first draft of it averaged the contributions and produced a number. That
+does not refuse to weight the organs — it weights every one of them at one and
+lets whichever uses the largest units decide, and a candidate that hummed for
+forty seconds beat everything else on the strength of the unit. Contributions
+now carry their unit, there is no total, and `rank` requires a commensuration
+the caller supplies and raises when an organ that contributed has no weight. A
+missing weight silently read as zero is a decision to ignore an organ, made by
+nobody.
+
 ## How they are reachable
 
-Fourteen container registrations that all resolve. A boot activator beside
-conation's, in `core/runtime/foundations.py`. Twenty-six declared telemetry
+Fifteen container registrations that all resolve. A boot activator beside
+conation's, in `core/runtime/foundations.py`. Twenty-eight declared telemetry
 channels in the `0x1700` block. Five invariants. A section on the live mind
 snapshot, read through the container rather than by import, so an organ that
 failed to load reports absent instead of taking the turn with it.
@@ -154,6 +182,7 @@ five that can be detected are named there:
 * a state that is mostly not its own
 * nothing accepted and nothing learned about anyone
 * an identity declared with nothing enacting it
+* wanting company with nothing left to spend on it
 
 ## Defects found while building
 
