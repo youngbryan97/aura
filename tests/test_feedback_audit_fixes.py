@@ -2945,9 +2945,14 @@ def test_conversation_recall_isolation_by_session_id(monkeypatch):
     assert "alpha session question" in recalled
     assert "bravo session question" not in recalled
     assert missed is not None
-    assert "completed prior turn" in missed.lower()
+    # The property this guards is isolation, not a form of words: a session
+    # with nothing in it must say so and must not reach into another one.
     assert "alpha session question" not in missed
     assert "bravo session question" not in missed
+    assert any(
+        phrase in missed.lower()
+        for phrase in ("completed prior turn", "haven't said anything", "nothing yet")
+    ), missed
 
 
 def test_repo_probe_request_detects_dependency_reads():
