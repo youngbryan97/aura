@@ -6070,6 +6070,27 @@ class MLXLocalClient:
                         exact_decode = measured_decode
                 except (TypeError, ValueError, OverflowError):
                     pass
+                # The rate every deadline is built from. MLX timed this
+                # inside the worker; the estimate this side keeps times how
+                # often it was told, which is a different quantity and was
+                # wrong by a factor of ten. See _measured_prefill_rate.
+                try:
+                    reported_tps = float(performance.get("prompt_tps") or 0.0)
+                except (TypeError, ValueError, OverflowError):
+                    reported_tps = 0.0
+                if math.isfinite(reported_tps) and reported_tps > 0.0:
+                    held = float(
+                        getattr(self, "_worker_measured_prefill_tps", 0.0) or 0.0
+                    )
+                    # Averaged, so one generation under contention does not
+                    # become the rule, and unaveraged for the first, so a
+                    # fresh worker is not judged by a number nobody took.
+                    self._worker_measured_prefill_tps = (
+                        reported_tps
+                        if held <= 0.0
+                        else held * 0.7 + reported_tps * 0.3
+                    )
+                    _HOST_RATES["prefill"] = self._worker_measured_prefill_tps
             # Old workers do not report the split. Keep the bounded fallback
             # for rolling compatibility, but never overwrite MLX's measured
             # prompt and decode clocks with an estimate when they are present.
@@ -7033,10 +7054,29 @@ class MLXLocalClient:
     def _measured_prefill_rate(self) -> float:
         """Tokens a second this worker reads a prompt at, as measured.
 
+        Two things measure this and only one of them measures reading.
+
+        MLX times the prefill inside the worker and reports it. This side
+        times the gaps between prefill PROGRESS MESSAGES, which cross an IPC
+        queue and land on a busy event loop, so what it measures is how often
+        the parent got told — and with the chunk size reduced for host
+        headroom, that is one chunk per scheduling slice.
+
+        LIVE, 2026-09-07, one turn: the worker logged prefill at 410-990
+        tok/s and this side had learned 56. The deadline built on 56 said a
+        52,020-character prompt would take 698 seconds to read, against about
+        30 in fact, and every user-facing turn was sized against it.
+
+        So the worker's own measurement is the rate, and the progress-interval
+        estimate is what there is until a generation has finished.
+
         Falls back to a deliberately pessimistic rate until it has seen one:
         being generous with an unmeasured worker costs a little latency, and
         being mean with it costs the answer.
         """
+        measured = float(getattr(self, "_worker_measured_prefill_tps", 0.0) or 0.0)
+        if measured > 0.0:
+            return measured
         rate = float(getattr(self, "_prefill_tokens_per_s", 0.0) or 0.0)
         return rate if rate > 0.0 else _UNMEASURED_PREFILL_RATE
 

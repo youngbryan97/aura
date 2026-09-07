@@ -179,6 +179,29 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   turns still share no token prefix because different lanes assemble
   structurally different prompts.
 
+  UPDATE 2026-09-07, second session. The measurement itself was wrong, by a
+  factor of ten, in the direction that makes every deadline enormous. Two
+  things in this runtime produce a number called "the prefill rate": MLX times
+  the prefill inside the worker, and the client times the gaps between prefill
+  PROGRESS MESSAGES, which cross an IPC queue and land on a busy event loop.
+  Those are not estimates of the same quantity, and the client's was what
+  every user-facing deadline was built from.
+
+  Live on one turn: the worker logged 410-990 tok/s and the client had learned
+  56. The answer clock said a 52,020-character prompt would take 698 seconds to
+  read; the store's own readings put it at 26. The worker's measurement is the
+  rate now and the progress-interval estimate is only what there is before a
+  generation has finished — with a regression test carrying that turn's
+  numbers.
+
+  Still open, and now the largest remaining cost: the prompt. 48,066 characters
+  of system message for an 89-character question, whose biggest sections are
+  CAUSAL VALENCED WORKSPACE (5,925), INTRINSIC IDENTITY ANCHOR (4,528) and LIVE
+  MIND CONTEXT (3,410). The prompt cache holds 12 entries against a 46,803-token
+  budget, so three prompts of that size fill it and the log shows continuous
+  eviction — which is the mechanism behind "consecutive turns share no prefix",
+  not a separate fault.
+
 ## 2. General RLC reasoning: the scientific critical path
 
 - [ ] G01 Freeze a current baseline and exact mechanism/claim boundary.
