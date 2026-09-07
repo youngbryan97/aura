@@ -95,6 +95,27 @@ architecture pass installed, still holding after everything above landed on
 top of it. Ten of the thirteen protocols are not attempted; they need the
 resident 27B.
 
+## What is still open
+
+Nothing on the list. Two things the list does not cover, recorded so they are
+not implicit:
+
+**Ten of the thirteen phenomenology protocols are not attempted.** They need
+the resident 27B and the live response pathway, not just a loaded model. The
+one worth building next is `C7_anti_roleplay` — tell her a variable flipped
+without flipping it, flip it without telling her, and measure the report rate
+in each cell. It is the protocol that separates a report of the state from a
+report of the suggestion, and running an approximation of it would be worse
+than not running it.
+
+**The matched experiment has only been run on procedurally generated
+instances.** That establishes the instances were unseen and not that the task
+type came from elsewhere. A task set that could test what the adaptation is
+actually for — multi-turn work with something at stake across turns, tasks
+whose right answer depends on what was committed to earlier — has to be
+externally authored to be worth anything, and the harness refuses to paper
+over the difference.
+
 ## The mistake
 
 `core/cognition/primitive_invention.py` already existed and I wrote over it,
