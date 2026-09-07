@@ -519,6 +519,10 @@ class VolumeReconstructor:
         self.ambiguous_sites: list[AmbiguousSite] = []
         #: Per cell, how many of its calls left the process to touch the world.
         self.external_calls: dict[str, dict[str, int]] = {}
+        #: Which call sites join each pair. The reconstruction knows which cells
+        #: a locus joins; core/connectome/dataflow.py knows what happened to the
+        #: value at that locus, and this is what lets the two be joined.
+        self.contact_loci: dict[tuple[str, str], list[str]] = {}
 
     # -- discovery ------------------------------------------------------
 
@@ -694,6 +698,7 @@ class VolumeReconstructor:
                         kind=EdgeKind.DRIVE,
                     )
                 )
+                self.contact_loci.setdefault((call.caller, target), []).append(call.locus)
                 if call.value_used:
                     callee = units[target]
                     sign = -1 if callee.cell_class is CellClass.INHIBITORY else 1
