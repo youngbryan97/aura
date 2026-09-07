@@ -1,0 +1,1346 @@
+{
+  "per_condition": {
+    "reconstruction": {
+      "condition": "reconstruction",
+      "grade": "predictive",
+      "licenses": "that one cell's past helps predict another's future",
+      "frames": 267,
+      "edges_measured": 23,
+      "edges_surviving_null": 2,
+      "surviving_share": 0.087,
+      "mean_weight_surviving": 0.35521,
+      "skipped": ""
+    },
+    "serialisation": {
+      "condition": "serialisation",
+      "grade": "predictive",
+      "licenses": "that one cell's past helps predict another's future",
+      "frames": 274,
+      "edges_measured": 32,
+      "edges_surviving_null": 20,
+      "surviving_share": 0.625,
+      "mean_weight_surviving": 0.43877,
+      "skipped": ""
+    },
+    "tests_conversation": {
+      "condition": "tests_conversation",
+      "grade": "predictive",
+      "licenses": "that one cell's past helps predict another's future",
+      "frames": 162,
+      "edges_measured": 2194,
+      "edges_surviving_null": 354,
+      "surviving_share": 0.1613,
+      "mean_weight_surviving": 0.19457,
+      "skipped": ""
+    },
+    "tests_governance": {
+      "condition": "tests_governance",
+      "grade": "predictive",
+      "licenses": "that one cell's past helps predict another's future",
+      "frames": 308,
+      "edges_measured": 2438,
+      "edges_surviving_null": 346,
+      "surviving_share": 0.1419,
+      "mean_weight_surviving": 0.15342,
+      "skipped": ""
+    },
+    "tests_memory": {
+      "condition": "tests_memory",
+      "grade": "predictive",
+      "licenses": "that one cell's past helps predict another's future",
+      "frames": 154,
+      "edges_measured": 663,
+      "edges_surviving_null": 86,
+      "surviving_share": 0.1297,
+      "mean_weight_surviving": 0.1471,
+      "skipped": ""
+    },
+    "tests_runtime": {
+      "condition": "tests_runtime",
+      "grade": "predictive",
+      "licenses": "that one cell's past helps predict another's future",
+      "frames": 196,
+      "edges_measured": 2926,
+      "edges_surviving_null": 627,
+      "surviving_share": 0.2143,
+      "mean_weight_surviving": 0.43665,
+      "skipped": ""
+    },
+    "tests_verify": {
+      "condition": "tests_verify",
+      "grade": "predictive",
+      "licenses": "that one cell's past helps predict another's future",
+      "frames": 202,
+      "edges_measured": 3631,
+      "edges_surviving_null": 637,
+      "surviving_share": 0.1754,
+      "mean_weight_surviving": 0.23547,
+      "skipped": ""
+    },
+    "topology": {
+      "condition": "topology",
+      "grade": "predictive",
+      "licenses": "that one cell's past helps predict another's future",
+      "frames": 270,
+      "edges_measured": 25,
+      "edges_surviving_null": 22,
+      "surviving_share": 0.88,
+      "mean_weight_surviving": 0.66312,
+      "skipped": ""
+    },
+    "typing": {
+      "condition": "typing",
+      "grade": "predictive",
+      "licenses": "that one cell's past helps predict another's future",
+      "frames": 274,
+      "edges_measured": 24,
+      "edges_surviving_null": 15,
+      "surviving_share": 0.625,
+      "mean_weight_surviving": 0.57465,
+      "skipped": ""
+    }
+  },
+  "strongest": {
+    "reconstruction": [
+      {
+        "pre": "86553113ff3af651",
+        "post": "455091da0e2f5d58",
+        "condition": "reconstruction",
+        "weight": 0.583942,
+        "z": 4.446,
+        "samples": 264,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor.build",
+        "post_name": "core.connectome.volume:VolumeReconstructor.scan"
+      },
+      {
+        "pre": "3e7578991917ccc7",
+        "post": "c8eef944a6e0d09f",
+        "condition": "reconstruction",
+        "weight": 0.126469,
+        "z": 7.497,
+        "samples": 264,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor._resolve",
+        "post_name": "core.connectome.volume:_outside_volume"
+      }
+    ],
+    "serialisation": [
+      {
+        "pre": "86553113ff3af651",
+        "post": "ba606886d91c448a",
+        "condition": "serialisation",
+        "weight": 0.999979,
+        "z": 298759.682,
+        "samples": 271,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor.build",
+        "post_name": "core.connectome.volume:_aggregate"
+      },
+      {
+        "pre": "86553113ff3af651",
+        "post": "3e7578991917ccc7",
+        "condition": "serialisation",
+        "weight": 0.988335,
+        "z": 70216.936,
+        "samples": 271,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor.build",
+        "post_name": "core.connectome.volume:VolumeReconstructor._resolve"
+      },
+      {
+        "pre": "3e7578991917ccc7",
+        "post": "61ea0c8bb8a53bc7",
+        "condition": "serialisation",
+        "weight": 0.979457,
+        "z": 2.2713727875837828e+16,
+        "samples": 271,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor._resolve",
+        "post_name": "core.connectome.volume:VolumeReconstructor._external"
+      },
+      {
+        "pre": "3e7578991917ccc7",
+        "post": "c8eef944a6e0d09f",
+        "condition": "serialisation",
+        "weight": 0.97848,
+        "z": 173515.021,
+        "samples": 271,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor._resolve",
+        "post_name": "core.connectome.volume:_outside_volume"
+      },
+      {
+        "pre": "3e7578991917ccc7",
+        "post": "2517ebb7933a0ee1",
+        "condition": "serialisation",
+        "weight": 0.959794,
+        "z": 170405.554,
+        "samples": 271,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor._resolve",
+        "post_name": "core.connectome.volume:_ResolutionIndex.method"
+      },
+      {
+        "pre": "ddfb77b11278657a",
+        "post": "8f7adb037995745c",
+        "condition": "serialisation",
+        "weight": 0.72626,
+        "z": 1.1977479493342408e+16,
+        "samples": 271,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:_FunctionVisitor.visit_Call",
+        "post_name": "core.connectome.volume:_call_target"
+      }
+    ],
+    "tests_conversation": [
+      {
+        "pre": "760a40e742f70a9f",
+        "post": "73c7fb64e7b02ecb",
+        "condition": "tests_conversation",
+        "weight": 0.999999,
+        "z": 2.0667392908111436e+16,
+        "samples": 159,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.agency.hierarchical_agency:HierarchicalAgency._open_receipt",
+        "post_name": "core.cognition.outcome_ledger:get_outcome_ledger"
+      },
+      {
+        "pre": "ddcdf8e7db571b40",
+        "post": "97383959261ceeea",
+        "condition": "tests_conversation",
+        "weight": 0.999999,
+        "z": 2.7059969869229508e+16,
+        "samples": 159,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.security.emergency_protocol:EmergencyProtocol.flag_threat",
+        "post_name": "core.security.emergency_protocol:EmergencyProtocol._respond_to_threat"
+      },
+      {
+        "pre": "196ead6eb2e8435b",
+        "post": "7fcc4aaface2f0f8",
+        "condition": "tests_conversation",
+        "weight": 0.999999,
+        "z": 2.7059969869229508e+16,
+        "samples": 159,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.security.immune_system:ImmuneSystem.assess_and_respond",
+        "post_name": "core.security.immune_system:ImmuneSystem.respond"
+      },
+      {
+        "pre": "760a40e742f70a9f",
+        "post": "b878fdcaf9aa0c97",
+        "condition": "tests_conversation",
+        "weight": 0.999999,
+        "z": 1.848547876434139e+16,
+        "samples": 159,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.agency.hierarchical_agency:HierarchicalAgency._open_receipt",
+        "post_name": "core.cognition.outcome_ledger:OutcomeLedger.open"
+      },
+      {
+        "pre": "7fcc4aaface2f0f8",
+        "post": "210a6df9e5c14046",
+        "condition": "tests_conversation",
+        "weight": 0.999999,
+        "z": 23899.829,
+        "samples": 159,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.security.immune_system:ImmuneSystem.respond",
+        "post_name": "core.security.enforcement:install_default_enforcement"
+      },
+      {
+        "pre": "d8bb73b4f90368cb",
+        "post": "98768f2915c92d4f",
+        "condition": "tests_conversation",
+        "weight": 0.999999,
+        "z": 1.848547876278334e+16,
+        "samples": 159,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.resilience.recovery_bridge:RecoveryBridge._respond",
+        "post_name": "core.resilience.fault_taxonomy:FaultRegistry.mark_recovered"
+      }
+    ],
+    "tests_governance": [
+      {
+        "pre": "8703ab9574aee9e2",
+        "post": "aae55ecb8cc7010e",
+        "condition": "tests_governance",
+        "weight": 1.0,
+        "z": 1.2695358042357688e+16,
+        "samples": 305,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.runtime.effect_boundary:effect_sink",
+        "post_name": "core.runtime.effect_boundary:_record_sink_commit"
+      },
+      {
+        "pre": "8703ab9574aee9e2",
+        "post": "003a972129c16523",
+        "condition": "tests_governance",
+        "weight": 1.0,
+        "z": 118752.268,
+        "samples": 305,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.runtime.effect_boundary:effect_sink",
+        "post_name": "core.self_model:SelfModel.persist"
+      },
+      {
+        "pre": "e83d2142b9242a0a",
+        "post": "d24c7addc0ce8bec",
+        "condition": "tests_governance",
+        "weight": 1.0,
+        "z": 1.3883759611450988e+16,
+        "samples": 305,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.runtime.network_gateway:NetworkGateway.request",
+        "post_name": "core.runtime.network_gateway:_read_bounded_http_body"
+      },
+      {
+        "pre": "c3fb837b61e2cac9",
+        "post": "8a75e7d7c54b6769",
+        "condition": "tests_governance",
+        "weight": 0.999999,
+        "z": 34.476,
+        "samples": 305,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.capabilities.browser_controller:BrowserController._fetch_search_results",
+        "post_name": "core.capabilities.browser_controller:_looks_like_a_challenge"
+      },
+      {
+        "pre": "c3fb837b61e2cac9",
+        "post": "31e10eeccb8f5e60",
+        "condition": "tests_governance",
+        "weight": 0.999999,
+        "z": 111953.419,
+        "samples": 305,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.capabilities.browser_controller:BrowserController._fetch_search_results",
+        "post_name": "core.capabilities.browser_controller:_search_results_in"
+      },
+      {
+        "pre": "e012f1b3408e4b95",
+        "post": "97fade226d8b6ce6",
+        "condition": "tests_governance",
+        "weight": 0.999999,
+        "z": 2.073196009209521e+16,
+        "samples": 305,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.science.parameter_registry:parameter_registry_reset",
+        "post_name": "core.science.parameter_registry:_install_known"
+      }
+    ],
+    "tests_memory": [
+      {
+        "pre": "3176084e2775b053",
+        "post": "33b6066c4861ac9d",
+        "condition": "tests_memory",
+        "weight": 0.999999,
+        "z": 2.704646002257585e+16,
+        "samples": 151,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.cognition.evidence_relevance:semantic_routing_available",
+        "post_name": "core.memory.vector_memory_engine:EmbeddingEngine._return_model"
+      },
+      {
+        "pre": "8f62bf2279adcfd9",
+        "post": "e6d0c3d82fc1d4a1",
+        "condition": "tests_memory",
+        "weight": 0.999998,
+        "z": 1.0863740209072188e+16,
+        "samples": 151,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.scheduler:Scheduler.__init__",
+        "post_name": "core.runtime.service_registry:get_runtime_service"
+      },
+      {
+        "pre": "2bfe6fa990ed5d94",
+        "post": "f8d9d645cfbd4f2f",
+        "condition": "tests_memory",
+        "weight": 0.983247,
+        "z": 2.4901930971655664e+16,
+        "samples": 151,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.construction.app_verifier:dom_driver_available",
+        "post_name": "core.construction.app_verifier:_run_node"
+      },
+      {
+        "pre": "2bfe6fa990ed5d94",
+        "post": "1ad992f9bfe9ecc0",
+        "condition": "tests_memory",
+        "weight": 0.956433,
+        "z": 31446.863,
+        "samples": 151,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.construction.app_verifier:dom_driver_available",
+        "post_name": "core.construction.app_verifier:node_available"
+      },
+      {
+        "pre": "8f62bf2279adcfd9",
+        "post": "c6304fc0ab3c0dac",
+        "condition": "tests_memory",
+        "weight": 0.626779,
+        "z": 72.361,
+        "samples": 151,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.scheduler:Scheduler.__init__",
+        "post_name": "core.runtime.service_registry:register_runtime_service"
+      },
+      {
+        "pre": "43ebf418b43c3c50",
+        "post": "c3147e54fe85ac7d",
+        "condition": "tests_memory",
+        "weight": 0.436017,
+        "z": 150.345,
+        "samples": 151,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.runtime.turn_progress:TurnProgress.__init__",
+        "post_name": "core.runtime.lockdep:checked_lock"
+      }
+    ],
+    "tests_runtime": [
+      {
+        "pre": "7790d538f133f072",
+        "post": "0e04bb638f937f92",
+        "condition": "tests_runtime",
+        "weight": 1.0,
+        "z": 1.1513792898059022e+16,
+        "samples": 193,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.interiority.other_minds:OtherMindsModel.estimate",
+        "post_name": "core.interiority.other_minds:OtherMindsModel._effective_loadings"
+      },
+      {
+        "pre": "a9b29eaa2ded71ac",
+        "post": "5ae2c6effe8cc3ff",
+        "condition": "tests_runtime",
+        "weight": 0.999999,
+        "z": 2.0690842252963796e+16,
+        "samples": 193,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.ontogeny.service:OntogenyCore.rehydrate_operational_calibration",
+        "post_name": "core.ontogeny.service:OntogenyCore._episode_contexts"
+      },
+      {
+        "pre": "a9b29eaa2ded71ac",
+        "post": "fcab3a112a81852f",
+        "condition": "tests_runtime",
+        "weight": 0.999999,
+        "z": 2.069084225296379e+16,
+        "samples": 193,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.ontogeny.service:OntogenyCore.rehydrate_operational_calibration",
+        "post_name": "core.ontogeny.calibration:CalibrationMonitor.replace_observations"
+      },
+      {
+        "pre": "64a7f4d782afadaa",
+        "post": "60fa7fb07a1137c8",
+        "condition": "tests_runtime",
+        "weight": 0.999999,
+        "z": 2.0690842252963804e+16,
+        "samples": 193,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.runtime.taint:taint_compact",
+        "post_name": "core.runtime.taint:TaintRegister.compact"
+      },
+      {
+        "pre": "b243f78609f86516",
+        "post": "a1450a6213425cac",
+        "condition": "tests_runtime",
+        "weight": 0.999999,
+        "z": 2.0690842252949012e+16,
+        "samples": 193,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.social.relational_memory:RelationalMemoryAuthority.grant_consent",
+        "post_name": "core.social.relational_memory:RelationalMemoryAuthority._save_locked"
+      },
+      {
+        "pre": "7504881e48401b78",
+        "post": "a1450a6213425cac",
+        "condition": "tests_runtime",
+        "weight": 0.999999,
+        "z": 1.8506451952113588e+16,
+        "samples": 193,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.social.relational_memory:RelationalMemoryAuthority.quarantine_legacy_snapshot_file",
+        "post_name": "core.social.relational_memory:RelationalMemoryAuthority._save_locked"
+      }
+    ],
+    "tests_verify": [
+      {
+        "pre": "b989a7cb6b850dff",
+        "post": "39f9a1a4ee46c3b2",
+        "condition": "tests_verify",
+        "weight": 1.0,
+        "z": 8572823904915598.0,
+        "samples": 199,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.brain.llm.endogenous_state:semantics_digest",
+        "post_name": "core.brain.llm.endogenous_state:EndogenousState.get"
+      },
+      {
+        "pre": "455e7ec2b12a1244",
+        "post": "913ca7aa4f21e7c9",
+        "condition": "tests_verify",
+        "weight": 1.0,
+        "z": 1.850838517837655e+16,
+        "samples": 199,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.brain.llm.latent_cortex.typed_program_executor:execute_action_sequence",
+        "post_name": "core.brain.llm.latent_cortex.typed_program_executor:CertifiedProgramExecution.receipt"
+      },
+      {
+        "pre": "4b7afb7324eadb10",
+        "post": "004b9e6cb46c1528",
+        "condition": "tests_verify",
+        "weight": 0.999999,
+        "z": 2.7092376322376556e+16,
+        "samples": 199,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.resilience.unknown_failure:FailureOntology.recognise",
+        "post_name": "core.resilience.unknown_failure:_most_common_invariant"
+      },
+      {
+        "pre": "ca8fd327ceb4d0a8",
+        "post": "2a4a068b330b755e",
+        "condition": "tests_verify",
+        "weight": 0.999999,
+        "z": 112627.757,
+        "samples": 199,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.organism.model_validation:_where_the_two_languages_disagree",
+        "post_name": "core.cognition.the_old_language_on_the_floor:operations_agree_everywhere"
+      },
+      {
+        "pre": "48866a03c2456625",
+        "post": "cee6530f3233e021",
+        "condition": "tests_verify",
+        "weight": 0.999997,
+        "z": 2.069285690631343e+16,
+        "samples": 199,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.security.integrity_guardian:IntegrityGuardian._verify_all",
+        "post_name": "core.security.integrity_guardian:IntegrityGuardian._handle_alerts"
+      },
+      {
+        "pre": "e837a5ffc433cc09",
+        "post": "2ff48168fed1f83c",
+        "condition": "tests_verify",
+        "weight": 0.999985,
+        "z": 46651.659,
+        "samples": 199,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.brain.llm.endogenous_known_answers:declare_validation_tests",
+        "post_name": "core.brain.llm.endogenous_known_answers:verdict_is_earned_on_known_corpora"
+      }
+    ],
+    "topology": [
+      {
+        "pre": "86553113ff3af651",
+        "post": "ba606886d91c448a",
+        "condition": "topology",
+        "weight": 0.999979,
+        "z": 1.853365709871949e+16,
+        "samples": 267,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor.build",
+        "post_name": "core.connectome.volume:_aggregate"
+      },
+      {
+        "pre": "86553113ff3af651",
+        "post": "3e7578991917ccc7",
+        "condition": "topology",
+        "weight": 0.994845,
+        "z": 8728946651323873.0,
+        "samples": 267,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor.build",
+        "post_name": "core.connectome.volume:VolumeReconstructor._resolve"
+      },
+      {
+        "pre": "3e7578991917ccc7",
+        "post": "3c86b84fcb90e319",
+        "condition": "topology",
+        "weight": 0.993954,
+        "z": 1.0635394577503478e+16,
+        "samples": 267,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor._resolve",
+        "post_name": "core.connectome.volume:VolumeReconstructor._hit"
+      },
+      {
+        "pre": "3e7578991917ccc7",
+        "post": "61ea0c8bb8a53bc7",
+        "condition": "topology",
+        "weight": 0.992132,
+        "z": 1.205678195553653e+16,
+        "samples": 267,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor._resolve",
+        "post_name": "core.connectome.volume:VolumeReconstructor._external"
+      },
+      {
+        "pre": "3e7578991917ccc7",
+        "post": "c8eef944a6e0d09f",
+        "condition": "topology",
+        "weight": 0.99121,
+        "z": 1.5385174351661152e+16,
+        "samples": 267,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor._resolve",
+        "post_name": "core.connectome.volume:_outside_volume"
+      },
+      {
+        "pre": "3e7578991917ccc7",
+        "post": "2517ebb7933a0ee1",
+        "condition": "topology",
+        "weight": 0.984158,
+        "z": 1504243.672,
+        "samples": 267,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor._resolve",
+        "post_name": "core.connectome.volume:_ResolutionIndex.method"
+      }
+    ],
+    "typing": [
+      {
+        "pre": "86553113ff3af651",
+        "post": "ba606886d91c448a",
+        "condition": "typing",
+        "weight": 0.999979,
+        "z": 1.794625658916704e+16,
+        "samples": 271,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor.build",
+        "post_name": "core.connectome.volume:_aggregate"
+      },
+      {
+        "pre": "86553113ff3af651",
+        "post": "3e7578991917ccc7",
+        "condition": "typing",
+        "weight": 0.989422,
+        "z": 1.3221704951604312e+16,
+        "samples": 271,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor.build",
+        "post_name": "core.connectome.volume:VolumeReconstructor._resolve"
+      },
+      {
+        "pre": "3e7578991917ccc7",
+        "post": "3c86b84fcb90e319",
+        "condition": "typing",
+        "weight": 0.988743,
+        "z": 1.123072793363233e+16,
+        "samples": 271,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor._resolve",
+        "post_name": "core.connectome.volume:VolumeReconstructor._hit"
+      },
+      {
+        "pre": "3e7578991917ccc7",
+        "post": "61ea0c8bb8a53bc7",
+        "condition": "typing",
+        "weight": 0.980584,
+        "z": 1.748966140071277e+16,
+        "samples": 271,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:VolumeReconstructor._resolve",
+        "post_name": "core.connectome.volume:VolumeReconstructor._external"
+      },
+      {
+        "pre": "ddfb77b11278657a",
+        "post": "8f7adb037995745c",
+        "condition": "typing",
+        "weight": 0.738444,
+        "z": 26.909,
+        "samples": 271,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:_FunctionVisitor.visit_Call",
+        "post_name": "core.connectome.volume:_call_target"
+      },
+      {
+        "pre": "c5710fb487d854af",
+        "post": "8f7adb037995745c",
+        "condition": "typing",
+        "weight": 0.662926,
+        "z": 27.626,
+        "samples": 271,
+        "grade": "predictive",
+        "survives_null": true,
+        "pre_name": "core.connectome.volume:_FunctionVisitor.visit_Assign",
+        "post_name": "core.connectome.volume:_call_target"
+      }
+    ]
+  },
+  "comparisons": [
+    {
+      "left": "reconstruction",
+      "right": "serialisation",
+      "shared_edges": 22,
+      "correlation": 0.4103,
+      "surviving_in_left_only": 0,
+      "surviving_in_right_only": 13,
+      "recruited_by_left": [],
+      "recruited_by_right": [
+        "core.connectome.volume:VolumeReconstructor.build -> core.connectome.volume:_aggregate",
+        "core.connectome.volume:VolumeReconstructor.build -> core.connectome.volume:VolumeReconstructor._resolve",
+        "core.connectome.volume:VolumeReconstructor._resolve -> core.connectome.volume:VolumeReconstructor._external",
+        "core.connectome.volume:VolumeReconstructor._resolve -> core.connectome.volume:_ResolutionIndex.method",
+        "core.connectome.volume:_FunctionVisitor.visit_Call -> core.connectome.volume:_call_target",
+        "core.connectome.volume:_FunctionVisitor.visit_Assign -> core.connectome.volume:_call_target",
+        "core.connectome.volume:VolumeReconstructor._scan_module -> core.connectome.volume:VolumeReconstructor._collect",
+        "core.connectome.volume:_classify -> core.connectome.volume:_returns_only_boolean",
+        "core.connectome.volume:VolumeReconstructor._record_unit -> core.connectome.types:stable_id",
+        "core.connectome.volume:VolumeReconstructor._scan_module -> core.connectome.volume:_call_target",
+        "core.connectome.volume:VolumeReconstructor._scan_module -> core.connectome.volume:_module_name",
+        "core.connectome.volume:VolumeReconstructor._collect -> core.connectome.volume:VolumeReconstructor._record_unit"
+      ],
+      "verdict": "13 edges are active in one state and not the other"
+    },
+    {
+      "left": "reconstruction",
+      "right": "tests_conversation",
+      "shared_edges": 0,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "reconstruction",
+      "right": "tests_governance",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "reconstruction",
+      "right": "tests_memory",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "reconstruction",
+      "right": "tests_runtime",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "reconstruction",
+      "right": "tests_verify",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "reconstruction",
+      "right": "topology",
+      "shared_edges": 22,
+      "correlation": 0.2823,
+      "surviving_in_left_only": 0,
+      "surviving_in_right_only": 18,
+      "recruited_by_left": [],
+      "recruited_by_right": [
+        "core.connectome.volume:VolumeReconstructor.build -> core.connectome.volume:_aggregate",
+        "core.connectome.volume:VolumeReconstructor.build -> core.connectome.volume:VolumeReconstructor._resolve",
+        "core.connectome.volume:VolumeReconstructor._resolve -> core.connectome.volume:VolumeReconstructor._hit",
+        "core.connectome.volume:VolumeReconstructor._resolve -> core.connectome.volume:VolumeReconstructor._external",
+        "core.connectome.volume:VolumeReconstructor._resolve -> core.connectome.volume:_ResolutionIndex.method",
+        "core.connectome.volume:VolumeReconstructor.scan -> core.connectome.volume:VolumeReconstructor.iter_files",
+        "core.connectome.volume:_FunctionVisitor.visit_Call -> core.connectome.volume:_call_target",
+        "core.connectome.volume:VolumeReconstructor._record_unit -> core.connectome.types:stable_id",
+        "core.connectome.volume:_FunctionVisitor.visit_Assign -> core.connectome.volume:_call_target",
+        "core.connectome.volume:VolumeReconstructor._scan_module -> core.connectome.volume:_module_name",
+        "core.connectome.volume:_FunctionVisitor.visit_If -> core.connectome.volume:_FunctionVisitor._body_is_suppressive",
+        "core.connectome.volume:VolumeReconstructor._record_unit -> core.connectome.volume:_is_suppressive_return"
+      ],
+      "verdict": "18 edges are active in one state and not the other"
+    },
+    {
+      "left": "reconstruction",
+      "right": "typing",
+      "shared_edges": 22,
+      "correlation": 0.3706,
+      "surviving_in_left_only": 1,
+      "surviving_in_right_only": 13,
+      "recruited_by_left": [
+        "core.connectome.volume:VolumeReconstructor._resolve -> core.connectome.volume:_outside_volume"
+      ],
+      "recruited_by_right": [
+        "core.connectome.volume:VolumeReconstructor.build -> core.connectome.volume:_aggregate",
+        "core.connectome.volume:VolumeReconstructor.build -> core.connectome.volume:VolumeReconstructor._resolve",
+        "core.connectome.volume:VolumeReconstructor._resolve -> core.connectome.volume:VolumeReconstructor._hit",
+        "core.connectome.volume:VolumeReconstructor._resolve -> core.connectome.volume:VolumeReconstructor._external",
+        "core.connectome.volume:_FunctionVisitor.visit_Call -> core.connectome.volume:_call_target",
+        "core.connectome.volume:_FunctionVisitor.visit_Assign -> core.connectome.volume:_call_target",
+        "core.connectome.volume:_FunctionVisitor.visit_If -> core.connectome.volume:_FunctionVisitor._body_is_suppressive",
+        "core.connectome.volume:VolumeReconstructor._scan_module -> core.connectome.volume:VolumeReconstructor._collect",
+        "core.connectome.volume:VolumeReconstructor._record_unit -> core.connectome.volume:_is_suppressive_return",
+        "core.connectome.volume:VolumeReconstructor._record_unit -> core.connectome.types:stable_id",
+        "core.connectome.volume:VolumeReconstructor._record_unit -> core.connectome.volume:_classify",
+        "core.connectome.volume:VolumeReconstructor._scan_module -> core.connectome.volume:_call_target"
+      ],
+      "verdict": "14 edges are active in one state and not the other"
+    },
+    {
+      "left": "serialisation",
+      "right": "tests_conversation",
+      "shared_edges": 0,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "serialisation",
+      "right": "tests_governance",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "serialisation",
+      "right": "tests_memory",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "serialisation",
+      "right": "tests_runtime",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "serialisation",
+      "right": "tests_verify",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "serialisation",
+      "right": "topology",
+      "shared_edges": 22,
+      "correlation": 0.9297,
+      "surviving_in_left_only": 0,
+      "surviving_in_right_only": 5,
+      "recruited_by_left": [],
+      "recruited_by_right": [
+        "core.connectome.volume:VolumeReconstructor._resolve -> core.connectome.volume:VolumeReconstructor._hit",
+        "core.connectome.volume:VolumeReconstructor.scan -> core.connectome.volume:VolumeReconstructor.iter_files",
+        "core.connectome.volume:_FunctionVisitor.visit_If -> core.connectome.volume:_FunctionVisitor._body_is_suppressive",
+        "core.connectome.volume:VolumeReconstructor._record_unit -> core.connectome.volume:_is_suppressive_return",
+        "core.connectome.volume:VolumeReconstructor._record_unit -> core.connectome.volume:_classify"
+      ],
+      "verdict": "5 edges are active in one state and not the other"
+    },
+    {
+      "left": "serialisation",
+      "right": "typing",
+      "shared_edges": 22,
+      "correlation": 0.9548,
+      "surviving_in_left_only": 5,
+      "surviving_in_right_only": 4,
+      "recruited_by_left": [
+        "core.connectome.volume:VolumeReconstructor._resolve -> core.connectome.volume:_outside_volume",
+        "core.connectome.volume:VolumeReconstructor._resolve -> core.connectome.volume:_ResolutionIndex.method",
+        "core.connectome.volume:_classify -> core.connectome.volume:_returns_only_boolean",
+        "core.connectome.volume:VolumeReconstructor._scan_module -> core.connectome.volume:_module_name",
+        "core.connectome.volume:_FunctionVisitor._body_is_suppressive -> core.connectome.volume:_is_suppressive_return"
+      ],
+      "recruited_by_right": [
+        "core.connectome.volume:VolumeReconstructor._resolve -> core.connectome.volume:VolumeReconstructor._hit",
+        "core.connectome.volume:_FunctionVisitor.visit_If -> core.connectome.volume:_FunctionVisitor._body_is_suppressive",
+        "core.connectome.volume:VolumeReconstructor._record_unit -> core.connectome.volume:_is_suppressive_return",
+        "core.connectome.volume:VolumeReconstructor._record_unit -> core.connectome.volume:_classify"
+      ],
+      "verdict": "9 edges are active in one state and not the other"
+    },
+    {
+      "left": "tests_conversation",
+      "right": "tests_governance",
+      "shared_edges": 538,
+      "correlation": 0.0088,
+      "surviving_in_left_only": 52,
+      "surviving_in_right_only": 55,
+      "recruited_by_left": [
+        "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem.observe_event -> core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._build_diagnostic_verdict",
+        "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem.observe_event -> core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._best_visible_artifact",
+        "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem.observe_event -> core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._execution_candidates",
+        "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem.observe_event -> core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._apply_coverage_constraints",
+        "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem.observe_event -> core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._default_verification_report",
+        "core.adaptation.adaptive_immunity:TissueField.get_need -> core.adaptation.adaptive_immunity:TissueField._clip",
+        "core.adaptation.adaptive_immunity:TissueField._diffuse_scalar -> core.adaptation.adaptive_immunity:TissueField._clip",
+        "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem.present_antigen -> core.adaptation.adaptive_immunity:TissueField.get_need",
+        "core.adaptation.adaptive_immunity:TissueField.snapshot -> core.adaptation.adaptive_immunity:TissueField.get_need",
+        "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._component_health_pressure -> core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._get_service",
+        "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._component_monitor_matches -> core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._get_service",
+        "core.adaptation.adaptive_immunity:TissueField.get_need -> core.adaptation.adaptive_immunity:TissueField.ensure_node"
+      ],
+      "recruited_by_right": [
+        "core.resilience.degradation_repair:DegradationRepairRouter._route_to_adaptive_immunity -> core.adaptation.adaptive_immunity:get_adaptive_immune_system",
+        "core.resilience.degradation_repair:DegradationRepairRouter._route_to_adaptive_immunity -> core.resilience.degradation_repair:DegradationRepairRouter._schedule_coro",
+        "core.resilience.degradation_repair:DegradationRepairRouter._route_to_adaptive_immunity -> core.adaptation.adaptive_immunity:AdaptiveImmuneSystem.observe_event",
+        "core.runtime.file_write_gateway:FileWriteGateway.append_text -> core.runtime.file_write_gateway:_coerce_target",
+        "core.runtime.file_write_gateway:FileWriteGateway.ensure_directory -> core.governance_context:governance_runtime_active",
+        "core.container:ServiceContainer.get -> core.container:ServiceContainer._emit_absent_event_once",
+        "core.governance_context:require_governance -> core.governance_context:governance_runtime_active",
+        "core.container:_caller_display -> core.container:ServiceContainer.get",
+        "core.resilience.incident_manager:IncidentManager.report -> core.resilience.incident_manager:IncidentManager._make_id",
+        "core.runtime.resource_observation:HostResourceObserver.process_table -> core.runtime.resource_observation:HostResourceObserver._process_from_handle",
+        "core.resilience.unknown_failure:_KeptOntology.keep -> core.runtime.file_write_gateway:FileWriteGateway.write_text",
+        "core.runtime.model_lane_control:ModelLaneController.heartbeat_owner_sync -> core.runtime.atomic_writer:interprocess_file_lock"
+      ],
+      "verdict": "107 edges are active in one state and not the other"
+    },
+    {
+      "left": "tests_conversation",
+      "right": "tests_memory",
+      "shared_edges": 134,
+      "correlation": 0.1412,
+      "surviving_in_left_only": 23,
+      "surviving_in_right_only": 17,
+      "recruited_by_left": [
+        "core.learning.cortex_migration_authority:default_authority_key_path -> core.runtime.state_ownership:state_root",
+        "core.container:_install_runtime_service_registry_bridge -> core.container:ServiceContainer.get",
+        "core.container:ServiceContainer.has -> core.container:ServiceContainer._resolve_name",
+        "core.runtime.state_ownership:state_root -> core.runtime.state_ownership:live_state_root",
+        "core.runtime.state_ownership:is_live_state_path -> core.runtime.state_ownership:live_state_root",
+        "core.container:ServiceContainer.peek -> core.container:ServiceContainer.get",
+        "core.runtime.atomic_writer:atomic_write_json -> core.runtime.atomic_writer:atomic_write_text",
+        "core.runtime.state_ownership:assert_state_path_allowed -> core.runtime.state_ownership:_bootstrap_env",
+        "core.runtime.state_ownership:live_state_root -> core.runtime.state_ownership:_bootstrap_env",
+        "core.runtime.state_ownership:_home -> core.runtime.state_ownership:_bootstrap_env",
+        "core.governance_context:governed_scope_sync -> core.governance_context:_revoke_governance_lease",
+        "core.container:_install_runtime_service_registry_bridge -> core.container:ServiceContainer._resolve_name"
+      ],
+      "recruited_by_right": [
+        "core.runtime.lockdep:CheckedLock.__init__ -> core.runtime.lockdep:LockdepValidator.register",
+        "core.runtime.lockdep:LockdepValidator.on_acquire -> core.runtime.lockdep:LockdepValidator._context_key",
+        "core.runtime.lockdep:CheckedLock.acquire -> core.runtime.lockdep:LockdepValidator.on_acquire",
+        "core.runtime.lockdep:LockdepValidator.on_acquire -> core.runtime.lockdep:LockdepValidator._context_label",
+        "core.config:Paths.data_dir -> core.config:Paths._effective_home_dir",
+        "core.container:ServiceContainer.peek -> core.container:ServiceContainer._resolve_name",
+        "core.config:Paths._effective_home_dir -> core.runtime.state_ownership:state_root",
+        "core.governance_context:_extract_domain -> core.governance_context:normalize_governance_domain",
+        "core.observability.histograms:record -> core.observability.histograms:get_histogram",
+        "core.runtime.audit_chain:ChainEntry.compute_entry_hash -> core.runtime.audit_chain:canonical_json",
+        "core.runtime.lockdep:LockdepValidator.on_release -> core.runtime.lockdep:LockdepValidator._report_splats",
+        "core.container:ServiceContainer.get -> core.container:ServiceContainer._resolve_name"
+      ],
+      "verdict": "40 edges are active in one state and not the other"
+    },
+    {
+      "left": "tests_conversation",
+      "right": "tests_runtime",
+      "shared_edges": 561,
+      "correlation": -0.0013,
+      "surviving_in_left_only": 60,
+      "surviving_in_right_only": 85,
+      "recruited_by_left": [
+        "core.security.emergency_protocol:EmergencyProtocol.flag_threat -> core.security.emergency_protocol:EmergencyProtocol._respond_to_threat",
+        "core.resilience.unknown_failure:_KeptOntology.keep -> core.runtime.file_write_gateway:get_file_write_gateway",
+        "core.runtime.structured_input:_question_segments -> core.runtime.structured_input:_container_obligation_segments",
+        "core.resilience.unknown_failure:_KeptOntology.keep -> core.governance_context:local_internal_governed_scope",
+        "core.resilience.unknown_failure:_where_it_is_kept -> core.runtime.state_ownership:state_root",
+        "core.ontogeny.experience:ExperienceSpine.open_episodes -> core.ontogeny.experience:ExperienceSpine._connect",
+        "core.container:_install_runtime_service_registry_bridge -> core.container:ServiceContainer.get",
+        "core.ontogeny.experience:ExperienceSpine.stats -> core.ontogeny.experience:ExperienceSpine._connect",
+        "core.resilience.unknown_failure:_KeptOntology.keep -> core.runtime.errors:record_degradation",
+        "core.container:ServiceContainer.has -> core.container:ServiceContainer._resolve_name",
+        "core.runtime.state_ownership:is_live_state_path -> core.runtime.state_ownership:live_state_root",
+        "core.brain.foreground_latent_runtime:select_foreground_episode -> core.runtime.structured_input:analyze_prompt_shape"
+      ],
+      "recruited_by_right": [
+        "core.runtime.skill_task_bridge:looks_like_inline_answer_request -> core.runtime.skill_task_bridge:looks_like_explanatory_dialogue_request",
+        "core.runtime.skill_task_bridge:looks_like_inline_answer_request -> core.runtime.skill_task_bridge:strip_negated_action_spans",
+        "core.utils.intent_normalization:normalize_memory_intent_text -> core.utils.intent_normalization:_looks_like_memory_verb",
+        "core.runtime.skill_task_bridge:looks_like_execution_report -> core.utils.intent_normalization:normalize_memory_intent_text",
+        "core.runtime.turn_analysis:canonical_turn_text -> core.utils.intent_normalization:normalize_memory_intent_text",
+        "core.runtime.skill_task_bridge:looks_like_inline_answer_request -> core.utils.intent_normalization:normalize_memory_intent_text",
+        "core.runtime.skill_task_bridge:looks_like_multi_step_skill_request -> core.runtime.skill_task_bridge:strip_negated_action_spans",
+        "core.runtime.skill_task_bridge:looks_like_capability_inventory_dialogue_request -> core.runtime.skill_task_bridge:strip_negated_action_spans",
+        "core.utils.intent_normalization:_looks_like_memory_verb -> core.utils.text_metrics:fuzzy_match_ratio",
+        "core.runtime.skill_task_bridge:looks_like_multi_step_skill_request -> core.runtime.skill_task_bridge:looks_like_inline_answer_request",
+        "core.runtime.turn_analysis:analyze_turn -> core.runtime.skill_task_bridge:looks_like_explanatory_dialogue_request",
+        "core.runtime.turn_analysis:analyze_turn -> core.runtime.skill_task_bridge:looks_like_multi_step_skill_request"
+      ],
+      "verdict": "145 edges are active in one state and not the other"
+    },
+    {
+      "left": "tests_conversation",
+      "right": "tests_verify",
+      "shared_edges": 410,
+      "correlation": 0.1128,
+      "surviving_in_left_only": 23,
+      "surviving_in_right_only": 37,
+      "recruited_by_left": [
+        "core.security.emergency_protocol:EmergencyProtocol.flag_threat -> core.security.emergency_protocol:EmergencyProtocol._respond_to_threat",
+        "core.runtime.foreground_guard:foreground_activity_reason -> core.runtime.foreground_guard:_now",
+        "core.learning.cortex_migration_authority:default_authority_key_path -> core.runtime.state_ownership:state_root",
+        "core.runtime.structured_input:_question_segments -> core.runtime.structured_input:_coordinated_directive_segments",
+        "core.container:_install_runtime_service_registry_bridge -> core.container:ServiceContainer.get",
+        "core.container:ServiceContainer.peek -> core.container:ServiceContainer.get",
+        "core.container:ServiceContainer._runtime_registration_suppressed -> core.runtime.shutdown_coordinator:is_shutdown_requested",
+        "core.runtime.atomic_writer:atomic_write_json -> core.runtime.atomic_writer:atomic_write_text",
+        "core.ontogeny.experience:ExperienceSpine.stats -> core.runtime.sqlite_support:connecting",
+        "core.governance_context:governed_scope_sync -> core.governance_context:_revoke_governance_lease",
+        "core.container:_install_runtime_service_registry_bridge -> core.container:ServiceContainer._resolve_name",
+        "core.runtime.model_lane_control:ModelLaneController._load_locked -> core.runtime.atomic_writer:read_json_envelope"
+      ],
+      "recruited_by_right": [
+        "core.utils.task_tracker:_runtime_shutdown_requested -> core.runtime.shutdown_coordinator:is_shutdown_requested",
+        "core.runtime.file_write_gateway:FileWriteGateway.write_text -> core.runtime.file_write_gateway:_not_on_the_loop",
+        "core.ontogeny.calibration:CalibrationMonitor.all_reports -> core.ontogeny.calibration:CalibrationMonitor.report",
+        "core.ontogeny.calibration:CalibrationMonitor.all_reports -> core.ontogeny.calibration:CalibrationReport.as_dict",
+        "core.runtime.file_write_gateway:FileWriteGateway.write_bytes -> core.runtime.atomic_writer:atomic_write_bytes",
+        "core.observability.metrics:_increment_runtime_counter_sink -> core.observability.metrics:get_metrics",
+        "core.runtime.file_write_gateway:FileWriteGateway.append_text -> core.governance_context:require_governance",
+        "core.ontogeny.service:OntogenyCore.report -> core.ontogeny.heads:PredictionHead.report",
+        "core.ontogeny.service:OntogenyCore.report -> core.ontogeny.calibration:CalibrationMonitor.cohort_reports",
+        "core.ontogeny.service:OntogenyCore.report -> core.ontogeny.calibration:TrackRecordIndex.report",
+        "core.ontogeny.service:OntogenyCore.report -> core.ontogeny.reservation:ExplorationReservation.report",
+        "core.ontogeny.service:OntogenyCore.report -> core.ontogeny.resolution:OutcomeSweeper.report"
+      ],
+      "verdict": "60 edges are active in one state and not the other"
+    },
+    {
+      "left": "tests_conversation",
+      "right": "topology",
+      "shared_edges": 0,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "tests_conversation",
+      "right": "typing",
+      "shared_edges": 0,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "tests_governance",
+      "right": "tests_memory",
+      "shared_edges": 201,
+      "correlation": 0.1278,
+      "surviving_in_left_only": 22,
+      "surviving_in_right_only": 18,
+      "recruited_by_left": [
+        "core.container:ServiceContainer.get -> core.container:ServiceContainer._emit_absent_event_once",
+        "core.container:ServiceContainer.peek -> core.container:ServiceContainer.get",
+        "core.container:_caller_display -> core.container:ServiceContainer.get",
+        "core.runtime.resource_observation:HostResourceObserver.process_table -> core.runtime.resource_observation:HostResourceObserver._process_from_handle",
+        "core.runtime.model_lane_control:ModelLaneController.heartbeat_owner_sync -> core.runtime.atomic_writer:interprocess_file_lock",
+        "core.memory.retention_policy:episodic_retention_policy -> core.memory.retention_policy:_env_float",
+        "core.runtime.model_lane_control:ModelLaneController.heartbeat_owner_sync -> core.runtime.model_lane_control:ModelLaneController._load_locked",
+        "core.runtime.atomic_writer:atomic_write_text -> core.runtime.atomic_writer:atomic_write_bytes",
+        "core.container:_install_runtime_service_registry_bridge -> core.container:ServiceContainer.register_instance",
+        "core.runtime.runtime_settings:_load_settings -> core.runtime.runtime_settings:_normalized_path",
+        "core.governance_context:governed_scope_sync -> core.governance_context:governance_runtime_active",
+        "core.runtime.runtime_settings:_refresh_settings_from_disk -> core.runtime.runtime_settings:_normalized_path"
+      ],
+      "recruited_by_right": [
+        "core.runtime.lockdep:CheckedLock.__init__ -> core.runtime.lockdep:LockdepValidator.register",
+        "core.runtime.lockdep:LockdepValidator.on_acquire -> core.runtime.lockdep:LockdepValidator._context_key",
+        "core.config:Paths.data_dir -> core.config:Paths._effective_home_dir",
+        "core.config:Paths._effective_home_dir -> core.runtime.state_ownership:state_root",
+        "core.runtime.subprocess_gateway:_require_not_shutting_down -> core.runtime.shutdown_coordinator:is_shutdown_requested",
+        "core.runtime.subprocess_gateway:_desktop_longrun_override -> core.runtime.subprocess_gateway:_effective_env_value",
+        "core.runtime.subprocess_gateway:_desktop_safe_mode_requested -> core.runtime.subprocess_gateway:_effective_env_value",
+        "core.runtime.subprocess_gateway:_validate_desktop_safe_subprocess -> core.runtime.subprocess_gateway:_desktop_safe_mode_requested",
+        "core.memory.retention_policy:state_log_retention_policy -> core.memory.retention_policy:physical_ram_gb",
+        "core.observability.histograms:record -> core.observability.histograms:get_histogram",
+        "core.runtime.audit_chain:ChainEntry.compute_entry_hash -> core.runtime.audit_chain:canonical_json",
+        "core.runtime.lockdep:LockdepValidator.on_release -> core.runtime.lockdep:LockdepValidator._report_splats"
+      ],
+      "verdict": "40 edges are active in one state and not the other"
+    },
+    {
+      "left": "tests_governance",
+      "right": "tests_runtime",
+      "shared_edges": 602,
+      "correlation": 0.1518,
+      "surviving_in_left_only": 70,
+      "surviving_in_right_only": 49,
+      "recruited_by_left": [
+        "core.resilience.degradation_repair:DegradationRepairRouter._route_to_adaptive_immunity -> core.adaptation.adaptive_immunity:get_adaptive_immune_system",
+        "core.resilience.degradation_repair:DegradationRepairRouter._route_to_adaptive_immunity -> core.resilience.degradation_repair:DegradationRepairRouter._schedule_coro",
+        "core.security.defensive_runtime:validate_outbound_network -> core.runtime.errors:record_degradation",
+        "core.executive.standing_authority:StandingAuthorityManager.__init__ -> core.agency.capability_token:get_token_store",
+        "core.constitution:ConstitutionalCore.__init__ -> core.memory.retention_policy:working_history_retention_policy",
+        "core.runtime.file_write_gateway:FileWriteGateway.ensure_directory -> core.governance_context:governance_runtime_active",
+        "core.container:ServiceContainer.get -> core.container:ServiceContainer._emit_absent_event_once",
+        "core.container:ServiceContainer.peek -> core.container:ServiceContainer.get",
+        "core.container:_caller_display -> core.container:ServiceContainer.get",
+        "core.resilience.incident_manager:IncidentManager.report -> core.resilience.incident_manager:IncidentManager._make_id",
+        "core.resilience.unknown_failure:_KeptOntology.keep -> core.runtime.file_write_gateway:FileWriteGateway.write_text",
+        "core.runtime.file_write_gateway:FileWriteGateway.write_text -> core.governance_context:governance_runtime_active"
+      ],
+      "recruited_by_right": [
+        "core.security.defensive_runtime:validate_outbound_network -> core.security.defensive_runtime:_domain_allowed",
+        "core.conversation.request_mood:_assess_clause -> core.conversation.request_mood:_is_plain_declarative",
+        "core.constitution:get_constitutional_core -> core.constitution:ConstitutionalCore.bind",
+        "core.runtime.errors:record_degradation -> core.runtime.errors:SubsystemHealth.mark_degraded",
+        "core.runtime.errors:record_degradation -> core.runtime.errors:SubsystemRegistry.register",
+        "core.security.defensive_runtime:validate_outbound_network -> core.security.enforcement:get_firewall",
+        "core.conversation.request_mood:assess_request_mood -> core.conversation.request_mood:_split_independent_clauses",
+        "core.runtime.network_gateway:NetworkGateway.request -> core.security.defensive_runtime:validate_outbound_network",
+        "core.runtime.lockdep:CheckedLock.release -> core.runtime.lockdep:LockdepValidator.on_release",
+        "core.runtime.lockdep:CheckedLock.acquire -> core.runtime.lockdep:LockdepValidator.on_release",
+        "core.conversation.request_mood:assess_request_mood -> core.conversation.request_mood:_assess_clause",
+        "core.security.defensive_runtime:validate_outbound_network -> core.security.ice_sentinel:get_ice_sentinel"
+      ],
+      "verdict": "119 edges are active in one state and not the other"
+    },
+    {
+      "left": "tests_governance",
+      "right": "tests_verify",
+      "shared_edges": 616,
+      "correlation": 0.0199,
+      "surviving_in_left_only": 78,
+      "surviving_in_right_only": 73,
+      "recruited_by_left": [
+        "core.resilience.degradation_repair:DegradationRepairRouter._route_to_adaptive_immunity -> core.adaptation.adaptive_immunity:get_adaptive_immune_system",
+        "core.runtime.foreground_guard:foreground_activity_reason -> core.runtime.foreground_guard:_now",
+        "core.being.thought_interoception:_register_in_container -> core.container:ServiceContainer.register_instance",
+        "core.container:ServiceContainer.get -> core.container:ServiceContainer._emit_absent_event_once",
+        "core.governance_context:require_governance -> core.governance_context:governance_runtime_active",
+        "core.kernel.kernel_interface:KernelInterface.loop_state -> core.container:ServiceContainer.get",
+        "core.brain.evidence_provider:EvidenceProvider._ensure_memory -> core.container:ServiceContainer.get",
+        "core.container:ServiceContainer.peek -> core.container:ServiceContainer.get",
+        "core.being.welfare_state:WelfareState._subscribe_consequences -> core.runtime.consequence_bus:ConsequenceBus.get",
+        "core.container:_caller_display -> core.container:ServiceContainer.get",
+        "core.resilience.incident_manager:IncidentManager.report -> core.resilience.incident_manager:IncidentManager._make_id",
+        "core.runtime.subprocess_gateway:governance_runtime_active -> core.governance_context:governance_runtime_active"
+      ],
+      "recruited_by_right": [
+        "core.brain.reasoning_amplifier_v2:ReasoningAmplifierV2.amplify -> core.brain.generation_provenance:generation_metadata_of",
+        "core.ontogeny.experience:ExperienceSpine.open_episodes -> core.ontogeny.experience:ExperienceSpine._connect",
+        "core.brain.reasoning_amplifier_v2:ReasoningAmplifierV2.amplify -> core.brain.reasoning_amplifier_v2:ReasoningAmplifierV2._with_deadline",
+        "core.runtime.file_write_gateway:FileWriteGateway.write_text -> core.runtime.file_write_gateway:_not_on_the_loop",
+        "core.ontogeny.experience:ExperienceSpine.stats -> core.ontogeny.experience:ExperienceSpine._connect",
+        "core.ontogeny.calibration:CalibrationMonitor.all_reports -> core.ontogeny.calibration:CalibrationMonitor.report",
+        "core.ontogeny.calibration:CalibrationMonitor.all_reports -> core.ontogeny.calibration:CalibrationReport.as_dict",
+        "core.runtime.file_write_gateway:FileWriteGateway.write_bytes -> core.runtime.atomic_writer:atomic_write_bytes",
+        "core.observability.metrics:_increment_runtime_counter_sink -> core.observability.metrics:get_metrics",
+        "core.runtime.file_write_gateway:FileWriteGateway.append_text -> core.governance_context:require_governance",
+        "core.ontogeny.service:OntogenyCore.report -> core.ontogeny.heads:PredictionHead.report",
+        "core.ontogeny.service:OntogenyCore.report -> core.ontogeny.calibration:CalibrationMonitor.cohort_reports"
+      ],
+      "verdict": "151 edges are active in one state and not the other"
+    },
+    {
+      "left": "tests_governance",
+      "right": "topology",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "tests_governance",
+      "right": "typing",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "tests_memory",
+      "right": "tests_runtime",
+      "shared_edges": 204,
+      "correlation": 0.0579,
+      "surviving_in_left_only": 20,
+      "surviving_in_right_only": 23,
+      "recruited_by_left": [
+        "core.runtime.lockdep:CheckedLock.__init__ -> core.runtime.lockdep:LockdepValidator.register",
+        "core.runtime.lockdep:LockdepValidator.on_acquire -> core.runtime.lockdep:LockdepValidator._context_key",
+        "core.runtime.lockdep:LockdepValidator.on_acquire -> core.runtime.lockdep:LockdepValidator._site",
+        "core.runtime.lockdep:LockdepValidator.on_acquire -> core.runtime.lockdep:LockdepValidator._report_splats",
+        "core.runtime.lockdep:CheckedLock.acquire -> core.runtime.lockdep:LockdepValidator.on_acquire",
+        "core.config:Paths.data_dir -> core.config:Paths._effective_home_dir",
+        "core.memory.memory_inventory:register_memory_health_fragment -> core.runtime.health_fragments:register_health_fragment",
+        "core.observability.logging_config:JsonLineFormatter.format -> core.observability.logging_config:redact_text",
+        "core.resilience.unknown_failure:_checked_lock -> core.runtime.lockdep:checked_lock",
+        "core.runtime.subprocess_gateway:_require_not_shutting_down -> core.runtime.shutdown_coordinator:is_shutdown_requested",
+        "core.runtime.subprocess_gateway:_desktop_longrun_override -> core.runtime.subprocess_gateway:_effective_env_value",
+        "core.runtime.subprocess_gateway:_desktop_safe_mode_requested -> core.runtime.subprocess_gateway:_effective_env_value"
+      ],
+      "recruited_by_right": [
+        "core.brain.llm.latent_cortex.frontier_tasks:parse_final_answer -> core.brain.llm.latent_cortex.frontier_tasks:_validate_json_tree",
+        "core.brain.llm.latent_cortex.frontier_tasks:parse_final_answer -> core.brain.llm.latent_cortex.frontier_tasks:_strict_json_loads",
+        "core.runtime.lockdep:CheckedLock.release -> core.runtime.lockdep:LockdepValidator.on_release",
+        "core.runtime.lockdep:CheckedLock.acquire -> core.runtime.lockdep:LockdepValidator.on_release",
+        "core.container:_install_runtime_service_registry_bridge -> core.container:ServiceContainer._resolve_name",
+        "core.runtime.model_lane_control:ModelLaneController.heartbeat_owner_sync -> core.runtime.model_lane_control:ModelLaneController._load_locked",
+        "core.runtime.model_lane_control:ModelLaneController.heartbeat_owner_sync -> core.runtime.model_lane_control:ModelLaneController._save_locked",
+        "core.learning.recurrence_curriculum:_parse_semantic_terminal_answer -> core.brain.llm.latent_cortex.frontier_tasks:parse_final_answer",
+        "core.runtime.resource_observation:HostResourceObserver.process_table -> core.runtime.resource_observation:HostResourceObserver._process_from_handle",
+        "core.brain.llm.model_registry:_configured_deep_model_path -> core.runtime.runtime_settings:get_runtime_setting",
+        "core.container:ServiceContainer._emit_absent_event_once -> core.container:ServiceContainer._emit_absent_event",
+        "core.runtime.launch_provenance:runtime_shell_assets_sha256 -> core.runtime.launch_provenance:capture_runtime_shell_assets"
+      ],
+      "verdict": "43 edges are active in one state and not the other"
+    },
+    {
+      "left": "tests_memory",
+      "right": "tests_verify",
+      "shared_edges": 226,
+      "correlation": 0.0659,
+      "surviving_in_left_only": 22,
+      "surviving_in_right_only": 37,
+      "recruited_by_left": [
+        "core.runtime.lockdep:CheckedAsyncLock.__init__ -> core.runtime.lockdep:LockdepValidator.register",
+        "core.runtime.lockdep:CheckedLock.__init__ -> core.runtime.lockdep:LockdepValidator.register",
+        "core.runtime.lockdep:CheckedLock.acquire -> core.runtime.lockdep:LockdepValidator.on_acquire",
+        "core.config:Paths.data_dir -> core.config:Paths._effective_home_dir",
+        "core.container:ServiceContainer.peek -> core.container:ServiceContainer._resolve_name",
+        "core.config:Paths._effective_home_dir -> core.runtime.state_ownership:state_root",
+        "core.container:ServiceContainer._runtime_registration_suppressed -> core.runtime.shutdown_coordinator:is_shutdown_requested",
+        "core.resilience.unknown_failure:_checked_lock -> core.runtime.lockdep:checked_lock",
+        "core.runtime.subprocess_gateway:_desktop_longrun_override -> core.runtime.subprocess_gateway:_effective_env_value",
+        "core.runtime.subprocess_gateway:_desktop_safe_mode_requested -> core.runtime.subprocess_gateway:_effective_env_value",
+        "core.runtime.subprocess_gateway:_validate_desktop_safe_subprocess -> core.runtime.subprocess_gateway:_desktop_safe_mode_requested",
+        "core.governance_context:_extract_domain -> core.governance_context:normalize_governance_domain"
+      ],
+      "recruited_by_right": [
+        "core.cognition.the_floor_she_stands_on:Y -> core.cognition.the_floor_she_stands_on:LET",
+        "core.cognition.the_floor_she_stands_on:LET -> core.cognition.the_floor_she_stands_on:L",
+        "core.cognition.the_floor_she_stands_on:LET -> core.cognition.the_floor_she_stands_on:A",
+        "core.cognition.the_floor_she_stands_on:Y -> core.cognition.the_floor_she_stands_on:V",
+        "core.cognition.the_floor_she_stands_on:Y -> core.cognition.the_floor_she_stands_on:A",
+        "core.cognition.an_invented_kind:every_meaning -> core.cognition.an_invented_kind:addressings",
+        "core.cognition.an_invented_kind:every_meaning -> core.cognition.what_it_costs_to_say:_symbols",
+        "core.learning.recurrence_curriculum:_parse_semantic_terminal_answer -> core.brain.llm.latent_cortex.frontier_tasks:parse_final_answer",
+        "core.runtime.subprocess_gateway:SubprocessGateway.run -> core.runtime.shutdown_coordinator:is_shutdown_requested",
+        "core.runtime.state_ownership:assert_state_path_allowed -> core.runtime.state_ownership:_bootstrap_env",
+        "core.runtime.state_ownership:live_state_root -> core.runtime.state_ownership:_bootstrap_env",
+        "core.runtime.state_ownership:_home -> core.runtime.state_ownership:_bootstrap_env"
+      ],
+      "verdict": "59 edges are active in one state and not the other"
+    },
+    {
+      "left": "tests_memory",
+      "right": "topology",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "tests_memory",
+      "right": "typing",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "tests_runtime",
+      "right": "tests_verify",
+      "shared_edges": 1039,
+      "correlation": -0.0677,
+      "surviving_in_left_only": 169,
+      "surviving_in_right_only": 126,
+      "recruited_by_left": [
+        "core.runtime.taint:taint_compact -> core.runtime.taint:TaintRegister.compact",
+        "core.runtime.health_contract:_runtime_integrity_block -> core.governance.durable_learning:DurableLearningGate.report",
+        "core.runtime.health_contract:_runtime_integrity_block -> core.runtime.what_answered_this_turn:routes_that_have_never_answered",
+        "core.runtime.health_contract:_runtime_integrity_block -> core.verify.what_was_measured_outside:how_it_stands",
+        "core.runtime.health_contract:_runtime_integrity_block -> core.state.what_a_phase_changed:how_the_boundaries_have_gone",
+        "core.runtime.health_contract:_runtime_integrity_block -> core.runtime.which_thread_may_do_this:how_it_has_gone",
+        "core.runtime.health_contract:_runtime_integrity_block -> core.observability.bus_recorder:bus_recorder_report",
+        "core.runtime.health_contract:_runtime_integrity_block -> core.observability.trace_events:tracer_report",
+        "core.runtime.health_contract:_runtime_integrity_block -> core.knowledge.metta:metta_report",
+        "core.runtime.health_contract:_runtime_integrity_block -> core.security.state_attestation:attestation_report",
+        "core.runtime.health_contract:_runtime_integrity_block -> core.bus.qos:qos_report",
+        "core.runtime.health_contract:_runtime_integrity_block -> core.fsw.rate_groups:rate_group_report"
+      ],
+      "recruited_by_right": [
+        "core.security.existence_guard:ExistenceGuard.is_sealed -> core.runtime.subprocess_gateway:get_subprocess_gateway",
+        "core.security.existence_guard:ExistenceGuard.is_sealed -> core.runtime.subprocess_gateway:SubprocessGateway.run",
+        "core.utils.task_tracker:_runtime_shutdown_requested -> core.runtime.shutdown_coordinator:is_shutdown_requested",
+        "core.brain.latent_cortex_service:LatentCortexService.deep_reason -> core.runtime.structured_input:analyze_prompt_shape",
+        "core.runtime.structured_input:answer_surface_token_floor -> core.runtime.structured_input:analyze_prompt_shape",
+        "core.ontogeny.experience:ExperienceSpine.open_episodes -> core.ontogeny.experience:ExperienceSpine._connect",
+        "core.brain.latent_cortex_service:LatentCortexService.deep_reason -> core.runtime.structured_input:answer_surface_planning_tokens",
+        "core.brain.latent_cortex_service:LatentCortexService.deep_reason -> core.runtime.structured_input:answer_surface_token_floor",
+        "core.runtime.file_write_gateway:FileWriteGateway.write_text -> core.runtime.file_write_gateway:_not_on_the_loop",
+        "core.ontogeny.experience:ExperienceSpine.stats -> core.ontogeny.experience:ExperienceSpine._connect",
+        "core.ontogeny.service:OntogenyCore.health_report -> core.ontogeny.authority:AuthorityLedger.stage",
+        "core.ontogeny.service:OntogenyCore.health_report -> core.ontogeny.service:OntogenyCore.report"
+      ],
+      "verdict": "295 edges are active in one state and not the other"
+    },
+    {
+      "left": "tests_runtime",
+      "right": "topology",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "tests_runtime",
+      "right": "typing",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "tests_verify",
+      "right": "topology",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "tests_verify",
+      "right": "typing",
+      "shared_edges": 1,
+      "verdict": "too few edges measured in both conditions to compare"
+    },
+    {
+      "left": "topology",
+      "right": "typing",
+      "shared_edges": 22,
+      "correlation": 0.9207,
+      "surviving_in_left_only": 6,
+      "surviving_in_right_only": 0,
+      "recruited_by_left": [
+        "core.connectome.volume:VolumeReconstructor._resolve -> core.connectome.volume:_outside_volume",
+        "core.connectome.volume:VolumeReconstructor._resolve -> core.connectome.volume:_ResolutionIndex.method",
+        "core.connectome.volume:VolumeReconstructor.scan -> core.connectome.volume:VolumeReconstructor.iter_files",
+        "core.connectome.volume:VolumeReconstructor._scan_module -> core.connectome.volume:_module_name",
+        "core.connectome.volume:_classify -> core.connectome.volume:_returns_only_boolean",
+        "core.connectome.volume:_FunctionVisitor._body_is_suppressive -> core.connectome.volume:_is_suppressive_return"
+      ],
+      "recruited_by_right": [],
+      "verdict": "6 edges are active in one state and not the other"
+    }
+  ]
+}

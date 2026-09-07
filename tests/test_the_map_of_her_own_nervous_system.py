@@ -1719,3 +1719,159 @@ def test_two_cells_that_spawn_the_same_helper_meet_at_the_boundary(tmp_path: Pat
         if pre in names and post in names
     }
     assert ("spawns", "spawns_too") in ipc_named
+
+
+# ---------------------------------------------------------------------------
+# The effective connectome: what a connection does, in the state she is in
+# ---------------------------------------------------------------------------
+
+
+def _driven_trace(frames: int, *, driven: bool, condition: str, seed: int):
+    """Two cells wired a->b, with b either driven by a's past or not."""
+    import numpy as np
+
+    from core.connectome.activity import ActivityTrace
+
+    rng = np.random.default_rng(seed)
+    a = rng.normal(0.0, 1.0, frames)
+    noise = rng.normal(0.0, 0.3, frames)
+    b = np.empty(frames)
+    b[0] = noise[0]
+    for t in range(1, frames):
+        b[t] = (0.9 * a[t - 1] if driven else 0.0) + 0.2 * b[t - 1] + noise[t]
+    values = np.stack([a, b], axis=1).astype("float32")
+    snapshot = _graph_snapshot([("a", "b", 1)])
+    trace = ActivityTrace(
+        uids=("a", "b"),
+        conditions=tuple([condition] * frames),
+        spikes=[],
+        array=values,
+    )
+    return snapshot, trace
+
+
+def test_an_edge_that_drives_survives_the_rotation_null():
+    from core.connectome.effective import Grade, predictive_influence
+
+    snapshot, trace = _driven_trace(400, driven=True, condition="c", seed=1)
+    graph = predictive_influence(trace, snapshot, "c", nulls=8)
+    edge = graph.edges[("a", "b")]
+    assert edge.grade is Grade.PREDICTIVE
+    assert edge.survives_null is True
+    assert edge.weight > 0.3
+    assert graph.summary()["edges_surviving_null"] == 1
+
+
+def test_an_edge_that_drives_nothing_does_not():
+    from core.connectome.effective import predictive_influence
+
+    snapshot, trace = _driven_trace(400, driven=False, condition="c", seed=2)
+    graph = predictive_influence(trace, snapshot, "c", nulls=8)
+    assert graph.edges[("a", "b")].survives_null is False
+
+
+def test_a_condition_with_too_few_frames_is_skipped_not_guessed():
+    from core.connectome.effective import MIN_FRAMES_PER_CONDITION, predictive_influence
+
+    snapshot, trace = _driven_trace(40, driven=True, condition="c", seed=3)
+    graph = predictive_influence(trace, snapshot, "c")
+    assert graph.edges == {}
+    assert str(MIN_FRAMES_PER_CONDITION) in graph.skipped
+    assert graph.summary()["edges_measured"] == 0
+
+
+def test_the_same_anatomy_can_run_different_circuits():
+    import numpy as np
+
+    from core.connectome.activity import ActivityTrace
+    from core.connectome.effective import compare_conditions, predictive_influence
+
+    frames = 400
+    rng = np.random.default_rng(7)
+    # Under "left" the a->b edge carries; under "right" the c->d edge does.
+    a = rng.normal(0, 1, frames * 2)
+    c = rng.normal(0, 1, frames * 2)
+    b = np.zeros(frames * 2)
+    d = np.zeros(frames * 2)
+    for t in range(1, frames * 2):
+        in_left = t < frames
+        b[t] = (0.9 * a[t - 1] if in_left else 0.0) + rng.normal(0, 0.3)
+        d[t] = (0.0 if in_left else 0.9 * c[t - 1]) + rng.normal(0, 0.3)
+    values = np.stack([a, b, c, d], axis=1).astype("float32")
+    snapshot = _graph_snapshot([("a", "b", 1), ("c", "d", 1)])
+    trace = ActivityTrace(
+        uids=("a", "b", "c", "d"),
+        conditions=tuple(["left"] * frames + ["right"] * frames),
+        spikes=[],
+        array=values,
+    )
+    left = predictive_influence(trace, snapshot, "left", nulls=8)
+    right = predictive_influence(trace, snapshot, "right", nulls=8)
+    assert left.edges[("a", "b")].survives_null is True
+    assert left.edges[("c", "d")].survives_null is False
+    assert right.edges[("c", "d")].survives_null is True
+    assert right.edges[("a", "b")].survives_null is False
+
+    # Two edges is not enough to correlate two effective graphs, and the
+    # comparison says so rather than reporting a correlation over two points.
+    comparison = compare_conditions(left, right, snapshot=snapshot, limit=4)
+    assert comparison["shared_edges"] == 2
+    assert "too few edges" in comparison["verdict"]
+    assert "correlation" not in comparison
+
+
+def test_comparing_two_states_names_what_each_recruits():
+    import numpy as np
+
+    from core.connectome.activity import ActivityTrace
+    from core.connectome.effective import compare_conditions, predictive_influence
+
+    frames = 400
+    cells = 12
+    rng = np.random.default_rng(11)
+    values = rng.normal(0.0, 1.0, size=(frames * 2, cells))
+    edges = [(f"c{i}", f"c{i + 1}", 1) for i in range(cells - 1)]
+    # The first half of the chain carries in "left", the second half in "right".
+    for t in range(1, frames * 2):
+        in_left = t < frames
+        for i in range(cells - 1):
+            early = i < (cells - 1) // 2
+            carries = early if in_left else not early
+            if carries:
+                values[t, i + 1] = 0.9 * values[t - 1, i] + rng.normal(0, 0.3)
+    snapshot = _graph_snapshot(edges)
+    trace = ActivityTrace(
+        uids=tuple(f"c{i}" for i in range(cells)),
+        conditions=tuple(["left"] * frames + ["right"] * frames),
+        spikes=[],
+        array=values.astype("float32"),
+    )
+    left = predictive_influence(trace, snapshot, "left", nulls=8)
+    right = predictive_influence(trace, snapshot, "right", nulls=8)
+    comparison = compare_conditions(left, right, snapshot=snapshot, limit=8)
+    assert comparison["shared_edges"] >= 8
+    assert comparison["surviving_in_left_only"] >= 1
+    assert comparison["surviving_in_right_only"] >= 1
+    assert "active in one state and not the other" in comparison["verdict"]
+
+
+def test_a_predictive_weight_may_not_be_read_as_a_cause():
+    from core.connectome.effective import Grade
+
+    assert "predict" in Grade.PREDICTIVE.licenses
+    assert "model" in Grade.MODEL.licenses
+    assert "disabling" in Grade.INTERVENTIONAL.licenses
+    # The grades are ordered by what they license, and nothing promotes one.
+    assert Grade.PREDICTIVE.licenses != Grade.INTERVENTIONAL.licenses
+
+
+def test_the_model_tier_ranks_removals_and_says_it_is_a_model():
+    from core.connectome.effective import Grade, model_influence
+
+    snapshot = _graph_snapshot(
+        [("hub", "x", 5), ("x", "y", 5), ("y", "z", 5), ("side", "z", 1)]
+    )
+    graph = model_influence(snapshot, ["hub", "side"], steps=4)
+    assert graph.grade is Grade.MODEL
+    assert graph.summary()["licenses"].startswith("that a model")
+    assert graph.edges
