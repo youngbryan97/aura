@@ -636,6 +636,37 @@ def hermetic_resource_sandbox(tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
+def _reset_process_wide_state():
+    """Clear the module-level singletons introduced by the canonical layer.
+
+    Production code writes to these: an interiority tick estimates into the
+    canonical state, a horizon check declares a criterion. So a test that
+    exercises any of that leaves state behind for whatever runs next, and the
+    result is a test that passes alone and fails in company — which is the
+    order-dependence this repository treats as a defect rather than as noise.
+
+    Cleared before rather than after, so a test that crashes does not poison
+    the one behind it.
+    """
+    for module_name, reset in (
+        ("core.canonical.state", lambda m: m.get_canonical_state().clear()),
+        ("core.verify.model_horizon", lambda m: m.reset_horizons()),
+        ("core.cognition.value_of_computation", lambda m: m.reset_swings()),
+        ("core.verify.epistemic_independence", lambda m: m.registry().clear()),
+        ("core.governance.value_levels", lambda m: m.registry().clear()),
+    ):
+        try:
+            import importlib
+
+            reset(importlib.import_module(module_name))
+        except (ImportError, AttributeError, RuntimeError, TypeError):
+            # A build without the module, or one where the reset moved. Not a
+            # reason to fail the test that was about to run.
+            continue
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _live_data_write_guard(request):
     """Hermeticity: flag any Python-level write into the real ~/.aura/data.
 
