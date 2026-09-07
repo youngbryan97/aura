@@ -13782,6 +13782,42 @@ async def _refuse_an_empty_canonical_reply(
     return _seam_early_response, lane, pending_exchange_id
 
 
+#: Proofs that say the ANSWER is unfinished, as opposed to the bookkeeping.
+#:
+#: `chat_turn_contract` makes this distinction in a comment and nothing acted
+#: on it: "one of them is not a statement about the answer at all". A draft cut
+#: off mid-clause or judged semantically short is a reason to withhold what she
+#: wrote. A retry counter reaching its limit, or a receipt nobody bound, is a
+#: reason to say so — not to replace her answer with an apology.
+_THE_ANSWER_ITSELF_IS_UNFINISHED = (
+    "authored_answer_incomplete:generation_cut_off",
+    "authored_answer_incomplete:semantically_short",
+    "authored_answer_incomplete:semantic_contract_unmet",
+)
+
+
+def _a_proof_that_says_the_answer_is_unfinished(missing: tuple[str, ...]) -> bool:
+    """True when something in `missing` is about the text rather than a receipt.
+
+    Unrecognised proofs count as being about the answer. A new proof nobody has
+    classified must not silently become a reason to serve something.
+    """
+
+    known_bookkeeping = {
+        "authored_answer_incomplete:retry_exhausted",
+        "authored_answer_incomplete:nobody_checked",
+        "live_mind_controls_unbound",
+        "architecture_context_unbound",
+        "live_mind_snapshot_unbound",
+    }
+    for item in missing:
+        if item in _THE_ANSWER_ITSELF_IS_UNFINISHED:
+            return True
+        if item not in known_bookkeeping:
+            return True
+    return bool(not missing)
+
+
 def _fail_closed_on_an_unproven_full_mind_contract(
     *,
     _final_reply: Any,
@@ -13803,6 +13839,53 @@ def _fail_closed_on_an_unproven_full_mind_contract(
     def _block() -> Any:
         nonlocal final_live_turn_contract
         if _full_mind_unproven:
+            missing = tuple(
+                str(item)
+                for item in (
+                    final_live_turn_contract.get("full_mind_missing_proofs") or ()
+                )
+            )
+            written = str(_final_reply or "").strip()
+            if written and not _a_proof_that_says_the_answer_is_unfinished(missing):
+                # Missing bookkeeping is not evidence the answer is wrong.
+                #
+                # `chat_turn_contract` already separates the proofs that say the
+                # TEXT is unfinished — cut off mid-clause, semantically short —
+                # from the ones that say a receipt was never bound. Only the
+                # first kind is a reason to withhold what she wrote. LIVE
+                # 2026-09-07: an on-topic, high-confidence, 175-character answer
+                # to "what was the first thing I said" was replaced by "I
+                # couldn't get my full attention onto that one" under
+                # `retry_exhausted`, which is a fact about the retry counter.
+                logger.warning(
+                    "⚠️ Full-mind contract unproven on bookkeeping alone "
+                    "(missing=%s); serving the answer she wrote, disclosed as "
+                    "bounded rather than replaced.",
+                    ",".join(missing) or "unrecorded",
+                )
+                _live_turn_trace.update(
+                    {
+                        "cognitive_engine_reply_accepted": True,
+                        "response_path": "full_mind_contract_unproven_served",
+                    }
+                )
+                final_live_turn_contract = _live_turn_contract(
+                    lane_status=lane_status,
+                    response_confidence="bounded",
+                    status="full_mind_contract_unproven_served",
+                    reply_source="full_mind_contract_unproven_served",
+                )
+                return JSONResponse(
+                    {
+                        "response": written,
+                        "status": "full_mind_contract_unproven_served",
+                        "reason": "full_mind_contract_unproven_on_bookkeeping",
+                        "conversation_lane": lane_status,
+                        "response_confidence": "bounded",
+                        "live_turn_contract": final_live_turn_contract,
+                    },
+                    status_code=503 if is_benchmark else 200,
+                )
             logger.warning(
                 "⚠️ Required desktop full-mind contract was not proven; failing "
                 "closed instead of serving partial/raw speech (path=%s, missing=%s).",
