@@ -94,6 +94,7 @@ class AVersionedStore:
         self._read_only = bool(read_only)
         self._source = str(source)
         self._lock = checked_lock(f"a_versioned_store:{self._path.name}")
+        self._io_lane = threading.Semaphore(1)
         self._pending: dict[str, Any] | None = None
         self._written_at = 0.0
 
@@ -117,7 +118,7 @@ class AVersionedStore:
             return self._load()
 
     def _load(self) -> Kept | None:
-        with self._lock:
+        with self._io_lane:
             if not self._path.exists():
                 return None
             try:
@@ -207,15 +208,19 @@ class AVersionedStore:
 
     def flush(self) -> bool:
         """Write what is held. False when there is nothing to write."""
-        with self._lock:
-            if self._read_only or self._pending is None:
-                return False
+        # Serialize disk operations without holding the mutable-state lock.
+        # A concurrent hold remains available and survives this older flush.
+        with self._io_lane:
+            with self._lock:
+                if self._read_only or self._pending is None:
+                    return False
+                pending = self._pending
             body = json.dumps(
                 {
                     "major": self._major,
                     "minor": self._minor,
                     "written_at": time.time(),
-                    "data": self._pending,
+                    "data": pending,
                 },
                 indent=2,
                 sort_keys=True,
@@ -230,8 +235,10 @@ class AVersionedStore:
             except Exception as exc:  # noqa: BLE001 — a failed save is not a crash
                 logger.warning("%s was not saved: %s", self._path.name, exc)
                 return False
-            self._written_at = time.time()
-            self._pending = None
+            with self._lock:
+                self._written_at = time.time()
+                if self._pending is pending:
+                    self._pending = None
             return True
 
     def save(self, data: dict[str, Any]) -> bool:
