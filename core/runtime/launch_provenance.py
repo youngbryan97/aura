@@ -413,6 +413,7 @@ def bind_runtime_source_snapshot(
     root: str | Path,
     *,
     env: MutableMapping[str, str] | None = None,
+    new_launch: bool = False,
 ) -> dict[str, Any]:
     """Freeze the source identity used by this launched runtime.
 
@@ -439,7 +440,7 @@ def bind_runtime_source_snapshot(
         field: str(environment.get(name) or "").strip()
         for field, name in _RUNTIME_SOURCE_BINDINGS.items()
     }
-    if any(existing.values()):
+    if any(existing.values()) and not new_launch:
         missing = sorted(field for field, value in existing.items() if not value)
         if missing:
             raise RuntimeError("runtime source snapshot is incomplete: " + ",".join(missing))

@@ -23,6 +23,28 @@ SHELL = Path("scripts/AuraLauncher.swift")
 RELAUNCH = Path("core/runtime/runtime_relaunch.py")
 
 
+def test_successor_captures_source_after_predecessor_exits(monkeypatch, tmp_path):
+    from core.runtime import launch_provenance, runtime_relaunch
+
+    events = []
+    monkeypatch.setattr(runtime_relaunch, "wait_for_predecessor",
+                        lambda *_: events.append("wait"))
+    monkeypatch.setattr(runtime_relaunch.os, "chdir", lambda *_: None)
+    def capture(root, **kwargs):
+        assert root == str(tmp_path)
+        assert kwargs == {"new_launch": True}
+        events.append("capture")
+    monkeypatch.setattr(launch_provenance, "bind_runtime_source_snapshot", capture)
+    def execute(*_):
+        events.append("exec")
+        raise OSError("test does not launch a runtime")
+    monkeypatch.setattr(runtime_relaunch.os, "execv", execute)
+    assert runtime_relaunch.main([
+        "--pid", "123", "--cwd", str(tmp_path), "--", "python", "aura_main.py"
+    ]) == 1
+    assert events == ["wait", "capture", "exec"]
+
+
 def test_the_page_does_not_depend_on_the_shell_for_a_question():
     source = UI.read_text(encoding="utf-8")
     assert "function auraConfirm(" in source

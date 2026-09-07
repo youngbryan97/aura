@@ -277,6 +277,15 @@ def main(raw_args: list[str] | None = None) -> int:
         return 1
 
     executable = replay[0]
+    # The predecessor's boot snapshot must not become the successor's identity.
+    # Preserve signed app provenance; capture the new source only after shutdown.
+    from core.runtime.launch_provenance import bind_runtime_source_snapshot
+
+    try:
+        bind_runtime_source_snapshot(cwd, new_launch=True)
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"runtime_relaunch: source capture failed: {exc}")
+        return 1
     print(f"runtime_relaunch: replacing pid {pid} — exec {' '.join(replay)}")
     sys.stdout.flush()
     try:
