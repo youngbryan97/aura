@@ -14539,7 +14539,18 @@ class MLXLocalClient:
 
     def is_alive(self) -> bool:
         """Returns True if the worker process is running and initialized."""
-        return self._process is not None and self._process.is_alive() and self._init_done
+        process = self._process
+        if process is None:
+            return False
+        try:
+            alive = process.is_alive()
+        except ValueError:
+            # Retirement can close a proven-dead handle between this read
+            # and is_alive(). Other invalid-handle failures remain visible.
+            if getattr(process, "_closed", False):
+                return False
+            raise
+        return bool(alive and self._init_done and self._process is process)
 
 
     def _still_producing(self, *, within_s: float, foreground_request: bool) -> bool:
