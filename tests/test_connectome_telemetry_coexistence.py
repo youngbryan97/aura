@@ -1,9 +1,16 @@
-"""Connectome observations must coexist with the felt-state channels."""
+"""Connectome observations must coexist with the felt-state channels.
+
+The counts come from ``WRITTEN_CHANNELS`` rather than from a literal, so adding
+a channel does not fail a test about coexistence — the invariant that every
+written channel is declared is the one that should catch a missing declaration,
+and it does.
+"""
 
 import subprocess
 import sys
 
 from core.connectome import integration
+from core.connectome.invariants import WRITTEN_CHANNELS
 from core.fsw import telemetry_dictionary
 
 
@@ -12,7 +19,9 @@ def test_connectome_and_interiority_register_in_one_process():
         [sys.executable, "-c", """
 import core.interiority.telemetry
 from core.connectome.integration import declare_telemetry
-assert len(declare_telemetry()) == 6
+from core.connectome.invariants import WRITTEN_CHANNELS
+declared = declare_telemetry()
+assert set(declared) == set(WRITTEN_CHANNELS), sorted(set(WRITTEN_CHANNELS) - set(declared))
 assert declare_telemetry() == []
 """],
         capture_output=True, text=True, timeout=30,
@@ -30,7 +39,8 @@ def test_partial_registration_remains_retryable(monkeypatch):
             raise ValueError("registration unavailable")
 
     monkeypatch.setattr(telemetry_dictionary, "channel", declare)
-    assert len(integration.declare_telemetry()) == 5
+    total = len(WRITTEN_CHANNELS)
+    assert len(integration.declare_telemetry()) == total - 1
     assert integration._DECLARED is False
-    assert len(integration.declare_telemetry()) == 6
+    assert len(integration.declare_telemetry()) == total
     assert integration._DECLARED is True
