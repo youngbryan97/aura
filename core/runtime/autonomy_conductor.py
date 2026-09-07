@@ -607,16 +607,28 @@ class AutonomyConductor:
         )
         from core.verify.lesion_registry import get_lesion_registry
 
+        # Counted, not only logged. An hourly job that has produced no verdicts
+        # and an hourly job that has never once been admitted looked identical
+        # from outside: a deferral wrote a reason to the log and left no count,
+        # so "no evidence yet" could not be told from "the bar is never met on
+        # this host". The record says which, and which condition refuses most.
+        from core.verify.why_the_campaign_did_not_run import note_a_consideration
+
         refusal = campaign_admission_reason()
         if refusal:
+            note_a_consideration("deferred", because=refusal)
             return {"status": "deferred", "reason": refusal}
 
         gate = ServiceContainer.get("inference_gate", default=None)
         if gate is None or not hasattr(gate, "generate"):
+            note_a_consideration(
+                "unavailable", because="inference_gate_not_registered"
+            )
             return {"status": "unavailable", "reason": "inference_gate_not_registered"}
 
         channels = list(get_lesion_registry().channels())
         if not channels:
+            note_a_consideration("idle", because="no_registered_lesions")
             return {"status": "idle", "reason": "no_registered_lesions"}
 
         # Rotate by least-evidence-first: the channel with the fewest null
@@ -648,6 +660,15 @@ class AutonomyConductor:
             deadline_s=_INFLUENCE_CAMPAIGN_DEADLINE_S,
         )
         verdict = ledger.verdict(channel)
+        # A run that reached a verdict is a different event from a run that
+        # added another sample, and only the first is what the apparatus was
+        # built for.
+        note_a_consideration(
+            "ran" if report.ran else "deferred",
+            because="" if report.ran else "the campaign refused after admission",
+            channel=channel,
+            reached_a_verdict=str(verdict.verdict) not in ("UNMEASURED", "Verdict.UNMEASURED"),
+        )
         return {
             "status": "ran" if report.ran else "deferred",
             "channel": channel,

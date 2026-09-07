@@ -45,20 +45,19 @@
       "core/voice/duplex/streaming_asr.py": 1,
       "core/voice/duplex/tts_stream.py": 1,
       "core/voice/speech_profile.py": 1,
-      "interface/routes/chat.py": 2,
+      "interface/routes/chat.py": 1,
       "slo/slo_monitor.py": 1,
       "tools/proof/run_rsi_challenge_proof.py": 1,
       "tools/run_rlc_reconciliation_sweep.py": 1
     },
-    "total": 70
+    "total": 69
   },
   "front": {
     "per_file": {
       "ARCHITECTURE.md": 4,
       "INSTALL.md": 2,
-      "README.md": 3,
-      "docs/USER_GUIDE.md": 1
+      "README.md": 3
     },
-    "total": 10
+    "total": 9
   }
 }
