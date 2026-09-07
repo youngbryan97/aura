@@ -26,6 +26,9 @@ sys.path.insert(0, str(REPO))
 
 SECTIONS = (
     "reconstruction",
+    "layers",
+    "pathology",
+    "prefetch",
     "synaptology",
     "topology",
     "celltypes",
@@ -130,6 +133,51 @@ def main() -> int:
             "against_cortex": compare_to_cortex(matrix),
         }
         print("microcircuit done", flush=True)
+
+    multilayer = None
+    if {"layers", "pathology"} & wanted:
+        from core.connectome.layers import extract_layers, layer_report
+
+        multilayer = extract_layers(snapshot, REPO)
+        if "layers" in wanted:
+            report["layers"] = layer_report(snapshot, multilayer)
+            print("layers done", flush=True)
+
+    if "pathology" in wanted:
+        from core.connectome.integration import record_pathology
+        from core.connectome.microcircuit import assign_layers
+        from core.connectome.pathology import diagnose
+
+        laminar = assignment if assignment is not None else assign_layers(snapshot)
+        diagnosis = diagnose(
+            snapshot, multilayer=multilayer, observed=observed, laminar=laminar
+        )
+        report["pathology"] = diagnosis.as_json(limit=120)
+        record_pathology(diagnosis)
+        print(
+            f"pathology done: {len(diagnosis.findings)} findings, "
+            f"{len(diagnosis.confirmed())} confirmed",
+            flush=True,
+        )
+
+    if "prefetch" in wanted and args.observed:
+        manifest_path = args.observed.parent / "activity_manifest.json"
+        matrix_path = args.observed.parent / "activity.npz"
+        if manifest_path.exists() and matrix_path.exists():
+            import numpy as np
+
+            from core.connectome.activity import ActivityTrace
+            from core.connectome.prefetch import evaluate_prefetch
+
+            manifest = json.loads(manifest_path.read_text())
+            spikes = np.load(matrix_path)["spikes"]
+            trace = ActivityTrace(
+                uids=tuple(manifest["uids"]),
+                conditions=tuple(manifest["conditions"]),
+                spikes=[list(map(float, row)) for row in spikes],
+            )
+            report["prefetch"] = evaluate_prefetch(trace, snapshot, hops=1).as_json()
+            print("prefetch done", flush=True)
 
     if "spine" in wanted:
         from core.connectome.spine import analyse_spine

@@ -1000,3 +1000,108 @@ def test_the_calibrated_bound_moves_with_the_error_rate():
     tight = calibrate_threshold([0.3], 0.25, target_error=0.001, candidates=4)
     assert tight > loose
     assert 1.0 <= loose < tight <= 6.0
+
+
+# ---------------------------------------------------------------------------
+# Warming what is about to run
+# ---------------------------------------------------------------------------
+
+
+def test_the_prefetch_rule_names_what_the_active_cells_can_reach():
+    from core.connectome.prefetch import downstream_of, predict_next_active
+
+    snapshot = _graph_snapshot([("a", "b", 1), ("b", "c", 1), ("x", "y", 1)])
+    assert downstream_of(snapshot, ["a"], hops=1) == {"b"}
+    assert downstream_of(snapshot, ["a"], hops=2) == {"b", "c"}
+    predicted = predict_next_active(snapshot, ["a"], hops=1)
+    assert predicted == {"a", "b"}
+
+
+def test_weighting_by_contacts_prefers_the_heavier_partner():
+    from core.connectome.prefetch import weighted_next_active
+
+    snapshot = _graph_snapshot([("a", "heavy", 20), ("a", "light", 1)])
+    chosen = weighted_next_active(snapshot, ["a"], budget=2, hops=1)
+    assert "heavy" in chosen
+    assert "light" not in chosen
+
+
+def test_prefetch_scores_every_rule_on_the_same_frames():
+    from core.connectome.activity import ActivityTrace
+    from core.connectome.prefetch import evaluate_prefetch
+
+    snapshot = _graph_snapshot([("a", "b", 1), ("b", "c", 1), ("c", "a", 1)])
+    spikes = [
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ]
+    trace = ActivityTrace(
+        uids=("a", "b", "c"), conditions=tuple(["c"] * 6), spikes=spikes
+    )
+    plan = evaluate_prefetch(trace, snapshot, hops=1, max_frames=5)
+    rules = {rule.rule for rule in plan.rules}
+    assert rules == {"connectome", "connectome_weighted", "frequent", "persistent"}
+    connectome = next(r for r in plan.rules if r.rule == "connectome")
+    # Activity here walks the ring, so the downstream rule has perfect recall.
+    assert connectome.recall == pytest.approx(1.0)
+    assert plan.as_json()["verdict"]
+
+
+def test_a_warmer_that_raises_does_not_stop_the_warm_up():
+    from core.connectome.prefetch import warm
+
+    snapshot = _graph_snapshot([("a", "b", 3), ("a", "c", 2)])
+    seen: list[str] = []
+
+    def warmer(uid: str) -> None:
+        if uid == "b":
+            raise RuntimeError("cold")
+        seen.append(uid)
+
+    warmed = warm(snapshot, ["a"], warmer, hops=1, budget=8)
+    assert "b" not in warmed
+    assert set(seen) == set(warmed)
+    assert warmed
+
+
+# ---------------------------------------------------------------------------
+# Two variants at once, and a circuit that moves
+# ---------------------------------------------------------------------------
+
+
+def test_running_both_variants_pairs_the_trials():
+    from core.connectome.beyond import evaluate_variants
+
+    trial = evaluate_variants(
+        ("tight", {"scale": 1.0}),
+        ("loose", {"scale": 2.0}),
+        list(range(30)),
+        lambda config, item: (item % 5) * config["scale"],
+    )
+    payload = trial.as_json()
+    assert payload["trials"] == 30
+    assert payload["decisive"] is True
+    assert "tight is better" in payload["verdict"]
+
+
+def test_a_circuit_lifts_out_with_its_pattern_and_its_edges():
+    from core.connectome.beyond import extract_circuit, graft_report
+
+    snapshot = _graph_snapshot(
+        [("in", "p", 1), ("p", "q", 2), ("q", "p", 1), ("q", "out", 1)]
+    )
+    circuit = extract_circuit(snapshot, ["p", "q"], label="pair")
+    assert circuit.inputs == ("in",)
+    assert circuit.outputs == ("out",)
+    assert len(circuit.internal) == 2
+    assert graft_report(circuit, snapshot)["graftable"] is True
+
+    poorer = _graph_snapshot([("p", "other", 1)])
+    report = graft_report(circuit, poorer)
+    assert report["graftable"] is False
+    assert report["cells_missing"] == 1
+    assert report["edges_to_create"] == 2

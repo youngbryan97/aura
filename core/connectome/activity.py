@@ -97,6 +97,11 @@ class ActivityTrace:
     spikes: list[list[float]]
     frame_seconds: float = ZAPBENCH_FRAME_SECONDS
     attrs: dict[str, Any] = field(default_factory=dict)
+    #: A dense array, when one was built directly. Twenty thousand frames over
+    #: thirteen thousand cells is a quarter of a billion numbers, and holding
+    #: those as Python floats costs about twenty times what the array does, so a
+    #: fast frame rate needs this path rather than the list one.
+    array: Any = None
 
     @property
     def n_cells(self) -> int:
@@ -104,12 +109,14 @@ class ActivityTrace:
 
     @property
     def n_frames(self) -> int:
-        return len(self.spikes)
+        return int(self.array.shape[0]) if self.array is not None else len(self.spikes)
 
     def matrix(self) -> Any:
         """The trace as a dense ``(frames, cells)`` array."""
         import numpy as np
 
+        if self.array is not None:
+            return self.array
         if not self.spikes:
             return np.zeros((0, len(self.uids)), dtype=np.float32)
         return np.asarray(self.spikes, dtype=np.float32)
@@ -147,14 +154,15 @@ class ActivityTrace:
         counts: dict[str, int] = {}
         for condition in self.conditions:
             counts[condition] = counts.get(condition, 0) + 1
-        active = sum(1 for i in range(self.n_cells) if any(row[i] for row in self.spikes))
+        matrix = self.matrix()
+        active = int((matrix != 0).any(axis=0).sum()) if matrix.size else 0
         return {
             "cells": self.n_cells,
             "frames": self.n_frames,
             "active_cells": active,
             "frame_seconds": self.frame_seconds,
             "conditions": counts,
-            "events": int(sum(sum(row) for row in self.spikes)),
+            "events": int(matrix.sum()) if matrix.size else 0,
         }
 
 
@@ -447,19 +455,33 @@ class ActivityRecorder:
         else:
             order = tuple(uids)
         position = {uid: i for i, uid in enumerate(order)}
+        array = None
         rows: list[list[float]] = []
-        for frame in frames:
-            row = [0.0] * len(order)
-            for uid, count in frame.counts.items():
-                index = position.get(uid)
-                if index is not None:
-                    row[index] = float(count)
-            rows.append(row)
+        try:
+            import numpy as np
+
+            array = np.zeros((len(frames), len(order)), dtype=np.float32)
+            for index, frame in enumerate(frames):
+                for uid, count in frame.counts.items():
+                    column = position.get(uid)
+                    if column is not None:
+                        array[index, column] = float(count)
+        except (ImportError, MemoryError, ValueError) as exc:
+            logger.info("dense trace assembly fell back to lists: %s", exc)
+            array = None
+            for frame in frames:
+                row = [0.0] * len(order)
+                for uid, count in frame.counts.items():
+                    column = position.get(uid)
+                    if column is not None:
+                        row[column] = float(count)
+                rows.append(row)
         trace = ActivityTrace(
             uids=order,
             conditions=tuple(f.condition for f in frames),
             spikes=rows,
             frame_seconds=self.config.frame_seconds,
+            array=array,
         )
         trace.attrs.update(
             {

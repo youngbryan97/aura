@@ -25,6 +25,19 @@ proposed here carries the objective it was proposed for, the measurement that
 justified it and the inverse edit, so a change that turns out to be wrong is
 undone rather than argued about.
 
+**Both variants can be run.** A fly is male or female and the difference is
+4.8% of its central brain, concentrated in the higher-order centres. It cannot
+be both and find out which was better. Two configurations of Aura can be
+instantiated together, measured on the same workload, and compared as a paired
+trial, so the question the animal answers by dying is answered by arithmetic.
+
+**A circuit can be moved between individuals.** Biology has no operation that
+takes a validated circuit out of one animal and puts it in another. A
+connectivity-defined type is portable by construction: it is a set of cells and
+the pattern joining them, and :func:`graft_report` says what a recipient would
+need for the pattern to close. It transplants the specification, not the code,
+and says so.
+
 None of the three is claimed to make Aura better on its own. Each ships with the
 measurement that would show it did, and the delay compiler ships with the null
 that would show it did not.
@@ -33,6 +46,7 @@ that would show it did not.
 from __future__ import annotations
 
 import logging
+import math
 import random
 import statistics
 from collections.abc import Mapping, Sequence
@@ -46,6 +60,11 @@ from .types import Connection, ConnectomeSnapshot, EdgeKind
 logger = logging.getLogger("Aura.Connectome.Beyond")
 
 __all__ = [
+    "Circuit",
+    "VariantTrial",
+    "evaluate_variants",
+    "extract_circuit",
+    "graft_report",
     "DelaySchedule",
     "compile_delays",
     "Whorl",
@@ -466,3 +485,183 @@ def apply_rewiring(
     )
     changed.attrs["rewiring"] = rewiring.as_json()
     return changed, rewiring.inverse()
+
+
+# ---------------------------------------------------------------------------
+# 4. Running both variants instead of committing to one
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class VariantTrial:
+    """Two configurations measured on the same work, compared as pairs."""
+
+    name_a: str
+    name_b: str
+    scores_a: list[float]
+    scores_b: list[float]
+    lower_is_better: bool = True
+
+    def as_json(self) -> dict[str, Any]:
+        import statistics as _statistics
+
+        if not self.scores_a or len(self.scores_a) != len(self.scores_b):
+            return {"trials": 0, "verdict": "no paired trials"}
+        differences = [a - b for a, b in zip(self.scores_a, self.scores_b, strict=True)]
+        mean = _statistics.fmean(differences)
+        spread = _statistics.pstdev(differences) if len(differences) > 1 else 0.0
+        standard_error = spread / math.sqrt(len(differences)) if spread > 0 else 0.0
+        wins_a = sum(
+            1
+            for d in differences
+            if (d < 0 if self.lower_is_better else d > 0)
+        )
+        decisive = standard_error > 0 and abs(mean) >= 2.0 * standard_error
+        favoured = self.name_a if (mean < 0) == self.lower_is_better else self.name_b
+        return {
+            "trials": len(differences),
+            "mean_difference": round(mean, 6),
+            "standard_error": round(standard_error, 6),
+            "wins_for_a": wins_a,
+            "wins_for_b": len(differences) - wins_a,
+            "decisive": decisive,
+            "verdict": (
+                f"{favoured} is better on the same work"
+                if decisive
+                else "the two variants are not separated by this many trials"
+            ),
+        }
+
+
+def evaluate_variants(
+    variant_a: tuple[str, Any],
+    variant_b: tuple[str, Any],
+    workload: Sequence[Any],
+    measure: Any,
+    *,
+    lower_is_better: bool = True,
+) -> VariantTrial:
+    """Run both variants over the same items and pair the results.
+
+    Pairing is the point. Two variants measured on different work are two
+    numbers; measured on the same item they are a difference, and the spread of
+    those differences is far smaller than the spread of either variant's scores.
+    """
+    name_a, config_a = variant_a
+    name_b, config_b = variant_b
+    scores_a: list[float] = []
+    scores_b: list[float] = []
+    for item in workload:
+        scores_a.append(float(measure(config_a, item)))
+        scores_b.append(float(measure(config_b, item)))
+    return VariantTrial(
+        name_a=name_a,
+        name_b=name_b,
+        scores_a=scores_a,
+        scores_b=scores_b,
+        lower_is_better=lower_is_better,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 5. Moving a circuit between individuals
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Circuit:
+    """A connectivity-defined circuit, portable without its code."""
+
+    label: str
+    members: tuple[str, ...]
+    names: tuple[str, ...]
+    internal: tuple[tuple[str, str, int], ...]
+    inputs: tuple[str, ...]
+    outputs: tuple[str, ...]
+
+    def as_json(self) -> dict[str, Any]:
+        return {
+            "label": self.label,
+            "cells": len(self.members),
+            "internal_edges": len(self.internal),
+            "external_inputs": len(self.inputs),
+            "external_outputs": len(self.outputs),
+            "members": list(self.names[:12]),
+        }
+
+
+def extract_circuit(
+    snapshot: ConnectomeSnapshot,
+    members: Sequence[str],
+    *,
+    label: str = "circuit",
+) -> Circuit:
+    """Lift a set of cells and the pattern joining them out of an individual."""
+    inside = set(members)
+    internal: list[tuple[str, str, int]] = []
+    inputs: set[str] = set()
+    outputs: set[str] = set()
+    for connection in snapshot.connections.values():
+        if connection.kind is not EdgeKind.DRIVE:
+            continue
+        pre_in = connection.pre in inside
+        post_in = connection.post in inside
+        if pre_in and post_in:
+            internal.append((connection.pre, connection.post, connection.contacts))
+        elif post_in:
+            inputs.add(connection.pre)
+        elif pre_in:
+            outputs.add(connection.post)
+    ordered = tuple(sorted(inside))
+    return Circuit(
+        label=label,
+        members=ordered,
+        names=tuple(
+            snapshot.units[uid].name if uid in snapshot.units else uid for uid in ordered
+        ),
+        internal=tuple(sorted(internal)),
+        inputs=tuple(sorted(inputs)),
+        outputs=tuple(sorted(outputs)),
+    )
+
+
+def graft_report(circuit: Circuit, recipient: ConnectomeSnapshot) -> dict[str, Any]:
+    """What the recipient would need for this circuit to close inside it.
+
+    This transplants a specification and says so. A cell present in the
+    recipient can host its part of the pattern; one that is absent has to be
+    written, and the report names it rather than pretending the graft is free.
+    """
+    present = [uid for uid in circuit.members if uid in recipient.units]
+    missing = [uid for uid in circuit.members if uid not in recipient.units]
+    existing_edges = {
+        (connection.pre, connection.post)
+        for connection in recipient.connections.values()
+        if connection.kind is EdgeKind.DRIVE
+    }
+    satisfied = [
+        edge for edge in circuit.internal if (edge[0], edge[1]) in existing_edges
+    ]
+    unsatisfied = [
+        edge for edge in circuit.internal if (edge[0], edge[1]) not in existing_edges
+    ]
+    hosts_inputs = sum(1 for uid in circuit.inputs if uid in recipient.units)
+    return {
+        "label": circuit.label,
+        "cells_present": len(present),
+        "cells_missing": len(missing),
+        "edges_already_present": len(satisfied),
+        "edges_to_create": len(unsatisfied),
+        "external_inputs_available": hosts_inputs,
+        "external_inputs_required": len(circuit.inputs),
+        "graftable": not missing and not unsatisfied,
+        "verdict": (
+            "the recipient already contains this circuit"
+            if not missing and not unsatisfied
+            else f"{len(missing)} cells and {len(unsatisfied)} edges would have to be written"
+        ),
+        "missing_cells": [
+            recipient.units[uid].name if uid in recipient.units else uid
+            for uid in missing[:12]
+        ],
+    }
