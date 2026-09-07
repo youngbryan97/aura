@@ -760,6 +760,12 @@ async def run_foreground_latent_episode(
 
     try:
         result = await reasoner(
+            # Bind the epistemic contract to the same visible objective used
+            # to assemble ingress. The serving message list may contain
+            # authority and memory entries; letting the service infer its
+            # objective from that augmented list can reject a valid episode
+            # before the recurrent decoder runs.
+            question=visible_objective,
             messages=messages,
             **acquisition_kwargs,
             stakes=ingress_stakes,
