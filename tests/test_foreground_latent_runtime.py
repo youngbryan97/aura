@@ -140,6 +140,7 @@ async def test_foreground_latent_runner_executes_full_stack_with_typed_ingress(
     assert outcome.trace["latent_cortex_ingress"]["schema"] == "test.ingress.v1"
     assert len(service.calls) == 1
     call = service.calls[0]
+    assert call["question"] == "Compare both designs."
     assert call["require_full_stack"] is True
     assert call["cognitive_context"][0] == {
         "source": "memory",
