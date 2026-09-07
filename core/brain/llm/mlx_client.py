@@ -6501,7 +6501,12 @@ class MLXLocalClient:
                 self._prefill_tokens_per_s = (
                     observed if previous <= 0.0 else previous * 0.7 + observed * 0.3
                 )
-                _HOST_RATES["prefill"] = self._prefill_tokens_per_s
+                # Not into _HOST_RATES. This is how often the parent was
+                # TOLD about prefill, across an IPC queue onto a busy event
+                # loop, and publishing it as the host's prefill rate is how a
+                # 52,020-character prompt came to be budgeted at 1,082
+                # seconds of reading. The host rate is set from what MLX
+                # timed inside the worker.
         if done != last_done:
             self._prefill_observed_at = now
             self._prefill_observed_tokens = done
@@ -7077,8 +7082,19 @@ class MLXLocalClient:
         measured = float(getattr(self, "_worker_measured_prefill_tps", 0.0) or 0.0)
         if measured > 0.0:
             return measured
-        rate = float(getattr(self, "_prefill_tokens_per_s", 0.0) or 0.0)
-        return rate if rate > 0.0 else _UNMEASURED_PREFILL_RATE
+        # What another worker on this host measured, if one has. Same
+        # hardware, same weights class; better than a constant and much
+        # better than the progress-interval estimate.
+        host = float(_HOST_RATES.get("prefill") or 0.0)
+        if host > 0.0:
+            return host
+        # Deliberately NOT self._prefill_tokens_per_s. That number is the
+        # rate progress MESSAGES arrive at, and it has been measured at 6
+        # tokens a second on a worker doing 500 — the estimate is of the
+        # event loop, not of the GPU. It stays for in-flight liveness, where
+        # "something arrived" is the whole question, and it sizes no
+        # deadlines.
+        return _UNMEASURED_PREFILL_RATE
 
     def least_time_to_read(self, prompt_chars: int) -> float:
         """The least time in which this worker could read that prompt.

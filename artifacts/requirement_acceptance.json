@@ -1,0 +1,3035 @@
+{
+  "entries": [
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ACCESSIBILITY-I18N-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ACCOUNT-AUTHORITY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ACTION-SPINE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ADAPT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ADAPTATION-STATE-AUTHORITY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ADDENDUM-19",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ADDENDUM-20",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/14d4e24c664a4e3460ab1e5496e53f0126c50575.json"
+        }
+      ],
+      "id": "ADDENDUM-21",
+      "linked": true,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json"
+        }
+      ],
+      "id": "ADDENDUM-22",
+      "linked": true,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/skill-certification-contract-tests/e0b44467e7edb6a14ae3300951b1b8c4b0bd6777.json"
+        },
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/f982e23e0234ddff3a477559716afcba007dc8b2.json"
+        }
+      ],
+      "id": "ADDENDUM-23",
+      "linked": true,
+      "mandatory": true,
+      "state": "complete"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ADDENDUM-24",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ADDENDUM-25",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "registry",
+          "kind": "make",
+          "name": "rollback"
+        }
+      ],
+      "id": "ADDENDUM-26",
+      "linked": true,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ADDENDUM-27",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ADDENDUM-28",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ADDENDUM-29",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ADDENDUM-30",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ADDENDUM-31",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/6e1db1f48b56071a20a29947e0d0d646e4f2d834.json"
+        },
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/cb05565817301569619a2c75ae85ea0ddb207513.json"
+        }
+      ],
+      "id": "ADDENDUM-32",
+      "linked": true,
+      "mandatory": true,
+      "state": "complete"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ADDENDUM-33",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "AGENCY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "AMPLIFY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ARCH-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ARCH-BASELINE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ASYNC-TASK-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "AUDIT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "AUTONOMY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "AUTONOMY-AUTHORITY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "BOOT-HEALTH-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CAPABILITY-CERT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "registry",
+          "kind": "tool",
+          "name": "tools/closeout/run_operational_label_battery.py"
+        }
+      ],
+      "id": "CARRYOVER-01",
+      "linked": true,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CARRYOVER-02",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CARRYOVER-03",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CARRYOVER-04",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "registry",
+          "kind": "test",
+          "name": "tests/test_derived_character_engines.py"
+        }
+      ],
+      "id": "CARRYOVER-05",
+      "linked": true,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CARRYOVER-06",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CARRYOVER-07",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CARRYOVER-08",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CARRYOVER-09",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CHAT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CHAT-DELIVERY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/checkpoint-hygiene-contract-tests/b431436b543aa7ce40397626246277dbda535561.json"
+        }
+      ],
+      "id": "CHECKPOINT-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CLAIMS-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CLOSEOUT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CODING-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "COLLEAGUE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "COMPATIBILITY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CONCEPTUAL-LEAP-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CONVERSATION-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-AGI-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-AGI-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-AMP-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-AMP-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-AMP-003",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-COLLEAGUE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-COLLEAGUE-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-COLLEAGUE-003",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/cognitive-gate-contract-tests/48a6aa9a8ffe7c0e24fab44c013eb292a9819cde.json"
+        }
+      ],
+      "id": "CTX2-GATE-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "complete"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/cognitive-gate-contract-tests/48a6aa9a8ffe7c0e24fab44c013eb292a9819cde.json"
+        }
+      ],
+      "id": "CTX2-GATE-002",
+      "linked": true,
+      "mandatory": true,
+      "state": "complete"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-GRAPH-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-GRAPH-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-GRAPH-003",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-GRAPH-004",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-ID-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-ID-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-ID-003",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/14d4e24c664a4e3460ab1e5496e53f0126c50575.json"
+        }
+      ],
+      "id": "CTX2-LANE-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/14d4e24c664a4e3460ab1e5496e53f0126c50575.json"
+        }
+      ],
+      "id": "CTX2-LANE-002",
+      "linked": true,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/14d4e24c664a4e3460ab1e5496e53f0126c50575.json"
+        }
+      ],
+      "id": "CTX2-LANE-003",
+      "linked": true,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/14d4e24c664a4e3460ab1e5496e53f0126c50575.json"
+        }
+      ],
+      "id": "CTX2-LANE-004",
+      "linked": true,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-MEM-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-MEM-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-MIND-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-MIND-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-MIND-003",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-MIND-004",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-ONESHOT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-ONESHOT-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-ONESHOT-003",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-ONESHOT-004",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-PERSON-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-PERSON-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-PERSON-003",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-REPL-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "registry",
+          "kind": "make",
+          "name": "rollback"
+        }
+      ],
+      "id": "CTX2-ROLLBACK-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/6e1db1f48b56071a20a29947e0d0d646e4f2d834.json"
+        }
+      ],
+      "id": "CTX2-SHUTDOWN-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "complete"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/6e1db1f48b56071a20a29947e0d0d646e4f2d834.json"
+        }
+      ],
+      "id": "CTX2-SHUTDOWN-002",
+      "linked": true,
+      "mandatory": true,
+      "state": "complete"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/6e1db1f48b56071a20a29947e0d0d646e4f2d834.json"
+        }
+      ],
+      "id": "CTX2-SHUTDOWN-003",
+      "linked": true,
+      "mandatory": true,
+      "state": "complete"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/skill-certification-contract-tests/e0b44467e7edb6a14ae3300951b1b8c4b0bd6777.json"
+        }
+      ],
+      "id": "CTX2-SKILL-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "complete"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/f982e23e0234ddff3a477559716afcba007dc8b2.json"
+        }
+      ],
+      "id": "CTX2-SKILL-002",
+      "linked": true,
+      "mandatory": true,
+      "state": "complete"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json"
+        }
+      ],
+      "id": "CTX2-TEST-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json"
+        }
+      ],
+      "id": "CTX2-TEST-002",
+      "linked": true,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json"
+        }
+      ],
+      "id": "CTX2-TEST-003",
+      "linked": true,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-WELFARE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-WELFARE-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX2-WELFARE-003",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-CONTINUITY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-DECIDE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-DIST-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-DIST-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-EXTREME-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-NEURO-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-NEURO-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-PERCEPT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-PERCEPT-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-PHYS-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-PHYS-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-QUANTUM-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-QUANTUM-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-REASON-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-SIMTRAIN-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-SITUATION-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-SOCIAL-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-SOCIAL-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-SUBAGENT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-VALUE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-VALUE-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-WORLD-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "CTX3-WORLD-002",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "DATA-LIFECYCLE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "DESKTOP-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "DESKTOP-ACCESS-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "DISTRIBUTED-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "EFFECT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "ENTERPRISE-CONTROL-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "EXPECT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "EXTREME-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FAULT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FND-01-INVENTORY",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FND-02-HYGIENE",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FND-03-CONTRACTS",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FND-04-EFFECTS",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FND-05-OWNERSHIP",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FND-06-DATA",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FND-07-UNITY",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FND-08-DEPTH",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FND-09-HARDENING",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FND-10-EXPANSION",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FOREGROUND-LATENCY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FOUNDATION-100-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FRONTIER-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "FRONTIER-COGNITION-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "GUI-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "HEALTH-SURFACE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "IDENTITY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "IIT-ABSTRACTION-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "IIT-BASELINE-INTEGRITY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "IIT-CERT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "IIT-COMPLEX-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "IIT-CONCLUSION-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "IIT-GRAPH-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "IIT-LIVE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "IIT-SOLVER-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "IIT-STATISTICS-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "IIT-SYSTEM-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "IMMUNE-CODING-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "INFERENCE-RELIABILITY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "INTELLIGENCE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/14d4e24c664a4e3460ab1e5496e53f0126c50575.json"
+        }
+      ],
+      "id": "LANE-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "LAUNCH-PROVENANCE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/lifecycle-ownership-contract-tests/5b78e7e21ae11598fb8980c457092b21d9d501d5.json"
+        }
+      ],
+      "id": "LIFECYCLE-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "LONGHORIZON-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-01",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-02",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-03",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-04",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-05",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-06",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-07",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-08",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-09",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-10",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-11",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-12",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-13",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-14",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-15",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-16",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-17",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MATRIX-18",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MEMORY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MEMORY-LEAK-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MIND-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MORPHOGENETIC-ENGINEERING-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-01",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-02",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-03",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-04",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-05",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-06",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-07",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-08",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-09",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-10",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-11",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-12",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-13",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-14",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-15",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-16",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-17",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MQ-18",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MULTIAGENT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "MULTIMODAL-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "NEUROSIM-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "OBJECTIVE-LIFECYCLE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "OBSERVABILITY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "OBSERVE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "OPERATIONS-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "OS-AUTOMATION-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PASSF-01",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PASSF-02",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/14d4e24c664a4e3460ab1e5496e53f0126c50575.json"
+        }
+      ],
+      "id": "PASSF-03",
+      "linked": true,
+      "mandatory": true,
+      "state": "complete"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PASSF-04",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PASSF-05",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PASSF-06",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PASSF-07",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PASSF-08",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PASSF-09",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PASSF-10",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PASSF-11",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "registry",
+          "kind": "tool",
+          "name": "tools/closeout/semantic_review_ledger.py"
+        }
+      ],
+      "id": "PASSF-12",
+      "linked": true,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PASSF-13",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PASSF-14",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PERF-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PORTABILITY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PRIVACY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/reqproof-control-plane-contract-tests/deb089f5d8b78dd92c962c0bbabdf9edaa11ee89.json"
+        },
+        {
+          "from": "registry",
+          "kind": "tool",
+          "name": "tools/reqproof/progress.py"
+        }
+      ],
+      "id": "PROGRESS-CONTROL-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "PROOF-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "QUANTUM-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RELEASE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RELEASE-CONTRACT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "REPLICATION-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "REPO-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json"
+        }
+      ],
+      "id": "RESOURCE-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RESOURCE-OWNERSHIP-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-ANTI-INTERFERENCE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-BASELINES-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-BRANCHES-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-CAUSAL-INGRESS-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-CLAIMS-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-COMPUTE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-CONSOLIDATION-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-EXPERIMENTS-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-FAST-WEIGHTS-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-FRESH-TASKS-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-FRONTIER-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-INDEPENDENT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-LATENT-OPT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-LIFECYCLE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-LIVE32B-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-MECH-006",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-MECHANICS-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-RECURRENCE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-RUNTIME-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-SCALING-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-SCHEDULE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-SCOPE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-VIRTUAL-QUANTA-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RLC-WORKSPACE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RR-01",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RR-02",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RR-03",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RR-04",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RR-05",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RR-06",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RR-07",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RR-08",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RR-09",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RR-10",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RR-11",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RUNTIME-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "RUNTIME-SETTINGS-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/reqproof-control-plane-contract-tests/deb089f5d8b78dd92c962c0bbabdf9edaa11ee89.json"
+        },
+        {
+          "from": "registry",
+          "kind": "tool",
+          "name": "tools/reqproof/migrate.py"
+        },
+        {
+          "from": "registry",
+          "kind": "tool",
+          "name": "tools/reqproof/gate.py"
+        }
+      ],
+      "id": "SCOPE-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SECURITY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SELF-MODEL-MIRROR-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SELF-STATE-CHAT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SEMANTIC-REVIEW-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/6e1db1f48b56071a20a29947e0d0d646e4f2d834.json"
+        }
+      ],
+      "id": "SHUTDOWN-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "complete"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SIMWORLD-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SKILL-EXECUTION-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/skill-certification-contract-tests/e0b44467e7edb6a14ae3300951b1b8c4b0bd6777.json"
+        }
+      ],
+      "id": "SKILLS-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "complete"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SM-01-CANONICAL-SELF",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SM-02-EMBODIMENT-LOCATION",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SM-03-SELF-OTHER-WORLD",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SM-04-INTROSPECTION",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SM-05-AUTHORSHIP",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SM-06-PREFERENCE-OWNERSHIP",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SM-07-CONTINUITY",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SM-08-WORLDVIEW",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SM-09-SPONTANEOUS-RECOGNITION",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SM-10-GOVERNANCE-PRIVACY",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SM-11-CAUSAL-CHALLENGE",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SM-12-LIVE-CERTIFICATION",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SOAK-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "deferred"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SOCIAL-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SPLASH-001",
+      "linked": false,
+      "mandatory": false,
+      "state": "withdrawn"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "STATE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [
+        {
+          "from": "ledger",
+          "kind": "receipt",
+          "name": "artifacts/reqproof/evidence/production-surface-ownership-contract-tests/c36edf7bd87b29b6475af91da5529c820fd5fa93.json"
+        }
+      ],
+      "id": "STORAGE-GATEWAY-001",
+      "linked": true,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SUBSTRATE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "SUPPORTABILITY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "TEST-DEPTH-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "THRONG-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "TOOL-DISPOSITION-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "TOOLS-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "TOPOLOGY-CONSISTENCY-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "UI-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "UI-LONG-CONTENT-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "VALIDATE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "VALUES-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "VOICE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "WELFARE-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "open"
+    },
+    {
+      "broken_links": [],
+      "checks": [],
+      "id": "WORKSPACE-INGRESS-001",
+      "linked": false,
+      "mandatory": true,
+      "state": "in_progress"
+    }
+  ],
+  "non_claims": [
+    "A link says something can decide the requirement, not that it passes.",
+    "A check that cannot be resolved in the tree counts as no check.",
+    "Linked is not closed: closure is the gate's question, not this one."
+  ],
+  "schema_version": 1,
+  "summary": {
+    "by_kind": {
+      "make": 2,
+      "receipt": 30,
+      "test": 1,
+      "tool": 5
+    },
+    "by_source": {
+      "ledger": 30,
+      "registry": 8
+    },
+    "complete": false,
+    "linked": 33,
+    "requirements": 313,
+    "unlinked": [
+      "ACCESSIBILITY-I18N-001",
+      "ACCOUNT-AUTHORITY-001",
+      "ACTION-SPINE-001",
+      "ADAPT-001",
+      "ADAPTATION-STATE-AUTHORITY-001",
+      "ADDENDUM-19",
+      "ADDENDUM-20",
+      "ADDENDUM-24",
+      "ADDENDUM-25",
+      "ADDENDUM-27",
+      "ADDENDUM-28",
+      "ADDENDUM-29",
+      "ADDENDUM-30",
+      "ADDENDUM-31",
+      "ADDENDUM-33",
+      "AGENCY-001",
+      "AMPLIFY-001",
+      "ARCH-001",
+      "ARCH-BASELINE-001",
+      "ASYNC-TASK-001",
+      "AUDIT-001",
+      "AUTONOMY-001",
+      "AUTONOMY-AUTHORITY-001",
+      "BOOT-HEALTH-001",
+      "CAPABILITY-CERT-001",
+      "CARRYOVER-02",
+      "CARRYOVER-03",
+      "CARRYOVER-04",
+      "CARRYOVER-06",
+      "CARRYOVER-07",
+      "CARRYOVER-08",
+      "CARRYOVER-09",
+      "CHAT-001",
+      "CHAT-DELIVERY-001",
+      "CLAIMS-001",
+      "CLOSEOUT-001",
+      "CODING-001",
+      "COLLEAGUE-001",
+      "COMPATIBILITY-001",
+      "CONCEPTUAL-LEAP-001",
+      "CONVERSATION-001",
+      "CTX2-AGI-001",
+      "CTX2-AGI-002",
+      "CTX2-AMP-001",
+      "CTX2-AMP-002",
+      "CTX2-AMP-003",
+      "CTX2-COLLEAGUE-001",
+      "CTX2-COLLEAGUE-002",
+      "CTX2-COLLEAGUE-003",
+      "CTX2-GRAPH-001",
+      "CTX2-GRAPH-002",
+      "CTX2-GRAPH-003",
+      "CTX2-GRAPH-004",
+      "CTX2-ID-001",
+      "CTX2-ID-002",
+      "CTX2-ID-003",
+      "CTX2-MEM-001",
+      "CTX2-MEM-002",
+      "CTX2-MIND-001",
+      "CTX2-MIND-002",
+      "CTX2-MIND-003",
+      "CTX2-MIND-004",
+      "CTX2-ONESHOT-001",
+      "CTX2-ONESHOT-002",
+      "CTX2-ONESHOT-003",
+      "CTX2-ONESHOT-004",
+      "CTX2-PERSON-001",
+      "CTX2-PERSON-002",
+      "CTX2-PERSON-003",
+      "CTX2-REPL-001",
+      "CTX2-WELFARE-001",
+      "CTX2-WELFARE-002",
+      "CTX2-WELFARE-003",
+      "CTX3-CONTINUITY-001",
+      "CTX3-DECIDE-001",
+      "CTX3-DIST-001",
+      "CTX3-DIST-002",
+      "CTX3-EXTREME-001",
+      "CTX3-NEURO-001",
+      "CTX3-NEURO-002",
+      "CTX3-PERCEPT-001",
+      "CTX3-PERCEPT-002",
+      "CTX3-PHYS-001",
+      "CTX3-PHYS-002",
+      "CTX3-QUANTUM-001",
+      "CTX3-QUANTUM-002",
+      "CTX3-REASON-001",
+      "CTX3-SIMTRAIN-001",
+      "CTX3-SITUATION-001",
+      "CTX3-SOCIAL-001",
+      "CTX3-SOCIAL-002",
+      "CTX3-SUBAGENT-001",
+      "CTX3-VALUE-001",
+      "CTX3-VALUE-002",
+      "CTX3-WORLD-001",
+      "CTX3-WORLD-002",
+      "DATA-LIFECYCLE-001",
+      "DESKTOP-001",
+      "DESKTOP-ACCESS-001",
+      "DISTRIBUTED-001",
+      "EFFECT-001",
+      "ENTERPRISE-CONTROL-001",
+      "EXPECT-001",
+      "EXTREME-001",
+      "FAULT-001",
+      "FND-01-INVENTORY",
+      "FND-02-HYGIENE",
+      "FND-03-CONTRACTS",
+      "FND-04-EFFECTS",
+      "FND-05-OWNERSHIP",
+      "FND-06-DATA",
+      "FND-07-UNITY",
+      "FND-08-DEPTH",
+      "FND-09-HARDENING",
+      "FND-10-EXPANSION",
+      "FOREGROUND-LATENCY-001",
+      "FOUNDATION-100-001",
+      "FRONTIER-001",
+      "FRONTIER-COGNITION-001",
+      "GUI-001",
+      "HEALTH-SURFACE-001",
+      "IDENTITY-001",
+      "IIT-ABSTRACTION-001",
+      "IIT-BASELINE-INTEGRITY-001",
+      "IIT-CERT-001",
+      "IIT-COMPLEX-001",
+      "IIT-CONCLUSION-001",
+      "IIT-GRAPH-001",
+      "IIT-LIVE-001",
+      "IIT-SOLVER-001",
+      "IIT-STATISTICS-001",
+      "IIT-SYSTEM-001",
+      "IMMUNE-CODING-001",
+      "INFERENCE-RELIABILITY-001",
+      "INTELLIGENCE-001",
+      "LAUNCH-PROVENANCE-001",
+      "LONGHORIZON-001",
+      "MATRIX-01",
+      "MATRIX-02",
+      "MATRIX-03",
+      "MATRIX-04",
+      "MATRIX-05",
+      "MATRIX-06",
+      "MATRIX-07",
+      "MATRIX-08",
+      "MATRIX-09",
+      "MATRIX-10",
+      "MATRIX-11",
+      "MATRIX-12",
+      "MATRIX-13",
+      "MATRIX-14",
+      "MATRIX-15",
+      "MATRIX-16",
+      "MATRIX-17",
+      "MATRIX-18",
+      "MEMORY-001",
+      "MEMORY-LEAK-001",
+      "MIND-001",
+      "MORPHOGENETIC-ENGINEERING-001",
+      "MQ-01",
+      "MQ-02",
+      "MQ-03",
+      "MQ-04",
+      "MQ-05",
+      "MQ-06",
+      "MQ-07",
+      "MQ-08",
+      "MQ-09",
+      "MQ-10",
+      "MQ-11",
+      "MQ-12",
+      "MQ-13",
+      "MQ-14",
+      "MQ-15",
+      "MQ-16",
+      "MQ-17",
+      "MQ-18",
+      "MULTIAGENT-001",
+      "MULTIMODAL-001",
+      "NEUROSIM-001",
+      "OBJECTIVE-LIFECYCLE-001",
+      "OBSERVABILITY-001",
+      "OBSERVE-001",
+      "OPERATIONS-001",
+      "OS-AUTOMATION-001",
+      "PASSF-01",
+      "PASSF-02",
+      "PASSF-04",
+      "PASSF-05",
+      "PASSF-06",
+      "PASSF-07",
+      "PASSF-08",
+      "PASSF-09",
+      "PASSF-10",
+      "PASSF-11",
+      "PASSF-13",
+      "PASSF-14",
+      "PERF-001",
+      "PORTABILITY-001",
+      "PRIVACY-001",
+      "PROOF-001",
+      "QUANTUM-001",
+      "RELEASE-001",
+      "RELEASE-CONTRACT-001",
+      "REPLICATION-001",
+      "REPO-001",
+      "RESOURCE-OWNERSHIP-001",
+      "RLC-ANTI-INTERFERENCE-001",
+      "RLC-BASELINES-001",
+      "RLC-BRANCHES-001",
+      "RLC-CAUSAL-INGRESS-001",
+      "RLC-CLAIMS-001",
+      "RLC-COMPUTE-001",
+      "RLC-CONSOLIDATION-001",
+      "RLC-EXPERIMENTS-001",
+      "RLC-FAST-WEIGHTS-001",
+      "RLC-FRESH-TASKS-001",
+      "RLC-FRONTIER-001",
+      "RLC-INDEPENDENT-001",
+      "RLC-LATENT-OPT-001",
+      "RLC-LIFECYCLE-001",
+      "RLC-LIVE32B-001",
+      "RLC-MECH-006",
+      "RLC-MECHANICS-001",
+      "RLC-RECURRENCE-001",
+      "RLC-RUNTIME-001",
+      "RLC-SCALING-001",
+      "RLC-SCHEDULE-001",
+      "RLC-SCOPE-001",
+      "RLC-VIRTUAL-QUANTA-001",
+      "RLC-WORKSPACE-001",
+      "RR-01",
+      "RR-02",
+      "RR-03",
+      "RR-04",
+      "RR-05",
+      "RR-06",
+      "RR-07",
+      "RR-08",
+      "RR-09",
+      "RR-10",
+      "RR-11",
+      "RUNTIME-001",
+      "RUNTIME-SETTINGS-001",
+      "SECURITY-001",
+      "SELF-MODEL-MIRROR-001",
+      "SELF-STATE-CHAT-001",
+      "SEMANTIC-REVIEW-001",
+      "SIMWORLD-001",
+      "SKILL-EXECUTION-001",
+      "SM-01-CANONICAL-SELF",
+      "SM-02-EMBODIMENT-LOCATION",
+      "SM-03-SELF-OTHER-WORLD",
+      "SM-04-INTROSPECTION",
+      "SM-05-AUTHORSHIP",
+      "SM-06-PREFERENCE-OWNERSHIP",
+      "SM-07-CONTINUITY",
+      "SM-08-WORLDVIEW",
+      "SM-09-SPONTANEOUS-RECOGNITION",
+      "SM-10-GOVERNANCE-PRIVACY",
+      "SM-11-CAUSAL-CHALLENGE",
+      "SM-12-LIVE-CERTIFICATION",
+      "SOAK-001",
+      "SOCIAL-001",
+      "SPLASH-001",
+      "STATE-001",
+      "SUBSTRATE-001",
+      "SUPPORTABILITY-001",
+      "TEST-DEPTH-001",
+      "THRONG-001",
+      "TOOL-DISPOSITION-001",
+      "TOOLS-001",
+      "TOPOLOGY-CONSISTENCY-001",
+      "UI-001",
+      "UI-LONG-CONTENT-001",
+      "VALIDATE-001",
+      "VALUES-001",
+      "VOICE-001",
+      "WELFARE-001",
+      "WORKSPACE-INGRESS-001"
+    ],
+    "with_broken_links": []
+  }
+}

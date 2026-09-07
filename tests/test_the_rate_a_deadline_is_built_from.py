@@ -29,14 +29,31 @@ class _Client:
 
 
 def test_an_unmeasured_worker_gets_the_pessimistic_rate() -> None:
+    held = mc.reset_host_rates_for_test()
+    try:
+        client = _Client()
+        assert client._measured_prefill_rate() == mc._UNMEASURED_PREFILL_RATE
+    finally:
+        mc.restore_host_rates_for_test(held)
+
+
+def test_the_progress_estimate_never_sizes_a_deadline() -> None:
+    """It measures the event loop. It has read 6 tok/s on a worker doing 500."""
+
     client = _Client()
+    client._prefill_tokens_per_s = 6.0
     assert client._measured_prefill_rate() == mc._UNMEASURED_PREFILL_RATE
 
 
-def test_the_progress_estimate_is_used_until_a_generation_finishes() -> None:
-    client = _Client()
-    client._prefill_tokens_per_s = 56.0
-    assert client._measured_prefill_rate() == pytest.approx(56.0)
+def test_another_worker_on_this_host_counts_before_a_constant() -> None:
+    held = mc.reset_host_rates_for_test()
+    try:
+        mc._HOST_RATES["prefill"] = 480.0
+        client = _Client()
+        client._prefill_tokens_per_s = 6.0
+        assert client._measured_prefill_rate() == pytest.approx(480.0)
+    finally:
+        mc.restore_host_rates_for_test(held)
 
 
 def test_the_worker_measurement_wins_once_there_is_one() -> None:
@@ -50,17 +67,29 @@ def test_the_live_prompt_stops_taking_eleven_minutes_to_read() -> None:
     """The turn that produced the number, with both rates."""
 
     chars = 52020
-    from_progress = _Client()
-    from_progress._prefill_tokens_per_s = 56.0
-    from_worker = _Client()
-    from_worker._prefill_tokens_per_s = 56.0
-    from_worker._worker_measured_prefill_tps = 556.6
+    held = mc.reset_host_rates_for_test()
+    try:
+        # What the live turn had: an IPC-interval estimate of 56 tok/s and no
+        # finished generation on this worker.
+        as_it_was = _Client()
+        as_it_was._prefill_tokens_per_s = 56.0
+        as_it_was._measured_prefill_rate = lambda: 56.0  # type: ignore[method-assign]
+        assert as_it_was.least_time_to_read(chars) > 600.0
 
-    assert from_progress.least_time_to_read(chars) > 600.0
-    measured = from_worker.least_time_to_read(chars)
-    assert measured < 120.0
-    # Still carries the headroom the floor is deliberately padded with.
-    assert measured > chars / mc._CHARS_PER_TOKEN / 556.6
+        # What the same worker does now, before any generation has finished.
+        unmeasured = _Client()
+        unmeasured._prefill_tokens_per_s = 56.0
+        assert unmeasured.least_time_to_read(chars) < 200.0
+
+        from_worker = _Client()
+        from_worker._prefill_tokens_per_s = 56.0
+        from_worker._worker_measured_prefill_tps = 556.6
+        measured = from_worker.least_time_to_read(chars)
+        assert measured < 120.0
+        # Still carries the headroom the floor is deliberately padded with.
+        assert measured > chars / mc._CHARS_PER_TOKEN / 556.6
+    finally:
+        mc.restore_host_rates_for_test(held)
 
 
 def test_an_unusable_report_leaves_the_rate_alone() -> None:

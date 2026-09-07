@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "note": "Requirement -> the thing a person can run whose failing would mean the requirement is not met. Hand-written only where nothing in the registry or the evidence ledger names one. A check listed here must resolve in the tree; one that does not is counted as no check at all.",
+  "checks": {}
+}
