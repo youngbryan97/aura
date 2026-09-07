@@ -36,6 +36,8 @@ __all__ = [
     "CHANNEL_WITHIN_LAYER",
     "CHANNEL_COVERAGE",
     "CHANNEL_SPLIT_ERRORS",
+    "CHANNEL_FINDINGS",
+    "CHANNEL_FINDINGS_CONFIRMED",
     "declare_telemetry",
     "declare_mappings",
     "cached_snapshot",
@@ -44,6 +46,7 @@ __all__ = [
     "publish_telemetry",
     "peek_snapshot",
     "register_health_fragment_provider",
+    "record_pathology",
 ]
 
 CHANNEL_CELLS = "connectome.cells"
@@ -52,6 +55,8 @@ CHANNEL_EI_RATIO = "connectome.ei_ratio"
 CHANNEL_WITHIN_LAYER = "connectome.within_layer_ratio"
 CHANNEL_COVERAGE = "connectome.in_volume_coverage"
 CHANNEL_SPLIT_ERRORS = "connectome.split_errors"
+CHANNEL_FINDINGS = "connectome.findings"
+CHANNEL_FINDINGS_CONFIRMED = "connectome.findings_confirmed"
 
 _CACHE: dict[str, Any] = {}
 _LOCK = threading.RLock()
@@ -138,6 +143,28 @@ def declare_telemetry() -> list[str]:
             "stale_after_s": 86_400.0,
         },
         {
+            "identifier": 0x1907,
+            "name": CHANNEL_FINDINGS,
+            "type": ChannelType.INT,
+            "unit": "count",
+            "description": "connectome findings open, measured and candidate together",
+            "owner": "core/connectome/pathology.py",
+            "group": "connectome",
+            "yellow_high": 150.0,
+            "stale_after_s": 86_400.0,
+        },
+        {
+            "identifier": 0x1908,
+            "name": CHANNEL_FINDINGS_CONFIRMED,
+            "type": ChannelType.INT,
+            "unit": "count",
+            "description": "connectome findings the reconstruction or a recording settles",
+            "owner": "core/connectome/pathology.py",
+            "group": "connectome",
+            "yellow_high": 80.0,
+            "stale_after_s": 86_400.0,
+        },
+        {
             "identifier": 0x1906,
             "name": CHANNEL_SPLIT_ERRORS,
             "type": ChannelType.INT,
@@ -176,6 +203,8 @@ def publish_telemetry(status: dict[str, Any] | None = None) -> dict[str, str]:
         (CHANNEL_WITHIN_LAYER, status.get("within_layer_ratio")),
         (CHANNEL_COVERAGE, status.get("in_volume_coverage")),
         (CHANNEL_SPLIT_ERRORS, status.get("split_errors")),
+        (CHANNEL_FINDINGS, status.get("findings")),
+        (CHANNEL_FINDINGS_CONFIRMED, status.get("findings_confirmed")),
     ):
         if value is None:
             continue
@@ -431,6 +460,11 @@ def connectome_status(
         "efferent_cells": int(snapshot.attrs.get("efferent_cells", 0)),
         "split_errors": int(_CACHE.get("split_errors", 0)),
     }
+    findings = _CACHE.get("pathology")
+    if isinstance(findings, dict):
+        status["findings"] = findings.get("total", 0)
+        status["findings_confirmed"] = findings.get("confirmed", 0)
+        status["findings_by_kind"] = findings.get("by_kind", {})
     if deep:
         from .microcircuit import assign_layers, compare_to_cortex, connection_probabilities
 
@@ -467,3 +501,24 @@ def register_health_fragment_provider() -> bool:
 
     register_health_fragment("connectome", _fragment)
     return True
+
+
+def record_pathology(report: Any) -> dict[str, Any]:
+    """Publish a diagnosis so the health surface and telemetry can see it.
+
+    The report is kept as its own summary rather than as the object, because a
+    health poll must not hold a reference to every finding's detail for the life
+    of the process.
+    """
+    summary = report.as_json(limit=0) if hasattr(report, "as_json") else dict(report)
+    trimmed = {
+        "total": summary.get("total", 0),
+        "confirmed": summary.get("confirmed", 0),
+        "by_kind": summary.get("by_kind", {}),
+        "by_confidence": summary.get("by_confidence", {}),
+        "at": time.time(),
+    }
+    with _LOCK:
+        _CACHE["pathology"] = trimmed
+    publish_telemetry()
+    return trimmed

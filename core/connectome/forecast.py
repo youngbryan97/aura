@@ -38,7 +38,7 @@ allowed to see.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -48,6 +48,7 @@ __all__ = [
     "Window",
     "FeatureSpec",
     "RidgeForecaster",
+    "baseline_score",
     "mean_baseline",
     "condition_mean_baseline",
     "persistence_baseline",
@@ -113,30 +114,33 @@ def neighbour_means(activity: Any, adjacency: Any) -> Any:
     return (adjacency @ activity.T).T
 
 
-def _design(
+def _design_chunk(
     activity: Any,
     spec: FeatureSpec,
     window: Window,
+    times: Sequence[int],
     *,
     global_series: Any = None,
     in_means: Any = None,
     out_means: Any = None,
 ) -> tuple[Any, Any]:
-    """Stack every (cell, time) example into one design matrix and target block.
+    """One block of examples: every cell, at the given timepoints.
 
-    Rows are examples, columns are ``lags x channels`` plus a bias. Building it
-    once for all cells is what makes a shared-weight fit cheap enough to run
-    every arm on the full recording rather than on a sample.
+    A real recording is twelve thousand cells over two thousand frames, and a
+    256-lag design over all of it is eighty gigabytes. Blocks keep the
+    arithmetic identical and the memory bounded, which is the only reason this
+    runs on the machine it has to run on.
     """
     import numpy as np
 
     frames, cells = activity.shape
-    times = list(window.valid_range(frames))
-    if not times:
-        empty = np.zeros((0, spec.channels() * window.context + 1), dtype=np.float64)
-        return empty, np.zeros((0, window.horizon), dtype=np.float64)
-    rows = len(times) * cells
     width = spec.channels() * window.context + 1
+    if not times:
+        return (
+            np.zeros((0, width), dtype=np.float64),
+            np.zeros((0, window.horizon), dtype=np.float64),
+        )
+    rows = len(times) * cells
     design = np.empty((rows, width), dtype=np.float64)
     target = np.empty((rows, window.horizon), dtype=np.float64)
     cursor = 0
@@ -169,6 +173,13 @@ def _design(
     return design, target
 
 
+def _time_blocks(times: Sequence[int], cells: int, budget_rows: int) -> Iterator[list[int]]:
+    """Split the timepoints so no block exceeds the row budget."""
+    per_block = max(1, budget_rows // max(1, cells))
+    for start in range(0, len(times), per_block):
+        yield list(times[start : start + per_block])
+
+
 @dataclass
 class RidgeForecaster:
     """One arm: a shared linear map from context to horizon, fitted in closed form.
@@ -183,6 +194,16 @@ class RidgeForecaster:
     window: Window
     ridge: float = 1.0
     weights: Any = None
+    #: Bytes of design matrix held at once. A row costs eight bytes per column
+    #: and a 256-lag connectome arm is 769 columns wide, so a row budget alone
+    #: would mean something different at every context length. Two gigabytes
+    #: leaves the host to whatever else is running on it.
+    block_bytes: int = 2_000_000_000
+
+    @property
+    def block_rows(self) -> int:
+        width = self.spec.channels() * self.window.context + 1
+        return max(1, int(self.block_bytes // (width * 8 * 2)))
 
     def fit(
         self,
@@ -194,59 +215,128 @@ class RidgeForecaster:
     ) -> RidgeForecaster:
         import numpy as np
 
-        design, target = _design(
-            activity,
-            self.spec,
-            self.window,
-            global_series=global_series,
-            in_means=in_means,
-            out_means=out_means,
-        )
-        if design.shape[0] == 0:
-            self.weights = np.zeros((design.shape[1], self.window.horizon))
+        frames, cells = activity.shape
+        times = list(self.window.valid_range(frames))
+        width = self.spec.channels() * self.window.context + 1
+        gram = np.zeros((width, width), dtype=np.float64)
+        cross = np.zeros((width, self.window.horizon), dtype=np.float64)
+        seen = 0
+        for block in _time_blocks(times, cells, self.block_rows):
+            design, target = _design_chunk(
+                activity,
+                self.spec,
+                self.window,
+                block,
+                global_series=global_series,
+                in_means=in_means,
+                out_means=out_means,
+            )
+            if design.shape[0] == 0:
+                continue
+            gram += design.T @ design
+            cross += design.T @ target
+            seen += design.shape[0]
+        if seen == 0:
+            self.weights = np.zeros((width, self.window.horizon))
             return self
-        gram = design.T @ design
         gram[np.diag_indices_from(gram)] += self.ridge
-        self.weights = np.linalg.solve(gram, design.T @ target)
+        self.weights = np.linalg.solve(gram, cross)
         return self
 
-    def predict(
+    def score(
         self,
         activity: Any,
         *,
         global_series: Any = None,
         in_means: Any = None,
         out_means: Any = None,
-    ) -> tuple[Any, Any]:
+    ) -> tuple[Any, Any, int]:
+        """Absolute error per horizon step and per cell, without holding it all.
+
+        Returns the mean absolute error for each step of the horizon, the mean
+        absolute error for each cell, and how many examples went into both. The
+        per-cell figures are what the paired bootstrap resamples, so they have
+        to survive a recording too large to keep the predictions for.
+        """
         import numpy as np
 
-        design, target = _design(
-            activity,
-            self.spec,
-            self.window,
-            global_series=global_series,
-            in_means=in_means,
-            out_means=out_means,
-        )
-        if design.shape[0] == 0 or self.weights is None:
-            return np.zeros((0, self.window.horizon)), target
-        return design @ self.weights, target
+        frames, cells = activity.shape
+        times = list(self.window.valid_range(frames))
+        step_error = np.zeros(self.window.horizon, dtype=np.float64)
+        cell_error = np.zeros(cells, dtype=np.float64)
+        examples = 0
+        if self.weights is None:
+            return step_error, cell_error, 0
+        for block in _time_blocks(times, cells, self.block_rows):
+            design, target = _design_chunk(
+                activity,
+                self.spec,
+                self.window,
+                block,
+                global_series=global_series,
+                in_means=in_means,
+                out_means=out_means,
+            )
+            if design.shape[0] == 0:
+                continue
+            errors = np.abs(design @ self.weights - target)
+            step_error += errors.sum(axis=0)
+            cell_error += errors.mean(axis=1).reshape(-1, cells).sum(axis=0)
+            examples += design.shape[0]
+        if examples == 0:
+            return step_error, cell_error, 0
+        return step_error / examples, cell_error / (examples // cells), examples
 
 
-def mean_baseline(train: Any, test: Any, window: Window) -> tuple[Any, Any]:
+def baseline_score(
+    predict: Any,
+    activity: Any,
+    window: Window,
+    *,
+    block_rows: int = 2_000_000,
+) -> tuple[Any, Any, int]:
+    """Score a baseline the same way, in blocks, so the arms are comparable."""
+    import numpy as np
+
+    frames, cells = activity.shape
+    times = list(window.valid_range(frames))
+    step_error = np.zeros(window.horizon, dtype=np.float64)
+    cell_error = np.zeros(cells, dtype=np.float64)
+    examples = 0
+    for block in _time_blocks(times, cells, block_rows):
+        if not block:
+            continue
+        prediction, target = predict(block)
+        if prediction.shape[0] == 0:
+            continue
+        errors = np.abs(prediction - target)
+        step_error += errors.sum(axis=0)
+        cell_error += errors.mean(axis=1).reshape(-1, cells).sum(axis=0)
+        examples += prediction.shape[0]
+    if examples == 0:
+        return step_error, cell_error, 0
+    return step_error / examples, cell_error / (examples // cells), examples
+
+
+def mean_baseline(train: Any, test: Any, window: Window) -> Any:
     """Predict each cell's training mean, for every step of the horizon."""
     import numpy as np
 
     per_cell = train.mean(axis=0)
-    times = list(window.valid_range(test.shape[0]))
-    cells = test.shape[1]
-    if not times:
-        return np.zeros((0, window.horizon)), np.zeros((0, window.horizon))
-    prediction = np.repeat(
-        np.repeat(per_cell[:, None], window.horizon, axis=1)[None, :, :], len(times), axis=0
-    ).reshape(len(times) * cells, window.horizon)
-    target = np.concatenate([test[t : t + window.horizon].T for t in times], axis=0)
-    return prediction, target
+
+    def _block(times: Sequence[int]) -> tuple[Any, Any]:
+        if not times:
+            return np.zeros((0, window.horizon)), np.zeros((0, window.horizon))
+        cells = test.shape[1]
+        prediction = np.repeat(
+            np.repeat(per_cell[:, None], window.horizon, axis=1)[None, :, :],
+            len(times),
+            axis=0,
+        ).reshape(len(times) * cells, window.horizon)
+        target = np.concatenate([test[t : t + window.horizon].T for t in times], axis=0)
+        return prediction, target
+
+    return _block
 
 
 def condition_mean_baseline(
@@ -255,11 +345,11 @@ def condition_mean_baseline(
     test: Any,
     test_conditions: Sequence[str],
     window: Window,
-) -> tuple[Any, Any]:
+) -> Any:
     """ZAPBench's stimulus-conditioned mean: what this cell does under this condition.
 
     It is the baseline that embarrasses learned models when the stimulus
-    explains most of the variance, which is exactly why it belongs here.
+    explains most of the variance, which is why it belongs here.
     """
     import numpy as np
 
@@ -269,35 +359,39 @@ def condition_mean_baseline(
         if rows:
             per_condition[condition] = train[rows].mean(axis=0)
     fallback = train.mean(axis=0)
-    times = list(window.valid_range(test.shape[0]))
-    if not times:
-        return np.zeros((0, window.horizon)), np.zeros((0, window.horizon))
-    predictions = []
-    targets = []
-    for t in times:
-        condition = test_conditions[t] if t < len(test_conditions) else ""
-        base = per_condition.get(condition, fallback)
-        predictions.append(np.repeat(base[:, None], window.horizon, axis=1))
-        targets.append(test[t : t + window.horizon].T)
-    return np.concatenate(predictions, axis=0), np.concatenate(targets, axis=0)
+
+    def _block(times: Sequence[int]) -> tuple[Any, Any]:
+        if not times:
+            return np.zeros((0, window.horizon)), np.zeros((0, window.horizon))
+        predictions = []
+        targets = []
+        for t in times:
+            condition = test_conditions[t] if t < len(test_conditions) else ""
+            base = per_condition.get(condition, fallback)
+            predictions.append(np.repeat(base[:, None], window.horizon, axis=1))
+            targets.append(test[t : t + window.horizon].T)
+        return np.concatenate(predictions, axis=0), np.concatenate(targets, axis=0)
+
+    return _block
 
 
-def persistence_baseline(test: Any, window: Window) -> tuple[Any, Any]:
+def persistence_baseline(test: Any, window: Window) -> Any:
     """Hold the last observed frame for the whole horizon.
 
-    Not one of ZAPBench's arms, and included anyway. It is the baseline that a
-    forecasting result has to beat before it is a result at all, and on slow
-    signals it is very hard to beat.
+    Not one of ZAPBench's arms, and included anyway. It is the baseline a
+    forecasting result has to beat before it is a result, and on slow signals it
+    is very hard to beat.
     """
     import numpy as np
 
-    times = list(window.valid_range(test.shape[0]))
-    if not times:
-        return np.zeros((0, window.horizon)), np.zeros((0, window.horizon))
-    predictions = []
-    targets = []
-    for t in times:
-        last = test[t - 1]
-        predictions.append(np.repeat(last[:, None], window.horizon, axis=1))
-        targets.append(test[t : t + window.horizon].T)
-    return np.concatenate(predictions, axis=0), np.concatenate(targets, axis=0)
+    def _block(times: Sequence[int]) -> tuple[Any, Any]:
+        if not times:
+            return np.zeros((0, window.horizon)), np.zeros((0, window.horizon))
+        predictions = []
+        targets = []
+        for t in times:
+            predictions.append(np.repeat(test[t - 1][:, None], window.horizon, axis=1))
+            targets.append(test[t : t + window.horizon].T)
+        return np.concatenate(predictions, axis=0), np.concatenate(targets, axis=0)
+
+    return _block

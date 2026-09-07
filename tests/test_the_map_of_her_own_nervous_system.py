@@ -772,8 +772,9 @@ def test_the_benchmark_finds_structure_when_the_activity_flows_through_it():
     assert by_arm["connectome"] < by_arm["rewired"]
     assert by_arm["connectome"] < by_arm["blind"]
     test = report.structure_test["context_4"]["connectome_vs_rewired"]
-    assert test["significant"] is True
-    assert test["difference"] < 0
+    assert test["median_significant"] is True
+    assert test["median_difference"] < 0
+    assert test["share_better"] > 0.6
     assert "wiring predicts activity" in report.structure_test["context_4"]["verdict"]
 
 
