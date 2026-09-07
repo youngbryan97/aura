@@ -5,6 +5,7 @@ it gets logged here with its source generation, gate status, and outcome.
 This makes the three-generation overlap (VolitionEngine, AgencyCore,
 Gen3 constitutional) visible and debuggable.
 """
+import asyncio
 import json
 import logging
 import threading
@@ -144,9 +145,13 @@ class UnifiedActionLog:
         with self._lock:
             self._entries.append(entry)
 
-        # Async-safe file append
+        # Keep the in-memory event synchronous, but never fsync on the event
+        # loop. The async task owns the durable append and inherits the
+        # governance context from this call.
         if self._persist_path:
             try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
                 from core.governance_context import local_internal_governed_scope
                 with local_internal_governed_scope("unified_action_log.record", domain="file_write"):
                     get_file_write_gateway().append_text(
@@ -155,9 +160,25 @@ class UnifiedActionLog:
                         encoding="utf-8",
                         source="unified_action_log.record",
                     )
-            except (json.JSONDecodeError, TypeError, ValueError) as _exc:
+            except (json.JSONDecodeError, OSError, TypeError, ValueError) as _exc:
                 record_degradation('unified_action_log', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
+            else:
+                loop.create_task(self._persist_entry(entry))
+
+    async def _persist_entry(self, entry: dict[str, Any]) -> None:
+        try:
+            from core.governance_context import local_internal_governed_scope
+            with local_internal_governed_scope("unified_action_log.record", domain="file_write"):
+                await get_file_write_gateway().append_text_async(
+                    self._persist_path,
+                    json.dumps(entry) + "\n",
+                    encoding="utf-8",
+                    source="unified_action_log.record",
+                )
+        except (json.JSONDecodeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("unified_action_log", exc)
+            logger.debug("Deferred action-log append failed: %s", exc)
 
     def recent(self, limit: int = 20):
         with self._lock:
