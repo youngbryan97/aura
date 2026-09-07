@@ -1,0 +1,51 @@
+# Runtime replay, September 7
+
+The supported launcher started PID 11289 on revision
+`b77fc87c5585595f32d30dd77a3663679da8e9d2`. Boot reported ready,
+source_current=true, and the resident persona/CRSM 27B model. This was a
+direct launch with a bound source snapshot, not a signed release deployment.
+
+At 00:40:59 local time, the browser submitted a question about lost updates
+and compare-and-swap. The neural feed and desktop log were read together.
+Search returned dictionary entries about "why"; subject relevance rejected
+them. The foreground request continued, but did not pass live validation.
+
+The parent suffered event-loop stalls up to 45.8 seconds. At 00:47:49 the
+client cancelled for token_progress_stalled. Worker telemetry reported 1,544
+prefill tokens in 10.50 seconds and 665 generated tokens in 141.57 seconds.
+Native thinking remained open, leaving an empty public answer. A lower-lane
+fallback later produced an explanation. This is not R03/R05 acceptance.
+The reconnected browser initially showed the user turn without its final
+answer, so reconnect delivery also remains unproven under R09.
+
+An OS sample was captured at `/tmp/aura-r06-live-stack-20260907.txt`.
+The desktop log's thread dump included health integrity filesystem traversal
+and process-tree memory accounting; the OS sample showed substantial GIL
+waiting. These identify investigation targets, not a proven single cause.
+
+Two bounded repairs follow from the inspection:
+
+- Continuity snapshots serialize writes per event loop and path. Flush
+  reports completed write failures instead of allowing shutdown to log a
+  successful save. Three storage tests cover waiting, ordering and failure.
+- Inference health now receives request-bound prefill advancement from the
+  existing client tracker. It accepts recent prefill without extending the
+  startup timeout; stale decode evidence still takes precedence.
+
+The focused health and continuity suite passed 40 tests. Smoke was stopped
+after 224.83 seconds without progress in `core/interiority/effects.py:277`:
+85 passed, one skipped, remaining tests unrun. A concurrent unrelated test
+batch was present. This is not a smoke pass. Full-file Ruff also reports
+pre-existing findings in inference_gate and its health tests.
+
+No additional R item is marked complete by this replay. The repairs above
+require deployment and another live replay; the live source was kept stable
+during this turn.
+
+The generation wait loop also performed process-memory observation and
+garbage collection synchronously on every timed-out polling slice. Both now
+run through `asyncio.to_thread`, allowing response delivery to advance while
+the observation runs. The completion-ownership tests assert that observation
+and collection execute off the event-loop thread: 14 passed. The client
+resilience suite also passed all 96 tests. This removes one measured-path
+blocking operation, not every source of loop contention.

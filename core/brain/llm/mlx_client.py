@@ -7460,6 +7460,7 @@ class MLXLocalClient:
             "progress_age_s": progress_age_s,
             "worker_progress_anchor": worker_progress_anchor,
             "last_token_progress_at": self._last_token_progress_at,
+            "last_prefill_progress_at": self._prefill_progress_at(),
             "last_ready_at": self._last_ready_at,
             "last_generation_completed_at": self._last_generation_completed_at,
             "last_user_facing_completed_at": self._last_user_facing_completed_at,
@@ -14647,9 +14648,9 @@ class MLXLocalClient:
                 # the request neither aborted nor honestly failed.
                 memory_snapshot = None
                 try:
-                    memory_snapshot = get_memory_pressure_snapshot()
+                    memory_snapshot = await asyncio.to_thread(get_memory_pressure_snapshot)
                     if memory_snapshot.should_gc:
-                        gc.collect()
+                        await asyncio.to_thread(gc.collect)
                 except (OSError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
                     # Unobserved pressure is not observed headroom. Heavy lanes
                     # are the allocation that pushes this host over, so a blind

@@ -4,14 +4,15 @@ Every shutdown writes a state. Every boot reads it. Gap > 0 means she was
 somewhere else for a while and knows it.
 """
 
-import hashlib
 import asyncio
+import hashlib
 import hmac
 import json
 import logging
 import os
 import re
 import time
+import weakref
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
@@ -30,6 +31,8 @@ from core.state.aura_state import (
 logger = logging.getLogger(__name__)
 _CONTINUITY_PATH: Path | None = None
 _PENDING_WRITES: set[asyncio.Task] = set()
+_WRITE_TAILS = weakref.WeakKeyDictionary()
+_WRITE_FAILURES = weakref.WeakKeyDictionary()
 
 
 async def flush_continuity_writes() -> None:
@@ -37,7 +40,10 @@ async def flush_continuity_writes() -> None:
     loop = asyncio.get_running_loop()
     pending = [task for task in _PENDING_WRITES if task.get_loop() is loop]
     if pending:
-        await asyncio.gather(*pending)
+        await asyncio.gather(*(asyncio.shield(task) for task in pending))
+    failures = _WRITE_FAILURES.pop(loop, {})
+    if failures:
+        raise RuntimeError("Continuity persistence failed") from next(iter(failures.values()))
 
 _EVALUATION_CONTAMINATION_RE = re.compile(
     r"(?:"
@@ -83,7 +89,9 @@ def _persist_continuity_record(path: Path, record: "ContinuityRecord", source: s
     """Persist continuity without blocking an active event loop."""
     payload = json.dumps(_signed_record_payload(record), indent=2)
 
-    async def _deferred() -> None:
+    async def _deferred(predecessor) -> None:
+        if predecessor is not None:
+            await asyncio.shield(predecessor)
         try:
             with local_internal_governed_scope(source, domain="file_write"):
                 await get_file_write_gateway().write_text_async(
@@ -92,6 +100,7 @@ def _persist_continuity_record(path: Path, record: "ContinuityRecord", source: s
         except (RuntimeError, AttributeError, OSError, TypeError, ValueError) as exc:
             record_degradation("continuity", exc)
             logger.error("Deferred continuity save failed: %s", exc)
+            _WRITE_FAILURES.setdefault(loop, {})[path] = exc
 
     try:
         loop = asyncio.get_running_loop()
@@ -104,9 +113,18 @@ def _persist_continuity_record(path: Path, record: "ContinuityRecord", source: s
         with governed_scope_sync(receipt):
             get_file_write_gateway().write_text(path, payload, source=source)
     else:
-        task = loop.create_task(_deferred())
+        # A newer snapshot must never be overwritten by an older slow write.
+        tails = _WRITE_TAILS.setdefault(loop, {})
+        task = loop.create_task(_deferred(tails.get(path)))
+        tails[path] = task
         _PENDING_WRITES.add(task)
-        task.add_done_callback(_PENDING_WRITES.discard)
+
+        def completed(done):
+            _PENDING_WRITES.discard(done)
+            if tails.get(path) is done:
+                tails.pop(path, None)
+
+        task.add_done_callback(completed)
 
 
 def _sanitize_restored_text(value: Any) -> str:
