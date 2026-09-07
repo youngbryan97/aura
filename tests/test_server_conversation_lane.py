@@ -9772,7 +9772,16 @@ async def test_cognitive_engine_quick_reply_places_self_condition_evidence_in_mo
     assert call["self_condition_contract_covers_turn"] is True
     assert call["max_tokens"] == 512
     assert call["user_surface_completion_floor"] == 512
-    assert "CPU, RAM, host load" in call["messages"][0]["content"]
+    # The authority head is one stable string. The self-condition directive
+    # governs THIS turn, so it travels with the turn rather than sitting in the
+    # head every turn shares — five variants of that head meant no two turns
+    # of a conversation shared a token prefix and every one paid a full
+    # prefill.
+    assert call["messages"][0]["content"].startswith(
+        "You are Aura speaking through the live desktop CognitiveEngine."
+    )
+    assert "CPU, RAM, host load" not in call["messages"][0]["content"]
+    assert "CPU, RAM, host load" in call["messages"][-2]["content"]
     assert "[LIVE MIND CONTEXT]" not in call["messages"][0]["content"]
     assert call["messages"][-1] == {"role": "user", "content": "Are you okay though?"}
     grounding = call["messages"][-2]

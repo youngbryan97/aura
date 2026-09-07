@@ -14061,6 +14061,26 @@ class InferenceGate:
             if str(msg.get("role", "")).strip().lower() == "system"
         )
         request_chars = max(0, prompt_chars - scaffold_chars)
+        # WHICH authority block moves. The scaffold total said 1809 on one turn
+        # and 1817 on the next, which is enough to make the merged front system
+        # message a different token sequence and cost the whole conversation
+        # its prompt-cache prefix — 17.7s of a 22s turn. A total cannot say
+        # which block did it; a per-block digest can.
+        if logger.isEnabledFor(logging.INFO):
+            _blocks = [
+                (len(str(msg.get("content", "") or "")),
+                 hashlib.sha256(
+                     str(msg.get("content", "") or "").encode("utf-8", "replace")
+                 ).hexdigest()[:8],
+                 str(msg.get("content", "") or "")[:48].replace("\n", "⏎"))
+                for msg in messages
+                if str(msg.get("role", "")).strip().lower() == "system"
+            ]
+            if _blocks:
+                logger.info(
+                    "🧩 [PROMPT BLOCKS] %s",
+                    " | ".join(f"{n}c {d} {h!r}" for n, d, h in _blocks),
+                )
         # The separately-passed system_prompt is merged into messages[0] at the
         # client boundary, so it is part of the prefill even though it is not in
         # `messages` here. Leaving it out of this line is how a 106,861-char

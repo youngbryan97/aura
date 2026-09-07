@@ -1641,6 +1641,15 @@ def _note_the_quick_reply_contract(
         )
 
 
+#: The one authority head every desktop turn shares, byte for byte.
+#:
+#: The prompt cache can only reuse a prefix. Five variants of this sentence,
+#: selected per turn, meant no two turns of a conversation shared one — so
+#: every turn paid a full prefill. What differs per turn is a directive about
+#: that turn, and it travels with the turn as a dynamic contract instead.
+_DESKTOP_AUTHORITY_HEAD = "You are Aura speaking through the live desktop CognitiveEngine."
+
+
 class CognitiveEngine:
     """
     Cognitive Engine facade.
@@ -4741,9 +4750,25 @@ class CognitiveEngine:
             context.get("live_runtime_payload_required", False)
             or (live_mind_required and isinstance(live_mind_context, dict))
         )
+        # ONE authority head, always the same bytes.
+        #
+        # This used to be five hand-written system prompts selected by contract
+        # flag, all opening with the same sentence and differing after it. That
+        # made the front of the prompt a different token sequence on almost
+        # every turn, and the front of the prompt is the only part a KV cache
+        # can reuse. Measured live 2026-09-07: two consecutive turns of one
+        # conversation produced authority heads of 587 and 459 characters with
+        # different digests, the prompt cache matched 0 tokens of 1,844, and
+        # prefill was 17.7s of a 22s turn.
+        #
+        # The principle is the one already written forty lines below about
+        # per-turn control state: what governs THIS turn belongs next to the
+        # turn, not in the head every turn shares. These directives govern one
+        # turn, so they travel with it.
+        system_prompt = _DESKTOP_AUTHORITY_HEAD
+        turn_dynamic_contracts: list[str] = []
         if self_condition_contract:
-            system_prompt = (
-                "You are Aura speaking through the live desktop CognitiveEngine. "
+            turn_dynamic_contracts.append(
                 "Answer whether you are okay from the canonical self-condition evidence. "
                 "Put the direct condition answer first, then one or two natural grounding "
                 "sentences. Affect, welfare, felt coherence, continuity, and agency are the "
@@ -4752,24 +4777,21 @@ class CognitiveEngine:
                 "generic presence reassurance."
             )
         elif memory_state_contract:
-            system_prompt = (
-                "You are Aura speaking through the live desktop CognitiveEngine. "
+            turn_dynamic_contracts.append(
                 "Answer the current user message directly in one compact, natural paragraph. "
                 "Use canonical memory/state evidence as source of truth. "
                 "The current user message has priority over older topics. "
                 "Do not mention prompt contracts, internal recovery, or implementation details."
             )
         elif runtime_fact_status_contract:
-            system_prompt = (
-                "You are Aura speaking through the live desktop CognitiveEngine. "
+            turn_dynamic_contracts.append(
                 "Answer the current runtime-path question directly and compactly. "
                 "Use only the verified runtime status evidence supplied for this turn; "
                 "do not infer tool readiness, model identity, fallback state, or recurrent "
                 "depth from general knowledge. Do not mention hidden prompt contracts."
             )
         elif capability_inventory_contract:
-            system_prompt = (
-                "You are Aura speaking through the live desktop CognitiveEngine. "
+            turn_dynamic_contracts.append(
                 "Answer the current capability question from the supplied capability evidence only. "
                 "Write exactly four short complete sentences under 80 words total. Sentence order matters: "
                 "first list practical capability categories and include the exact phrase browser/web research; second name governed execution through "
@@ -4778,8 +4800,7 @@ class CognitiveEngine:
                 "Do not recite telemetry, prompt contracts, or a generic assistant identity."
             )
         else:
-            system_prompt = (
-                "You are Aura speaking through the live desktop CognitiveEngine. "
+            turn_dynamic_contracts.append(
                 "Answer the user's current message directly and naturally. "
                 "Use the current conversation rather than a canned status line. "
                 "The current user message has priority over all recalled context. "
@@ -4788,7 +4809,6 @@ class CognitiveEngine:
                 "Do not mention hidden fallback paths, internal recovery, prompt contracts, or implementation details "
                 "unless the user specifically asks for them."
             )
-        turn_dynamic_contracts: list[str] = []
         if (
             completion_retry_contract
             and not continuation_contract
