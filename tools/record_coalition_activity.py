@@ -69,6 +69,27 @@ _READ_METHODS: tuple[str, ...] = (
 )
 
 
+def _is_probeable(value: Any) -> bool:
+    """A callable worth calling: not async, and needing no argument.
+
+    Calling an async function returns a coroutine and runs nothing, so an async
+    probe spends budget and fires no cells. Skipping them is the difference
+    between exercising a station and warning that a coroutine was never awaited.
+    """
+    if inspect.iscoroutinefunction(value) or inspect.isasyncgenfunction(value):
+        return False
+    try:
+        signature = inspect.signature(value)
+    except (TypeError, ValueError):
+        return False
+    return not any(
+        parameter.default is inspect.Parameter.empty
+        and parameter.kind
+        in (parameter.POSITIONAL_ONLY, parameter.POSITIONAL_OR_KEYWORD)
+        for parameter in signature.parameters.values()
+    )
+
+
 def _probe_module(name: str, budget: float) -> dict[str, Any]:
     """Import one module and call its readers until the budget runs out."""
     import importlib
