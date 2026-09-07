@@ -116,6 +116,23 @@ whose right answer depends on what was committed to earlier — has to be
 externally authored to be worth anything, and the harness refuses to paper
 over the difference.
 
+## A third pattern, from the canonical layer itself
+
+The canonical state is process-wide, and production code writes to it: an
+interiority tick estimates into the channels, a horizon check declares a
+criterion. So any test exercising any of that left state behind for whatever
+ran next, and five tests in one slice failed in company while every file in
+that slice passed alone. That is order dependence, which this repository
+treats as a defect rather than as noise.
+
+An autouse fixture clears the five singletons before each test — before rather
+than after, so a test that crashes does not poison the one behind it. The
+slice went from five failures to 372 passing.
+
+The general shape is worth keeping: a module-level singleton that production
+code writes to is a hidden argument to every test that runs after it, and the
+tests that expose it are never the ones that touched it.
+
 ## The mistake
 
 `core/cognition/primitive_invention.py` already existed and I wrote over it,
