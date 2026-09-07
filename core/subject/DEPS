@@ -1,0 +1,25 @@
+# core/subject — layering rules.
+#
+# This package measures the organism; it must never become part of it. The
+# rule is one-way: subject may import the runtime it measures, and nothing in
+# the runtime may import subject. A measurement that the thing being measured
+# can read is a feedback loop, and every number here would then be partly
+# about itself.
+
+description = "core.subject: may read the organism it measures; the organism may not read it."
+
+include_rules = [
+    "+core.subject",
+
+    # What it reads to build K and to drive a life.
+    "+core.kernel",
+    "+core.memory",
+    "+core.ontogeny",
+    "+core.state",
+
+    # Everything else.
+    "-core",
+    "-interface",
+    "-skills",
+    "-aura_main",
+]

@@ -1,0 +1,391 @@
+"""The battery's own tests: each measure has to be able to say no.
+
+A measurement that returns a healthy number for a system built to fail is
+worse than no measurement, because it will keep returning healthy numbers
+after the system changes. So every test here has two arms — something that
+should pass and something matched that should not — and asserts the gap rather
+than the value.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from core.subject.causal import (
+    EDGE_EFFECT,
+    InterventionSet,
+    Trial,
+    benjamini_hochberg,
+    build_edges,
+    power_note,
+)
+from core.subject.differentiation import effective_dimension
+from core.subject.estimate import held_out_loss
+from core.subject.graph import analyse_graph, simple_cycles, strongly_connected
+from core.subject.intrinsic import intrinsic_gain
+from core.subject.irreducibility import phi_do
+from core.subject.metastability import regimes
+from core.subject.nulls import (
+    ARCHITECTURES,
+    architecture,
+    replay_surrogate,
+    shuffle_surrogate,
+    toy_edges,
+    toy_recording,
+)
+from core.subject.pci import lempel_ziv, normalised_lz
+from core.subject.recording import build_recording
+from core.subject.state import (
+    DOMAINS,
+    domain_width,
+    feature_names,
+    perturb,
+    perturbable,
+    read_core_state,
+)
+from core.subject.synergy import synergy
+
+
+# ── the schema ───────────────────────────────────────────────────────────
+
+
+def test_every_domain_has_a_fixed_width_and_named_features():
+    for key in DOMAINS:
+        assert domain_width(key) > 0
+        assert len(feature_names(key)) == domain_width(key)
+    assert len(feature_names()) == sum(domain_width(k) for k in DOMAINS)
+
+
+def test_reading_a_default_state_gives_the_declared_widths():
+    from core.state.aura_state import AuraState
+
+    reading = read_core_state(AuraState.default())
+    for key in DOMAINS:
+        assert reading.domain(key).size == domain_width(key)
+    assert reading.vector().size == len(feature_names())
+
+
+def test_every_domain_has_a_writer_that_moves_its_own_reading():
+    """A domain nothing can displace has no measurable outgoing edges."""
+    from core.state.aura_state import AuraState
+
+    from core.ontogeny.state import OntogeneticState
+
+    assert set(perturbable()) == set(DOMAINS)
+    for key in DOMAINS:
+        state = AuraState.default()
+        reservoir = OntogeneticState(input_width=8, units=16, seed=0)
+        before = read_core_state(state, ontogeny=reservoir).domain(key)
+        assert perturb(state, key, 0.2, ontogeny=reservoir) is True, f"{key} has no writer"
+        after = read_core_state(state, ontogeny=reservoir).domain(key)
+        assert not np.allclose(before, after), f"writing {key} did not move {key}"
+
+
+def test_the_reservoir_writer_moves_the_reservoir():
+    from core.ontogeny.state import OntogeneticState
+
+    reservoir = OntogeneticState(input_width=8, units=16, seed=0)
+    before = np.array(reservoir.h, copy=True)
+    assert perturb(None, "N", 0.2, ontogeny=reservoir) is True
+    assert not np.allclose(before, reservoir.h)
+
+
+# ── the estimator ────────────────────────────────────────────────────────
+
+
+def test_the_estimator_scores_noise_at_one_and_signal_below_it():
+    rng = np.random.default_rng(0)
+    x = rng.normal(size=(400, 6))
+    y = x @ rng.normal(size=(6, 3)) + 0.1 * rng.normal(size=(400, 3))
+    assert held_out_loss(x, y).loss < 0.1
+    assert held_out_loss(rng.normal(size=(400, 6)), y).loss > 0.8
+
+
+def test_a_flat_target_is_reported_as_degenerate_rather_than_perfect():
+    rng = np.random.default_rng(0)
+    fit = held_out_loss(rng.normal(size=(200, 4)), np.zeros((200, 3)))
+    assert fit.degenerate
+    assert fit.loss == pytest.approx(1.0)
+
+
+# ── irreducibility ───────────────────────────────────────────────────────
+
+
+def _toy(name: str, steps: int = 2000, seed: int = 3):
+    return toy_recording(architecture(name, seed=seed), steps=steps, seed=seed)
+
+
+def test_a_recurrent_architecture_is_irreducible_and_the_nulls_are_not():
+    real = phi_do(_toy("recurrent")).phi
+    assert real > 0.05
+    for name in ("star", "hub", "one_way", "prompt_only", "frozen_slow"):
+        assert phi_do(_toy(name)).phi < real, name
+
+
+def test_replay_and_shuffle_destroy_irreducibility():
+    recording = _toy("recurrent")
+    intact = phi_do(recording).phi
+    assert phi_do(replay_surrogate(recording, seed=1)).phi < intact
+    assert phi_do(shuffle_surrogate(recording, seed=1)).phi < intact
+
+
+def test_the_minimum_partition_is_reported_not_the_average():
+    report = phi_do(_toy("recurrent"))
+    assert report.phi == pytest.approx(min(report.scores.values()))
+
+
+# ── the graph ────────────────────────────────────────────────────────────
+
+
+def test_strong_connectivity_alone_does_not_separate_a_star_from_a_ring():
+    """The reason the battery cannot stop at SCC. Recorded as a test, not prose."""
+    star = [("A", "H"), ("H", "A"), ("B", "H"), ("H", "B"), ("C", "H"), ("H", "C")]
+    ring = [("A", "B"), ("B", "C"), ("C", "A"), ("A", "C"), ("C", "B"), ("B", "A")]
+    star_report = analyse_graph(["A", "B", "C", "H"], star)
+    ring_report = analyse_graph(["A", "B", "C"], ring)
+    assert star_report.one_component and ring_report.one_component
+    assert star_report.connectivity == 1
+    assert ring_report.connectivity >= 2
+    assert not star_report.every_node_reenters
+    assert ring_report.every_node_reenters
+
+
+def test_a_broker_inside_the_node_set_is_a_cut_vertex():
+    edges = [("A", "H"), ("H", "B"), ("B", "H"), ("H", "A")]
+    assert analyse_graph(["A", "B", "H"], edges).connectivity == 1
+
+
+def test_cycles_and_components_agree_with_hand_worked_cases():
+    assert strongly_connected(["A", "B"], [("A", "B")]) == [["A"], ["B"]]
+    assert strongly_connected(["B", "A"], [("A", "B")]) == [["A"], ["B"]]
+    assert len(simple_cycles(["A", "B"], [("A", "B"), ("B", "A")])) == 1
+
+
+def test_a_hidden_broker_is_invisible_to_the_graph_measures():
+    """The star null passes every graph criterion. Closure is what catches it."""
+    system = architecture("star", seed=5)
+    report = analyse_graph(list(DOMAINS), toy_edges(system, trials=10, seed=5))
+    assert report.one_component
+    assert report.connectivity >= 2
+
+
+# ── differentiation, intrinsic, metastability ────────────────────────────
+
+
+def test_effective_dimension_collapses_when_every_column_copies_one():
+    rows = 500
+    driver = np.random.default_rng(0).normal(size=(rows, 1))
+    flat = build_recording_from(np.repeat(driver, 60, axis=1) + 1e-6 * np.random.default_rng(1).normal(size=(rows, 60)))
+    wide = build_recording_from(np.random.default_rng(2).normal(size=(rows, 60)))
+    assert effective_dimension(flat).d_eff < 3.0
+    assert effective_dimension(wide).d_eff > 20.0
+
+
+def build_recording_from(matrix: np.ndarray):
+    """A recording built straight from a matrix, for measures that only need X."""
+    from core.subject.recording import Recording
+
+    width = matrix.shape[1]
+    per = max(1, width // len(DOMAINS))
+    slices = {}
+    start = 0
+    for index, key in enumerate(DOMAINS):
+        stop = width if index == len(DOMAINS) - 1 else min(width, start + per)
+        slices[key] = slice(start, max(start + 1, stop))
+        start = slices[key].stop
+    return Recording(
+        x=matrix,
+        conditions=tuple("x" for _ in range(matrix.shape[0])),
+        tags=tuple("" for _ in range(matrix.shape[0])),
+        times=np.arange(matrix.shape[0], dtype=np.float64),
+        env=np.zeros((matrix.shape[0], 1)),
+        env_names=("clock",),
+        columns=tuple(f"c{i}" for i in range(width)),
+        slices=slices,
+        notes={},
+    )
+
+
+def test_intrinsic_gain_is_zero_when_the_state_is_a_function_of_the_input():
+    rows = 600
+    rng = np.random.default_rng(0)
+    drive = rng.normal(size=(rows, 3))
+    reactive = np.hstack([np.tanh(drive), np.tanh(drive * 2), np.tanh(drive * 0.5)])
+    recording = build_recording_from(reactive)
+    recording = _with_env(recording, drive)
+    report = intrinsic_gain(recording)
+    assert report.gain < 0.5
+
+
+def test_intrinsic_gain_is_large_when_the_state_carries_its_own_history():
+    rows = 600
+    rng = np.random.default_rng(0)
+    drive = rng.normal(size=(rows, 3))
+    state = np.zeros((rows, 9))
+    for index in range(1, rows):
+        state[index] = 0.9 * state[index - 1] + 0.1 * np.tile(drive[index], 3)
+    recording = _with_env(build_recording_from(state), drive)
+    report = intrinsic_gain(recording)
+    assert report.gain > 0.5
+    assert report.gain_over_shuffle > 0.0
+
+
+def _with_env(recording, env):
+    from core.subject.recording import Recording
+
+    return Recording(
+        x=recording.x,
+        conditions=recording.conditions,
+        tags=recording.tags,
+        times=recording.times,
+        env=env,
+        env_names=tuple(f"e{i}" for i in range(env.shape[1])),
+        columns=recording.columns,
+        slices=recording.slices,
+        notes=recording.notes,
+    )
+
+
+def test_metastability_rejects_a_frozen_and_a_random_trajectory():
+    rows = 400
+    frozen = build_recording_from(np.tile(np.linspace(0, 1, 20), (rows, 1)))
+    assert not regimes(frozen).passes
+
+
+# ── perturbation ─────────────────────────────────────────────────────────
+
+
+def test_lempel_ziv_ranks_stereotyped_below_structured():
+    ones = np.ones((8, 40), dtype=np.int8)
+    local = np.zeros((8, 40), dtype=np.int8)
+    local[0] = 1
+    rng = np.random.default_rng(0)
+    structured = (rng.random((8, 40)) < 0.4).astype(np.int8)
+    assert normalised_lz(ones) == 0.0
+    assert normalised_lz(structured) > normalised_lz(local)
+    assert lempel_ziv(np.zeros(64, dtype=np.int8)) < lempel_ziv(
+        (rng.random(64) < 0.5).astype(np.int8)
+    )
+
+
+# ── the edge rules ───────────────────────────────────────────────────────
+
+
+def _trial(source, target, condition, effect, floor, index):
+    return Trial(
+        source=source,
+        condition=condition,
+        index=index,
+        effect={target: effect},
+        floor={target: floor},
+        trace={target: [effect]},
+        floor_trace={target: [floor]},
+        took=True,
+    )
+
+
+def test_an_edge_needs_effect_significance_and_replication_together():
+    strong = InterventionSet(
+        trials=[
+            _trial("A", "G", condition, 1.0, 0.05, index)
+            for condition in ("one", "two", "three", "four")
+            for index in range(10)
+        ]
+    )
+    edges, tested = build_edges(strong)
+    assert [(e.source, e.target) for e in edges] == [("A", "G")]
+    assert edges[0].replicated >= 3
+
+    weak = InterventionSet(
+        trials=[
+            _trial("A", "G", condition, 0.06, 0.05, index)
+            for condition in ("one", "two", "three", "four")
+            for index in range(10)
+        ]
+    )
+    assert build_edges(weak)[0] == []
+
+    unreplicated = InterventionSet(
+        trials=[_trial("A", "G", "one", 1.0, 0.05, index) for index in range(40)]
+    )
+    assert build_edges(unreplicated)[0] == []
+
+
+def test_an_effect_no_bigger_than_its_own_sham_floor_is_not_an_edge():
+    noise = InterventionSet(
+        trials=[
+            _trial("A", "G", condition, 0.9, 0.9, index)
+            for condition in ("one", "two", "three")
+            for index in range(10)
+        ]
+    )
+    assert build_edges(noise)[0] == []
+
+
+def test_self_pairs_are_never_edges():
+    same = InterventionSet(
+        trials=[
+            _trial("A", "A", condition, 5.0, 0.0, index)
+            for condition in ("one", "two", "three")
+            for index in range(10)
+        ]
+    )
+    edges, tested = build_edges(same)
+    assert edges == []
+    assert tested == []
+
+
+def test_too_few_trials_is_reported_as_underpowered_not_as_no_edges():
+    thin = InterventionSet(
+        trials=[_trial("A", "G", "one", 5.0, 0.0, index) for index in range(2)]
+    )
+    assert power_note(thin)["underpowered"] is True
+    assert build_edges(thin)[0] == []
+
+
+def test_benjamini_hochberg_is_monotone_and_bounded():
+    q = benjamini_hochberg([0.001, 0.02, 0.5, 0.9])
+    assert q == sorted(q)
+    assert all(0.0 <= v <= 1.0 for v in q)
+    assert benjamini_hochberg([]) == []
+
+
+# ── synergy ──────────────────────────────────────────────────────────────
+
+
+def test_synergy_is_found_where_it_exists_and_not_where_it_does_not():
+    rows = 1500
+    rng = np.random.default_rng(0)
+    a = rng.normal(size=rows)
+    b = rng.normal(size=rows)
+    joint = np.zeros((rows, 30))
+    joint[:, 0] = a
+    joint[:, 10] = b
+    # The target is the product, which neither source predicts alone.
+    joint[1:, 20] = a[:-1] * b[:-1]
+    recording = build_recording_from(joint)
+    report = synergy(recording, DOMAINS[0], DOMAINS[3], DOMAINS[6], seed=1)
+    assert report.interaction_gain > 0.05
+
+    additive = joint.copy()
+    additive[1:, 20] = a[:-1] + b[:-1]
+    plain = synergy(build_recording_from(additive), DOMAINS[0], DOMAINS[3], DOMAINS[6], seed=1)
+    assert plain.interaction_gain < report.interaction_gain
+
+
+# ── the nulls themselves ─────────────────────────────────────────────────
+
+
+def test_every_architecture_builds_and_runs():
+    for name in ARCHITECTURES:
+        system = architecture(name, seed=1)
+        recording = toy_recording(system, steps=300, seed=1)
+        assert recording.frames == 300
+        assert recording.width == sum(system.widths.values())
+
+
+def test_one_way_and_prompt_only_have_no_reentry():
+    for name in ("one_way", "prompt_only"):
+        report = analyse_graph(list(DOMAINS), toy_edges(architecture(name, seed=2), trials=8, seed=2))
+        assert not report.every_node_reenters, name
