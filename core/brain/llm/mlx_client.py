@@ -4117,6 +4117,7 @@ async def _foreground_owner_context(
     wait_started = loop.time()
     last_log_at = 0.0
     owner_acquired = False
+    acquired_stamp = 0.0
 
     while max(0.0, loop.time() - wait_started) <= wait_budget:
         acquired = _FOREGROUND_OWNER_LOCK.acquire(False)
@@ -4130,6 +4131,7 @@ async def _foreground_owner_context(
                 if holder is None:
                     _FOREGROUND_OWNER_NAME = owner_name
                     _stamp_foreground_owner(time.time())
+                    acquired_stamp = _FOREGROUND_OWNER_ACQUIRED_MONOTONIC
                     _FOREGROUND_OWNER_STALE_AFTER = stale_after
                     _FOREGROUND_OWNER_IS_USER_FACING = bool(
                         foreground_request
@@ -4238,7 +4240,10 @@ async def _foreground_owner_context(
         global _FOREGROUND_OWNER_ACQUIRED_MONOTONIC
         global _FOREGROUND_OWNER_HEARTBEAT_MONOTONIC
 
-        if _FOREGROUND_OWNER_NAME != owner_name:
+        if (
+            _FOREGROUND_OWNER_NAME != owner_name
+            or _FOREGROUND_OWNER_ACQUIRED_MONOTONIC != acquired_stamp
+        ):
             return
         _FOREGROUND_OWNER_NAME = None
         _FOREGROUND_OWNER_ACQUIRED_AT = 0.0
