@@ -15,6 +15,26 @@ class CallRecorder:
         return self.result
 
 
+def test_action_log_disk_failure_preserves_event_without_breaking_caller(monkeypatch, tmp_path):
+    import threading
+    from core.observability import unified_action_log as module
+
+    def fail_write(*args, **kwargs):
+        raise OSError("disk unavailable")
+
+    errors = []
+    monkeypatch.setattr(module, "get_file_write_gateway", lambda: SimpleNamespace(append_text=fail_write))
+    monkeypatch.setattr(module, "record_degradation", lambda source, exc: errors.append((source, exc)))
+    log = object.__new__(module.UnifiedActionLog)
+    log._entries = []
+    log._lock = threading.Lock()
+    log._persist_path = tmp_path / "actions.jsonl"
+    log.record("speak", "test", "reflex")
+    assert log.recent()[0]["action"] == "speak"
+    assert len(errors) == 1
+    assert isinstance(errors[0][1], OSError)
+
+
 def test_action_log_route_registered_before_spa_catchall():
     from interface import server as server_module
 
