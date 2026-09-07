@@ -1,4 +1,5 @@
 import json
+import asyncio
 import time
 from types import SimpleNamespace
 
@@ -1267,6 +1268,7 @@ async def test_executive_rejects_identity_mismatch_and_records_failure_obligatio
     assert record.reason == "identity_continuity_mismatch"
     failure = state.cognition.modifiers["failure_obligations"]
     assert failure["last_reason"] == "identity_continuity_mismatch"
+    await asyncio.sleep(0.05)
     continuity = ContinuityEngine()
     continuity.load()
     assert continuity._record is not None

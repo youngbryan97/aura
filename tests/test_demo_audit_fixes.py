@@ -60,6 +60,35 @@ async def test_api_action_log_returns_json_payload(monkeypatch):
     assert payload["items"][0]["action"] == "clock"
 
 
+@pytest.mark.asyncio
+async def test_unified_action_log_defers_persistence_on_running_loop(monkeypatch, tmp_path):
+    from core.observability.unified_action_log import UnifiedActionLog
+
+    class _AsyncGateway:
+        def __init__(self):
+            self.calls = []
+
+        async def append_text_async(self, path, text, **kwargs):
+            self.calls.append((path, text, kwargs))
+
+    gateway = _AsyncGateway()
+    monkeypatch.setattr(
+        "core.observability.unified_action_log.get_file_write_gateway",
+        lambda: gateway,
+    )
+    log = object.__new__(UnifiedActionLog)
+    log._entries = []
+    import threading
+    log._lock = threading.Lock()
+    log._persist_path = tmp_path / "unified_action_log.jsonl"
+
+    log.record("speak", "test", "reflex", outcome="ok")
+    assert gateway.calls == []
+    await __import__("asyncio").sleep(0)
+    assert len(gateway.calls) == 1
+    assert json.loads(gateway.calls[0][1])["action"] == "speak"
+
+
 def test_unified_action_log_rehydrates_from_disk(tmp_path):
     from core.config import config
     from core.observability.unified_action_log import UnifiedActionLog

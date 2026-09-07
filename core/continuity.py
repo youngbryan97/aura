@@ -5,6 +5,7 @@ somewhere else for a while and knows it.
 """
 
 import hashlib
+import asyncio
 import hmac
 import json
 import logging
@@ -67,6 +68,34 @@ def _get_continuity_path() -> Path:
         record_degradation("continuity", exc)
         logger.debug("Continuity path resolution fell back to local data path: %s", exc)
         return Path("data") / "continuity.json"
+
+
+def _persist_continuity_record(path: Path, record: "ContinuityRecord", source: str) -> None:
+    """Persist continuity without blocking an active event loop."""
+    payload = json.dumps(_signed_record_payload(record), indent=2)
+
+    async def _deferred() -> None:
+        try:
+            with local_internal_governed_scope(source, domain="file_write"):
+                await get_file_write_gateway().write_text_async(
+                    path, payload, source=source
+                )
+        except (RuntimeError, AttributeError, OSError, TypeError, ValueError) as exc:
+            record_degradation("continuity", exc)
+            logger.error("Deferred continuity save failed: %s", exc)
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        receipt = SimpleNamespace(
+            receipt_id=f"continuity:{source}:{int(time.time() * 1000)}",
+            domain="state_mutation",
+            source=source,
+        )
+        with governed_scope_sync(receipt):
+            get_file_write_gateway().write_text(path, payload, source=source)
+    else:
+        loop.create_task(_deferred())
 
 
 def _sanitize_restored_text(value: Any) -> str:
@@ -548,19 +577,7 @@ class ContinuityEngine:
         try:
             path = _get_continuity_path()
             path.parent.mkdir(parents=True, exist_ok=True)
-            from core.runtime.file_write_gateway import get_file_write_gateway
-
-            lifecycle_receipt = SimpleNamespace(
-                receipt_id=f"continuity_shutdown:{int(time.time() * 1000)}",
-                domain="state_mutation",
-                source="continuity.save_shutdown_state",
-            )
-            with governed_scope_sync(lifecycle_receipt):
-                get_file_write_gateway().write_text(
-                    path,
-                    json.dumps(_signed_record_payload(record), indent=2),
-                    source="continuity.shutdown_record",
-                )
+            _persist_continuity_record(path, record, "continuity.shutdown_record")
             self._record = record
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('continuity', e)
@@ -852,19 +869,9 @@ class ContinuityEngine:
         try:
             path = _get_continuity_path()
             path.parent.mkdir(parents=True, exist_ok=True)
-            from core.runtime.file_write_gateway import get_file_write_gateway
-
-            recovery_receipt = SimpleNamespace(
-                receipt_id=f"continuity_failure_obligation:{int(time.time() * 1000)}",
-                domain="state_mutation",
-                source="continuity.note_failure_obligation",
+            _persist_continuity_record(
+                path, self._record, "continuity.executive_failure_obligation"
             )
-            with governed_scope_sync(recovery_receipt):
-                get_file_write_gateway().write_text(
-                    path,
-                    json.dumps(_signed_record_payload(self._record), indent=2),
-                    source="continuity.executive_failure_obligation",
-                )
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('continuity', e)
             logger.error("Continuity failure obligation save failed: %s", e, exc_info=True)
