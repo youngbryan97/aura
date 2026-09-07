@@ -9356,6 +9356,28 @@ async def _measure_reply_quality_candidate(
     return snapshot
 
 
+#: An ellipsis is not an answer; it is the shape of one.
+#:
+#: Four places wrote `or "…"` where a reply might be empty, and each of them
+#: turned "there is no answer here" into something every downstream `if not
+#: reply` guard reads as an answer. LIVE 2026-08-17: "what's on my screen right
+#: now?" served as a bare ellipsis over a 172-character reply. LIVE 2026-09-07:
+#: "does the file X exist, and what is in it?" served as a bare ellipsis over
+#: 1,155 characters that quality had scored confidence=high.
+#:
+#: A caller that genuinely needs a placeholder — a receipt, a log line — can
+#: still write one. What no path may do is put one in front of a person and
+#: call the turn answered.
+_THE_SHAPE_OF_AN_ANSWER = {"…", "...", "…\n", ""}
+
+
+def _never_an_ellipsis(text: Any) -> str:
+    """The text, or empty where all that is left is the shape of an answer."""
+
+    candidate = str(text or "").strip()
+    return "" if candidate in _THE_SHAPE_OF_AN_ANSWER else candidate
+
+
 async def _stabilize_user_facing_reply(
     user_message: str,
     reply_text: Any,
@@ -9411,10 +9433,37 @@ async def _stabilize_user_facing_reply(
         user_message
     )
     text = _apply_aura_voice_shaping_compat(
-        _strip_unexpected_cjk_artifacts(user_message, str(reply_text or "").strip() or "…"),
+        _strip_unexpected_cjk_artifacts(user_message, str(reply_text or "").strip() or ""),
         user_message,
     )
-    text = _strip_user_visible_context_leaks(text) or "…"
+    stripped = _strip_user_visible_context_leaks(text)
+    if text and not stripped:
+        # An ellipsis is not an answer; it is the shape of one.
+        #
+        # The salvage inside the stripper has already tried and failed by the
+        # time this is reached, so the choice here is between an empty reply
+        # and something that LOOKS like one. `or "…"` chose the second, and it
+        # defeats every `if not reply` guard downstream — the turn then looks
+        # answered to everything that asks.
+        #
+        # LIVE 2026-09-07: "does the file X exist, and what is in it?" was
+        # served as a bare "…". The cortex had produced 1,155 characters and
+        # quality had scored them confidence=high, off_topic=False. The same
+        # shape is recorded in this file for 2026-08-17 at a different call
+        # site, where the fix was the salvage rather than the substitution.
+        logger.warning(
+            "Context-leak strip emptied a %d-char reply and no salvage held; "
+            "returning empty so the recovery paths run instead of serving an "
+            "ellipsis.",
+            len(text),
+        )
+        record_degradation(
+            "chat.context_leak_strip",
+            RuntimeError("stripping context leaks emptied a shaped reply"),
+            severity="warning",
+            action="returned empty rather than an ellipsis",
+        )
+    text = stripped
     repair_override = _chat_conversation_repair._maybe_build_conversation_repair_override(
         user_message, text
     )
@@ -11691,7 +11740,9 @@ async def _apply_regenerated_reply(
 
     safe_exchange_id = str(exchange_id or "")[:64]
     safe_session_id = str(session_id or "")[:64]
-    replacement_text = str(reply_text or "…")
+    # A stored replacement that is only an ellipsis is a turn recorded as
+    # answered when it was not.
+    replacement_text = _never_an_ellipsis(reply_text)
     replacement_sha256 = hashlib.sha256(replacement_text.encode("utf-8")).hexdigest()
     reservation_token = uuid.uuid4().hex
     async with _chat_memory_state._get_convo_lock():
@@ -12078,7 +12129,10 @@ async def api_chat_regenerate(
             user_message=user_msg,
             reply_text=str(reply_text or ""),
         )
-        response_data = {"response": reply_text or "…", "regenerated": True}
+        response_data = {
+            "response": _never_an_ellipsis(reply_text),
+            "regenerated": True,
+        }
         if desktop_requires_cognitive_engine:
             final_regen_contract = _regen_live_turn_contract(
                 response_confidence="high",
@@ -15519,7 +15573,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             assertion_response: Any = None,
         ):
             nonlocal pending_exchange_id
-            final_text = str(reply_text or "…").strip() or "…"
+            final_text = _never_an_ellipsis(reply_text)
             try:
                 from core.reasoning.symbolic_bridge import SymbolicBridge
 
@@ -18224,7 +18278,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         _final_reply = (
             _qualified_exact_reply
             if _qualified_exact_delivery
-            else (_strip_user_visible_context_leaks(reply_text) or "…")
+            # The reply that is actually served. An ellipsis here is a turn
+            # that looks answered to everything downstream and says nothing to
+            # the person.
+            else _never_an_ellipsis(_strip_user_visible_context_leaks(reply_text))
         )
         # The recorded answer is applied HERE, after every repair, regeneration
         # and shaping pass, because everywhere earlier it was discarded.
