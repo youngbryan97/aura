@@ -7,6 +7,8 @@ import re
 from collections.abc import Iterable, Mapping
 from typing import Any, NamedTuple
 
+from core.brain.llm.context_budget import split_on_volatility
+
 logger = logging.getLogger("Aura.ChatFormat")
 
 _ROLE_ALIASES = {
@@ -454,7 +456,11 @@ def system_first(messages: object) -> object:
     """
     if not isinstance(messages, (list, tuple)) or not messages:
         return messages
-    from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE, is_stamped_grounding
+    from core.utils.injected_blocks import (
+        RUNTIME_EVIDENCE_ROLE,
+        is_stamped_grounding,
+        stamp_grounding,
+    )
 
     prepared = list(messages)
     first_system_seen = False
@@ -497,13 +503,46 @@ def system_first(messages: object) -> object:
     first = system[0]
     canonical = dict(first) if isinstance(first, dict) else {}
     canonical["role"] = "system"
-    canonical["content"] = _merged_system_content(system)
+    merged = _merged_system_content(system)
+    canonical["content"] = merged
+
+    # Merging every authority message into one is what the chat templates
+    # require. Merging a PER-TURN section into it is what made the merged
+    # message a different token sequence on every turn, so a conversation
+    # could never reuse its own KV prefix. Measured live 2026-09-07: a stable
+    # head plus `## LIVE TONE` — mood and tone, new each turn — still gave
+    # `matched 0` of 1,866 tokens and 12.2s of prefill on a 16s turn.
+    #
+    # The volatility of each section is already declared. What governs this
+    # turn travels with this turn, immediately before the person's message,
+    # where it is still read and no longer costs the prefix.
+    tail = ""
+    if isinstance(merged, str):
+        head, tail = split_on_volatility(merged)
+        if tail:
+            canonical["content"] = head
     logger.info(
-        "Canonicalized %d authority message(s) at the front of a %d-message conversation.",
+        "Canonicalized %d authority message(s) at the front of a %d-message "
+        "conversation%s.",
         len(system),
         len(source),
+        f"; {len(tail)} chars of per-turn sections moved beside the turn" if tail else "",
     )
-    return [canonical, *rest]
+    if not tail:
+        return [canonical, *rest]
+
+    turn_state = stamp_grounding({
+        "role": "system",
+        "content": tail,
+        "metadata": {"type": "turn_state", "volatility": "per_turn"},
+    })
+    turn_state["role"] = RUNTIME_EVIDENCE_ROLE
+    insert_at = len(rest)
+    for index in range(len(rest) - 1, -1, -1):
+        if _message_role(rest[index]) == "user":
+            insert_at = index
+            break
+    return [canonical, *rest[:insert_at], turn_state, *rest[insert_at:]]
 
 
 def render_chat_template(

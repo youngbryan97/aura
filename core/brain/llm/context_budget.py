@@ -616,3 +616,46 @@ def load_volatility() -> int:
         ):
             _CHANGED[str(header)] = [counts[0], counts[1]]
     return len(_CHANGED)
+
+
+#: A section that changes at least this often must not sit inside the authority
+#: head every turn shares. `volatility_of` returns 0.0 for the sections the
+#: prior calls stable, 1/3 for the slow ones, 2/3 for the per-turn ones, the
+#: measured rate once there is one, and 1.0 for a section nobody has watched.
+#: Half is the line between "usually the same" and "usually not".
+VOLATILE_AT_OR_ABOVE = 0.5
+
+
+def split_on_volatility(content: str) -> tuple[str, str]:
+    """Split assembled prompt text into (stable head, per-turn tail).
+
+    The authority head is the only part of a prompt a KV cache can reuse, and
+    one per-turn section inside it makes the whole message a different token
+    sequence. Measured live 2026-09-07: the head was stable and `## LIVE TONE`
+    — mood and tone, new each turn — was merged into the same message, so the
+    cache still matched 0 tokens of 1,866 and prefill was 12.2s of a 16s turn.
+
+    What decides is `volatility_of`, so a section that has actually been
+    watched is ranked on what it did rather than on the authored prior, and a
+    section nobody has watched moves out — where being wrong costs a slightly
+    later position rather than a lost prefix.
+
+    Section order is preserved within each half. Nothing is dropped or
+    reworded.
+    """
+
+    _take_back_what_earlier_runs_measured()
+    if not content:
+        return content, ""
+    matches = list(_HEADER.finditer(content))
+    if not matches:
+        return content, ""
+    preamble = content[: matches[0].start()]
+    stable: list[str] = []
+    volatile: list[str] = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
+        section = content[match.start() : end]
+        target = volatile if volatility_of(section) >= VOLATILE_AT_OR_ABOVE else stable
+        target.append(section)
+    return (preamble + "".join(stable)).rstrip(), "".join(volatile).strip()
