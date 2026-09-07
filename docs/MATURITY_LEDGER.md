@@ -296,3 +296,29 @@ fails without the change and passes with it.
 | Wave2 #13 | P1 | A prepared action batch is mutable and unordered | Immutable ActionBatch, blocked and executable separated, results joined by action id and emitted in the original order, with a tool-concurrency limit. | TODO |
 | Wave2 #14 | P1 | Runtime conceptual compactness scored 4/10 and decomposability 5/10 | Continue the decomposition; chat.py is 24,185 lines down to 18,734 and the tree is 30,303 over its oversize budget. | TODO |
 | Wave2 #15 | P1 | RLC generation ends at the token limit with the private channel still open | 3,201 tokens of private reasoning, none of it past the public-answer boundary, so the parent correctly saw no public answer and the feature still failed. | TODO |
+
+## Third wave — a second source-level pass, 2026-09-06
+
+The same reviewer went back into the implementations and found what the first
+pass had been too generous about. Its sharpest finding was mechanical: the RSI
+planner could emit `developmental` and `asked_the_forge`, the executor's
+dispatch had a branch for neither, and the targeted RSI suite was 15/15 green.
+A part exists, a test proves the part exists, another part refers to it, and
+the behavioural chain still does not close.
+
+| Row | Pri | Finding | Closure | Status |
+| --- | --- | --- | --- | --- |
+| Wave3 #1 | P0 | The RSI planner could name two actions the executor could not run | One tuple both sides derive from, and a test that fails when they diverge. | DONE |
+| Wave3 #2 | P0 | The generic developmental gate kept anything that returned a sentence | A held-out probe before and after, and a change that does not pay is put back. | DONE |
+| Wave3 #3 | P0 | `judges_itself` was a boolean nobody checked | A self-judging action returns what it measured; one that shows nothing is counted unmeasured and named. | DONE |
+| Wave3 #4 | P1 | An action that installs nothing was counted as judging itself | Asking declares it installs nothing, so three real claims stop hiding behind one honest one. | DONE |
+| Wave3 #5 | P1 | Improvements to the improvement machinery could judge themselves | An action over the order, the proposer, or what a change is worth cannot take the opt-out. | DONE |
+| Wave3 #6 | P0 | The DNU validator read the margin without reading the parity report | Parity is a prerequisite; a VOID comparison cannot satisfy the load-bearing proof. | DONE |
+| Wave3 #7 | P1 | The influence campaign has an owner, an hourly schedule and no verdicts | Every consideration counted, the condition that refuses most often named, and the record survives the process. | DONE |
+| Wave3 #8 | P1 | Three faculty deltas of 0.000 reported where the faculty was not in the path | Sampling temperature comes through the affect channel; one faculty is MEASURED and gives an honest null. | DONE |
+| Wave3 #9 | P1 | The operator search reported no denominator | 380 terms at depth three over the bare floor, counted from the generator's own recurrence; the cap of 4,000 exhausts it. | DONE |
+| Wave3 #10 | P1 | Two of three matched arms still cannot be measured | Route every arm's generation through the cognitive engine with the faculties constructed, so the channels sit in the path they act on. | TODO |
+| Wave3 #11 | P1 | The skill forge is not a closed loop | Capability gap to candidate to held-out validation to installation to longitudinal outcome, with each step's evidence carried. | TODO |
+| Wave3 #12 | P1 | Her library offers no leaves, so the search horizon has never moved | Thirteen library entries are worth more than a whole extra depth; the mechanism that widens the search has nothing in it. | TODO |
+| Wave3 #13 | P1 | The campaign's admission bar may be unmeetable on this host | Read the counts after a live stretch and decide whether the bar or the campaign is what should change. | TODO |
+| Wave3 #14 | P2 | Global semantic consistency, not local correctness, is the binding constraint | Every gate this pass added counts what governs rather than what exists. Continuing work rather than a row that closes. | ONGOING |
