@@ -31,9 +31,28 @@ def engine():
 
 
 def _routine_failures(engine, count: int) -> None:
-    """The exact severity/stakes the live runtime recorded."""
-    for _ in range(count):
-        engine.record_failure("continuous_cognition", 0.55, 0.60)
+    """The exact severity/stakes the live runtime recorded, on distinct faults.
+
+    Forty minutes of ordinary use is many different things going wrong, not
+    one going wrong forty times. The distinction became load-bearing on
+    2026-09-07, when one morphogenesis fault repeating once a second drove
+    both axes to 1.00 in under a minute — see
+    `test_a_repeating_fault_is_one_standing_fact.py`. The uphill half of the
+    ratchet this file guards is about the first case, and it is still real.
+    """
+    for index in range(count):
+        engine.record_failure(
+            "continuous_cognition", 0.55, 0.60, signature=f"routine-{index}"
+        )
+
+
+def test_the_same_fault_repeating_is_not_ordinary_use(engine) -> None:
+    """The other half of the premise, so neither can drift into the other."""
+    for _ in range(20):
+        engine.record_failure(
+            "continuous_cognition", 0.55, 0.60, signature="one-standing-fault"
+        )
+    assert engine.profile.depletion < engine.DEPLETION_THRESHOLD
 
 
 def test_routine_failures_still_deplete(engine) -> None:

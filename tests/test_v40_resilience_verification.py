@@ -17,9 +17,14 @@ class TestResilienceEngine(unittest.IsolatedAsyncioTestCase):
         # Should now be in FRICTION or STRAIN
         self.assertIn(self.engine.profile.state, [ResilienceState.FRICTION, ResilienceState.STRAIN])
 
-        # Multiple failures
-        for _ in range(5):
-            self.engine.record_failure("tool_execution", severity=0.9, stakes=1.0)
+        # Multiple failures. Distinct ones: the same fault arriving five times
+        # is one standing fact and is damped on purpose, which
+        # test_a_repeating_fault_is_one_standing_fact.py pins.
+        for index in range(5):
+            self.engine.record_failure(
+                "tool_execution", severity=0.9, stakes=1.0,
+                signature=f"tool_execution:distinct-{index}",
+            )
 
         # Should definitely be in DEPLETION now
         self.assertEqual(self.engine.profile.state, ResilienceState.DEPLETION)

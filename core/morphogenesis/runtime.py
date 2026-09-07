@@ -692,6 +692,42 @@ class MorphogeneticRuntime:
         for cell in self.registry.active_cells():
             by_subsystem.setdefault(cell.manifest.subsystem, []).append(cell.cell_id)
 
+        # The degree budget the transaction will be validated against, counted
+        # from what the graph already holds. The reverse edge is what overran
+        # it: four bindings per arriving cell is bounded, but the peer on the
+        # other end of them is not, so several cells arriving into one
+        # subsystem gave a shared peer more outbound edges than the graph
+        # allows. The transaction then failed as a whole — node adds, removals
+        # and all — and the next tick proposed exactly the same thing, once a
+        # second, for the life of the process. A proposer that does not know
+        # the constraint that judges it cannot propose something admissible.
+        out_degree: dict[str, int] = {}
+        in_degree: dict[str, int] = {}
+        existing: set[tuple[str, str, Any, str]] = set()
+        for edge in self.graph.edges():
+            out_degree[edge.source] = out_degree.get(edge.source, 0) + 1
+            in_degree[edge.target] = in_degree.get(edge.target, 0) + 1
+            existing.add((edge.source, edge.target, edge.edge_type, edge.port or ""))
+        max_out = self.graph.max_out_degree
+        max_in = self.graph.max_in_degree
+        clipped = 0
+
+        def admit(source: str, target: str) -> bool:
+            nonlocal clipped
+            identity = (source, target, EdgeType.OBSERVE, "")
+            if identity in existing:
+                return False
+            if out_degree.get(source, 0) >= max_out or in_degree.get(target, 0) >= max_in:
+                clipped += 1
+                return False
+            out_degree[source] = out_degree.get(source, 0) + 1
+            in_degree[target] = in_degree.get(target, 0) + 1
+            existing.add(identity)
+            edges.append(MorphEdge(
+                source=source, target=target, edge_type=EdgeType.OBSERVE, weight=0.6,
+            ))
+            return True
+
         for cell_id in sorted(arrived):
             cell = self.registry.get(cell_id)
             if cell is None:
@@ -705,13 +741,34 @@ class MorphogeneticRuntime:
                     peer for peer in by_subsystem.get(cell.manifest.subsystem, ())
                     if peer != cell_id and peer in live
                 ]
-            for member in members[:4]:
-                edges.append(MorphEdge(
-                    source=cell_id, target=member, edge_type=EdgeType.OBSERVE, weight=0.6,
-                ))
-                edges.append(MorphEdge(
-                    source=member, target=cell_id, edge_type=EdgeType.OBSERVE, weight=0.6,
-                ))
+            # Attach to the peers with the most room, not the first four by
+            # name. Twenty cells arriving into one subsystem all chose the
+            # same alphabetically-first peers, saturated them, and left the
+            # last four with no binding at all — connected to nothing, which
+            # is the partition the budget was supposed to prevent.
+            candidates = sorted(
+                members,
+                key=lambda peer: (
+                    out_degree.get(peer, 0) + in_degree.get(peer, 0), peer
+                ),
+            )
+            taken = 0
+            for member in candidates:
+                if taken >= 4:
+                    break
+                # The forward edge is what joins the arriving cell to its
+                # component, so it is offered first and the reverse one only
+                # if there is room. A dropped reverse edge costs symmetry,
+                # not connectivity.
+                forward = admit(cell_id, member)
+                admit(member, cell_id)
+                if forward:
+                    taken += 1
+        if clipped:
+            logger.debug(
+                "Morphogenesis population sync left %d attachment(s) unbound at the "
+                "degree budget (max_out=%d, max_in=%d)", clipped, max_out, max_in,
+            )
         return edges
 
     def _strengthen_coactivation(self, activated: list[str]) -> None:

@@ -88,6 +88,16 @@ class ResilienceEngine:
     # same one rather than a second, invented number.
     FRUSTRATION_GAIN = 0.4
     DEPLETION_GAIN = 0.15
+    # A repeat of a failure already held is not new information about the
+    # world. One morphogenesis fault repeating once a second drove frustration
+    # and depletion to 1.00 in under a minute on the live runtime, so every
+    # reply afterwards was written from saturation caused by an internal
+    # bookkeeping error nobody had told her about. The nth repeat inside the
+    # window lands at 1/n, so the same fact arriving forty times moves the
+    # state about as far as four distinct ones do, and a genuinely new failure
+    # still lands in full.
+    HABITUATION_WINDOW_S = 300.0
+    MAX_TRACKED_SIGNATURES = 512
     DEPLETION_THRESHOLD = 0.75
     STRAIN_THRESHOLD = 0.45
     FRICTION_THRESHOLD = 0.20
@@ -99,6 +109,8 @@ class ResilienceEngine:
         self._update_task: asyncio.Task | None = None
         self._snapshot_cache: dict[str, object] | None = None
         self._snapshot_cache_at = 0.0
+        # signature -> (repeats inside the window, when it was last seen)
+        self._repeats: dict[str, tuple[int, float]] = {}
 
     async def pulse(self) -> dict[str, float]:
         """Metabolic heartbeat — ensures decay is applied even if loop stalls."""
@@ -130,16 +142,50 @@ class ResilienceEngine:
 
     # ── Event Ingestion ───────────────────────────────────────────────────
 
+    def _novelty(self, signature: str, now: float) -> float:
+        """1.0 for a failure not seen lately, 1/n for the nth repeat of one."""
+        repeats, last_seen = self._repeats.get(signature, (0, 0.0))
+        if now - last_seen > self.HABITUATION_WINDOW_S:
+            repeats = 0
+        repeats += 1
+        if len(self._repeats) >= self.MAX_TRACKED_SIGNATURES:
+            stale = sorted(self._repeats.items(), key=lambda item: item[1][1])
+            for key, _ in stale[: len(stale) // 4 or 1]:
+                self._repeats.pop(key, None)
+        self._repeats[signature] = (repeats, now)
+        return 1.0 / repeats
+
+    def repetition_state(self) -> dict[str, int]:
+        """What is currently repeating, for the health surface to report."""
+        now = time.time()
+        return {
+            signature: repeats
+            for signature, (repeats, seen) in self._repeats.items()
+            if repeats > 1 and now - seen <= self.HABITUATION_WINDOW_S
+        }
+
     def record_failure(
         self,
         domain: str,
         severity: float,
         stakes: float = 0.5,
+        signature: str | None = None,
     ) -> ResilienceState:
-        """Record a failure event and update the resilience profile."""
+        """Record a failure event and update the resilience profile.
+
+        ``signature`` names WHICH failure this is, so the same one recurring is
+        one fact arriving repeatedly rather than a world getting steadily
+        worse. A caller that does not name one is keyed by its domain and the
+        magnitude it reported: "planning failed at 0.5/0.5" and "planning
+        failed at 0.8/1.0" are then two facts rather than one, which is the
+        most a caller that says nothing more can be read to mean.
+        """
         now = time.time()
         severity = self._clamp01(severity)
         stakes = self._clamp01(stakes)
+        novelty = self._novelty(
+            signature or f"{domain}@{severity:.3f}/{stakes:.3f}", now
+        )
 
         event = FailureEvent(
             timestamp=now,
@@ -153,10 +199,10 @@ class ResilienceEngine:
         if len(history) > 100:
             self.profile.failure_history = history[-100:]
 
-        frustration_delta = severity * stakes * self.FRUSTRATION_GAIN
+        frustration_delta = severity * stakes * self.FRUSTRATION_GAIN * novelty
         self.profile.frustration = min(1.0, self.profile.frustration + frustration_delta)
 
-        depletion_delta = severity * stakes * self.DEPLETION_GAIN
+        depletion_delta = severity * stakes * self.DEPLETION_GAIN * novelty
         self.profile.depletion = min(1.0, self.profile.depletion + depletion_delta)
 
         self._update_state()
@@ -164,11 +210,12 @@ class ResilienceEngine:
         self._invalidate_snapshot_cache()
 
         logger.info(
-            "💔 [Resilience] Failure recorded [%s] sev=%.2f stakes=%.2f → "
+            "💔 [Resilience] Failure recorded [%s] sev=%.2f stakes=%.2f novelty=%.2f → "
             "frustration=%.2f depletion=%.2f state=%s",
             domain,
             severity,
             stakes,
+            novelty,
             self.profile.frustration,
             self.profile.depletion,
             self.profile.state.value,
@@ -206,6 +253,11 @@ class ResilienceEngine:
         "reduces frustration more than it reduces depletion" means.
         """
         stakes = self._clamp01(stakes)
+        # The condition changed, so what was repeating is no longer the same
+        # standing fact. Anything that starts failing again after this lands
+        # in full.
+        for signature in [key for key in self._repeats if key.startswith(domain)]:
+            self._repeats.pop(signature, None)
         history = self.profile.failure_history
         recent = history[-20:]
         recent_failures_in_domain = sum(1 for e in recent if e.domain == domain and not e.recovered)

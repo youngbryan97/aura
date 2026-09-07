@@ -21,6 +21,35 @@ class FakeResilience:
         return SimpleNamespace(value="friction")
 
 
+class SigningResilience(FakeResilience):
+    """The current engine: it accepts the name of WHICH failure this is."""
+
+    def record_failure(self, domain: str, severity: float, stakes: float,
+                       signature: str | None = None):
+        self.failures.append({
+            "domain": domain, "severity": severity,
+            "stakes": stakes, "signature": signature,
+        })
+        return SimpleNamespace(value="friction")
+
+
+def test_the_router_names_which_degradation_it_is_recording():
+    """Without the name, one fault repeating reads as a worsening world."""
+    resilience = SigningResilience()
+    router = DegradationRepairRouter(
+        service_getter=lambda name: {"resilience_engine": resilience}.get(name),
+        cooldown_seconds=0.0,
+    )
+    router.route(
+        record=_record(subsystem="morphogenesis.runtime"),
+        error=RuntimeError("out-degree budget exceeded"),
+        incident=SimpleNamespace(incident_id="inc-1", occurrence_count=1),
+    )
+    signature = resilience.failures[0]["signature"]
+    assert signature and signature.startswith("degradation:morphogenesis.runtime:")
+    assert signature != "degradation:morphogenesis.runtime"
+
+
 class FakeSelfModification:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
