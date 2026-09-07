@@ -77,6 +77,24 @@ establishes and what it does not.
 which was the pass that caught the commonest form, `latest > mean(scores)`.
 All sixteen grandfathered sites were read and are legitimate.
 
+## The interiority layer, after
+
+All 43 faculties, run against `core/interiority/proving.py`:
+
+| | |
+|---|---|
+| counterfactuals run / held | 90 / 90, none failed |
+| nulls run / held | 43 / 43 |
+| faculties reaching behaviour | 43 of 43 |
+| decorative | 0 |
+
+The phenomenology gauntlet still returns `load_bearing` at an odds shift of
+2047.7 over three measurable fields, with every field 100% carried by the
+welfare valence and 0% surviving its lesion — the bottleneck that the earlier
+architecture pass installed, still holding after everything above landed on
+top of it. Ten of the thirteen protocols are not attempted; they need the
+resident 27B.
+
 ## The mistake
 
 `core/cognition/primitive_invention.py` already existed and I wrote over it,

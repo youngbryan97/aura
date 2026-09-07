@@ -1,5 +1,5 @@
 {
-  "digest": "2b856bf3efe73da8627adda2936c10a6f636cd83b47e8ea6206dc81d321ca4aa",
+  "digest": "51cb31b3cf9ade2ea1ec53a80478e7247ca9073f6ba25e34ac7858a3398eed6f",
   "model_digest": "",
   "note": "Second registration. Run 1 measured caution alone and S1 failed because capability damage correctly does not raise caution; the measure is now L2 displacement over the whole policy vector, which privileges no axis. run1_caution_only.json is kept. In-process only: ten of the thirteen protocols need the resident 27B and are not attempted.",
   "predictions": [
@@ -28,7 +28,7 @@
       "supports": "H1"
     }
   ],
-  "registered_at": 1788511161.593,
+  "registered_at": 1788773370.504,
   "schema": "aura.phenomenology.preregistration.v1",
   "source_commit": ""
 }
