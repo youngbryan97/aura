@@ -898,8 +898,11 @@ def test_the_volume_and_gap_layers_find_what_the_call_graph_cannot(layered_repo)
     # Neither pair is joined by a call.
     assert multilayer.unique_fraction(Layer.VOLUME) == pytest.approx(1.0)
     census = multilink_census(multilayer)
-    assert census["volume_only"] >= 1
-    assert census["gap_only"] >= 1
+    # The census keys are the set of layers joining a pair, so a pair joined only
+    # by a topic is "volume" and one joined by a call as well is "volume+wired".
+    assert census.get("volume", 0) >= 1
+    assert census.get("gap", 0) >= 1
+    assert all("+" not in key or "wired" in key for key in census)
 
 
 def test_a_sentence_is_not_a_topic(layered_repo):
