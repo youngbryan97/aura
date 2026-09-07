@@ -722,10 +722,15 @@ class ConstitutionalCore:
                     observation=observation,
                     actual_outcome=actual_outcome[:500],
                 )
+                # No belief_updates argument: the loop derives them from the
+                # record it holds. Passing `[]` here was the reason the REVISE
+                # stage — the belief-revision push, the ledger transition, the
+                # self-model edge — could never fire from a tool execution.
+                # Every completed intention logged "0 belief updates, 0
+                # self-model updates" because its only caller had decided that
+                # in advance.
                 intention_loop.revise(
                     handle.intention_id,
-                    belief_updates=[],
-                    self_model_updates=[],
                     success=success,
                     status="deferred" if deferred_result else None,
                 )

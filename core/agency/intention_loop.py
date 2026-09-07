@@ -427,6 +427,67 @@ class IntentionLoop:
 
     # ── REVISE: Update beliefs and self-model ───────────────────────────
 
+    def _capability_confidence(self, tool_name: str) -> tuple[float, int]:
+        """How often this capability has done what it was asked, and on how many.
+
+        Laplace-smoothed, so one success is not certainty and a capability
+        nobody has used yet starts at even odds rather than at a number
+        somebody picked.
+        """
+
+        successes = 0
+        attempts = 0
+        for record in self._completed_intentions:
+            for action in record.actions_taken:
+                if action.tool_name != tool_name:
+                    continue
+                attempts += 1
+                successes += 1 if action.success else 0
+        return (successes + 1) / (attempts + 2), attempts
+
+    def _beliefs_this_cycle_established(
+        self, rec: "IntentionRecord"
+    ) -> List[BeliefUpdate]:
+        """What the cycle learned, read off the record it already holds.
+
+        The REVISE stage had exactly one caller and it passed
+        ``belief_updates=[]``, hardcoded — so the belief-revision edge, the
+        ledger transition and the push into BeliefRevisionEngine could never
+        fire. The whole stage was correct, complete, and fed nothing.
+
+        A cycle that used a capability establishes something about that
+        capability: whether it does what she intends. The confidence is the
+        measured success rate over completed intentions, not a number chosen
+        here, and the observation is this cycle's own outcome.
+        """
+
+        seen: dict[str, bool] = {}
+        for action in rec.actions_taken:
+            name = str(action.tool_name or "").strip()
+            if not name or name == "unknown":
+                continue
+            # A capability used twice in one cycle is one observation of it.
+            seen[name] = seen.get(name, True) and bool(action.success)
+        updates: List[BeliefUpdate] = []
+        for name, worked in seen.items():
+            before, attempts = self._capability_confidence(name)
+            after = (
+                (before * (attempts + 2) + (1 if worked else 0)) / (attempts + 3)
+            )
+            updates.append(
+                BeliefUpdate(
+                    belief=f"{name} does what I intend when I use it",
+                    old_confidence=round(before, 4),
+                    new_confidence=round(after, 4),
+                    reason=(
+                        f"{'succeeded' if worked else 'failed'} on "
+                        f"{rec.intention[:80]!r}; surprise {rec.surprise:.2f} "
+                        f"over {attempts} earlier attempt(s)"
+                    ),
+                )
+            )
+        return updates
+
     def revise(
         self,
         intention_id: str,
@@ -437,14 +498,23 @@ class IntentionLoop:
         success: bool = True,
         status: Optional[str | IntentionStatus] = None,
     ) -> None:
-        """Close the loop: record revisions and finalize the intention."""
+        """Close the loop: record revisions and finalize the intention.
+
+        ``belief_updates=None`` means "you worked it out, tell me" and the loop
+        derives them from the record. An explicit empty list still means none,
+        so a caller that has decided there is nothing to revise keeps saying so.
+        """
         with self._lock:
             rec = self._active_intentions.get(intention_id)
             if rec is None:
                 logger.warning("revise: unknown intention_id %s", intention_id)
                 return
 
-            rec.belief_updates = belief_updates or []
+            rec.belief_updates = (
+                list(belief_updates)
+                if belief_updates is not None
+                else self._beliefs_this_cycle_established(rec)
+            )
             rec.self_model_updates = self_model_updates or []
             rec.tension_created = tension_created
             rec.tension_resolved = tension_resolved
