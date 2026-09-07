@@ -1381,7 +1381,9 @@ class PhenomenologicalExperiencer:
         self._running = False
         if self._update_task:
             self._update_task.cancel()
-        self._save_phenomenal_memory()
+            await asyncio.gather(self._update_task, return_exceptions=True)
+            self._update_task = None
+        await asyncio.to_thread(self._save_phenomenal_memory)
         logger.info("🌟 PhenomenologicalExperiencer OFFLINE")
 
     # ── Workspace Subscriber ──────────────────────────────────────────────────
