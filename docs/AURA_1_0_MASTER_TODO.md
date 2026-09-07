@@ -184,6 +184,63 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] Q13 Final 1.0 adjudication: all required child items closed with current
   evidence, no concealed blockers, and explicit unresolved research boundaries.
 
+## Live session 2026-09-07: what the runtime showed
+
+Five root-cause defects found by running the desktop the way a person does and
+watching the neural stream. Each is pushed with a regression that fails without
+the fix.
+
+1. **The runtime was wedged when this session started.** Every endpoint
+   returned nothing for thirty-three minutes with the process alive and port
+   8000 listening. Eleven threads were blocked in `logging.Handler.acquire`:
+   `TerminalMonitor.emit` logged a sepsis warning, which reached
+   `OmniLogHandler`; `OmniLogHandler.emit` called the terminal monitor. Each
+   held one handler lock and wanted the other. This is the 2026-08-25 "API
+   wedges while the runtime lives" failure, whose mechanism had not been found.
+   Fixed generally at the dispatch funnel — 14fbd8990, evidence
+   [R06 receipt](evidence/R06_LOGGING_HANDLER_DEADLOCK_2026-09-07.md).
+2. **A population sync that could never commit**, 1.3 times a second for the
+   life of the process, 48% of every log line. The attachment builder capped
+   each arriving cell at four bindings and added an uncapped reverse edge, so a
+   shared peer reached out-degree 18 against a budget of 16 — 026143708.
+3. **One repeating fault read as a worsening world.** Each of those 43 identical
+   faults was recorded as a fresh failure and pinned frustration and depletion
+   at 1.00 within a minute, so every reply afterwards was written from
+   saturation caused by internal bookkeeping. The nth repeat inside the window
+   now lands at 1/n — 026143708.
+4. **The prompt cache never reused anything.** The desktop lane built its
+   system prompt from five hand-written variants chosen by contract flag, so
+   the front of the prompt was a different token sequence on almost every turn:
+   `matched 0 (0.0%)` of 1,844 tokens, prefill 17.7s of a 22s turn. One
+   constant head — b442924f2 — and per-turn sections moved beside the turn on
+   declared volatility — 2ddd551f3. Measured: a casual greeting fell from 46s
+   to 29s and an arithmetic question from 62s to 16s.
+5. **A miss with no diagnosis.** The partial-hit path named the divergent
+   block; the full miss said only that it happened. It now reports how far the
+   prompt matched, what diverged, and why a turn retained nothing — 439a21358.
+
+Open from the same session, with evidence and no fix yet:
+
+- Consecutive turns of one conversation still share no token prefix even with
+  a stable head: different lanes assemble structurally different prompts, so
+  turn N+1 does not extend turn N. Full reuse needs one canonical transcript
+  per session. Owned by R11.
+- Nine separate context blocks are prepended to the user's own message text in
+  `interface/routes/chat_preflight.py`. For a 35-character greeting the prompt
+  was 7,825 characters, of which 0.45% was the person. Owned by R11 and U01.
+- A 26-character reply from the cortex, `confidence=high`, was discarded and
+  the turn reported "the cortex was unavailable" while the cortex had just
+  answered; a 9B fallback answered instead with capability boilerplate glued
+  on. Owned by R05 and U01.
+- `runtime_revision_unverified` blocks `status: ok` after a clean launch.
+  Owned by R02.
+- The autonomous planner asks the model for a JSON array and gets prose
+  (`ValueError: No JSON array in response`), then uses a deterministic plan.
+  Owned by U07.
+- The 14 outstanding Gap Atlas campaigns are all marked BLOCKED on "a live
+  display and the resident model". Both are available in this session, so the
+  block no longer holds. Owned by G09, G12, U05.
+
 ## Current evidence, not closure
 
 Public-boundary/health-preview fix d472d2268 and progress-owner fix 2aefb6f46
