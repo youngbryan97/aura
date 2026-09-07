@@ -5719,6 +5719,21 @@ async def pursue_on_screen(
         # Name it. "no_move_available" would describe the symptom of reading a
         # page that is not the task's, and hide that the browser had moved.
         result["outcome"] = "navigated_away"
+    # How it ended, said once, whatever ended it.
+    #
+    # A run that stopped left nothing behind saying so. Live 2026-09-07,
+    # driving a real game: nineteen moves, a rule worked out, and then the
+    # log went quiet — no outcome, no reason, no count. Whether she had
+    # finished, run out of budget, lost the window or hit a wall was not
+    # recoverable from anything she wrote down, and every question about the
+    # run had to start by guessing which of those it was.
+    logger.info(
+        "the run is over: %s after %d move(s)%s%s",
+        result.get("outcome") or ("done" if result.get("completed") else "stopped"),
+        len(moves),
+        f", {result['restarts']} restart(s)" if result.get("restarts") else "",
+        f" — {result['error']}" if result.get("error") else "",
+    )
     return result
 
 
