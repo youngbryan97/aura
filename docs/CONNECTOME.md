@@ -233,6 +233,37 @@ The connectome beats knowing what is hot by five times and loses to knowing what
 just ran. Weighting neighbours by contact count recovers most of the gap and does
 not close it.
 
+## Do cells that do the same thing wire together?
+
+MICrONS recorded 75,909 neurons in a mouse's visual cortex and reconstructed the
+same tissue at synapse resolution, co-registered to 3.8 micrometres, and used the
+combination to test a rule that had been assumed for decades: neurons tuned to
+similar things preferentially connect. The rule held across layers and across
+areas.
+
+The test needs structure and function measured in the same animal. Aura has both
+by construction.
+
+| | mean correlation |
+| --- | --- |
+| connected pairs | **0.769** |
+| degree-preserving rewiring | 0.086 |
+
+z = 227 over eight rewirings, on 3,320 connected pairs among 2,386 cells that
+fired often enough to correlate.
+
+The null matters twice over. A degree-preserving rewiring keeps every cell as
+busy and as connected as it was, so the effect is not about which cells are
+loud. And each cell is centred *within each workload* before anything is
+correlated, so two cells that are simply busy while the same thing is being done
+contribute nothing. Removing the workload moved the result from 0.773 to 0.769.
+
+This reconciles with the forecasting result rather than contradicting it. Wiring
+and activity are strongly coupled. Predicting a cell's next value from its
+neighbours' last few is still nearly impossible at this frame rate, because
+forecasting is a harder question than correlation and a 914 ms frame has already
+averaged the propagation away.
+
 ## Three things a nervous system cannot do to itself
 
 **Delays solved rather than grown.** A brain makes convergent signals arrive

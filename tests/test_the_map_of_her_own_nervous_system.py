@@ -1232,3 +1232,81 @@ def test_the_projection_matrix_normalises_by_the_size_of_the_source():
     # weigh from a four-cell one.
     assert weights[("small", "target")] == pytest.approx(4.0)
     assert weights[("big", "target")] == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# Do cells that do the same thing wire together?
+# ---------------------------------------------------------------------------
+
+
+def _wired_activity(cells: int, frames: int, *, coupled: bool, seed: int):
+    """A graph and a recording that either flows through it or does not."""
+    import numpy as np
+
+    from core.connectome.activity import ActivityTrace
+
+    rng = np.random.default_rng(seed)
+    edges = [(f"c{i}", f"c{(i + 1) % cells}", 1) for i in range(cells)]
+    snapshot = _graph_snapshot(edges)
+    values = rng.normal(5.0, 1.0, size=(frames, cells))
+    if coupled:
+        # Neighbours on the ring share a driver, so connected pairs move
+        # together and pairs that a rewiring would create do not.
+        for i in range(cells):
+            shared = rng.normal(0.0, 3.0, size=frames)
+            values[:, i] += shared
+            values[:, (i + 1) % cells] += shared
+    trace = ActivityTrace(
+        uids=tuple(f"c{i}" for i in range(cells)),
+        conditions=tuple(f"stim{t // 30 % 2}" for t in range(frames)),
+        spikes=[],
+        array=values.astype("float32"),
+    )
+    return snapshot, trace
+
+
+def test_like_to_like_is_found_when_it_is_there():
+    from core.connectome.likewise import test_like_to_like
+
+    snapshot, trace = _wired_activity(80, 240, coupled=True, seed=5)
+    result = test_like_to_like(trace, snapshot, nulls=6, min_frames_active=2)
+    assert result.connected_mean > result.null_mean
+    assert result.z > 3.0
+    assert "like-to-like" in result.verdict
+
+
+def test_like_to_like_is_not_found_when_it_is_not():
+    from core.connectome.likewise import test_like_to_like
+
+    snapshot, trace = _wired_activity(80, 240, coupled=False, seed=6)
+    result = test_like_to_like(trace, snapshot, nulls=6, min_frames_active=2)
+    assert abs(result.z) < 3.0
+    assert "no detectable" in result.verdict
+
+
+def test_the_within_condition_control_removes_the_workload():
+    """Two cells busy in the same condition and nothing else must not count."""
+    import numpy as np
+
+    from core.connectome.activity import ActivityTrace
+    from core.connectome.likewise import test_like_to_like
+
+    cells = 60
+    frames = 240
+    rng = np.random.default_rng(9)
+    values = rng.normal(1.0, 0.2, size=(frames, cells))
+    # Every cell is loud in one condition and quiet in the other, so every pair
+    # correlates through the workload alone.
+    values[:120] += 20.0
+    snapshot = _graph_snapshot([(f"c{i}", f"c{(i + 1) % cells}", 1) for i in range(cells)])
+    trace = ActivityTrace(
+        uids=tuple(f"c{i}" for i in range(cells)),
+        conditions=tuple("loud" if t < 120 else "quiet" for t in range(frames)),
+        spikes=[],
+        array=values.astype("float32"),
+    )
+    raw = test_like_to_like(trace, snapshot, nulls=6, min_frames_active=2, within_condition=False)
+    controlled = test_like_to_like(trace, snapshot, nulls=6, min_frames_active=2)
+    assert raw.connected_mean > 0.9
+    assert controlled.connected_mean < 0.3
+    assert "no detectable" in controlled.verdict
