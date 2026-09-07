@@ -2152,3 +2152,69 @@ def test_what_would_change_is_scored_against_a_matched_control():
     answer = what_would_change(snapshot, ["bridge"])
     assert "reachability in the graph, not behaviour" in answer.caveat
     assert answer.detail["excess_reach_loss"] >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# A change that has to answer for what it did to the anatomy
+# ---------------------------------------------------------------------------
+
+
+def test_every_axis_says_which_direction_is_better():
+    from core.connectome.anatomy_gate import AXES
+
+    assert len(AXES) == 7
+    for axis in AXES:
+        assert axis.question
+        assert axis.improved(1.0, 2.0) is axis.higher_is_better
+        assert axis.improved(2.0, 1.0) is not axis.higher_is_better
+
+
+def test_an_axis_that_was_not_measured_is_not_scored_as_unchanged():
+    from core.connectome.anatomy_gate import Quality, compare_quality
+
+    before = Quality(values={"local_recurrence": 1.0}, unmeasured=("dormant_machinery",))
+    after = Quality(values={"local_recurrence": 2.0}, unmeasured=("dormant_machinery",))
+    delta = compare_quality(before, after)
+    assert "local_recurrence" in delta.moves
+    assert "dormant_machinery" not in delta.moves
+    assert "dormant_machinery" in delta.unmeasured
+    assert delta.improved == ["local_recurrence"]
+
+
+def test_a_change_that_makes_something_worse_says_so_first():
+    from core.connectome.anatomy_gate import Quality, anatomical_evidence, compare_quality
+
+    before = Quality(values={"local_recurrence": 1.0, "half_wired_channels": 10.0})
+    after = Quality(values={"local_recurrence": 2.0, "half_wired_channels": 20.0})
+    delta = compare_quality(before, after)
+    assert delta.improved == ["local_recurrence"]
+    assert delta.worsened == ["half_wired_channels"]
+    evidence = anatomical_evidence(delta, change="added a broadcast")
+    assert evidence.index("worse:") < evidence.index("better:")
+    assert "and worse in" not in delta.verdict
+    assert "half_wired_channels" in delta.verdict
+
+
+def test_a_change_that_moves_nothing_measured_says_that_too():
+    from core.connectome.anatomy_gate import Quality, anatomical_evidence, compare_quality
+
+    same = Quality(values={"local_recurrence": 1.0})
+    delta = compare_quality(same, Quality(values={"local_recurrence": 1.0}))
+    assert delta.improved == [] and delta.worsened == []
+    assert "did not move" in delta.verdict
+    assert "no axis moved" in anatomical_evidence(delta) or "not measured" in anatomical_evidence(
+        delta
+    )
+
+
+def test_quality_measures_what_it_has_and_names_what_it_does_not():
+    from core.connectome.anatomy_gate import measure_quality
+
+    edges = [("src", "hub", 4)] + [("hub", f"leaf{i}", 2) for i in range(12)]
+    snapshot = _graph_snapshot(edges)
+    quality = measure_quality(snapshot, spof_sample=4)
+    assert "local_recurrence" in quality.values
+    assert "single_points_of_failure" in quality.values
+    for name in ("coupling_carrying_nothing", "half_wired_channels", "dormant_machinery"):
+        assert name in quality.unmeasured
+    assert quality.detail["spof_sampled"] <= 4
