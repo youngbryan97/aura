@@ -92,7 +92,7 @@ async def main() -> int:
     from core.subject.clamp import clamped
     from core.subject.closure import closure_gain
     from core.subject.differentiation import effective_dimension
-    from core.subject.driver import CONDITIONS, build_runtime
+    from core.subject.driver import CONDITIONS, build_runtime, start_organism
     from core.subject.graph import analyse_graph
     from core.subject.intrinsic import intrinsic_gain
     from core.subject.irreducibility import phi_do
@@ -115,6 +115,11 @@ async def main() -> int:
 
     _log(f"building the offline organism in {args.out}")
     runtime = build_runtime(args.out / "runtime", seed=args.seed)
+    organism = await start_organism(runtime)
+    evidence["organism"] = organism
+    _log(f"organism up: {len(organism['up'])} layers, {len(organism['down'])} down")
+    if organism["down"]:
+        _log(f"  did not come up: {organism['down']}")
 
     _log(f"recording {args.rounds} rounds over {len(CONDITIONS)} conditions")
     frames, periphery_rows = await _record(runtime, CONDITIONS, args.rounds)
@@ -162,6 +167,12 @@ async def main() -> int:
     )
     edges, tested = build_edges(results, seed=args.seed)
     evidence["edges"] = tested
+    _log(
+        "coupling gain: "
+        + ", ".join(
+            f"{k}:{v['attenuation']}" for k, v in sorted(results.attenuation().items())
+        )
+    )
     evidence["notes"]["unwritable_domains"] = list(results.unwritable)
     evidence["notes"]["intervention_seconds"] = round(results.seconds, 1)
     kept = [(e.source, e.target) for e in edges]
@@ -216,6 +227,7 @@ async def main() -> int:
         "matrices": rows,
     }
     evidence["notes"]["intervention_power"] = power_note(results)
+    evidence["notes"]["attenuation"] = results.attenuation()
 
     consumers = sorted({t for s, t in kept if s == "G"})
     returns = [

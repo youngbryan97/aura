@@ -37,7 +37,7 @@ from typing import Any
 import numpy as np
 
 from core.subject.driver import Condition, SubjectRuntime
-from core.subject.state import DOMAINS, CoreState, perturb
+from core.subject.state import DOMAINS, CoreState, perturb, perturb_organs
 
 __all__ = [
     "EDGE_EFFECT",
@@ -92,6 +92,11 @@ class Trial:
     trace: dict[str, list[float]]
     floor_trace: dict[str, list[float]]
     took: bool
+    #: How far the displaced domain itself moved. The ratio of this to what it
+    #: moved in other domains is the coupling gain, and a system whose parts
+    #: exchange compressed summaries shows a large one.
+    self_effect: float = 0.0
+    injected_at: int = 0
 
 
 @dataclass
@@ -104,6 +109,34 @@ class InterventionSet:
     lags: int = 0
     unwritable: tuple[str, ...] = ()
     seconds: float = 0.0
+
+    def attenuation(self) -> dict[str, dict[str, float]]:
+        """For each displaced domain: how much it moved, and how much got out.
+
+        A large ratio is the shape of brokered or summarised coupling. It is
+        reported whether or not any edge passed, because "no edge" and "an edge
+        attenuated fifty times on the way out" are different findings and the
+        graph alone cannot tell them apart.
+        """
+        out: dict[str, dict[str, float]] = {}
+        for source in {trial.source for trial in self.trials}:
+            mine = [t for t in self.trials if t.source == source]
+            own = float(np.mean([t.self_effect for t in mine])) if mine else 0.0
+            escaped = 0.0
+            for target in DOMAINS:
+                if target == source:
+                    continue
+                values = [
+                    t.effect.get(target, 0.0) - t.floor.get(target, 0.0) for t in mine
+                ]
+                if values:
+                    escaped = max(escaped, float(np.mean(values)))
+            out[source] = {
+                "self_effect": round(own, 4),
+                "largest_outgoing": round(escaped, 4),
+                "attenuation": round(own / escaped, 2) if escaped > 1e-9 else float("inf"),
+            }
+        return out
 
     def by_pair(self) -> dict[tuple[str, str], list[Trial]]:
         out: dict[tuple[str, str], list[Trial]] = {}
@@ -176,22 +209,26 @@ async def _arm(
     *,
     turns: int,
     displace: tuple[str, float] | None,
+    at: int = 0,
 ) -> list[CoreState]:
     runtime.restore(snapshot)
     frames: list[CoreState] = []
     applied = {"done": displace is None}
 
-    def hit(rt: SubjectRuntime) -> None:
+    async def hit(rt: SubjectRuntime) -> None:
+        """Write to both halves of the domain: the state fields and the organ."""
         if displace is None or applied["done"]:
             return
         domain, delta = displace
-        applied["done"] = perturb(rt.state, domain, delta, ontogeny=rt.ontogeny)
+        in_state = perturb(rt.state, domain, delta, ontogeny=rt.ontogeny)
+        in_organ = await perturb_organs(rt.organs, domain, delta)
+        applied["done"] = bool(in_state or in_organ)
 
     for turn in range(turns):
         frames.extend(
             await runtime.turn_once(
                 condition,
-                perturb_at=0 if (turn == 0 and displace is not None) else None,
+                perturb_at=at if (turn == 0 and displace is not None) else None,
                 perturb=hit,
             )
         )
@@ -211,9 +248,17 @@ async def run_interventions(
     delta: float = DEFAULT_DELTA,
     seed: int = 0,
     warmup: int = 4,
+    injection_points: Sequence[int] = (0, 8, 16),
     on_progress: Callable[[str], None] | None = None,
 ) -> InterventionSet:
-    """Displace each domain in each condition, repeatedly, against two shams."""
+    """Displace each domain in each condition, repeatedly, against two shams.
+
+    The displacement is injected at a different point of the turn on different
+    trials. A phase that recomputes a domain from its own sources erases a
+    displacement that arrived before it, and injecting only at the top of the
+    turn would measure that erasure and report it as an absent edge. Cycling
+    the injection point is the same move as stimulating at different depths.
+    """
     import time as _time
 
     started = _time.monotonic()
@@ -233,12 +278,13 @@ async def run_interventions(
             for source in sources:
                 if source in unwritable:
                     continue
+                where = injection_points[index % len(injection_points)]
                 order = [("pert", (source, delta)), ("sham_a", None), ("sham_b", None)]
                 rng.shuffle(order)
                 runs: dict[str, list[CoreState]] = {}
                 for name, displace in order:
                     runs[name] = await _arm(
-                        runtime, snapshot, condition, turns=turns, displace=displace
+                        runtime, snapshot, condition, turns=turns, displace=displace, at=where
                     )
                 if not runs["pert"]:
                     unwritable.add(source)
@@ -256,6 +302,8 @@ async def run_interventions(
                         trace=trace,
                         floor_trace=floor_trace,
                         took=True,
+                        self_effect=effect.get(source, 0.0) - floor.get(source, 0.0),
+                        injected_at=where,
                     )
                 )
                 out.lags = max(out.lags, max((len(v) for v in trace.values()), default=0))
@@ -271,11 +319,13 @@ async def run_interventions(
 # ── from trials to edges ─────────────────────────────────────────────────
 
 
-#: Sign-flip draws. The smallest p this can return is 1/(draws+1), so a run
-#: with few paired trials cannot reach the q it is being judged against. That
-#: is a property of the design, not of the system, and `build_edges` reports it
-#: rather than returning an empty graph that looks like a negative result.
-SIGN_FLIP_DRAWS: int = 4000
+#: Sign-flip draws. The smallest p this can return is 1/(draws+1), and after
+#: multiplicity correction across ninety pairs the smallest reachable q is
+#: ninety times that. At four thousand draws — where this started — no edge
+#: could reach q < 0.01 however real it was, and the run reported an empty
+#: graph that read as a negative result about the organism. It was a fact about
+#: the number of draws.
+SIGN_FLIP_DRAWS: int = 200_000
 
 
 def _sign_flip_p(differences: np.ndarray, *, seed: int, draws: int = SIGN_FLIP_DRAWS) -> float:

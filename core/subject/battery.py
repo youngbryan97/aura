@@ -200,8 +200,8 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
         "causal_closure_of_the_core", "3",
         "no variable outside K predicts K's future better than K does",
         bool(closure.get("closed")),
-        round(float(closure.get("leak_over_shuffled", 1.0)), 4),
-        "<= 0",
+        round(float(closure.get("leak", 1.0)), 4),
+        "no improvement on K beyond what a shuffled periphery gives",
         largest_leaks=closure.get("largest_leaks", []),
     ))
     add(_c(

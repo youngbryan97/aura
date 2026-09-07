@@ -26,6 +26,15 @@ The **schema is fixed**. Each domain has a declared, ordered list of named
 features and a width that does not depend on the state being read. A vector
 whose length changes with content cannot be compared across time, and a
 distance computed between two such vectors is a measurement of the schema.
+
+Half of each domain is read from `AuraState` and half from the live organs —
+the global workspace, the liquid substrate, the free-energy engine, the self
+model, the unified world model, the ontogenetic reservoir. The first version of
+this file read only `AuraState` and reported that the domains barely influence
+each other, which was true of the summary fields and false of the organism:
+most of the coupling happens between organs and only its residue reaches the
+state object. An organ that is absent reads as zeros, which is honest and is
+visible as a flat column rather than as a plausible number.
 """
 
 from __future__ import annotations
@@ -45,10 +54,12 @@ __all__ = [
     "FAST_DOMAINS",
     "SLOW_DOMAINS",
     "CoreState",
+    "Organs",
     "Schema",
     "domain_width",
     "feature_names",
     "perturb",
+    "perturb_organs",
     "perturbable",
     "read_core_state",
     "schema",
@@ -100,6 +111,64 @@ def _sch(domain: str, pairs: Sequence[tuple[str, str]]) -> Schema:
         features=tuple(name for name, _ in pairs),
         sources=tuple(source for _, source in pairs),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class Organs:
+    """The live objects a reading needs besides `AuraState`.
+
+    Every field may be None. None means the organ was not running, which is a
+    different thing from an organ that was running and had nothing to say, and
+    the difference shows up as a column that never moves.
+    """
+
+    workspace: Any = None
+    substrate: Any = None
+    free_energy: Any = None
+    self_model: Any = None
+    world_model: Any = None
+    ontogeny: Any = None
+
+    @classmethod
+    def live(cls) -> Organs:
+        """Whatever is registered right now. Missing organs stay None."""
+
+        def service(name: str) -> Any:
+            try:
+                from core.container import ServiceContainer
+
+                return ServiceContainer.get(name, default=None)
+            except Exception:  # noqa: BLE001 - an absent container is an absent organ
+                return None
+
+        def runtime(name: str) -> Any:
+            try:
+                from core.runtime.service_registry import get_runtime_service
+
+                return get_runtime_service(name, default=None)
+            except Exception:  # noqa: BLE001
+                return None
+
+        return cls(
+            workspace=runtime("global_workspace"),
+            substrate=runtime("conscious_substrate"),
+            free_energy=service("free_energy_engine"),
+            self_model=service("self_model"),
+            world_model=service("unified_world_model"),
+        )
+
+
+def _call(obj: Any, name: str, default: Any = None) -> Any:
+    """Call a reader on an organ, and treat any failure as no reading."""
+    if obj is None:
+        return default
+    method = getattr(obj, name, None)
+    if method is None:
+        return default
+    try:
+        return method()
+    except Exception:  # noqa: BLE001 - an organ that raises has told us nothing
+        return default
 
 
 #: The emotions read into A, in a fixed order. Chosen from the Plutchik
@@ -163,6 +232,12 @@ _SCHEMAS: dict[str, Schema] = {
             ("social_hunger", "affect.social_hunger"),
             ("free_energy", "free_energy"),
             *((f"emotion_{name}", f"affect.emotions.{name}") for name in _EMOTIONS),
+            ("heart_rate", "affect.physiology.heart_rate"),
+            ("cortisol", "affect.physiology.cortisol"),
+            ("adrenaline", "affect.physiology.adrenaline"),
+            ("momentum", "affect.momentum"),
+            ("action_urgency", "organ:free_energy.get_action_urgency"),
+            ("surprise_trend", "organ:free_energy.get_trend"),
         ),
     ),
     "G": _sch(
@@ -178,6 +253,15 @@ _SCHEMAS: dict[str, Schema] = {
             ("branch_load", "cognition.discourse_branches"),
             ("phi", "phi"),
             ("selfhood_readings", "cognition.selfhood_reading"),
+            ("ignition", "organ:workspace.ignition_level"),
+            ("ignited", "organ:workspace.ignited"),
+            ("candidates", "organ:workspace.pending_candidates"),
+            ("winner_priority", "organ:workspace.last_priority"),
+            ("winner_source", "organ:workspace.last_winner"),
+            ("tick", "organ:workspace.tick"),
+            ("tie_impasses", "organ:workspace.tie_impasses"),
+            ("inhibited", "organ:workspace.inhibited_sources"),
+            ("broadcasts", "organ:workspace.broadcast_history_len"),
         ),
     ),
     "C": _sch(
@@ -194,6 +278,15 @@ _SCHEMAS: dict[str, Schema] = {
                 (f"latent_{index}", "cognition.phenomenal_state.latent_snapshot")
                 for index in range(8)
             ),
+            ("substrate_valence", "organ:substrate.valence"),
+            ("substrate_arousal", "organ:substrate.arousal"),
+            ("substrate_dominance", "organ:substrate.dominance"),
+            ("substrate_energy", "organ:substrate.energy"),
+            ("substrate_volatility", "organ:substrate.volatility"),
+            ("substrate_focus", "organ:substrate.focus"),
+            ("substrate_curiosity", "organ:substrate.curiosity"),
+            ("substrate_frustration", "organ:substrate.frustration"),
+            ("substrate_revision", "organ:substrate.state_revision"),
         ),
     ),
     "S": _sch(
@@ -216,6 +309,11 @@ _SCHEMAS: dict[str, Schema] = {
                     "neuroticism",
                 )
             ),
+            ("belief_count", "organ:self_model.belief_count"),
+            ("belief_version", "organ:self_model.version"),
+            ("snapshot_count", "organ:self_model.snapshot_count"),
+            ("pending_updates", "organ:self_model.pending_update_count"),
+            ("belief_digest", "organ:self_model.beliefs"),
         ),
     ),
     "M": _sch(
@@ -241,6 +339,9 @@ _SCHEMAS: dict[str, Schema] = {
             ("fact_churn", "world.facts"),
             ("concept_load", "cold.concept_graph"),
             ("user_trend", "cognition.user_emotional_trend"),
+            ("model_surprise", "organ:world_model.surprise"),
+            ("model_facets", "organ:world_model.status"),
+            ("model_observations", "organ:world_model.observations"),
         ),
     ),
     "D": _sch(
@@ -391,8 +492,9 @@ def _read_I(state: Any) -> np.ndarray:
     )
 
 
-def _read_A(state: Any) -> np.ndarray:
+def _read_A(state: Any, organs: Organs) -> np.ndarray:
     emotions = _dig(state, "affect.emotions", {}) or {}
+    physiology = _dig(state, "affect.physiology", {}) or {}
     head = [
         _f(_dig(state, "affect.valence")),
         _f(_dig(state, "affect.arousal"), 0.5),
@@ -402,11 +504,22 @@ def _read_A(state: Any) -> np.ndarray:
         math.tanh(_f(_dig(state, "free_energy"))),
     ]
     head.extend(_f(emotions.get(name)) for name in _EMOTIONS)
+    head.extend(
+        [
+            _sat(_f(physiology.get("heart_rate"), 72.0), 80.0),
+            _sat(_f(physiology.get("cortisol"), 10.0), 20.0),
+            _f(physiology.get("adrenaline")),
+            _f(_dig(state, "affect.momentum"), 0.85),
+            _f(_call(organs.free_energy, "get_action_urgency", 0.0)),
+            _hash_unit(_call(organs.free_energy, "get_trend", "")),
+        ]
+    )
     return np.array(head, dtype=np.float64)
 
 
-def _read_G(state: Any) -> np.ndarray:
+def _read_G(state: Any, organs: Organs) -> np.ndarray:
     focus = _dig(state, "cognition.attention_focus", "") or ""
+    workspace = _call(organs.workspace, "get_status", {}) or {}
     return np.array(
         [
             1.0 if focus else 0.0,
@@ -419,6 +532,15 @@ def _read_G(state: Any) -> np.ndarray:
             _sat(_dig(state, "cognition.discourse_branches", []) or [], 4.0),
             math.tanh(_f(_dig(state, "phi"))),
             _sat(_dig(state, "cognition.selfhood_reading", {}) or {}, 4.0),
+            _f(workspace.get("ignition_level")),
+            1.0 if workspace.get("ignited") else 0.0,
+            _sat(_f(workspace.get("pending_candidates")), 4.0),
+            _f(workspace.get("last_priority")),
+            _hash_unit(workspace.get("last_winner")),
+            _sat(_f(workspace.get("tick")), 200.0),
+            _sat(_f(workspace.get("tie_impasses")), 8.0),
+            _sat(workspace.get("inhibited_sources") or [], 4.0),
+            _sat(_f(workspace.get("broadcast_history_len")), 32.0),
         ],
         dtype=np.float64,
     )
@@ -438,7 +560,7 @@ def _latent(state: Any, width: int) -> list[float]:
     return [float(np.mean(block)) if block.size else 0.0 for block in blocks]
 
 
-def _read_C(state: Any) -> np.ndarray:
+def _read_C(state: Any, organs: Organs) -> np.ndarray:
     mode = _dig(state, "cognition.current_mode")
     label = str(getattr(mode, "value", mode) or "reactive").lower()
     head = [1.0 if label == name else 0.0 for name in _MODES]
@@ -453,10 +575,25 @@ def _read_C(state: Any) -> np.ndarray:
         ]
     )
     head.extend(_latent(state, 8))
+    affect = _call(organs.substrate, "get_substrate_affect", {}) or {}
+    status = _call(organs.substrate, "get_status", {}) or {}
+    head.extend(
+        [
+            _f(affect.get("valence")),
+            _f(affect.get("arousal")),
+            _f(affect.get("dominance")),
+            _f(affect.get("energy")),
+            _f(affect.get("volatility")),
+            _sat(_f(status.get("focus")), 50.0),
+            _sat(_f(status.get("curiosity")), 50.0),
+            _sat(_f(status.get("frustration")), 50.0),
+            _sat(_f(status.get("state_revision")), 200.0),
+        ]
+    )
     return np.array(head, dtype=np.float64)
 
 
-def _read_S(state: Any) -> np.ndarray:
+def _read_S(state: Any, organs: Organs) -> np.ndarray:
     growth = _dig(state, "identity.personality_growth", {}) or {}
     head = [
         _f(_dig(state, "identity.stability"), 1.0),
@@ -476,6 +613,17 @@ def _read_S(state: Any) -> np.ndarray:
             "agreeableness",
             "neuroticism",
         )
+    )
+    introspection = _call(organs.self_model, "get_introspection", {}) or {}
+    beliefs = getattr(organs.self_model, "beliefs", {}) or {}
+    head.extend(
+        [
+            _sat(_f(introspection.get("belief_count")), 16.0),
+            _sat(_f(introspection.get("version")), 32.0),
+            _sat(_f(introspection.get("snapshot_count")), 8.0),
+            _sat(_f(introspection.get("pending_update_count")), 4.0),
+            _hash_unit(",".join(f"{k}={beliefs[k]}" for k in sorted(beliefs)[:16])),
+        ]
     )
     return np.array(head, dtype=np.float64)
 
@@ -498,8 +646,11 @@ def _read_M(state: Any) -> np.ndarray:
     )
 
 
-def _read_W(state: Any) -> np.ndarray:
+def _read_W(state: Any, organs: Organs) -> np.ndarray:
     facts = _dig(state, "world.facts", {}) or {}
+    status = _call(organs.world_model, "status", {}) or {}
+    facets = status.get("facets", {}) if isinstance(status, Mapping) else {}
+    surprise = _call(organs.world_model, "surprise", None)
     return np.array(
         [
             _sat(_dig(state, "world.known_entities", {}) or {}, 8.0),
@@ -509,6 +660,13 @@ def _read_W(state: Any) -> np.ndarray:
             _hash_unit(",".join(sorted(str(k) for k in facts)[:32])),
             _sat(_dig(state, "cold.concept_graph", {}) or {}, 32.0),
             _hash_unit(_dig(state, "cognition.user_emotional_trend", "neutral")),
+            math.tanh(_f(surprise)) if surprise is not None else 0.0,
+            _sat(
+                [name for name, entry in facets.items() if entry.get("available")], 3.0
+            )
+            if isinstance(facets, Mapping)
+            else 0.0,
+            _f(getattr(organs.world_model, "_observations", 0.0)),
         ],
         dtype=np.float64,
     )
@@ -549,14 +707,19 @@ def _read_N(ontogeny: Any) -> np.ndarray:
     return np.array(head, dtype=np.float64)
 
 
-_READERS: dict[str, Callable[..., np.ndarray]] = {
-    "I": _read_I,
+#: Readers that need the organs as well as the state.
+_ORGAN_READERS: dict[str, Callable[[Any, Organs], np.ndarray]] = {
     "A": _read_A,
     "G": _read_G,
     "C": _read_C,
     "S": _read_S,
-    "M": _read_M,
     "W": _read_W,
+}
+
+#: Readers that only need the state object.
+_STATE_READERS: dict[str, Callable[[Any], np.ndarray]] = {
+    "I": _read_I,
+    "M": _read_M,
     "D": _read_D,
 }
 
@@ -596,6 +759,7 @@ def read_core_state(
     state: Any,
     *,
     ontogeny: Any = None,
+    organs: Organs | None = None,
     condition: str = "",
     tag: str = "",
     env: Mapping[str, float] | None = None,
@@ -603,14 +767,18 @@ def read_core_state(
 ) -> CoreState:
     """One reading of the ten domains off live objects.
 
-    ``state`` is an ``AuraState``; ``ontogeny`` is the lifetime reservoir, and
-    None means it was not running, which reads as a zero N rather than as a
-    guess at what it would have said.
+    ``state`` is an ``AuraState``, ``ontogeny`` is the lifetime reservoir and
+    ``organs`` are the live workspace, substrate, free-energy engine, self model
+    and world model. Anything missing reads as zeros, which is a flat column
+    rather than a guess at what it would have said.
     """
     moment = time.time() if now is None else now
+    kit = organs or Organs()
     values = {"P": _read_P(state, moment), "N": _read_N(ontogeny)}
-    for key, reader in _READERS.items():
+    for key, reader in _STATE_READERS.items():
         values[key] = reader(state)
+    for key, organ_reader in _ORGAN_READERS.items():
+        values[key] = organ_reader(state, kit)
     for key in DOMAINS:
         width = domain_width(key)
         got = values[key]
@@ -812,3 +980,51 @@ def perturb(state: Any, domain: str, delta: float, *, ontogeny: Any = None) -> b
     if writer is None:
         return False
     return bool(writer(state, float(delta), ontogeny))
+
+
+async def perturb_organs(organs: Organs, domain: str, delta: float) -> bool:
+    """Displace the part of a domain that lives in an organ rather than in state.
+
+    Each write here goes through the organ's own public path — the substrate's
+    gated update, the world model's observe, the self model's belief update —
+    rather than reaching past it into an attribute. A perturbation that a
+    subsystem's own authority would refuse is not a perturbation of that
+    subsystem, and forcing it would measure a state the runtime can never
+    reach.
+    """
+    hit = False
+    if domain == "C" and organs.substrate is not None:
+        try:
+            await organs.substrate.update(
+                delta_frustration=delta, delta_curiosity=delta, source="subject_core_probe"
+            )
+            hit = True
+        except Exception:  # noqa: BLE001 - a refused write is not a write
+            hit = False
+    elif domain == "G" and organs.workspace is not None:
+        workspace = organs.workspace
+        try:
+            workspace.ignition_level = min(
+                1.0, max(0.0, _f(getattr(workspace, "ignition_level", 0.0)) + delta)
+            )
+            workspace._current_phi = _f(getattr(workspace, "_current_phi", 0.0)) + delta
+            hit = True
+        except Exception:  # noqa: BLE001
+            hit = False
+    elif domain == "S" and organs.self_model is not None:
+        try:
+            await organs.self_model.update_belief(
+                "subject_core_probe", round(delta, 4), note="displacement probe"
+            )
+            hit = True
+        except Exception:  # noqa: BLE001
+            hit = False
+    elif domain == "W" and organs.world_model is not None:
+        try:
+            organs.world_model.observe(
+                {"subject_core_probe": delta, "at": time.time()}, learn=True
+            )
+            hit = True
+        except Exception:  # noqa: BLE001
+            hit = False
+    return hit

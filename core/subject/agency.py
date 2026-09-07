@@ -27,7 +27,7 @@ from typing import Any
 import numpy as np
 
 from core.subject.driver import Condition, SubjectRuntime
-from core.subject.state import DOMAINS, CoreState, perturb
+from core.subject.state import DOMAINS, CoreState, perturb, perturb_organs
 
 __all__ = ["AgencyReport", "run_agency"]
 
@@ -105,9 +105,11 @@ async def run_agency(
             runtime.actor = actor
             hit = {"done": not displace}
 
-            def apply(rt: SubjectRuntime) -> None:
+            async def apply(rt: SubjectRuntime) -> None:
                 if not hit["done"]:
-                    hit["done"] = perturb(rt.state, "S", delta, ontogeny=rt.ontogeny)
+                    in_state = perturb(rt.state, "S", delta, ontogeny=rt.ontogeny)
+                    in_organ = await perturb_organs(rt.organs, "S", delta)
+                    hit["done"] = bool(in_state or in_organ)
 
             frames = await runtime.turn_once(
                 condition,

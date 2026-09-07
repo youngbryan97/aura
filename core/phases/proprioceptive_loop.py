@@ -177,6 +177,14 @@ class ProprioceptiveLoop(BasePhase):
             try:
                 soma.hardware["cpu_usage"] = psutil.cpu_percent(interval=0)
                 mem = psutil.virtual_memory()
+                # Both names carry the same reading. `vram_usage` is what the
+                # field has always been called and several readers use it, but
+                # the number is system memory, and three call sites in
+                # cognitive integration and the selfhood tick ask for
+                # `ram_usage` — which nothing published, so they read a
+                # constant zero and the body reached those layers saying
+                # nothing. Publishing the correct name is what closes them.
+                soma.hardware["ram_usage"] = mem.percent
                 soma.hardware["vram_usage"] = mem.percent
                 
                 # Temperature (macOS may not expose this)

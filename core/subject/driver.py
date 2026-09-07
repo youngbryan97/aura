@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import inspect
 import logging
 import os
 import random
@@ -44,6 +45,7 @@ import numpy as np
 from core.subject.state import (
     FAST_DOMAINS,
     CoreState,
+    Organs,
     read_core_state,
 )
 
@@ -53,6 +55,7 @@ __all__ = [
     "SubjectRuntime",
     "Snapshot",
     "build_runtime",
+    "start_organism",
 ]
 
 logger = logging.getLogger("Aura.Subject.Driver")
@@ -220,6 +223,13 @@ class SubjectRuntime:
     #: alone.
     actor: str = "self"
     last_action: dict[str, Any] = field(default_factory=dict)
+    organs: Organs = field(default_factory=Organs)
+    #: The consciousness layer's own tick. In the desktop runtime it free-runs
+    #: beside the phases; here it is called once per turn so that two arms of an
+    #: intervention see the same number of ticks and differ by the displacement
+    #: rather than by how long each one happened to take.
+    heartbeat: Any = None
+    organism: Any = None
 
     # ── forking ──────────────────────────────────────────────────────────
 
@@ -253,6 +263,7 @@ class SubjectRuntime:
         return read_core_state(
             self.state,
             ontogeny=self.ontogeny,
+            organs=self.organs,
             condition=condition,
             tag=tag,
             env=env,
@@ -283,15 +294,17 @@ class SubjectRuntime:
 
         frames: list[CoreState] = []
 
-        def capture(tag: str) -> None:
+        async def capture(tag: str) -> None:
             reading = self.read(condition.name, tag, env)
             frames.append(reading)
             if on_frame is not None:
                 on_frame(reading)
             if perturb_at is not None and perturb is not None and len(frames) - 1 == perturb_at:
-                perturb(self)
+                outcome = perturb(self)
+                if inspect.isawaitable(outcome):
+                    await outcome
 
-        capture("open")
+        await capture("open")
         for phase in self.kernel._phases:
             name = phase.__class__.__name__
             try:
@@ -307,22 +320,50 @@ class SubjectRuntime:
                 logger.debug("phase %s failed: %s", name, exc)
             if self.after_phase is not None:
                 self.after_phase()
-            capture(name)
+            await capture(name)
 
         if condition.after == "retrieve":
             self._retrieve(condition.objective)
         elif condition.after == "act":
             self._act(condition.objective, actor=self.actor)
-        capture("after")
+        await capture("after")
+
+        await self._consciousness_tick()
+        await capture("heartbeat")
 
         self._step_ontogeny(frames[-1])
-        capture("ontogeny")
+        await capture("ontogeny")
 
         self.turn += 1
         self.frames_per_turn = len(frames)
         return frames
 
     # ── the real subsystems the conditions reach for ─────────────────────
+
+    async def _consciousness_tick(self) -> None:
+        """One beat of the consciousness layer, and one substrate step.
+
+        These run continuously in the desktop runtime — the heartbeat on its
+        own interval, the liquid substrate at twenty hertz. Free-running them
+        here would put uncontrolled noise between the two arms of every
+        intervention and make the sham floor larger than any effect. Calling
+        each once per turn keeps the computation and drops the jitter.
+        """
+        substrate = self.organs.substrate
+        if substrate is not None:
+            try:
+                await asyncio.wait_for(
+                    substrate.update(source="subject_core_turn"), timeout=PHASE_TIMEOUT
+                )
+            except BaseException as exc:  # noqa: BLE001
+                self.failures["substrate"] = self.failures.get("substrate", 0) + 1
+                self.failure_notes["substrate"] = f"{type(exc).__name__}: {exc}"[:200]
+        if self.heartbeat is not None:
+            try:
+                await asyncio.wait_for(self.heartbeat._tick(), timeout=PHASE_TIMEOUT)
+            except BaseException as exc:  # noqa: BLE001
+                self.failures["heartbeat"] = self.failures.get("heartbeat", 0) + 1
+                self.failure_notes["heartbeat"] = f"{type(exc).__name__}: {exc}"[:200]
 
     def _step_ontogeny(self, reading: CoreState) -> None:
         """Advance the lifetime reservoir on this turn's fast state.
@@ -428,6 +469,15 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
     from core.state.state_repository import StateRepository
     from core.subject.state import domain_width
 
+    # The container has to exist before the kernel is built; the rest of the
+    # organism comes up in `start_organism`, which is async.
+    from core.service_registration import register_all_services
+
+    try:
+        register_all_services()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("service registration failed: %s", exc)
+
     vault = StateRepository(db_path=str(workdir / "subject.db"), is_vault_owner=True)
     kernel = AuraKernel(config=KernelConfig(), vault=vault)
     kernel._setup_phases()
@@ -456,10 +506,42 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
         ontogeny=ontogeny,
         rng=random.Random(seed),
     )
+    runtime.organs = Organs.live()
+    runtime.organs = Organs(
+        workspace=runtime.organs.workspace,
+        substrate=runtime.organs.substrate,
+        free_energy=runtime.organs.free_energy,
+        self_model=runtime.organs.self_model,
+        world_model=runtime.organs.world_model,
+        ontogeny=ontogeny,
+    )
     runtime._scratch = workdir / "scratch"
     runtime._scratch.mkdir(parents=True, exist_ok=True)
     runtime.retriever = _build_retriever(runtime)
     return runtime
+
+
+async def start_organism(runtime: SubjectRuntime) -> dict[str, Any]:
+    """Bring the layers up, then bind the runtime to what came up.
+
+    Separate from `build_runtime` because it is async and because a caller who
+    wants only the phase pipeline — a unit test, say — should not be made to
+    boot the consciousness stack to get one.
+    """
+    from core.subject.organism import bring_up
+
+    organism = await bring_up()
+    runtime.heartbeat = organism.heartbeat
+    runtime.organs = Organs(
+        workspace=Organs.live().workspace,
+        substrate=organism.substrate,
+        free_energy=Organs.live().free_energy,
+        self_model=Organs.live().self_model,
+        world_model=Organs.live().world_model,
+        ontogeny=runtime.ontogeny,
+    )
+    runtime.organism = organism
+    return organism.summary()
 
 
 def _build_retriever(runtime: SubjectRuntime) -> Any:

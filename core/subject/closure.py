@@ -36,13 +36,19 @@ from core.subject.recording import Recording
 
 __all__ = ["ClosureReport", "closure_gain", "read_periphery"]
 
-#: How many periphery numbers to keep. A cap, because a phase holding a large
+#: How many periphery numbers to keep. A cap, because one organ holding a large
 #: array would otherwise supply more columns than the whole core.
-MAX_PERIPHERY: int = 160
+MAX_PERIPHERY: int = 400
+
+#: How deep to walk into an object's attributes. Two levels reaches the state a
+#: phase keeps inside a helper it owns, which is where the interesting hidden
+#: variables live; deeper than that and the walk starts collecting the runtime's
+#: furniture.
+MAX_DEPTH: int = 2
 
 
 def _numbers(obj: Any, prefix: str, out: dict[str, float], depth: int = 0) -> None:
-    if len(out) >= MAX_PERIPHERY or depth > 1:
+    if len(out) >= MAX_PERIPHERY or depth > MAX_DEPTH:
         return
     for name in sorted(vars(obj)) if hasattr(obj, "__dict__") else ():
         if name.startswith("__") or len(out) >= MAX_PERIPHERY:
@@ -56,20 +62,29 @@ def _numbers(obj: Any, prefix: str, out: dict[str, float], depth: int = 0) -> No
                 out[f"{prefix}.{name}"] = number
         elif isinstance(value, (list, tuple, dict, set)):
             out[f"{prefix}.{name}#"] = float(len(value))
-        elif depth == 0 and hasattr(value, "__dict__") and not callable(value):
+        elif hasattr(value, "__dict__") and not callable(value) and depth < MAX_DEPTH:
             _numbers(value, f"{prefix}.{name}", out, depth + 1)
 
 
 def read_periphery(kernel: Any) -> dict[str, float]:
-    """Every number the phases are carrying that is not part of K.
+    """Every number the machine is carrying that is not part of K.
 
-    This is the machine state the core was drawn to exclude: counters, cursors,
-    cached scores, whatever a phase kept between calls. Some of it is genuinely
-    irrelevant. If any of it predicts the core's next state, that part was not.
+    The phases, the kernel itself, and every organ already instantiated beside
+    them: counters, cursors, cached scores, whatever was kept between calls.
+    Most of it is genuinely irrelevant. Any of it that predicts the core's next
+    state was not, and the report names it rather than reporting an amount.
+
+    Nothing here is a hand-written list of suspects. A list of suspects is a
+    list of the ones already thought of, and the point is the one that was not.
     """
     out: dict[str, float] = {}
+    _numbers(kernel, "kernel", out, depth=1)
     for phase in getattr(kernel, "_phases", []):
         _numbers(phase, phase.__class__.__name__, out)
+    organs = getattr(kernel, "organs", None)
+    if isinstance(organs, dict):
+        for name, organ in organs.items():
+            _numbers(organ, f"organ.{name}", out, depth=1)
     return out
 
 
@@ -79,14 +94,23 @@ class ClosureReport:
     loss_core_and_periphery: float
     loss_shuffled_periphery: float
     leak: float
+    shuffled_leak: float
     leak_over_shuffle: float
     periphery_width: int
     top_leaks: tuple[tuple[str, float], ...] = ()
 
     @property
     def closed(self) -> bool:
-        """Closed when the periphery adds nothing a shuffled periphery would not."""
-        return self.leak_over_shuffle <= 0.0
+        """Closed when the periphery does not improve on K.
+
+        Two ways to be closed and both are here, because the first version used
+        only the second and called a core open when the outside variables had
+        made prediction strictly worse. A periphery that does not beat K has
+        told us K is enough. A periphery that beats K by no more than its own
+        shuffled copy has told us the gain was the extra columns, not what was
+        in them.
+        """
+        return self.leak <= 0.0 or self.leak <= self.shuffled_leak
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -94,6 +118,7 @@ class ClosureReport:
             "loss_core_and_periphery": round(self.loss_core_and_periphery, 6),
             "loss_shuffled_periphery": round(self.loss_shuffled_periphery, 6),
             "leak": round(self.leak, 6),
+            "shuffled_leak": round(self.shuffled_leak, 6),
             "leak_over_shuffled": round(self.leak_over_shuffle, 6),
             "periphery_width": self.periphery_width,
             "closed": self.closed,
@@ -122,14 +147,14 @@ def closure_gain(
     nxt = recording.x[1:][:, live]
     outside = periphery[:-1]
     if outside.size == 0 or now.shape[0] < 60:
-        return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, int(outside.shape[1] if outside.size else 0))
+        return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, 0.0, int(outside.shape[1] if outside.size else 0))
 
     spread = outside.std(axis=0)
     keep = spread > 1e-9
     outside = outside[:, keep]
     kept_names = tuple(name for name, flag in zip(names, keep, strict=True) if flag)
     if outside.shape[1] == 0:
-        return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, 0)
+        return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0)
 
     train, validate, test = split_rows(now.shape[0])
     core = fit_predict(now, nxt, train=train, validate=validate, test=test)
@@ -144,12 +169,13 @@ def closure_gain(
 
     base = core.loss if core.loss > 1e-12 else 1.0
     leak = (core.loss - both.loss) / base
+    shuffled_leak = (core.loss - shuffled.loss) / base
     over = (shuffled.loss - both.loss) / (shuffled.loss if shuffled.loss > 1e-12 else 1.0)
 
     # Which outside variables carry it, one at a time, so the answer names a
     # thing rather than reporting an amount.
     ranked: list[tuple[str, float]] = []
-    if over > 0.0:
+    if leak > 0.0:
         for index, name in enumerate(kept_names):
             single = fit_predict(
                 np.hstack([now, outside[:, index : index + 1]]),
@@ -168,6 +194,7 @@ def closure_gain(
         loss_core_and_periphery=both.loss,
         loss_shuffled_periphery=shuffled.loss,
         leak=float(leak),
+        shuffled_leak=float(shuffled_leak),
         leak_over_shuffle=float(over),
         periphery_width=int(outside.shape[1]),
         top_leaks=tuple(ranked[:rank]),
