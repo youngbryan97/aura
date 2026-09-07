@@ -111,7 +111,19 @@ def request_facets(objective: Any) -> list[str]:
     judge the answer by — no drift between what is provisioned and what is
     demanded."""
     text = objective if isinstance(objective, str) else ""
-    facets = [name for name, pattern in _REQUEST_FACETS.items() if pattern.search(text)]
+    # A command word inside a compound names the subject, not an obligation:
+    # compare-and-swap and test-driven are single lexical units.
+    compound_spans = [
+        match.span() for match in _WORD_RE.finditer(text)
+        if "-" in match.group()
+    ]
+    facets = [
+        name for name, pattern in _REQUEST_FACETS.items()
+        if any(
+            not any(start <= match.start() < end for start, end in compound_spans)
+            for match in pattern.finditer(text)
+        )
+    ]
     # "How" normally requests an explanation, except when it introduces a
     # comparison ("How does that compare...?"). That form asks one question.
     comparison_spans = tuple(match.span() for match in _HOW_COMPARISON_RE.finditer(text))

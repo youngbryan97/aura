@@ -72,3 +72,20 @@ Seventeen focused route/client tests passed, including benchmark exclusion
 and cancellation propagation. This repair does not establish that the
 primary decoder produces complete answers; it prevents one independent
 caller from cancelling the client's revised allowance.
+
+## Desktop replay and compound facet defect
+
+The desktop-header request `r-desktop-replay-20260907-1` completed in the
+delivery journal on PID 24412. Its counter/CAS explanation reached the
+public response. The neural log nevertheless rejected the draft for
+`missing_requested_objective_facets`, attempted correction, then served
+preserved authored work. This is not a clean R05 or R09 pass.
+
+The facet extractor interpreted the command word inside `compare-and-swap`
+as a separate comparison obligation. It now excludes command matches inside
+hyphenated lexical units while retaining explicit commands elsewhere in
+the request. Focused output-quality tests: 23 passed. Smoke: 164 passed,
+1 skipped in 36.46 seconds. Live replay of this repair remains required.
+
+The retired-process liveness repair was pushed as `153ee712c`. This does
+not close the remaining cross-owner eviction audit in R04.

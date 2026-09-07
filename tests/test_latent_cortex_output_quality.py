@@ -16,7 +16,31 @@ from core.brain.llm.latent_cortex.output_quality import (
     OUTPUT_QUALITY_SCHEMA,
     evaluate_facet_coverage,
     evaluate_latent_output,
+    request_facets,
 )
+
+
+def test_compound_subjects_do_not_create_answer_obligations():
+    for subject in ("compare-and-swap", "test-driven development", "list-like structures"):
+        assert request_facets(f"Explain how {subject} works.") == ["explain"]
+
+
+def test_explicit_command_after_compound_subject_is_preserved():
+    assert request_facets("Explain compare-and-swap and compare it with locks.") == [
+        "compare", "explain"
+    ]
+    assert "verify" in request_facets("Explain test-driven development and test the example.")
+
+
+def test_cas_explanation_does_not_require_an_unasked_comparison():
+    receipt = evaluate_facet_coverage(
+        "Both workers read the same counter value and write the same incremented value. "
+        "An atomic conditional write prevents the stale write because it checks the "
+        "expected value; the losing worker rereads and retries.",
+        "Explain why two workers can lose a counter update and how compare-and-swap avoids it.",
+    )
+    assert receipt["requested"] == ["explain"]
+    assert receipt["satisfied"] == ["explain"]
 
 GOOD_ANSWER = (
     "The supervisor design is stronger because it isolates faults per lane. "
