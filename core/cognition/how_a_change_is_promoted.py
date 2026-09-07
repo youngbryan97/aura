@@ -246,9 +246,20 @@ def promote(
     evidence: str,
     replaced: Any = None,
     asked_from_outside: str | None = None,
+    anatomy: Any = None,
 ) -> AReceipt:
-    """Move a change up a state and write the line that says so."""
+    """Move a change up a state and write the line that says so.
+
+    ``anatomy`` is what the change did to the shape of the system, from
+    ``core.connectome.anatomy_gate``. A change can pass its probe and leave the
+    system worse built — one more brittle cell everything runs through, one more
+    channel with a writer and no reader — and the receipt should say so. What it
+    appends names what got worse before what got better, because a receipt that
+    records only the gain is why nobody can tell later what a change cost.
+    """
     receipts, stack, archive = _ledger_stores()
+    if anatomy is not None:
+        evidence = f"{evidence} | anatomy: {_anatomical_line(anatomy)}"
     if replaced is not None:
         stack.append((at, replaced))
         if len(stack) > 64:
@@ -270,6 +281,21 @@ def promote(
     if _PRIVATE_LEDGER.get() is None:
         logger.info("%s", made.describes())
     return made
+
+
+def _anatomical_line(anatomy: Any) -> str:
+    """Render an anatomical verdict, or say why it could not be rendered.
+
+    A promotion must not fail because the shape could not be measured, and it
+    must not silently drop the measurement either.
+    """
+    try:
+        from core.connectome.anatomy_gate import anatomical_evidence
+
+        return anatomical_evidence(anatomy)
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("anatomical evidence could not be rendered: %s", exc)
+        return f"unavailable ({type(exc).__name__})"
 
 
 def what_it_replaced(at: str) -> Any | None:
