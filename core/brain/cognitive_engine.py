@@ -4187,12 +4187,26 @@ class CognitiveEngine:
             )
             if not is_duplicate:
                 # We already derived at the start of the cycle, so we just append here.
+                # Which conversation this was said in.
+                #
+                # Working memory is one list per process, and the boundary of
+                # "this conversation" was a time gap and a boot. Two sessions
+                # minutes apart in one process therefore read as one
+                # conversation: LIVE 2026-09-07, asked in a fresh session what
+                # the first thing said was, she quoted a turn from a different
+                # session — accurately, and about a conversation the person had
+                # not had there.
+                from core.conversation.session_scope import (
+                    current_conversation_session,
+                )
+
                 state.cognition.working_memory.append(
                     {
                         "role": "user",
                         "content": remembered,
                         "timestamp": time.time(),
                         "origin": origin,
+                        "session_id": current_conversation_session(),
                     }
                 )
 

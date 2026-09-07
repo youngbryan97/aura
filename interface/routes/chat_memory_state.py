@@ -2214,17 +2214,27 @@ async def _build_conversation_recall_reply(
         # asked in a fresh session what the first thing said was, she quoted a
         # turn from a different session entirely — accurately, and about
         # somebody else's conversation.
+        # Only where there is a session to scope BY. With none supplied, the
+        # durable rows arrive through the same cross-session scan, so refusing
+        # it removes recall altogether rather than narrowing it — which is the
+        # regression `test_durable_recall_reply_survives_process_memory_clear`
+        # caught: "can you remind me what I said earlier" answered "you haven't
+        # said anything to me in this conversation yet" over a persistence
+        # layer that was holding the turn.
+        scoped = bool(str(session_id or "").strip())
         all_exchanges = await _recent_completed_conversation_exchanges(
             current_user_message=user_message,
             session_id=session_id,
             limit=80,
-            allow_cross_session=False,
+            allow_cross_session=not scoped,
         )
         if _position == "first" and all_exchanges:
             first_user = _clip_conversation_text(all_exchanges[0].get("user"), limit=520)
             if first_user:
                 return f'The first thing you asked me in this conversation was: "{first_user}"'
-        if not all_exchanges and _the_recall_is_the_whole_question(user_message):
+        # And only claim the conversation is empty when it was possible to
+        # look at THIS conversation. Without a session that is a guess.
+        if not all_exchanges and scoped and _the_recall_is_the_whole_question(user_message):
             # An empty transcript is the ANSWER, not a reason to ask the model.
             #
             # LIVE 2026-09-07: asked in a fresh session what the first thing

@@ -44,7 +44,8 @@ def two_exchanges(monkeypatch):
 @pytest.mark.asyncio
 async def test_a_fresh_session_answers_from_its_own_emptiness(no_exchanges) -> None:
     reply = await memory_state._build_conversation_recall_reply(
-        "what was the very first thing I said to you in this conversation?"
+        "what was the very first thing I said to you in this conversation?",
+        session_id="session-here",
     )
     assert reply
     assert "first thing you've said" in reply
@@ -54,7 +55,7 @@ async def test_a_fresh_session_answers_from_its_own_emptiness(no_exchanges) -> N
 @pytest.mark.asyncio
 async def test_the_same_for_the_last_thing(no_exchanges) -> None:
     reply = await memory_state._build_conversation_recall_reply(
-        "what was the last thing I said?"
+        "what was the last thing I said?", session_id="session-here"
     )
     assert reply
     assert "haven't said anything" in reply
@@ -86,8 +87,27 @@ async def test_a_populated_last_is_left_to_the_content_path(two_exchanges) -> No
 async def test_a_question_that_is_not_positional_is_left_alone(no_exchanges) -> None:
     """This path must not start answering questions that are not about position."""
     assert (
-        await memory_state._build_conversation_recall_reply("what is 2 + 2?") is None
+        await memory_state._build_conversation_recall_reply(
+            "what is 2 + 2?", session_id="session-here"
+        )
+        is None
     )
+
+
+@pytest.mark.asyncio
+async def test_without_a_session_it_cannot_claim_the_conversation_is_empty(
+    no_exchanges,
+) -> None:
+    """With no session, the durable rows arrive through the cross-session scan.
+
+    Refusing that removes recall rather than narrowing it, and claiming the
+    conversation is empty over a persistence layer that is holding the turn is
+    a guess dressed as a fact.
+    """
+    reply = await memory_state._build_conversation_recall_reply(
+        "what did I ask you first?"
+    )
+    assert reply is None or "first thing you've said" not in reply
 
 
 @pytest.mark.asyncio
