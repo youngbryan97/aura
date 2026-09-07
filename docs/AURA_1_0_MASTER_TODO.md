@@ -88,9 +88,29 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] R04 Live-validate progress-aware owner cleanup (2aefb6f46); audit other
   eviction paths and cross-client ownership, not only the patched function.
 - [ ] R05 Resolve empty latent answers without exposing private reasoning.
+  PARTIAL 2026-09-07. A cortex reply of 26 characters at `confidence=high` was
+  discarded and the turn reported "the cortex was unavailable" while the cortex
+  had just answered; a 9B answered instead. Not reproduced on a second attempt
+  and not yet fixed. The corrector that contradicted a TRUE claim is fixed —
+  cd4cb7917.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  PARTIAL 2026-09-07. The wedge itself is fixed: an ABBA deadlock between two
+  logging handlers, eleven threads blocked in `logging.Handler.acquire`, the
+  process alive and the port listening for thirty-three minutes. Guarded at the
+  dispatch funnel so it covers handlers not yet written — 14fbd8990, evidence
+  [R06 receipt](evidence/R06_LOGGING_HANDLER_DEADLOCK_2026-09-07.md). The other
+  five named sources are not yet audited.
 - [ ] R07 Reconcile health probe expiry, false readiness, and actual failures.
+  PARTIAL 2026-09-07. False readiness is fixed and verified live: `/api/readyz`
+  answered 503 for the whole of every turn because it re-derived readiness from
+  the raw `conversation_ready` flag rather than asking
+  `conversation_lane_is_serving`, which `boot_status` already used. Twelve
+  consecutive samples during a live turn now return 200 where every one was 503
+  — 757c56ef5. Revision verification checks out: it correctly reported
+  `source_current: false` after a commit landed under a running instance. Probe
+  expiry is NOT fixed: "Boot-health probe generation N exceeded the 2.5s HTTP
+  wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
 - [ ] R09 Verify complete streaming, durable reconnect, one final answer per
@@ -98,6 +118,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] R10 Verify executable examples semantically, not merely process exit zero.
 - [ ] R11 Measure prefill, decode, tool, retrieval, and queue latency separately;
   remove waste without degrading reasoning or arbitrarily cancelling work.
+  PARTIAL 2026-09-07. Prefill, decode, first-token, delivery and per-stage
+  foreground timings are measured and reported separately; the prompt cache now
+  says how far a prompt matched, what diverged, and why a turn retained
+  nothing — 439a21358, 23c975d00. Four sources of waste removed, each with a
+  measured before and after: five hand-written authority heads collapsed to one
+  constant (b442924f2), per-turn sections moved beside the turn on declared
+  volatility (2ddd551f3), a budget that filled the clock exactly given a
+  measured delivery reserve, and a ceiling that was raised to whatever the
+  clock allowed bounded by what answers have actually needed (cd4cb7917,
+  cd1e0b555). A casual greeting fell from 46s to 29s and an arithmetic question
+  from 62s to 16s. Retrieval and queue are not yet split out, and consecutive
+  turns still share no token prefix because different lanes assemble
+  structurally different prompts.
 
 ## 2. General RLC reasoning: the scientific critical path
 
@@ -134,6 +167,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   retained memory, provenance, freshness, and uncertainty across turns.
 - [ ] L06 Close action outcome, selfhood reinforcement, prediction resolution,
   and CRSM feedback edges where advertised; measure what actually updates.
+  PARTIAL 2026-09-07. The action-outcome edge now fires. `IntentionLoop.revise`
+  pushes into BeliefRevisionEngine and writes a ledger transition, all of it
+  guarded by `if rec.belief_updates`, and its only caller passed
+  `belief_updates=[]` hardcoded — so every turn logged "0 belief updates, 0
+  self-model updates", including one where a web search returned the right
+  answer. Verified live after the fix: "Intention completed: 1 belief updates"
+  and "New belief [intention_loop]: code_repl does what I intend when I use it"
+  — d5f5ea43b. Selfhood reinforcement, prediction resolution and CRSM are not
+  yet measured.
 - [ ] L07 Verify skill invention, installation, execution, longitudinal benefit,
   recovery, and rollback on unseen tasks rather than installation counts.
 - [ ] L08 Audit affect, self-state, phi, and consciousness-related claims with
@@ -143,6 +185,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 
 - [ ] U01 Natural conversation: direct answers, conversational repair, memory,
   preferences, evidence-grounded self-description, and no canned dead ends.
+  PARTIAL 2026-09-07. Twenty probes run live across conversation, tools,
+  reasoning, self-knowledge and three skeptic angles. Quality is good and the
+  voice is consistent: she is honest that "Aura" was assigned rather than
+  chosen, states a preference for hard problems and says why, and answers what
+  she is uncertain about from her own telemetry rather than in general terms.
+  Correct on the bat-and-ball trap, on fifteen primes below fifty, and on the
+  most recent Nobel Prize in Physics through a real 2,212ms web search. Three
+  routing defects fixed: "wait" at the head of a sentence read as an order,
+  instructions listed with commas read as one clause, and an artifact somebody
+  asked for read as words in the reply — de076835e. Two probes returned nothing
+  at all in five minutes, which cd1e0b555 addresses and which needs re-running.
 - [ ] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
 - [ ] U03 Vision/camera: permission, detailed perception, freshness, source
@@ -155,6 +208,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   file creation/download/organization, and undo where applicable.
 - [ ] U07 Research, coding, mathematical execution, planning, and multi-step
   tasks through the same unified runtime users invoke.
+  PARTIAL 2026-09-07. Web research, file reading and code execution all run
+  end to end through the ordinary chat route: `code_repl` dispatched and
+  completed in 344ms, `web_search` in 2,212ms with a correct answer, and the
+  first heading of a named file read correctly. The reply that reported the
+  code execution was served with "treat that as not done" appended, because
+  the honesty guard read a ledger only the desktop lane wrote to — cd4cb7917.
+  The autonomous planner asks the model for a JSON array and gets prose, then
+  falls back to a deterministic plan; not yet fixed.
 - [ ] U08 Exercise every capability from I05 with varied phrasing, follow-ups,
   failures, cancellation, and recovery; track every observed defect.
 - [ ] U09 UI accessibility, responsive layout, truthful progress, and polish.
