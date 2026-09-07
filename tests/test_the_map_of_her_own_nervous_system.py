@@ -1515,3 +1515,204 @@ def test_live_levels_are_empty_without_a_running_system():
     from core.connectome.laminar import LaminarConfig, config_for
 
     assert config_for("anywhere", levels, None).z == LaminarConfig().z
+
+
+# ---------------------------------------------------------------------------
+# A call count is not a weight
+# ---------------------------------------------------------------------------
+
+
+_FLOW_MODULE = '''
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def make():
+    return 1
+
+
+def check():
+    return True
+
+
+def discards():
+    """Ten calls, nothing read."""
+    for _ in range(10):
+        make()
+
+
+def logs_it():
+    logger.info("value %s", make())
+
+
+def keeps_it():
+    value = make()
+    return value + 1
+
+
+def branches_on_it():
+    if check():
+        return 1
+    return 0
+
+
+def returns_it():
+    return make()
+
+
+class Holder:
+    def escapes(self):
+        self.value = make()
+'''
+
+
+@pytest.fixture
+def flow_repo(tmp_path: Path) -> Path:
+    package = tmp_path / "core" / "flow"
+    package.mkdir(parents=True)
+    (tmp_path / "core" / "__init__.py").write_text("")
+    (package / "__init__.py").write_text("")
+    (package / "mod.py").write_text(_FLOW_MODULE)
+    return tmp_path
+
+
+def test_what_happens_to_a_returned_value_is_classified(flow_repo):
+    from core.connectome.dataflow import Consequence, extract_dataflow
+
+    flow = extract_dataflow(flow_repo, roots=("core",))
+    text = (flow_repo / "core" / "flow" / "mod.py").read_text().splitlines()
+    found: dict[str, str] = {}
+    for locus, consequence in flow.by_locus.items():
+        line = int(locus.split(":")[1])
+        found.setdefault(text[line - 1].strip(), str(consequence))
+    assert found["make()"] == str(Consequence.DISCARDED)
+    assert found['logger.info("value %s", make())'] == str(Consequence.LOGGED)
+    assert found["value = make()"] == str(Consequence.LOCAL)
+    assert found["if check():"] == str(Consequence.BRANCH)
+    assert found["return make()"] == str(Consequence.RETURNED)
+    assert found["self.value = make()"] == str(Consequence.ESCAPES)
+
+
+def test_ten_calls_that_carry_nothing_weigh_nothing(flow_repo):
+    from core.connectome.dataflow import extract_dataflow, weight_edges
+
+    reconstructor = VolumeReconstructor(flow_repo, ReconstructionConfig(roots=("core",)))
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    flow = extract_dataflow(flow_repo, roots=("core",))
+    weighted = weight_edges(snapshot, flow, reconstructor.contact_loci)
+
+    names = {uid: unit.name.rsplit(":", 1)[1] for uid, unit in snapshot.units.items()}
+    by_pair = {
+        (names[pre], names[post]): entry
+        for (pre, post), entry in weighted.items()
+        if pre in names and post in names
+    }
+    discarding = by_pair[("discards", "make")]
+    assert discarding["contacts"] == 1  # one site, in a loop
+    assert discarding["mean_weight"] == pytest.approx(0.0)
+    assert discarding["carries_nothing"] is True
+
+    deciding = by_pair[("branches_on_it", "check")]
+    assert deciding["carries_nothing"] is False
+    assert deciding["mean_weight"] > discarding["mean_weight"]
+
+
+def test_the_report_separates_heavy_and_empty_from_light_and_decisive(flow_repo):
+    from core.connectome.dataflow import dataflow_report, extract_dataflow, weight_edges
+
+    reconstructor = VolumeReconstructor(flow_repo, ReconstructionConfig(roots=("core",)))
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    flow = extract_dataflow(flow_repo, roots=("core",))
+    weighted = weight_edges(snapshot, flow, reconstructor.contact_loci)
+    report = dataflow_report(snapshot, weighted)
+    assert report["edges_weighted"] > 0
+    assert 0.0 <= report["carries_nothing_share"] <= 1.0
+    assert any("branches_on_it" in row["pair"] for row in report["single_call_decisive"])
+
+
+# ---------------------------------------------------------------------------
+# Durable stores and the process boundary
+# ---------------------------------------------------------------------------
+
+
+_STORE_MODULE = '''
+import json
+import subprocess
+
+
+def writes(out):
+    out.write_text("payload")
+    (out / "report.json").write_text("{}")
+
+
+def reads(out):
+    return (out / "report.json").read_text()
+
+
+def writes_nobody_reads(out):
+    (out / "orphan.json").write_text("{}")
+
+
+def spawns():
+    return subprocess.run(["helper-binary"], check=False)
+
+
+def spawns_too():
+    return subprocess.run(["helper-binary", "--flag"], check=False)
+'''
+
+
+def test_a_store_written_here_and_read_there_is_an_edge(tmp_path: Path):
+    from core.connectome.layers import Layer, extract_layers
+
+    package = tmp_path / "core" / "store"
+    package.mkdir(parents=True)
+    (tmp_path / "core" / "__init__.py").write_text("")
+    (package / "__init__.py").write_text("")
+    (package / "mod.py").write_text(_STORE_MODULE)
+
+    reconstructor = VolumeReconstructor(tmp_path, ReconstructionConfig(roots=("core",)))
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    multilayer = extract_layers(snapshot, tmp_path, roots=("core",))
+
+    names = {uid: unit.name.rsplit(":", 1)[1] for uid, unit in snapshot.units.items()}
+    io_named = {
+        (names[pre], names[post])
+        for pre, post in multilayer.io
+        if pre in names and post in names
+    }
+    assert ("writes", "reads") in io_named
+    stores = {
+        key.partition(":")[2]: value
+        for key, value in multilayer.channels.items()
+        if key.startswith(str(Layer.IO))
+    }
+    assert "report.json" in stores
+    orphan = stores.get("orphan.json")
+    assert orphan is not None and orphan["write"] and not orphan["read"]
+
+
+def test_two_cells_that_spawn_the_same_helper_meet_at_the_boundary(tmp_path: Path):
+    from core.connectome.layers import extract_layers
+
+    package = tmp_path / "core" / "store"
+    package.mkdir(parents=True)
+    (tmp_path / "core" / "__init__.py").write_text("")
+    (package / "__init__.py").write_text("")
+    (package / "mod.py").write_text(_STORE_MODULE)
+
+    reconstructor = VolumeReconstructor(tmp_path, ReconstructionConfig(roots=("core",)))
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    multilayer = extract_layers(snapshot, tmp_path, roots=("core",))
+    names = {uid: unit.name.rsplit(":", 1)[1] for uid, unit in snapshot.units.items()}
+    ipc_named = {
+        tuple(sorted((names[pre], names[post])))
+        for pre, post in multilayer.ipc
+        if pre in names and post in names
+    }
+    assert ("spawns", "spawns_too") in ipc_named

@@ -15,10 +15,12 @@ with the exact step that would confirm them, and never as defects.
 The kinds, and what each one is grounded in:
 
 ``half_wired_channel``
-    A topic published and never subscribed, or subscribed and never published.
-    The multilayer view finds these because they are invisible in the call
-    graph, which is the same reason the worm's monoamine layer had to be mapped
-    separately.
+    A topic published and never subscribed, or subscribed and never published,
+    and the same for a durable store written and never read. The multilayer view
+    finds these because they are invisible in the call graph, which is the same
+    reason the worm's monoamine layer had to be mapped separately. A store is
+    the harder case: its reader can be another process on another day, so this
+    is a candidate wherever it appears.
 ``over_inhibited_region``
     A package whose excitatory to inhibitory ratio sits far below cortex's
     4.035. Too much inhibition and a signal cannot cross the network.
@@ -26,6 +28,9 @@ The kinds, and what each one is grounded in:
     A pair joined by four or more call sites across a module boundary. H01
     treats a four-contact pair as a different kind of connection; across a
     boundary it is an interface somebody reached through instead of calling.
+    When the information weight is available it changes the reading: a heavy
+    pair whose calls all discard what comes back is a builder being fed, not a
+    coupling, and a third of the heavy pairs in this tree are exactly that.
 ``gate_dominated_cell``
     A cell whose inputs land almost entirely on its decision to fire rather
     than on its body. It cannot be argued with by its inputs, only vetoed.
@@ -151,6 +156,7 @@ def diagnose(
     multilayer: Any = None,
     observed: Any = None,
     laminar: Any = None,
+    dataflow: Any = None,
     limit_per_kind: int = 25,
 ) -> PathologyReport:
     """Run every check that has a measurement behind it.
@@ -172,20 +178,48 @@ def diagnose(
         if not connection.same_module
     ]
     scanned["heavy_pairs_crossing_modules"] = len(heavy_crossing)
-    for connection in heavy_crossing[:limit_per_kind]:
+    if dataflow is not None:
+        empty = sum(
+            1
+            for connection in heavy_crossing
+            if (dataflow.get((connection.pre, connection.post)) or {}).get("carries_nothing")
+        )
+        scanned["heavy_pairs_carrying_nothing"] = empty
+    for connection in heavy_crossing[:limit_per_kind * 2]:
+        flow = (dataflow or {}).get((connection.pre, connection.post)) or {}
+        carries_nothing = bool(flow.get("carries_nothing"))
+        if carries_nothing:
+            severity = Severity.LOW
+            evidence = (
+                f"{connection.contacts} call sites across a module boundary, and every "
+                "one of them discards what comes back, so the control graph counts a "
+                "coupling the information graph does not"
+            )
+            closes = "the calls are one call, or the count stops being read as coupling"
+        else:
+            severity = Severity.HIGH if connection.contacts >= 16 else Severity.MEDIUM
+            strongest = flow.get("strongest", "unmeasured")
+            evidence = (
+                f"{connection.contacts} call sites across a module boundary carrying "
+                f"{strongest} values; H01 puts 0.092% of human cortical pairs at four "
+                "or more contacts"
+            )
+            closes = "the pair is joined by one call, or the two modules are one"
         findings.append(
             Finding(
                 kind="interface_used_as_internal",
                 subject=f"{connection.pre_name} -> {connection.post_name}",
-                severity=Severity.HIGH if connection.contacts >= 16 else Severity.MEDIUM,
+                severity=severity,
                 confidence=Confidence.MEASURED,
-                evidence=(
-                    f"{connection.contacts} call sites across a module boundary; "
-                    "H01 puts 0.092% of human cortical pairs at four or more contacts"
-                ),
-                closes_when="the pair is joined by one call, or the two modules are one",
-                weight=float(connection.contacts),
-                detail={"contacts": connection.contacts, "same_region": connection.same_region},
+                evidence=evidence,
+                closes_when=closes,
+                weight=float(connection.contacts) * (0.1 if carries_nothing else 1.0),
+                detail={
+                    "contacts": connection.contacts,
+                    "same_region": connection.same_region,
+                    "information": flow.get("strongest", "unmeasured"),
+                    "carries_nothing": carries_nothing,
+                },
             )
         )
 
@@ -270,50 +304,64 @@ def diagnose(
     if multilayer is not None:
         from .layers import Layer
 
-        topics = {
-            key.partition(":")[2]: value
-            for key, value in multilayer.channels.items()
-            if key.startswith(str(Layer.VOLUME))
-        }
-        publish_only = sorted(k for k, v in topics.items() if v["out"] and not v["in"])
-        subscribe_only = sorted(k for k, v in topics.items() if v["in"] and not v["out"])
-        scanned["topics"] = len(topics)
-        scanned["topics_publish_only"] = len(publish_only)
-        scanned["topics_subscribe_only"] = len(subscribe_only)
-        for topic in publish_only[:limit_per_kind]:
-            writers = len(topics[topic]["out"])
-            findings.append(
-                Finding(
-                    kind="half_wired_channel",
-                    subject=topic,
-                    severity=Severity.HIGH if writers > 1 else Severity.MEDIUM,
-                    confidence=Confidence.CANDIDATE,
-                    evidence=f"{writers} cell(s) publish it and the scan finds no subscriber",
-                    closes_when=(
-                        "a recording shows a handler firing for this topic, or the "
-                        "publisher is removed"
-                    ),
-                    weight=float(writers) * 10.0,
-                    detail={"direction": "publish_only", "publishers": writers},
-                )
+        for layer, write_key, read_key, noun in (
+            (Layer.VOLUME, "out", "in", "topic"),
+            (Layer.IO, "write", "read", "store"),
+        ):
+            channels = {
+                key.partition(":")[2]: value
+                for key, value in multilayer.channels.items()
+                if key.startswith(str(layer))
+            }
+            write_only = sorted(
+                k for k, v in channels.items() if v[write_key] and not v[read_key]
             )
-        for topic in subscribe_only[:limit_per_kind]:
-            readers = len(topics[topic]["in"])
-            findings.append(
-                Finding(
-                    kind="half_wired_channel",
-                    subject=topic,
-                    severity=Severity.MEDIUM,
-                    confidence=Confidence.CANDIDATE,
-                    evidence=f"{readers} cell(s) subscribe and the scan finds no publisher",
-                    closes_when=(
-                        "a recording shows the topic being published, or the subscriber "
-                        "is removed"
-                    ),
-                    weight=float(readers) * 5.0,
-                    detail={"direction": "subscribe_only", "subscribers": readers},
-                )
+            read_only = sorted(
+                k for k, v in channels.items() if v[read_key] and not v[write_key]
             )
+            scanned[f"{noun}s"] = len(channels)
+            scanned[f"{noun}s_write_only"] = len(write_only)
+            scanned[f"{noun}s_read_only"] = len(read_only)
+            for name in write_only[:limit_per_kind]:
+                writers = len(channels[name][write_key])
+                findings.append(
+                    Finding(
+                        kind="half_wired_channel",
+                        subject=name,
+                        severity=Severity.HIGH if writers > 1 else Severity.MEDIUM,
+                        confidence=Confidence.CANDIDATE,
+                        evidence=(
+                            f"{writers} cell(s) write this {noun} and the scan finds "
+                            "no reader"
+                        ),
+                        closes_when=(
+                            f"a recording shows this {noun} being read, or the writer "
+                            "is removed"
+                        ),
+                        weight=float(writers) * 10.0,
+                        detail={"layer": str(layer), "direction": "write_only", "writers": writers},
+                    )
+                )
+            for name in read_only[:limit_per_kind]:
+                readers = len(channels[name][read_key])
+                findings.append(
+                    Finding(
+                        kind="half_wired_channel",
+                        subject=name,
+                        severity=Severity.MEDIUM,
+                        confidence=Confidence.CANDIDATE,
+                        evidence=(
+                            f"{readers} cell(s) read this {noun} and the scan finds "
+                            "no writer"
+                        ),
+                        closes_when=(
+                            f"a recording shows this {noun} being written, or the "
+                            "reader is removed"
+                        ),
+                        weight=float(readers) * 5.0,
+                        detail={"layer": str(layer), "direction": "read_only", "readers": readers},
+                    )
+                )
 
         # -- central where nobody looks -----------------------------------
         wired_degree: dict[str, int] = {}
