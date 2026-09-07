@@ -161,11 +161,43 @@ does not exist.** What exists is a star: every station's outflow goes to
 interoception at 3.6 to 5.7 times its share, and workspace, higher-order, self
 model, planning and action receive essentially nothing from anywhere.
 
-Each missing link is a finding that names its enrichment and what would close
-it. And because none of the nine recorded workloads fired those stations —
-planning fired in none of them — `tools/record_coalition_activity.py` drives all
-161 of their modules, so the recorded version of the question can be asked at
-all.
+Each missing link is a finding that names its enrichment and what would close it.
+
+### Measured while they were running
+
+None of the nine recorded workloads fired those stations — planning fired in
+none of them — so `tools/record_coalition_activity.py` drives all 162 of their
+modules and records it.
+
+The first recording drove one station at a time, and its answer was about the
+workload: a station awake while the others are idle cannot influence them, so it
+could only ever have shown influence inside a station, and that is what it showed
+— 132 influences surviving their null, every one within a station, none between
+two.
+
+So the workload ends with an interleaved condition where every station's modules
+are cycled together. 2,982 frames at 50 ms, 36 passes over all 162 modules, 85
+million events, every station awake at once:
+
+| influences surviving their null | count |
+| --- | --- |
+| within planning | 12 |
+| within self model | 7 |
+| within higher-order | 3 |
+| within action | 2 |
+| within affect | 2 |
+| within interoception | 1 |
+| **between any two stations** | **0** |
+
+Structurally a star, and functionally seven islands. Each station has internal
+recurrent influence — which is why those 27 survive a rotation null — and none
+of them influences another in a way that shows up while both are running.
+
+Two limits on that, and both name the next experiment. The probes call each
+station's read-only surface in a process where the runtime is not booted, so what
+fires is each station's behaviour with its dependencies absent; the degradation
+records in the log say so. And influence is measured at a 50 ms frame, so a
+coupling that acts over seconds would not appear.
 
 ## The mapping
 

@@ -1,38 +1,38 @@
 {
   "recording": {
-    "cells": 2560,
-    "frames": 4048,
-    "active_cells": 2560,
+    "cells": 2826,
+    "frames": 4825,
+    "active_cells": 2826,
     "frame_seconds": 0.05,
     "conditions": {
-      "interoception": 705,
-      "affect": 872,
-      "workspace": 204,
-      "higher_order": 553,
-      "self_model": 451,
-      "planning": 447,
-      "action": 816
+      "interoception": 982,
+      "affect": 1158,
+      "workspace": 486,
+      "higher_order": 437,
+      "self_model": 546,
+      "planning": 855,
+      "action": 361
     },
-    "events": 53680276
+    "events": 48727204
   },
   "station_cells_fired": {
-    "interoception": 62,
-    "affect": 56,
-    "workspace": 0,
-    "higher_order": 10,
-    "self_model": 15,
-    "planning": 86,
-    "action": 36
+    "interoception": 109,
+    "affect": 110,
+    "workspace": 28,
+    "higher_order": 33,
+    "self_model": 25,
+    "planning": 107,
+    "action": 40
   },
   "pooled_effective": {
     "condition": "driven",
     "grade": "predictive",
     "licenses": "that one cell's past helps predict another's future",
-    "frames": 4048,
-    "edges_measured": 127,
-    "edges_surviving_null": 60,
-    "surviving_share": 0.4724,
-    "mean_weight_surviving": 0.08748,
+    "frames": 4825,
+    "edges_measured": 230,
+    "edges_surviving_null": 132,
+    "surviving_share": 0.5739,
+    "mean_weight_surviving": 0.0731,
     "skipped": ""
   },
   "recorded_closure": {
@@ -41,14 +41,85 @@
       "interoception": 362,
       "affect": 392,
       "workspace": 127,
-      "higher_order": 294,
+      "higher_order": 301,
       "self_model": 78,
       "planning": 614,
       "action": 272
     },
-    "links": [],
+    "links": [
+      {
+        "link": "interoception -> affect",
+        "structural_edges": 3,
+        "hops": 0,
+        "effective_edges": 0,
+        "share": 0.0,
+        "expected": 0.0,
+        "enrichment": 0.0,
+        "present": false
+      },
+      {
+        "link": "affect -> workspace",
+        "structural_edges": 0,
+        "hops": 0,
+        "effective_edges": 0,
+        "share": 0.0,
+        "expected": 0.0,
+        "enrichment": 0.0,
+        "present": false
+      },
+      {
+        "link": "workspace -> higher_order",
+        "structural_edges": 0,
+        "hops": 0,
+        "effective_edges": 0,
+        "share": 0.0,
+        "expected": 0.0,
+        "enrichment": 0.0,
+        "present": false
+      },
+      {
+        "link": "higher_order -> self_model",
+        "structural_edges": 0,
+        "hops": 0,
+        "effective_edges": 0,
+        "share": 0.0,
+        "expected": 0.0,
+        "enrichment": 0.0,
+        "present": false
+      },
+      {
+        "link": "self_model -> planning",
+        "structural_edges": 0,
+        "hops": 0,
+        "effective_edges": 0,
+        "share": 0.0,
+        "expected": 0.0,
+        "enrichment": 0.0,
+        "present": false
+      },
+      {
+        "link": "planning -> action",
+        "structural_edges": 0,
+        "hops": 0,
+        "effective_edges": 0,
+        "share": 0.0,
+        "expected": 0.0,
+        "enrichment": 0.0,
+        "present": false
+      },
+      {
+        "link": "action -> interoception",
+        "structural_edges": 0,
+        "hops": 0,
+        "effective_edges": 0,
+        "share": 0.0,
+        "expected": 0.0,
+        "enrichment": 0.0,
+        "present": false
+      }
+    ],
     "links_present": 0,
-    "links_total": 0,
+    "links_total": 7,
     "closed": false,
     "ring_enrichment": 0.0,
     "null_enrichment": 0.0,
@@ -56,9 +127,9 @@
     "null_mean_links_present": 0.0,
     "null_spread": 0.0,
     "z": 0.0,
-    "nulls": 0,
-    "skipped": "these stations did not fire in this recording: workspace",
-    "verdict": "these stations did not fire in this recording: workspace"
+    "nulls": 299,
+    "skipped": "",
+    "verdict": "7 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.00)"
   },
   "structural_closure": {
     "condition": "structural",
@@ -66,7 +137,7 @@
       "interoception": 362,
       "affect": 392,
       "workspace": 127,
-      "higher_order": 294,
+      "higher_order": 301,
       "self_model": 78,
       "planning": 614,
       "action": 272
@@ -77,9 +148,9 @@
         "structural_edges": 1,
         "hops": 1,
         "effective_edges": 0,
-        "share": 0.97333,
-        "expected": 0.2206,
-        "enrichment": 4.412,
+        "share": 0.97311,
+        "expected": 0.21973,
+        "enrichment": 4.429,
         "present": true
       },
       {
@@ -87,8 +158,8 @@
         "structural_edges": 2,
         "hops": 2,
         "effective_edges": 0,
-        "share": 0.00164,
-        "expected": 0.0727,
+        "share": 0.00168,
+        "expected": 0.07241,
         "enrichment": 0.023,
         "present": false
       },
@@ -97,9 +168,9 @@
         "structural_edges": 2,
         "hops": 2,
         "effective_edges": 0,
-        "share": 0.0131,
-        "expected": 0.14612,
-        "enrichment": 0.09,
+        "share": 0.01365,
+        "expected": 0.14908,
+        "enrichment": 0.092,
         "present": false
       },
       {
@@ -107,9 +178,9 @@
         "structural_edges": 2,
         "hops": 2,
         "effective_edges": 0,
-        "share": 0.0017,
+        "share": 0.00177,
         "expected": 0.04228,
-        "enrichment": 0.04,
+        "enrichment": 0.042,
         "present": false
       },
       {
@@ -118,7 +189,7 @@
         "hops": 5,
         "effective_edges": 0,
         "share": 1e-05,
-        "expected": 0.29791,
+        "expected": 0.29691,
         "enrichment": 0.0,
         "present": false
       },
@@ -128,8 +199,8 @@
         "hops": 3,
         "effective_edges": 0,
         "share": 9e-05,
-        "expected": 0.17836,
-        "enrichment": 0.0,
+        "expected": 0.17755,
+        "enrichment": 0.001,
         "present": false
       },
       {
@@ -137,54 +208,54 @@
         "structural_edges": 2,
         "hops": 2,
         "effective_edges": 0,
-        "share": 0.30172,
-        "expected": 0.19389,
-        "enrichment": 1.556,
+        "share": 0.29319,
+        "expected": 0.19317,
+        "enrichment": 1.518,
         "present": true
       }
     ],
     "links_present": 2,
     "links_total": 7,
     "closed": false,
-    "ring_enrichment": 0.8745,
-    "null_enrichment": 0.8451,
-    "enrichment_z": 0.092,
+    "ring_enrichment": 0.8719,
+    "null_enrichment": 0.8481,
+    "enrichment_z": 0.074,
     "null_mean_links_present": 1.304,
     "null_spread": 0.46,
     "z": 1.512,
     "nulls": 299,
     "skipped": "",
-    "verdict": "5 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.09)"
+    "verdict": "5 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.07)"
   },
   "per_station": {
     "interoception": {
       "condition": "interoception",
       "grade": "predictive",
       "licenses": "that one cell's past helps predict another's future",
-      "frames": 705,
-      "edges_measured": 43,
-      "edges_surviving_null": 8,
-      "surviving_share": 0.186,
-      "mean_weight_surviving": 0.18081,
+      "frames": 982,
+      "edges_measured": 62,
+      "edges_surviving_null": 17,
+      "surviving_share": 0.2742,
+      "mean_weight_surviving": 0.12155,
       "skipped": ""
     },
     "affect": {
       "condition": "affect",
       "grade": "predictive",
       "licenses": "that one cell's past helps predict another's future",
-      "frames": 872,
-      "edges_measured": 29,
-      "edges_surviving_null": 10,
-      "surviving_share": 0.3448,
-      "mean_weight_surviving": 0.06886,
+      "frames": 1158,
+      "edges_measured": 96,
+      "edges_surviving_null": 42,
+      "surviving_share": 0.4375,
+      "mean_weight_surviving": 0.05496,
       "skipped": ""
     },
     "workspace": {
       "condition": "workspace",
       "grade": "predictive",
       "licenses": "that one cell's past helps predict another's future",
-      "frames": 204,
-      "edges_measured": 0,
+      "frames": 486,
+      "edges_measured": 7,
       "edges_surviving_null": 0,
       "surviving_share": 0.0,
       "mean_weight_surviving": 0.0,
@@ -194,8 +265,8 @@
       "condition": "higher_order",
       "grade": "predictive",
       "licenses": "that one cell's past helps predict another's future",
-      "frames": 553,
-      "edges_measured": 0,
+      "frames": 437,
+      "edges_measured": 6,
       "edges_surviving_null": 0,
       "surviving_share": 0.0,
       "mean_weight_surviving": 0.0,
@@ -205,8 +276,8 @@
       "condition": "self_model",
       "grade": "predictive",
       "licenses": "that one cell's past helps predict another's future",
-      "frames": 451,
-      "edges_measured": 14,
+      "frames": 546,
+      "edges_measured": 16,
       "edges_surviving_null": 0,
       "surviving_share": 0.0,
       "mean_weight_surviving": 0.0,
@@ -216,22 +287,22 @@
       "condition": "planning",
       "grade": "predictive",
       "licenses": "that one cell's past helps predict another's future",
-      "frames": 447,
-      "edges_measured": 41,
-      "edges_surviving_null": 7,
-      "surviving_share": 0.1707,
-      "mean_weight_surviving": 0.19211,
+      "frames": 855,
+      "edges_measured": 46,
+      "edges_surviving_null": 14,
+      "surviving_share": 0.3043,
+      "mean_weight_surviving": 0.11781,
       "skipped": ""
     },
     "action": {
       "condition": "action",
       "grade": "predictive",
       "licenses": "that one cell's past helps predict another's future",
-      "frames": 816,
-      "edges_measured": 5,
-      "edges_surviving_null": 0,
-      "surviving_share": 0.0,
-      "mean_weight_surviving": 0.0,
+      "frames": 361,
+      "edges_measured": 7,
+      "edges_surviving_null": 4,
+      "surviving_share": 0.5714,
+      "mean_weight_surviving": 0.29503,
       "skipped": ""
     }
   },
@@ -239,8 +310,19 @@
     {
       "left": "interoception",
       "right": "affect",
-      "shared_edges": 6,
-      "verdict": "too few edges measured in both conditions to compare"
+      "shared_edges": 9,
+      "correlation": -0.0724,
+      "surviving_in_left_only": 0,
+      "surviving_in_right_only": 5,
+      "recruited_by_left": [],
+      "recruited_by_right": [
+        "core.affect.nociception:NociceptionEngine.worst_channel -> core.affect.nociception:NociceptionEngine._decayed",
+        "core.affect.nociception:NociceptionEngine.snapshot -> core.affect.nociception:NociceptionEngine._pressure_locked",
+        "core.affect.nociception:NociceptionEngine.snapshot -> core.affect.nociception:NociceptionEngine.grounded_valence",
+        "core.affect.nociception:NociceptionEngine._pressure_locked -> core.affect.nociception:_clamp",
+        "core.affect.nociception:NociceptionEngine._pressure_locked -> core.affect.nociception:NociceptionEngine._decayed"
+      ],
+      "verdict": "5 edges are active in one state and not the other"
     },
     {
       "left": "interoception",
