@@ -21,6 +21,10 @@ No percentage is meaningful until that inventory is reconciled.
 
 ## 0. Reconcile the complete inventory
 
+Working evidence: [inherited reconciliation](AURA_INHERITED_RECONCILIATION.md).
+All 66 unchecked occurrences are mapped; prose/table review and full evidence
+reconciliation remain open. This does not close I01-I03.
+
 - [ ] I01 Read and map every unresolved entry in the inherited ledgers below.
 - [ ] I02 Reconcile stale checkboxes against commits, tests, and live receipts.
 - [ ] I03 Deduplicate by mechanism; retain links to every original obligation.
