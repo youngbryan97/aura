@@ -238,14 +238,21 @@ class LinkEvidence:
     share: float = 0.0
     expected: float = 0.0
     enrichment: float = 0.0
+    #: Which measurement decided this link: "flow" over the structural graph, or
+    #: "effective" from a recording. They are not interchangeable and the
+    #: threshold for one is meaningless for the other.
+    mode: str = "flow"
 
     @property
     def present(self) -> bool:
+        if self.mode == "effective":
+            return self.effective_edges > 0
         return self.enrichment >= ENRICHMENT_THRESHOLD
 
     def as_json(self) -> dict[str, Any]:
         return {
             "link": f"{self.source} -> {self.target}",
+            "mode": self.mode,
             "structural_edges": self.structural_edges,
             "hops": self.hops,
             "effective_edges": self.effective_edges,
@@ -468,6 +475,7 @@ def _link_evidence(
         share=share,
         expected=expected,
         enrichment=enrichment,
+        mode="flow" if flow is not None else "effective",
     )
 
 

@@ -7,9 +7,14 @@ model and planning to action. Answering it from a recording needs a recording in
 which those stations fired, and the nine workloads used so far — test slices and
 compute loops — barely touch them. Planning fired in none of them.
 
-This drives each station directly and then drives them in ring order, so both
-questions can be asked: what each station does on its own, and what happens when
-they run together.
+This drives each station directly, and then drives all of them interleaved in one
+condition, so both questions can be asked: what each station does on its own, and
+what happens when they run together.
+
+The second is the one the ring needs. A station driven while the others are idle
+cannot influence them, so a recording made one station at a time can only ever
+show influence inside a station — which is exactly what the first version of this
+showed, all 132 surviving influences within a station and none between two.
 
 The probes are deliberately shallow. Every module in a station is imported, and
 every module-level function that takes no required argument and reads rather
@@ -183,6 +188,12 @@ def main() -> int:
     parser.add_argument("--rounds", type=int, default=3, help="passes around the ring")
     parser.add_argument("--frame-seconds", type=float, default=0.05)
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "connectome" / "coalition")
+    parser.add_argument(
+        "--together",
+        type=float,
+        default=90.0,
+        help="seconds driving every station interleaved, after the per-station passes",
+    )
     args = parser.parse_args()
 
     os.environ.setdefault("AURA_LOG_DIR", str(args.out / "logs"))
@@ -207,7 +218,9 @@ def main() -> int:
         RecorderConfig(
             frame_seconds=args.frame_seconds,
             capture_edges=True,
-            max_wall_seconds=args.budget * len(COALITION_ORDER) * args.rounds + 600,
+            max_wall_seconds=args.budget * len(COALITION_ORDER) * args.rounds
+            + args.together
+            + 600,
             max_frames=32_768,
         ),
     )
@@ -232,6 +245,34 @@ def main() -> int:
             }
             log.append(entry)
             print(json.dumps(entry), flush=True)
+    if args.together > 0:
+        # Every station's probes, cycled one module at a time, so that in any
+        # given frame more than one station is running. Influence between two
+        # stations cannot appear in a recording where only one of them is awake.
+        recorder.set_condition("together")
+        started = time.monotonic()
+        deadline = started + args.together
+        order = [
+            (station, name)
+            for station in COALITION_ORDER
+            for name in by_station.get(station, [])
+        ]
+        passes = 0
+        while time.monotonic() < deadline:
+            for _station, name in order:
+                if time.monotonic() >= deadline:
+                    break
+                _probe_module(name, 0.05)
+            passes += 1
+        entry = {
+            "round": "together",
+            "station": "all",
+            "seconds": round(time.monotonic() - started, 1),
+            "modules": len(order),
+            "passes": passes,
+        }
+        log.append(entry)
+        print(json.dumps(entry), flush=True)
     trace = recorder.stop()
 
     import numpy as np
