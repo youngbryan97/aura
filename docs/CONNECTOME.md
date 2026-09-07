@@ -167,8 +167,6 @@ planning fired in none of them — `tools/record_coalition_activity.py` drives a
 161 of their modules, so the recorded version of the question can be asked at
 all.
 
-## The three layers
-
 ## The mapping
 
 | connectomics | here |
@@ -526,18 +524,6 @@ test.
 `make connectome`, `make connectome-pathology`, `make connectome-record` and
 `make connectome-zapbench` are the same four steps.
 
-## Where it is wired
-
-- `runtime_health_report()["connectome"]` carries the fragment. It never builds
-  a reconstruction to answer a poll; a process that has not made one says so.
-- Six telemetry channels at 0x1801, each with limits set against the published
-  value. `connectome.within_layer_ratio` reads yellow on its own.
-- Four mappings in `core/science/neuro_reference.py` at CONNECTIVITY_MATCHED,
-  each with its source, its falsifier and a competing hypothesis.
-- `core/consciousness/criticality_regulator.py` steers on the multistep
-  regression branching ratio rather than the per-tick mean, and publishes the
-  difference between them as `subsampling_bias`.
-
 ## What is wired
 
 This package finds channels with a writer and no reader. Applying that to
@@ -579,10 +565,13 @@ persistence wins and the connectome rule would be the worse choice; at 20 ms the
 connectome rule wins on F1 and on recall. `record_prefetch_rule` stores whichever
 won on this system's own recording and the warm-up uses it.
 
-**`integration`** publishes eight telemetry channels, a health fragment, the
-gate state and the chosen rule. **`invariants`** runs in the structural verifier.
-Everything else is reached by `tools/connectome_report.py` and the four make
-targets.
+**`integration`** publishes eight telemetry channels at 0x1901, a health
+fragment under `runtime_health_report()["connectome"]` that never builds a
+reconstruction to answer a poll, the gate state and the chosen rule.
+**`invariants`** runs in the structural verifier. Four mappings are declared in
+`core/science/neuro_reference.py` at CONNECTIVITY_MATCHED, each with its source,
+its falsifier and a competing hypothesis. Everything else is reached by
+`tools/connectome_report.py` and the make targets.
 
 The policy stays with the caller. Which state closes which route is a decision
 about this system, and a default invented here would be a claim about Aura
