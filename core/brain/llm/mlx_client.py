@@ -4167,6 +4167,7 @@ async def _foreground_owner_context(
                     eviction_after is not None
                     and holder != owner_name
                     and holder_age > eviction_after
+                    and _foreground_owner_silence() > eviction_after
                 ):
                     _FOREGROUND_OWNER_NAME = None
                     _FOREGROUND_OWNER_ACQUIRED_AT = 0.0

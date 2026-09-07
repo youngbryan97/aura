@@ -252,10 +252,22 @@ def test_flagship_doctor_recovers_sustained_foreground_lag_without_heavy_heal(
     assert context == "foreground_generation"
     assert ram_pressure is False
     assert cleared and cleared[0]["reason"] == "flagship_doctor_sustained_foreground_lag"
-    assert gate.abort_reasons == ["flagship_doctor_sustained_foreground_lag"]
+    assert gate.abort_reasons == []
     assert gate.timeout_reasons == ["flagship_doctor_sustained_foreground_lag"]
     assert daemon._last_lightweight_lag_recovery_at == now
     assert not any(item.get("severity") == "critical" for item in degradations)
+
+    monkeypatch.setattr(
+        "core.brain.llm.mlx_client.force_clear_foreground_owner",
+        lambda **kwargs: {"cleared": False, "detail": "owner_still_reporting_progress"},
+    )
+    result = daemon._attempt_lightweight_lag_recovery(
+        lag=120.0, lag_context="foreground_generation", ram_percent=50.0,
+        now=now + 20,
+    )
+    assert result["reason"] == "foreground_owner_recovery_not_admitted"
+    assert gate.abort_reasons == []
+    assert len(gate.timeout_reasons) == 1
 
 
 @requires_mlx

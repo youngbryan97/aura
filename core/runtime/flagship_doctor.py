@@ -569,10 +569,9 @@ class FlagshipDoctorDaemon:
         """Break a wedged foreground generation without broad self-healing.
 
         Lag-only recovery must not run GC, VACUUM databases, or restart broad
-        runtime services. It only marks the foreground lane as timed out, clears
-        stale ownership, and asks the inference gateway to abort active local
-        generations so the live desktop path can return control before memory
-        pressure escalates into an OS-level crash.
+        runtime services. It cancels only a stale, silent foreground holder and
+        reports the timeout after ownership recovery succeeds. A progressing
+        holder or a replacement generation must remain untouched.
         """
         if not self._lag_context_allows_lightweight_recovery(lag_context):
             return {"attempted": False, "reason": "lag_context_not_recoverable"}
@@ -607,17 +606,19 @@ class FlagshipDoctorDaemon:
                 "flagship_doctor",
                 exc,
                 severity="warning",
-                action="continued lightweight lag recovery after foreground-owner clear failed",
+                action="declined lightweight lag recovery after foreground-owner clear failed",
             )
+
+        if not result["cleared_foreground_owner"]:
+            result["reason"] = "foreground_owner_recovery_not_admitted"
+            return result
 
         try:
             from core.container import ServiceContainer
 
             gate = ServiceContainer.get("inference_gate", default=None)
-            abort = getattr(gate, "force_abort_active_generation", None)
-            if callable(abort):
-                aborted = abort("flagship_doctor_sustained_foreground_lag")
-                result["aborted_local_clients"] = int(aborted or 0)
+            # force_clear_foreground_owner already cancels the exact holder.
+            # A second, unscoped abort could cancel a new or unrelated request.
             note_timeout = getattr(gate, "note_foreground_timeout", None)
             if callable(note_timeout):
                 note_timeout("flagship_doctor_sustained_foreground_lag")
@@ -644,7 +645,7 @@ class FlagshipDoctorDaemon:
             "flagship_doctor",
             RuntimeError("sustained_foreground_lag"),
             severity="warning",
-            action="marked foreground timeout and aborted active local generation without broad self-healing",
+            action="recovered stale foreground ownership without broad self-healing",
             extra=result,
             enforce_failure_policy=False,
         )

@@ -13,6 +13,7 @@ evidence of a wedge: a cold load is legitimately slow.
 """
 from __future__ import annotations
 
+import asyncio
 import time
 
 import pytest
@@ -98,6 +99,21 @@ def test_status_cleanup_releases_an_old_silent_owner():
 
     assert mlx_client._clear_stale_foreground_owner() == "chat_api:default"
     assert mlx_client._FOREGROUND_OWNER_NAME is None
+
+
+def test_waiting_client_cannot_expire_a_progressing_owner(monkeypatch):
+    _own(600.0)
+    mlx_client._FOREGROUND_OWNER_STALE_AFTER = 200.0
+    mlx_client.note_foreground_owner_progress()
+    monkeypatch.setattr(mlx_client, "_foreground_owner_wait_budget", lambda *a, **k: 0.01)
+
+    async def contend():
+        with pytest.raises(TimeoutError):
+            async with mlx_client._foreground_owner_context("other", foreground_request=False):
+                pytest.fail("stole a progressing owner")
+
+    asyncio.run(contend())
+    assert mlx_client._FOREGROUND_OWNER_NAME == "chat_api:default"
 
 
 def test_a_slow_but_working_owner_is_not_force_cleared():
