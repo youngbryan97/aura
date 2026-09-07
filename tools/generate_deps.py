@@ -57,6 +57,14 @@ CORE = ROOT / "core"
 HANDWRITTEN = {
     "conation", "engineering", "fsw", "health", "learning", "observability",
     "persistence", "runtime", "utils", "verify",
+    # The measurer must not become part of what it measures. core/subject
+    # reads the running organism to take a reading, and the rule is one-way:
+    # nothing in the runtime may import subject, because a measurement the
+    # measured thing can read is partly about itself. A generated list would
+    # say only "what it imports today" and would widen in the direction the
+    # rule exists to hold. It was generated once, on 2026-09-07, and the
+    # written rule survived by one command.
+    "subject",
     # The judge must not be able to reach the defendant. core/phenomenology
     # decides whether evidence supports a claim about this system, so its rule
     # is "imports nothing from core" rather than "what it imports today" — a

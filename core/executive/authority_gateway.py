@@ -1296,7 +1296,17 @@ class AuthorityGateway:
             return blocked
 
         exec_core = self._get_executive_core()
-        intent, record = await exec_core.prepare_tool_intent(tool_name, args, source=source)
+        stated_person_is_waiting = runtime_context.get("a_person_is_waiting")
+        intent, record = await exec_core.prepare_tool_intent(
+            tool_name,
+            args,
+            source=source,
+            person_is_waiting=(
+                stated_person_is_waiting
+                if isinstance(stated_person_is_waiting, bool)
+                else None
+            ),
+        )
         decision = self._decision_from_record(
             record,
             executive_intent_id=intent.intent_id,
