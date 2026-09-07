@@ -3528,6 +3528,28 @@ def test_compound_objective_expands_answer_surface(monkeypatch):
     assert result["reason"] == "answer_surface_unaffordable_before_execution"
     assert captured == {}
 
+    # A resident with measured rates need not wait for a task-bucket history.
+    with monkeypatch.context() as pricing:
+        pricing.setattr(
+            "core.brain.llm.measured_admission.recommended_foreground_deadline",
+            lambda **kwargs: (0.0, Confidence.NO_SAMPLES, 0),
+        )
+        def live_price(messages, tokens, *, private_tokens_included):
+            assert messages
+            assert tokens > 0
+            assert private_tokens_included is True
+            return 100.0
+        pricing.setattr(
+            "core.brain.llm.generation_allowance.resident_generation_seconds",
+            live_price,
+        )
+        captured.clear()
+        result = asyncio.run(svc.deep_reason(
+            inline_obligations, timeout_s=180.0, foreground_request=True,
+        ))
+        assert result["reason"] == "profile_observed"
+        assert svc._last_allocation["answer_surface_required_wall_clock_s"] == 100.0
+
     # A simple objective keeps the tight interactive profile.
     captured.clear()
     asyncio.run(

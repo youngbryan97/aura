@@ -5355,6 +5355,16 @@ class LatentCortexService:
                     )
                     if samples > 0 and measured_s > 0.0:
                         required_wall_clock_s = float(measured_s)
+                    else:
+                        from core.brain.llm.generation_allowance import resident_generation_seconds
+
+                        live_seconds = resident_generation_seconds(
+                            messages or [{"role": "user", "content": question}],
+                            target_decode_tokens,
+                            private_tokens_included=True,
+                        )
+                        if live_seconds > 0.0:
+                            required_wall_clock_s = live_seconds
                     self._last_allocation[
                         "answer_surface_wall_clock_samples"
                     ] = int(samples)
