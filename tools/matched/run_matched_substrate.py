@@ -301,53 +301,59 @@ def _faculty_reading(measured: dict, arm: str) -> dict:
     true, which is the same distinction the validation suite makes about an
     experiment it declined to run.
     """
-    # An arm that sampled at the same temperature as intact did not differ
-    # from it in this path, whatever the delta says. Read from what the run
-    # actually asked for rather than from which channels the arm declares,
-    # because a channel that is registered and never consulted is exactly the
-    # thing this distinction exists to catch.
+    # Whether this arm's faculty was in the path that produced the answer.
+    #
+    # The only channel this protocol wires to generation is the affect
+    # circumplex, which sets sampling temperature. An arm that removes it
+    # samples at the neutral; an arm that removes anything else samples
+    # exactly as intact does and cannot be measured here.
+    #
+    # Compared against the neutral rather than against intact's mean. The
+    # circumplex drifts between reads — intact 0.6812 against an arm's 0.6811
+    # in one run — and a mean-difference test read that thousandth as a
+    # measurement and marked a faculty MEASURED that was never in the path.
+    # A lesion of this channel does one exact thing, so that is what to look
+    # for.
     asked = _TEMPERATURE_ASKED.get(arm) or []
     intact_asked = _TEMPERATURE_ASKED.get(INTACT) or []
-    reached_the_generation = bool(asked) and bool(intact_asked) and (
-        round(sum(asked) / len(asked), 6)
-        != round(sum(intact_asked) / len(intact_asked), 6)
+    at = round(sum(asked) / len(asked), 4) if asked else None
+    intact_at = (
+        round(sum(intact_asked) / len(intact_asked), 4) if intact_asked else None
     )
-    if reached_the_generation:
+    sampled_at_the_neutral = at is not None and abs(at - NEUTRAL_TEMPERATURE) < 1e-9
+    intact_did_not = (
+        intact_at is not None and abs(intact_at - NEUTRAL_TEMPERATURE) >= 1e-9
+    )
+    if sampled_at_the_neutral and intact_did_not:
         return {
             "outcome": "MEASURED",
             "observed_delta_mean": measured["delta_mean"],
             "separated": measured["separated"],
-            "sampled_at": round(sum(asked) / len(asked), 4),
-            "intact_sampled_at": round(sum(intact_asked) / len(intact_asked), 4),
+            "sampled_at": at,
+            "intact_sampled_at": intact_at,
             "why_it_counts": (
-                "the ablated arm sampled at a different temperature from "
-                "intact, so the faculty was in the path that produced the "
-                "answer and the delta is a measurement of removing it"
+                "this arm sampled at the neutral and intact did not, so the "
+                "faculty was in the path that produced the answer and the "
+                "delta is a measurement of removing it"
             ),
         }
-    if measured["delta_mean"] == 0.0 and not measured["separated"]:
-        return {
-            "outcome": "NOT_MEASURED",
-            "sampled_at": round(sum(asked) / len(asked), 4) if asked else None,
-            "intact_sampled_at": (
-                round(sum(intact_asked) / len(intact_asked), 4)
-                if intact_asked
-                else None
-            ),
-            "why": (
-                f"{arm} differs from {INTACT} only by lesion channels that act "
-                "inside the cognitive engine, and this protocol generates by "
-                "calling the model directly — so the arms are identical in this "
-                "path and a zero is arithmetic rather than evidence"
-            ),
-            "what_would_measure_it": (
-                "route every arm's generation through the cognitive engine with "
-                "the faculties constructed, so the channels are in the path they "
-                "act on"
-            ),
-            "observed_delta_mean": measured["delta_mean"],
-        }
-    return {"outcome": "MEASURED", **measured}
+    return {
+        "outcome": "NOT_MEASURED",
+        "sampled_at": at,
+        "intact_sampled_at": intact_at,
+        "why": (
+            f"{arm} sampled as {INTACT} did, so whatever it removes was not in "
+            "the path that produced the answer: the channels act inside the "
+            "cognitive engine and this protocol generates by calling the model "
+            "directly"
+        ),
+        "what_would_measure_it": (
+            "route every arm's generation through the cognitive engine with "
+            "the faculties constructed, so the channels are in the path they "
+            "act on"
+        ),
+        "observed_delta_mean": measured["delta_mean"],
+    }
 
 
 def main() -> int:

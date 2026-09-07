@@ -2180,6 +2180,17 @@ def _runtime_integrity_block() -> dict[str, Any]:
          "core.runtime.cancelling_the_call_and_not_just_the_wait:how_the_calls_ended"),
         ("checkable_promises",
          "core.verify.a_promise_with_a_test:how_the_promises_stand"),
+        # What a self-authored change had to show before it was kept, and who
+        # took the opt-out and showed nothing.
+        ("change_evidence",
+         "core.cognition.what_she_could_do_next:how_changes_were_judged"),
+        ("self_judged",
+         "core.cognition.what_a_change_measured_about_itself"
+         ":how_the_self_judged_stand"),
+        # Why an hourly job that measures whether faculties matter has
+        # produced no verdicts. Cheap: it reads counters, not the tree.
+        ("campaign_admission",
+         "core.verify.why_the_campaign_did_not_run:how_the_campaign_has_gone"),
     ):
         module_name, _, func_name = read.partition(":")
         try:
