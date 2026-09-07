@@ -10185,3 +10185,57 @@ const auraFrameGovernor = (() => {
 
 window.auraFrameGovernor = auraFrameGovernor;
 auraFrameGovernor.start();
+
+// ── First run ────────────────────────────────────────────────────────────
+//
+// A ten-step setup wizard shipped in interface/static/first_run.html, and
+// nothing in the product opened it. It is in Settings now, and this offers
+// it once, because a person who does not know it exists will not go looking
+// for it in a settings panel.
+//
+// An offer, never a gate. If the settings read fails, or the answer is
+// unclear, or the person dismisses it, the desktop carries on exactly as it
+// did — the wizard is how setup is easier, not how the app is entered.
+(function offerFirstRunSetupOnce() {
+    const DISMISSED = 'aura.first_run.offer_dismissed';
+    async function offer() {
+        try {
+            if (localStorage.getItem(DISMISSED) === '1') return;
+        } catch { return; }
+        let completed = null;
+        try {
+            const r = await fetch('/api/settings');
+            if (!r.ok) return;
+            const d = await r.json();
+            const values = d && d.values;
+            if (!values || !('onboarding.completed' in values)) return;
+            completed = values['onboarding.completed'];
+        } catch { return; }
+        if (completed !== false) return;
+
+        const bar = document.createElement('div');
+        bar.className = 'aura-first-run-offer';
+        bar.setAttribute('role', 'status');
+        const text = document.createElement('span');
+        text.textContent = 'Set up your model, memory location and permissions.';
+        const open = document.createElement('a');
+        open.href = '/static/first_run.html';
+        open.target = '_blank';
+        open.rel = 'noopener';
+        open.textContent = 'Open setup';
+        const later = document.createElement('button');
+        later.type = 'button';
+        later.textContent = 'Not now';
+        later.addEventListener('click', () => {
+            try { localStorage.setItem(DISMISSED, '1'); } catch { /* private window */ }
+            bar.remove();
+        });
+        bar.append(text, open, later);
+        document.body.appendChild(bar);
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', offer, { once: true });
+    } else {
+        offer();
+    }
+})();

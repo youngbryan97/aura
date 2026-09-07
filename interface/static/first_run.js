@@ -8,9 +8,15 @@
  *
  * The wizard reads and writes settings via /api/settings; world-channel
  * permissions go through /api/dashboard/world (read) and the per-channel
- * grant endpoints. A successful run leaves a file at
- *   ~/.aura/data/settings/first_run_completed
- * so the wizard never reappears.
+ * grant endpoints. Finishing it sets `onboarding.completed`, which is what
+ * stops the desktop offering setup again.
+ *
+ * That last part was a comment describing a file at
+ * ~/.aura/data/settings/first_run_completed that nothing wrote and nothing
+ * read, and every write here sent the settings object as the request body.
+ * The settings API takes {changes, expected_revision} and has for a long
+ * time, so a ten-step wizard nobody could open also saved nothing when it
+ * ran. Both live, 2026-09-07.
  */
 
 (() => {
@@ -19,7 +25,7 @@
     "safety", "fallback", "test_voice", "test_chat", "ready",
   ];
   let step = 0;
-  const state = { settings: {}, permissions: {} };
+  const state = { settings: {}, permissions: {}, revision: null };
 
   const panel = document.getElementById("panel");
   const back = document.getElementById("back");
@@ -35,19 +41,36 @@
       const r = await fetch("/api/settings");
       const d = await r.json();
       state.settings = d.values || {};
+      if (typeof d.revision === "number") state.revision = d.revision;
     } catch {}
   }
 
-  async function patchSettings(patch) {
+  // The settings API is compare-and-set: a write carries the revision it
+  // expects, and a stale one is refused rather than silently overwriting
+  // somebody else's change. Read the revision before writing when we do not
+  // have one, and take the new one back from every reply.
+  async function patchSettings(changes) {
+    if (state.revision === null) await fetchSettings();
+    if (state.revision === null) return false;
     try {
       const r = await fetch("/api/settings", {
         method: "PATCH",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(patch),
+        body: JSON.stringify({ changes, expected_revision: state.revision }),
       });
       const d = await r.json();
+      if (!r.ok) {
+        // A conflict means somebody else wrote first; re-read and say so
+        // rather than reporting a save that did not happen.
+        await fetchSettings();
+        return false;
+      }
       state.settings = d.values || state.settings;
-    } catch {}
+      if (typeof d.revision === "number") state.revision = d.revision;
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function render() {
@@ -168,6 +191,9 @@
         "safety.safe_mode": document.getElementById("safe_mode").checked,
       });
     } else if (id === "ready") {
+      // What stops the desktop offering setup again. Written before the
+      // fresh-auth call, because that one is allowed to fail.
+      await patchSettings({ "onboarding.completed": true });
       try { await fetch("/api/settings/auth/fresh", {method: "POST"}); } catch {}
     }
   }

@@ -7780,3 +7780,50 @@ body.theme-light .skill-card::before {
   outline: 2px solid var(--aura-accent);
   outline-offset: 2px;
 }
+
+/* The first-run offer. A strip, not a modal: it must never be the thing
+   between a person and the app they already opened. */
+.aura-first-run-offer {
+    position: fixed;
+    left: 50%;
+    bottom: var(--aura-space-4, 18px);
+    transform: translateX(-50%);
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: var(--aura-space-3, 12px);
+    max-width: min(560px, calc(100vw - 32px));
+    padding: var(--aura-space-3, 12px) var(--aura-space-4, 18px);
+    border: 1px solid var(--aura-card-border, #ffffff14);
+    border-radius: var(--aura-radius-2, 10px);
+    background: var(--aura-card-bg, #17151b);
+    color: var(--aura-fg, #f4ede4);
+    font: var(--aura-text-1, 14px)/var(--aura-text-1h, 1.5) var(--aura-font-ui, system-ui);
+    box-shadow: 0 10px 30px #0009;
+}
+
+.aura-first-run-offer a,
+.aura-first-run-offer button {
+    flex: none;
+    padding: 4px 12px;
+    border-radius: var(--aura-radius-1, 6px);
+    border: 1px solid var(--aura-card-border, #ffffff14);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.aura-first-run-offer a:hover,
+.aura-first-run-offer button:hover {
+    border-color: var(--aura-accent, #b7a6ff);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .aura-first-run-offer { animation: aura-first-run-rise 240ms ease-out; }
+    @keyframes aura-first-run-rise {
+        from { opacity: 0; transform: translate(-50%, 8px); }
+        to { opacity: 1; transform: translate(-50%, 0); }
+    }
+}
