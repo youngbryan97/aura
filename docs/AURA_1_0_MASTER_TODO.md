@@ -55,8 +55,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   launcher exited; API reboot replaced it with PID 96426, which reached
   kernel_ready and became the sole port-8000 listener. Real-process isolation
   tests and reboot contracts pass. Evidence: [R01 receipt](evidence/R01_RUNTIME_SURVIVAL_2026-09-06.md).
-- [ ] R02 Prove exactly one replacement process, expected revision, model,
+- [x] R02 Prove exactly one replacement process, expected revision, model,
   preserved state, and stable readiness after launch/restart/update.
+  Closed 2026-09-06: ddca74a61 refreshes the successor snapshot after shutdown.
+  PID 99362 replaced 96426; revision matched, the 27B model was unchanged,
+  persisted state survived, and three readiness samples passed.
+  Evidence: [R02 receipt](evidence/R02_SUCCESSOR_IDENTITY_2026-09-06.md).
 - [ ] R03 Live-validate native-thinking public sentence grace (d472d2268).
 - [ ] R04 Live-validate progress-aware owner cleanup (2aefb6f46); audit other
   eviction paths and cross-client ownership, not only the patched function.
