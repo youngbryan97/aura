@@ -265,7 +265,15 @@ _EXTERNAL_EFFECT_RE = re.compile(
     r"notes?|documents?|docs?|repos?|repositor(?:y|ies)|projects?|"
     r"screenshots?|downloads?|desktop|computer|browsers?|tabs?|windows?|"
     r"emails?|calendar|terminal|websites?|pages?|urls?|spreadsheets?|"
-    r"presentations?|reminders?|web|internet|online|articles?|sources?)\b",
+    r"presentations?|reminders?|web|internet|online|articles?|sources?|"
+    # Things a person asks to be PRODUCED. The list already held documents,
+    # notes, spreadsheets and presentations, and not the commonest word for
+    # the same kind of thing: "maybe you should create a concise report from
+    # those measurements" was read as asking for words in this reply, because
+    # an asking clause with no recognised external object has words as its
+    # deliverable by elimination. The elimination is only as good as the list.
+    r"reports?|summar(?:y|ies)|write-?ups?|analyses|analysis|"
+    r"charts?|graphs?|tables?|plans?|drafts?|outlines?|slides?|decks?)\b",
     re.IGNORECASE,
 )
 _EXTERNAL_MEDIUM_RE = re.compile(

@@ -130,6 +130,34 @@ _IMPERATIVE_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: An action verb at the head of a turn that governs nothing, because what
+#: follows it is a whole clause rather than something to act on.
+#:
+#: "wait" is in the action verbs above for good reasons — "wait for the build"
+#: is an instruction — but it is also one of the commonest ways an English
+#: sentence changes its mind. LIVE 2026-09-07: "WAIT that's a perfect
+#: response, Aura. Those are opinions." was classified TASK and would have been
+#: handed to the desktop task engine. So would "wait, I meant the other one"
+#: and "look, I think you're wrong".
+#:
+#: The distinction is syntactic and needs no list of which words are also
+#: interjections: an imperative governs an object, a prepositional phrase or an
+#: infinitive. A subject and a finite verb after it is a new clause, so the
+#: verb heads nothing and is doing the work of "actually" or "hold on".
+#:
+#: "show me what you found", "read the file", "check that the build passed" and
+#: "see if it works" all keep their instruction reading, because none of them
+#: puts a finite verb straight after a subject.
+_INTERJECTION_BEFORE_A_CLAUSE_RE = re.compile(
+    rf"^\s*(?:{_ACTION_VERBS})\b[\s,.!—–-]+"
+    r"(?:that|this|it|these|those|there|you|i|we|they|he|she|my|your|the)\b"
+    r"\s*(?:'|\u2019|\s(?:is|are|was|were|am|do|did|does|have|has|had|"
+    r"mean|meant|think|thought|said|will|can|could|should|would|"
+    r"just|really|actually)\b)",
+    re.IGNORECASE,
+)
+
+
 #: A second-person request. "Can you open…", "I'd like you to ask…".
 _SECOND_PERSON_REQUEST_RE = re.compile(
     r"\b(?:can|could|would|will|why don'?t)\s+you\b"
@@ -171,8 +199,18 @@ _FOLLOWUP_ACTION_RE = re.compile(
 )
 
 _CLAUSE_BOUNDARY_RE = re.compile(r"\s*;\s*|(?<=[.!?])\s+|\n+")
+#: English lists instructions with commas as readily as with "and". Splitting
+#: only on the conjunction left "Open Notes, click into a new note, type hello,
+#: then come back and report what happened" as ONE clause, where the
+#: retrospective frame in its tail outranked the imperative at its head and the
+#: whole turn read as a question about the past. A comma before an action verb
+#: is the same boundary as "and" before one.
+#:
+#: A comma before anything else is not a boundary: "open the file, the one in
+#: /tmp" and "send the email, please" stay whole, because what follows them is
+#: not a verb.
 _COORDINATED_ACTION_RE = re.compile(
-    rf"\s+(?:but|and(?:\s+then)?|then)\s+"
+    rf"(?:\s+(?:but|and(?:\s+then)?|then)\s+|\s*,\s+(?:then\s+)?)"
     rf"(?=(?:(?:please|also|just|now|next)\s+)*(?:{_ACTION_VERBS})\b)",
     re.IGNORECASE,
 )
@@ -283,7 +321,7 @@ def _is_plain_declarative(text: str) -> bool:
 
 def _assess_clause(text: str) -> MoodVerdict:
     directive_reasons: list[str] = []
-    if _IMPERATIVE_RE.search(text):
+    if _IMPERATIVE_RE.search(text) and not _INTERJECTION_BEFORE_A_CLAUSE_RE.search(text):
         directive_reasons.append("imperative_clause")
     if _SECOND_PERSON_REQUEST_RE.search(text):
         directive_reasons.append("second_person_request")
@@ -346,12 +384,31 @@ def _assess_clause(text: str) -> MoodVerdict:
     return MoodVerdict(RequestMood.AMBIGUOUS, ("no_frame_matched",))
 
 
+#: A clause has a verb. Something before a comma that has none is a fronted
+#: adjunct belonging to what follows it, not a clause of its own — "Tomorrow,
+#: create a reminder" is one instruction with a time on the front, and cutting
+#: it in two lost the time. "Open Notes, click into a new note" is two.
+_HAS_A_VERB_RE = re.compile(rf"\b(?:{_ACTION_VERBS})\b", re.IGNORECASE)
+
+
 def _split_independent_clauses(text: str) -> tuple[str, ...]:
     """Split only strong or action-headed coordination boundaries."""
 
     clauses: list[str] = []
     for sentence in _CLAUSE_BOUNDARY_RE.split(text):
-        clauses.extend(_COORDINATED_ACTION_RE.split(sentence))
+        parts = _COORDINATED_ACTION_RE.split(sentence)
+        # Give a verbless fragment back to the clause it introduces.
+        merged: list[str] = []
+        pending = ""
+        for part in parts:
+            if not _HAS_A_VERB_RE.search(part):
+                pending = f"{pending} {part}".strip() if pending else part
+                continue
+            merged.append(f"{pending}, {part}".strip() if pending else part)
+            pending = ""
+        if pending:
+            merged.append(pending)
+        clauses.extend(merged or parts)
     return tuple(clause.strip(" ,.!?;") for clause in clauses if clause.strip(" ,.!?;"))
 
 
