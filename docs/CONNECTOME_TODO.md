@@ -62,22 +62,20 @@ The structural graph says what can happen. The interesting object is what does:
 
 ## She can run this on herself
 
-- [ ] a query surface her self-model can reach: which circuit dominates in the
-      state she is in, which pathway her failures correlate with, and whether
-      the mechanism she believes produced a preference has any causal influence
-- [ ] the answer carries its evidence grade, so an observational correlation
-      cannot be reported as a cause
+- [x] a query surface her self-model can reach — `core/connectome/introspect.py`
+- [x] every answer carries its evidence grade, and a test pins that a predictive
+      weight is never worded as a cause
 
 ## Architecture that develops under anatomical feedback
 
 Before a self-modification is promoted, reconstruct `G_t → G_{t+1}` and ask
 `ΔQ = Q(G_{t+1}) − Q(G_t)` on measurements rather than on resemblance:
 
-- [ ] did useful local recurrence increase
-- [ ] did a brittle single point of failure disappear
-- [ ] did unnecessary cross-region coupling decline
-- [ ] did task-specific effective circuits get cleaner
-- [ ] did information reach the consumers it was supposed to
-- [ ] did dormant developmental machinery become active
-- [ ] did a behavioural lesion confirm the intended new causal route
-- [ ] wire the verdict into the promotion gate
+- [x] did useful local recurrence increase
+- [x] did a brittle single point of failure disappear
+- [x] did unnecessary cross-region coupling decline
+- [x] did task-specific effective circuits get cleaner
+- [x] did information reach the consumers it was supposed to
+- [x] did dormant developmental machinery become active
+- [x] did a behavioural lesion confirm the intended new causal route
+- [x] wire the verdict into the promotion gate
