@@ -45,3 +45,50 @@ The run is four compute workloads at 150 seconds each, 20 ms frames, which is
 30,000 frames. It is not comparable with ZAPBench's numbers and is not meant to
 be; it is the experiment that decides whether the comparison was measuring the
 instrument.
+
+---
+
+## The outcome
+
+The run: four compute workloads, 150 seconds each, 20 ms frames. 21,355 frames.
+It caught only **74 cells**, because compute workloads exercise a narrow slice of
+the tree, so every number below rests on 38 connected pairs and is a small
+sample. A broader recording at the same frame rate is the check on it.
+
+All three predictions held.
+
+**1. Autocorrelation rose.** Lag-one went from
+0.17409 at 914 ms to
+**0.38472** at 20 ms, a factor of
+2.2.
+The frame rate was averaging the propagation away.
+
+**2. The connectome's advantage grew.** Median per-cell MAE difference against
+its own degree-preserving rewiring: **-0.0136**, interval
+[-0.0240, -0.0083], better on
+**86.4%** of the cells it says anything about, against 57.8%
+at 914 ms.
+
+**3. The prefetch rule closed on persistence, and passed it.** This was
+predicted to close and it overtook:
+
+| rule | precision | recall | F1 |
+| --- | --- | --- | --- |
+| connectome | 0.7581 | 0.8322 | **0.7934** |
+| connectome, contact-weighted | 0.7789 | 0.7871 | 0.7830 |
+| persistent | 0.7779 | 0.7806 | 0.7792 |
+| frequent | 0.1990 | 0.2097 | 0.2042 |
+
+At 914 ms persistence won by 0.12 on F1. At 20 ms the connectome rule wins by
+0.014 and by 5 points of recall.
+
+Like-to-like also holds at this rate: connected pairs correlate at 0.595 against
+0.012 for the rewiring, z = 10.3 over 38 pairs.
+
+## What this changed
+
+The prefetch result is the one with a consequence. Warming by the connectome
+rule was documented as wiring the worse rule, on the evidence at 914 ms. That
+evidence was about the instrument. The warm-up now takes its rule from whichever
+measured better on this system's own recording, rather than from either of these
+two numbers being written down as the answer.

@@ -1,0 +1,251 @@
+{
+  "predictability_fast": {
+    "frames": 21355,
+    "cells": 74,
+    "autocorrelation": {
+      "1": 0.38472,
+      "2": 0.40797,
+      "4": 0.37954,
+      "8": 0.35936,
+      "16": 0.32201,
+      "32": 0.27965
+    },
+    "between_condition_variance_share": 0.6387,
+    "median_active_cells_per_frame": 12.0,
+    "verdict": "weak temporal structure; differences between arms will be small"
+  },
+  "predictability_slow": {
+    "frames": 2107,
+    "cells": 12724,
+    "autocorrelation": {
+      "1": 0.17409,
+      "2": 0.07973,
+      "4": 0.03041,
+      "8": 0.0153,
+      "16": 0.02289,
+      "32": 0.01327
+    },
+    "between_condition_variance_share": 0.6705,
+    "median_active_cells_per_frame": 56.0,
+    "verdict": "the recent past says almost nothing about the next frame, so no forecaster can separate from any other and a tie between arms is not evidence about structure"
+  },
+  "zapbench_fast": {
+    "dataset": {
+      "frames": 21355,
+      "cells": 74,
+      "silent_cells_dropped": 0,
+      "train_frames": 15595,
+      "test_frames": 3840,
+      "conditions": [
+        "reconstruction",
+        "serialisation",
+        "topology",
+        "typing"
+      ],
+      "test_conditions": [
+        "reconstruction",
+        "serialisation",
+        "topology",
+        "typing"
+      ],
+      "test_conditions_unseen_in_training": [],
+      "held_out_condition": "",
+      "held_out_frames": 0,
+      "frame_seconds": 0.02,
+      "horizon": 32,
+      "signal": "calcium"
+    },
+    "adjacency": {
+      "connectome": {
+        "cells": 74,
+        "in_edges": 39,
+        "out_edges": 39,
+        "cells_with_inputs": 32,
+        "cells_with_outputs": 21,
+        "rewired": false
+      },
+      "rewired": {
+        "cells": 74,
+        "in_edges": 39,
+        "out_edges": 39,
+        "cells_with_inputs": 32,
+        "cells_with_outputs": 21,
+        "rewired": true
+      }
+    },
+    "predictability": {
+      "frames": 21355,
+      "cells": 74,
+      "autocorrelation": {
+        "1": 0.38473,
+        "2": 0.40794,
+        "4": 0.37952,
+        "8": 0.35933,
+        "16": 0.32199,
+        "32": 0.27962
+      },
+      "between_condition_variance_share": 0.2729,
+      "median_active_cells_per_frame": 73.0,
+      "verdict": "weak temporal structure; differences between arms will be small"
+    },
+    "arms": [
+      {
+        "arm": "mean",
+        "context": 4,
+        "mae": 0.452676,
+        "mae_step_1": 0.453032,
+        "mae_step_8": 0.452908,
+        "mae_step_32": 0.452112,
+        "examples": 281570
+      },
+      {
+        "arm": "condition_mean",
+        "context": 4,
+        "mae": 0.291951,
+        "mae_step_1": 0.289802,
+        "mae_step_8": 0.290891,
+        "mae_step_32": 0.293917,
+        "examples": 281570
+      },
+      {
+        "arm": "persistence",
+        "context": 4,
+        "mae": 0.277116,
+        "mae_step_1": 0.274847,
+        "mae_step_8": 0.297537,
+        "mae_step_32": 0.340114,
+        "examples": 281570
+      },
+      {
+        "arm": "blind",
+        "context": 4,
+        "mae": 0.277331,
+        "mae_step_1": 0.244193,
+        "mae_step_8": 0.26721,
+        "mae_step_32": 0.319034,
+        "examples": 281570
+      },
+      {
+        "arm": "global",
+        "context": 4,
+        "mae": 0.284641,
+        "mae_step_1": 0.248899,
+        "mae_step_8": 0.272798,
+        "mae_step_32": 0.329499,
+        "examples": 281570
+      },
+      {
+        "arm": "connectome",
+        "context": 4,
+        "mae": 0.271686,
+        "mae_step_1": 0.237433,
+        "mae_step_8": 0.260368,
+        "mae_step_32": 0.313962,
+        "examples": 281570
+      },
+      {
+        "arm": "rewired",
+        "context": 4,
+        "mae": 0.279281,
+        "mae_step_1": 0.245881,
+        "mae_step_8": 0.268758,
+        "mae_step_32": 0.321593,
+        "examples": 281570
+      }
+    ],
+    "structure_test": {
+      "context_4": {
+        "connectome_vs_rewired": {
+          "cells_compared": 44,
+          "cells_identical": 30,
+          "mean_difference": -0.020793018354341854,
+          "mean_ci_low": -0.028196956828826444,
+          "mean_ci_high": -0.013659478290612113,
+          "mean_significant": true,
+          "median_difference": -0.013617173452589983,
+          "median_ci_low": -0.023999455216256696,
+          "median_ci_high": -0.008349807043497737,
+          "median_significant": true,
+          "largest_shared_value_share": 0.0227,
+          "cells_better": 38,
+          "cells_worse": 6,
+          "share_better": 0.8636,
+          "draws": 400
+        },
+        "connectome_vs_blind": {
+          "cells_compared": 44,
+          "cells_identical": 30,
+          "mean_difference": -0.01776393964230161,
+          "mean_ci_low": -0.025673454660097,
+          "mean_ci_high": -0.009871098203122751,
+          "mean_significant": true,
+          "median_difference": -0.010184956824671493,
+          "median_ci_low": -0.017683599612925722,
+          "median_ci_high": -0.004407479090481953,
+          "median_significant": true,
+          "largest_shared_value_share": 0.0455,
+          "cells_better": 39,
+          "cells_worse": 5,
+          "share_better": 0.8864,
+          "draws": 400
+        },
+        "verdict": "wiring predicts activity: the connectome beats its own rewiring on 86.4% of cells and on the median"
+      }
+    },
+    "held_out": {}
+  },
+  "prefetch_fast": {
+    "hops": 1,
+    "rules": [
+      {
+        "rule": "connectome",
+        "precision": 0.7581,
+        "recall": 0.83219,
+        "f1": 0.79342,
+        "mean_predicted": 10.42,
+        "mean_actual": 9.49,
+        "frames": 400
+      },
+      {
+        "rule": "connectome_weighted",
+        "precision": 0.77894,
+        "recall": 0.78714,
+        "f1": 0.78302,
+        "mean_predicted": 9.59,
+        "mean_actual": 9.49,
+        "frames": 400
+      },
+      {
+        "rule": "frequent",
+        "precision": 0.199,
+        "recall": 0.20969,
+        "f1": 0.20421,
+        "mean_predicted": 10.0,
+        "mean_actual": 9.49,
+        "frames": 400
+      },
+      {
+        "rule": "persistent",
+        "precision": 0.77789,
+        "recall": 0.78056,
+        "f1": 0.77922,
+        "mean_predicted": 9.52,
+        "mean_actual": 9.49,
+        "frames": 400
+      }
+    ],
+    "best": "connectome",
+    "verdict": "the connectome predicts what runs next better than knowing what is hot"
+  },
+  "likewise_fast": {
+    "connected_pairs": 38,
+    "connected_mean_correlation": 0.59482,
+    "null_mean_correlation": 0.01241,
+    "null_spread": 0.05637,
+    "z": 10.332,
+    "nulls": 8,
+    "active_cells": 60,
+    "within_condition": true,
+    "verdict": "connected cells move together more than a degree-preserving rewiring allows, which is MICrONS's like-to-like rule"
+  }
+}
