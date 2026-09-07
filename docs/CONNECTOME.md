@@ -142,6 +142,15 @@ statically visible path. A static reconstruction cannot see a call made through
 a service lookup or an event bus, so that number is a floor and the neck verdict
 is marked thin until the snapshot has been proofread against a recording.
 
+Proofreading it settles the question. 8,594 pairs were seen firing; the static
+reconstruction contained 6,495 of them, recall 0.756. Writing a join for each of
+the 2,085 it lacked takes recall to **0.998**, expected run length from 2.50 to
+**3.10**, and sense-to-action reachable pairs from 65 to **203**, which is
+enough for the verdict to stand on its own. On the proofread map the cells
+carrying that flow converge **99 times** harder on their inputs than an average
+cell, against 6.5 before. The fly's neck is made of integrators, and so is
+hers.
+
 ### Two individuals differ three times more than two flies
 
 Reconstructing at HEAD and at 400 commits earlier gives two individuals of the
