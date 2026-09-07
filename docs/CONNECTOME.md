@@ -366,6 +366,14 @@ very little predictable signal at this frame rate. A frame holds seventy thousan
 events, so propagation finishes inside it. That is a measurement about the
 instrument, not about the wiring, and the remedy is a faster frame.
 
+**The remedy was tried and it worked.** `docs/CONNECTOME_PREDICTION.md` was
+written before the run and names three consequences a 20 ms recording should
+have. All three held: lag-one autocorrelation rose from 0.174 to 0.385, the
+connectome's advantage over its rewiring went from better on 57.8% of cells to
+better on 86.4%, and the prefetch rule overtook persistence instead of merely
+closing on it. The last of those changed what the system does, because warming
+by the connectome had been the worse rule only at the coarse frame rate.
+
 Four defects in this analysis were found by running it and are worth naming,
 because each one had produced a confident wrong answer first. Arms fitted with
 one weight matrix over cells whose activity differs by orders of magnitude were
