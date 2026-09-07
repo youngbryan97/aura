@@ -1,40 +1,40 @@
 {
   "arms": {
     "aura_intact": {
-      "lower_ci": 0.8562,
-      "mean": 0.9062,
+      "lower_ci": 0.8812,
+      "mean": 0.925,
       "n": 160,
-      "upper_ci": 0.95
+      "upper_ci": 0.9625
     },
     "aura_minus_developmental_learning": {
       "lower_ci": 0.8562,
       "mean": 0.9062,
       "n": 160,
-      "upper_ci": 0.95
+      "upper_ci": 0.9437
     },
     "aura_minus_endogenous_state": {
-      "lower_ci": 0.8562,
-      "mean": 0.9062,
+      "lower_ci": 0.8875,
+      "mean": 0.9313,
       "n": 160,
-      "upper_ci": 0.95
+      "upper_ci": 0.9688
     },
     "aura_minus_recurrent_cortex": {
-      "lower_ci": 0.8562,
-      "mean": 0.9062,
+      "lower_ci": 0.875,
+      "mean": 0.9187,
       "n": 160,
-      "upper_ci": 0.95
+      "upper_ci": 0.9563
     },
     "base_model": {
-      "lower_ci": 0.3937,
-      "mean": 0.4688,
+      "lower_ci": 0.4123,
+      "mean": 0.4875,
       "n": 160,
-      "upper_ci": 0.55
+      "upper_ci": 0.5687
     },
     "base_plus_scaffolding": {
-      "lower_ci": 0.425,
-      "mean": 0.5,
+      "lower_ci": 0.3875,
+      "mean": 0.4625,
       "n": 160,
-      "upper_ci": 0.575
+      "upper_ci": 0.5437
     }
   },
   "attempts": 960,
@@ -61,16 +61,16 @@
         "upper_ci": 1.0
       },
       "constraint": {
-        "lower_ci": 0.775,
-        "mean": 0.875,
+        "lower_ci": 0.725,
+        "mean": 0.85,
         "n": 40,
-        "upper_ci": 0.975
+        "upper_ci": 0.95
       },
       "multi_step": {
-        "lower_ci": 0.6,
-        "mean": 0.75,
+        "lower_ci": 0.725,
+        "mean": 0.85,
         "n": 40,
-        "upper_ci": 0.875
+        "upper_ci": 0.95
       },
       "recall": {
         "lower_ci": 1.0,
@@ -87,16 +87,16 @@
         "upper_ci": 1.0
       },
       "constraint": {
-        "lower_ci": 0.775,
-        "mean": 0.875,
+        "lower_ci": 0.7,
+        "mean": 0.825,
         "n": 40,
-        "upper_ci": 0.975
+        "upper_ci": 0.925
       },
       "multi_step": {
-        "lower_ci": 0.6,
-        "mean": 0.75,
+        "lower_ci": 0.675,
+        "mean": 0.8,
         "n": 40,
-        "upper_ci": 0.875
+        "upper_ci": 0.925
       },
       "recall": {
         "lower_ci": 1.0,
@@ -113,16 +113,16 @@
         "upper_ci": 1.0
       },
       "constraint": {
-        "lower_ci": 0.775,
-        "mean": 0.875,
+        "lower_ci": 0.825,
+        "mean": 0.925,
         "n": 40,
-        "upper_ci": 0.975
+        "upper_ci": 1.0
       },
       "multi_step": {
-        "lower_ci": 0.6,
-        "mean": 0.75,
+        "lower_ci": 0.675,
+        "mean": 0.8,
         "n": 40,
-        "upper_ci": 0.875
+        "upper_ci": 0.925
       },
       "recall": {
         "lower_ci": 1.0,
@@ -139,16 +139,16 @@
         "upper_ci": 1.0
       },
       "constraint": {
-        "lower_ci": 0.775,
-        "mean": 0.875,
+        "lower_ci": 0.75,
+        "mean": 0.85,
         "n": 40,
-        "upper_ci": 0.975
+        "upper_ci": 0.95
       },
       "multi_step": {
-        "lower_ci": 0.6,
-        "mean": 0.75,
+        "lower_ci": 0.7,
+        "mean": 0.825,
         "n": 40,
-        "upper_ci": 0.875
+        "upper_ci": 0.925
       },
       "recall": {
         "lower_ci": 1.0,
@@ -165,16 +165,16 @@
         "upper_ci": 1.0
       },
       "constraint": {
-        "lower_ci": 0.775,
-        "mean": 0.875,
+        "lower_ci": 0.825,
+        "mean": 0.925,
         "n": 40,
-        "upper_ci": 0.975
+        "upper_ci": 1.0
       },
       "multi_step": {
         "lower_ci": 0.0,
-        "mean": 0.0,
+        "mean": 0.025,
         "n": 40,
-        "upper_ci": 0.0
+        "upper_ci": 0.075
       },
       "recall": {
         "lower_ci": 0.0,
@@ -191,16 +191,16 @@
         "upper_ci": 1.0
       },
       "constraint": {
-        "lower_ci": 0.775,
-        "mean": 0.875,
+        "lower_ci": 0.7,
+        "mean": 0.825,
         "n": 40,
-        "upper_ci": 0.975
+        "upper_ci": 0.925
       },
       "multi_step": {
-        "lower_ci": 0.025,
-        "mean": 0.125,
+        "lower_ci": 0.0,
+        "mean": 0.025,
         "n": 40,
-        "upper_ci": 0.225
+        "upper_ci": 0.075
       },
       "recall": {
         "lower_ci": 0.0,
@@ -224,36 +224,42 @@
   ],
   "claim_boundary": "a result at mlx-community/Qwen2.5-1.5B-Instruct-4bit under a 48-token budget; it does not transfer to the 27B by itself, and the architecture arms differ from the base arms in assembled context and in which faculties were lesioned, not in the model",
   "delta_context_vs_none": {
-    "delta_mean": 0.4374,
+    "delta_mean": 0.4375,
     "note": "separated means the intervals do not overlap",
     "separated": true
   },
   "delta_context_vs_scaffolding": {
-    "delta_mean": 0.4062,
+    "delta_mean": 0.4625,
     "note": "separated means the intervals do not overlap",
     "separated": true
   },
   "delta_per_faculty": {
     "developmental_learning": {
-      "observed_delta_mean": 0.0,
+      "intact_sampled_at": 0.681,
+      "observed_delta_mean": 0.0188,
       "outcome": "NOT_MEASURED",
+      "sampled_at": 0.681,
       "what_would_measure_it": "route every arm's generation through the cognitive engine with the faculties constructed, so the channels are in the path they act on",
-      "why": "aura_minus_developmental_learning differs from aura_intact only by lesion channels that act inside the cognitive engine, and this protocol generates by calling the model directly \u2014 so the arms are identical in this path and a zero is arithmetic rather than evidence"
+      "why": "aura_minus_developmental_learning sampled as aura_intact did, so whatever it removes was not in the path that produced the answer: the channels act inside the cognitive engine and this protocol generates by calling the model directly"
     },
     "endogenous_state": {
-      "observed_delta_mean": 0.0,
-      "outcome": "NOT_MEASURED",
-      "what_would_measure_it": "route every arm's generation through the cognitive engine with the faculties constructed, so the channels are in the path they act on",
-      "why": "aura_minus_endogenous_state differs from aura_intact only by lesion channels that act inside the cognitive engine, and this protocol generates by calling the model directly \u2014 so the arms are identical in this path and a zero is arithmetic rather than evidence"
+      "intact_sampled_at": 0.681,
+      "observed_delta_mean": -0.0063,
+      "outcome": "MEASURED",
+      "sampled_at": 0.5,
+      "separated": false,
+      "why_it_counts": "this arm sampled at the neutral and intact did not, so the faculty was in the path that produced the answer and the delta is a measurement of removing it"
     },
     "recurrent_cortex": {
-      "observed_delta_mean": 0.0,
+      "intact_sampled_at": 0.681,
+      "observed_delta_mean": 0.0063,
       "outcome": "NOT_MEASURED",
+      "sampled_at": 0.681,
       "what_would_measure_it": "route every arm's generation through the cognitive engine with the faculties constructed, so the channels are in the path they act on",
-      "why": "aura_minus_recurrent_cortex differs from aura_intact only by lesion channels that act inside the cognitive engine, and this protocol generates by calling the model directly \u2014 so the arms are identical in this path and a zero is arithmetic rather than evidence"
+      "why": "aura_minus_recurrent_cortex sampled as aura_intact did, so whatever it removes was not in the path that produced the answer: the channels act inside the cognitive engine and this protocol generates by calling the model directly"
     }
   },
-  "elapsed_s": 144.7,
+  "elapsed_s": 273.4,
   "how_to_read_it": "A margin on the null family is this measurement's own bias, so a margin elsewhere has to beat it to mean anything. The positive control is where an architecture carrying context should win; if it does not, the protocol is measuring something broken rather than reporting a null result.",
   "null_family": "arithmetic",
   "null_family_bias_vs_base": {
