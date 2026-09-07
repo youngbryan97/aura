@@ -133,8 +133,22 @@ def trophic_levels(graph: DiGraphView, *, tolerance: float = 1e-8) -> dict[str, 
     in_degree = np.asarray(adjacency.sum(axis=0)).ravel()
     laplacian = diags(in_degree + out_degree) - (adjacency + adjacency.T)
     rhs = in_degree - out_degree
-    heights, _ = cg(laplacian.tocsr(), rhs, rtol=tolerance, maxiter=2000)
+    matrix = laplacian.tocsr()
+    heights, info = cg(matrix, rhs, rtol=tolerance, maxiter=2000)
     heights = np.asarray(heights, dtype=np.float64)
+    if info != 0 or not np.all(np.isfinite(heights)):
+        # Conjugate gradients is the fast path and it is not guaranteed on a
+        # singular system. A run that does not converge produces heights that
+        # look like heights, and every laminar band, every comparison against
+        # cortex and every delay schedule downstream would be built on them.
+        # Least squares is slower and does not have that failure mode.
+        from scipy.sparse.linalg import lsqr
+
+        logger.info("trophic levels fell back to least squares (cg info=%s)", info)
+        heights = np.asarray(lsqr(matrix, rhs, atol=1e-10, btol=1e-10)[0], dtype=np.float64)
+    if not np.all(np.isfinite(heights)):
+        logger.warning("trophic levels did not solve; every height reads zero")
+        return dict.fromkeys(nodes, 0.0)
     heights -= heights.min()
     return {uid: float(heights[index[uid]]) for uid in nodes}
 
