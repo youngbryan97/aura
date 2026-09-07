@@ -244,6 +244,43 @@ class SkillSynthesizer:
             "reliability": getattr(held, "reliability", None),
         }
 
+    def _did_the_gap_stop(self, gap: str, since: float) -> dict[str, Any]:
+        """Whether the gap this skill was forged for kept being logged after it.
+
+        The arrow after the last one. A forged skill that runs and succeeds is
+        a skill that works; a forged skill that made the gap stop recurring is
+        a skill that did the thing the forge exists for, and those are not the
+        same claim. A skill can be taken often, succeed every time, and the
+        original gap can go on being logged because the skill was never what
+        was reached for.
+
+        Counted off the gap log rather than off a flag, so a gap that comes
+        back says so.
+        """
+        key = str(gap)[:80].lower().strip()
+        # Read defensively. A synthesizer built without its gap log — which is
+        # what a partially constructed one is — has nothing to say about
+        # whether a gap closed, and saying nothing beats raising inside a
+        # report that is about something else.
+        logged = getattr(self, "_gaps", None) or []
+        counts = getattr(self, "_gap_counts", None) or {}
+        after = [
+            one
+            for one in logged
+            if str(one.get("task", ""))[:80].lower().strip() == key
+            and float(one.get("timestamp", 0.0)) > float(since)
+        ]
+        before = counts.get(key, 0) - len(after)
+        return {
+            "logged_before": max(0, before),
+            "logged_since": len(after),
+            "stopped": not after,
+            "why_it_counts": (
+                "a skill that works and a skill that closed the gap it was "
+                "forged for are different claims"
+            ),
+        }
+
     def what_the_forge_has_produced(self) -> dict[str, Any]:
         """Every forged skill, and what it has done since — the last arrow.
 
@@ -258,6 +295,7 @@ class SkillSynthesizer:
                 "gap": one.gap,
                 "verified": one.verified,
                 "since": self._what_it_has_done_since(one.name),
+                "the_gap_after": self._did_the_gap_stop(one.gap, one.created_at),
             }
             for one in self._synthesized
         ]
@@ -271,6 +309,12 @@ class SkillSynthesizer:
             # Forged, verified, installed and never once taken is the honest
             # reading of a forge that is running and not paying.
             "taken_at_least_once": len(taken),
+            # Forged, installed, taken, working — and the gap still being
+            # logged. That is a skill that works and did not close what it was
+            # forged for, which is the arrow after the last one.
+            "closed_the_gap": sum(
+                1 for one in rows if one["the_gap_after"].get("stopped")
+            ),
             "skills": rows,
         }
 

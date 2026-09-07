@@ -104,3 +104,53 @@ def test_no_library_is_reported_rather_than_raising():
     said = forge.what_the_forge_has_produced()
     assert said["installed"] == 0
     assert said["skills"][0]["since"]["known"] is False
+
+
+def test_a_skill_that_works_and_a_gap_that_closed_are_different_claims() -> None:
+    """The arrow after the last arrow.
+
+    A forged skill can be taken often, succeed every time, and the gap it was
+    forged for can go on being logged — because the skill was never what was
+    reached for. Whether it works and whether it closed the gap are two
+    questions, and only the second is what the forge exists to answer.
+    """
+    import time
+
+    from core.agi.skill_synthesizer import SkillSynthesizer, SynthesizedSkill
+
+    forge = SkillSynthesizer()
+    forge.log_gap("read a spreadsheet", "no such skill")
+    forge.log_gap("read a spreadsheet", "no such skill")
+    forge._synthesized.append(
+        SynthesizedSkill(
+            name="read_a_spreadsheet",
+            description="reads one",
+            gap="read a spreadsheet",
+            verified=True,
+        )
+    )
+
+    closed = forge.what_the_forge_has_produced()["skills"][0]["the_gap_after"]
+    assert closed["stopped"] is True
+    assert closed["logged_before"] == 2
+    assert closed["logged_since"] == 0
+
+    time.sleep(0.01)
+    forge.log_gap("read a spreadsheet", "still missing")
+    said = forge.what_the_forge_has_produced()
+    came_back = said["skills"][0]["the_gap_after"]
+    assert said["closed_the_gap"] == 0
+    assert came_back["stopped"] is False
+    assert came_back["logged_since"] == 1
+
+
+def test_a_gap_that_never_recurs_is_not_confused_with_one_nobody_logged() -> None:
+    from core.agi.skill_synthesizer import SkillSynthesizer, SynthesizedSkill
+
+    forge = SkillSynthesizer()
+    forge._synthesized.append(
+        SynthesizedSkill(name="x", description="d", gap="a gap nobody logged")
+    )
+    said = forge.what_the_forge_has_produced()["skills"][0]["the_gap_after"]
+    assert said["logged_before"] == 0
+    assert said["stopped"] is True

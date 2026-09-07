@@ -178,3 +178,72 @@ def test_circumplex_drift_cannot_manufacture_a_measurement() -> None:
         drifted = protocol._faculty_reading(measured, arm)
         assert drifted["outcome"] == "NOT_MEASURED", arm
         assert "what_would_measure_it" in drifted
+
+
+def _protocol():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "matched_protocol", "tools/matched/run_matched_substrate.py"
+    )
+    made = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(made)
+    return made
+
+
+def test_a_faculty_in_the_path_with_nothing_in_it_is_not_a_faculty_out_of_it() -> None:
+    """Two reasons a delta cannot be read, and only one is about the harness.
+
+    An arm whose faculty is not in this path cannot be measured here however
+    long it runs. An arm whose faculty is in the path and empty is measured
+    perfectly and finds nothing, which is a reading of her library. Reporting
+    both as "not in the path" hides the second behind the first.
+    """
+    protocol = _protocol()
+    protocol._TEMPERATURE_ASKED.update(
+        {protocol.INTACT: [0.681] * 3, protocol.NO_DEVELOPMENTAL: [0.681] * 3,
+         protocol.NO_RECURRENT: [0.681] * 3}
+    )
+    protocol._PROMPT_LENGTH.update(
+        {protocol.INTACT: [400] * 3, protocol.NO_DEVELOPMENTAL: [400] * 3,
+         protocol.NO_RECURRENT: [400] * 3}
+    )
+    measured = {"delta_mean": -0.01, "separated": False}
+
+    developmental = protocol._faculty_reading(measured, protocol.NO_DEVELOPMENTAL)
+    recurrent = protocol._faculty_reading(measured, protocol.NO_RECURRENT)
+    assert developmental["outcome"] == "NOT_MEASURED"
+    assert recurrent["outcome"] == "NOT_MEASURED"
+    assert developmental["why"] != recurrent["why"], (
+        "an empty library and an absent path are the same sentence"
+    )
+    assert "nothing in it" in developmental["why"]
+    assert "not in the path" in recurrent["why"]
+
+
+def test_a_shorter_context_is_a_faculty_that_reached_the_generation() -> None:
+    """String length has no drift: the block is there or it is not."""
+    protocol = _protocol()
+    protocol._TEMPERATURE_ASKED.update(
+        {protocol.INTACT: [0.681] * 3, protocol.NO_DEVELOPMENTAL: [0.681] * 3}
+    )
+    protocol._PROMPT_LENGTH.update(
+        {protocol.INTACT: [400] * 3, protocol.NO_DEVELOPMENTAL: [340] * 3}
+    )
+    got = protocol._faculty_reading(
+        {"delta_mean": -0.01, "separated": False}, protocol.NO_DEVELOPMENTAL
+    )
+    assert got["outcome"] == "MEASURED"
+    assert got["prompt_characters"] == 340
+    assert got["intact_prompt_characters"] == 400
+
+
+def test_what_she_has_learned_is_read_rather_than_described() -> None:
+    """Empty today, and empty because the library is empty."""
+    protocol = _protocol()
+    said = protocol._what_she_has_learned_to_say()
+    from core.cognition.what_she_already_knows_how_to_say import (
+        what_she_already_knows_how_to_say,
+    )
+
+    assert bool(said) == bool(what_she_already_knows_how_to_say())
