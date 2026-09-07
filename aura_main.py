@@ -1163,7 +1163,7 @@ async def _boot_runtime_orchestrator(
         _boot_profiler = get_boot_profiler()
         _boot_profiler.mark("post_init_to_ready")
         logger.info("⏱️ [BOOT] %s", _boot_profiler.summary())
-        _profile_path = _boot_profiler.write_artifact()
+        _profile_path = await asyncio.to_thread(_boot_profiler.write_artifact)
         if _profile_path is not None:
             logger.info("⏱️ [BOOT] Boot profile written: %s", _profile_path)
     except _AURA_MAIN_BOUNDARY_ERRORS as exc:
