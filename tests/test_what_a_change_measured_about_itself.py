@@ -148,3 +148,63 @@ def test_every_shipped_self_judging_action_shows_working_or_says_it_installs_not
         "asking installs nothing; claiming to have measured it would be worse "
         "than claiming nothing"
     )
+
+
+#: The three faculties that are about how she improves rather than about what
+#: she knows. A change to one of these changes the machine that makes changes.
+THE_META_FACULTIES = (
+    "the order she tries them in",
+    "the proposer",
+    "what a change is worth",
+)
+
+
+def test_a_change_to_the_improvement_machinery_cannot_judge_itself() -> None:
+    """The review's requirement, as an invariant rather than a habit.
+
+    "Improvements to the improvement mechanism must be evaluated with the same
+    rigor as ordinary improvements." An action that changes the order she
+    tries things in, the proposer, or what a change is worth is an improvement
+    to the machine that makes improvements, and letting one of those take the
+    self-judging opt-out means the thing being changed is also the judge.
+
+    It holds today. It is asserted so that it goes on holding.
+    """
+    from core.cognition.what_she_does_about_herself import (
+        offer_what_she_can_do_about_what_she_is_made_of as offer,
+    )
+
+    offer()
+    for module in (
+        "core.cognition.she_improves_her_own_deciding",
+        "core.cognition.an_action_she_writes_for_a_gap",
+        "core.cognition.an_operator_she_invents",
+        "core.cognition.does_improving_compound",
+    ):
+        __import__(module)
+        for name in dir(__import__(module, fromlist=["x"])):
+            if name.startswith("offer") or name.startswith("she_can"):
+                found = getattr(__import__(module, fromlist=["x"]), name)
+                if callable(found):
+                    try:
+                        found()
+                    except Exception:  # noqa: BLE001 - registration is best effort
+                        pass
+
+    judging = sorted(
+        name
+        for name, action in WHAT_SHE_COULD_DO.items()
+        if action.over in THE_META_FACULTIES and action.judges_itself
+    )
+    assert judging == [], (
+        "these change how she improves and judge their own improvement: "
+        + ", ".join(judging)
+    )
+
+
+def test_the_meta_faculties_are_places_a_term_can_actually_go() -> None:
+    """A list of faculty names that drifts from the real one checks nothing."""
+    from core.cognition.what_she_could_do_next import WHERE_A_TERM_CAN_GO
+
+    for one in THE_META_FACULTIES:
+        assert one in WHERE_A_TERM_CAN_GO, one
