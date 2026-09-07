@@ -347,6 +347,14 @@ def _language_growth() -> Any:
     return how_the_growing_stands()
 
 
+def _lesion_reachability() -> Any:
+    from core.verify.which_lesions_a_direct_call_can_bite import (
+        how_the_lesions_are_reachable,
+    )
+
+    return how_the_lesions_are_reachable()
+
+
 THE_SECTIONS: dict[str, Callable[[], Any]] = {
     "topology": _topology,
     "owners": _owners,
@@ -386,6 +394,7 @@ THE_SECTIONS: dict[str, Callable[[], Any]] = {
     "operator_search_reach": _operator_search_reach,
     "environment_settings": _environment_settings,
     "language_growth": _language_growth,
+    "lesion_reachability": _lesion_reachability,
 }
 
 
