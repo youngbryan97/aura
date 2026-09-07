@@ -44,6 +44,7 @@ def worth_a_pass(
     unusual: bool = False,
     recognised: str = "",
     costs_moves: float = 1.0,
+    how_sure: float = 0.0,
 ) -> tuple[bool, str]:
     """Whether to spend a language pass on this decision, and why.
 
@@ -92,8 +93,32 @@ def worth_a_pass(
     if len(scores) < 2:
         return False, "there is only one way to go"
     gap = scores[0] - scores[1]
-    if gap < TOO_CLOSE_TO_CALL / dear:
-        return True, f"the best two are {gap:.2f} apart, too close to call"
+    # Two futures being close is not a reason to think about them.
+    #
+    # It was: anything inside the smallest term of the score bought a
+    # language pass. On a board where the best two moves are nearly always
+    # close, that is a pass on almost every move — measured live, forty-eight
+    # of them for nineteen moves, at a cost of about ten moves each. And the
+    # thing being bought is the difference between two futures worth the same,
+    # which is worth about nothing.
+    #
+    # Thinking is for when the arithmetic is UNRELIABLE, not for when it is
+    # tied. So the bar is her own error rather than a fixed distance: a rule
+    # right most of the time makes scores she can trust to sort two futures a
+    # hair apart, and a rule right half the time does not. Where the gap is
+    # inside what her own model could have got wrong, she cannot tell, and
+    # that is worth a pass. Where it is outside, she can, however small it is.
+    #
+    # It tightens itself as she learns. Nothing to turn off, and nothing set:
+    # the number is how often her own rule has been right about this world.
+    inside_her_own_error = (1.0 - max(0.0, min(1.0, float(how_sure)))) * (
+        scores[0] - scores[-1]
+    )
+    if gap < inside_her_own_error / dear:
+        return True, (
+            f"the best two are {gap:.2f} apart, inside what her model of this "
+            f"world gets wrong ({how_sure:.0%} right)"
+        )
     return (
         False,
         f"the best is {gap:.2f} clear, and words costing {dear:.0f} move(s) "
