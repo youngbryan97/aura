@@ -8,6 +8,45 @@ from core.runtime.autonomy_conductor import AutonomyConductor
 from core.runtime.errors import get_degradation_tracker
 
 
+@pytest.mark.parametrize("deferred", [False, True])
+def test_ledger_write_yields_without_reporting_early_completion(monkeypatch, tmp_path, deferred):
+    async def scenario():
+        started = asyncio.Event()
+        release = asyncio.Event()
+        entries = []
+
+        class SlowGateway:
+            async def append_text_async(self, path, text, **kwargs):
+                started.set()
+                await release.wait()
+                entries.append(json.loads(text))
+
+            def append_text(self, *args, **kwargs):
+                pytest.fail("synchronous ledger write on the event loop")
+
+        monkeypatch.setattr(conductor_module, "get_file_write_gateway", SlowGateway)
+        conductor = AutonomyConductor(tmp_path / "autonomy.jsonl")
+        conductor.register("probe", 1, lambda: {"ok": True}, run_immediately=True)
+        monkeypatch.setattr(conductor, "_job_policy_reason", lambda job: "busy" if deferred else "")
+        task = asyncio.create_task(conductor.run_due_once())
+        try:
+            await asyncio.wait_for(started.wait(), timeout=2)
+            assert not task.done()
+            assert entries == []
+            release.set()
+            result = await asyncio.wait_for(task, timeout=2)
+            expected = "deferred" if deferred else "ok"
+            assert result["probe"]["last_status"] == expected
+            assert entries[0]["job"]["last_status"] == expected
+        finally:
+            release.set()
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+
+    asyncio.run(scenario())
+
+
 def test_failed_job_records_degradation_and_keeps_conductor_alive(tmp_path):
     async def scenario():
         tracker = get_degradation_tracker()

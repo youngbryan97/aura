@@ -25,15 +25,18 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture(autouse=True)
 def _restore_owner():
-    saved = (
-        mlx_client._FOREGROUND_OWNER_NAME,
-        mlx_client._FOREGROUND_OWNER_ACQUIRED_AT,
-        mlx_client._FOREGROUND_OWNER_STALE_AFTER,
+    fields = (
+        "_FOREGROUND_OWNER_NAME",
+        "_FOREGROUND_OWNER_ACQUIRED_AT",
+        "_FOREGROUND_OWNER_STALE_AFTER",
+        "_FOREGROUND_OWNER_ACQUIRED_MONOTONIC",
+        "_FOREGROUND_OWNER_HEARTBEAT_MONOTONIC",
+        "_FOREGROUND_OWNER_IS_USER_FACING",
     )
+    saved = {name: getattr(mlx_client, name) for name in fields}
     yield
-    mlx_client._FOREGROUND_OWNER_NAME = saved[0]
-    mlx_client._stamp_foreground_owner(saved[1])
-    mlx_client._FOREGROUND_OWNER_STALE_AFTER = saved[2]
+    for name, value in saved.items():
+        setattr(mlx_client, name, value)
 
 
 def _own(seconds_ago: float, name: str = "chat_api:default") -> None:
@@ -127,6 +130,22 @@ def test_a_slow_but_working_owner_is_not_force_cleared():
     assert result["cleared"] is False
     assert result["detail"] == "owner_still_reporting_progress"
     assert mlx_client._FOREGROUND_OWNER_NAME == "chat_api:default"
+
+
+def test_late_release_preserves_successor_with_same_label():
+    mlx_client._FOREGROUND_OWNER_NAME = None
+    mlx_client._stamp_foreground_owner(0.0)
+
+    async def replace():
+        async with mlx_client._foreground_owner_context("chat_api:default"):
+            # Reclamation followed by reacquisition can reuse the client label.
+            previous = mlx_client._FOREGROUND_OWNER_ACQUIRED_MONOTONIC
+            mlx_client._FOREGROUND_OWNER_ACQUIRED_MONOTONIC = previous + 1.0
+            mlx_client._FOREGROUND_OWNER_HEARTBEAT_MONOTONIC = previous + 1.0
+        assert mlx_client._FOREGROUND_OWNER_NAME == "chat_api:default"
+        assert mlx_client._FOREGROUND_OWNER_ACQUIRED_MONOTONIC == previous + 1.0
+
+    asyncio.run(replace())
 
 
 def test_a_silent_owner_is_force_cleared():
