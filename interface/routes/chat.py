@@ -1678,6 +1678,16 @@ def _store_conversation_resume_handle(
         "kept" if accepted else "refused",
         "" if accepted else ": " + "; ".join(reasons),
     )
+    try:
+        from core.verify.one_way_decisions import record_decision
+
+        record_decision(
+            "conversation_resume_handle",
+            admitted=accepted,
+            reason="; ".join(reasons),
+        )
+    except (ImportError, AttributeError, TypeError, ValueError):
+        pass
     with _conversation_quality_lock:
         state = _conversation_quality_state_locked(
             session_id=session_id,

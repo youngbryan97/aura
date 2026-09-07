@@ -1351,6 +1351,35 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["the_shape_of_one_turn"] = {"error": repr(exc)}
 
+    # Decision points that have only ever answered one way.
+    #
+    # A gate nobody can pass takes a working system and gates it into a coma;
+    # a gate nobody can fail is decorative. Neither is findable in the source,
+    # because the code branches both ways and only the traffic says which
+    # branch is real. LIVE 2026-09-07: `/api/readyz` answered 503 for the whole
+    # of every turn while the runtime answered perfectly, and the prompt cache
+    # missed on every turn for the life of the process.
+    #
+    # Reported, never enforced. A runtime that refuses to start because a
+    # counter looks lopsided is the coma arriving by another route.
+    try:
+        from core.verify.one_way_decisions import decision_census, one_way_decisions
+
+        block["one_way_decisions"] = {
+            "census": decision_census(),
+            "only_one_answer": [
+                {
+                    "name": item.name,
+                    "verdict": item.verdict,
+                    "decisions": item.total,
+                    "last_refusal_reason": item.last_reason,
+                }
+                for item in one_way_decisions()
+            ],
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["one_way_decisions"] = {"error": repr(exc)}
+
     # One working memory, and whether anything still normalises it against a
     # number of its own. Three readers did, and each was pinned at its own
     # ceiling for most of a conversation — a constant that looked like a

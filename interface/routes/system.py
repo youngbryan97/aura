@@ -4281,6 +4281,16 @@ async def readyz(request: Request):
             "snapshot_age_s": round(float(metadata.get("age_s", 0.0) or 0.0), 3),
             "serving": str(metadata.get("serving", "unknown") or "unknown"),
         }
+        try:
+            from core.verify.one_way_decisions import record_decision
+
+            record_decision(
+                "readyz",
+                admitted=bool(ready),
+                reason=", ".join(issues[:3]),
+            )
+        except (ImportError, AttributeError, TypeError, ValueError):
+            pass
         status_code = 200 if ready else 503
         return JSONResponse(result, status_code=status_code)
     except _SYSTEM_RECOVERABLE_ERRORS as e:

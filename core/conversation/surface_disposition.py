@@ -220,11 +220,17 @@ def record_tool_receipt(
     if not name:
         return False
     from core.conversation.turn_evidence_custody import current_turn_evidence_custody
+    from core.verify.one_way_decisions import record_decision
 
     custody = current_turn_evidence_custody()
     if custody is None:
         _logger.info(
             "🧾 tool receipt for %s dropped: no turn custody in this execution", name
+        )
+        record_decision(
+            "tool_receipt.custody",
+            admitted=False,
+            reason="no turn custody in this execution",
         )
         return False
     if not custody.admits_current_execution():
@@ -238,7 +244,13 @@ def record_tool_receipt(
             "participant of the turn holding the evidence",
             name,
         )
+        record_decision(
+            "tool_receipt.custody",
+            admitted=False,
+            reason="execution is not an admitted participant of the turn",
+        )
         return False
+    record_decision("tool_receipt.custody", admitted=True)
     if mirror_to_turn:
         _mirror_effect_onto_the_turn(
             f"tool:{name}:{str(action or name).strip()[:64]}",
