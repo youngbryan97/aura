@@ -4990,6 +4990,19 @@ class InferenceGate:
                 allowed -= float(seconds_to_read(int(prompt_chars)))
             except (ImportError, AttributeError, TypeError, ValueError):
                 pass
+        # And what the turn spends after the last token: stabilizing, shaping,
+        # classifying, persisting, emitting a receipt, writing the response.
+        # The search below finds the largest answer that fits EXACTLY, so a
+        # turn that used its ceiling had nothing left to deliver with and
+        # expired holding a finished answer. LIVE 2026-09-07: the clock
+        # predicted 91s reading and 148s decoding against a 243s deadline and
+        # the turn returned nothing after five minutes.
+        try:
+            from core.brain.llm.thinking_reserve import seconds_to_deliver
+
+            allowed -= float(seconds_to_deliver())
+        except (ImportError, AttributeError, TypeError, ValueError):
+            pass
         if not (allowed > 0.0):
             return 0
         # The forward estimate is monotone in tokens, so the largest budget

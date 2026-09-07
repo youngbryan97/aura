@@ -758,3 +758,53 @@ def chars_readable_in(seconds: float, *, ceiling: int = 1_000_000) -> int:
         else:
             high = middle - 1
     return low
+
+
+#: What a turn spends AFTER the model stops decoding: stabilizing, shaping,
+#: classifying, persisting, emitting a receipt, writing the response. Measured
+#: rather than assumed, in the same window and with the same pessimism as the
+#: rates above.
+_delivery_costs: deque[float] = deque(maxlen=_WINDOW)
+
+
+def record_delivery_cost(elapsed_s: float) -> None:
+    """Log what this turn spent between the last token and the answer landing."""
+
+    try:
+        seconds = float(elapsed_s)
+    except (TypeError, ValueError):
+        return
+    if not (seconds >= 0.0) or not math.isfinite(seconds):
+        return
+    # A minute of "delivery" is a stall being recorded as a routine cost, and
+    # it would size every later budget down to nothing.
+    if seconds > 60.0:
+        return
+    with _lock:
+        _delivery_costs.append(seconds)
+    _written_down()
+
+
+def seconds_to_deliver() -> float:
+    """Time to reserve for everything after the last token, or 0.0 unmeasured.
+
+    The budget searched for the largest answer that fits the turn's clock and
+    found one that fits it EXACTLY, so any turn that used its ceiling had
+    nothing left for delivery and expired holding a finished answer. Measured
+    live 2026-09-07: the clock predicted 91s of reading and 148s of decoding
+    against a 243s deadline, delivery costs about 3.6s, and the turn returned
+    nothing at all after five minutes.
+
+    Pessimistic in the same way and for the same reason as the decode and read
+    rates: the 90th percentile, because a budget sized on the typical delivery
+    overruns on every slower one, and those are the turns that lose an answer
+    already written.
+    """
+
+    _restore_once()
+    with _lock:
+        samples = sorted(_delivery_costs)
+    if len(samples) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
+        return 0.0
+    index = min(len(samples) - 1, int(_PERCENTILE * (len(samples) - 1)))
+    return max(0.0, samples[index])

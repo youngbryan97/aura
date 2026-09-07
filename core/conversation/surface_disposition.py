@@ -144,6 +144,55 @@ def begin_turn_tool_receipts() -> None:
 _logger = logging.getLogger(__name__)
 
 
+def _mirror_effect_onto_the_turn(
+    name: str,
+    action: str,
+    *,
+    ok: bool,
+    effect_observed: bool,
+    evidence: str,
+) -> None:
+    """Put a custody receipt onto the turn's effect ledger as well.
+
+    Two stores hold the same fact and the honesty guards read the second one.
+    `record_verified_effects` writes both, and it has exactly one caller — the
+    desktop-task lane — so a tool run on any other lane left the effect ledger
+    empty. LIVE 2026-09-07: `code_repl` dispatched from the conversational lane
+    and completed in 521ms with the right answer, and the reply was served with
+    "Correction: ... treat that as not done" appended, because the guard asked
+    the ledger and the ledger had never been told.
+
+    The grade is the one `turn_effects` documents and is not cosmetic: a tool
+    that merely returned success is ASSERTED, and only an independently
+    observed effect is OBSERVED.
+    """
+
+    try:
+        from core.runtime.turn_outcome import VerificationGrade, current_turn
+    except (ImportError, AttributeError):
+        return
+    outcome = current_turn()
+    if outcome is None:
+        return
+    try:
+        outcome.declare_effect(name, action or name)
+        outcome.observe_effect(
+            name,
+            evidence or f"{action or name} {'verified' if ok else 'did not verify'}",
+            verification=(
+                VerificationGrade.OBSERVED
+                if (ok and effect_observed)
+                else VerificationGrade.ASSERTED
+            ),
+        )
+    except RuntimeError:
+        # The turn finalized underneath us. Late evidence cannot change a
+        # decided turn, and refusing it is the ledger working as designed.
+        _logger.debug("turn outcome already finalized; effect %s not mirrored", name)
+    except (AttributeError, TypeError, ValueError) as exc:
+        _logger.debug("effect %s not mirrored onto the turn: %s", name, exc)
+
+
 def record_tool_receipt(
     tool_name: Any,
     *,
@@ -154,6 +203,7 @@ def record_tool_receipt(
     verification: Any = "",
     evidence: Any = "",
     observed_content: Any = "",
+    mirror_to_turn: bool = True,
 ) -> bool:
     """Record one structured effect under the exact active turn custody.
 
@@ -161,6 +211,10 @@ def record_tool_receipt(
     change happened. ``effect_observed`` therefore remains independent from
     ``ok``. Outside an admitted turn participant this is a no-op; intentional
     child tasks must join with a parent-issued evidence lease.
+
+    ``mirror_to_turn`` also puts the effect on the turn's effect ledger, which
+    is what the honesty guards read. Callers that record the effect there
+    themselves pass False rather than recording it twice under two names.
     """
     name = str(tool_name or "").strip()
     if not name:
@@ -185,6 +239,14 @@ def record_tool_receipt(
             name,
         )
         return False
+    if mirror_to_turn:
+        _mirror_effect_onto_the_turn(
+            f"tool:{name}:{str(action or name).strip()[:64]}",
+            str(action or name).strip()[:128],
+            ok=bool(ok),
+            effect_observed=bool(effect_observed),
+            evidence=" ".join(str(evidence or "").split())[:1000],
+        )
     return custody.append_receipt(
         {
             "receipt_id": uuid.uuid4().hex,

@@ -18471,6 +18471,30 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             "Foreground delivery timing complete: %s",
             {key: round(value, 2) for key, value in _delivery_timing.items()},
         )
+        # Measured, so the next turn's answer budget can leave room for it
+        # instead of sizing an answer that fills the clock exactly and then
+        # having nowhere to put it.
+        try:
+            from core.brain.llm.thinking_reserve import record_delivery_cost
+
+            record_delivery_cost(
+                sum(
+                    float(_delivery_timing.get(stage, 0.0) or 0.0)
+                    for stage in (
+                        "engine_to_stabilizer_ms",
+                        "stabilizer_ms",
+                        "runtime_reconcile_ms",
+                        "quality_classification_ms",
+                        "lane_status_ms",
+                        "terminal_shaping_ms",
+                        "persistence_ms",
+                        "receipt_ms",
+                    )
+                )
+                / 1000.0
+            )
+        except (ImportError, AttributeError, TypeError, ValueError) as _cost_exc:
+            logger.debug("Delivery cost not recorded: %s", _cost_exc)
 
         return JSONResponse(response_data)
     except TimeoutError:
