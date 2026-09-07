@@ -41,3 +41,11 @@ pre-existing findings in inference_gate and its health tests.
 No additional R item is marked complete by this replay. The repairs above
 require deployment and another live replay; the live source was kept stable
 during this turn.
+
+The generation wait loop also performed process-memory observation and
+garbage collection synchronously on every timed-out polling slice. Both now
+run through `asyncio.to_thread`, allowing response delivery to advance while
+the observation runs. The completion-ownership tests assert that observation
+and collection execute off the event-loop thread: 14 passed. The client
+resilience suite also passed all 96 tests. This removes one measured-path
+blocking operation, not every source of loop contention.
