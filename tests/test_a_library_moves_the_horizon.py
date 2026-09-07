@@ -16,16 +16,15 @@ nothing.
 
 from __future__ import annotations
 
-import ast
 import inspect
 import itertools
 
 import pytest
 
 from core.cognition.the_floor_she_stands_on import (
-    L,
     MINUS,
     PLUS,
+    L,
     V,
     build,
     every_code,
@@ -95,13 +94,31 @@ def test_the_library_is_longest_first():
     assert lengths == sorted(lengths, reverse=True)
 
 
-def test_the_operator_search_is_offered_the_library():
-    """The call that walked 380 terms forever."""
-    from core.cognition import an_operator_she_invents
+def test_the_operator_search_is_offered_the_library(monkeypatch):
+    """The call that walked 380 terms forever.
 
-    source = inspect.getsource(an_operator_she_invents._a_candidate_for)
-    tree = ast.parse(source.lstrip())
-    assert "also=what_she_already_knows_how_to_say()" in ast.unparse(tree)
+    Held on what the search did rather than on how the call is spelled. The
+    first version read the source for ``also=what_she_already_knows_how_to_say()``
+    and failed the moment that call was assigned to a name so the terms could
+    be counted, over a search that was still being offered every one of them.
+    """
+    from core.cognition import an_operator_she_invents as invents
+    from core.cognition import what_she_already_knows_how_to_say as library
+
+    monkeypatch.setattr(
+        library,
+        "what_she_already_knows_how_to_say",
+        lambda: (
+            build(L("a", L("b", PLUS(V("a"), MINUS(V("b"), V("a")))))),
+            build(L("a", MINUS(V("a"), V("a")))),
+        ),
+    )
+    list(itertools.islice(invents._a_candidate_for("a family", (), how_many=40), 1))
+    reach = invents.how_far_the_last_search_reached()
+    assert reach["searched"] is True
+    assert reach["library"]["from_her_library"] == 2, "the library never reached the walk"
+    assert reach["reach"]["leaves"] == 7, "five from the floor and two of her own"
+    assert reach["library"]["terms_with_her_library"] > reach["library"]["terms_over_the_floor"]
 
 
 def test_the_action_writer_is_offered_the_library():

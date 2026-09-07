@@ -3061,6 +3061,7 @@ class InferenceGate:
     #: told it none of this: policy deferral, a lane that could not be
     #: reached, a proof contract that names a model, and resource exhaustion
     #: all arrived as the same value the model returns when it says nothing.
+    REFUSAL_ABANDONED = "turn_abandoned"
     REFUSAL_DEFERRED = "deferred"
     REFUSAL_PROOF_LANE = "proof_lane_required"
     REFUSAL_RESOURCE = "resource_exhausted"
@@ -11828,7 +11829,16 @@ class InferenceGate:
             halt = current(whose="inference_gate.generate").stopping
             if halt.stopped:
                 logger.info("🛑 generation not started: %s", halt.why)
-                return None
+                # Through the receipt, not out of the front door. A bare None
+                # here is the same value an empty model answer produces, and
+                # the whole point of the refusal receipt is that a caller can
+                # tell "nobody is waiting for this" from "the model said
+                # nothing".
+                return self._refuse_generation(
+                    self.REFUSAL_ABANDONED,
+                    str(halt.why or "the turn was stopped"),
+                    context=context,
+                )
         except (ImportError, RuntimeError, TypeError, ValueError):
             pass
 

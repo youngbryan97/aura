@@ -33,9 +33,16 @@ def test_nothing_to_say_says_nothing():
 
 def test_every_degraded_reply_goes_through_it():
     """Seven of them, all written as continuations."""
+    import importlib
+
     from interface.routes import chat
 
-    source = inspect.getsource(chat)
+    # Where the sentences live, not where they were written. They moved to
+    # chat_lane_bookkeeping in a decomposition and this read chat.py, so a
+    # test about seven degraded replies failed over a file that no longer
+    # holds them. The owning module is asked of the function itself.
+    chat_lane = importlib.import_module(chat._with_mood.__module__)
+    source = inspect.getsource(chat_lane)
     where = source.index("# Build a mood-aware prefix for softer messages")
     block = source[where : where + 3000]
     assert block.count("_with_mood(_mood_prefix,") >= 7

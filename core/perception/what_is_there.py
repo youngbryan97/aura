@@ -178,7 +178,11 @@ class Arrangement:
             self.place_of(cell) for cell in self.cells if cell.says.strip().lower() == wanted
         }
 
-    def without(self, places: set[tuple[int, int]]) -> "Arrangement":
+    def without(
+        self,
+        places: set[tuple[int, int]],
+        ever_held: set[tuple[int, int]] | None = None,
+    ) -> "Arrangement":
         """This thing with some places dropped, and any row or column they
         were the whole of dropped with them.
 
@@ -210,17 +214,41 @@ class Arrangement:
             # 59% of 29 all game — never trusted, so nothing ever looked
             # ahead.
             #
-            # Only a line that was ENTIRELY dropped goes, which is what the
-            # cropping was for: a row nothing ever moves into.
+            # A line goes when nothing on it is part of the thing, which is
+            # what the cropping was for: a row nothing ever moves into.
+            #
+            # "Every place on it is furniture" is the wrong reading of that,
+            # and it is the one this had. A score above a four-wide board
+            # occupies one place in its row; the other three have never held
+            # anything and never will. The row is not entirely furniture, so
+            # it stayed, and the cropped thing was five rows of which the top
+            # was empty. Every upward move then predicted tiles sliding into a
+            # row that does not exist, so a quarter of all acts were wrong
+            # against the true rule and it sat under the bar it needed —
+            # 30 right of 47, where 0.7 is trusted — for the whole run.
+            #
+            # Where a caller can say what has ever held anything, a place that
+            # never has is not part of the thing either. A line goes when
+            # every place on it is furniture or has never been occupied, and
+            # at least one is furniture: a board row that merely emptied this
+            # frame has held things and stays, which is what keeps the lattice
+            # still.
+            held = ever_held if ever_held is not None else None
+
+            def _spare(place: tuple[int, int]) -> bool:
+                return place in places or (held is not None and place not in held)
+
             gone_down = {
                 row
                 for row in range(self.rows)
-                if all((row, column) in places for column in range(self.columns))
+                if any((row, column) in places for column in range(self.columns))
+                and all(_spare((row, column)) for column in range(self.columns))
             }
             gone_across = {
                 column
                 for column in range(self.columns)
-                if all((row, column) in places for row in range(self.rows))
+                if any((row, column) in places for row in range(self.rows))
+                and all(_spare((row, column)) for row in range(self.rows))
             }
             rows = [row for row in range(self.rows) if row not in gone_down]
             columns = [column for column in range(self.columns) if column not in gone_across]

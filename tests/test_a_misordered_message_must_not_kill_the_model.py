@@ -279,6 +279,9 @@ def test_native_template_failure_cannot_escape_the_generation_job():
     end = source.index('temp = _admit_sampling_control(job, "temp")', start)
     body = source[start:end]
     assert "except Exception" in body
-    assert '"chat_template_failed_with_tools:"' in body
+    # Without the closing quote: the marker is now an f-string carrying the
+    # exception type, which is more of the reason rather than less, and
+    # pinning the old spelling failed over an improvement.
+    assert "chat_template_failed_with_tools:" in body
     assert '"status": "error"' in body
     assert "continue" in body

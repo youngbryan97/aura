@@ -895,7 +895,7 @@ class HowItMoves:
         """
         if not self.counters or len(self.counters) * 2 >= max(1, arrangement.occupied()):
             return arrangement
-        return arrangement.without(self.counters)
+        return arrangement.without(self.counters, self._ever_held)
 
     def expect(self, arrangement: Arrangement, action: str) -> Arrangement | None:
         """What this thing would look like after that, without doing it.
