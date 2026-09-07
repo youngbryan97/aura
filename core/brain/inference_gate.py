@@ -5566,6 +5566,7 @@ class InferenceGate:
                 "recurrent_depth",
                 "last_heartbeat",
                 "last_token_progress_at",
+                "last_prefill_progress_at",
                 "last_generation_completed_at",
                 "last_user_facing_completed_at",
                 "last_visible_readiness_at",
@@ -16035,6 +16036,14 @@ class InferenceGate:
             if token_age_s is None:
                 return False
             return token_age_s <= progress_stale_s
+        raw_prefill_progress = lane.get("last_prefill_progress_at")
+        if raw_prefill_progress not in (None, 0, 0.0, ""):
+            prefill_age_s = _elapsed_since(raw_prefill_progress, now=now)
+            return (
+                prefill_age_s is not None
+                and prefill_age_s <= request_age_s
+                and prefill_age_s <= progress_stale_s
+            )
         return request_age_s <= startup_grace_s
 
     @staticmethod

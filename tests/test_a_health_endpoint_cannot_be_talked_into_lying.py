@@ -160,6 +160,22 @@ def test_a_lane_that_owns_nothing_is_not_progressing():
     assert InferenceGate._active_generation_is_progressing(_lane(foreground_owned=False)) is False
 
 
+def test_long_prefill_is_operational_only_while_current_request_advances():
+    now = time.time()
+    lane = _lane(current_request_started_at=now - 300, last_prefill_progress_at=now - 1)
+    assert InferenceGate._active_generation_is_progressing(lane) is True
+    for stamp in (now - 301, now - 100, now + 10_000, float("nan"), "bad"):
+        lane["last_prefill_progress_at"] = stamp
+        assert InferenceGate._active_generation_is_progressing(lane) is False
+
+
+def test_prefill_cannot_hide_a_stalled_decode():
+    now = time.time()
+    lane = _lane(current_request_started_at=now - 300,
+                 last_prefill_progress_at=now - 1, last_token_progress_at=now - 100)
+    assert InferenceGate._active_generation_is_progressing(lane) is False
+
+
 # ─────────────────────────── one proof decision per answer
 
 
