@@ -180,8 +180,22 @@ class ObservedEdges:
     unresolved: int = 0
 
     def add(self, pre: str, post: str) -> None:
+        if pre == post:
+            return
         key = (pre, post)
         self.counts[key] = self.counts.get(key, 0) + 1
+
+    def without_self_pairs(self) -> ObservedEdges:
+        """A copy with self-pairs dropped, for a recording made before they were.
+
+        Kept so an older recording can be scored the same way a new one is
+        rather than being reread as evidence of thousands of missing edges.
+        """
+        cleaned = ObservedEdges(unresolved=self.unresolved)
+        cleaned.counts = {
+            pair: count for pair, count in self.counts.items() if pair[0] != pair[1]
+        }
+        return cleaned
 
     def pairs(self) -> set[tuple[str, str]]:
         return set(self.counts)
@@ -352,6 +366,12 @@ class ActivityRecorder:
             pre = self._uid_for(code)
             if pre is None:
                 self.observed.unresolved += 1
+                return None
+            if pre == post:
+                # A comprehension or a nested function carries its parent's
+                # identity, because the static side folds a closure into the
+                # cell that contains it. On this side that shows up as a cell
+                # calling itself millions of times, which is not a connection.
                 return None
             if len(self.observed.counts) >= self.config.max_observed_pairs:
                 return None

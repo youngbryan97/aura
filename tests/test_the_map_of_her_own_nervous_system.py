@@ -361,6 +361,28 @@ def test_expected_run_length_weights_long_runs():
     assert split < whole
 
 
+def test_a_cell_does_not_make_a_synapse_onto_itself():
+    """A comprehension carries its parent's identity, on both sides.
+
+    The static reconstruction folds a closure into the cell that contains it, so
+    on the recording side the same closure shows up as that cell calling itself.
+    On one real recording that was 792 pairs carrying 51 million of 140 million
+    observed calls, all of them read as edges the map was missing.
+    """
+    observed = ObservedEdges()
+    observed.add("a", "a")
+    observed.add("a", "b")
+    assert ("a", "a") not in observed.counts
+    assert observed.counts[("a", "b")] == 1
+
+    legacy = ObservedEdges()
+    legacy.counts[("a", "a")] = 500
+    legacy.counts[("a", "b")] = 2
+    cleaned = legacy.without_self_pairs()
+    assert set(cleaned.counts) == {("a", "b")}
+    assert legacy.counts[("a", "a")] == 500
+
+
 def test_an_observed_edge_the_graph_lacks_is_a_split_error():
     snapshot = _graph_snapshot([("a", "b", 1)])
     observed = ObservedEdges()
