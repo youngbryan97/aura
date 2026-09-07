@@ -466,8 +466,6 @@ def run_benchmark(
         scale[scale <= 0] = 1.0
         activity = (activity - centre) / scale
 
-    kept = activity[ordered_rows]
-    kept_conditions = [conditions[i] for i in ordered_rows]
     train = activity[train_rows]
     test = activity[test_rows]
     train_conditions = [conditions[i] for i in train_rows]
@@ -649,7 +647,12 @@ def run_benchmark(
                 }
 
     return BenchmarkReport(
-        predictability=predictability(kept, kept_conditions),
+        # In recording order, not split order. The stratified split reorders
+        # blocks, and an autocorrelation measured across the seams between them
+        # reads lower than the recording's own.
+        predictability=predictability(
+            activity[available], [conditions[i] for i in available]
+        ),
         dataset={
             "frames": frames,
             "cells": cells,
