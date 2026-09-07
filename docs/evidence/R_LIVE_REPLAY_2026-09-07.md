@@ -89,3 +89,23 @@ the request. Focused output-quality tests: 23 passed. Smoke: 164 passed,
 
 The retired-process liveness repair was pushed as `153ee712c`. This does
 not close the remaining cross-owner eviction audit in R04.
+
+## Updated runtime replay
+
+PID 31016 replaced PID 24412 through `/api/reboot`, expecting `df284d88e`.
+Concurrent commits changed the checkout after startup; this is diagnostic
+evidence, not source-matched certification. The fixed counter/CAS replay
+completed with a substantive answer and high response confidence.
+
+The compound locking request `r03-native-live-20260907-1` selected latent
+execution but admission returned `answer_surface_unaffordable_before_execution`.
+Its answer used `cognitive_engine_repair_retry`. It incorrectly suggested
+awaiting an async lock stalls unrelated work. Its duplicate-processing
+argument also needs a successful claim before processing. R03 and R10
+remain open despite HTTP completion and high confidence.
+
+The neural stream exposed on-loop boot-profile persistence and fsync under
+the versioned-store state lock. Repairs `47cb71e8d` and `115299a8b` are
+pushed but postdate this runtime. Boot-profile tests: 14 passed.
+Versioned-store tests: 30 passed, including concurrent hold during a paused
+write. Smoke: 164 passed, 1 skipped in 35.36 seconds.
