@@ -152,12 +152,22 @@ def test_everything_the_maturity_pass_built_is_askable_from_here() -> None:
         "core.runtime.cancelling_the_call_and_not_just_the_wait": "abandoned_calls",
         "core.runtime.which_parts_say_how_they_are": "lifecycles",
         "core.verify.a_promise_with_a_test": "promises",
+        "core.cognition.what_a_change_measured_about_itself": "self_judged",
+        "core.verify.why_the_campaign_did_not_run": "campaign_admission",
+        "core.cognition.where_the_growing_is_starved": "language_growth",
+        "core.verify.which_lesions_a_direct_call_can_bite": "lesion_reachability",
+        "core.runtime.what_the_environment_is_asked": "environment_settings",
     }
     missing = sorted(name for name, section in wanted.items() if section not in THE_SECTIONS)
     assert missing == [], f"no section reads {missing}"
     unasked = sorted(set(THE_PRIMITIVES) - set(wanted) - {
+        # These two govern by being called on a real path rather than by
+        # having a section: the retry classifier decides inside the call
+        # policy, and the async checker runs inside the code generator.
         "core.runtime.what_must_never_be_retried",
         "core.verify.is_this_async_code_correct",
+        # This one is read by the search that reports its own reach.
+        "core.cognition.how_far_the_search_reaches",
     })
     assert unasked == [], f"{unasked} were built and are not askable"
 

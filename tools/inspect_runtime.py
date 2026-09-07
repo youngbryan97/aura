@@ -301,6 +301,13 @@ THE_PRIMITIVES: tuple[str, ...] = tuple(
         "runtime.what_she_decided_to_do_at_once",
         "runtime.cancelling_the_call_and_not_just_the_wait",
         "verify.a_promise_with_a_test",
+        # The second source-level pass.
+        "cognition.what_a_change_measured_about_itself",
+        "verify.why_the_campaign_did_not_run",
+        "cognition.how_far_the_search_reaches",
+        "cognition.where_the_growing_is_starved",
+        "verify.which_lesions_a_direct_call_can_bite",
+        "runtime.what_the_environment_is_asked",
     )
 )
 
