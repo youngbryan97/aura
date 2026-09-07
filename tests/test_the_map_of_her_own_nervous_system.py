@@ -1372,3 +1372,146 @@ def test_serial_homology_counts_the_regions_a_type_spans():
     report = serial_homology(snapshot, typing, minimum_regions=3)
     assert report["types_spanning_regions"] >= 1
     assert report["widest"][0]["regions"] == 3
+
+
+# ---------------------------------------------------------------------------
+# The wiring: modulator to bound, gate to route, measurement to rule
+# ---------------------------------------------------------------------------
+
+
+def test_noradrenaline_lowers_the_decision_bound_by_a_measured_amount():
+    from core.connectome.laminar import LaminarConfig, config_for
+    from core.connectome.neuromodulation import (
+        Modulator,
+        ReceptorField,
+        fit_interventional,
+    )
+
+    field = ReceptorField()
+    field.set(
+        fit_interventional(
+            "brain", Modulator.NORADRENALINE, [(0.1, 1.0), (0.5, 0.6), (0.9, 0.2)]
+        )
+    )
+    field.set(
+        fit_interventional(
+            "calm", Modulator.NORADRENALINE, [(0.1, 1.0), (0.5, 1.02), (0.9, 0.99)]
+        )
+    )
+    base = LaminarConfig()
+    low = config_for("brain", {"noradrenaline": 0.1}, field, base=base).z
+    high = config_for("brain", {"noradrenaline": 0.9}, field, base=base).z
+    # Published direction: more noradrenaline, less evidence needed.
+    assert high < base.z < low
+    # A region whose activity barely moves with it barely moves its bound.
+    flat = config_for("calm", {"noradrenaline": 0.9}, field, base=base).z
+    assert abs(flat - base.z) < abs(high - base.z)
+    # A region with nothing measured does not move at all.
+    assert config_for("nowhere", {"noradrenaline": 0.9}, field, base=base).z == base.z
+
+
+def test_the_direction_does_not_depend_on_the_sign_of_the_fit():
+    """A region whose correlation came out negative must not respond backwards."""
+    from core.connectome.laminar import LaminarConfig, config_for
+    from core.connectome.neuromodulation import (
+        Modulator,
+        ReceptorField,
+        fit_interventional,
+    )
+
+    rising = ReceptorField()
+    rising.set(
+        fit_interventional(
+            "r", Modulator.NORADRENALINE, [(0.1, 0.2), (0.5, 0.6), (0.9, 1.0)]
+        )
+    )
+    falling = ReceptorField()
+    falling.set(
+        fit_interventional(
+            "r", Modulator.NORADRENALINE, [(0.1, 1.0), (0.5, 0.6), (0.9, 0.2)]
+        )
+    )
+    base = LaminarConfig()
+    assert config_for("r", {"noradrenaline": 0.9}, rising, base=base).z < base.z
+    assert config_for("r", {"noradrenaline": 0.9}, falling, base=base).z < base.z
+
+
+def test_a_gated_candidate_is_never_sampled():
+    from core.connectome.laminar import Candidate, settle
+
+    sampled: list[str] = []
+
+    def evidence(candidate, prior):
+        sampled.append(candidate.key)
+        return 1.0 if candidate.key == "blocked" else 0.4
+
+    result = settle(
+        [Candidate("blocked"), Candidate("open1"), Candidate("open2")],
+        evidence,
+        gate=lambda candidate: candidate.key != "blocked",
+    )
+    assert "blocked" not in sampled
+    assert result.gated_out == 1
+    assert result.winner is not None and result.winner.key != "blocked"
+
+
+def test_gating_everything_out_runs_the_race_anyway():
+    """A gate set that closes every route is a bug, not an instruction."""
+    from core.connectome.laminar import Candidate, settle
+
+    result = settle(
+        [Candidate("a"), Candidate("b")], lambda c, p: 1.0, gate=lambda c: False
+    )
+    assert result.winner is not None
+    assert result.gated_out == 0
+
+
+def test_the_warm_up_does_not_pull_in_a_cell_the_gate_closed():
+    from core.connectome.gating import Gate, GateSet
+    from core.connectome.prefetch import warm
+
+    snapshot = _graph_snapshot([("a", "near", 5), ("a", "far", 5)])
+    snapshot.units["far"].region = "elsewhere"
+    snapshot.units["far"].neuropil = "elsewhere.m"
+    gates = GateSet()
+    gates.add(
+        Gate(
+            name="cut_elsewhere",
+            opens="quiet",
+            closes_on="alarm",
+            predicate=lambda s: 0.0 if s.get("alarm") else 1.0,
+            regions=(("r", "elsewhere"),),
+        )
+    )
+    open_warm: list[str] = []
+    warm(snapshot, ["a"], open_warm.append, gates=gates, state={})
+    closed_warm: list[str] = []
+    warm(snapshot, ["a"], closed_warm.append, gates=gates, state={"alarm": 1.0})
+    assert "far" in open_warm
+    assert "far" not in closed_warm
+    assert "near" in closed_warm
+
+
+def test_the_rule_comes_from_the_measurement():
+    from core.connectome.prefetch import PrefetchPlan, SetPrediction, best_rule
+
+    plan = PrefetchPlan(hops=1)
+    plan.rules = [
+        SetPrediction("connectome", 0.4, 0.9, 0.55, 10, 8, 100),
+        SetPrediction("persistent", 0.7, 0.7, 0.70, 8, 8, 100),
+    ]
+    assert best_rule(plan) == "persistent"
+    plan.rules[0] = SetPrediction("connectome", 0.8, 0.9, 0.85, 9, 8, 100)
+    assert best_rule(plan) == "connectome"
+    assert best_rule(PrefetchPlan(hops=1)) == "persistent"
+
+
+def test_live_levels_are_empty_without_a_running_system():
+    from core.connectome.neuromodulation import live_levels
+
+    levels = live_levels()
+    assert isinstance(levels, dict)
+    # Every consumer treats an empty reading as "do not move the parameter".
+    from core.connectome.laminar import LaminarConfig, config_for
+
+    assert config_for("anywhere", levels, None).z == LaminarConfig().z

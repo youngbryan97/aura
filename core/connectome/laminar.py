@@ -66,6 +66,8 @@ __all__ = [
     "compare_against_fixed_budget",
     "Decision",
     "decisive_margin",
+    "config_for",
+    "GateFn",
 ]
 
 
@@ -75,6 +77,13 @@ class Candidate:
 
     key: str
     payload: Any = None
+
+
+#: A gate decides whether a candidate is in the race at all. Returning False
+#: does not downweight it; the candidate is never sampled, which is the
+#: difference between a state that biases a decision and a state that changes
+#: which decision is being taken.
+GateFn = Callable[["Candidate"], bool]
 
 
 @dataclass(frozen=True)
@@ -134,10 +143,12 @@ class Settled:
     margin: float
     converged: bool
     reason: str
+    gated_out: int = 0
 
     def as_json(self) -> dict[str, Any]:
         return {
             "winner": self.winner.key if self.winner else None,
+            "gated_out": self.gated_out,
             "cycles": self.cycles,
             "evidence_calls": self.evidence_calls,
             "margin": round(self.margin, 5),
@@ -163,10 +174,70 @@ def _normalise(drives: Sequence[float], config: LaminarConfig) -> list[float]:
     return [value / denominator for value in powered]
 
 
+def config_for(
+    region: str,
+    levels: Mapping[str, float] | None = None,
+    field: Any = None,
+    *,
+    base: LaminarConfig | None = None,
+) -> LaminarConfig:
+    """The decision bound this region should use at these modulator levels.
+
+    The bound is the speed-accuracy trade-off: a low one commits on little
+    evidence, a high one keeps sampling. Noradrenaline is the modulator with an
+    established role there — Aston-Jones and Cohen's adaptive gain, and the
+    drift-diffusion work that followed it, put a rise in noradrenaline against a
+    lower threshold and a faster, less accurate decision.
+
+    Two things are kept apart here on purpose. **The direction is published**:
+    more noradrenaline, lower bound, and it does not depend on what any fit
+    says. **The magnitude is measured**: how much this region's activity moves
+    with noradrenaline sets how far its bound moves, and a region with no fitted
+    sensitivity does not move at all. Letting a fitted slope set the direction
+    would mean a region whose correlation happened to come out negative would
+    respond backwards to the same chemical, which is not a finding about that
+    region, it is a sign error.
+    """
+    base = base or LaminarConfig()
+    if not levels or field is None:
+        return base
+    try:
+        from .neuromodulation import Modulator
+
+        level = levels.get(str(Modulator.NORADRENALINE))
+        if level is None:
+            level = levels.get(Modulator.NORADRENALINE)
+        if level is None:
+            return base
+        entry = field.sensitivities.get((region, Modulator.NORADRENALINE))
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("modulated bound unavailable for %s: %s", region, exc)
+        return base
+    if entry is None or entry.r_squared <= 0.05:
+        return base
+    departure = float(level) - field.baseline
+    responsiveness = abs(entry.slope)
+    scale = max(0.5, min(2.0, 1.0 + responsiveness * departure))
+    return LaminarConfig(
+        max_cycles=base.max_cycles,
+        min_cycles=base.min_cycles,
+        z=max(1.0, min(6.0, base.z / scale)),
+        leak=base.leak,
+        inhibition=base.inhibition,
+        drop_behind=base.drop_behind,
+        min_active=base.min_active,
+        exponent=base.exponent,
+        semi_saturation=base.semi_saturation,
+        feedback=base.feedback,
+    )
+
+
 def settle(
     candidates: Sequence[Candidate],
     evidence: Callable[[Candidate, float], float],
     config: LaminarConfig | None = None,
+    *,
+    gate: GateFn | None = None,
 ) -> Settled:
     """Sample the candidates until the leader's lead outruns the noise.
 
@@ -187,6 +258,24 @@ def settle(
     """
     config = (config or LaminarConfig()).validated()
     options = list(candidates)
+    gated_out = 0
+    if gate is not None:
+        allowed = []
+        for option in options:
+            try:
+                keep = bool(gate(option))
+            except (TypeError, ValueError, KeyError) as exc:
+                logger.debug("gate could not read candidate %s: %s", option.key, exc)
+                keep = True
+            if keep:
+                allowed.append(option)
+            else:
+                gated_out += 1
+        if allowed:
+            options = allowed
+        elif gated_out:
+            logger.info("every candidate was gated out; the race runs on all of them")
+            gated_out = 0
     if not options:
         return Settled(None, {}, 0, 0, 0.0, False, "no candidates")
     if len(options) == 1:
@@ -198,7 +287,8 @@ def settle(
             evidence_calls=1,
             margin=score,
             converged=True,
-            reason="single candidate",
+            reason="single candidate" if not gated_out else "one candidate left open",
+            gated_out=gated_out,
         )
 
     totals = dict.fromkeys((c.key for c in options), 0.0)
@@ -246,10 +336,12 @@ def settle(
         if cycle >= config.min_cycles:
             if standard_error <= 0.0 and leader_mean > runner_mean:
                 return _decided(options, means, cycle, calls, leader_mean - runner_mean,
-                                leader_key, "no measurable noise", config)
+                                leader_key, "no measurable noise", config,
+                                gated_out=gated_out)
             if standard_error > 0.0 and (leader_mean - runner_mean) >= config.z * standard_error:
                 return _decided(options, means, cycle, calls, leader_mean - runner_mean,
-                                leader_key, "lead exceeds the noise", config)
+                                leader_key, "lead exceeds the noise", config,
+                                gated_out=gated_out)
 
         if standard_error > 0.0 and len(running) > config.min_active:
             survivors = [
@@ -273,6 +365,7 @@ def settle(
         "cycle bound reached without a decisive lead",
         config,
         converged=False,
+        gated_out=gated_out,
     )
 
 
@@ -287,6 +380,7 @@ def _decided(
     config: LaminarConfig,
     *,
     converged: bool = True,
+    gated_out: int = 0,
 ) -> Settled:
     """Package a decision, with the readout normalised for whatever reads it."""
     keys = sorted(means)
@@ -305,6 +399,7 @@ def _decided(
         margin=margin,
         converged=converged,
         reason=reason,
+        gated_out=gated_out,
     )
 
 

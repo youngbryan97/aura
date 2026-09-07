@@ -670,7 +670,7 @@ class MultipleDraftsEngine:
         competition into a reported tie.
         """
         try:
-            from core.connectome.laminar import decisive_margin
+            from core.connectome.laminar import config_for, decisive_margin
         except ImportError as exc:
             logger.debug("draft margin check unavailable: %s", exc)
             return True, 0.0, "margin check unavailable"
@@ -678,12 +678,41 @@ class MultipleDraftsEngine:
             f"{self._stream_name(draft.stream_index)}:{index}": float(draft.coherence)
             for index, draft in enumerate(self._current_drafts)
         }
+        bound = self._decision_bound(config_for)
         try:
-            decision = decisive_margin(scores)
+            decision = decisive_margin(scores, z=bound)
         except (ValueError, TypeError, ZeroDivisionError) as exc:
             logger.debug("draft margin check failed: %s", exc)
             return True, 0.0, "margin check failed"
         return decision.decisive, decision.z, decision.reason
+
+    def _decision_bound(self, config_for) -> float:
+        """How much lead a draft needs, at the noradrenaline level right now.
+
+        The bound is the speed-accuracy trade-off and noradrenaline is the
+        modulator with an established role there: more of it, less evidence
+        needed, faster and less accurate. The direction is published; how far
+        this region moves is whatever has been measured for it, and with nothing
+        measured the bound does not move at all.
+        """
+        try:
+            from core.connectome.laminar import LaminarConfig
+            from core.connectome.neuromodulation import get_receptor_field, live_levels
+
+            levels = live_levels()
+            bound = (
+                LaminarConfig().z
+                if not levels
+                else config_for("consciousness", levels, get_receptor_field()).z
+            )
+            self._last_decision_bound = float(bound)
+            return float(bound)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("modulated decision bound unavailable: %s", exc)
+            from core.connectome.laminar import LaminarConfig
+
+            self._last_decision_bound = float(LaminarConfig().z)
+            return self._last_decision_bound
 
     # ── Query API ────────────────────────────────────────────────────
 
@@ -777,6 +806,7 @@ class MultipleDraftsEngine:
             "last_decision_decisive": (
                 self._competition_history[-1].decisive if self._competition_history else None
             ),
+            "decision_bound": round(getattr(self, "_last_decision_bound", 0.0), 4),
         }
 
 

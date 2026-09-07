@@ -43,6 +43,9 @@ logger = logging.getLogger("Aura.Connectome.Neuromodulation")
 
 __all__ = [
     "Modulator",
+    "live_levels",
+    "get_receptor_field",
+    "reset_receptor_field_for_test",
     "ModulatorRole",
     "MODULATOR_ROLES",
     "Evidence",
@@ -317,3 +320,124 @@ class ReceptorField:
             gain = self.gain(region, modulator, level)
             out[role.parameter] = gain if role.sign > 0 else 1.0 / max(1e-3, gain)
         return out
+
+
+# ---------------------------------------------------------------------------
+# Reading the running system, and holding one field for the process
+# ---------------------------------------------------------------------------
+
+#: The names the neurochemical system uses for the four with an assignment.
+_LIVE_NAMES: dict[Modulator, tuple[str, ...]] = {
+    Modulator.DOPAMINE: ("dopamine",),
+    Modulator.ACETYLCHOLINE: ("acetylcholine", "ach"),
+    Modulator.NORADRENALINE: ("norepinephrine", "noradrenaline"),
+    Modulator.SEROTONIN: ("serotonin",),
+}
+
+_FIELD: ReceptorField | None = None
+_FIELD_LOCK = __import__("threading").Lock()
+
+
+def live_levels() -> dict[str, float]:
+    """The four modulator levels the running neurochemical system holds.
+
+    Returns nothing when there is no system running, which is the common case
+    in a test or a tool, and every consumer treats an empty reading as "do not
+    move the parameter" rather than as zero.
+    """
+    try:
+        from core.consciousness.neurochemical_system import get_latest_neurochemical_system
+    except ImportError as exc:
+        logger.debug("neurochemical system unavailable: %s", exc)
+        return {}
+    system = get_latest_neurochemical_system()
+    if system is None:
+        return {}
+    levels: dict[str, float] = {}
+    for modulator, names in _LIVE_NAMES.items():
+        for name in names:
+            chemical = getattr(system, "chemicals", {}).get(name)
+            if chemical is None:
+                continue
+            try:
+                levels[str(modulator)] = float(chemical.effective)
+            except (TypeError, ValueError, AttributeError) as exc:
+                logger.debug("chemical %s could not be read: %s", name, exc)
+            break
+    return levels
+
+
+def get_receptor_field() -> ReceptorField:
+    """The process's receptor field. Empty until something fits it.
+
+    An empty field is not a broken one. Every gain it returns is one, so a
+    consumer wired to it behaves exactly as it did before anything was measured,
+    and starts responding only when a fit has been made.
+    """
+    global _FIELD
+    with _FIELD_LOCK:
+        if _FIELD is None:
+            _FIELD = ReceptorField()
+        return _FIELD
+
+
+def reset_receptor_field_for_test() -> None:
+    global _FIELD
+    with _FIELD_LOCK:
+        _FIELD = None
+
+
+def fit_field_from_recording(
+    trace: Any,
+    snapshot: Any,
+    levels_by_frame: Sequence[Mapping[str, float]],
+    *,
+    minimum_cells: int = 8,
+) -> ReceptorField:
+    """Fit every region's sensitivity from a recording that carried the levels.
+
+    Each region's activity is summed per frame and regressed on the modulator
+    level recorded at that frame. This is observational and is graded as such:
+    anything that moves both the chemistry and the region shows up as a slope,
+    and only an interventional run can say which way the causation runs.
+    """
+    import numpy as np
+
+    field = get_receptor_field()
+    matrix = trace.matrix()
+    if matrix.size == 0 or not levels_by_frame:
+        return field
+    frames = min(matrix.shape[0], len(levels_by_frame))
+    by_region: dict[str, list[int]] = {}
+    for column, uid in enumerate(trace.uids):
+        unit = snapshot.units.get(uid)
+        if unit is not None:
+            by_region.setdefault(unit.region, []).append(column)
+    for region, columns in by_region.items():
+        if len(columns) < minimum_cells:
+            continue
+        response = np.asarray(matrix[:frames][:, columns].sum(axis=1), dtype=np.float64)
+        if response.std() <= 0:
+            continue
+        response = (response - response.mean()) / response.std()
+        for modulator in MODULATOR_ROLES:
+            levels = [
+                float(levels_by_frame[i].get(str(modulator), float("nan")))
+                for i in range(frames)
+            ]
+            usable = [
+                (level, value)
+                for level, value in zip(levels, response, strict=True)
+                if level == level
+            ]
+            if len(usable) < 8:
+                continue
+            field.set(
+                fit_observational(
+                    region,
+                    modulator,
+                    [level for level, _ in usable],
+                    [value for _, value in usable],
+                )
+            )
+    return field

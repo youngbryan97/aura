@@ -29,7 +29,7 @@ that is worth finding out before anything is wired to it.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -39,6 +39,7 @@ logger = logging.getLogger("Aura.Connectome.Prefetch")
 
 __all__ = [
     "PrefetchPlan",
+    "best_rule",
     "weighted_next_active",
     "SetPrediction",
     "downstream_of",
@@ -183,6 +184,31 @@ def _score(rule: str, predictions: Sequence[set[str]], truths: Sequence[set[str]
     )
 
 
+def _open_only(
+    snapshot: ConnectomeSnapshot,
+    predicted: set[str],
+    active_now: Sequence[str],
+    gates: Any,
+    state: Mapping[str, float],
+) -> set[str]:
+    """Drop predictions the current state has closed the route to.
+
+    A gate that closes a route closes it for the warm-up as well. Warming a cell
+    the system has decided not to reach is paying for the work the gate exists
+    to prevent, and it would also make the gate look ineffective in any
+    measurement taken downstream of the cache.
+    """
+    try:
+        graph, _stats = gates.effective(snapshot, state)
+    except (AttributeError, TypeError, ValueError, KeyError) as exc:
+        logger.debug("gates could not be applied to the warm-up: %s", exc)
+        return predicted
+    reachable = set(active_now)
+    for cell in active_now:
+        reachable |= graph.out.get(cell, set())
+    return predicted & reachable if reachable else predicted
+
+
 @dataclass
 class PrefetchPlan:
     """Every rule scored on the same frames, with the verdict between them."""
@@ -283,6 +309,19 @@ def evaluate_prefetch(
     return plan
 
 
+def best_rule(plan: PrefetchPlan) -> str:
+    """Which rule this system's own recording says to use.
+
+    The rule is not chosen once and written down. At 914 ms frames the
+    connectome rule loses to persistence and warming by it would be warming the
+    worse one; at 20 ms it wins. Both are measurements of the same system, so
+    the answer is whichever measured better on the recording in front of you.
+    """
+    if not plan.rules:
+        return "persistent"
+    return max(plan.rules, key=lambda rule: rule.f1).rule
+
+
 def warm(
     snapshot: ConnectomeSnapshot,
     active_now: Sequence[str],
@@ -290,14 +329,32 @@ def warm(
     *,
     hops: int = 1,
     budget: int = 64,
+    rule: str = "connectome_weighted",
+    gates: Any = None,
+    state: Mapping[str, float] | None = None,
 ) -> list[str]:
     """Warm what is about to run, most-connected first, within a budget.
 
-    A warmer that raises takes itself out rather than stopping the warm-up: this
+    ``rule`` names which prediction to warm from, and :func:`best_rule` picks it
+    from a measurement rather than from a preference. ``gates`` closes routes
+    that the current state has closed, so a warm-up never pulls in a cell the
+    system has decided not to reach: warming something that is gated off is
+    paying for work the gate exists to prevent.
+
+    A warmer that raises takes itself out rather than stopping the warm-up. This
     runs ahead of work that has not been asked for yet, and it must never be the
     reason the work that was asked for fails.
     """
-    predicted = predict_next_active(snapshot, active_now, hops=hops)
+    if rule == "persistent":
+        predicted = set(active_now)
+    elif rule == "connectome_weighted":
+        predicted = weighted_next_active(
+            snapshot, active_now, budget=max(1, budget), hops=hops
+        )
+    else:
+        predicted = predict_next_active(snapshot, active_now, hops=hops)
+    if gates is not None:
+        predicted = _open_only(snapshot, predicted, active_now, gates, state or {})
     in_degree: dict[str, int] = {}
     for connection in snapshot.connections.values():
         if connection.kind is EdgeKind.DRIVE and connection.post in predicted:

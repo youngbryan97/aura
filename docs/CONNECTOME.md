@@ -416,36 +416,55 @@ test.
   regression branching ratio rather than the per-tick mean, and publishes the
   difference between them as `subsampling_bias`.
 
-## What is wired, and what is not
+## What is wired
 
-This package finds channels with a writer and no reader. Applying that to itself:
+This package finds channels with a writer and no reader. Applying that to
+itself, three of its own modules had none. They have one now.
 
-**Wired to something that runs.**
-`criticality` drives the branching estimate in
+**`criticality`** drives the branching estimate in
 `core/consciousness/criticality_regulator.py`, which sets gain, noise and the
 E/I target through a PID.
-`laminar` decides whether a draft competition in
+
+**`laminar`** decides whether a draft competition in
 `core/consciousness/multiple_drafts.py` produced a decision or a coin landing.
-`integration` publishes eight telemetry channels and a health fragment.
-`invariants` runs in the structural verifier.
-Everything else in the package is reached by `tools/connectome_report.py` and
-the four make targets.
 
-**Available and not yet called by anything that runs.**
-`neuromodulation` needs a caller holding modulator levels, and the honest
-version of that wiring is an interventional fit — set the level, record, set it
-again — which needs a controller that does not exist yet. Ships with the
-grading that refuses a causal claim from observational data, so it cannot be
-misused before then.
-`gating` needs a live state to gate on. It is exercised against the
-reconstruction and reports whether a state change rerouted anything, which is
-the check that has to exist before the mechanism is worth wiring.
-`prefetch.warm` has an evaluation and no caller: the measurement says the
-connectome rule loses to persistence at this frame rate, so wiring it would be
-wiring the worse rule.
+**`neuromodulation`** sets the bound that decision is taken at.
+`live_levels()` reads the four Doya modulators off the running neurochemical
+system; `config_for` turns the noradrenaline level into a decision bound. The
+direction is published — more noradrenaline, less evidence needed, faster and
+less accurate, which is Aston-Jones and Cohen's adaptive gain — and the
+magnitude is measured: how far a region's bound moves is how much that region's
+activity was measured to move with noradrenaline. A region with nothing fitted
+does not move, and with no system running the bound is the default, so wiring it
+changed nothing until something is measured. Letting the fitted slope set the
+direction would mean a region whose correlation came out negative responded
+backwards to the same chemical, which is a sign error rather than a finding, and
+a test pins it.
 
-Each of those is a channel with a writer and no reader, by this package's own
-definition, and naming them is the alternative to discovering them later.
+**`gating`** closes routes for the warm-up and reports through the health
+surface. `integration.register_gates` takes the gate set, `gate_status` says
+which routes the current state has closed and whether closing them rerouted
+anything, and `prefetch.warm` drops any prediction the state closed the route
+to — warming a cell the system decided not to reach is paying for the work the
+gate exists to prevent. `laminar.settle` takes a gate too: a gated candidate is
+never sampled, which is the difference between a state that biases a decision
+and one that changes which decision is being taken. A gate set that closes
+everything is treated as a bug and the race runs anyway.
+
+**`prefetch`** warms through `integration.warm_upcoming`, and which rule it
+warms by comes from a measurement rather than a preference. At 914 ms frames
+persistence wins and the connectome rule would be the worse choice; at 20 ms the
+connectome rule wins on F1 and on recall. `record_prefetch_rule` stores whichever
+won on this system's own recording and the warm-up uses it.
+
+**`integration`** publishes eight telemetry channels, a health fragment, the
+gate state and the chosen rule. **`invariants`** runs in the structural verifier.
+Everything else is reached by `tools/connectome_report.py` and the four make
+targets.
+
+The policy stays with the caller. Which state closes which route is a decision
+about this system, and a default invented here would be a claim about Aura
+dressed as one.
 
 ## Sources
 

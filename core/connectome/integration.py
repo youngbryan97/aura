@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 logger = logging.getLogger("Aura.Connectome.Integration")
@@ -47,6 +48,11 @@ __all__ = [
     "peek_snapshot",
     "register_health_fragment_provider",
     "record_pathology",
+    "gate_status",
+    "record_prefetch_rule",
+    "register_gates",
+    "registered_gates",
+    "warm_upcoming",
 ]
 
 CHANNEL_CELLS = "connectome.cells"
@@ -465,6 +471,10 @@ def connectome_status(
         status["findings"] = findings.get("total", 0)
         status["findings_confirmed"] = findings.get("confirmed", 0)
         status["findings_by_kind"] = findings.get("by_kind", {})
+    status["gates"] = gate_status()
+    rule = _CACHE.get("prefetch_rule")
+    if rule:
+        status["prefetch_rule"] = str(rule)
     if deep:
         from .microcircuit import assign_layers, compare_to_cortex, connection_probabilities
 
@@ -522,3 +532,101 @@ def record_pathology(report: Any) -> dict[str, Any]:
         _CACHE["pathology"] = trimmed
     publish_telemetry()
     return trimmed
+
+
+# ---------------------------------------------------------------------------
+# Gating and warming, wired to whatever is running
+# ---------------------------------------------------------------------------
+
+
+def register_gates(gates: Any) -> None:
+    """Publish the gate set the runtime wants routes closed by.
+
+    The mechanism ships without a policy on purpose. Which state closes which
+    route is a decision about this system, and inventing one here would be a
+    claim about Aura dressed as a default. What is wired is that a registered
+    gate set is read: by the warm-up, so it never pulls in a cell the state has
+    closed the route to, and by the health surface, so a closed route is
+    visible.
+    """
+    with _LOCK:
+        _CACHE["gates"] = gates
+
+
+def registered_gates() -> Any:
+    with _LOCK:
+        return _CACHE.get("gates")
+
+
+def gate_status(state: Mapping[str, float] | None = None) -> dict[str, Any]:
+    """Which declared routes the current state has closed, and whether it matters."""
+    gates = registered_gates()
+    snapshot = peek_snapshot()
+    if gates is None:
+        return {"registered": False}
+    if snapshot is None:
+        return {
+            "registered": True,
+            "gates": [gate.name for gate in getattr(gates, "gates", [])],
+            "always_open": list(gates.always_open()),
+            "evaluated": False,
+            "reason": "no reconstruction in this process",
+        }
+    try:
+        from .gating import routing_change
+        from .spine import afferent_cells
+
+        sources = afferent_cells(snapshot)[:200]
+        report = routing_change(snapshot, gates, sources, state or {}, baseline_state={})
+    except (ImportError, AttributeError, TypeError, ValueError, KeyError) as exc:
+        logger.debug("gate status unavailable: %s", exc)
+        return {"registered": True, "evaluated": False, "reason": repr(exc)}
+    payload = report.as_json()
+    payload["registered"] = True
+    payload["evaluated"] = True
+    return payload
+
+
+def warm_upcoming(
+    active_now: Sequence[str],
+    warmer: Callable[[str], None],
+    *,
+    rule: str | None = None,
+    budget: int = 64,
+    state: Mapping[str, float] | None = None,
+) -> dict[str, Any]:
+    """Warm the cells about to run, by whichever rule measured best here.
+
+    ``rule`` defaults to the one a prefetch evaluation last recorded for this
+    system, and to persistence when nothing has been measured — because
+    persistence is what wins on a coarse recording, and choosing the connectome
+    rule before measuring would be choosing the worse one on the evidence
+    available at 914 ms frames.
+    """
+    snapshot = peek_snapshot()
+    if snapshot is None:
+        return {"warmed": 0, "reason": "no reconstruction in this process"}
+    from .prefetch import warm
+
+    chosen = rule or str(_CACHE.get("prefetch_rule") or "persistent")
+    warmed = warm(
+        snapshot,
+        list(active_now),
+        warmer,
+        budget=budget,
+        rule=chosen,
+        gates=registered_gates(),
+        state=state,
+    )
+    return {"warmed": len(warmed), "rule": chosen, "budget": budget}
+
+
+def record_prefetch_rule(plan: Any) -> str:
+    """Remember which rule this system's own recording chose."""
+    from .prefetch import best_rule
+
+    chosen = best_rule(plan)
+    with _LOCK:
+        _CACHE["prefetch_rule"] = chosen
+        _CACHE["prefetch_plan"] = plan.as_json() if hasattr(plan, "as_json") else {}
+    return chosen
