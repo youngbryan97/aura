@@ -808,3 +808,33 @@ def seconds_to_deliver() -> float:
         return 0.0
     index = min(len(samples) - 1, int(_PERCENTILE * (len(samples) - 1)))
     return max(0.0, samples[index])
+
+
+def answer_tokens_seen(model: str = "") -> int:
+    """The longest answer this model has actually produced, or 0 unmeasured.
+
+    A budget was raised on every user-facing turn to whatever the wall clock
+    could afford. LIVE 2026-09-07: a request to compute a power and show the
+    code had its ceiling raised from 1,024 to 2,432 tokens, which the same
+    module's own estimate put at 449 seconds of decode, because the route
+    allowed 480. A ceiling is not a target — and a clock is not evidence about
+    what an answer needs either.
+
+    The longest answer actually produced is evidence. It is censored by the
+    ceilings that produced it, which is why the caller keeps whatever the lane
+    asked for as a floor and why `_proved_insufficient_by_model` — a
+    generation that demonstrably ran out — outranks it. Growth therefore still
+    costs at most one discovery, and a quiet window can no longer hand every
+    turn eight minutes.
+    """
+
+    _restore_once()
+    _take_back_any_newer_proof()
+    with _lock:
+        lengths = [length for length, _rate in _rates.get(_model_key(model), ())]
+        if not lengths:
+            lengths = [
+                length for window in _rates.values() for length, _rate in window
+            ]
+        proved = _proved_insufficient_by_model.get(_model_key(model), 0)
+    return max(max(lengths, default=0), proved)

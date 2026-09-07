@@ -86,3 +86,46 @@ def test_the_route_records_what_delivery_actually_cost() -> None:
     """A reserve with no observer stays silent forever."""
     source = Path("interface/routes/chat.py").read_text()
     assert "record_delivery_cost" in source
+
+
+def test_an_unmeasured_model_caps_nothing() -> None:
+    """Silence leaves the budget exactly as it was."""
+    thinking_reserve._rates.clear()
+    thinking_reserve._proved_insufficient_by_model.clear()
+    assert thinking_reserve.answer_tokens_seen("probe-model") == 0
+
+
+def test_the_cap_is_what_answers_have_actually_produced() -> None:
+    thinking_reserve._rates.clear()
+    thinking_reserve._proved_insufficient_by_model.clear()
+    for tokens in (8, 117, 80, 231):
+        thinking_reserve.record_decode_rate(
+            generated_tokens=tokens, elapsed_s=tokens / 6.0, model="probe-model"
+        )
+    assert thinking_reserve.answer_tokens_seen("probe-model") == 231
+
+
+def test_a_generation_that_ran_out_outranks_what_was_seen() -> None:
+    """Otherwise the cap locks in whatever ceiling produced the observations."""
+    thinking_reserve._rates.clear()
+    thinking_reserve._proved_insufficient_by_model.clear()
+    thinking_reserve.record_decode_rate(
+        generated_tokens=100, elapsed_s=16.0, model="probe-model"
+    )
+    thinking_reserve.record_budget_that_ran_out_thinking(
+        budget_tokens=2048, model="probe-model"
+    )
+    assert thinking_reserve.answer_tokens_seen("probe-model") >= 2048
+
+
+def test_the_raise_is_bounded_by_what_was_needed() -> None:
+    source = Path("core/brain/inference_gate.py").read_text()
+    start = source.index("_affordable = max(")
+    end = source.index("serving_lane = self._cortex_serving_lane", start)
+    body = source[start:end]
+    assert "answer_tokens_seen" in body, (
+        "the ceiling is raised to whatever the clock affords again"
+    )
+    assert "max(max_tokens, _ever_needed)" in body, (
+        "the lane's own ask must remain a floor, so this can only ever add"
+    )

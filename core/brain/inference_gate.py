@@ -14380,11 +14380,29 @@ class InferenceGate:
                     )
                     - _reserve_the_worker_adds,
                 )
+                # What the clock affords is not evidence about what an answer
+                # needs. Raising to it unconditionally let a "compute this and
+                # show the code" turn plan 2,432 tokens — 449 seconds of decode
+                # at the measured rate — because the route allowed 480. The
+                # raise is bounded by what answers on this model have actually
+                # produced, with whatever the lane asked for as a floor so this
+                # can only ever add, and with a generation that demonstrably
+                # ran out outranking both so growth still costs one discovery.
+                try:
+                    from core.brain.llm.thinking_reserve import answer_tokens_seen
+
+                    _ever_needed = int(answer_tokens_seen(_model_for_clock))
+                except (ImportError, AttributeError, TypeError, ValueError):
+                    _ever_needed = 0
+                if _ever_needed > 0:
+                    _affordable = min(_affordable, max(max_tokens, _ever_needed))
                 if _affordable > max_tokens:
                     logger.info(
                         "🧠 [ANSWER BUDGET] %d tokens fit this turn's clock at the "
-                        "measured rate; raising the ceiling from %d.",
+                        "measured rate and within the %d this model has been seen "
+                        "to need; raising the ceiling from %d.",
                         _affordable,
+                        _ever_needed,
                         max_tokens,
                     )
                     max_tokens = _affordable
