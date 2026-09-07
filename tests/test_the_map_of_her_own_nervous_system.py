@@ -2218,3 +2218,54 @@ def test_quality_measures_what_it_has_and_names_what_it_does_not():
     for name in ("coupling_carrying_nothing", "half_wired_channels", "dormant_machinery"):
         assert name in quality.unmeasured
     assert quality.detail["spof_sampled"] <= 4
+
+
+def test_a_promotion_can_carry_what_the_change_did_to_the_shape():
+    from core.cognition.how_a_change_is_promoted import a_ledger_of_its_own, promote
+    from core.connectome.anatomy_gate import Quality, compare_quality
+
+    before = Quality(
+        values={"local_recurrence": 1.0, "half_wired_channels": 10.0},
+        unmeasured=("dormant_machinery",),
+    )
+    after = Quality(
+        values={"local_recurrence": 2.0, "half_wired_channels": 20.0},
+        unmeasured=("dormant_machinery",),
+    )
+    delta = compare_quality(before, after)
+    with a_ledger_of_its_own():
+        receipt = promote(
+            "a.change",
+            became="canary",
+            started_by="test",
+            evidence="the probe paid",
+            anatomy=delta,
+        )
+        plain = promote(
+            "b.change", became="canary", started_by="test", evidence="the probe paid"
+        )
+    assert "the probe paid" in receipt.evidence
+    assert "worse: half_wired_channels" in receipt.evidence
+    assert receipt.evidence.index("worse:") < receipt.evidence.index("better:")
+    assert "not measured" in receipt.evidence
+    # A promotion with nothing to say about the anatomy is unchanged.
+    assert plain.evidence == "the probe paid"
+
+
+def test_a_promotion_never_fails_because_the_shape_could_not_be_measured():
+    from core.cognition.how_a_change_is_promoted import a_ledger_of_its_own, promote
+
+    class _Broken:
+        def as_json(self):
+            raise ValueError("no")
+
+    with a_ledger_of_its_own():
+        receipt = promote(
+            "c.change",
+            became="canary",
+            started_by="test",
+            evidence="the probe paid",
+            anatomy=_Broken(),
+        )
+    assert "the probe paid" in receipt.evidence
+    assert "anatomy:" in receipt.evidence
