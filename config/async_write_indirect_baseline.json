@@ -457,16 +457,6 @@
       "add_goal"
     ],
     [
-      "core/resilience/stability_guardian.py",
-      "_loop",
-      "_persist_report"
-    ],
-    [
-      "core/runtime/autonomy_conductor.py",
-      "_run_job",
-      "_record"
-    ],
-    [
       "core/runtime/update_manager.py",
       "_rollback",
       "_record"

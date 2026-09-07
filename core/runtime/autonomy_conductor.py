@@ -358,7 +358,7 @@ class AutonomyConductor:
             job.last_status = "deferred"
             job.last_result = {"reason": policy_reason}
             job.next_eligible_at = time.time() + min(60.0, max(5.0, job.interval_s / 10.0))
-            self._record(job)
+            await self._record(job)
             return job.to_dict()
 
         job.last_started_at = time.time()
@@ -382,7 +382,7 @@ class AutonomyConductor:
             job.last_status = "failed"
             job.failures += 1
         job.last_finished_at = time.time()
-        self._record(job)
+        await self._record(job)
         return job.to_dict()
 
     def _job_policy_reason(self, job: ConductedJob) -> str:
@@ -424,14 +424,14 @@ class AutonomyConductor:
             )
             return "background_policy_unavailable"
 
-    def _record(self, job: ConductedJob) -> None:
+    async def _record(self, job: ConductedJob) -> None:
         entry = {"when": time.time(), "job": job.to_dict()}
         try:
             with local_internal_governed_scope(
                 "runtime.autonomy_conductor.ledger",
                 domain="file_write",
             ):
-                get_file_write_gateway().append_text(
+                await get_file_write_gateway().append_text_async(
                     self.ledger_path,
                     json.dumps(entry, sort_keys=True, default=str) + "\n",
                     source="runtime.autonomy_conductor.ledger",
