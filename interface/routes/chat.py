@@ -13121,8 +13121,9 @@ async def _protected_foreground_reply(
     )
     semantic_completion_expected = True
     try:
-        direct_reply = await asyncio.wait_for(
-            gate.generate(
+        # The resident client owns progress-aware completion and cancellation.
+        # An outer copy of the initial estimate cancels its revised allowance.
+        direct_reply = await gate.generate(
                 body.message,
                 context={
                     "origin": chat_origin,
@@ -13152,8 +13153,6 @@ async def _protected_foreground_reply(
                     ),
                 },
                 timeout=direct_budget,
-            ),
-            timeout=direct_budget,
         )
     except _CHAT_RECOVERABLE_ERRORS as direct_exc:
         record_degradation("chat", direct_exc)

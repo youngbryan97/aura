@@ -62,3 +62,13 @@ The integrity collector now serializes concurrent off-loop scans and
 rechecks freshness after acquiring collection ownership. Event-loop readers
 still return immediately. All 13 health-responsiveness tests passed,
 including four concurrent callers sharing one scan.
+
+The protected foreground reply had its own `asyncio.wait_for` around the
+inference gate with the original time estimate. The live log measured a
+worker allowance of 68 seconds while that caller cancelled after roughly
+nine seconds. The route now delegates completion to the existing resident
+client, keeping its budget input, cancellation and resource enforcement.
+Seventeen focused route/client tests passed, including benchmark exclusion
+and cancellation propagation. This repair does not establish that the
+primary decoder produces complete answers; it prevents one independent
+caller from cancelling the client's revised allowance.
