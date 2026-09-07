@@ -261,12 +261,16 @@ class CognitiveHeartbeat:
         target: Any,
         method_name: str,
         *args: Any,
+        offload_sync: bool = False,
         **kwargs: Any,
     ) -> bool:
         method = getattr(target, method_name, None)
         if not callable(method):
             return False
-        result = method(*args, **kwargs)
+        if offload_sync and not inspect.iscoroutinefunction(method):
+            result = await asyncio.to_thread(method, *args, **kwargs)
+        else:
+            result = method(*args, **kwargs)
         if inspect.isawaitable(result):
             await result
         return True
@@ -281,7 +285,7 @@ class CognitiveHeartbeat:
             if callable(getattr(mind_model, "get_context_for_brain", None)):
                 mind_model.get_context_for_brain()
             if tick % self._NARRATIVE_EMIT_TICKS == 0:
-                await self._call_if_available(mind_model, "save")
+                await self._call_if_available(mind_model, "save", offload_sync=True)
         except _RECOVERABLE_HEARTBEAT_ERRORS as e:
             _record_heartbeat_degradation(
                 e,
