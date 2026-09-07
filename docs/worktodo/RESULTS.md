@@ -3,10 +3,10 @@
 All 23 items in [TODO.md](TODO.md) are closed. This is what each one added and,
 where it produced a number, what the number was.
 
-## The pattern that recurred
+## Two patterns that recurred
 
-Five mechanisms were written, passed their own tests, passed every gate, and
-could not fire:
+**Mechanisms that could not fire.** Five were written, passed their own tests,
+passed every gate, and had no reachable path:
 
 | Where | Why it could not fire |
 |---|---|
@@ -18,6 +18,31 @@ could not fire:
 
 Each was found by running the thing rather than reading it. All 61 verdict
 members across the 14 new enums are now reachable and asserted by a test.
+
+**Distances that measured whichever channel was largest.** Four, all of the
+same shape — a distance or a step over quantities whose scales come from
+callers, with no normalisation on the way:
+
+| Where | What dominated |
+|---|---|
+| `model_horizon` neighbour radius | an absolute distance in a feature space whose scale is a per-model fact |
+| `unknown_failure` signature distance | a latency spanning 120–30000 beside categorical differences of 0 or 1 |
+| `manipulable_learning` parameter step | a fixed 0.2 on a value of 2 that rounds to an integer |
+| `narrative_provenance` state distance | a duration in seconds beside two values in [0, 1] |
+
+The last one is the sharpest: on a generator whose words track valence
+perfectly, the measured fidelity was 0.03 against its shuffled null, where the
+same text against bounded channels alone scores 0.90. The instrument for
+deciding whether introspection says anything was reporting that it does not,
+because of a channel nobody was asking about.
+
+I wrote a detector for the class and did not ship it. It caught two of the
+four and reported four sites I had to read and dismiss, and the obvious next
+move — tuning it against my own four examples — is the failure the epistemic
+independence work in this same pass exists to prevent.
+`tests/test_distances_are_scale_free.py` is a regression test for the four
+instead: precise about what is known to have gone wrong, silent about what is
+not.
 
 ## Numbers
 
