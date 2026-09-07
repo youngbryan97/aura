@@ -44,6 +44,9 @@ logger = logging.getLogger("Aura.Connectome.CellTypes")
 
 __all__ = [
     "Typing",
+    "type_connectivity_matrix",
+    "stereotypy",
+    "serial_homology",
     "refine_types",
     "adjusted_rand_index",
     "stability",
@@ -269,4 +272,128 @@ def compare_typings(
         "multi_member_types_left": multi_left,
         "types_preserved_intact": preserved,
         "preserved_share": round(preserved / multi_left, 4) if multi_left else 0.0,
+    }
+
+
+def type_connectivity_matrix(
+    snapshot: ConnectomeSnapshot,
+    typing: Typing,
+    *,
+    kind: EdgeKind | None = EdgeKind.DRIVE,
+) -> dict[tuple[str, str], int]:
+    """Contacts from each type onto each type.
+
+    A connectome at the level of types rather than cells is what a comparison
+    between two individuals can be made on, because two individuals do not share
+    cells and both have the same types.
+    """
+    matrix: dict[tuple[str, str], int] = {}
+    for connection in snapshot.connections.values():
+        if kind is not None and connection.kind is not kind:
+            continue
+        source = typing.labels.get(connection.pre)
+        target = typing.labels.get(connection.post)
+        if source is None or target is None:
+            continue
+        key = (source, target)
+        matrix[key] = matrix.get(key, 0) + connection.contacts
+    return matrix
+
+
+def stereotypy(
+    left: ConnectomeSnapshot,
+    right: ConnectomeSnapshot,
+    *,
+    rounds: int = 1,
+    seed_labels: str = "cell_class",
+) -> dict[str, Any]:
+    """How alike two individuals are at the level of types.
+
+    The annelid larva's whole-body connectome reports a correlation of 0.91
+    between its left and right synapse matrices, and that number is what lets
+    the paper call the wiring stereotyped: two halves built by the same
+    programme from the same plan land in the same place. Two commits of Aura are
+    the same comparison, and a correlation far below 0.91 would mean her
+    development is not reproducing a plan but improvising one.
+
+    The correlation runs over type pairs present in both, and how many that is
+    is reported beside it: a high correlation over four pairs says nothing.
+    """
+    left_typing = refine_types(left, rounds=rounds, seed_labels=seed_labels)
+    right_typing = refine_types(right, rounds=rounds, seed_labels=seed_labels)
+    left_matrix = type_connectivity_matrix(left, left_typing)
+    right_matrix = type_connectivity_matrix(right, right_typing)
+    shared = sorted(set(left_matrix) & set(right_matrix))
+    if len(shared) < 8:
+        return {
+            "shared_type_pairs": len(shared),
+            "correlation": 0.0,
+            "reference": "Platynereis left-right, 0.91",
+            "verdict": "too few shared type pairs to compare",
+        }
+    a = [float(left_matrix[key]) for key in shared]
+    b = [float(right_matrix[key]) for key in shared]
+    mean_a = sum(a) / len(a)
+    mean_b = sum(b) / len(b)
+    numerator = sum((x - mean_a) * (y - mean_b) for x, y in zip(a, b, strict=True))
+    denominator = (
+        sum((x - mean_a) ** 2 for x in a) * sum((y - mean_b) ** 2 for y in b)
+    ) ** 0.5
+    correlation = numerator / denominator if denominator else 0.0
+    return {
+        "shared_type_pairs": len(shared),
+        "only_in_left": len(set(left_matrix) - set(right_matrix)),
+        "only_in_right": len(set(right_matrix) - set(left_matrix)),
+        "correlation": round(correlation, 4),
+        "reference": "Platynereis left-right, 0.91",
+        "verdict": (
+            "as stereotyped as the two halves of an annelid larva"
+            if correlation >= 0.91
+            else "less stereotyped than the two halves of an annelid larva"
+        ),
+    }
+
+
+def serial_homology(
+    snapshot: ConnectomeSnapshot,
+    typing: Typing,
+    *,
+    minimum_regions: int = 3,
+    limit: int = 20,
+) -> dict[str, Any]:
+    """Types whose members recur across regions, the way a segment repeats.
+
+    The annelid work finds cell-type families that appear in the head, in every
+    trunk segment and in the tail: the same circuit, built again wherever the
+    body needed it. A type here that recurs across many packages is the same
+    thing — a role the system needed in several places and solved the same way
+    each time — and it is worth knowing which roles those are, because a change
+    to one of them is a change everywhere it appears.
+    """
+    regions: dict[str, set[str]] = {}
+    members: dict[str, list[str]] = {}
+    for uid, label in typing.labels.items():
+        unit = snapshot.units.get(uid)
+        if unit is None:
+            continue
+        regions.setdefault(label, set()).add(unit.region)
+        members.setdefault(label, []).append(uid)
+    families = [
+        {
+            "type": label,
+            "regions": len(spread),
+            "cells": len(members[label]),
+            "example": snapshot.units[members[label][0]].name,
+            "region_names": sorted(spread)[:8],
+        }
+        for label, spread in regions.items()
+        if len(spread) >= minimum_regions
+    ]
+    families.sort(key=lambda row: (-row["regions"], -row["cells"], row["type"]))
+    total_types = len(regions)
+    return {
+        "types": total_types,
+        "types_spanning_regions": len(families),
+        "share_spanning": round(len(families) / total_types, 4) if total_types else 0.0,
+        "widest": families[:limit],
     }

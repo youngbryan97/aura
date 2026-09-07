@@ -37,7 +37,7 @@ from __future__ import annotations
 import logging
 import statistics
 from collections import Counter, deque
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -48,6 +48,7 @@ logger = logging.getLogger("Aura.Connectome.Spine")
 
 __all__ = [
     "SpineReport",
+    "descending_directness",
     "afferent_cells",
     "efferent_cells",
     "path_utilisation",
@@ -125,6 +126,79 @@ def path_utilisation(
                 frontier = nxt
                 depth -= 1
     return utilisation, reached, lengths
+
+
+def descending_directness(
+    snapshot: ConnectomeSnapshot,
+    heights: Mapping[str, float] | None = None,
+    *,
+    deep_quantile: float = 0.75,
+) -> dict[str, Any]:
+    """How much of an effector's input arrives straight from the deep end.
+
+    The nerve cord connectome measured this and the answer was not what anyone
+    would have drawn. Direct connections from descending neurons to motor
+    neurons are infrequent: most motor neuron groups take about 7% of their
+    input that way, and the exceptions — the neck muscles — take between 20% and
+    60%. The brain mostly does not drive the body. It drives the circuits that
+    drive the body, and the few places where it reaches through are the places
+    it needs to move something immediately.
+
+    Here the deep end is the top quartile of trophic height and the effectors
+    are the cells that call out of the process to change the world. A high share
+    means cognition reaches the actuator directly; a low one means it goes
+    through local circuitry that can refuse, retry, or sequence.
+    """
+    if heights is None:
+        from .microcircuit import trophic_levels
+
+        heights = trophic_levels(DiGraphView.from_snapshot(snapshot, EdgeKind.DRIVE))
+    if not heights:
+        return {"effectors": 0}
+    ordered = sorted(heights.values())
+    cut = ordered[min(len(ordered) - 1, int(len(ordered) * deep_quantile))]
+    deep = {uid for uid, height in heights.items() if height >= cut}
+
+    incoming: dict[str, list[tuple[str, int]]] = {}
+    for connection in snapshot.connections.values():
+        if connection.kind is EdgeKind.DRIVE:
+            incoming.setdefault(connection.post, []).append(
+                (connection.pre, connection.contacts)
+            )
+
+    shares: list[float] = []
+    rows: list[dict[str, Any]] = []
+    for uid in efferent_cells(snapshot):
+        inputs = incoming.get(uid, [])
+        total = sum(contacts for _, contacts in inputs)
+        if total <= 0:
+            continue
+        direct = sum(contacts for pre, contacts in inputs if pre in deep)
+        share = direct / total
+        shares.append(share)
+        unit = snapshot.units.get(uid)
+        rows.append(
+            {
+                "cell": unit.name if unit else uid,
+                "direct_share": round(share, 4),
+                "incoming_contacts": total,
+            }
+        )
+    rows.sort(key=lambda row: -row["direct_share"])
+    return {
+        "effectors": len(shares),
+        "mean_direct_share": round(statistics.fmean(shares), 4) if shares else 0.0,
+        "median_direct_share": round(statistics.median(shares), 4) if shares else 0.0,
+        "effectors_over_twenty_percent": sum(1 for share in shares if share >= 0.2),
+        "fly_typical_motor_neuron_share": 0.07,
+        "fly_neck_motor_neuron_range": "0.20 to 0.60",
+        "most_direct": rows[:10],
+        "verdict": (
+            "cognition mostly reaches the world through local circuitry, as in the fly"
+            if shares and statistics.median(shares) < 0.2
+            else "cognition reaches the actuators directly more often than the fly does"
+        ),
+    }
 
 
 @dataclass

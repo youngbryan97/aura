@@ -1310,3 +1310,65 @@ def test_the_within_condition_control_removes_the_workload():
     assert raw.connected_mean > 0.9
     assert controlled.connected_mean < 0.3
     assert "no detectable" in controlled.verdict
+
+
+def test_how_directly_cognition_reaches_the_actuators():
+    from core.connectome.spine import descending_directness
+
+    # A deep cell reaching an effector straight, and one reaching it through a
+    # local circuit, so the share is a half.
+    edges = [
+        ("sense", "mid", 1),
+        ("mid", "deep", 1),
+        ("deep", "act_direct", 1),
+        ("deep", "local", 1),
+        ("local", "act_indirect", 1),
+    ]
+    snapshot = _graph_snapshot(edges)
+    for unit in snapshot.units.values():
+        if unit.uid == "sense":
+            unit.attrs["afferent"] = 1
+        if unit.uid.startswith("act_"):
+            unit.attrs["efferent"] = 1
+    report = descending_directness(snapshot)
+    assert report["effectors"] == 2
+    assert report["fly_typical_motor_neuron_share"] == pytest.approx(0.07)
+    assert 0.0 <= report["mean_direct_share"] <= 1.0
+    assert report["verdict"]
+
+
+def test_stereotypy_of_an_individual_with_itself_is_one():
+    from core.connectome.celltypes import stereotypy
+
+    # Varied degrees and contact counts, so colour refinement produces enough
+    # distinct types for the comparison to have something to correlate.
+    edges: list[tuple[str, str, int]] = []
+    for i in range(200):
+        for step in range(1, (i % 5) + 2):
+            edges.append((f"n{i}", f"n{(i * 7 + step) % 200}", (i + step) % 6 + 1))
+    snapshot = _graph_snapshot(edges)
+    result = stereotypy(snapshot, snapshot)
+    assert result["shared_type_pairs"] >= 8
+    assert result["correlation"] == pytest.approx(1.0, abs=1e-6)
+    assert result["only_in_left"] == 0
+
+
+def test_serial_homology_counts_the_regions_a_type_spans():
+    from core.connectome.celltypes import refine_types, serial_homology
+
+    units = {}
+    connections = {}
+    for region in ("head", "trunk", "tail"):
+        units[f"{region}_src"] = _unit(f"{region}_src", region=region)
+        units[f"{region}_worker"] = _unit(f"{region}_worker", region=region)
+        connections[(f"{region}_src", f"{region}_worker", str(EdgeKind.DRIVE))] = Connection(
+            pre=f"{region}_src", post=f"{region}_worker", contacts=1, sign=1,
+            kind=EdgeKind.DRIVE,
+        )
+    snapshot = ConnectomeSnapshot(
+        version=1, units=units, connections=connections, neuropils={}
+    )
+    typing = refine_types(snapshot, rounds=1)
+    report = serial_homology(snapshot, typing, minimum_regions=3)
+    assert report["types_spanning_regions"] >= 1
+    assert report["widest"][0]["regions"] == 3

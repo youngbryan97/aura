@@ -233,6 +233,31 @@ The connectome beats knowing what is hot by five times and loses to knowing what
 just ran. Weighting neighbours by contact count recovers most of the gap and does
 not close it.
 
+### How directly cognition reaches the actuators
+
+The nerve cord connectome measured something nobody would have drawn. Direct
+connections from descending neurons to motor neurons are infrequent: a motor
+neuron group takes about 7% of its input that way, and the exceptions — the neck
+— take between 20% and 60%. The brain mostly does not drive the body; it drives
+the circuits that do.
+
+Aura, over 213 effector cells on the proofread map, with the deep end taken as
+the top quartile of trophic height: mean direct share **0.051**, median **0.0**,
+and 14 effectors above 20%. The same shape, including the exceptions.
+
+### Stereotypy and repeated circuits
+
+The annelid larva's whole-body connectome reports a correlation of 0.91 between
+its left and right synapse matrices, which is what lets the paper call the
+wiring stereotyped. The same comparison between two commits of Aura, at the
+level of type-to-type connectivity over 39,882 shared type pairs, gives
+**0.988**. Her development reproduces a plan rather than improvising one.
+
+13% of her types span three or more packages. The widest span 190, and reading
+them is the caveat: they are generic roles — `__getattr__`, `__init__`, small
+predicates — rather than repeated circuits. Her serial homology is dominated by
+boilerplate, which is a finding about the code and not about the analysis.
+
 ## Do cells that do the same thing wire together?
 
 MICrONS recorded 75,909 neurons in a mouse's visual cortex and reconstructed the
