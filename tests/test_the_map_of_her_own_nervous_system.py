@@ -2055,3 +2055,100 @@ def test_every_lesion_prediction_says_what_survives_and_what_does_not():
         assert prediction.predicted_lost
         assert prediction.readout
         assert prediction.predicted_intact != prediction.predicted_lost
+
+
+# ---------------------------------------------------------------------------
+# What she can ask about her own machinery
+# ---------------------------------------------------------------------------
+
+
+def _effective_with(edges: dict, condition: str = "c"):
+    from core.connectome.effective import EffectiveConnectome, EffectiveEdge, Grade
+
+    graph = EffectiveConnectome(condition=condition, grade=Grade.PREDICTIVE, frames=400)
+    for (pre, post), (weight, z) in edges.items():
+        graph.edges[(pre, post)] = EffectiveEdge(
+            pre=pre,
+            post=post,
+            condition=condition,
+            weight=weight,
+            null_mean=0.0,
+            null_spread=1.0,
+            z=z,
+            samples=400,
+            grade=Grade.PREDICTIVE,
+        )
+    return graph
+
+
+def test_she_can_ask_which_circuit_dominates():
+    from core.connectome.introspect import dominant_circuit
+
+    snapshot = _graph_snapshot([("a", "b", 1), ("c", "d", 1)])
+    graph = _effective_with({("a", "b"): (0.6, 9.0), ("c", "d"): (0.1, 0.4)})
+    answer = dominant_circuit(snapshot, graph)
+    assert "a" in answer.finding and "b" in answer.finding
+    assert answer.detail["edges_surviving"] == 1
+    assert "not by intervention" in answer.caveat
+
+
+def test_a_predictive_answer_never_words_itself_as_a_cause():
+    from core.connectome.effective import Grade
+    from core.connectome.introspect import does_it_influence
+
+    snapshot = _graph_snapshot([("mech", "out", 1)])
+    graph = _effective_with({("mech", "out"): (0.5, 8.0)})
+    answer = does_it_influence(snapshot, graph, ["mech"], ["out"], belief="I thought this did it")
+    assert answer.grade is Grade.PREDICTIVE
+    assert "influence" in answer.finding
+    assert "cause" not in answer.finding.lower()
+    assert "not by intervention" in answer.caveat
+    assert "predict" in answer.grade.licenses
+
+
+def test_the_mechanism_she_believes_in_may_have_no_influence():
+    from core.connectome.introspect import does_it_influence
+
+    snapshot = _graph_snapshot([("believed", "out", 1), ("actual", "out", 1)])
+    graph = _effective_with(
+        {("believed", "out"): (0.02, 0.3), ("actual", "out"): (0.7, 11.0)}
+    )
+    believed = does_it_influence(snapshot, graph, ["believed"], ["out"])
+    actual = does_it_influence(snapshot, graph, ["actual"], ["out"])
+    assert "none of them influences" in believed.finding
+    assert "influence it" in actual.finding
+
+
+def test_asking_about_machinery_nobody_measured_says_so():
+    from core.connectome.introspect import does_it_influence
+
+    snapshot = _graph_snapshot([("a", "b", 1)])
+    graph = _effective_with({("a", "b"): (0.5, 8.0)})
+    answer = does_it_influence(snapshot, graph, ["unmeasured"], ["b"])
+    assert "no edge" in answer.finding
+    assert "absence of a measurement is not absence of an influence" in answer.caveat
+
+
+def test_she_can_ask_which_pathways_her_failures_depend_on():
+    from core.connectome.introspect import failure_correlates
+
+    pairs = {(f"p{i}", f"q{i}") for i in range(10)}
+    snapshot = _graph_snapshot([(p, q, 1) for p, q in pairs])
+    failing = _effective_with({p: (0.6 if p == ("p3", "q3") else 0.1, 9.0) for p in pairs},
+                              condition="failing")
+    succeeding = _effective_with({p: (0.1, 9.0) for p in pairs}, condition="succeeding")
+    answer = failure_correlates(snapshot, failing, succeeding)
+    assert "p3" in answer.finding and "q3" in answer.finding
+    assert "correlation" in answer.caveat
+
+
+def test_what_would_change_is_scored_against_a_matched_control():
+    from core.connectome.introspect import what_would_change
+
+    edges = [("src", "bridge", 1)] + [("bridge", f"far{i}", 1) for i in range(10)]
+    edges += [("src", f"near{i}", 1) for i in range(10)]
+    snapshot = _graph_snapshot(edges)
+    snapshot.units["src"].attrs["afferent"] = 1
+    answer = what_would_change(snapshot, ["bridge"])
+    assert "reachability in the graph, not behaviour" in answer.caveat
+    assert answer.detail["excess_reach_loss"] >= 0.0

@@ -85,12 +85,20 @@ def _probe_module(name: str, budget: float) -> dict[str, Any]:
     # Find the readers once, then call them until the budget is spent. Calling
     # each one once takes no measurable time, and a recording of a station that
     # fired for a hundredth of a second cannot be asked what the station does.
+    #
+    # Only functions this module defines. dir() returns everything imported into
+    # the namespace too, and the first version spent the whole workspace budget
+    # calling get_task_tracker and get_receipt_store — cheap accessors from
+    # core.runtime that a workspace module happens to import. The recording said
+    # workspace fired zero cells, which was true and was about the probes.
     probes = []
     for attribute in sorted(dir(module)):
         if not attribute.startswith(_READ_PREFIXES):
             continue
         value = getattr(module, attribute, None)
         if not callable(value):
+            continue
+        if getattr(value, "__module__", None) != name:
             continue
         try:
             signature = inspect.signature(value)
@@ -107,6 +115,9 @@ def _probe_module(name: str, budget: float) -> dict[str, Any]:
     if not probes:
         return outcome
     outcome["probes"] = len(probes)
+    # Round robin, one call each per pass. Without that the cheapest probe takes
+    # the whole budget: two accessors accounted for a million of the 1.03
+    # million calls in one station, and the rest of the station never ran.
     while time.monotonic() < deadline:
         for probe in probes:
             try:
@@ -124,8 +135,8 @@ def _probe_module(name: str, budget: float) -> dict[str, Any]:
                     outcome["called"] += 1
                 except BaseException:  # noqa: BLE001
                     outcome["failed"] += 1
-            if time.monotonic() > deadline:
-                break
+        if time.monotonic() > deadline:
+            break
     return outcome
 
 
