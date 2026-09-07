@@ -9,9 +9,12 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Pattern, Union, Optional
+from typing import Any, Optional, Pattern, Union
+
 import structlog
 from structlog.dev import ConsoleRenderer
+
+from core.observability import handler_reentry
 from core.runtime.state_ownership import state_root
 
 # ── Redaction Patterns ─────────────────────────────────────────
@@ -161,6 +164,11 @@ def setup_logging(
 ) -> Any:
     """Configure structured logging and return a bound logger."""
     global _initialised, _queue_listener
+
+    # Before any handler is attached: a handler that logs from inside its own
+    # emit asks for a second handler lock while holding the first, and two of
+    # them pointing at each other wedge the process. See handler_reentry.
+    handler_reentry.install()
 
     if _initialised:
         return structlog.get_logger(name)
