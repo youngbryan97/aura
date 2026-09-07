@@ -323,6 +323,24 @@ _APPLICATION_DIRECTORIES: tuple[str, ...] = (
 _INSTALLED_APPS_CACHE: tuple[float, tuple[str, ...]] | None = None
 _INSTALLED_APPS_TTL_S = 60.0
 
+#: What each application calls itself, mapped to a name that can start it.
+#:
+#: An application has more than one name and they are not interchangeable. The
+#: bundle on disk is 2048.app; the process it runs as calls itself "2048
+#: Game"; the window server reports the second. So she watches a game, learns
+#: it is called "2048 Game", writes that down, and can never start it again —
+#: the resolver only ever knew the names of directories.
+#:
+#: LIVE 2026-09-05, asked to open the game and play it: she found the app,
+#: recalled everything she had learned about it, and got "'2048 Game' would
+#: not come to the front and would not start", after nought moves. The
+#: operating system's own answer was "Unable to find application named '2048
+#: Game'" — for an application sitting in /Applications.
+_APP_ALIASES_CACHE: tuple[float, dict[str, str]] | None = None
+
+#: The keys in a bundle's own description that name it.
+_WHAT_A_BUNDLE_CALLS_ITSELF = ("CFBundleName", "CFBundleDisplayName")
+
 
 def _normalize_app_name(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(name or "").lower())
@@ -344,17 +362,56 @@ def installed_application_names(*, refresh: bool = False) -> tuple[str, ...]:
         return _INSTALLED_APPS_CACHE[1]
 
     found: list[str] = []
+    aliases: dict[str, str] = {}
     for directory in _APPLICATION_DIRECTORIES:
         try:
             entries = os.listdir(directory)
         except OSError:
             continue
         for entry in entries:
-            if entry.endswith(".app"):
-                found.append(entry[: -len(".app")])
+            if not entry.endswith(".app"):
+                continue
+            bundle = entry[: -len(".app")]
+            found.append(bundle)
+            aliases[_normalize_app_name(bundle)] = bundle
+            for said in _what_this_bundle_calls_itself(Path(directory) / entry):
+                # The directory name wins where they collide: it is the one
+                # that can always be opened.
+                aliases.setdefault(_normalize_app_name(said), bundle)
     names = tuple(sorted(set(found)))
     _INSTALLED_APPS_CACHE = (now, names)
+    global _APP_ALIASES_CACHE
+    _APP_ALIASES_CACHE = (now, aliases)
     return names
+
+
+def _what_this_bundle_calls_itself(bundle: Path) -> tuple[str, ...]:
+    """The names inside an application, besides the one on its folder."""
+    try:
+        import plistlib  # noqa: PLC0415
+
+        with open(bundle / "Contents" / "Info.plist", "rb") as described_in:
+            described = plistlib.load(described_in)
+    except (OSError, ValueError, TypeError, ImportError):
+        return ()
+    said = []
+    for key in _WHAT_A_BUNDLE_CALLS_ITSELF:
+        value = str(described.get(key) or "").strip()
+        if value:
+            said.append(value)
+    return tuple(said)
+
+
+def what_can_start(app_name: str, *, refresh: bool = False) -> str:
+    """The name that starts the application somebody named, or empty.
+
+    Every name an application answers to, resolved to the one the machine can
+    act on. Asked for a name nothing on this machine uses, it says so rather
+    than guessing.
+    """
+    installed_application_names(refresh=refresh)
+    held = _APP_ALIASES_CACHE[1] if _APP_ALIASES_CACHE else {}
+    return held.get(_normalize_app_name(app_name), "")
 
 
 @dataclass(frozen=True)
@@ -425,6 +482,21 @@ def resolve_application_name(app_name: str) -> AppNameResolution:
 
     if wanted in by_normal and len(by_normal[wanted]) == 1:
         return AppNameResolution(requested, by_normal[wanted][0], "exact")
+
+    # What it calls itself, before anything is matched loosely.
+    #
+    # An application has more than one name. The bundle on disk is 2048.app;
+    # the process it runs as calls itself "2048 Game"; the window server
+    # reports the second, so that is the name she watches it under and writes
+    # down. Only the folder names were ever known here, so she could see the
+    # application and never start it — the machine's own answer being "unable
+    # to find application named '2048 Game'" for one sitting in /Applications.
+    #
+    # After the exact tier so a folder name still resolves as exactly that,
+    # and before the loose ones because this is not a guess.
+    starts_it = what_can_start(spoken) or what_can_start(requested)
+    if starts_it:
+        return AppNameResolution(requested, starts_it, "named_in_its_own_bundle")
 
     # "note" -> "notes", "notes" -> "note"
     for variant in (wanted + "s", wanted.rstrip("s")):
