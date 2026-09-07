@@ -1105,3 +1105,42 @@ def test_a_circuit_lifts_out_with_its_pattern_and_its_edges():
     assert report["graftable"] is False
     assert report["cells_missing"] == 1
     assert report["edges_to_create"] == 2
+
+
+def test_a_confidence_interval_that_is_one_point_is_not_significant():
+    """A spike in the distribution is not a tight interval.
+
+    Most cells have no connectome neighbour, so the two arms differ for them
+    only through a shared weight — the same number for every such cell. The
+    median of every resample lands on it and the interval collapses.
+    """
+    import numpy as np
+
+    from core.connectome.zapbench import _paired_bootstrap
+
+    shared = np.concatenate([np.full(900, 0.001), np.random.default_rng(0).normal(0, 0.01, 100)])
+    zeros = np.zeros_like(shared)
+    result = _paired_bootstrap(shared, zeros, draws=200, seed=1)
+    assert result["largest_shared_value_share"] > 0.2
+    assert result["median_significant"] is False
+
+
+def test_the_paired_comparison_can_be_restricted_to_the_cells_that_differ():
+    import numpy as np
+
+    from core.connectome.zapbench import _paired_bootstrap
+
+    rng = np.random.default_rng(3)
+    right = rng.normal(0.0, 0.01, 400)
+    left = right.copy()
+    subset = np.zeros(400, dtype=bool)
+    subset[:200] = True
+    # A real per-cell effect never lands on identical floats, so the shift
+    # varies; a constant one would trip the degeneracy guard, which is what the
+    # guard is for.
+    left[:200] -= 0.02 + rng.normal(0.0, 0.003, 200)
+    result = _paired_bootstrap(left, right, draws=200, seed=2, subset=subset)
+    assert result["cells_compared"] == 200
+    assert result["cells_identical"] == 200
+    assert result["median_significant"] is True
+    assert result["median_difference"] < 0
