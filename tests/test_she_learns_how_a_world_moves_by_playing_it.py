@@ -208,6 +208,37 @@ def _play(**kw):
     )
 
 
+def _a_policy_that_pushes_each_way():
+    """The same fixed rotation as the mind above, offered as a `policy`.
+
+    A caller with its own judgement skips deliberation entirely — no
+    `Deliberation`, no `ActionOption`, none of the shape the learner reads.
+    Whatever records a pair for the rule has to work from what a policy
+    hands back too, or a policy-driven run is blind for as long as it runs.
+    """
+    ways = itertools.cycle(("left", "up", "right", "down"))
+
+    async def policy(_observation):
+        return {"key": next(ways), "because": "rotating through every side"}
+
+    return policy
+
+
+def _play_with_policy(**kw):
+    return asyncio.run(
+        sp.pursue_on_screen(
+            goal="make the numbers larger",
+            success_when=r"\b4096\b",
+            policy=_a_policy_that_pushes_each_way(),
+            narrate=False,
+            lived=False,
+            research=False,
+            target_app="TheThing",
+            **kw,
+        )
+    )
+
+
 def test_the_loop_runs_end_to_end_against_a_world_that_moves(world):
     """She reads it, decides, presses, and the world moves under her.
 
@@ -248,3 +279,31 @@ def test_the_pairs_that_reach_the_rule_are_counted(world):
 
     assert reached["n"] >= 0
     assert len(world.pressed) > 0
+
+
+def test_a_policy_driven_run_also_reaches_the_rule(world):
+    """A `policy` is a way of choosing, not a different kind of move.
+
+    Before the fix, only the deliberating path ever wrote `pending`, so a
+    caller with its own policy pressed keys against this exact world and fed
+    the learner nothing at all, forever, however many moves it made. Fixed
+    by recording the same reading-choice-reading triple regardless of which
+    path chose the move.
+    """
+    from core.perception.how_it_moves import HowItMoves
+
+    reached = {"n": 0}
+    original = HowItMoves.watched
+
+    def watching(self, before, action, after):
+        reached["n"] += 1
+        return original(self, before, action, after)
+
+    HowItMoves.watched = watching
+    try:
+        _play_with_policy(max_cycles=30, max_seconds=120.0)
+    finally:
+        HowItMoves.watched = original
+
+    assert len(world.pressed) > 0
+    assert reached["n"] > 0, "a policy-driven run fed the learner nothing"

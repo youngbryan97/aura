@@ -190,4 +190,13 @@ artifacts/lora_consolidation/adapter/
 artifacts/lora_consolidation/dataset/
 artifacts/lora_consolidation/merge/
 artifacts/reliability/runs/
+
+# RLC sweep intermediates. The convention in this tree is that a run commits
+# its small JSON reports — arithmetic_lesions.json, leave_family_out_report.json,
+# model.json — and leaves the bulk on disk. Forty-two run directories are
+# tracked under that rule and none of them carries a features/ tree; the
+# untracked ones held 12GB across 11,246 files, which is what these two lines
+# are for. Nothing that has ever been tracked matches either pattern.
+artifacts/**/features/
+artifacts/**/*.npz
 tools/appcheck/node_modules/
