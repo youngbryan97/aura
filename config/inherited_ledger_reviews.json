@@ -1,0 +1,468 @@
+{
+  "schema_version": 1,
+  "decisions": [
+    {
+      "source_id": "docs/GENERALITY_TODO.md:704",
+      "source_sha256": "d4ac0d49282b654031dd45940648ddd2e02bc79e97828a29e863433cf6627c1a",
+      "status": "superseded",
+      "mechanism": "sandbox_preflight",
+      "reason": "The later ledgerkit closeout explicitly closes J1. Preserve the dated checkbox as history; this is recorded historical closure, not a fresh runtime certificate.",
+      "evidence": [
+        "dd5e4880f9bce471b455c42d7c509d736cc4d376",
+        "docs/GENERALITY_TODO.md:757"
+      ]
+    },
+    {
+      "source_id": "docs/GENERALITY_TODO.md:712",
+      "source_sha256": "ecdc06e001b7fe9b8e2138da57d8573c222dae922d27dd8f0f01da60e548a559",
+      "status": "superseded",
+      "mechanism": "autonomous_result_provenance",
+      "reason": "The later ledgerkit closeout explicitly closes J3. Other empty-answer and result-provenance failures remain separate open obligations; this does not certify all fallback paths.",
+      "evidence": [
+        "dd5e4880f9bce471b455c42d7c509d736cc4d376",
+        "docs/GENERALITY_TODO.md:757"
+      ]
+    },
+    {
+      "source_id": "docs/GENERALITY_TODO.md:716",
+      "source_sha256": "feb0978e9429c3eae62c907247302740857103016dc0c881fc6b61833de8a5c5",
+      "status": "superseded",
+      "mechanism": "event_loop_lock_ownership",
+      "reason": "The later closeout closes the six measured sites, not all event-loop contention. R06 retains the broader live obligation.",
+      "evidence": [
+        "dd5e4880f9bce471b455c42d7c509d736cc4d376",
+        "docs/GENERALITY_TODO.md:757",
+        "docs/AURA_1_0_MASTER_TODO.md:55"
+      ]
+    },
+    {
+      "source_id": "docs/GENERALITY_TODO.md:719",
+      "source_sha256": "d36d68797cd85bf2703689b981a7b7948e7a9ba4af2a9a03b5cc6bbf0c402995",
+      "status": "verified",
+      "mechanism": "desktop_request_semantics",
+      "reason": "The named regression passes on f1f1bd450 in the 17-test inventory reconciliation run. This closes J5's specific test failure, not the broader live desktop acceptance battery.",
+      "evidence": [
+        "dd5e4880f9bce471b455c42d7c509d736cc4d376",
+        "tests/test_server_conversation_lane.py::test_api_chat_desktop_nonexecuting_decision_question_blocks_desktop_task"
+      ]
+    },
+    {
+      "source_id": "docs/GENERALITY_TODO.md:159",
+      "source_sha256": "7a0dae6469a315340631fbdc46d9916733f5540b05111a252b58d763c95244c9",
+      "status": "open",
+      "mechanism": "context_scaffold_and_answer_delivery",
+      "reason": "H3 and K1 report the same standing-context expansion mechanism at different measurements. Preserve both observations and require a current complete-answer replay without degrading context use."
+    },
+    {
+      "source_id": "docs/GENERALITY_TODO.md:793",
+      "source_sha256": "cc3bc673b059a5d8d79574451bc43acc102bd82ebf12d2445e82a62c7a8ee3f4",
+      "status": "open",
+      "mechanism": "context_scaffold_and_answer_delivery",
+      "reason": "K1 explicitly identifies itself as H3's still-standing measurement. It is a second original obligation link in the same mechanism, not a second independent implementation task."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:391",
+      "source_sha256": "a698a343eb345d3ad2068f93ae47d60e7be80f84862ed4ebddfcdf1f9e5a6886",
+      "status": "evidence_needed",
+      "mechanism": "endogenous_inline_expansion_control",
+      "reason": "All five tests pass on f1f1bd450, including the generated-family measurement. Commit 4a9bf7ece implements a head-versus-leaf control, not literal inline expansion where that is unrepresentable. The original broader control remains evidence_needed until its acceptance scope is adjudicated; this does not close independent broad transfer or all control arms.",
+      "evidence": [
+        "4a9bf7ece",
+        "core/cognition/what_the_name_bought.py",
+        "tests/test_what_the_name_bought.py"
+      ]
+    },
+    {
+      "source_id": "docs/GENERALITY_TODO.md:35",
+      "source_sha256": "7966bfade41414efb1da80dab9ba33b54d9d43e76e717c4c37deabda41bc2e81",
+      "status": "evidence_needed",
+      "mechanism": "action_abstraction",
+      "reason": "Keep inspection, construction, evaluation, installation, persistence and reuse as separate acceptance conditions within the shared mechanism. Checked neighboring inline items are not reopened."
+    },
+    {
+      "source_id": "docs/GENERALITY_TODO.md:97",
+      "source_sha256": "38f51ab6d8ab1df78240982972ea41a327cf5517fddc43e972085420466cd539",
+      "status": "evidence_needed",
+      "mechanism": "failure_signature_concepts",
+      "reason": "Compare the later failure-signature work with every named original requirement; a second concept alone does not prove all failure classes."
+    },
+    {
+      "source_id": "docs/GENERALITY_TODO.md:103",
+      "source_sha256": "aaa7c6a7decd0c3025d1c353e63460c1e5dcb136ad2340a46d01f2d5f8662066",
+      "status": "evidence_needed",
+      "mechanism": "model_system_comparison",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/GENERALITY_TODO.md:112",
+      "source_sha256": "2f19a101347cfa7fcce1b0730f7189a5f11ae2c38e78569579fc39214c82727c",
+      "status": "evidence_needed",
+      "mechanism": "heldout_improvement",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/GENERALITY_TODO.md:114",
+      "source_sha256": "d7ad1008361d22283e6e0054e43abde08a6751a69837982f2794e5a06c964444",
+      "status": "evidence_needed",
+      "mechanism": "new_class_improvement",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/GENERALITY_TODO.md:164",
+      "source_sha256": "829d866981bffce501bd3f3653d6098dcc5c4d75d4bb5726df493eb88820517f",
+      "status": "evidence_needed",
+      "mechanism": "mechanical_language_integration",
+      "reason": "Audit the eight instruction directives and their original failure cases; deleting strings alone cannot establish replacement behavior."
+    },
+    {
+      "source_id": "docs/GENERALITY_TODO.md:707",
+      "source_sha256": "95b3126c2fde14f37ccd8b6fb2586179cce4107c0ba8484e2aa22250c226d00c",
+      "status": "evidence_needed",
+      "mechanism": "disconnect_outcome_custody",
+      "reason": "The later ledgerkit closeout explicitly leaves J2 open; require a known durable disconnect outcome."
+    },
+    {
+      "source_id": "docs/GENERALITY_TODO.md:722",
+      "source_sha256": "ff82b8d5560ea92a1777fe0593fe9d226c84456f2125c42112c5dba42f45a42e",
+      "status": "evidence_needed",
+      "mechanism": "resident_allocation",
+      "reason": "The later ledgerkit closeout explicitly leaves J6 open; historical memory readings must be remeasured."
+    },
+    {
+      "source_id": "docs/GENERALITY_TODO.md:796",
+      "source_sha256": "ad3af3334c0824518f1b36a79f1961c5d68fa1f097169f065ccab7c854141fb9",
+      "status": "evidence_needed",
+      "mechanism": "autonomous_result_provenance",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:8",
+      "source_sha256": "2f1c13a5617668bc739e806c59666d6102764a135903f446dcc89a486e91c67b",
+      "status": "evidence_needed",
+      "mechanism": "connectome_structure",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:9",
+      "source_sha256": "44e702b3103c13f4e5a91a921262ab7a5776ebca532d04759d36da7c877c9d1f",
+      "status": "evidence_needed",
+      "mechanism": "connectome_structure",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:10",
+      "source_sha256": "949b54628659f68d620e4acf931a67d04d03c593a9d1c7cc9befa340d485a03a",
+      "status": "evidence_needed",
+      "mechanism": "connectome_recording",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:11",
+      "source_sha256": "1cd51f678e0c4b2be85165ab6c10c8fa7b73286f2a6bea8189df999f4cfc7e03",
+      "status": "evidence_needed",
+      "mechanism": "connectome_segmentation",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:12",
+      "source_sha256": "331ec328bde4b401f07fc6849d31cb744e4f3acf8abbbd8a994f0aa1287b07da",
+      "status": "evidence_needed",
+      "mechanism": "connectome_proofreading",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:13",
+      "source_sha256": "28cda9a0eec6020d2f69da9d250c07b401cdf2cf01b5a0d37a6c9f034c7c7f25",
+      "status": "evidence_needed",
+      "mechanism": "connectome_acquisition_tests",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:16",
+      "source_sha256": "189fed54bbec09ed8dc7371e529cbe29a583291c74981c684de5a1bf4298fa8b",
+      "status": "evidence_needed",
+      "mechanism": "connectome_synaptology",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:17",
+      "source_sha256": "67a0c11ebb6f928f0e70c5aaa36f598aa15184d5c4cea16e07ee136e7414cdad",
+      "status": "evidence_needed",
+      "mechanism": "connectome_celltypes",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:18",
+      "source_sha256": "dcecf6f1df7b973675045fa897c513cc982732af14685f2b9eeed854fe7b1436",
+      "status": "evidence_needed",
+      "mechanism": "connectome_topology",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:19",
+      "source_sha256": "0aba843503503f3d4e294677da38b183458ca739a0dacb08582c228b9ae228c9",
+      "status": "evidence_needed",
+      "mechanism": "connectome_dimorphism",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:20",
+      "source_sha256": "28cda9a0eec6020d2f69da9d250c07b401cdf2cf01b5a0d37a6c9f034c7c7f25",
+      "status": "evidence_needed",
+      "mechanism": "connectome_analysis_tests",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:23",
+      "source_sha256": "ad0e3bce3e7522a0b7d88bd1182b1a5e43bc148e8654489f1e8b3ae738b801d5",
+      "status": "evidence_needed",
+      "mechanism": "connectome_forecast",
+      "reason": "The instrument has passing synthetic tests, but the original row's model, horizon and real-run acceptance must be reconciled. Current documentation describes four ridge arms, not all originally requested classes."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:24",
+      "source_sha256": "d8acf35aab7f0547a0b9430ae94db807b78cf51eeb26385160726499c24b41f2",
+      "status": "evidence_needed",
+      "mechanism": "connectome_forecast",
+      "reason": "The instrument has passing synthetic tests, but the original row's model, horizon and real-run acceptance must be reconciled. Current documentation describes four ridge arms, not all originally requested classes."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:25",
+      "source_sha256": "33ec12f2e7d2357bce9813910c2009ab243c528344056625e4469328b4d23b8a",
+      "status": "evidence_needed",
+      "mechanism": "connectome_forecast",
+      "reason": "The instrument has passing synthetic tests, but the original row's model, horizon and real-run acceptance must be reconciled. Current documentation describes four ridge arms, not all originally requested classes."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:26",
+      "source_sha256": "4d1c736c9da1a403cd6c5ea56fc2c0195cb56df93b6f0d906767665a5ee8d6c3",
+      "status": "evidence_needed",
+      "mechanism": "connectome_forecast",
+      "reason": "The instrument has passing synthetic tests, but the original row's model, horizon and real-run acceptance must be reconciled. Current documentation describes four ridge arms, not all originally requested classes."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:29",
+      "source_sha256": "30f3ee89eb7efff73d1dc7cd42fa8390d9f9801eaca4d3f5dbf5b618a317383d",
+      "status": "evidence_needed",
+      "mechanism": "connectome_laminar",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:30",
+      "source_sha256": "10ff8a47ca813eee8990017114d9bd455e26a19ed78743c55b9a20fc219eac5d",
+      "status": "evidence_needed",
+      "mechanism": "connectome_criticality",
+      "reason": "Estimator tests do not prove production regulator consumption."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:31",
+      "source_sha256": "c283e08fb4ff4faa791694fc942b6e56b38d008888f51e19f164057a91ef95e3",
+      "status": "evidence_needed",
+      "mechanism": "connectome_modulation",
+      "reason": "The requirement is production wiring to real knobs; unit tests alone do not establish the runtime intervention."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:32",
+      "source_sha256": "28cda9a0eec6020d2f69da9d250c07b401cdf2cf01b5a0d37a6c9f034c7c7f25",
+      "status": "evidence_needed",
+      "mechanism": "connectome_dynamics_tests",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:35",
+      "source_sha256": "2367482808de12395185812542ee93409db244db27706ecbdda0be46903b7c82",
+      "status": "evidence_needed",
+      "mechanism": "connectome_engineered_dynamics",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:37",
+      "source_sha256": "28cda9a0eec6020d2f69da9d250c07b401cdf2cf01b5a0d37a6c9f034c7c7f25",
+      "status": "evidence_needed",
+      "mechanism": "connectome_engineered_tests",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:40",
+      "source_sha256": "49d904934db5280d8da4c41cc7225c93a5729237ffa94bd232e030dab9729ee3",
+      "status": "evidence_needed",
+      "mechanism": "connectome_integration",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:41",
+      "source_sha256": "3964a680e1194f4edd000e75b411d27d421d79d28f5a22e4a82f4020ff7a4b0f",
+      "status": "evidence_needed",
+      "mechanism": "connectome_export",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:42",
+      "source_sha256": "5c6df33627642bc6adcffc2175c8f1b30b9f3a3bafea60eec7a4eaa6d37551bd",
+      "status": "evidence_needed",
+      "mechanism": "connectome_reference",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:43",
+      "source_sha256": "23d60d7c451793eec5b3a0edbf16c2ff6a07ec302c3dae2ee9f750e50a51c963",
+      "status": "evidence_needed",
+      "mechanism": "release_gates",
+      "reason": "Historical test or gate passes do not provide a current source-matched release result."
+    },
+    {
+      "source_id": "docs/CONNECTOME_TODO.md:44",
+      "source_sha256": "f4913b820c984e575af6d7baa486a3d2736f4d4aff9e39d1df4e7a569fd1f219",
+      "status": "evidence_needed",
+      "mechanism": "checkpoint_delivery",
+      "reason": "Wave commits exist in reviewed ancestry; verify delivery to origin/main before marking the administrative obligation complete."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:44",
+      "source_sha256": "1a4554d62c1f81dd597980c7f14f933cd1931af26b447eb613a595ae937021c5",
+      "status": "evidence_needed",
+      "mechanism": "semantic_admission",
+      "reason": "Shared admission mechanism for the caller audit and bypass experiment; both original acceptance conditions remain required."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:91",
+      "source_sha256": "118256faa88a9bdb0057af261baa1a5ef2c66d886e2b00b55d5fbc59db3742fd",
+      "status": "evidence_needed",
+      "mechanism": "failure_signature_concepts",
+      "reason": "Compare the later failure-signature work with every named original requirement; a second concept alone does not prove all failure classes."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:99",
+      "source_sha256": "264dfcb375fe305d159b7f8b74210aa2f1b28f08d40fca7f5beb36b679a59349",
+      "status": "evidence_needed",
+      "mechanism": "failure_signature_calibration",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:369",
+      "source_sha256": "a20d7fd379ef564c4ff85f4d02889f6b0ae253c02d77a58fe12425e1dc04fc49",
+      "status": "evidence_needed",
+      "mechanism": "independent_task_creation",
+      "reason": "Developer-generated tests do not establish post-freeze task authorship by an independent party."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:376",
+      "source_sha256": "1d6ea54b3164408eb6d0c53df564c077420a58bde4576f3b18656c5206fba427",
+      "status": "evidence_needed",
+      "mechanism": "model_system_comparison",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:377",
+      "source_sha256": "37836c42f326411d17dcb65dd2f35bd8136cc849762db7bf3c4e9398856e4919",
+      "status": "evidence_needed",
+      "mechanism": "supplied_candidate_control",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:381",
+      "source_sha256": "14d1e657e75603fbfbef714e22550a41ad66019400e8bf3aeed3d81ee27df7c6",
+      "status": "evidence_needed",
+      "mechanism": "retrieval_control",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:382",
+      "source_sha256": "7edc8401dcdfd01dfcf972171ccd405966ff897f8f5f43ed7db311b0d08e9b32",
+      "status": "evidence_needed",
+      "mechanism": "macro_control",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:384",
+      "source_sha256": "51d14ddd377d97fd0f6f8df55a5971a39749652999dd5f7e40f0dc68e9eac738",
+      "status": "evidence_needed",
+      "mechanism": "label_shuffle_control",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:385",
+      "source_sha256": "fc58aa92bc1bf749b1e7e2cc1862b604a17c853d9ab541e6e858b54163a2573b",
+      "status": "evidence_needed",
+      "mechanism": "installation_control",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:389",
+      "source_sha256": "53e35214fb473e0df58b7783ea35bb70f1ccafad4a634ad9b9cfdbf332966ccb",
+      "status": "evidence_needed",
+      "mechanism": "frozen_prior_control",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:392",
+      "source_sha256": "e530bd881a719fc8c37c2aeb20ca23fbefbe79335fec11c83317dc79a5a03fc2",
+      "status": "evidence_needed",
+      "mechanism": "persistent_bytes_control",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:393",
+      "source_sha256": "be861b62794ada95c1865d335f9bca5eb1def767f684de1cc08175f6df21fb49",
+      "status": "evidence_needed",
+      "mechanism": "learning_objective_ablations",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:408",
+      "source_sha256": "0b9d9c6f8065d48d89ed54d34b16650063962afca79c43b1645520397b673d83",
+      "status": "evidence_needed",
+      "mechanism": "learning_retention",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:409",
+      "source_sha256": "cba24b751e658029a671ff0db1be3a03002996a6a62fe3700d5f6ebf0775d0de",
+      "status": "evidence_needed",
+      "mechanism": "adversarial_learning",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:410",
+      "source_sha256": "22f292034f7c55bc51a8a61ff58852d552abd84c78c1d22e88765c96f6067ed1",
+      "status": "evidence_needed",
+      "mechanism": "evaluator_integrity",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:411",
+      "source_sha256": "ee964dfa23994bb517f9da9dddb1afca69cef7e2358bf47eaec9ca2333229536",
+      "status": "evidence_needed",
+      "mechanism": "reward_integrity",
+      "reason": "Mapped the original acceptance condition to this mechanism. Existing implementation or related tests are not sufficient to close this exact obligation without matching its specified evidence. Retain this item for evidence reconciliation."
+    },
+    {
+      "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:412",
+      "source_sha256": "a6708965e14efc07d85ba1b36988ea1791cfd5457af86abcc546734de09f16dc",
+      "status": "evidence_needed",
+      "mechanism": "semantic_admission",
+      "reason": "Shared admission mechanism for the caller audit and bypass experiment; both original acceptance conditions remain required."
+    },
+    {
+      "source_id": "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:172",
+      "source_sha256": "17017b0ca6cc12379beb69fc0641a7c8ea515b13b8a40ac6b08446bd8800d075",
+      "status": "evidence_needed",
+      "mechanism": "action_abstraction",
+      "reason": "Keep inspection, construction, evaluation, installation, persistence and reuse as separate acceptance conditions within the shared mechanism. Checked neighboring inline items are not reopened."
+    },
+    {
+      "source_id": "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:173",
+      "source_sha256": "fa403d3deb1bfe2c1d7187432b52c2e576a173e00237eb856352d1f76349c36a",
+      "status": "evidence_needed",
+      "mechanism": "action_abstraction",
+      "reason": "Keep inspection, construction, evaluation, installation, persistence and reuse as separate acceptance conditions within the shared mechanism. Checked neighboring inline items are not reopened."
+    },
+    {
+      "source_id": "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:174",
+      "source_sha256": "ac4ca864d2a92f81135d374868fcb5da2f02a537e6627b4e63819c70aed51759",
+      "status": "evidence_needed",
+      "mechanism": "action_abstraction",
+      "reason": "Keep inspection, construction, evaluation, installation, persistence and reuse as separate acceptance conditions within the shared mechanism. Checked neighboring inline items are not reopened."
+    }
+  ]
+}
