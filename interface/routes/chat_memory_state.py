@@ -2206,10 +2206,19 @@ async def _build_conversation_recall_reply(
     except (ImportError, AttributeError, ValueError):
         _position = None
     if _position in {"first", "last"}:
+        # THIS conversation, and no other.
+        #
+        # The reach into recent sessions exists so a restart does not erase
+        # yesterday, and it is right for "what were we talking about". It is
+        # wrong for a question that names this conversation: LIVE 2026-09-07,
+        # asked in a fresh session what the first thing said was, she quoted a
+        # turn from a different session entirely — accurately, and about
+        # somebody else's conversation.
         all_exchanges = await _recent_completed_conversation_exchanges(
             current_user_message=user_message,
             session_id=session_id,
             limit=80,
+            allow_cross_session=False,
         )
         if _position == "first" and all_exchanges:
             first_user = _clip_conversation_text(all_exchanges[0].get("user"), limit=520)

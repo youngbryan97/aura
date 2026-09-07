@@ -112,3 +112,29 @@ def test_an_unreadable_question_does_not_short_circuit() -> None:
     """Unknown means leave the turn to the model, not answer it from here."""
     assert memory_state._the_recall_is_the_whole_question("what did I ask?") is True
     assert memory_state._the_recall_is_the_whole_question("") is False
+
+
+@pytest.mark.asyncio
+async def test_this_conversation_means_this_one(monkeypatch) -> None:
+    """A question naming this conversation must not reach into another.
+
+    The cross-session reach exists so a restart does not erase yesterday, and
+    it is right for "what were we talking about". LIVE 2026-09-07: asked in a
+    fresh session what the first thing said was, she quoted a turn from a
+    different session entirely — accurately, and about a conversation the
+    person had not had here.
+    """
+    seen: dict[str, object] = {}
+
+    async def _record(**kwargs):
+        seen.update(kwargs)
+        return []
+
+    monkeypatch.setattr(
+        memory_state, "_recent_completed_conversation_exchanges", _record
+    )
+    await memory_state._build_conversation_recall_reply(
+        "what did I ask you first?", session_id="session-here"
+    )
+    assert seen.get("allow_cross_session") is False
+    assert seen.get("session_id") == "session-here"
