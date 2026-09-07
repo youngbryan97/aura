@@ -38,6 +38,24 @@ def test_an_unmeasured_rate_extends_nothing() -> None:
     assert seconds_to_read(6298) == 0.0
 
 
+def test_read_measurements_expire_within_the_declared_window(monkeypatch):
+    from core.brain.llm import thinking_reserve as reserve
+
+    monkeypatch.setattr(reserve, "_written_down", lambda: None)
+    for _ in range(reserve._WINDOW):
+        record_read_rate(prompt_chars=6000, elapsed_s=600.0)
+    for _ in range(reserve._WINDOW):
+        record_read_rate(prompt_chars=6000, elapsed_s=6.0)
+    assert len(reserve._read_rates) == reserve._WINDOW
+    assert seconds_to_read(6000) == pytest.approx(6.0)
+
+
+def test_infinite_read_duration_is_not_a_measurement():
+    for _ in range(20):
+        record_read_rate(prompt_chars=6000, elapsed_s=float("inf"))
+    assert seconds_to_read(6000) == 0.0
+
+
 def test_it_learns_what_reading_actually_costs() -> None:
     for _ in range(12):
         record_read_rate(prompt_chars=6000, elapsed_s=110.0)
