@@ -208,12 +208,35 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   device changes, recovery, and measured end-to-end latency.
 - [ ] U03 Vision/camera: permission, detailed perception, freshness, source
   attribution, and graceful device failure without invented observations.
+  PARTIAL 2026-09-07. Graceful device failure holds: asked whether she could
+  see through the camera, she said no, named the likely causes, said she has no
+  persistent feed and only gets a snapshot when asked, and invented no
+  observation. Detailed perception is untested — the camera is disabled by
+  default on this host for Metal-conflict safety.
 - [ ] U04 Companion mode: bubble, hide/clear, notifications, restrained chat,
   proactive observation, and continuity with full mode.
 - [ ] U05 Screen/browser understanding and interaction; exclude incognito,
   honor permissions and hidden state, and verify requested highlighting.
+  PARTIAL 2026-09-07. Reading works and hidden state is honoured: asked what
+  was on screen with the display unlocked she named the foreground browser
+  window and its title; asked again with the screen locked she said "the screen
+  is locked, so there is nothing for me to look at yet" and claimed nothing.
+  Highlighting and incognito exclusion are untested.
 - [ ] U06 General desktop actions, app controls, wallpaper/media selection,
   file creation/download/organization, and undo where applicable.
+  PARTIAL 2026-09-07. The governance boundary holds and reports itself well:
+  asked to write /tmp/aura_probe.txt she refused because the path resolves
+  outside the artifact roots, named the three allowed roots, and said "I am not
+  claiming the desktop action finished." The file was not created, which the
+  disk confirms.
+
+  OPEN, not yet attributed: the follow-up READ question — "does the file exist,
+  and what is in it?" — was answered with a WRITE failure quoting the previous
+  turn's expectation verbatim. `analyze_turn` classifies that question
+  correctly as CHAT/mention, so the misroute is downstream of intent. The
+  desktop app shell was open and issuing its own turns during the probe, and
+  the log shows a duplicated `desktop_task` dispatch at `origin=desktop_ui`, so
+  the attribution needs a run with the shell closed before a cause is claimed.
 - [ ] U07 Research, coding, mathematical execution, planning, and multi-step
   tasks through the same unified runtime users invoke.
   PARTIAL 2026-09-07. Web research, file reading and code execution all run
