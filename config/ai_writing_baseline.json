@@ -24,7 +24,6 @@
       "core/consciousness/affective_steering.py": 5,
       "core/consciousness/crsm_loop_monitor.py": 1,
       "core/consciousness/hot_engine.py": 2,
-      "core/consciousness/multiple_drafts.py": 2,
       "core/consciousness/phi_core.py": 2,
       "core/consciousness/somatic_marker_gate.py": 1,
       "core/consciousness/temporal_experience.py": 2,
@@ -51,7 +50,7 @@
       "tools/proof/run_rsi_challenge_proof.py": 1,
       "tools/run_rlc_reconciliation_sweep.py": 1
     },
-    "total": 72
+    "total": 70
   },
   "front": {
     "per_file": {
