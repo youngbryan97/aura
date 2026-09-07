@@ -311,6 +311,36 @@ def _what_governs() -> Any:
     return what_governs_and_what_does_not(THE_PRIMITIVES)
 
 
+def _self_judged() -> Any:
+    from core.cognition.what_a_change_measured_about_itself import how_the_self_judged_stand
+
+    return how_the_self_judged_stand()
+
+
+def _change_evidence() -> Any:
+    from core.cognition.what_she_could_do_next import how_changes_were_judged
+
+    return how_changes_were_judged()
+
+
+def _campaign_admission() -> Any:
+    from core.verify.why_the_campaign_did_not_run import how_the_campaign_has_gone
+
+    return how_the_campaign_has_gone()
+
+
+def _operator_search_reach() -> Any:
+    from core.cognition.an_operator_she_invents import how_far_the_last_search_reached
+
+    return how_far_the_last_search_reached()
+
+
+def _environment_settings() -> Any:
+    from core.runtime.what_the_environment_is_asked import how_the_settings_stand
+
+    return how_the_settings_stand()
+
+
 THE_SECTIONS: dict[str, Callable[[], Any]] = {
     "topology": _topology,
     "owners": _owners,
@@ -344,6 +374,11 @@ THE_SECTIONS: dict[str, Callable[[], Any]] = {
     "lifecycles": _lifecycles,
     "promises": _promises,
     "what_governs": _what_governs,
+    "self_judged": _self_judged,
+    "change_evidence": _change_evidence,
+    "campaign_admission": _campaign_admission,
+    "operator_search_reach": _operator_search_reach,
+    "environment_settings": _environment_settings,
 }
 
 

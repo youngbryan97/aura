@@ -27,6 +27,7 @@ from typing import Any, Callable, Sequence
 from core.cognition.operator_invention import Candidate, OperatorKernel
 
 __all__ = [
+    "how_far_the_last_search_reached",
     "how_it_has_gone",
     "note_how_it_went",
     "offer_inventing_an_operator",
@@ -49,6 +50,30 @@ def note_how_it_went(family: str, *, solved: bool, probes: Sequence[Any] = ()) -
     kernel refuses everything for the right reason and the wrong cause.
     """
     return _KERNEL.attempt(family, solved=solved, probes=probes)
+
+
+#: What the last enumeration covered. Written by the proposer, read by the
+#: report, so the reach is measured on the walk that happened rather than
+#: recomputed from what the parameters say it should have been.
+_NOTE_THE_REACH: dict[str, int] = {}
+
+
+def how_far_the_last_search_reached() -> dict[str, Any]:
+    """The space the proposer had, and how much of it the last walk covered."""
+    from core.cognition.how_far_the_search_reaches import how_far_it_reaches
+
+    if not _NOTE_THE_REACH:
+        return {"searched": False, "why": "no operator search has run this process"}
+    said = how_far_it_reaches(
+        deepest=3,
+        leaves=int(_NOTE_THE_REACH.get("leaves", 5)),
+        would_examine=int(_NOTE_THE_REACH.get("would_examine", 0)),
+        from_her_library=int(_NOTE_THE_REACH.get("from_her_library", 0)),
+    )
+    said["searched"] = True
+    said["reach"]["offered"] = int(_NOTE_THE_REACH.get("offered", 0))
+    said["reach"]["walked"] = int(_NOTE_THE_REACH.get("examined", 0))
+    return said
 
 
 def how_it_has_gone() -> list[dict[str, Any]]:
@@ -112,21 +137,35 @@ def _a_candidate_for(family: str, probes: Sequence[Any], *, how_many: int = 4000
     # the operator search walked the same 380 terms at depth three forever,
     # over a language that is computationally universal. The budget was never
     # the bottleneck; the horizon was, and a library is what moves it.
+    hers = what_she_already_knows_how_to_say()
+    # What the space is, beside what this walk covers. A search that reports
+    # only what it examined implies it looked at what mattered: over the bare
+    # floor at depth three there are 380 terms and the cap is four thousand,
+    # so the walk is exhaustive and the horizon is the constraint. Her own
+    # terms as leaves are the only thing that moves it.
+    _NOTE_THE_REACH.clear()
+    _NOTE_THE_REACH.update(
+        {"leaves": 5 + len(hers), "would_examine": how_many, "from_her_library": len(hers)}
+    )
     offered = 0
+    examined = 0
     for at, body in enumerate(
         itertools.islice(
             every_code(
                 deepest=3,
                 variables=1,
                 constants=(0, 1, 2),
-                also=what_she_already_knows_how_to_say(),
+                also=hers,
             ),
             how_many,
         )
     ):
+        examined = at + 1
         if how_long(body) < 2 or not _computes_a_number(body, probes):
             continue
         offered += 1
+        _NOTE_THE_REACH["offered"] = offered
+        _NOTE_THE_REACH["examined"] = examined
         yield Candidate(
             name=f"an operator for {family} ({at})",
             body=f"a term of {how_long(body)} symbols",
@@ -138,7 +177,9 @@ def _a_candidate_for(family: str, probes: Sequence[Any], *, how_many: int = 4000
             term=body,
         )
         if offered >= 64:
+            _NOTE_THE_REACH["examined"] = examined
             return
+    _NOTE_THE_REACH["examined"] = examined
 
 
 def offer_inventing_an_operator(

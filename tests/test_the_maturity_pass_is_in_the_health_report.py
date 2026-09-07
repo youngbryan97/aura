@@ -20,6 +20,9 @@ IN_THE_REPORT = (
     "write_drains",
     "abandoned_calls",
     "checkable_promises",
+    "change_evidence",
+    "self_judged",
+    "campaign_admission",
 )
 
 
@@ -51,5 +54,10 @@ def test_the_slow_scans_are_reachable_somewhere_else() -> None:
     """Kept out of the report and not out of reach."""
     from tools.inspect_runtime import THE_SECTIONS
 
-    for name in ("clocks", "deprecations"):
+    for name in (
+        "clocks",
+        "deprecations",
+        "environment_settings",
+        "operator_search_reach",
+    ):
         assert name in THE_SECTIONS
