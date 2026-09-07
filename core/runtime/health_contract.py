@@ -2191,6 +2191,10 @@ def _runtime_integrity_block() -> dict[str, Any]:
         # produced no verdicts. Cheap: it reads counters, not the tree.
         ("campaign_admission",
          "core.verify.why_the_campaign_did_not_run:how_the_campaign_has_gone"),
+        # Which link in the loop that widens her language is binding, and
+        # whether the gate that judges a change has enough to say yes with.
+        ("language_growth",
+         "core.cognition.where_the_growing_is_starved:how_the_growing_stands"),
     ):
         module_name, _, func_name = read.partition(":")
         try:

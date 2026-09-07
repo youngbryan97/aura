@@ -341,6 +341,12 @@ def _environment_settings() -> Any:
     return how_the_settings_stand()
 
 
+def _language_growth() -> Any:
+    from core.cognition.where_the_growing_is_starved import how_the_growing_stands
+
+    return how_the_growing_stands()
+
+
 THE_SECTIONS: dict[str, Callable[[], Any]] = {
     "topology": _topology,
     "owners": _owners,
@@ -379,6 +385,7 @@ THE_SECTIONS: dict[str, Callable[[], Any]] = {
     "campaign_admission": _campaign_admission,
     "operator_search_reach": _operator_search_reach,
     "environment_settings": _environment_settings,
+    "language_growth": _language_growth,
 }
 
 
