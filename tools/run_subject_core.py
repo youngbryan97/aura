@@ -197,7 +197,7 @@ async def main() -> int:
     # interventions are not: two arms have to see the same computation, and a
     # loop ticking at whatever rate the machine allows makes them incomparable.
     stopped = await quiesce_organism(runtime)
-    evidence["organism"]["stopped_loops"] = stopped
+    evidence["organism"] = runtime.organism.summary() if runtime.organism else evidence["organism"]
     _log(f"stopped {len(stopped)} background loops for the paired arms")
     _log(f"interventions: {len(DOMAINS)} domains x {len(CONDITIONS)} conditions x {args.trials} trials")
     results = await run_interventions(

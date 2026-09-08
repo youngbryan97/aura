@@ -686,9 +686,16 @@ async def quiesce_organism(runtime: SubjectRuntime) -> list[str]:
     """Stop the free-running loops before the paired arms begin."""
     from core.subject.organism import quiesce
 
+    from core.subject.organism import _live_tasks
+
     stopped = await quiesce()
     if runtime.organism is not None:
         runtime.organism.stopped_loops = stopped
+        # And re-read what is left. The summary taken at bring-up listed
+        # everything that was running then, which is not what is running now,
+        # and a report that says twelve loops are live after nine were stopped
+        # is a report nobody can act on.
+        runtime.organism.still_running = _live_tasks()
     return stopped
 
 
