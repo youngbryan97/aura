@@ -1155,8 +1155,28 @@ def ontogeny_report() -> dict[str, Any]:
         return {"available": False, "error": type(exc).__name__}
 
 
+def ontogeny_built() -> bool:
+    """True when this organ already exists. Never builds one to find out."""
+    return _core is not None
+
+
 def ontogeny_health_report() -> dict[str, Any]:
-    """Bounded module-level projection for runtime health polling."""
+    """Bounded module-level projection for runtime health polling.
+
+    Observing, never constructing. Asking an organ how it is must not be the
+    thing that brings it into existence: the constructor opens its store and
+    fsyncs, and the health path calls this while holding the integrity
+    collection lock, so a cold poll put a blocking disk write under a
+    process-wide lock and tainted the runtime with a lock-order violation on
+    every boot.
+
+    The real boot path builds this organ (``core/runtime/foundations.py``,
+    and the container registration in ``core/service_registration.py``). When
+    it has not run yet, "not built" is the true state and the honest thing to
+    report.
+    """
+    if _core is None:
+        return {"schema": "aura.ontogeny.health.v1", "available": False, "built": False}
     try:
         return get_ontogeny().health_report()
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
