@@ -217,3 +217,31 @@ def test_the_feed_stops_competing_once_something_else_is():
     # helper, and the explicit one standing in for the heartbeat. The third
     # call must not have added a fourth.
     assert after - before <= 2
+
+
+def test_a_surprising_world_bids_at_its_own_prediction_error():
+    """Its only route into the workspace was a heartbeat branch gated at a free
+    energy above 0.35, which is a different and much rarer event."""
+    from types import SimpleNamespace as _NS
+
+    from core.container import ServiceContainer
+
+    class _Model:
+        def surprise(self):
+            return 0.63
+
+    ServiceContainer.register_instance("unified_world_model", _Model())
+    bid = next(b for b in build_candidates(AuraState.default()) if b.source == "world_model")
+    assert bid.priority == pytest.approx(0.63)
+    del _NS
+
+
+def test_a_world_that_behaved_as_predicted_does_not_bid():
+    from core.container import ServiceContainer
+
+    class _Calm:
+        def surprise(self):
+            return 0.0
+
+    ServiceContainer.register_instance("unified_world_model", _Calm())
+    assert not any(b.source == "world_model" for b in build_candidates(AuraState.default()))

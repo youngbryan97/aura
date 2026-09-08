@@ -180,6 +180,51 @@ def build_candidates(state: Any) -> list[Any]:
     except (ImportError, AttributeError, TypeError, ValueError):
         pass
 
+    # A surprising world is the oldest thing there is a competition for. The
+    # world model computes its own prediction error every cycle and the only
+    # route it had into the workspace was a heartbeat branch gated at a free
+    # energy above 0.35, which is a different and much rarer event.
+    try:
+        from core.container import ServiceContainer
+
+        model = ServiceContainer.get("unified_world_model", default=None)
+        surprise = model.surprise() if model is not None else None
+        if surprise is not None:
+            level = _clamp(float(surprise))
+            if level > FLOOR:
+                bids.append(
+                    CognitiveCandidate(
+                        content=f"the world did not do what was predicted ({level:.2f})",
+                        source="world_model",
+                        priority=level,
+                        content_type=ContentType.META,
+                    )
+                )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        pass
+
+    # And a substrate that is moving fast. Volatility is the continuous
+    # substrate's own reading of how much it is changing, which is what makes a
+    # moment worth attending to before anything has named why.
+    try:
+        from core.runtime.service_registry import get_runtime_service
+
+        substrate = get_runtime_service("conscious_substrate", default=None)
+        reading = substrate.get_state_summary_nowait() if substrate is not None else None
+        if isinstance(reading, dict) and not reading.get("snapshot_stale"):
+            level = _clamp(float(reading.get("volatility", 0.0)) / 100.0)
+            if level > FLOOR:
+                bids.append(
+                    CognitiveCandidate(
+                        content=f"the substrate is moving ({level:.2f})",
+                        source="substrate",
+                        priority=level,
+                        content_type=ContentType.SOMATIC,
+                    )
+                )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        pass
+
     if soma is not None:
         hardware = getattr(soma, "hardware", {}) or {}
         pressure = max(
