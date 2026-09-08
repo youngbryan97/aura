@@ -89,28 +89,21 @@ def build_candidates(state: Any) -> list[Any]:
                     )
                 )
 
-    working = list(getattr(cognition, "working_memory", []) or []) if cognition else []
-    if working:
-        last = working[-1]
-        stamp = 0.0
-        if isinstance(last, dict):
-            try:
-                stamp = float(last.get("timestamp", 0.0) or 0.0)
-            except (TypeError, ValueError):
-                stamp = 0.0
-        memory_bid = CognitiveCandidate(
-            content=str(last.get("content", ""))[:240] if isinstance(last, dict) else str(last)[:240],
-            source="memory",
-            priority=1.0,
-            content_type=ContentType.MEMORIAL,
+    # What recall put in mind, not what was just said. Bidding the last
+    # working-memory item bids the turn that has only this moment finished —
+    # which is fresh on every cycle, so it entered at full priority every time
+    # and won almost every competition, and the other domains' bids never
+    # decided anything. A memory bid should be a recollection.
+    retrieved = list(getattr(cognition, "long_term_memory", []) or []) if cognition else []
+    if retrieved:
+        bids.append(
+            CognitiveCandidate(
+                content=str(retrieved[-1])[:240],
+                source="memory",
+                priority=1.0,
+                content_type=ContentType.MEMORIAL,
+            )
         )
-        # Entered as of when the memory was formed, not when the bid was made.
-        # The workspace already decays priority with arrival age, so dating the
-        # bid correctly is what makes a stale recollection lose to a live
-        # feeling instead of winning every tick on a flat 1.0.
-        if stamp > 0.0:
-            memory_bid.submitted_at = stamp
-        bids.append(memory_bid)
 
     goals = list(getattr(cognition, "active_goals", []) or []) if cognition else []
     for goal in goals[-2:]:

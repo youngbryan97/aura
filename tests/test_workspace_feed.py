@@ -60,14 +60,19 @@ def test_the_feeling_carries_arousal_as_its_affect_weight():
     assert feeling.affect_weight == pytest.approx(0.9)
 
 
-def test_a_stale_memory_is_dated_when_it_was_formed():
-    """Otherwise recall wins every tick on a flat priority of one."""
+def test_the_memory_bid_is_a_recollection_not_the_turn_just_finished():
+    """Bidding the last working-memory item bids the turn that has only this
+    moment finished, which is fresh on every cycle — so it entered at full
+    priority every time and the other domains' bids never decided anything."""
     state = AuraState.default()
-    old = time.time() - 3600
-    state.cognition.working_memory.append({"role": "user", "content": "long ago", "timestamp": old})
+    state.cognition.working_memory.append(
+        {"role": "user", "content": "just said", "timestamp": time.time()}
+    )
+    assert not any(bid.source == "memory" for bid in build_candidates(state))
+
+    state.cognition.long_term_memory = ["something recalled"]
     memory = next(bid for bid in build_candidates(state) if bid.source == "memory")
-    assert memory.submitted_at == pytest.approx(old)
-    assert memory.effective_priority < memory.priority
+    assert memory.content == "something recalled"
 
 
 def test_incoherence_bids_in_proportion_to_how_bad_it_is():
