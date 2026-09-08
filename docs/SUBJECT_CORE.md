@@ -189,6 +189,40 @@ whole channel was dead.
 Drives ticked at the same rate whether the world was behaving as modelled or
 not.
 
+**The unified world model was never shown the world.** Its running surprise is
+read as prediction error by affect grounding and as a signal by the free-energy
+engine, and the only caller of `observe` in the tree was the ontogeny organ on
+its own separate model. A predictive model that is never shown the world does
+not have a low prediction error; it has no prediction error, and those report
+the same number.
+
+**`LiquidSubstrate.inject_perceptual_frame` had no sender.** It is a written,
+dimension-by-dimension mapping of telemetry, user state, screen and audio onto
+the continuous substrate, and the only thing in the tree with that name is a
+different class in the language layer. Perception and the body reached
+recurrent cognition through nothing at all.
+
+**`cognition.attention_focus` had two readers and no writer.** The mind-moment
+reconstruction and the being runtime both read it, nothing anywhere wrote it,
+and the attention schema sitting beside them held the answer.
+
+**The body had no say in how hard she was allowed to think.** Hardware
+resonance throttles depth, creativity and temperature under host stress and
+expires its reading after thirty seconds; the only reporter was the integrity
+monitor, on its own cadence and only above its own alarm thresholds, so between
+alarms a hot loaded machine reached cognitive control saying nothing.
+
+**The body's own load was never felt as a strain.** Nociception has a
+resource-exhaustion channel with two writers, the immune system and the
+degradation sink, and the sustained load the channel is named after reached it
+from nowhere.
+
+**Ninety-five of two hundred and thirteen registered services have no asker
+anywhere in the tree**, and thirty-five more are asked for in exactly one
+place. `tools/audit_dead_organs.py` produces the list. It reports rather than
+fails, because a gate on that number would be a gate on how the tree happens to
+spell a lookup today.
+
 ## Findings from building the instrument
 
 **Strong connectivity does not separate a star from a mind, and neither does
