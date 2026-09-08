@@ -599,6 +599,12 @@ def _health_probe_state_snapshot() -> dict[str, Any]:
             ),
             "generation": int(_HEALTH_PROBE_STATE.get("generation") or 0),
             "total_timeouts": int(_HEALTH_PROBE_STATE.get("total_timeouts") or 0),
+            # How long the current run of missed wait budgets is. A reader
+            # asking "is this backpressure or a fault" wants the run, not the
+            # total.
+            "consecutive_timeouts": int(
+                _HEALTH_PROBE_STATE.get("consecutive_timeouts") or 0
+            ),
             "total_contentions": int(
                 _HEALTH_PROBE_STATE.get("total_contentions") or 0
             ),
@@ -1970,15 +1976,40 @@ def _start_or_join_health_probe(
     return future, generation, True
 
 
+#: How many generations in a row may miss the HTTP wait budget before it stops
+#: being backpressure and starts being a fault.
+#:
+#: Missing it once is the singleflight working: the caller is handed fresh
+#: cached evidence within its budget and the probe finishes in its own time.
+#: The guide is explicit that expected backpressure logs at info and only
+#: becomes a degradation when it is persistent, and this is the number that
+#: decides persistent.
+#:
+#: LIVE, 2026-09-07: generations 20 through 24 each logged a warning while a
+#: person was being answered — five warnings for a mechanism doing exactly
+#: what it was built to do.
+_HEALTH_PROBE_TIMEOUTS_BEFORE_A_WARNING = 4
+
+
 def _record_health_probe_wait_timeout(generation: int) -> tuple[dict[str, Any], bool]:
     recorded = False
     with _HEALTH_PROBE_STATE_LOCK:
         if int(_HEALTH_PROBE_STATE.get("timeout_recorded_generation") or 0) != generation:
             recorded = True
+            previous = int(
+                _HEALTH_PROBE_STATE.get("timeout_recorded_generation") or 0
+            )
             _HEALTH_PROBE_STATE["timeout_recorded_generation"] = generation
             _HEALTH_PROBE_STATE["total_timeouts"] = int(
                 _HEALTH_PROBE_STATE.get("total_timeouts") or 0
             ) + 1
+            # Consecutive means the generation before this one also missed.
+            # A generation that came back inside its budget resets it, so a
+            # busy stretch is one run and not a new alarm each time.
+            run = int(_HEALTH_PROBE_STATE.get("consecutive_timeouts") or 0)
+            _HEALTH_PROBE_STATE["consecutive_timeouts"] = (
+                run + 1 if previous and generation == previous + 1 else 1
+            )
     return _health_probe_state_snapshot(), recorded
 
 
@@ -2242,19 +2273,24 @@ async def _build_boot_health_payload_bounded(*, is_gui_proxy: bool) -> tuple[dic
             is_gui_proxy=is_gui_proxy,
         )
         if timeout_recorded:
-            fallback_payload = fallback[0]
+            # Backpressure until it is persistent. One generation missing its
+            # budget is the singleflight doing its job: the caller gets fresh
+            # cached evidence inside the budget and the probe finishes in its
+            # own time. A run of them is a probe that is not coming back, and
+            # that is what a warning is for.
+            run = int(probe_state.get("consecutive_timeouts") or 1)
             log = (
-                logger.info
-                if generation == 1
-                and not bool(fallback_payload.get("ready"))
-                and not bool(fallback_payload.get("conversation_ready"))
-                else logger.warning
+                logger.warning
+                if run >= _HEALTH_PROBE_TIMEOUTS_BEFORE_A_WARNING
+                else logger.info
             )
             log(
-                "Boot-health probe generation %d exceeded the %.1fs HTTP wait budget; "
-                "the singleflight remains active and later polls will reuse its result.",
+                "Boot-health probe generation %d exceeded the %.1fs HTTP wait budget "
+                "(%d in a row); the singleflight remains active and later polls will "
+                "reuse its result.",
                 generation,
                 _HEALTH_PROBE_TIMEOUT_S,
+                run,
             )
         return _attach_health_probe_state(fallback)
     except _SYSTEM_RECOVERABLE_ERRORS as exc:

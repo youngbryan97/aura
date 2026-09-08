@@ -82,6 +82,18 @@ _CHARS_PER_TOKEN = 4.0
 #: unmeasured worker costs a little latency and being mean costs the answer.
 _UNMEASURED_PREFILL_RATE = 300.0
 
+#: Dispositions under which steering is deliberately detached. The worker
+#: decides these against a signed migration authority and reports them at
+#: info; a parent that warns about them is warning about a decision.
+_EXPECTED_STEERING_DETACHMENTS = frozenset(
+    {
+        "steering_generation_checkpoint_incompatible",
+        "steering_generation_deferred",
+        "steering_generation_retired",
+        "neutral",
+    }
+)
+
 #: How much longer than the reading itself to allow. A shared lane queues,
 #: and a deadline with no room for that cancels healthy work.
 _PREFILL_HEADROOM = 3.0
@@ -5286,6 +5298,10 @@ class MLXLocalClient:
 
         # Shared memory flag to track if affective steering successfully attached
         self._steering_active = self._mp_context.Value("b", False, lock=False)
+        #: What the worker said about WHY, once it has said anything. Empty
+        #: before the first init receipt, which is not the same fact as a
+        #: worker that reported no disposition.
+        self._steering_disposition = ""
         self._steering_liveness_observed = False
 
         # Cooperative preemption channel: the parent writes the ACTIVE job's
@@ -14422,6 +14438,9 @@ class MLXLocalClient:
                                 ),
                                 severity="warning",
                             )
+                        self._steering_disposition = str(
+                            res.get("steering_disposition") or ""
+                        )
                         raw_steering = res.get("steering_active")
                         if raw_steering is not None:
                             try:
@@ -15527,12 +15546,30 @@ class MLXLocalClient:
                 origin,
                 int(getattr(self, "_worker_generation", 0) or 0),
             )
-        else:
-            logger.warning(
-                "⚠️ [STEERING] Liveness flag CLEAR for this worker (origin=%s, gen=%s) — "
-                "substrate state is not modulating inference.",
+        elif str(getattr(self, "_steering_disposition", "")) in _EXPECTED_STEERING_DETACHMENTS:
+            # A signed migration disposition is a decision, not a fault. The
+            # worker says so at info; the parent used to warn about it on
+            # every call because it was sent the boolean and not the reason.
+            #
+            # LIVE, 2026-09-07: "Liveness flag CLEAR for this worker
+            # (origin=api_stabilizer, gen=0)" beside the worker's own
+            # "Affective steering remains detached under signed migration
+            # disposition: steering_generation_deferred."
+            logger.info(
+                "⏸️ [STEERING] Detached under a signed disposition (origin=%s, "
+                "gen=%s, disposition=%s); substrate state is deliberately not "
+                "modulating inference.",
                 origin,
                 int(getattr(self, "_worker_generation", 0) or 0),
+                self._steering_disposition,
+            )
+        else:
+            logger.warning(
+                "⚠️ [STEERING] Liveness flag CLEAR for this worker (origin=%s, gen=%s, "
+                "disposition=%s) — substrate state is not modulating inference.",
+                origin,
+                int(getattr(self, "_worker_generation", 0) or 0),
+                str(getattr(self, "_steering_disposition", "")) or "unreported",
             )
 
     def _drain_phi_residual_ring(self) -> int:

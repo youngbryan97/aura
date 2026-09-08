@@ -202,9 +202,25 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     steer a 5120-wide space (need 50,000)`. Every turn. A threshold nothing on
     this host can reach, so the warning is a standing fact rather than an
     event. NOT FIXED.
-  Still open: `Boot-health probe generation N exceeded the 2.5s HTTP wait
-  budget`, `Perceptual substrate transaction exceeded budget`, and
-  `⚠️ [STEERING] Liveness flag CLEAR for this worker`.
+  The last three, all the same shape — a standing condition or designed
+  backpressure reported as an event, once per turn:
+  - `Foreground non-parametric memory REFUSED: 408 entries is too sparse`. The
+    floor is a real density requirement, argued in the module and paid for by
+    two garbled live answers, and the store cannot grow past it while the
+    process runs. Said once now; the recall outcome still carries it every
+    turn. FIXED.
+  - `Boot-health probe generation N exceeded the 2.5s HTTP wait budget`, five
+    generations in a row while a person was being answered. Missing the budget
+    once is the singleflight working: the caller gets fresh cached evidence
+    inside its budget. A run of four is a probe that is not coming back, and
+    that is what warns now. FIXED.
+  - `Perceptual substrate transaction exceeded budget`, every line reading
+    `streak=1` — it warned when a streak BEGAN, so an intermittently slow host
+    warned continuously. Three in a row warns; one reports at info. FIXED.
+  - `⚠️ [STEERING] Liveness flag CLEAR for this worker`. The worker decides
+    this against a signed migration authority, logs it at info, and sent the
+    parent the boolean without the reason. The disposition crosses the IPC
+    now; an unexplained clear flag still warns. FIXED.
 - [ ] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
 - [ ] R10 Verify executable examples semantically, not merely process exit zero.

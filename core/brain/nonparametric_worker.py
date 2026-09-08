@@ -243,6 +243,12 @@ def _quarantine_unusable_datastore(memory: Any, reason: str) -> str:
     return ", ".join(moved)
 
 
+#: Refusal reasons already said out loud. A refusal that cannot change while
+#: the process runs is a standing fact, and a standing fact repeated every
+#: turn is what makes a feed unreadable.
+_REPORTED_REFUSALS: set[str] = set()
+
+
 def _unusable_datastore_reason(memory: Any) -> str:
     """Why this datastore may not steer live generation, or "" if it may."""
     try:
@@ -318,11 +324,28 @@ def maybe_build_foreground(
         unusable = _unusable_datastore_reason(memory)
         if unusable:
             _set_recall_outcome("not_admitted", unusable)
-            logger.warning(
-                "🧠 [WORKER] Foreground non-parametric memory REFUSED: %s. "
-                "Generating from the model alone.",
-                unusable,
-            )
+            # Once per condition, not once per turn.
+            #
+            # The store cannot become dense enough while this session runs, so
+            # the verdict is a standing fact and repeating it every turn makes
+            # the feed unreadable — the module says exactly that about its
+            # other unusable branch and then quarantines. This one cannot
+            # quarantine, because a small store is one that has not grown yet
+            # rather than a broken one, so it says it once instead.
+            #
+            # LIVE, 2026-09-07: "408 entries is too sparse to steer a
+            # 5120-wide space (need 50,000)" on every turn of every session,
+            # against a floor nothing on this host reaches. The recall outcome
+            # above still carries it every turn, where a reader asking about
+            # this turn will find it.
+            if unusable not in _REPORTED_REFUSALS:
+                _REPORTED_REFUSALS.add(unusable)
+                logger.warning(
+                    "🧠 [WORKER] Foreground non-parametric memory REFUSED: %s. "
+                    "Generating from the model alone. Said once; the recall "
+                    "outcome carries it on every turn.",
+                    unusable,
+                )
             return None
         binding = binding_for_job(job, source_id="foreground_recall")
         if binding is None:

@@ -7071,6 +7071,11 @@ def _mlx_worker_loop(
         engine = steering_attachment.engine
         _steering_active = steering_attachment.active
         _affect_expected = steering_attachment.affect_expected
+        # Why the flag is what it is. The worker already decides this and logs
+        # it at info — "expected states stay visible and stay quiet" — and
+        # then sent the parent only the boolean, so the parent warned about a
+        # deliberate, signed detachment on every call.
+        _steering_disposition = str(steering_attachment.disposition or "")
         if engine is not None and getattr(engine, "_model_attached", False):
             latent_bridge = _attach_latent_bridge(model, latent_readout_mem)
 
@@ -7241,6 +7246,7 @@ def _mlx_worker_loop(
                 "action": "init",
                 "device": device,
                 "steering_active": bool(_steering_active),
+                "steering_disposition": _steering_disposition,
                 "recurrent_depth": recurrent_depth_status,
                 "recurrent_adapter_activation": dict(recurrent_adapter_activation),
                 "recurrent_adapter_activation_receipt": (
