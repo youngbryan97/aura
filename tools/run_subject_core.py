@@ -59,10 +59,33 @@ def _periphery_matrix(rows: list[dict[str, float]]) -> tuple[np.ndarray, tuple[s
 
 
 def _scales(recording: Any) -> dict[str, np.ndarray]:
-    """Per-column spread from ordinary operation. Zero means unmeasurable."""
+    """Per-column spread during ordinary operation, pooled within condition.
+
+    Pooled within rather than measured across, because that is the comparison
+    the number is used for. An intervention is compared against a sham in the
+    same condition, so the scale it should be read in is how much that column
+    varies inside a condition — not how much it differs between an idle turn
+    and a turn under load, which is the environment changing and is variance no
+    displacement was ever going to produce. Measured across conditions the
+    denominator is inflated by exactly the part of the spread the experiment
+    holds fixed.
+    """
     from core.subject.state import DOMAINS
 
-    spread = recording.x.std(axis=0)
+    conditions = sorted(set(recording.conditions))
+    groups = []
+    weights = []
+    for name in conditions:
+        rows = recording.condition_rows(name)
+        if rows.size < 8:
+            continue
+        groups.append(recording.x[rows].var(axis=0))
+        weights.append(rows.size - 1)
+    if not groups:
+        spread = recording.x.std(axis=0)
+    else:
+        pooled = np.average(np.vstack(groups), axis=0, weights=weights)
+        spread = np.sqrt(pooled)
     return {key: spread[recording.slices[key]] for key in DOMAINS}
 
 
