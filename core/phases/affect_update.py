@@ -249,9 +249,19 @@ class AffectUpdatePhase(Phase):
         
         # Direct Telemetry Bridge: Push VAD to LiquidSubstrate for real-time HUD sync
         from core.container import ServiceContainer
-        ls = ServiceContainer.get("liquid_substrate", default=None)
+        ls = ServiceContainer.get("liquid_substrate", default=None) or ServiceContainer.get(
+            "conscious_substrate", default=None
+        )
         if ls:
             self._schedule_substrate_update(ls, affect, state)
+            # And read it back. `HomeostaticCoupling` says the continuous
+            # substrate is the ground truth for felt state and blends it at
+            # thirty percent — into a local dictionary used to pick cognitive
+            # modifiers, and never into the affect state itself. The push
+            # existed and the return did not, so the substrate was thirty
+            # percent of how hard she was allowed to think and none of how she
+            # felt.
+            self._blend_substrate_into_affect(ls, affect, state)
         
         # 7. Despair Spiral check (Injection)
         self._check_resilience_surges(affect)
@@ -400,6 +410,45 @@ class AffectUpdatePhase(Phase):
                 exc,
                 stage="affect_grounding",
                 action="kept affect state after grounded affect could not be read",
+                severity="warning",
+            )
+
+    def _blend_substrate_into_affect(
+        self, substrate: Any, affect: AffectVector, state: AuraState
+    ) -> None:
+        """Close the loop the coupling's own docstring describes.
+
+        The share is the one `HomeostaticCoupling` already uses, imported
+        rather than repeated, because two copies of a number like this drift
+        and then two subsystems disagree about how much of her feeling is the
+        substrate.
+
+        A stale reading is skipped rather than blended. The substrate publishes
+        how old its snapshot is, and a felt state built from a snapshot taken
+        before the last thing that happened is worse than one built without it.
+        """
+        try:
+            from core.consciousness.homeostatic_coupling import SUBSTRATE_SHARE
+
+            reading = substrate.get_state_summary_nowait()
+            if not isinstance(reading, dict) or reading.get("snapshot_stale"):
+                return
+            keep = 1.0 - SUBSTRATE_SHARE
+            affect.valence = max(
+                -1.0,
+                min(1.0, affect.valence * keep + float(reading.get("valence", 0.0)) * SUBSTRATE_SHARE),
+            )
+            affect.arousal = max(
+                0.0,
+                min(1.0, affect.arousal * keep + float(reading.get("arousal", 0.0)) * SUBSTRATE_SHARE),
+            )
+            state.response_modifiers["substrate_share_of_affect"] = SUBSTRATE_SHARE
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="substrate_readback",
+                action="kept affect state without the substrate's contribution",
                 severity="warning",
             )
 

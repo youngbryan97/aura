@@ -57,6 +57,11 @@ _RECOVERABLE_HOMEOSTATIC_ERRORS = (
 # Data structures
 # ---------------------------------------------------------------------------
 
+#: How much of felt state the continuous substrate accounts for. Named here
+#: because two places blend it now — the cognitive modifiers computed below,
+#: and the affect state itself — and two copies of a number like this drift.
+SUBSTRATE_SHARE: float = 0.3
+
 #: Distinguishes "not looked up yet" from "looked up and there is none". A
 #: caller that assigns None means the second, and re-resolving on the next read
 #: would quietly undo them.
@@ -194,8 +199,9 @@ class HomeostaticCoupling:
                 try:
                     substrate_state = await self.substrate.get_state_summary()
                     # Substrate provides the base emotional tone; discrete affect events modulate it
-                    affect['valence'] = (affect.get('valence', 0.0) * 0.7) + (substrate_state['valence'] * 0.3)
-                    affect['arousal'] = (affect.get('arousal', 0.0) * 0.7) + (substrate_state['arousal'] * 0.3)
+                    keep = 1.0 - SUBSTRATE_SHARE
+                    affect['valence'] = (affect.get('valence', 0.0) * keep) + (substrate_state['valence'] * SUBSTRATE_SHARE)
+                    affect['arousal'] = (affect.get('arousal', 0.0) * keep) + (substrate_state['arousal'] * SUBSTRATE_SHARE)
                     # Also blend volatility and phi into cognitive parameters
                     volatility = substrate_state.get('volatility', 0.0)
                     phi = substrate_state.get('phi', 0.0)

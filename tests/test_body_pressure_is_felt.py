@@ -114,3 +114,58 @@ def test_a_channel_that_reported_nothing_is_left_out_of_the_frame():
     register_runtime_service("liquid_substrate", _Substrate(), required=False)
     ProprioceptiveLoop(container=None)._push_perceptual_frame(AuraState.default())
     assert "novelty" not in frames[-1]
+
+
+def test_the_substrate_reaches_affect_and_not_only_the_modifiers():
+    """`HomeostaticCoupling` says the substrate is the ground truth for felt
+    state and blends it at thirty percent — into a local dictionary used to
+    pick cognitive modifiers, never into the affect state. The push existed and
+    the return did not."""
+    import asyncio
+
+    from core.consciousness.homeostatic_coupling import SUBSTRATE_SHARE
+    from core.container import ServiceContainer
+    from core.phases.affect_update import AffectUpdatePhase
+    from core.state.aura_state import AuraState
+
+    class _Substrate:
+        def update(self, **_kwargs):
+            return None
+
+        def get_state_summary_nowait(self):
+            return {"valence": -0.9, "arousal": 0.9, "snapshot_stale": False}
+
+    ServiceContainer.register_instance("liquid_substrate", _Substrate())
+    state = AuraState.default()
+    state.cognition.working_memory.append({"role": "user", "content": "hello"})
+    state.affect.valence = 0.0
+    state.affect.arousal = 0.0
+
+    asyncio.run(AffectUpdatePhase(None).execute(state))
+
+    assert state.affect.valence < 0.0
+    assert state.affect.arousal > 0.0
+    assert state.response_modifiers.get("substrate_share_of_affect") == SUBSTRATE_SHARE
+
+
+def test_a_stale_substrate_snapshot_is_not_blended():
+    """A felt state built from a reading older than the last thing that
+    happened is worse than one built without it."""
+    import asyncio
+
+    from core.container import ServiceContainer
+    from core.phases.affect_update import AffectUpdatePhase
+    from core.state.aura_state import AuraState
+
+    class _Stale:
+        def update(self, **_kwargs):
+            return None
+
+        def get_state_summary_nowait(self):
+            return {"valence": -0.9, "arousal": 0.9, "snapshot_stale": True}
+
+    ServiceContainer.register_instance("liquid_substrate", _Stale())
+    state = AuraState.default()
+    state.cognition.working_memory.append({"role": "user", "content": "hello"})
+    asyncio.run(AffectUpdatePhase(None).execute(state))
+    assert "substrate_share_of_affect" not in state.response_modifiers

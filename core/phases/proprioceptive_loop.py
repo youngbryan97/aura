@@ -151,9 +151,12 @@ class ProprioceptiveLoop(BasePhase):
                 level = int(self._thermal_probe.thermal()[0])
             except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError):
                 level = 0
+            # Megabytes, because that is what the consumer compares against —
+            # it throttles above 3500 — and the hardware dict carries percents.
+            # Passing a percent there is a threshold that can never be crossed.
             coupling.process_resource_stress(
                 cpu_load=float(hardware.get("cpu_usage", 0.0) or 0.0),
-                mem_mb=float(hardware.get("ram_usage", hardware.get("vram_usage", 0.0)) or 0.0),
+                mem_mb=self._process_megabytes(),
                 thermal_level=level,
             )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
@@ -163,6 +166,16 @@ class ProprioceptiveLoop(BasePhase):
                 severity="debug",
                 action="hardware stress was not reported to the homeostatic coupling",
             )
+
+    @staticmethod
+    def _process_megabytes() -> float:
+        """Resident set size in MB, or zero when it cannot be read."""
+        try:
+            import psutil
+
+            return float(psutil.Process().memory_info().rss) / (1024.0 * 1024.0)
+        except (ImportError, AttributeError, RuntimeError, OSError, ValueError):
+            return 0.0
 
     def _feel_body_pressure(self, state: Any) -> None:
         """Hold the nociceptive strain channel at the body's current pressure.
