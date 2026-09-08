@@ -415,7 +415,7 @@ _SCHEMAS: dict[str, Schema] = {
             ("causal_edges", "organ:world_model.causal.edges"),
             ("causal_confirmed", "organ:world_model.causal.causal_edges"),
             ("model_facets", "organ:world_model.status"),
-            ("model_observations", "organ:world_model.observations"),
+            ("model_train_steps", "organ:world_model.learned.train_steps"),
         ),
     ),
     "D": _sch(
@@ -768,7 +768,10 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
             )
             if isinstance(facets, Mapping)
             else 0.0,
-            _f(getattr(organs.world_model, "_observations", 0.0)),
+            # `train_steps`, not a private `_observations` attribute that does
+            # not exist on the object — a feature of my own reading nothing,
+            # which is the defect this file was written to find.
+            _sat(_f(learned.get("train_steps")), 5_000.0),
             _sat(_f(learned.get("hidden_norm")), 8.0),
             math.tanh(_f(learned.get("mean_surprise"))),
             math.tanh(_f(learned.get("last_surprise"))),
