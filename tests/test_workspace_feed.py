@@ -20,7 +20,16 @@ from core.state.aura_state import AuraState
 
 
 def test_a_default_state_bids_only_what_it_has():
-    """No percepts, no memory, no goals, nothing wrong: almost nothing to say."""
+    """No percepts, no memory, no goals, nothing wrong: almost nothing to say.
+
+    The lifetime reading is reset first. It is process-wide and any earlier
+    test that advanced it leaves a novelty bid behind, which would make this
+    assertion depend on the order the file was run in rather than on the state
+    it was handed.
+    """
+    from core.ontogeny.lifetime import reset_for_test
+
+    reset_for_test()
     bids = build_candidates(AuraState.default())
     assert {bid.source for bid in bids} <= {"affect_anticipation", "affect_happiness"}
 
