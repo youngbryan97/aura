@@ -100,3 +100,30 @@ def test_the_live_consciousness_system_registers_them():
     system = ConsciousnessSystem(SimpleNamespace(affect_engine=None, substrate=None, state=None))
     assert getattr(system, "broadcast_consumers", []) != []
     assert system.global_workspace._processors
+
+
+def test_the_broadcast_arousal_is_left_where_affect_reads_it():
+    """The first version wrote the blend onto the affect engine, which nothing
+    reads back into `AuraState.affect` — a channel of exactly the kind this
+    file was written to fix."""
+    workspace = _Workspace()
+    register_broadcast_consumers(workspace, substrate=_Substrate())
+    asyncio.run(workspace.broadcast(_winner(source="memory", priority=0.9)))
+
+    reading = workspace.last_broadcast_arousal
+    assert reading["ignition"] == pytest.approx(0.8)
+    assert reading["priority"] == pytest.approx(0.9)
+
+    import asyncio as _asyncio
+
+    from core.phases.affect_update import AffectUpdatePhase
+    from core.runtime.service_registry import register_runtime_service
+    from core.state.aura_state import AuraState
+
+    register_runtime_service("global_workspace", workspace, required=False)
+    state = AuraState.default()
+    state.cognition.working_memory.append({"role": "user", "content": "hello"})
+    state.affect.arousal = 0.0
+    _asyncio.run(AffectUpdatePhase(None).execute(state))
+    assert state.affect.arousal > 0.5
+    assert state.response_modifiers.get("broadcast_ignition") == pytest.approx(0.8)

@@ -97,25 +97,26 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
                                action="the self model did not record the broadcast")
 
     async def to_affect(event: Any) -> None:
-        """Ignition is arousal. A broadcast that ignited should raise it."""
+        """Ignition is arousal, left where the affect phase will find it.
+
+        The first version wrote the blended arousal onto the affect engine,
+        which nothing reads back into `AuraState.affect` — a channel of exactly
+        the kind this file was written to fix. The reading is left on the
+        workspace instead and `AffectUpdatePhase` picks it up after its own
+        emotion channels have settled, which is a cycle later and is where
+        affect can actually keep it.
+        """
         winner = _winner(event)
         if winner is None:
             return
         try:
-            from core.container import ServiceContainer
-
-            engine = ServiceContainer.get("affect_engine", default=None)
             level = float(getattr(workspace, "ignition_level", 0.0) or 0.0)
-            if engine is None or level <= 0.0:
-                return
-            # The blend weight is the ignition level itself: a competition that
-            # barely ignited moves arousal barely, a full ignition moves it most
-            # of the way to the winner's priority.
-            current = float(getattr(engine, "arousal", 0.5) or 0.5)
-            target = min(1.0, max(0.0, float(winner.effective_priority)))
-            if hasattr(engine, "arousal"):
-                engine.arousal = (1.0 - level) * current + level * target
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            workspace.last_broadcast_arousal = {
+                "ignition": max(0.0, min(1.0, level)),
+                "priority": max(0.0, min(1.0, float(winner.effective_priority))),
+                "source": str(winner.source)[:64],
+            }
+        except (AttributeError, TypeError, ValueError) as exc:
             record_degradation("broadcast_consumers", exc, severity="debug",
                                action="affect did not take the broadcast")
 

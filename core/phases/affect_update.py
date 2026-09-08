@@ -253,6 +253,14 @@ class AffectUpdatePhase(Phase):
         # far enough to take novelty from 0.60 to 1.00 moved curiosity by five
         # ten-thousandths.
         self._advance_lifetime(state, affect)
+
+        # 6c. What won the workspace, as arousal. Global workspace theory's
+        # claim is that ignition makes content available to the specialised
+        # processes, and affect is one of them; the blend weight is the
+        # ignition level itself, so a competition that barely ignited moves
+        # arousal barely and a full one moves it most of the way to the
+        # winner's priority.
+        self._blend_broadcast_into_affect(state, affect)
         
         # Direct Telemetry Bridge: Push VAD to LiquidSubstrate for real-time HUD sync
         from core.container import ServiceContainer
@@ -417,6 +425,30 @@ class AffectUpdatePhase(Phase):
                 exc,
                 stage="affect_grounding",
                 action="kept affect state after grounded affect could not be read",
+                severity="warning",
+            )
+
+    def _blend_broadcast_into_affect(self, state: AuraState, affect: AffectVector) -> None:
+        """Read the last broadcast's ignition off the workspace and feel it."""
+        try:
+            from core.runtime.service_registry import get_runtime_service
+
+            workspace = get_runtime_service("global_workspace", default=None)
+            reading = getattr(workspace, "last_broadcast_arousal", None)
+            if not isinstance(reading, dict):
+                return
+            level = float(reading.get("ignition", 0.0))
+            if level <= 0.0:
+                return
+            target = float(reading.get("priority", 0.0))
+            affect.arousal = max(0.0, min(1.0, (1.0 - level) * float(affect.arousal) + level * target))
+            state.response_modifiers["broadcast_ignition"] = round(level, 4)
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="broadcast_arousal",
+                action="kept affect state without the broadcast's ignition",
                 severity="warning",
             )
 
