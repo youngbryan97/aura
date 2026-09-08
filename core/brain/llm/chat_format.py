@@ -1104,21 +1104,24 @@ def answer_is_derived_for_generation(
         return False
     if floor <= A_CLOSED_QUESTIONS_FLOOR:
         return False
-    # Room for the channel AND the answer, judged against what the channel has
-    # been measured to cost.
+    # Whether the CLOCK can pay for the channel, not whether the budget
+    # already holds it.
     #
-    # This used to be judged against ``proved_insufficient`` — the largest
-    # budget any generation had ever run out of while thinking — which only
-    # ever rose. LIVE, 2026-09-08: it stood at 6,322 tokens for the 27B, set
-    # by one runaway, and ordinary turns are budgeted at 512 to 1,345. So the
-    # gate refused every one of them, and the model did its working in the
-    # visible answer instead. A daylight question was published leading with
-    # "roughly 105 minutes", corrected itself to 210 two thousand characters
-    # further down, and ran out of tokens before it could say so at the top.
-    if 0 < budget <= floor + costs:
-        return False
+    # This used to compare the budget against ``proved_insufficient`` — the
+    # largest budget any generation had ever run out of while thinking — a
+    # number that only ever rose. LIVE, 2026-09-08: it stood at 6,322 tokens
+    # for the 27B, set by one runaway, and ordinary turns are budgeted at 512
+    # to 1,345, so the gate refused every one of them.
+    #
+    # Comparing against the measured cost instead is not enough on its own,
+    # because the budget arrives here WITHOUT the reserve: the answer clock
+    # adds the reserve only when this returns True, and this returned False
+    # because the budget had no reserve in it. Each was waiting for the other.
+    # So the question is the affordable one — is there time to decode the
+    # answer and the channel — and the clock buys the tokens once it is
+    # answered.
     if remaining > 0.0 and budget > 0:
-        needed = float(seconds_to_decode(budget, str(model_name or "")))
+        needed = float(seconds_to_decode(budget + costs, str(model_name or "")))
         if 0.0 < remaining < needed:
             return False
     return True

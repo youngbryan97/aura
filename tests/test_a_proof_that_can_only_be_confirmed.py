@@ -44,8 +44,14 @@ def test_one_runaway_does_not_close_the_channel_for_every_later_turn():
         _forget()
 
 
-def test_a_budget_with_no_room_beyond_the_answer_still_refuses():
-    """Not gating into a coma is not the same as never gating."""
+def test_a_clock_with_no_time_for_the_channel_still_refuses():
+    """Not gating into a coma is not the same as never gating.
+
+    The refusal that remains is the affordable one: there has to be time to
+    decode the answer AND the channel. The budget arriving here does not hold
+    the channel yet — the answer clock adds that reserve once this says yes,
+    which is why comparing the two was a deadlock.
+    """
     _forget()
     try:
         for _ in range(12):
@@ -55,20 +61,39 @@ def test_a_budget_with_no_room_beyond_the_answer_still_refuses():
                 generated_tokens=1200,
                 model=_A_MODEL,
             )
+            thinking_reserve.record_decode_rate(
+                generated_tokens=100, elapsed_s=10.0, model=_A_MODEL
+            )
         costs = thinking_reserve.measured_reserve_tokens(_A_MODEL)
         assert costs > 0, "the window should have a measurement to judge against"
+        needed = thinking_reserve.seconds_to_decode(1024 + costs, _A_MODEL)
+        assert needed > 0.0, "the rate window should be able to price it"
         assert answer_is_derived_for_generation(
             completion_floor=512,
-            budget_tokens=512 + costs - 1,
+            budget_tokens=1024,
             model_name=_A_MODEL,
+            seconds_remaining=needed / 2.0,
         ) is False
         assert answer_is_derived_for_generation(
             completion_floor=512,
-            budget_tokens=512 + costs + 64,
+            budget_tokens=1024,
             model_name=_A_MODEL,
+            seconds_remaining=needed * 2.0,
         ) is True
     finally:
         _forget()
+
+
+def test_the_budget_is_not_asked_to_contain_a_reserve_nothing_has_added_yet():
+    """The deadlock itself: the clock adds the reserve only when this returns
+    True, and this returned False because the budget had no reserve in it."""
+    import inspect
+
+    from core.brain.llm import chat_format
+
+    source = inspect.getsource(chat_format.answer_is_derived_for_generation)
+    assert "budget <= floor + costs" not in source
+    assert "seconds_to_decode(budget + costs" in source
 
 
 def test_a_closed_question_never_opens_the_channel():

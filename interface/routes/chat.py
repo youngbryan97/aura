@@ -18386,6 +18386,40 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             deterministic=True,
             authorship_effect="preserved",
         )
+        # A reply that withdrew its own opening and delivered it anyway.
+        #
+        # Here rather than in the phase, for the reason written above this
+        # block: the continuation that carries the correction is joined after
+        # the phase is done, so the contradiction does not exist yet where the
+        # phase could see it.
+        _pre_self_correction_reply = _final_reply
+        try:
+            from core.conversation.a_reply_that_corrects_itself import (
+                the_reply_corrects_its_own_headline,
+            )
+
+            _withdrawn = the_reply_corrects_its_own_headline(_final_reply)
+        except (ImportError, TypeError, ValueError) as _exc:
+            logger.debug("Self-correction check unavailable: %s", _exc)
+            _withdrawn = None
+        if _withdrawn is not None:
+            _final_reply = _withdrawn.text
+            logger.info(
+                "The reply withdrew %s and gave %s; the opening it withdrew is "
+                "marked as withdrawn rather than served as the answer.",
+                _withdrawn.superseded,
+                _withdrawn.corrected,
+            )
+            _append_turn_text_mutation(
+                _live_turn_trace,
+                stage="chat.the_reply_corrected_itself",
+                method="strike_the_withdrawn_opening",
+                reasons=[_withdrawn.reason],
+                before=_pre_self_correction_reply,
+                after=_final_reply,
+                deterministic=True,
+                authorship_effect="preserved",
+            )
         _final_status = reply_source or "ok"
         if not _qualified_exact_delivery:
             _pre_objective_chokepoint_reply = _final_reply
