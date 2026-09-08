@@ -236,3 +236,63 @@ sign-flip test used four thousand draws, so the smallest p it could return was
 0.022 against a bar of 0.01. No edge could pass however real it was, and the
 run reported an empty graph that read as a negative result about the organism.
 `power_note` now says so when a design cannot reach its own threshold.
+
+## Where the specification is wrong, and what was done about it
+
+Two of the preregistered thresholds cannot be met by the thing they were
+written to detect. Both are kept and both are reported as failures, because a
+threshold that moves after the result is seen measures nothing. What follows is
+the argument, next to the number rather than instead of it.
+
+**`D_eff/D >= 0.4` is passed by the degenerate controls and failed by the
+healthy reference.** Effective dimension is the participation ratio of the state
+correlation spectrum: 1/D when one component explains everything, 1 when all
+contribute equally. Strong integration lowers it, because coupled variables
+share variance — that is what coupling is. Measured on the null architectures:
+the recurrent reference scores 0.101, the prompt-only null 0.688 and the
+frozen-slow null 0.683. The two systems that are least like a mind score highest,
+and the one built to be recurrent scores lowest. A threshold no integrated
+system can reach is not a bar, it is an inconsistency between two of the
+criteria in the same conjunction — differentiation and irreducibility pull in
+opposite directions and the specification asks for high values of both on the
+same scale.
+
+The battery therefore carries a second, separately declared line —
+`differentiation_above_floor`, requiring at least three effective dimensions and
+no single component holding half the variance — which is what "not
+one-dimensional" means operationally at this coupling strength. It is a second
+criterion, not a replacement: the 0.4 line stays in the conjunction and stays
+failed.
+
+**`PCI_A` above the 99th percentile of matched nulls can be satisfied by
+nothing happening.** A response matrix of all zeros beats a null of all zeros.
+The criterion now also requires that the response reached somewhere — at least
+two domains, from at least two sources — before its structure is scored. That is
+a strictly harder bar than the one written down, which is the only direction a
+criterion may be changed after the fact.
+
+**Rescue without a deficit is not evidence.** Restoring a channel whose removal
+changed nothing says nothing about the channel, so rescue is conditional on the
+lesion having produced a deficit first.
+
+**Two criteria in the specification are not independent.** Strong connectivity
+and vertex connectivity are both computed over the ten declared domains, and a
+broker that is not one of them is invisible to both: the star null passes every
+graph criterion. What catches it is irreducibility and the closure test. The
+conjunction is doing real work here, and any weighted average of these criteria
+would let a star through.
+
+## What the battery cannot decide
+
+The measurement runs against a model held constant, so no edge measured here
+runs through language. If Aura's domains are coupled mainly by what the model
+reads and writes in a prompt — which is a real possibility and the one the
+"prompt-only" null was built to represent — this battery would report the
+coupling as absent and would be wrong about the live system in the same
+direction each time.
+
+Closing that gap needs the same three arms with a real model held to a fixed
+seed and a fixed decoding path, which is a resident 32B and a run this cannot
+schedule beside the live instance. Until then, every edge reported here is an
+edge that does not need language, and the absence of an edge is evidence about
+the non-linguistic coupling only.
