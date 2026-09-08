@@ -207,28 +207,43 @@ def build_recording_from(matrix: np.ndarray):
     )
 
 
-def test_intrinsic_gain_is_zero_when_the_state_is_a_function_of_the_input():
-    rows = 600
+def test_intrinsic_gain_is_small_when_the_state_is_a_function_of_the_input():
+    """Nothing carries forward, so the state says nothing the input does not."""
+    rows = 800
     rng = np.random.default_rng(0)
     drive = rng.normal(size=(rows, 3))
     reactive = np.hstack([np.tanh(drive), np.tanh(drive * 2), np.tanh(drive * 0.5)])
-    recording = build_recording_from(reactive)
-    recording = _with_env(recording, drive)
-    report = intrinsic_gain(recording)
-    assert report.gain < 0.5
+    recording = _with_env(build_recording_from(reactive), drive)
+    assert intrinsic_gain(recording).gain < 0.3
 
 
 def test_intrinsic_gain_is_large_when_the_state_carries_its_own_history():
-    rows = 600
+    """A state whose next move follows from where it is, not from the input.
+
+    The measure predicts the change rather than the level, so the case that
+    should score high is one where the change is a function of the state — an
+    oscillator, not a leaky integrator of its input. A leaky integrator scores
+    low here and should: almost all of its movement is the new input arriving,
+    which is exactly what the environment column already says.
+    """
+    rows = 800
     rng = np.random.default_rng(0)
-    drive = rng.normal(size=(rows, 3))
+    drive = rng.normal(scale=0.05, size=(rows, 3))
     state = np.zeros((rows, 9))
+    state[0] = 1.0
+    angle = 0.4
+    rotate = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
     for index in range(1, rows):
-        state[index] = 0.9 * state[index - 1] + 0.1 * np.tile(drive[index], 3)
+        previous = state[index - 1].reshape(-1, 2) if state.shape[1] % 2 == 0 else None
+        del previous
+        pair = state[index - 1][:2] @ rotate.T
+        state[index] = np.concatenate([pair, state[index - 1][2:] * 0.99 + 0.01 * pair[0]])
+        state[index, 6:] += drive[index]
     recording = _with_env(build_recording_from(state), drive)
     report = intrinsic_gain(recording)
     assert report.gain > 0.5
     assert report.gain_over_shuffle > 0.0
+    assert report.passes
 
 
 def _with_env(recording, env):

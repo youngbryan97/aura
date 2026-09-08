@@ -399,10 +399,20 @@ def _nulls(
     table: dict[str, Any] = {}
     real_phi = float(evidence["phi"]["phi_do"])
 
+    # Surrogates of the series the score is actually computed on. Building them
+    # from the frame-level recording would compare a number measured on one
+    # sampling against a floor measured on another.
+    turns = recording.by_turn()
     for name in ("replay", "time_shuffle"):
         maker = replay_surrogate if name == "replay" else shuffle_surrogate
-        surrogate = maker(recording, seed=args.seed)
-        table[name] = {"phi_do": round(phi_do(surrogate).phi, 5), "kind": "surrogate"}
+        draws = [
+            round(phi_do(maker(turns, seed=args.seed + draw)).phi, 5) for draw in range(3)
+        ]
+        table[name] = {
+            "phi_do": max(draws),
+            "draws": draws,
+            "kind": "surrogate",
+        }
 
     for name in architectures:
         system = architecture(name, seed=args.seed)
@@ -430,9 +440,19 @@ def _nulls(
     nulls_fail = all(
         float(row["phi_do"]) <= 0.05 for name, row in table.items() if name != "recurrent"
     )
+    # The floor the real score has to clear. A minimum over five hundred and
+    # eleven noisy estimates is biased downward by the width of its own search,
+    # and the matched surrogates are the only thing that measures how far: same
+    # dimensionality, same cuts, same estimator, coupling removed.
+    floor = max(
+        (float(row["phi_do"]) for name, row in table.items() if row.get("kind") == "surrogate"),
+        default=None,
+    )
     return {
         "phi_table": {k: v["phi_do"] for k, v in table.items()},
         "detail": table,
+        "surrogate_floor": floor,
+        "phi_above_floor": None if floor is None else round(real_phi - floor, 5),
         "phi_beats_all": all(beaten.values()) if beaten else False,
         "all_nulls_fail": bool(nulls_fail and reference_passes),
         "nulls_fail_the_bar": nulls_fail,

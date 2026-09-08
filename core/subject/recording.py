@@ -113,6 +113,34 @@ class Recording:
             notes={**self.notes, "sampled": "one frame per turn"},
         )
 
+    def monotone_columns(self, tolerance: float = 0.99) -> np.ndarray:
+        """Columns that only ever go one way. Clocks, not state.
+
+        A running total changes what the system computes — a version counter
+        gates a phase every twentieth turn — so a counter is state by the
+        definition the schema opens with. It is also a trend, and a trend in
+        the inputs lets a fitted model extrapolate elapsed time across a
+        contiguous train/test split and then fail on rows beyond the range it
+        saw.
+
+        Reported rather than removed. Differencing them was tried and made the
+        partition score worse, not better, so the fix that worked was in what
+        the measures predict rather than in what the recording holds: the
+        transition measures target the change, where a level's trend cancels.
+        The list stays in the summary because a run whose count of these jumps
+        has grown a clock somewhere, and that is worth seeing.
+        """
+        if self.frames < 8:
+            return np.zeros(self.width, dtype=bool)
+        steps = np.diff(self.x, axis=0)
+        moving = np.abs(steps) > FLAT_EPS
+        counts = moving.sum(axis=0)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            up = np.where(counts > 0, (steps > FLAT_EPS).sum(axis=0) / np.maximum(counts, 1), 0.0)
+            down = np.where(counts > 0, (steps < -FLAT_EPS).sum(axis=0) / np.maximum(counts, 1), 0.0)
+        one_way = (up >= tolerance) | (down >= tolerance)
+        return one_way & (counts >= 4)
+
     def condition_rows(self, condition: str) -> np.ndarray:
         return np.array(
             [index for index, name in enumerate(self.conditions) if name == condition],
@@ -129,6 +157,11 @@ class Recording:
             "conditions": counts,
             "live_domains": list(self.live_domains()),
             "flat_columns": len(self.flat_columns()),
+            "one_way_columns": [
+                name
+                for name, flag in zip(self.columns, self.monotone_columns(), strict=True)
+                if flag
+            ],
             "flat_column_names": list(self.flat_columns()),
             "env_names": list(self.env_names),
             "notes": self.notes,

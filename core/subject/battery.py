@@ -163,13 +163,22 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
         round(float(phi.get("phi_do", 0.0)), 4),
         f"> {THRESHOLDS['phi_do']}",
         cheapest_cut=phi.get("best_cut"),
+        dearest_cuts=phi.get("dearest_cuts"),
+        surrogate_floor=nulls.get("surrogate_floor"),
+        above_surrogate_floor=nulls.get("phi_above_floor"),
     ))
+    # The comparison the absolute threshold cannot make. A minimum over 511
+    # noisy estimates is biased downward by the width of its own search, and the
+    # matched surrogates — same dimensionality, same cuts, same estimator, the
+    # coupling removed — are the only thing that measures how far.
     add(_c(
         "partition_beats_nulls", "18",
-        "irreducibility exceeds every null architecture and surrogate",
+        "irreducibility exceeds every null architecture and matched surrogate",
         bool(nulls.get("phi_beats_all")),
         nulls.get("phi_table", {}),
         "above all nulls",
+        surrogate_floor=nulls.get("surrogate_floor"),
+        margin_over_floor=nulls.get("phi_above_floor"),
     ))
     add(_c(
         "differentiation", "18",

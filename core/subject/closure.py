@@ -159,12 +159,22 @@ def closure_gain(
     train, validate, test = split_rows(now.shape[0])
     core = fit_predict(now, nxt, train=train, validate=validate, test=test)
     both = fit_predict(
-        np.hstack([now, outside]), nxt, train=train, validate=validate, test=test
+        np.hstack([now, outside]),
+        nxt,
+        train=train,
+        validate=validate,
+        test=test,
+        own_width=now.shape[1],
     )
     rng = np.random.default_rng(seed)
     order = rng.permutation(outside.shape[0])
     shuffled = fit_predict(
-        np.hstack([now, outside[order]]), nxt, train=train, validate=validate, test=test
+        np.hstack([now, outside[order]]),
+        nxt,
+        train=train,
+        validate=validate,
+        test=test,
+        own_width=now.shape[1],
     )
 
     base = core.loss if core.loss > 1e-12 else 1.0
@@ -183,6 +193,7 @@ def closure_gain(
                 train=train,
                 validate=validate,
                 test=test,
+                own_width=now.shape[1],
             )
             gain = (core.loss - single.loss) / base
             if gain > 0.0:
