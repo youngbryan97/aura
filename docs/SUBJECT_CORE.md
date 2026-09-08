@@ -130,9 +130,17 @@ the three, so §40 is not.
 
 ## The conjunction
 
-ISC(K) = 1 is an and, not an average. Thirteen of twenty-four hold, from the
-most recent full run recorded in `artifacts/subject_core/subject_core_report.json` —
-960 turns, 31,680 frames, 164 state columns, 90 domain pairs, 1,440 paired arms:
+ISC(K) = 1 is an and, not an average. Read across three consecutive runs of the
+same code on the same organism, not from one: the single-run totals were 11, 13
+and 12, eleven criteria hold on all three, eleven fail on all three, and two sit
+in between. Each run is 960 turns, 31,680 frames, 164 state columns, 90 domain
+pairs and 1,440 paired arms; the latest is in
+`artifacts/subject_core/subject_core_report.json`.
+
+The two that come and go are `global_access` (2 runs of 3) and `lesion_deficit`
+(1 of 3). A criterion that changes answer between identical runs is not
+evidence either way, and reporting the run that came out best would be picking
+the draw.
 
 - [ ] **causal_closure_scc** (§14) — every domain reaches every other one
 - [ ] **robust_recurrence_kappa** (§17) — no single domain's removal disconnects the rest
