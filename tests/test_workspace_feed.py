@@ -133,3 +133,14 @@ def test_the_context_line_does_not_accumulate():
     lines = [i for i in state.cognition.long_term_memory if str(i).startswith("[broadcast: ")]
     assert len(lines) == 1
     assert len(state.cognition.long_term_memory) <= CONTEXT_LIMIT
+
+
+def test_the_winner_becomes_where_she_is_looking_whether_or_not_it_ignited():
+    """`cognition.attention_focus` has two readers and had no writer at all."""
+    from core.consciousness.workspace_feed import _remember_broadcast
+
+    state = AuraState.default()
+    winner = SimpleNamespace(source="perception", content="a window moved")
+    _remember_broadcast(state, winner, ignited=False)
+    assert state.cognition.attention_focus.startswith("perception: ")
+    assert state.cognition.long_term_memory == []

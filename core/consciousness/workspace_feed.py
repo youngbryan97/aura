@@ -200,7 +200,7 @@ CONTEXT_LIMIT: int = 4
 
 
 def _remember_broadcast(state: Any, winner: Any, ignited: bool) -> None:
-    """An ignited broadcast becomes context for this cycle.
+    """Where she is looking, and — if it ignited — what the cycle is working from.
 
     This is the claim global workspace theory actually makes: what wins the
     competition becomes available to the specialised processes, and the largest
@@ -212,10 +212,16 @@ def _remember_broadcast(state: Any, winner: Any, ignited: bool) -> None:
     become globally available, and saying so in the context would be asserting
     the opposite of what the competition decided.
     """
-    if not ignited or winner is None:
-        return
     cognition = getattr(state, "cognition", None)
-    if cognition is None:
+    if winner is None or cognition is None:
+        return
+    # Where she is looking, which is a different question from whether it went
+    # global. `cognition.attention_focus` is read by the mind-moment
+    # reconstruction and by the being runtime and was written by nobody, so
+    # both of them saw None for the life of the process while the attention
+    # schema beside them held the answer.
+    cognition.attention_focus = f"{winner.source}: {str(winner.content)[:120]}"
+    if not ignited:
         return
     line = f"[broadcast: {winner.source}] {str(winner.content)[:180]}"
     context = list(getattr(cognition, "long_term_memory", []) or [])
