@@ -172,11 +172,21 @@ CONSTRAINTS: tuple[Constraint, ...] = (
         term=Term.RECEPTORS,
         evidence="PET meta-atlas of 19 receptors across nine systems; Jülich autoradiography",
         what_it_pins="where each transmitter acts, and on which receptor",
-        uses=Provenance.ABSENT,
+        uses=Provenance.ENGINEERING_CHOICE,
+        where="core/connectome/neuromodulation.py",
         note=(
-            "Neuromodulation here is a global scalar per transmitter. A receptor "
-            "map would make it a field, so dopamine arriving somewhere would mean "
-            "something different from dopamine arriving somewhere else."
+            "There is a field now, and the mesh reads it: a multiplier per tier "
+            "on gain and on noise, so a transmitter arriving at the sensory tier "
+            "is a different event from the same transmitter arriving at the "
+            "executive one. It was a single scalar for all 4,096 units, which "
+            "made those two the same event. The VALUES are still unmeasured and "
+            "default to uniform, which says the spatial structure has not been "
+            "measured rather than guessing at it. A receptor atlas is what would "
+            "fill them in."
+        ),
+        falsifier=(
+            "Setting a tier's multiplier changes nothing about that tier's "
+            "activity, which would mean the field is wired to nothing."
         ),
     ),
     Constraint(

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import threading
 import time
 from dataclasses import dataclass
@@ -323,6 +324,15 @@ class NeuralMesh:
             col = CorticalColumn(i, tier, self.cfg.neurons_per_column, self.cfg, self._rng)
             self.columns.append(col)
 
+        #: Which tier each column belongs to, as a name, so a per-tier multiplier
+        #: can be turned into a per-column vector without asking again.
+        # ``CorticalTier`` is an auto() enum, so ``.value`` is 1, 2, 3. The NAME
+        # is what a receptor field is keyed by, and reading the value here made
+        # every per-tier lookup miss and every multiplier silently stay at one.
+        self._tier_names: list[str] = [
+            self._tier_for(index).name.lower() for index in range(self.cfg.columns)
+        ]
+
         # Inter-column weight matrix (columns × columns), sparse, distance-weighted
         self._inter_W = self._build_inter_column_weights()
 
@@ -340,6 +350,17 @@ class NeuralMesh:
         # multiplicative factors. Publishing one immutable tuple keeps mesh
         # ticks coherent without taking a controller lock on the hot path.
         self._base_modulatory_state = (1.0, 1.0, 1.0)
+        # Per-tier multipliers on gain and noise. Uniform until something
+        # measures otherwise, which is the honest default: it says the spatial
+        # structure has not been measured rather than guessing at it. A
+        # transmitter arriving at the sensory tier and the same transmitter
+        # arriving at the executive tier were the same event before this — one
+        # scalar for 4,096 units — and in cortex they are not.
+        self._tier_modulation: dict[str, tuple[float, float]] = {
+            "sensory": (1.0, 1.0),
+            "association": (1.0, 1.0),
+            "executive": (1.0, 1.0),
+        }
         self._criticality_modulatory_factors = (1.0, 1.0)
         self._modulatory_state = (1.0, 1.0, 1.0)
         self._modulatory_gain: float = 1.0
@@ -869,17 +890,22 @@ class NeuralMesh:
 
         # Metal GPU acceleration: offload the heavy einsum to Apple Metal via MLX.
         # For 64 columns × (64×64) matmuls, Metal is 5-10x faster than CPU numpy.
+        # One gain per column rather than one for the mesh. Uniform unless a
+        # receptor field says otherwise, so this is the same arithmetic it was
+        # until something measures a difference between the tiers.
+        gain_by_column = gain * self._tier_vector(0)
         if _HAS_MLX and _MLX_METAL_ENABLED:
             x_mx = mx.array(x_matrix)
             ext_mx = mx.array(ext)
+            gain_mx = mx.array(gain_by_column.reshape(-1, 1))
             recurrent_mx = mx.einsum('cij,cj->ci', self._W_batch_mx, x_mx)
-            activity_mx = mx.tanh(gain * (recurrent_mx + ext_mx))
+            activity_mx = mx.tanh(gain_mx * (recurrent_mx + ext_mx))
             mx.eval(activity_mx)  # force Metal evaluation
             activity = np.array(activity_mx, dtype=np.float32)
             recurrent = np.array(recurrent_mx, dtype=np.float32)
         else:
             recurrent = np.einsum('cij,cj->ci', self._W_batch, x_matrix)  # (64, 64)
-            activity = np.tanh(gain * (recurrent + ext))
+            activity = np.tanh(gain_by_column[:, None] * (recurrent + ext))
         recurrent = np.nan_to_num(recurrent, nan=0.0, posinf=1.0, neginf=-1.0)
         activity = np.nan_to_num(activity, nan=0.0, posinf=1.0, neginf=-1.0)
 
@@ -890,7 +916,11 @@ class NeuralMesh:
         inh_mean = inh_activity / inh_counts  # (64,)
         inhibition = np.where(~inh_masks, -cfg.lateral_inhibition_strength * inh_mean[:, None], 0.0)
 
-        noise = self._rng.standard_normal(x_matrix.shape).astype(np.float32) * noise_sigma
+        noise = (
+            self._rng.standard_normal(x_matrix.shape).astype(np.float32)
+            * noise_sigma
+            * self._tier_vector(1)[:, None]
+        )
         dx = (-cfg.decay * x_matrix + activity + inhibition + noise) * dt
         dx = np.nan_to_num(dx, nan=0.0, posinf=1.0, neginf=-1.0)
         x_new = np.clip(x_matrix + dx, -1.0, 1.0).astype(np.float32)
@@ -1348,6 +1378,56 @@ class NeuralMesh:
             self._modulatory_plasticity,
             self._modulatory_noise,
         ) = effective
+
+    def _tier_vector(self, which: int) -> np.ndarray:
+        """One multiplier per column, from the per-tier pair. 0 is gain, 1 is noise."""
+        return np.array(
+            [
+                self._tier_modulation.get(name, (1.0, 1.0))[which]
+                for name in self._tier_names
+            ],
+            dtype=np.float32,
+        )
+
+    def set_regional_modulation(
+        self, multipliers: dict[str, tuple[float, float]] | None
+    ) -> dict[str, tuple[float, float]]:
+        """How much each tier scales gain and noise, on top of the global state.
+
+        A receptor field supplies these. Passing None restores uniform, which is
+        what the mesh did before it could express the difference at all: one
+        scalar for every one of its 4,096 units, so dopamine arriving at the
+        sensory tier and dopamine arriving at the executive tier were the same
+        event. Cortex is not like that — receptor densities vary by area, and a
+        transmitter's effect depends on where it lands and what receptor is
+        there — and until a measurement fills these in they stay at one, which
+        says the structure is unmeasured rather than guessing at it.
+        """
+        wanted = {"sensory": (1.0, 1.0), "association": (1.0, 1.0), "executive": (1.0, 1.0)}
+        if multipliers:
+            for tier, pair in multipliers.items():
+                name = str(tier).rsplit(".", 1)[-1].lower()
+                if name not in wanted:
+                    continue
+                try:
+                    gain_scale = float(pair[0])
+                    noise_scale = float(pair[1])
+                except (TypeError, ValueError, IndexError):
+                    continue
+                if not (math.isfinite(gain_scale) and math.isfinite(noise_scale)):
+                    continue
+                wanted[name] = (
+                    max(0.1, min(4.0, gain_scale)),
+                    max(0.0, min(4.0, noise_scale)),
+                )
+        with self._modulation_lock:
+            self._tier_modulation = wanted
+        return dict(wanted)
+
+    def regional_modulation(self) -> dict[str, tuple[float, float]]:
+        """What each tier is currently scaling gain and noise by."""
+        with self._modulation_lock:
+            return dict(self._tier_modulation)
 
     def set_modulatory_state(
         self,

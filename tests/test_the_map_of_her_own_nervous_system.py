@@ -2932,3 +2932,52 @@ def test_the_mesh_says_how_many_of_its_numbers_anybody_measured():
         "the bases belong in _MESH_MEASURED with their sources"
     )
     assert report["chosen"] + report["with_a_basis"] == report["fields"]
+
+
+def test_a_transmitter_can_land_somewhere_rather_than_everywhere():
+    """One scalar for 4,096 units made dopamine at the sensory tier and dopamine
+    at the executive tier the same event. Cortex is not like that: receptor
+    densities vary by area and a transmitter's effect depends on where it lands.
+
+    Uniform stays the default, because saying the spatial structure has not been
+    measured is honest and guessing at it is not.
+    """
+    import numpy as np
+
+    from core.consciousness.neural_mesh import NeuralMesh
+
+    mesh = NeuralMesh()
+    assert set(mesh._tier_names) == {"sensory", "association", "executive"}
+    assert all(pair == (1.0, 1.0) for pair in mesh.regional_modulation().values())
+    assert np.allclose(mesh._tier_vector(0), 1.0)
+
+    mesh.set_regional_modulation({"executive": (2.0, 0.5), "sensory": (0.7, 1.4)})
+    gain = mesh._tier_vector(0)
+    noise = mesh._tier_vector(1)
+    assert gain[0] == pytest.approx(0.7) and gain[-1] == pytest.approx(2.0)
+    assert noise[0] == pytest.approx(1.4) and noise[-1] == pytest.approx(0.5)
+    assert gain[mesh.cfg.sensory_end + 1] == pytest.approx(1.0), "association untouched"
+
+    for _ in range(4):
+        mesh._tick_inner()
+    assert np.isfinite(mesh.get_field_state()).all()
+
+    mesh.set_regional_modulation(None)
+    assert np.allclose(mesh._tier_vector(0), 1.0)
+
+
+def test_a_bad_regional_multiplier_cannot_switch_the_mesh_off():
+    from core.consciousness.neural_mesh import NeuralMesh
+
+    mesh = NeuralMesh()
+    mesh.set_regional_modulation(
+        {
+            "executive": (float("nan"), 1.0),
+            "sensory": (1e9, -4.0),
+            "nowhere": (2.0, 2.0),
+        }
+    )
+    applied = mesh.regional_modulation()
+    assert applied["executive"] == (1.0, 1.0), "a non-finite pair is refused whole"
+    assert applied["sensory"][0] <= 4.0 and applied["sensory"][1] >= 0.0
+    assert "nowhere" not in applied
