@@ -2981,3 +2981,54 @@ def test_a_bad_regional_multiplier_cannot_switch_the_mesh_off():
     assert applied["executive"] == (1.0, 1.0), "a non-finite pair is refused whole"
     assert applied["sensory"][0] <= 4.0 and applied["sensory"][1] >= 0.0
     assert "nowhere" not in applied
+
+
+def test_the_coalition_is_read_off_the_measurement_rather_than_the_diagram():
+    """A ring asks each station for exactly one outgoing edge.
+
+    The measurement does not respect that: the two strongest connections both
+    leave the self model, and no cycle can hold them both. Forcing a ring on
+    that discards the finding to keep the diagram.
+    """
+    from core.connectome.coalition import measured_coalition
+
+    gains = {
+        ("self_model", "interoception"): 0.914,
+        ("self_model", "affect"): 0.639,
+        ("affect", "planning"): 0.313,
+        ("interoception", "self_model"): 0.120,
+        ("planning", "affect"): 0.090,
+        ("workspace", "self_model"): 0.070,
+        ("self_model", "workspace"): 0.060,
+        ("action", "text"): 0.001,
+    }
+    coalition = measured_coalition(gains, condition="task", keep=7)
+    top = [f"{pre} -> {post}" for pre, post, _ in coalition.edges[:3]]
+    assert top == [
+        "self_model -> interoception",
+        "self_model -> affect",
+        "affect -> planning",
+    ]
+    # Influence that leaves these comes back to them: that is what makes it a
+    # coalition rather than a ranking.
+    assert coalition.closes
+    # The group reported is the LARGEST set that can all reach each other. Here
+    # that is interoception, self_model and workspace; affect and planning form
+    # a smaller two-station loop of their own.
+    assert "self_model" in coalition.recurrent
+    assert len(coalition.recurrent) >= 3
+    assert coalition.total_pairs == len(gains)
+
+
+def test_a_coalition_that_does_not_close_says_so():
+    from core.connectome.coalition import measured_coalition
+
+    one_way = {
+        ("a", "b"): 0.9,
+        ("b", "c"): 0.8,
+        ("c", "d"): 0.7,
+        ("d", "e"): 0.6,
+    }
+    coalition = measured_coalition(one_way, keep=4)
+    assert not coalition.closes
+    assert "does not close" in coalition.as_json()["verdict"]

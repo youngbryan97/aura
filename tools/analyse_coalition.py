@@ -79,6 +79,7 @@ def main() -> int:
         COALITION_ORDER,
         assign_stations,
         measure_ring,
+        measured_coalition,
         reproducibility,
         test_closure,
     )
@@ -160,10 +161,15 @@ def main() -> int:
         # cycle through the same stations. The first is about coupling; only
         # the second is about the ring being a ring.
         ring = measure_ring(trace, condition, stations, seed=1)
+        # And the structure the influence actually has. A ring asks each station
+        # for one outgoing edge and the measurement does not respect that, so
+        # forcing one discards the finding to keep the diagram.
+        coalition = measured_coalition(ring.gains, condition=condition)
         report["conditions"][condition] = {
             "effective": effective.summary(),
             "closure": closure.as_json(),
             "ring": ring.as_json(),
+            "coalition": coalition.as_json(),
             "seconds": round(time.monotonic() - began, 1),
         }
         print(
@@ -174,6 +180,7 @@ def main() -> int:
                     "links_carrying": ring.links_carrying,
                     "ring_percentile": round(ring.percentile, 3),
                     "ring_z": round(ring.z, 2),
+                    "coalition": coalition.as_json()["verdict"],
                     "verdict": ring.as_json()["verdict"],
                     "seconds": round(time.monotonic() - began, 1),
                 }

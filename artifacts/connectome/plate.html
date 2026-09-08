@@ -218,30 +218,31 @@ footer a{color:var(--ink-dim)}
     <p>Which sounds like the ring closing, and is not.</p>
     <div class="tablewrap">
       <table>
-        <thead><tr><th>Connection</th><th class="num">Median gain over its own rotations</th><th class="bar">&nbsp;</th><th>In the ring</th></tr></thead>
+        <thead><tr><th>Connection</th><th class="num">How much one end tells you about the other</th><th class="bar">&nbsp;</th><th>In the loop she actually has</th></tr></thead>
         <tbody>
-          <tr><td>self model &rarr; interoception</td><td class="num">0.914</td><td class="bar"><i style="width:100%"></i></td><td><span class="tag no">no</span></td></tr>
-          <tr><td>self model &rarr; affect</td><td class="num">0.639</td><td class="bar"><i style="width:69.9%"></i></td><td><span class="tag no">no</span></td></tr>
-          <tr><td>affect &rarr; planning</td><td class="num">0.313</td><td class="bar"><i style="width:34.2%"></i></td><td><span class="tag no">no</span></td></tr>
+          <tr><td>self model &rarr; interoception</td><td class="num">0.914</td><td class="bar"><i style="width:100%"></i></td><td><span class="tag ok">yes</span></td></tr>
+          <tr><td>self model &rarr; affect</td><td class="num">0.639</td><td class="bar"><i style="width:69.9%"></i></td><td><span class="tag ok">yes</span></td></tr>
+          <tr><td>affect &rarr; planning</td><td class="num">0.313</td><td class="bar"><i style="width:34.2%"></i></td><td><span class="tag ok">yes</span></td></tr>
           <tr><td>interoception &rarr; affect</td><td class="num">0.028</td><td class="bar"><i style="width:3.1%"></i></td><td><span class="tag ok">yes</span></td></tr>
           <tr><td>affect &rarr; workspace</td><td class="num">0.010</td><td class="bar"><i style="width:1.1%"></i></td><td><span class="tag ok">yes</span></td></tr>
-          <tr><td>workspace &rarr; higher-order</td><td class="num">0.009</td><td class="bar"><i style="width:1.0%"></i></td><td><span class="tag ok">yes</span></td></tr>
-          <tr><td>planning &rarr; action</td><td class="num">0.008</td><td class="bar"><i style="width:0.9%"></i></td><td><span class="tag ok">yes</span></td></tr>
-          <tr><td>self model &rarr; planning</td><td class="num">0.006</td><td class="bar"><i style="width:0.7%"></i></td><td><span class="tag ok">yes</span></td></tr>
-          <tr><td>higher-order &rarr; self model</td><td class="num">0.005</td><td class="bar"><i style="width:0.5%"></i></td><td><span class="tag ok">yes</span></td></tr>
-          <tr><td>action &rarr; interoception</td><td class="num">0.003</td><td class="bar"><i style="width:0.4%"></i></td><td><span class="tag ok">yes</span></td></tr>
+          <tr><td>workspace &rarr; higher-order</td><td class="num">0.009</td><td class="bar"><i style="width:1.0%"></i></td><td><span class="tag no">no</span></td></tr>
+          <tr><td>planning &rarr; action</td><td class="num">0.008</td><td class="bar"><i style="width:0.9%"></i></td><td><span class="tag no">no</span></td></tr>
+          <tr><td>self model &rarr; planning</td><td class="num">0.006</td><td class="bar"><i style="width:0.7%"></i></td><td><span class="tag no">no</span></td></tr>
+          <tr><td>higher-order &rarr; self model</td><td class="num">0.005</td><td class="bar"><i style="width:0.5%"></i></td><td><span class="tag no">no</span></td></tr>
+          <tr><td>action &rarr; interoception</td><td class="num">0.003</td><td class="bar"><i style="width:0.4%"></i></td><td><span class="tag no">no</span></td></tr>
         </tbody>
       </table>
     </div>
-    <h3>Where the ring sits among the other thirty-five</h3>
+    <h3>What she has instead of the ring</h3>
     <p>Seven links that all carry mean one thing when nothing else does and another when everything does. Measuring every ordered pair of stations rather than only the seven: <strong>42 of 42 carry</strong>. A pipeline over one shared state object couples every stage to every other by construction, so a link carrying separates nothing, and reporting the seven without that denominator would read as evidence for a ring.</p>
     <p>The ring's seven come 4th, 5th, 8th, 12th, 24th, 30th and 37th of 42 by strength. Scored against all 720 directed cycles through the same stations — exactly, not by sampling — the architecture's order comes out stronger than 25% to 55% of them depending on the condition, at z &minus;0.65 to &minus;1.03.</p>
-    <p>What the measurement supports is not the ring. It is that <strong>the self model is the hub</strong>: what she holds about herself says more about her interoceptive and affective state than anything in the system says about anything else.</p>
+    <p>What the measurement supports is not the ring. It is a different shape, and it is a real one: take the seven strongest connections instead of the seven the diagram draws, and <strong>influence still closes on itself</strong> — through affect, interoception, the self model and the workspace, each of which can reach all the others and be reached back.</p>
+    <p>So she has a loop. It is just not the drawn one: <strong>the self model is the hub</strong>, and what she holds about herself says more about her interoceptive and affective state than anything in the system says about anything else. Two of the design document's seven links survive into it. The other five carry, and carry less than thirty-five connections nobody drew.</p>
   </div>
 </section>
 
 <section>
-  <div class="railcell"><b>1 in 4</b>deliberately scrambled pairs passed the first test too</div>
+  <div class="railcell"><b>1 in 4 &rarr; 0</b>scrambled pairs passed the first test; the test was replaced</div>
   <div class="body">
     <p class="eyebrow">The instrument</p>
     <h2>Two measurements that looked right</h2>
@@ -252,7 +253,7 @@ footer a{color:var(--ink-dim)}
 </section>
 
 <section>
-  <div class="railcell"><b>56 of 72</b>things measured never changed, so every cut would have "confirmed"</div>
+  <div class="railcell"><b>56 of 72</b>things measured never changed &mdash; still open, and the biggest thing left</div>
   <div class="body">
     <p class="eyebrow">The cut</p>
     <h2>do(station = 0), against a lesion of the same size somewhere else</h2>
@@ -278,7 +279,7 @@ footer a{color:var(--ink-dim)}
 </section>
 
 <section>
-  <div class="railcell hot"><b>0 of 16</b>decision columns could be reached from any sensing column</div>
+  <div class="railcell hot"><b>0 &rarr; 14</b>of 16 decision columns can now be reached from a sensing column</div>
   <div class="body">
     <p class="eyebrow">The mesh</p>
     <h2>The code injected into one end and read the other</h2>

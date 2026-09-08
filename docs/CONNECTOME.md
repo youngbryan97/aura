@@ -300,9 +300,26 @@ exactly, not by sampling — the architecture's order comes out stronger than 25
 to 55% of them depending on the condition, at z −0.65 to −1.03. It is an
 unremarkable ordering among the orderings available.
 
-What the measurement supports is not the ring. It is that **the self model is
-the hub**: what she holds about herself says more about her interoceptive and
-affective state than anything in the system says about anything else.
+### What she has instead
+
+A ring asks each station for exactly one outgoing edge, and the measurement does
+not respect that: the two strongest connections in the system both leave the
+self model, and no cycle can hold them both. Forcing a ring on that discards the
+finding to keep the diagram.
+
+So take the seven strongest connections rather than the seven that are drawn.
+Influence still closes on itself — through **affect, interoception, the self
+model and the workspace**, each of which can reach all the others and be reached
+back. That is a coalition in the sense the ring was drawn to express, and it is
+measured rather than declared.
+
+Two of the design document's seven links survive into it: interoception to
+affect, and affect to the workspace. The other five carry, and carry less than
+thirty-five connections nobody drew.
+
+**The self model is the hub.** What she holds about herself says more about her
+interoceptive and affective state than anything in the system says about
+anything else, and the loop she actually runs is built around that.
 
 ## Cutting a station out
 

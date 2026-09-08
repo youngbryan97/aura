@@ -86,6 +86,8 @@ __all__ = [
     "LESION_PREDICTIONS",
     "RingReport",
     "measure_ring",
+    "measured_coalition",
+    "MeasuredCoalition",
 ]
 
 
@@ -862,6 +864,7 @@ class RingReport:
     cycles: int
     pairs_measured: int = 0
     pairs_carrying: int = 0
+    gains: dict[tuple[str, str], float] = field(default_factory=dict)
     ring_ranks: tuple[int, ...] = ()
     strongest_pairs: tuple[tuple[str, float, bool], ...] = ()
     stations: dict[str, int] = field(default_factory=dict)
@@ -931,6 +934,135 @@ class RingReport:
             link["link"] for link in self.links if not link.get("carries")
         ]
         return f"{len(missing)} of {len(self.links)} links do not carry: {', '.join(missing)}"
+
+
+@dataclass(frozen=True, slots=True)
+class MeasuredCoalition:
+    """The structure the influence actually has, rather than the one drawn.
+
+    A ring asks each station for exactly one outgoing edge, and the measurement
+    does not respect that: the three strongest connections in the system are
+    self model to interoception, self model to affect, and affect to planning,
+    and no cycle can hold the first two at once. Forcing a ring on that discards
+    the finding to keep the diagram.
+
+    So this reports the coalition as what it is — the edges that carry most, and
+    whether they close on each other. What makes it a coalition rather than a
+    list is the last part: a strongly connected component means influence that
+    leaves a station can come back to it, which is the property the ring was
+    drawn to express.
+    """
+
+    condition: str
+    edges: tuple[tuple[str, str, float], ...]
+    stations_covered: tuple[str, ...]
+    recurrent: tuple[str, ...]
+    declared_kept: tuple[str, ...]
+    declared_dropped: tuple[str, ...]
+    total_pairs: int
+
+    @property
+    def closes(self) -> bool:
+        """Does influence that leaves a station come back to it?"""
+        return len(self.recurrent) >= 3
+
+    def as_json(self) -> dict[str, Any]:
+        return {
+            "condition": self.condition,
+            "edges": [
+                {"link": f"{pre} -> {post}", "gain": round(gain, 5)}
+                for pre, post, gain in self.edges
+            ],
+            "stations_covered": list(self.stations_covered),
+            "largest_recurrent_group": list(self.recurrent),
+            "closes": self.closes,
+            "declared_links_kept": list(self.declared_kept),
+            "declared_links_dropped": list(self.declared_dropped),
+            "of_pairs": self.total_pairs,
+            "verdict": self._verdict(),
+        }
+
+    def _verdict(self) -> str:
+        if not self.edges:
+            return "nothing was measured"
+        strongest = ", ".join(
+            f"{pre} -> {post}" for pre, post, _gain in self.edges[:3]
+        )
+        closing = (
+            f"and influence closes on itself through {len(self.recurrent)} of the "
+            f"{len(self.stations_covered)} stations it reaches"
+            if self.closes
+            else "and it does not close on itself"
+        )
+        return (
+            f"her coalition is {strongest} and {len(self.edges) - 3} more, "
+            f"{closing}. {len(self.declared_kept)} of the seven links the design "
+            f"document draws are in it"
+        )
+
+
+def measured_coalition(
+    gains: Mapping[tuple[str, str], float],
+    *,
+    condition: str = "",
+    order: Sequence[str] = COALITION_ORDER,
+    keep: int = 7,
+) -> MeasuredCoalition:
+    """The strongest edges among the stations, and whether they close.
+
+    ``keep`` is the number of edges taken, and it is the ring's own size so the
+    two structures are compared at equal cost: seven links either way, chosen by
+    the architecture or chosen by what carries.
+    """
+    ranked = sorted(gains.items(), key=lambda item: -item[1])[: max(1, keep)]
+    edges = tuple((pre, post, gain) for (pre, post), gain in ranked)
+    covered = tuple(sorted({name for pre, post, _ in edges for name in (pre, post)}))
+
+    # The largest group of stations that can all reach each other along the
+    # edges kept. Tarjan is overkill for seven nodes; reachability twice is not.
+    out: dict[str, set[str]] = {}
+    for pre, post, _gain in edges:
+        out.setdefault(pre, set()).add(post)
+
+    def reach(start: str) -> set[str]:
+        seen: set[str] = set()
+        stack = [start]
+        while stack:
+            here = stack.pop()
+            for nxt in out.get(here, ()):  # noqa: B007
+                if nxt not in seen:
+                    seen.add(nxt)
+                    stack.append(nxt)
+        return seen
+
+    reachable = {name: reach(name) for name in covered}
+    best: tuple[str, ...] = ()
+    for name in covered:
+        group = tuple(
+            sorted(
+                other
+                for other in covered
+                if other in reachable[name] and name in reachable.get(other, set())
+            )
+        )
+        if len(group) > len(best):
+            best = group
+
+    ring_links = set(zip(list(order), list(order[1:]) + [order[0]], strict=True))
+    kept_pairs = {(pre, post) for pre, post, _ in edges}
+    return MeasuredCoalition(
+        condition=condition,
+        edges=edges,
+        stations_covered=covered,
+        recurrent=best,
+        declared_kept=tuple(
+            sorted(f"{pre} -> {post}" for pre, post in ring_links & kept_pairs)
+        ),
+        declared_dropped=tuple(
+            sorted(f"{pre} -> {post}" for pre, post in ring_links - kept_pairs)
+        ),
+        total_pairs=len(gains),
+    )
 
 
 def measure_ring(
@@ -1058,6 +1190,7 @@ def measure_ring(
         cycles=int(null.size),
         pairs_measured=len(measured),
         pairs_carrying=sum(1 for row in measured.values() if row.get("carries")),
+        gains=dict(gains),
         ring_ranks=ranks,
         strongest_pairs=strongest,
         stations={name: len(stations[name].cells) for name in names},

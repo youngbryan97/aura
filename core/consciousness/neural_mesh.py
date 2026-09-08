@@ -20,7 +20,7 @@ import logging
 import math
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any
 
@@ -120,6 +120,20 @@ class CorticalTier(Enum):
     EXECUTIVE = auto()     # columns 48-63  — executive control / self-model
 
 
+def _cortical_inhibitory_fraction() -> float:
+    """Inhibitory cells as a share of a cortical column, from the published table.
+
+    Falls back to the rounded 0.20 if the connectome package cannot be reached,
+    because a mesh that will not build is worse than a mesh built on a rounding.
+    """
+    try:
+        from core.connectome.types import CORTICAL_EXCITATORY, CORTICAL_INHIBITORY
+
+        total = CORTICAL_EXCITATORY + CORTICAL_INHIBITORY
+        return round(CORTICAL_INHIBITORY / total, 4) if total else 0.20
+    except ImportError:
+        return 0.20
+
 @dataclass(frozen=True)
 class MeshConfig:
     """Immutable configuration for the neural mesh."""
@@ -131,7 +145,11 @@ class MeshConfig:
     intra_column_density: float = 0.80   # dense local
     inter_column_density: float = 0.05   # sparse long-range
     inter_column_distance_decay: float = 0.15   # strength ∝ exp(-d * decay)
-    inhibitory_fraction: float = 0.20    # 20% of neurons are inhibitory (Dale's law)
+    #: Derived, not chosen. Potjans and Diesmann's cortical column has 77,169
+    #: cells in eight populations, 15,326 of them inhibitory, which is 0.1986.
+    #: The table is in core/connectome/types.py and this reads it rather than
+    #: repeating a rounded 0.20 that nothing could check.
+    inhibitory_fraction: float = field(default_factory=_cortical_inhibitory_fraction)
 
     # Dynamics
     dt: float = 0.05                     # integration timestep
