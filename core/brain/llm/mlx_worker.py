@@ -1342,6 +1342,55 @@ def _surface_quality_gate_enabled(job: dict[str, Any]) -> bool:
     )
 
 
+#: How much conversation the fabrication check is entitled to look back at.
+#: The question it answers is whether a claim about a shared past appears
+#: anywhere in what was said, and a window is what keeps that cheap.
+_RECENT_TURNS_FOR_GROUNDING = 12
+
+
+def _recent_user_turns(job: dict[str, Any]) -> list[str]:
+    """What the person has said, from the transcript the model was given.
+
+    The check this feeds asks whether a reply invents a shared past, and it
+    decides that by looking for content appearing nowhere in what was said. An
+    empty history makes everything novel, so the check answers "fabricated"
+    for a perfectly correct recall.
+
+    It read `user_surface_recent_messages` off the job. Nothing in the tree
+    ever put that key in a job — the client builds the payload field by field
+    and this one is not among them — so the check has been running against an
+    empty conversation since it was written.
+
+    LIVE, 2026-09-07: "What did I just ask you?" had its draft rejected as
+    `fabricated_shared_history`, which also disables the prompt cache on the
+    repair pass, so a recall question costs a full re-prefill as well as the
+    answer.
+
+    Reading it off `messages` is the fix rather than filling the key in: the
+    transcript is what the model saw, so the grounding cannot drift out of
+    step with what it was answering from.
+    """
+
+    stated = job.get("user_surface_recent_messages")
+    if isinstance(stated, (list, tuple)) and stated:
+        return [str(message or "") for message in stated]
+    messages = job.get("messages")
+    if not isinstance(messages, (list, tuple)):
+        return []
+    said: list[str] = []
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        if str(message.get("role") or "").strip().lower() != "user":
+            continue
+        content = str(message.get("content") or "").strip()
+        if content:
+            said.append(content)
+    # The last one is the turn being answered; the check gets that separately
+    # as the prompt, and passing it twice narrows nothing.
+    return said[-_RECENT_TURNS_FOR_GROUNDING - 1 : -1] if len(said) > 1 else []
+
+
 def _surface_quality_failure_reasons(
     job: dict[str, Any],
     response_text: Any,
@@ -1355,12 +1404,7 @@ def _surface_quality_failure_reasons(
     prompt = prompt_resolution.prompt
     if not prompt:
         return []
-    recent_raw = job.get("user_surface_recent_messages")
-    recent_messages = (
-        [str(message or "") for message in recent_raw]
-        if isinstance(recent_raw, (list, tuple))
-        else []
-    )
+    recent_messages = _recent_user_turns(job)
     grounding_raw = job.get("user_surface_grounding_evidence")
     grounding = (
         [str(item or "") for item in grounding_raw]

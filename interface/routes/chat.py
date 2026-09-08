@@ -6807,10 +6807,68 @@ async def _run_cognitive_engine_chat_turn(
                     session_id=session_id,
                 )
                 if expected_recall_reply:
+                    # Serve it, bounded, rather than refuse with an apology.
+                    #
+                    # This branch used to return None on the grounds that a
+                    # deterministic substitution is not her own answer on a
+                    # required full-mind turn. What the caller then serves is
+                    # "I couldn't get my full attention onto that one" — which
+                    # is not her answer either, carries nothing, and is false
+                    # about what happened: the attention was there and a gate
+                    # rejected a draft.
+                    #
+                    # The reply here is built from the transcript of this
+                    # conversation. It is the most grounded thing available and
+                    # the branch immediately above already does exactly this
+                    # for self-condition grounding, marked
+                    # `replaced_by_runtime` so nobody mistakes it for
+                    # generation. The two contracts differed only in which one
+                    # had been written second.
+                    #
+                    # LIVE, 2026-09-07: "What did I just ask you?" one turn
+                    # after the question it was recalling. 411 seconds, two
+                    # rejected drafts, and the apology — with a correct answer
+                    # in hand the whole time.
+                    condition_assessment = assess_user_facing_reply(
+                        visible,
+                        expected_recall_reply,
+                        recent_user_messages=recent_user_messages,
+                    )
+                    if not _reply_assessment_requires_repair_with_memory_evidence(
+                        condition_assessment,
+                        visible,
+                        expected_recall_reply,
+                        canonical_memory_state_evidence=canonical_memory_state_evidence,
+                    ):
+                        logger.warning(
+                            "CognitiveEngine desktop chat missed the required "
+                            "conversation recall contract; serving the bounded "
+                            "recall built from this conversation's transcript."
+                        )
+                        _append_turn_text_mutation(
+                            turn_trace,
+                            stage="chat.conversation_recall_bounded_projection",
+                            method="deterministic_conversation_recall",
+                            reasons=list(assessment.reasons or ()),
+                            before=text,
+                            after=expected_recall_reply,
+                            deterministic=True,
+                            authorship_effect="replaced_by_runtime",
+                        )
+                        _mark_turn_trace(
+                            cognitive_engine_reply_accepted=False,
+                            cognitive_engine_reply_failed=True,
+                            bounded_contract_used=True,
+                            post_generation_repair_applied=True,
+                            deterministic_repair_applied=True,
+                            response_path="cognitive_engine_recall_bounded_projection",
+                            conversation_recall_contract=True,
+                        )
+                        return expected_recall_reply
                     logger.warning(
                         "CognitiveEngine desktop chat missed the required "
-                        "conversation recall contract; refusing bounded recall "
-                        "substitution on a required live full-mind turn."
+                        "conversation recall contract, and the bounded recall "
+                        "does not survive the reply assessment either."
                     )
                     _mark_turn_trace(
                         cognitive_engine_reply_accepted=False,

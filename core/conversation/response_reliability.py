@@ -6795,6 +6795,61 @@ _PERSON_NAME_STOPLIST = frozenset(
     }
 )
 _SELF_SYSTEM_NAMES = frozenset({"aura", "claude", "qwen", "assistant", "anthropic"})
+
+# English's closed classes. A word here cannot be somebody's name, whatever
+# position a pattern above finds it in, and unlike the stoplist beside it this
+# is a fact about the language rather than a record of what has been seen.
+#
+# The patterns capture `[A-Z][a-z]{2,}` in a relational frame, so an ordinary
+# sentence starting with one of these is a candidate person: "Nobody asked me
+# anything" invents a Nobody, and the whole reply is thrown out over it.
+#
+# LIVE, 2026-09-07: asked "What did I just ask you?", the draft was rejected
+# with `ungrounded_person_narrative` and the turn retried. The pronoun case
+# survived only because the question happened to contain the word "you" —
+# grounding by luck.
+#
+# Three letters or more, because that is what the patterns can capture.
+_NEVER_A_PERSON_NAME = frozenset(
+    {
+        # pronouns and their possessives
+        "you", "she", "her", "hers", "him", "his", "its", "our", "ours",
+        "she", "their", "theirs", "them", "they", "your", "yours",
+        # indefinites — the ones that read as a subject
+        "all", "another", "any", "anybody", "anyone", "anything", "both",
+        "each", "either", "everybody", "everyone", "everything", "few",
+        "many", "most", "neither", "nobody", "none", "nothing", "one",
+        "other", "others", "several", "some", "somebody", "someone",
+        "something",
+        # demonstratives and wh-words
+        "that", "these", "this", "those", "what", "when", "where", "which",
+        "who", "whom", "whose", "why",
+        # determiners and quantifiers
+        "and", "another", "any", "but", "enough", "every", "less", "more",
+        "much", "nor", "the", "yet",
+        # auxiliaries and modals
+        "are", "been", "being", "can", "could", "did", "does", "had", "has",
+        "have", "may", "might", "must", "ought", "shall", "should", "was",
+        "were", "will", "would",
+        # subordinators and connectives
+        "after", "although", "because", "before", "hence", "instead",
+        "moreover", "nevertheless", "nonetheless", "once", "otherwise",
+        "since", "than", "that", "therefore", "though", "thus", "unless",
+        "until", "when", "whereas", "whether", "while",
+        # the prepositions a sentence can open with
+        "about", "above", "across", "against", "along", "among", "around",
+        "aside", "behind", "below", "beneath", "beside", "between", "beyond",
+        "despite", "down", "during", "except", "for", "from", "inside",
+        "into", "near", "off", "onto", "out", "outside", "over", "past",
+        "through", "throughout", "toward", "towards", "under", "underneath",
+        "upon", "with", "within", "without",
+        # adverbs a reply commonly opens with
+        "again", "already", "always", "even", "ever", "here", "just",
+        "later", "many", "maybe", "never", "not", "often", "only",
+        "perhaps", "rarely", "sometimes", "still", "then", "there",
+        "today", "tomorrow", "tonight", "usually", "yesterday", "yet",
+    }
+)
 _RELATIONAL_FAMILIARITY_RES = (
     # "Brenner and I go way back"
     re.compile(r"\b([A-Z][a-z]{2,})\s+and\s+I\b"),
@@ -6904,6 +6959,9 @@ def _person_name_is_grounded(
     registry_names: set[str],
 ) -> bool:
     lowered = name.casefold()
+    if lowered in _NEVER_A_PERSON_NAME:
+        # Not grounded — not a name at all, so there is nobody to ground.
+        return True
     if lowered in _PERSON_NAME_STOPLIST or lowered in _SELF_SYSTEM_NAMES:
         return True
     if lowered in registry_names:
