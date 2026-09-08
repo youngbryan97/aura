@@ -29,6 +29,9 @@ DESIGN INVARIANTS:
   and fast enough to run on every cognitive tick without blocking.
 - Continuity scoring uses a sliding window of recent moments — no unbounded
   memory growth.
+
+Operationally: this measures what is in the workspace at this instant and how long it has been there. 'Now' is a window over recorded state.
+
 """
 
 from core.runtime.errors import record_degradation

@@ -39,6 +39,9 @@ is from the zombie baseline. And it is disciplined about what that number is:
 
 It is live (reads the markers from their organs), tracks transitions over time (a drop
 is a "dimming"), and is governed (the boundary is part of every report, never stripped).
+
+Operationally: this measures whether a phenomenal claim has a test that could fail, and names the claims that do not.
+
 """
 from __future__ import annotations
 

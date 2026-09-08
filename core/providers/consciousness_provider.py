@@ -1,4 +1,7 @@
 """core/providers/consciousness_provider.py — Consciousness & Affect Registration
+
+Operationally: this resolves and hands out the objects the consciousness group is made of. It measures nothing itself; the name is the package it serves.
+
 """
 
 import logging

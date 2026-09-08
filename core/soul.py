@@ -1,3 +1,6 @@
+"""Operationally: this measures drives — named appetites with an urgency between zero and one that rises while unmet and falls when acted on. 'Soul' is the module's inherited name for that set of counters.
+"""
+
 import logging
 import math
 import random

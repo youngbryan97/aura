@@ -1,3 +1,6 @@
+"""Operationally: this measures nothing about consciousness. It runs the phase that computes integrated-information and selfhood readings for a turn and writes them onto the state, so 'consciousness' here names the group of measurements, not a claim that any of them is one.
+"""
+
 import logging
 from typing import Any, Optional
 from . import BasePhase

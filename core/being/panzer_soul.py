@@ -2,6 +2,9 @@
 ====================
 The Identity Core of Aura.
 Provides the version and metadata required by PersonalityEngine.
+
+Operationally: this measures drive state under load — the same counters as the ordinary drive engine, kept while resources are constrained.
+
 """
 from typing import Dict
 

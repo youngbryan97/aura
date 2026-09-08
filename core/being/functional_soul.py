@@ -1,3 +1,6 @@
+"""Operationally: this measures which drives are active and what they have caused, as counters and recorded outcomes.
+"""
+
 from __future__ import annotations
 
 import hashlib

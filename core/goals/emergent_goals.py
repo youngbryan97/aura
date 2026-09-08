@@ -18,6 +18,9 @@ The generator does not replace designed goals; it augments them. A goal is
 
 This is a minimal viable implementation, not a full open-ended goal generator,
 but it produces goals that are demonstrably not in the original design space.
+
+Operationally: this measures goals that were not written down by anybody — proposals derived from repeated unmet drives and recorded outcomes. 'Emergent' means nobody authored them, and nothing more.
+
 """
 from __future__ import annotations
 

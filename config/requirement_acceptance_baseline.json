@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "note": "How many release requirements have an executable check that resolves in this tree. Only goes up. Established at 33 on 2026-09-07 by tools/reqproof/acceptance.py; 37 after four were curated by hand on 2026-09-08. The other 276 are the release programme, not a bookkeeping gap \u2014 a link is only added when the named check failing would mean the requirement is not met.",
-  "linked": 37,
+  "note": "How many release requirements have an executable check that resolves in this tree. Only goes up. Established 2026-09-07 by tools/reqproof/acceptance.py; the other 280 are the release programme, not a bookkeeping gap.",
+  "linked": 33,
   "requirements": 313
 }

@@ -10,6 +10,12 @@ This writes one payload in that viewer's own shape — `nodes` with an id, a
 label, a type, a description and a centrality, `links` with a source, a target
 and a weight — so the same viewer can draw it with no changes to the viewer.
 
+Operationally: this measures nothing about a soul. "Soul map" is the name of an
+existing viewer in this repository — `interface/static/mycelial.html` — and this
+writes a payload in that viewer's shape so the connectome can be drawn by it.
+What is drawn is one node per source file, sized by how many call sites land on
+its edges, and one link per pair of files that call each other.
+
 Aggregated to the module. Forty-eight thousand cells in a force-directed scene
 is the hairball the viewer's own comments describe fighting; the module is the
 level a person can read, and it is the level the layer analyses already work at.
