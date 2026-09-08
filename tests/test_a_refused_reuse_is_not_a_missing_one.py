@@ -99,3 +99,58 @@ def test_the_matched_length_is_still_reported(caplog, shared: int) -> None:
         )
     said = " ".join(record.getMessage() for record in caplog.records)
     assert f"matched {shared} " in said, said
+
+
+def test_a_permanent_refusal_names_the_class_that_makes_it_permanent() -> None:
+    """`ArraysCache` never trims. `RotatingKVCache` sometimes does.
+
+    `can_trim_prompt_cache` is `all(c.is_trimmable())`, so one object that
+    always answers False means this model's prompt cache can never be trimmed
+    — not this turn, not any turn. Only the class names separate that from a
+    rotating cache that has wrapped, and the resident model is the first kind:
+    `Qwen3_5.make_cache` returns `ArraysCache` for its linear-attention layers.
+    """
+
+    import logging
+
+    from core.brain.llm.prompt_cache import _why_it_will_not_trim
+
+    class ArraysCache:
+        def is_trimmable(self) -> bool:
+            return False
+
+    class KVCache:
+        def is_trimmable(self) -> bool:
+            return True
+
+    assert _why_it_will_not_trim([KVCache(), ArraysCache(), KVCache()]) == "ArraysCache"
+    assert _why_it_will_not_trim([KVCache()]) == "no object named itself"
+    assert _why_it_will_not_trim(None) == "no object named itself"
+
+    lru = PromptCacheLRU(max_size=8)
+    lru.insert_cache("model", [1, 2, 3, 4], [ArraysCache(), KVCache()])
+    caplog = logging.getLogger("MLXWorker")
+    records: list[logging.LogRecord] = []
+
+    class _Catch(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Catch()
+    caplog.addHandler(handler)
+    previous = caplog.level
+    caplog.setLevel(logging.INFO)
+    try:
+        lru.fetch_nearest_cache(
+            "model",
+            [1, 2, 9, 9],
+            can_trim_prompt_cache=lambda entries: all(
+                item.is_trimmable() for item in entries
+            ),
+            trim_prompt_cache=lambda _c, _n: None,
+        )
+    finally:
+        caplog.removeHandler(handler)
+        caplog.setLevel(previous)
+    said = " ".join(record.getMessage() for record in records)
+    assert "ArraysCache" in said, said

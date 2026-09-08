@@ -295,10 +295,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   The reuse was found and refused: mlx_lm declined to trim the entry, and the
   miss line said only how far the prompt matched. A refusal read as an absence,
   so the single largest source of latency in the runtime was invisible. It is
-  named now — `the entry holding them refuses to trim`. What to do about the
-  untrimmable cache itself is the open question, and it is worth more than any
-  prompt-shortening: on the numbers above it is roughly half of every tool
-  turn.
+  named now — `the entry holding them refuses to trim (ArraysCache)` — and the
+  root cause is settled. `can_trim_prompt_cache` is `all(c.is_trimmable())`.
+  The resident model is `Qwen3_5`, a hybrid linear-attention model whose
+  `make_cache` returns `ArraysCache(size=2)` for every linear layer, and
+  `ArraysCache.is_trimmable` is a bare `return False`. So the exact-hit and
+  trimmed-hit paths are dead for this model, permanently, and only a stored key
+  that is a strict PREFIX of the new prompt can ever be reused.
+
+  That makes an append-only prompt worth far more here than a shorter one. In
+  the tool loop it was not append-only: the previous prompt was 4,761 tokens
+  and the next one matched 881 before diverging, so something between the front
+  of the prompt and the new tool result is rebuilt each turn. That is the next
+  thing to fix, and it is the largest single latency item in the runtime.
 
 ## 2. General RLC reasoning: the scientific critical path
 

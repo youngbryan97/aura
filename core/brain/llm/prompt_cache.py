@@ -179,6 +179,38 @@ class PromptCacheResumeBinding:
     created_at: float
 
 
+def _why_it_will_not_trim(prompt_cache: Any) -> str:
+    """Which cache objects refuse, so a permanent refusal reads as permanent.
+
+    `can_trim_prompt_cache` is `all(c.is_trimmable())`, and a model whose
+    `make_cache` returns even one object that always answers False can never
+    have a prompt cache trimmed — not this turn, not any turn. That is a
+    different fact from a rotating cache that has wrapped, and only the class
+    names separate them.
+
+    The resident model is one of the first kind. `Qwen3_5` is a hybrid linear
+    attention model and its `make_cache` returns `ArraysCache` for the linear
+    layers, whose `is_trimmable` is a bare `return False`. So the exact-hit and
+    trimmed-hit paths are dead for it, and only a stored key that is a strict
+    PREFIX of the new prompt can ever be reused — which is why an append-only
+    prompt matters so much more here than the length of one.
+    """
+
+    try:
+        refusing = sorted(
+            {
+                type(entry).__name__
+                for entry in (prompt_cache or [])
+                if not bool(getattr(entry, "is_trimmable", lambda: True)())
+            }
+        )
+    except (AttributeError, TypeError, ValueError):
+        return "unreadable"
+    if not refusing:
+        return "no object named itself"
+    return ", ".join(refusing)
+
+
 class PromptCacheLRU:
     def __init__(
         self,
@@ -625,7 +657,11 @@ class PromptCacheLRU:
                 # matching more than the last (17%, 35%, 47%, 55%), each
                 # prefilling in full. The loop then exhausted its 178.8s turn
                 # budget and the person got an unfinished answer.
-                refused = "; the entry holding them refuses to trim"
+                refused = (
+                    "; the entry holding them refuses to trim ("
+                    + _why_it_will_not_trim(cache_entry.prompt_cache)
+                    + ")"
+                )
             if can_trim_prompt_cache(cache_entry.prompt_cache):
                 prefix = min(len(tokens) - 1, result.common_prefix)
                 num_to_trim = len(result.longer) - prefix
