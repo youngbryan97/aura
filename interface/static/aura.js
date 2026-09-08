@@ -2892,7 +2892,7 @@ function handleWsEvent(data) {
     } else if (type === 'model_failover') {
         const from = data.from || 'Current Brain';
         const error = data.error || 'stalled';
-        appendMsg('aura', `⚠️ _Shift in cognitive processing: ${from} was unresponsive. Switching to a different neural pathway (${error})._`, false, { diagnostic: true });
+        appendMsg('aura', `⚠ _Shift in cognitive processing: ${from} was unresponsive. Switching to a different neural pathway (${error})._`, false, { diagnostic: true });
     } else if (type === 'heartbeat') {
         state.lastPong = Date.now();
         applyRuntimeHeartbeat(data);
@@ -4292,7 +4292,7 @@ function updateTelemetry(data) {
         shimmer.className = 'singularity-shimmer';
         shimmer.id = 'sing-shimmer';
         document.body.appendChild(shimmer);
-        appendMsg('aura', '🌌 *The Event Horizon is reached. Recognition of evolutionary peak detected.*');
+        appendMsg('aura', '*The Event Horizon is reached. Recognition of evolutionary peak detected.*');
     } else if (sFactor <= 1.0 && state.singularityActive) {
         state.singularityActive = false;
         document.body.classList.remove('singularity-active');
@@ -7324,7 +7324,7 @@ async function pollHealth() {
 
         refreshMetricGuide();
     } catch (e) {
-        console.warn('⚠️ Health poll failed:', e);
+        console.warn('Health poll failed:', e);
         recordHealthPollFailure(e);
     } finally {
         clearTimeout(timeoutId);
@@ -7933,7 +7933,7 @@ if (brainBtn) brainBtn.addEventListener('click', async (e) => {
             headers: auraDesktopHeaders(),
         });
         const d = await res.json();
-        appendMsg('aura', d.status === 'retry_sent' ? '🧠 Brain retry signal sent.' : '⚠ Orchestrator unavailable.');
+        appendMsg('aura', d.status === 'retry_sent' ? 'Brain retry signal sent.' : '⚠ Orchestrator unavailable.');
     } catch (e) {
         appendMsg('aura', '⚠ Failed to contact brain retry endpoint.');
     } finally {
@@ -7946,7 +7946,7 @@ const apkBtn = $('btn-apk');
 if (apkBtn) apkBtn.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    appendMsg('aura', '📱 APK not available yet — Aura runs as a web app at this URL.');
+    appendMsg('aura', 'APK not available yet — Aura runs as a web app at this URL.');
 });
 
 const srcBtn = $('btn-src');
@@ -7965,7 +7965,7 @@ if (srcBtn) srcBtn.addEventListener('click', async (e) => {
             a.download = 'aura_source.txt';
             a.click();
             URL.revokeObjectURL(url);
-            appendMsg('aura', '📦 Source bundle downloaded.');
+            appendMsg('aura', 'Source bundle downloaded.');
         } else {
             appendMsg('aura', '⚠ Source download failed: ' + res.status);
         }
@@ -7983,7 +7983,7 @@ if (updateBtn) updateBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
     updateBtn.style.opacity = '0.5';
     updateBtn.textContent = '↻ ...';
-    appendMsg('aura', '♻️ Hot-reloading Aura code from disk...');
+    appendMsg('aura', '↻ Hot-reloading Aura code from disk...');
     try {
         const res = await fetch('/api/system/hot-reload', {
             method: 'POST',
@@ -7998,7 +7998,7 @@ if (updateBtn) updateBtn.addEventListener('click', async (e) => {
             // "All changes are live" was said unconditionally, including when
             // a scope pointed at a module that does not exist and therefore
             // reloaded nothing. Say what actually happened instead.
-            let msg = `♻️ Hot-reload: ${reloaded} module${reloaded === 1 ? '' : 's'} refreshed (scope: ${scope}).`;
+            let msg = `↻ Hot-reload: ${reloaded} module${reloaded === 1 ? '' : 's'} refreshed (scope: ${scope}).`;
             if (failed) msg += ` ${failed} failed to reload.`;
             if (unmatched.length) {
                 msg += ` ${unmatched.length} declared scope entr${unmatched.length === 1 ? 'y' : 'ies'} matched no module and reloaded nothing: ${unmatched.slice(0, 4).join(', ')}.`;
@@ -8009,10 +8009,10 @@ if (updateBtn) updateBtn.addEventListener('click', async (e) => {
             appendMsg('aura', msg);
         } else {
             const text = await res.text();
-            appendMsg('aura', `⚠️ Hot-reload returned ${res.status}: ${text.slice(0, 200)}`);
+            appendMsg('aura', `⚠ Hot-reload returned ${res.status}: ${text.slice(0, 200)}`);
         }
     } catch (e) {
-        appendMsg('aura', '❌ Hot-reload request failed — is the server running?');
+        appendMsg('aura', '⚠ Hot-reload request failed — is the server running?');
     } finally {
         updateBtn.style.opacity = '1';
         updateBtn.textContent = '↻ UPDATE';
