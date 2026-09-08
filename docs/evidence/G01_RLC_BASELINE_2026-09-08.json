@@ -1,0 +1,129 @@
+{
+  "artifacts": {
+    "27b_adjudication": {
+      "path": "artifacts/migration/27b/recovery/cp1003-semantic-canary/adjudication.json",
+      "schema": "aura.rlc.semantic_neural_bounded_wow_adjudication.v1",
+      "sha256": "dc8d711501efd47915848b18a67bc27cdaaeec2bf48cc381ba9f0a89f7e07a47"
+    },
+    "27b_result": {
+      "path": "artifacts/migration/27b/recovery/cp1003-semantic-canary/result.json",
+      "schema": "aura.rlc.semantic_neural_decode_canary.v1",
+      "sha256": "732e900b1daf7a55e6a8601c8a7e0c07d9534614f862eea0b4972b474f3bc7df"
+    },
+    "32b_adjudication": {
+      "path": "artifacts/closeout/latent_cortex/cp566_resident_mixed_multidomain_replication/adjudication.json",
+      "schema": "aura.rlc.semantic_neural_bounded_wow_adjudication.v1",
+      "sha256": "be89adf1becdfefead798b08a2a2485c418f5c2c5784c939eb7275ac89c2d016"
+    },
+    "32b_result": {
+      "path": "artifacts/closeout/latent_cortex/cp566_resident_mixed_multidomain_replication/result.json",
+      "schema": "aura.rlc.semantic_neural_decode_canary.v1",
+      "sha256": "75ed72493ba5313e961b63efa8839587826385aba1977f9aff52f855b1921b30"
+    },
+    "v14_endogenous": {
+      "path": "artifacts/rlc/semantic_program_27b_compositional_v14/endogenous_runtime_verification.json",
+      "schema": "aura.semantic_program_endogenous_verification_bundle.v2",
+      "sha256": "f8822d1ae09456a58998a0c7a060b0a62bc5708ec05d4217b9010713be5c276c"
+    },
+    "v14_family": {
+      "path": "artifacts/rlc/semantic_program_27b_compositional_v14/verification.json",
+      "schema": "aura.semantic_program_family_withheld_verification.v1",
+      "sha256": "0fa79971a21a7fad08489d74e85a144aac57aa2fcdf3f730af0b25db496c1a73"
+    },
+    "v16_preregistration": {
+      "path": "artifacts/rlc/semantic_program_27b_compositional_v16_natural_replication/preregistration.json",
+      "schema": "aura.semantic_program_natural_replication_preregistration.v1",
+      "sha256": "bf8585b5dc2d2fe2eadec2e3d83b5ea8529f664c5bb5638042f527a5f1506c80"
+    },
+    "v16_result": {
+      "path": "artifacts/rlc/semantic_program_27b_compositional_v16_natural_replication/result.json",
+      "schema": "aura.semantic_program_natural_replication_result.v1",
+      "sha256": "0acf41e9b2163c612ab5569d955d779a6140dca7133a7c6a83f88fedbc2aa55c"
+    },
+    "v19_development": {
+      "path": "artifacts/rlc/semantic_program_27b_compositional_v19_clause_local_identity_dev/report.json",
+      "schema": "aura.semantic_program_clause_local_identity_development.v1",
+      "sha256": "423bf08ca00085745180d71a8fe608ed67729722d5cbc4ae4bd3a9db9bb3a043"
+    }
+  },
+  "claim_status": {
+    "bounded_state_to_decode_transfer": "historically_measured_on_separate_32b_and_27b_cohorts",
+    "broad_reasoning_gain": "not_established",
+    "current_development_repair": "requires_fresh_replication",
+    "frontier_performance": "not_established",
+    "natural_language_replication": "failed_absolute_capability_floor",
+    "new_model_benchmark_run": false,
+    "serving_authority": false,
+    "static_rlc_weight_fusion": "not_established",
+    "withheld_program_family_transfer": "bounded_synthetic_shared_primitive_vocabulary"
+  },
+  "configured_model": {
+    "active_manifest_sha256": "0d893b98ba7089708ea474be9364855326d077c724684b219560a175d86eb385",
+    "descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+    "observed_file_sha256s": {
+      "config.json": "11ce6fab918333fbeaebf3ec3ff99f5e12227eb06a1a2c1c3fe4fd8d1488876b",
+      "model.safetensors.index.json": "a2161f6a6c9f7c434145f97a4a4262a74eb3e16a95088e713754eb108b198511",
+      "tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+      "tokenizer_config.json": "8f781f0d7369fb2532a77284368c2a5f9eccd6413a381dfa3795787e20ca4ca4"
+    },
+    "path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+    "weight_bytes_rehashed": false
+  },
+  "current_live_activation": "not_measured_by_this_baseline",
+  "frozen_on": "2026-09-08",
+  "measurements": {
+    "27b": {
+      "exact_by_arm": {
+        "coefficient_lesion": 4,
+        "matched_wire_base": 6,
+        "matched_wrong_state": 0,
+        "ordinary_base": 0,
+        "treatment": 60
+      },
+      "total": 60
+    },
+    "32b": {
+      "exact_by_arm": {
+        "coefficient_lesion": 5,
+        "matched_wire_base": 7,
+        "matched_wrong_state": 0,
+        "ordinary_base": 16,
+        "treatment": 60
+      },
+      "total": 60
+    },
+    "v14_endogenous": {
+      "answer_exact": 79,
+      "lesion_answer_exact": 0,
+      "program_exact": 79,
+      "total": 96
+    },
+    "v16_natural": {
+      "answer_exact": 26,
+      "minimum_answer_exact": 48,
+      "ordinary_decode_status": "ABORTED_BY_PREREGISTERED_FUTILITY",
+      "program_exact": 22,
+      "total": 96,
+      "verdict": "FAIL_ABSOLUTE_CAPABILITY_FLOOR"
+    },
+    "v19_development": {
+      "answer_exact": 93,
+      "fresh_replication": false,
+      "lesion_answer_exact": 0,
+      "program_exact": 93,
+      "total": 96
+    }
+  },
+  "purpose": "retained_evidence_baseline_not_new_benchmark",
+  "schema": "aura.rlc.release_baseline.v1",
+  "source_commit": "e081980444c656fd84e1243f530602cf5295d353",
+  "source_sha256s": {
+    "core/brain/llm/compositional_semantic_shadow.py": "e3c04a9fc1f64f5bed4d921796f116cf70eced8d32d77af1052cfa2062a7ea86",
+    "core/learning/semantic_neural_machine.py": "c3defb6ca618f8617363cc16f8f311111c890eb10b331c6b3dfbec5479e6c382",
+    "core/learning/semantic_program_compositional_transducer.py": "5198106c366954e0b890f9c4b0d06bbb1e1a25136a90e6943dcf1cc85e5b0687",
+    "core/learning/semantic_program_floor.py": "245ca083697be6511645ea6fc569b840b2d6fac52f0972e4cc2aa849fdcb0fae",
+    "core/learning/semantic_program_runtime.py": "625f0d32585d1fb3c7b6320b5e7156032cdc55202ad6907c4bd5db601d1140b2",
+    "tools/run_semantic_neural_decode_canary.py": "43aef0838e30abc51e23eb7c11b79815073a4b185e2ade80531fb9ccf7489286",
+    "tools/verify_semantic_neural_decode_canary.py": "52e32332f5b1acc3e6de7992ba9720dc7bf3ccf16e109880ea0db88e1b6dd515"
+  }
+}

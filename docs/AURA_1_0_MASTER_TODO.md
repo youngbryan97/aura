@@ -21,7 +21,7 @@ No percentage is meaningful until that inventory is reconciled.
 
 ## Where the pass stands, 2026-09-08
 
-Eight of sixty-one closed: I01 through I05, I07, R01 and R02. I06 is open with
+Ten of sixty-one closed: I01 through I05, I07, R01, R02, R10 and G01. I06 is open with
 a number rather than a claim — 33 of 313 release requirements name something a
 person can run.
 
@@ -398,7 +398,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 
 ## 2. General RLC reasoning: the scientific critical path
 
-- [ ] G01 Freeze a current baseline and exact mechanism/claim boundary.
+- [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
+  Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
+  nine hash-bound artifacts, current configured model metadata and source
+  snapshot; 600 historical decodes regraded. Focused checks: 44 passed;
+  smoke: 164 passed, one skipped. No new benchmark or live activation claim.
 - [ ] G02 Reconcile existing bounded 1.5B/32B/27B evidence and live activation.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
