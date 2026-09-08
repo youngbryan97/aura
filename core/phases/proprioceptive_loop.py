@@ -79,6 +79,47 @@ class ProprioceptiveLoop(BasePhase):
             soma.hardware.pop(f"{channel}_degraded", None)
             soma.hardware.pop(f"{channel}_error", None)
 
+    def _push_perceptual_frame(self, state: Any) -> None:
+        """Give the substrate the frame it was built to take.
+
+        Every value is a reading the phase already has. Nothing is invented for
+        the frame, and a key with no reading is left out rather than filled
+        with a plausible number, because the substrate treats an absent key as
+        zero and that is the honest answer for a channel that reported nothing.
+        """
+        try:
+            from core.runtime.service_registry import get_runtime_service
+
+            substrate = get_runtime_service("liquid_substrate", default=None) or get_runtime_service(
+                "conscious_substrate", default=None
+            )
+            if substrate is None or not hasattr(substrate, "inject_perceptual_frame"):
+                return
+            hardware = getattr(state.soma, "hardware", {}) or {}
+            percepts = list(getattr(state.world, "recent_percepts", []) or [])
+            frame = {
+                "cpu_percent": float(hardware.get("cpu_usage", 0.0) or 0.0),
+                "memory_percent": float(hardware.get("ram_usage", hardware.get("vram_usage", 0.0)) or 0.0),
+                "thermal": float(hardware.get("temperature", 0.0) or 0.0) / 100.0,
+                "valence": float(getattr(state.affect, "valence", 0.0) or 0.0),
+                "arousal": float(getattr(state.affect, "arousal", 0.0) or 0.0),
+                "user_presence": 1.0 if percepts else 0.0,
+                "screen_changed": 1.0 if any(
+                    str(item.get("source", "")) == "screen" for item in percepts[-4:] if isinstance(item, dict)
+                ) else 0.0,
+            }
+            reading = state.response_modifiers.get("ontogenetic_novelty")
+            if reading is not None:
+                frame["novelty"] = float(reading)
+            substrate.inject_perceptual_frame(frame)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "proprioceptive_loop",
+                exc,
+                severity="debug",
+                action="the substrate did not receive this tick's perceptual frame",
+            )
+
     def _feel_body_pressure(self, state: Any) -> None:
         """Hold the nociceptive strain channel at the body's current pressure.
 
@@ -368,6 +409,14 @@ class ProprioceptiveLoop(BasePhase):
         # runtime's own calibrated reading, so no new threshold is invented
         # here.
         self._feel_body_pressure(new_state)
+
+        # And push the same reading into the substrate's own dimensions.
+        # `inject_perceptual_frame` maps telemetry, user state, screen and audio
+        # into fixed bands of the continuous substrate, and the only thing in
+        # the tree with that name is a different class in the language layer, so
+        # this one had no caller: perception and the body reached recurrent
+        # cognition through nothing at all.
+        self._push_perceptual_frame(new_state)
 
         soma.updated_at = time.time()
 

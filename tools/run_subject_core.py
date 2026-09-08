@@ -72,10 +72,15 @@ async def main() -> int:
     parser.add_argument("--trials", type=int, default=6, help="paired interventions per source per condition")
     parser.add_argument("--turns", type=int, default=2, help="turns each intervention arm runs")
     parser.add_argument("--agency-trials", type=int, default=5)
-    parser.add_argument("--lesion-rounds", type=int, default=10)
+    parser.add_argument("--lesion-rounds", type=int, default=30)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "subject_core")
     parser.add_argument("--skip-nulls", action="store_true")
+    parser.add_argument(
+        "--skip-lesion",
+        action="store_true",
+        help="leave the lesion and rescue unmeasured; they read as failures, which is what an unmeasured criterion is",
+    )
     parser.add_argument("--quick", action="store_true", help="a short run for wiring checks")
     args = parser.parse_args()
 
@@ -265,11 +270,15 @@ async def main() -> int:
         await run_agency(runtime, act_condition, scale=scale, trials=args.agency_trials)
     ).as_dict()
 
-    _log(f"lesion of the cheapest cut {phi.best_cut} and rescue")
-    evidence["lesion"] = await _lesion(
-        runtime, CONDITIONS, phi, args, build_recording, clamped, phi_do,
-        perturbational_complexity, synergy_suite, run_interventions, scale
-    )
+    if args.skip_lesion:
+        _log("lesion skipped")
+        evidence["lesion"] = {"deficit": False, "rescued_ok": False, "note": "not measured"}
+    else:
+        _log(f"lesion of the cheapest cut {phi.best_cut} and rescue")
+        evidence["lesion"] = await _lesion(
+            runtime, CONDITIONS, phi, args, build_recording, clamped, phi_do,
+            perturbational_complexity, synergy_suite, run_interventions, scale
+        )
 
     if not args.skip_nulls:
         _log("nulls")

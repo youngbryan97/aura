@@ -65,3 +65,52 @@ def test_the_body_phase_reports_its_load_to_nociception():
     phase = ProprioceptiveLoop(container=None)
     phase._feel_body_pressure(state)
     assert engine.nociceptive_pressure() > 0.0
+
+
+def test_the_body_phase_pushes_a_frame_into_the_substrate():
+    """`inject_perceptual_frame` had no caller: the only thing in the tree with
+    that name is a different class in the language layer. Perception and the
+    body reached recurrent cognition through nothing at all."""
+    from core.phases.proprioceptive_loop import ProprioceptiveLoop
+    from core.runtime.service_registry import register_runtime_service
+    from core.state.aura_state import AuraState
+
+    frames: list[dict] = []
+
+    class _Substrate:
+        def inject_perceptual_frame(self, frame_data):
+            frames.append(dict(frame_data))
+
+    register_runtime_service("liquid_substrate", _Substrate(), required=False)
+    state = AuraState.default()
+    state.soma.hardware.update({"cpu_usage": 71.0, "ram_usage": 64.0, "temperature": 80.0})
+    state.affect.valence = -0.4
+    state.world.recent_percepts.append({"source": "screen", "content": "a window moved"})
+
+    ProprioceptiveLoop(container=None)._push_perceptual_frame(state)
+
+    assert frames, "the substrate was not given a frame"
+    frame = frames[-1]
+    assert frame["cpu_percent"] == pytest.approx(71.0)
+    assert frame["memory_percent"] == pytest.approx(64.0)
+    assert frame["thermal"] == pytest.approx(0.8)
+    assert frame["valence"] == pytest.approx(-0.4)
+    assert frame["user_presence"] == 1.0
+    assert frame["screen_changed"] == 1.0
+
+
+def test_a_channel_that_reported_nothing_is_left_out_of_the_frame():
+    """The substrate treats an absent key as zero, which is the honest answer."""
+    from core.phases.proprioceptive_loop import ProprioceptiveLoop
+    from core.runtime.service_registry import register_runtime_service
+    from core.state.aura_state import AuraState
+
+    frames: list[dict] = []
+
+    class _Substrate:
+        def inject_perceptual_frame(self, frame_data):
+            frames.append(dict(frame_data))
+
+    register_runtime_service("liquid_substrate", _Substrate(), required=False)
+    ProprioceptiveLoop(container=None)._push_perceptual_frame(AuraState.default())
+    assert "novelty" not in frames[-1]
