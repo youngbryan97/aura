@@ -431,7 +431,23 @@ class AffectUpdatePhase(Phase):
             from core.consciousness.homeostatic_coupling import SUBSTRATE_SHARE
 
             reading = substrate.get_state_summary_nowait()
-            if not isinstance(reading, dict) or reading.get("snapshot_stale"):
+            if not isinstance(reading, dict):
+                return
+            if reading.get("snapshot_stale"):
+                # Worth recording rather than skipping quietly. The snapshot is
+                # marked fresh only by the substrate's own dynamics step, so a
+                # loop that has died disconnects the substrate from affect with
+                # no other symptom — the readings stay plausible and simply
+                # stop arriving.
+                state.response_modifiers["substrate_snapshot_age_s"] = round(
+                    float(reading.get("snapshot_age_s", 0.0)), 3
+                )
+                record_degradation(
+                    "affect_update",
+                    RuntimeError("substrate snapshot stale"),
+                    severity="info",
+                    action="affect kept its own valence; the substrate is not integrating",
+                )
                 return
             keep = 1.0 - SUBSTRATE_SHARE
             affect.valence = max(

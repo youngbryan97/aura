@@ -65,6 +65,12 @@ logger = logging.getLogger("Aura.Subject.Driver")
 #: soak test.
 PHASE_TIMEOUT: float = 12.0
 
+#: How much substrate time one turn buys. The live loop runs at twenty hertz
+#: and a turn takes about half a second, so ten steps' worth is the honest
+#: equivalent — taken as one step of that length rather than ten of a twentieth,
+#: because two arms must see the same integration and not the same wall clock.
+SUBSTRATE_STEP_SECONDS: float = 0.5
+
 
 class DeterministicMind:
     """One answer, always, so two arms differ by the intervention and nothing else."""
@@ -463,6 +469,17 @@ class SubjectRuntime:
             try:
                 await asyncio.wait_for(
                     substrate.update(source="subject_core_turn"), timeout=PHASE_TIMEOUT
+                )
+                # And integrate it. The dynamics step is what the free-running
+                # loop does twenty times a second, and it is the only thing
+                # that marks the state snapshot fresh — with the loop stopped,
+                # every consumer that checks staleness sees an infinitely old
+                # substrate and skips it, so the substrate would be present,
+                # perturbable, and invisible to everything downstream. One step
+                # per turn at a fixed interval keeps the computation and drops
+                # the jitter.
+                await asyncio.wait_for(
+                    substrate._step_dynamics(SUBSTRATE_STEP_SECONDS), timeout=PHASE_TIMEOUT
                 )
             except BaseException as exc:  # noqa: BLE001
                 self.failures["substrate"] = self.failures.get("substrate", 0) + 1
