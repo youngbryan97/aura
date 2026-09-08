@@ -32,6 +32,7 @@ lookup today.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import subprocess
@@ -100,13 +101,27 @@ BORING: frozenset[str] = frozenset(
 
 
 def public_methods(module_path: Path) -> list[str]:
-    """Every public method defined in one module, by name."""
+    """Every public method defined on a class in one module, by name.
+
+    Parsed rather than matched. A regex on indentation cannot tell a method
+    from a function nested inside another function, and a nested function is
+    nearly always a callback registered rather than called by name — this
+    tool's own broadcast consumers are five of them, and counting those as dead
+    would be the tool failing its own test.
+    """
     try:
-        source = module_path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
+        tree = ast.parse(module_path.read_text(encoding="utf-8", errors="ignore"))
+    except (OSError, SyntaxError, ValueError):
         return []
-    names = re.findall(r"^\s+(?:async\s+)?def\s+([a-z][a-z0-9_]*)\s*\(", source, re.M)
-    return sorted({name for name in names if not name.startswith("_") and name not in BORING})
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for item in node.body:
+            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if not item.name.startswith("_") and item.name not in BORING:
+                    names.add(item.name)
+    return sorted(names)
 
 
 def method_callers(name: str, own: Path) -> int:
