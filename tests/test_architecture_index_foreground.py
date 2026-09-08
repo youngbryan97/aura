@@ -1,3 +1,16 @@
+"""The foreground guard on the architecture index, against the real methods.
+
+tests/conftest.py replaces ``ArchitectureIndex.build`` and
+``schedule_background_build`` with no-ops for every test, because a real build
+AST-parses every file under core/ and interface/ and took one suite file from 14
+seconds to over 155. This file is about those two methods, so it opts out.
+"""
+
+import pytest
+
+pytestmark = pytest.mark.real_architecture_index
+
+
 def test_architecture_index_defers_build_during_foreground_quiet_window(monkeypatch, tmp_path):
     from core.self.architecture_index import ArchitectureIndex
 

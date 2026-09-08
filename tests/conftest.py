@@ -561,7 +561,7 @@ def _fresh_conversation_transcript():
 
 
 @pytest.fixture(autouse=True)
-def _measured_host_rates_do_not_leak():
+def _measured_host_rates_do_not_leak(request):
     """One test's measured decode rate must not size the next test's answer.
 
     core.brain.llm.mlx_client._HOST_RATES is a process-wide dict written by
@@ -592,8 +592,18 @@ def _measured_host_rates_do_not_leak():
     overview is constant for every test and costs nothing.
 
     A test that genuinely wants a built index builds it itself, the way
-    AURA_SCREEN_BLUEPRINT is set back by the tests that are about it.
+    AURA_SCREEN_BLUEPRINT is set back by the tests that are about it — and a
+    test that is ABOUT the build says so with @pytest.mark.real_architecture_index
+    and gets the real methods. Without that marker, the five tests in
+    tests/test_architecture_index_foreground.py were exercising this stub: build
+    returned len(self._index) without ever consulting the foreground guard, and
+    schedule_background_build did nothing, so every assertion about deferral and
+    about the build thread was an assertion about two lambdas.
     """
+    if request.node.get_closest_marker("real_architecture_index"):
+        yield
+        return
+
     try:
         from core.brain.llm import mlx_client
     except ImportError:

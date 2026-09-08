@@ -187,6 +187,7 @@ markers = [
     "live: marks tests that require live Aura runtime/model/hardware access",
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks full-pipeline integration tests",
+    "real_architecture_index: opts out of the conftest stub that makes ArchitectureIndex.build a no-op",
     "stress: marks load/stress tests",
     "online: test requires live internet access (skip with '-m \"not online\"')",
     "hardware: marks tests that require local hardware, OS, or device access",
