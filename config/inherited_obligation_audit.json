@@ -674,27 +674,15 @@
   },
   "docs/CONNECTOME_TODO.md:25": {
    "carries_obligation": false,
-   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
-   "sha256": "e966c6d0bf31b76737bf7c36b8cc94f4dd96f52455be80c029d2e22f56408721",
+   "reason": "Re-audited after the block was rewritten. Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "8c9dbade126e8fca375627e2c636fb9e52f18c37b07054613acaa6867b27a441",
    "stratum": "rule:all_boxes_checked"
   },
   "docs/CONNECTOME_TODO.md:5": {
    "carries_obligation": false,
-   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
-   "sha256": "85d1009dde3d4ce7c4afb861415c7157dd5562b9f1e6f4879f1d4f99b7dc74ff",
+   "reason": "Re-audited after the block was rewritten. A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "44c42efe9f1a91b11bb1ed9528394acec7926a09c0fecf5433a1adbb035e03ca",
    "stratum": "rule:structural_framing"
-  },
-  "docs/CONNECTOME_TODO.md:74": {
-   "carries_obligation": false,
-   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
-   "sha256": "46bf125fe1706698712a58261b81964e990eef69bf7bcc29fa7e2ee201180c23",
-   "stratum": "rule:all_boxes_checked"
-  },
-  "docs/CONNECTOME_TODO.md:78": {
-   "carries_obligation": false,
-   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
-   "sha256": "441f707b715f4f9a9a225455e6aa9cdf8ab3ac654a25130e4af803f7a8a853dc",
-   "stratum": "rule:all_boxes_checked"
   },
   "docs/GENERALITY_TODO.md:154": {
    "carries_obligation": false,
@@ -1289,6 +1277,282 @@
    "reason": "A table's column-name row. It states no obligation.",
    "sha256": "606bfca2965ea1b1cc2da80f2e6f04c0eafb2d53e9a06459c1136505180f2429",
    "stratum": "rule:table_header"
+  },
+  "docs/CONNECTOME_TODO.md:16": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "f655f7225555198c14c9adb47563b1611936b386e2cde24ff1048d425cb4ea17",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/CONNECTOME_TODO.md:7": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "27739e876859c4d218390919046e97d037a9fee5cc665302255ff39858ac8b94",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/GENERALITY_TODO.md:1": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "3f1c9efa30006bf692796a193dc0b7a8bf4c7ddb9aa571b33437d2a8dc595735",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/GENERALITY_TODO.md:110": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "3e65bc7651d1bf0ea773efba7467d4ab5e4709089c965c8996b08a5af93eaf27",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/GENERALITY_TODO.md:40": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "d90c4addb7af8abcacced96fde7fd4c863b297b953f69efe975dfd7af0de187c",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/GENERALITY_TODO.md:537": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "b80eeaddce485434d3c6e86ae95ceff67878c2888929f9c91987986895965dda",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/LEARNED_LANGUAGE_INTERPRETATION_TODO.md:33": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "5ab06f5ed34797eaf2d552735f58cd60413bc40232ad5dd92c4c5c8320df7d68",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/LEARNED_LANGUAGE_INTERPRETATION_TODO.md:48": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "7724a6e2bf3c8f34072a0b2b7b64ff0c6f5536b8c41ab29e6ae2df03c0109512",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:101": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "af09a619659fb6e0c67ec7b872f09419ca578965fd287921640115c3fcaeb6ed",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:111": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "df26bab9f0a91e3db6f6ce9c496fdb1f66c3e326a26b0cb64de7cc69bfebd446",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:175": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "33cff186d5274eb0a3c67d626d76c205654b40c1fb4a103059e70b21f55f00a8",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:240": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "6511562fae0b1a7b41a53fe66a036cb20886e023b0fe4a4d15df7f93682f7883",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:25": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "f1f555c45e063a85ff2b018b5bb7a9d5a44bf47dea756e9816c7b02dd2b49471",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:258": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "caeccf034af75bc5b43617a988026b17564dc185a9d4a3c6d4bbe8cd6ed0141e",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:274": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "3aa781f830dd5482ee6130c23adc8c90b717ecb3e260352abca0c7e61a5a044a",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:289": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "1d7b53363646eead155851733fddbff2999e30b22099ca28a8c1f88b20909396",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:325": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "f52d711103d50a437830c6fbcd04fb4bab49a0f82f6d26d1c791c6e8488dd090",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:331": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "48360f9ef58aadc112996a3c45464ceeba2af7c0ce96c1dea8ab8be30928ecd9",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:351": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "1e9982d1e2e1e713be445dd400689d46e370f500fa95688ac68a5ed665b371bf",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:357": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "d0eaaad1872287f5af3f4279862ee8cad22c3f7e0551e694715984b9446e4dda",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:373": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "5f0b18ed9db649ad79437949e36f853d0cc4835c602bce2e3a15cbaf2fe7e213",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:38": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "e3988c1fcb83b3beff04f81f7940ca0fc23e17e859bd155868cbada8bbe29233",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:399": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "97cf6dc058e2509d95286ed73ccafbaf50b2b68a0fe2af156721a23b664ad5e5",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:42": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "94d1e0d18e0b79515c72f0381399854487a101940b565e0e28739d21b53015fa",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:431": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "05edeec2998a3fde87a968e928cf5b5431bca3a6ab7b9af662b6c4783fe9d8a4",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:435": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "02d5e5bdd7151c2b3d1437a2fc60f07714398d4ab69d6f84329f465567d18d61",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:458": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "a2d2371f9b0748d2d802f7188d9d67d2201584f7a15f063aa1a2791afa37fd20",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:513": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "914e7b3d4163c91d9b2d6dd0c08962a81bec9b1b35e8c2732827ec16fd741610",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:95": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "c9cccf4016e1523596c45c4c98d8fcbccbab6c88dded32e911d6babd23e3eb72",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:104": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "1a3b1488719b01e2e49cc74102cccca904512f21bc059f70f4f4d9e6ce90c275",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1058": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "ae63e10a800415d274777e834707bbb7c5f9a7243bfcd79248705dafcf2954fb",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1089": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "e6ddcdaffc6321356f294daca229c182c5a389b6fa75e7f4bdf871ca83914fb1",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1164": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "94d15b882fc4483119c6fcbc921fad09d12e922b89754f2c3d63ebac5ee6a984",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1194": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "cd8720a1c8d08a74cbb31b66a576444d0e2d102d208179b3440bfe13bcae4e08",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1213": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "9dd19510e28fa51ca816e911100fbacba9ed3d3f5a9d22828629dfdff52a87ae",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1372": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "6e3213df9cc2a130fad0c26f3d47088fd40097a68e96b53eb000d51c97dcd0e0",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:138": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "c79ebd36af7b55a89add30e81ea57477594420c40840e1b9cbdcce8053397ad1",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1623": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "22d34751cb36d68c0f719665d0be49bada639dd7b3e772794eda3663219d822f",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:1715": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "705d13749481eae36a071df84f421aa0c5f843edaa3596a6e9f64dcc73a54185",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:35": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "d40d769046b7affaff237d9fbb8a1e2269ff7d7ca96e90e47095bb24f973c5cb",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:415": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "96c7931f0d9b28feba87b6f412f4b99537ebc016fe0acedeb6465929f3acb775",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:607": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "8bc5bb2c09e45fd42787ff35b1d3c0188086e1a0856931e98f00e14fea34599a",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:80": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "0d19556c89df21c7ca4db44a1e518f345a857b54949ddeeca6b4166ff8f8de26",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:818": {
+   "carries_obligation": false,
+   "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
+   "sha256": "52804ce4c2e59f389f2acd098ff8af95a0c67a04ac17aeea9dd6ddd315a92c32",
+   "stratum": "rule:all_boxes_checked"
+  },
+  "docs/gap_atlas/TODO.md:903": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "5720acf235b6a19a0e626095b3640f751afed21cd6fcaa5e6ff7ccb28dfa5fb0",
+   "stratum": "rule:structural_framing"
+  },
+  "docs/worktodo/TODO.md:37": {
+   "carries_obligation": false,
+   "reason": "A bare heading or horizontal rule. The obligation, where there is one, is in the blocks beneath it.",
+   "sha256": "7935cc6c00f7e5765f82f4398e9977c11cd71069d99c5e2e6d9858c87b5494fb",
+   "stratum": "rule:structural_framing"
   }
  },
  "note": "Hand labels for the audit of every dismissed population. Each sampled block was read. carries_obligation true means the partition missed a live obligation and the detector must be repaired, not the label changed.",

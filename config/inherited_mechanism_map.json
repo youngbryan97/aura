@@ -519,7 +519,7 @@
         "G04",
         "L07"
       ],
-      "pattern": "(?i)repeatedly|ten times|once —|new distribution|unseen class|autonomous(ly)? construct|measurably improve|chain is worth"
+      "pattern": "(?i)repeatedly|ten times|once \u2014|new distribution|unseen class|autonomous(ly)? construct|measurably improve|chain is worth"
     },
     {
       "mechanism": "invariant_discipline",
@@ -629,7 +629,7 @@
         "G04",
         "L04"
       ],
-      "pattern": "(?i)universal|expressiveness|necessity direction|regress|algebra|grammar|E_\\{?t|⊋|substrate actually in the tree"
+      "pattern": "(?i)universal|expressiveness|necessity direction|regress|algebra|grammar|E_\\{?t|\u228b|substrate actually in the tree"
     },
     {
       "mechanism": "developmental_agency_audit",
@@ -829,6 +829,26 @@
         "R02"
       ],
       "pattern": "(?i)promotion controller|installer|stable live PID|negative verdict"
+    },
+    {
+      "mechanism": "biological_fidelity",
+      "queue": [
+        "G08",
+        "G12",
+        "L04"
+      ],
+      "pattern": "(?i)(human recording|EEG|MEG|fMRI|single-unit|receptor atlas|microcircuit island|H01|patch-seq|measured against a real brain)",
+      "reason": "Comparing a modelled quantity against a published biological measurement is independent verification of a claim about fidelity, which is what G08 and G12 are for, and the abstractions it produces are L04's."
+    },
+    {
+      "mechanism": "plasticity_and_dynamics",
+      "queue": [
+        "L03",
+        "L04",
+        "G06"
+      ],
+      "pattern": "(?i)(plasticity rule|STDP|homeostatic plasticity|structural plasticity|one set of dynamics|cell-type composition)",
+      "reason": "How connections change with use is a learning mechanism, so its evidence is L03's correctness-not-fluency standard, its reusable form is L04's, and scoring one rule against another is G06's."
     }
   ]
 }
