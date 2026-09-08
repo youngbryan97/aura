@@ -9188,12 +9188,38 @@ def _mlx_worker_loop(
                                     # the same kind of fact and was never
                                     # written down anywhere a deadline could
                                     # read it.
+                                    #
+                                    # MLX's measured prompt time, not the time
+                                    # to the first token. They differ by
+                                    # everything that happens before reading
+                                    # starts — weights paged in, the cache
+                                    # built, the sampler made, the queue —
+                                    # and on a cold worker that is most of it.
+                                    #
+                                    # LIVE, 2026-09-08: the read rates learned
+                                    # from first-token latency stood at about
+                                    # 14 characters a second, so the answer
+                                    # clock said a 9,558-character prompt would
+                                    # take 690 seconds to read and sized the
+                                    # turn at 893. The worker read it at 410
+                                    # to 990 tokens a second. A person watching
+                                    # that turn sees a runtime that has stopped.
+                                    _read_s = 0.0
                                     try:
-                                        _first_token_s = float(first_token_latency_s or 0.0)
-                                    except (TypeError, ValueError):
-                                        _first_token_s = 0.0
-                                    if _first_token_s > 0.0:
-                                        _record_read_rate(_prompt_chars_for_rate, _first_token_s)
+                                        _read_s = float(
+                                            generation_performance.get("prefill_seconds") or 0.0
+                                        )
+                                    except (AttributeError, TypeError, ValueError):
+                                        _read_s = 0.0
+                                    # Nothing when MLX did not time it. This
+                                    # module's own discipline: an unmeasured
+                                    # rate extends no deadline. Substituting
+                                    # first-token latency here is what put the
+                                    # 14 chars/s readings in the window in the
+                                    # first place, and they outlive the turn
+                                    # that produced them.
+                                    if _read_s > 0.0:
+                                        _record_read_rate(_prompt_chars_for_rate, _read_s)
                                     if token_count > 0 and _elapsed_decode_s > 0.0:
                                         surface_control_state["decode_tokens_per_second"] = (
                                             token_count / _elapsed_decode_s

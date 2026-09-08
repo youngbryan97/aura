@@ -144,7 +144,7 @@ def test_a_corrupt_row_on_disk_does_not_take_the_rest_with_it(
     rows.insert(4, ["not a number", "nor this"])
     rows.insert(9, [0, -1.0])
     (tmp_path / "decode_measurements.json").write_text(
-        json.dumps({"read_rates": rows, "rates": [], "reasoning_tokens": []})
+        json.dumps({reserve._READ_RATE_KEY: rows, "rates": [], "reasoning_tokens": []})
     )
 
     reserve._read_rates.clear()

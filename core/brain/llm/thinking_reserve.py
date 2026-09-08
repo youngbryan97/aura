@@ -514,6 +514,10 @@ def forget() -> None:
 #: Where the measurements live between processes.
 _STORE = "decode_measurements.json"
 
+#: Which clock the stored read rates were taken with. See the note beside the
+#: write. A row under any other key was measuring something else.
+_READ_RATE_KEY = "read_rates_from_measured_prompt_time"
+
 
 def _store_path() -> Path | None:
     try:
@@ -547,7 +551,7 @@ def _merge_in_what_is_already_stored(target: Path) -> None:
             _put_older_readings_first(_window_for(_ANY_MODEL), held, _one_pair)
         _read_rates[:0] = [
             row
-            for row in (_one_pair(item) for item in (stored.get("read_rates") or ()))
+            for row in (_one_pair(item) for item in (stored.get(_READ_RATE_KEY) or ()))
             if row is not None and row not in _read_rates
         ]
         del _read_rates[: max(0, len(_read_rates) - _WINDOW)]
@@ -677,7 +681,16 @@ def save() -> bool:
                 # other, and every restart began knowing nothing about how long
                 # a prompt takes to read. A measurement that does not survive
                 # is a measurement nobody has.
-                "read_rates": [[size, rate] for size, rate in _read_rates],
+                #
+                # The key names the clock. Until 2026-09-08 these were timed
+                # from first-token latency, which contains the reading and
+                # everything before it, and the stored window had settled at
+                # about 14 characters a second against a worker reading at
+                # 410 to 990 tokens a second. Those rows are not slow readings;
+                # they are measurements of a different quantity, so a reader
+                # that wants reading must not find them. Renaming the key
+                # retires them once, on the first write after the fix.
+                _READ_RATE_KEY: [[size, rate] for size, rate in _read_rates],
                 # And what a turn spends AFTER the last token. Added without
                 # its persistence at first, which is the mistake the note above
                 # this line describes: a fresh boot had no reserve until ten
@@ -736,7 +749,7 @@ def load() -> int:
                         taken += 1
                 except (TypeError, ValueError):
                     continue
-        for row in raw.get("read_rates") or ():
+        for row in raw.get(_READ_RATE_KEY) or ():
             try:
                 size, rate = row
                 if int(size) > 0 and float(rate) > 0.0:
