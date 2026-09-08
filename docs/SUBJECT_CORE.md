@@ -104,21 +104,23 @@ methodological defect was removed and each channel repaired:
 | | -0.031 | forward-chaining folds, nested penalty for the wider model |
 | | -0.011 | the penalty grid searched as a path rather than a product |
 | | **+0.0021** | the workspace fed and broadcasting, the substrate reaching affect |
-| latest | **-0.0777** | the same code, run again |
+| | **-0.0777** | the same code, run again |
+| latest | **-0.0010** | the self-prediction loop attached, memory read by content |
 
-The last two rows are the same instrument on the same organism, and they are
+Three of those rows are the same instrument on the same organism, and they are
 the honest measure of how much of this is noise: the score moves by 0.08
 between runs, against a preregistered bar of 0.05 and a matched surrogate floor
 of -0.011. What can be said is that the score is no longer reliably negative
 and is nowhere near the bar. What cannot be said, at 960 turns, is which side
 of zero it sits on.
 
-Ten edges survive all three preregistered bars: `S->G`, `S->C`, `S->W`, `S->N`,
-`M->G`, `G->N`, `W->N`, `A->N`, `D->N`, `P->N`. Six of them end at the lifetime
-state and three at the workspace, and nothing leaves either. The graph has no
-cycle, so six of the twenty-four criteria — strong connectivity, vertex
-connectivity, cycles, reentry, spread and replication — fail together on that
-one fact rather than on six.
+Eleven edges survive all three preregistered bars, and three domains now form a
+strongly connected component — the workspace, active memory and the self-state,
+with `G->M->S->G` closing it. That is §31 satisfied: what wins the competition
+reaches a specialised process, and that process changes a later competition.
+Seven domains remain outside it, and six of the twenty-four criteria — strong
+connectivity, vertex connectivity, cycles, reentry, spread and replication —
+fail together on that one fact rather than on six.
 
 The lesion is the result worth keeping. Clamping the cheapest cut — recurrent
 cognition, the self-state and the world model held still — lowers irreducibility,
@@ -128,8 +130,8 @@ the three, so §40 is not.
 
 ## The conjunction
 
-ISC(K) = 1 is an and, not an average. Eleven of twenty-four hold, from the most
-recent full run recorded in `artifacts/subject_core/subject_core_report.json` —
+ISC(K) = 1 is an and, not an average. Thirteen of twenty-four hold, from the
+most recent full run recorded in `artifacts/subject_core/subject_core_report.json` —
 960 turns, 31,680 frames, 164 state columns, 90 domain pairs, 1,440 paired arms:
 
 - [ ] **causal_closure_scc** (§14) — every domain reaches every other one
@@ -146,8 +148,8 @@ recent full run recorded in `artifacts/subject_core/subject_core_report.json` �
 - [x] **perturbational_complexity** (§26) — structured, not local and not a broadcast
 - [ ] **synergy** (§27) — joint information above 10% and above its shifted null
 - [x] **metastability** (§29) — regimes that persist and still turn over
-- [ ] **global_access** (§30) — the workspace reaches three heterogeneous consumers
-- [ ] **recurrent_global_access** (§31) — a consumer later changes the workspace again
+- [x] **global_access** (§30) — the workspace reaches three heterogeneous consumers
+- [x] **recurrent_global_access** (§31) — a consumer later changes the workspace again
 - [x] **self_drives_action** (§33) — changing the self-model changes what gets done
 - [x] **ownership** (§34) — the same world state updates the self differently when she caused it
 - [x] **fast_to_slow** (§38) — fast cognition changes the developmental state
@@ -238,6 +240,31 @@ published, so the body reached those layers saying a constant zero.
 **The affect phase pushed valence and arousal into the substrate under a key
 only the desktop boot registers.** Offline that lookup returned None and the
 whole channel was dead.
+
+**Active memory was read as a count, so nothing could be shown to reach it.**
+The retrieved set is bounded at four items and fills within a few turns, so its
+length is constant from then on while its contents change every cycle. The
+strongest intervention into memory measured 0.02 against a bar of 0.3. Read as
+a digest of what is in mind rather than how much, memory joined the strongly
+connected component on the next run.
+
+**A run of successful writes taught her an efficacy of zero.**
+`IntentionLoop.observe` decided whether the thing worked by sniffing the outcome
+text for `"ok": true` or `completed successfully`, while the caller who ran the
+tool had already passed a boolean to `record_action` that was never consulted.
+Five successful file writes: efficacy 0.0, and the efference comparator calling
+them "mostly world-caused". With the recorded flag preferred: efficacy 1.0,
+agency score 0.82, "strongly self-authored".
+
+**The self-prediction loop and the efference comparator were attached to
+nothing.** A hand-written rebuild of the battery's organ set listed its fields
+by name and silently dropped the two added after it was written, so eleven of
+the self-state's columns read zero for a whole session and every criterion
+resting on them failed on an organ that was there.
+
+**She wrote the file and never saw it.** The probe action wrote, verified and
+recorded — and nothing came back through the senses, so nothing she did could
+reach perception by any route.
 
 **The free-energy engine's action urgency never reached the drives.** The
 heartbeat reads it, to enter a workspace bid when free energy is high. The
