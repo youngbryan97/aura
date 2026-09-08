@@ -6814,7 +6814,7 @@ _NEVER_A_PERSON_NAME = frozenset(
     {
         # pronouns and their possessives
         "you", "she", "her", "hers", "him", "his", "its", "our", "ours",
-        "she", "their", "theirs", "them", "they", "your", "yours",
+        "their", "theirs", "them", "they", "your", "yours",
         # indefinites — the ones that read as a subject
         "all", "another", "any", "anybody", "anyone", "anything", "both",
         "each", "either", "everybody", "everyone", "everything", "few",
@@ -6825,7 +6825,7 @@ _NEVER_A_PERSON_NAME = frozenset(
         "that", "these", "this", "those", "what", "when", "where", "which",
         "who", "whom", "whose", "why",
         # determiners and quantifiers
-        "and", "another", "any", "but", "enough", "every", "less", "more",
+        "and", "but", "enough", "every", "less", "more",
         "much", "nor", "the", "yet",
         # auxiliaries and modals
         "are", "been", "being", "can", "could", "did", "does", "had", "has",
@@ -6834,8 +6834,8 @@ _NEVER_A_PERSON_NAME = frozenset(
         # subordinators and connectives
         "after", "although", "because", "before", "hence", "instead",
         "moreover", "nevertheless", "nonetheless", "once", "otherwise",
-        "since", "than", "that", "therefore", "though", "thus", "unless",
-        "until", "when", "whereas", "whether", "while",
+        "since", "than", "therefore", "though", "thus", "unless",
+        "until", "whereas", "whether", "while",
         # the prepositions a sentence can open with
         "about", "above", "across", "against", "along", "among", "around",
         "aside", "behind", "below", "beneath", "beside", "between", "beyond",
@@ -6845,9 +6845,9 @@ _NEVER_A_PERSON_NAME = frozenset(
         "upon", "with", "within", "without",
         # adverbs a reply commonly opens with
         "again", "already", "always", "even", "ever", "here", "just",
-        "later", "many", "maybe", "never", "not", "often", "only",
+        "later", "maybe", "never", "not", "often", "only",
         "perhaps", "rarely", "sometimes", "still", "then", "there",
-        "today", "tomorrow", "tonight", "usually", "yesterday", "yet",
+        "today", "tomorrow", "tonight", "usually", "yesterday",
     }
 )
 _RELATIONAL_FAMILIARITY_RES = (

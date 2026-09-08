@@ -1388,7 +1388,7 @@ class AdaptiveImmuneSystem:
         self.cfg = config or AdaptiveImmuneConfig()
         self._rng = np.random.default_rng(rng_seed)
         self._extractor = FeatureExtractor()
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.adaptation.adaptive_immunity._lock", reentrant=True)
         self._cells: list[ImmuneCell] = []
         self._tissue = TissueField(
             diffusion=self.cfg.tissue_diffusion,

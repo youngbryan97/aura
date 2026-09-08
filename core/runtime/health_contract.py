@@ -22,6 +22,7 @@ from enum import StrEnum
 from typing import Any
 
 from core.runtime.health_fragments import collect_health_fragments
+from core.runtime.lockdep import checked_lock
 from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("Aura.HealthContract")
@@ -2269,8 +2270,8 @@ def _runtime_integrity_block() -> dict[str, Any]:
 # ═══════════════════════════════════════════════════════════════════════
 
 _INTEGRITY_TTL_S = _float_env("AURA_HEALTH_INTEGRITY_TTL_S", 15.0)
-_INTEGRITY_LOCK = threading.Lock()
-_INTEGRITY_COLLECTION_LOCK = threading.Lock()
+_INTEGRITY_LOCK = checked_lock("core.runtime.health_contract._INTEGRITY_LOCK")
+_INTEGRITY_COLLECTION_LOCK = checked_lock("core.runtime.health_contract._INTEGRITY_COLLECTION_LOCK")
 _INTEGRITY_SNAPSHOT: dict[str, Any] | None = None
 _INTEGRITY_SNAPSHOT_AT = 0.0
 _INTEGRITY_SNAPSHOT_UNIX = 0.0
@@ -2495,7 +2496,7 @@ class ProbeVerdict:
         return {"kind": str(self.kind), "ok": self.ok, "reason": self.reason}
 
 
-_STARTUP_LATCH_LOCK = threading.Lock()
+_STARTUP_LATCH_LOCK = checked_lock("core.runtime.health_contract._STARTUP_LATCH_LOCK")
 _STARTUP_COMPLETE_AT: float | None = None
 # Fallback time base for the startup deadline: the moment this module was
 # imported. _process_uptime_seconds() reads the orchestrator's start time,

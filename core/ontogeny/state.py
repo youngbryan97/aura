@@ -41,7 +41,6 @@ has pressed into her.
 from __future__ import annotations
 
 import logging
-import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -344,7 +343,7 @@ def _default_state_path() -> Path:
 
 
 _state: OntogeneticState | None = None
-_state_lock = threading.Lock()
+_state_lock = checked_lock("core.ontogeny.state._state_lock")
 
 
 def get_state(input_width: int) -> OntogeneticState:

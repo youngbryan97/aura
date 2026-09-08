@@ -857,15 +857,30 @@ def _classify_store(path: Path) -> str:
 
 
 _spine: ExperienceSpine | None = None
-_spine_lock = threading.Lock()
+_spine_lock = checked_lock("core.ontogeny.experience._spine_lock")
 
 
 def get_experience_spine() -> ExperienceSpine:
     global _spine
-    if _spine is None:
-        with _spine_lock:
-            if _spine is None:
-                _spine = ExperienceSpine()
+    if _spine is not None:
+        return _spine
+    # Built outside the lock, published under it.
+    #
+    # The constructor opens its store and fsyncs, and a blocking disk
+    # operation inside a process-wide lock stalls every other caller — which
+    # is what `locks.no_open_splats` exists to say, and what it said the
+    # first time these two locks became visible to lockdep on 2026-09-07:
+    # "fsync attempted while holding ['core.ontogeny.service._core_lock',
+    # 'core.ontogeny.experience._spine_lock']".
+    #
+    # A race builds two and keeps one. That costs an extra open and a close;
+    # holding a lock across an fsync costs the loop.
+    built: ExperienceSpine | None = ExperienceSpine()
+    with _spine_lock:
+        if _spine is None:
+            _spine, built = built, None
+    if built is not None:
+        built.close()
     return _spine
 
 

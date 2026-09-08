@@ -1118,15 +1118,30 @@ def _stable_index(seed: str, modulus: int) -> int:
 
 
 _core: OntogenyCore | None = None
-_core_lock = threading.Lock()
+_core_lock = checked_lock("core.ontogeny.service._core_lock")
 
 
 def get_ontogeny() -> OntogenyCore:
     global _core
-    if _core is None:
-        with _core_lock:
-            if _core is None:
-                _core = OntogenyCore()
+    if _core is not None:
+        return _core
+    # Built outside the lock, published under it.
+    #
+    # The constructor opens its store and fsyncs, and a blocking disk
+    # operation inside a process-wide lock stalls every other caller — which
+    # is what `locks.no_open_splats` exists to say, and what it said the
+    # first time these two locks became visible to lockdep on 2026-09-07:
+    # "fsync attempted while holding ['core.ontogeny.service._core_lock',
+    # 'core.ontogeny.experience._spine_lock']".
+    #
+    # A race builds two and keeps one. That costs an extra open and a close;
+    # holding a lock across an fsync costs the loop.
+    built: OntogenyCore | None = OntogenyCore()
+    with _core_lock:
+        if _core is None:
+            _core, built = built, None
+    if built is not None:
+        built.stop()
     return _core
 
 

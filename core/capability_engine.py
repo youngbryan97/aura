@@ -11,7 +11,6 @@ import shutil
 import sqlite3
 import subprocess
 import sys
-import threading
 import time
 from collections.abc import Iterable, Mapping, Sequence
 from functools import lru_cache
@@ -58,7 +57,7 @@ _SKILL_INVOCATION_CUE_RE = re.compile(
 
 _TOOL_AFFORDANCE_SCAN_BUDGET_SECONDS = 0.05
 _TOOL_AFFORDANCE_SCAN_LIMIT = 192
-_CATALOG_LOCK_BOOTSTRAP = threading.Lock()
+_CATALOG_LOCK_BOOTSTRAP = checked_lock("core.capability_engine._CATALOG_LOCK_BOOTSTRAP")
 
 # Catalog lock order, innermost last. Every acquisition must be strictly
 # increasing; the ranks below are enforced by lockdep, not by convention.

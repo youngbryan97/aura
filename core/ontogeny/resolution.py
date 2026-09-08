@@ -214,7 +214,7 @@ class OutcomeSweeper:
 
 
 _registry: ResolverRegistry | None = None
-_registry_lock = threading.Lock()
+_registry_lock = checked_lock("core.ontogeny.resolution._registry_lock")
 
 
 def get_resolvers() -> ResolverRegistry:

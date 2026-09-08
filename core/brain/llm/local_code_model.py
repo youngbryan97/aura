@@ -57,8 +57,8 @@ _CLEANUP_TIMEOUT_S = 60.0
 _SUPPORTED_ARCHITECTURES = frozenset({"Qwen2ForCausalLM", "Qwen3ForCausalLM"})
 _REQUIRED_MODEL_FILES = ("config.json", "tokenizer.json", "tokenizer_config.json")
 
-_load_lock = threading.RLock()
-_generation_state_lock = threading.Lock()
+_load_lock = checked_lock("core.brain.llm.local_code_model._load_lock", reentrant=True)
+_generation_state_lock = checked_lock("core.brain.llm.local_code_model._generation_state_lock")
 _model: Any = None
 _tokenizer: Any = None
 _loaded_path: str | None = None
@@ -878,7 +878,7 @@ class LocalCodeModel:
 
 
 _singleton: LocalCodeModel | None = None
-_singleton_lock = threading.Lock()
+_singleton_lock = checked_lock("core.brain.llm.local_code_model._singleton_lock")
 
 
 def get_local_code_model() -> LocalCodeModel | None:

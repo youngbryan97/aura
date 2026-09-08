@@ -5,10 +5,10 @@ import logging
 import multiprocessing as mp
 import queue
 import sys
-import threading
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock
 from core.runtime.process_privilege import Privilege, ProcessRole
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.runtime.shutdown_execution import run_sync_shutdown_callable_blocking
@@ -357,7 +357,7 @@ class SensoryLocalClient:
     on_stop = stop
 
 _instance: SensoryLocalClient | None = None
-_client_lock = threading.Lock()
+_client_lock = checked_lock("core.senses.sensory_client._client_lock")
 
 def get_sensory_client() -> SensoryLocalClient:
     global _instance

@@ -19,6 +19,7 @@ dropped is counted.
 """
 
 from __future__ import annotations
+from core.runtime.lockdep import checked_lock
 
 import logging
 import threading
@@ -37,7 +38,7 @@ _local = threading.local()
 _original_call_handlers: Any = None
 _dropped = 0
 _deferred_total = 0
-_drop_lock = threading.Lock()
+_drop_lock = checked_lock("core.observability.handler_reentry._drop_lock")
 
 
 def _state() -> Any:

@@ -66,9 +66,9 @@ class MLXVisionClient:
         self._process: Any | None = None
         self._req_q: Any | None = None
         self._res_q: Any | None = None
-        self._lock = threading.Lock()
-        self._start_guard = threading.Lock()
-        self._pending_lock = threading.RLock()
+        self._lock = checked_lock("core.brain.llm.mlx_vision_client._lock")
+        self._start_guard = checked_lock("core.brain.llm.mlx_vision_client._start_guard")
+        self._pending_lock = checked_lock("core.brain.llm.mlx_vision_client._pending_lock", reentrant=True)
         self._pending_requests: dict[str, dict[str, Any] | None] = {}
         self._listener_thread: threading.Thread | None = None
         self._stop_event = threading.Event()

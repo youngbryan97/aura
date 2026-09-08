@@ -4238,13 +4238,26 @@ async def readyz(request: Request):
             readiness.get("conversation_ready") is True
             or conversation_lane_is_serving(snapshot.get("conversation_lane"))
         )
-        ready = bool(
-            readiness.get("healthy") is True
-            and readiness.get("system_ready") is True
-            and conversation_can_serve
-            and readiness.get("runtime_probe_healthy") is True
-            and required_probe_groups_pass(required_probes)
+        # One list, read twice: the verdict is every condition holding, and
+        # the explanation is the ones that do not. Written as two expressions
+        # they drift, and the drift is silent in the direction that matters —
+        # `healthy` was a conjunct of the verdict and absent from the
+        # explanation, so a runtime blocked on it answered 503 with an empty
+        # `issues` list.
+        #
+        # LIVE, 2026-09-07: `{"status":"not_ready","ready":false,"issues":[]}`
+        # while a turn was being served. A health surface that refuses and
+        # cannot say why is the shape this endpoint keeps producing; the
+        # chat route carries the same note about a condition with eight
+        # disjuncts whose warning printed seven.
+        conditions: tuple[tuple[str, bool], ...] = (
+            ("runtime_not_healthy", readiness.get("healthy") is True),
+            ("system_not_ready", readiness.get("system_ready") is True),
+            ("conversation_lane_not_ready", bool(conversation_can_serve)),
+            ("runtime_probe_unhealthy", readiness.get("runtime_probe_healthy") is True),
+            ("runtime_required_probes", bool(required_probe_groups_pass(required_probes))),
         )
+        ready = all(satisfied for _name, satisfied in conditions)
         issues = list(
             dict.fromkeys(
                 str(item)
@@ -4256,14 +4269,7 @@ async def readyz(request: Request):
             )
         )
         if not ready and not issues:
-            if readiness.get("system_ready") is not True:
-                issues.append("system_not_ready")
-            if not conversation_can_serve:
-                issues.append("conversation_lane_not_ready")
-            if readiness.get("runtime_probe_healthy") is not True:
-                issues.append("runtime_probe_unhealthy")
-            if not required_probe_groups_pass(required_probes):
-                issues.append("runtime_required_probes")
+            issues.extend(name for name, satisfied in conditions if not satisfied)
         metadata = dict(snapshot.get("health_read_model") or {})
         result = {
             "status": "ready" if ready else "not_ready",

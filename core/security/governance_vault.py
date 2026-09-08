@@ -23,7 +23,6 @@ import hashlib
 import json
 import logging
 import sqlite3
-import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -87,7 +86,7 @@ class GovernanceVault:
     def __init__(self, db_path: Path | None = None) -> None:
         self._db_path = Path(db_path or _DB_PATH)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.security.governance_vault._lock", reentrant=True)
         self._conn: sqlite3.Connection | None = None
         self._init_db()
         logger.info("GovernanceVault initialized at %s", self._db_path)
