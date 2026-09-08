@@ -213,12 +213,6 @@ class AffectUpdatePhase(Phase):
         
         self._ensure_affect_schema(affect)
 
-        # 1b. Advance the lifetime state on this moment, and let what it senses
-        # colour the moment. The reservoir used to step only when a memory
-        # retrieval happened to ask it something, so a day of conversation with
-        # no retrieval left her developmental state exactly where it started.
-        self._advance_lifetime(state, affect)
-
         # 2. Emotional Decay (Entropy & Momentum)
         # Ported from DamasioV2.pulse()
         self._apply_decay(affect)
@@ -246,6 +240,19 @@ class AffectUpdatePhase(Phase):
         
         # 6. Unified Personality Resonance (Unitary Logic)
         self._update_resonance(state)
+
+        # 6b. Advance the lifetime state on this moment, and let what it senses
+        # colour the moment. The reservoir used to step only when a memory
+        # retrieval happened to ask it something, so a day of conversation with
+        # no retrieval left her developmental state exactly where it started.
+        #
+        # After the emotion channels are settled, not before. The first version
+        # ran this at the top of the phase and the derived-affect step three
+        # steps later recomputed curiosity from the emotions dictionary, which
+        # overwrote the blend every time: displacing the developmental state
+        # far enough to take novelty from 0.60 to 1.00 moved curiosity by five
+        # ten-thousandths.
+        self._advance_lifetime(state, affect)
         
         # Direct Telemetry Bridge: Push VAD to LiquidSubstrate for real-time HUD sync
         from core.container import ServiceContainer
