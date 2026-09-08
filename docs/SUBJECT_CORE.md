@@ -37,18 +37,31 @@ A state variable is a live number whose value changes what the system computes
 next. Not a source file, not a module name, not generated prose. Ten domains,
 each a fixed-width vector read off the running organism:
 
+Half of each domain is read from `AuraState` and half from the live organs. The
+first version read only the state object and reported that the domains barely
+influence each other, which was true of the summary fields and false of the
+organism: most of the coupling happens between organs, and only its residue
+reaches the state.
+
 | | domain | read from |
 |---|---|---|
 | P | perception | percepts, their recency and spread, the objective as it arrives |
 | I | interoception | host load, thermals, thought latency, vitality |
-| A | affect | valence, arousal, curiosity, engagement, the Plutchik primaries |
-| G | workspace | attention focus, coherence, fragmentation, discourse energy |
-| C | recurrent cognition | mode, phi estimate, the phenomenal field and its latent |
-| S | self-state | stability, bonding, narrative version, personality growth |
+| A | affect | valence, arousal, the Plutchik primaries, physiology, the free-energy engine's action urgency |
+| G | workspace | coherence, fragmentation, discourse energy, and the live workspace's ignition, winner, tick and broadcast count |
+| C | recurrent cognition | mode, phi estimate, the phenomenal field, and the liquid substrate's valence, arousal, dominance, energy and volatility |
+| S | self-state | stability, bonding, personality growth, the self model's beliefs, and the agency ledger's counters |
 | M | active memory | working set, retrieved set, ledger, rolling summary |
-| W | world model | entities, relationships, verified facts, preferences |
+| W | world model | entities, relationships, verified facts, and the unified world model's surprise |
 | D | deliberation | goals, initiatives, origin, motivational budgets |
 | N | ontogeny | the lifetime reservoir's hidden state, novelty, displacement |
+
+One column was removed rather than added. `phenomenal_state.latent_snapshot` is
+128 numbers built by hashing the phenomenal claim, so two nearby states produce
+unrelated vectors and the distance between them means nothing; grepping the
+runtime finds it written once and read nowhere, which fails the test the schema
+opens with. It was contributing a third of a standard deviation to the floor
+between two untouched runs, and no signal.
 
 An edge in the graph exists only when displacing one domain moves another
 further than two untouched runs of the same forked life move each other. Three
@@ -121,7 +134,62 @@ where each domain sees a single scalar summary of everything, and a system with
 its slow state frozen. A recurrent reference is run alongside them: the
 instrument has to be capable of saying yes to something.
 
-## Two findings from building the instrument
+## What the battery found in the organism
+
+Every one of these is the same shape: a mechanism written for a job,
+registered, and never called. None of them was visible from the code, and each
+was found by asking the battery why an edge it expected was absent.
+
+**The offline harness was measuring a partly assembled machine.** Instrumenting
+the service lookups during one driven turn found 272 requests for an inhibition
+manager that was not there, 30 for a neural mesh, and a long tail after them.
+The battery now brings the layers up the way the desktop boot does and then
+takes their free-running loops back down, so the computation is the runtime's
+and the timing is the experiment's.
+
+**The global workspace had no candidates and broadcast to nobody.** Two places
+in the whole tree submit a candidate, both rare branches of the soul's drive
+handling, so the competition ran every tick over an empty list and the winner
+was None. When there was a winner it went to an attention schema, an event
+emitter, and a processor list nothing had ever registered anything on.
+`workspace_feed` turns the cycle's contents into bids priced by their own state;
+`broadcast_consumers` wires the winner to the substrate, the self model, affect,
+memory and deliberation.
+
+**`encode_text_to_stimulus` and `inject_stimulus` were written for each other
+and nothing connected them.** The winning broadcast now drives the substrate
+with its own priority as the weight, which is the reentrant half of global
+access.
+
+**The lifetime reservoir stepped only when a memory retrieval happened to ask
+it something.** A state that advances only when memory is queried is a
+retrieval-history state wearing the name of a developmental one. It advances
+once per cognitive cycle now, and what it senses reaches curiosity with the
+step's own displacement as the weight.
+
+**`AffectGroundingEngine` was registered as a service and never called once.**
+It derives affect from sustained evidence — prediction error from the world
+model, nociceptive pressure from the body, novelty from the lifetime state —
+and all three of those channels were readers with nothing running them.
+
+**She could not tell "I did this" from "this happened".** Her intention records
+are hers by construction and nothing else recorded authorship, so a self-model
+built from outcomes would take credit for weather. The agency ledger keeps the
+distinction as state.
+
+**Proprioception published system memory as `vram_usage`.** Three call sites in
+cognitive integration and the selfhood tick ask for `ram_usage`, which nothing
+published, so the body reached those layers saying a constant zero.
+
+**The affect phase pushed valence and arousal into the substrate under a key
+only the desktop boot registers.** Offline that lookup returned None and the
+whole channel was dead.
+
+**The free-energy engine's action urgency was computed and never consulted.**
+Drives ticked at the same rate whether the world was behaving as modelled or
+not.
+
+## Findings from building the instrument
 
 **Strong connectivity does not separate a star from a mind, and neither does
 vertex connectivity when the broker is not one of the nodes.** The star null
@@ -134,9 +202,37 @@ the conjunction. Both facts are pinned by tests in
 `tests/test_subject_core_measures.py`.
 
 **A wide model losing to a narrow one is not evidence that cutting helps.** The
-first partition search reported a confidently negative score. The intact model
-had a hundred and eleven inputs against a few thousand rows and overfitted;
-each cut model had a fraction of them and generalised better. Both sides are
-now reduced to four principal components per domain, fitted on training rows
-only, so the comparison is about which domains a model may look at rather than
-how many numbers it was handed.
+partition search reported a confidently negative score four separate times, and
+each time the cause was an unfairness in what the intact model was being asked
+to do that the cut models were not. It had a hundred and eleven inputs against
+a few thousand rows and overfitted, so both sides are reduced to four principal
+components per domain, fitted on training rows only. It was allowed one ridge
+strength for forty target columns, which is one compromise for forty problems
+and falls hardest on the model with the most inputs, so the strength is chosen
+per column. It was fitting a level that barely moves — held-out loss 0.025, so
+the comparison was of noise inside the remaining two and a half percent — so
+the target is the change. And a frame-to-frame step inside a turn is not one
+transition law but thirty-one of them, so the transition measures run on one
+row per turn and the phase identity is a covariate.
+
+The calibration after all four: the recurrent reference architecture scores
+0.212 and every null stays below 0.031, with the prompt-only null negative. The
+measure can say yes to something, which is the only thing that makes a no worth
+reading.
+
+**The sham floor was larger than anything being looked for.** Two arms of an
+intervention are compared against a third — a second untouched run of the same
+forked life — and that floor was ten units of temperature and half a standard
+deviation of recurrent cognition. The organs are process-wide singletons and
+the fork did not carry them, so the comparison was between an untouched
+organism and one that had already been touched; the body senses the real
+machine, so two arms seconds apart read different load; and the hashed latent
+was pure noise. Fixing all three brought the floor to 0.000 on interoception
+and 0.003 on affect.
+
+**A design can be unable to reach the threshold it is judged against.** The
+sign-flip test used four thousand draws, so the smallest p it could return was
+1/4001, and after correction across ninety pairs the smallest reachable q was
+0.022 against a bar of 0.01. No edge could pass however real it was, and the
+run reported an empty graph that read as a negative result about the organism.
+`power_note` now says so when a design cannot reach its own threshold.

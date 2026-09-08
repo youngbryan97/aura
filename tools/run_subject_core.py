@@ -68,7 +68,7 @@ def _scales(recording: Any) -> dict[str, np.ndarray]:
 
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--rounds", type=int, default=24, help="baseline turns per condition")
+    parser.add_argument("--rounds", type=int, default=120, help="baseline turns per condition")
     parser.add_argument("--trials", type=int, default=6, help="paired interventions per source per condition")
     parser.add_argument("--turns", type=int, default=2, help="turns each intervention arm runs")
     parser.add_argument("--agency-trials", type=int, default=5)
@@ -140,14 +140,25 @@ async def main() -> int:
     evidence["recording"] = recording.summary()
 
     _log("observational measures")
-    phi = phi_do(recording)
+    # Everything that fits K_{t+1} from K_t runs on one row per turn. A
+    # frame-to-frame step inside a turn is one line of the transition function,
+    # not a transition: the phases run in a fixed order and most domains do not
+    # move between two of them, so the frame series makes the prediction task
+    # "the same as last time" and the comparison a comparison of noise.
+    turns = recording.by_turn()
+    _log(f"{turns.frames} turns from {recording.frames} frames")
+    phi = phi_do(turns)
     evidence["phi"] = phi.as_dict()
+    evidence["phi_frame_level"] = phi_do(recording).as_dict()
     evidence["differentiation"] = effective_dimension(recording).as_dict()
-    evidence["intrinsic"] = intrinsic_gain(recording, seed=args.seed).as_dict()
-    evidence["metastability"] = regimes(recording, seed=args.seed).as_dict()
-    evidence["synergy"] = [item.as_dict() for item in synergy_suite(recording, seed=args.seed)]
+    evidence["intrinsic"] = intrinsic_gain(turns, seed=args.seed).as_dict()
+    evidence["metastability"] = regimes(turns, seed=args.seed).as_dict()
+    evidence["synergy"] = [item.as_dict() for item in synergy_suite(turns, seed=args.seed)]
     matrix, names = _periphery_matrix(periphery_rows)
-    evidence["closure"] = closure_gain(recording, matrix, names, seed=args.seed).as_dict()
+    turn_rows = recording.turn_rows()
+    evidence["closure"] = closure_gain(
+        turns, matrix[turn_rows] if matrix.size else matrix, names, seed=args.seed
+    ).as_dict()
     _log(
         f"phi_do={evidence['phi']['phi_do']} cut={evidence['phi']['best_cut']} "
         f"D_eff={evidence['differentiation']['d_eff_normalised']} "
@@ -317,7 +328,7 @@ async def _lesion(
         for _ in range(args.lesion_rounds):
             for condition in conditions:
                 frames.extend(await runtime.turn_once(condition))
-        recording = build_recording(frames, notes={"arm": label})
+        recording = build_recording(frames, notes={"arm": label}).by_turn()
         results = await run_interventions(
             runtime,
             conditions[:3],

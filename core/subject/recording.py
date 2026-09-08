@@ -80,6 +80,39 @@ class Recording:
         live = self.live_columns()
         return tuple(key for key in DOMAINS if bool(live[self.slices[key]].any()))
 
+    def turn_rows(self, marker: str = "ontogeny") -> np.ndarray:
+        """One row per turn: the last frame of each cognitive cycle.
+
+        A frame-to-frame step inside a turn is not a transition of the system,
+        it is one line of the transition function — the phases run in a fixed
+        order and most domains do not move at all between two of them. Every
+        measure that fits K_{t+1} from K_t belongs on this series, and the
+        frame series belongs to the perturbation measures, which are asking
+        about propagation inside a cycle rather than about the law between
+        cycles.
+        """
+        return np.array(
+            [index for index, tag in enumerate(self.tags) if tag == marker],
+            dtype=np.int64,
+        )
+
+    def by_turn(self, marker: str = "ontogeny") -> Recording:
+        """The same recording sampled once per turn."""
+        rows = self.turn_rows(marker)
+        if rows.size == 0:
+            return self
+        return Recording(
+            x=self.x[rows],
+            conditions=tuple(self.conditions[index] for index in rows),
+            tags=tuple(self.tags[index] for index in rows),
+            times=self.times[rows],
+            env=self.env[rows],
+            env_names=self.env_names,
+            columns=self.columns,
+            slices=self.slices,
+            notes={**self.notes, "sampled": "one frame per turn"},
+        )
+
     def condition_rows(self, condition: str) -> np.ndarray:
         return np.array(
             [index for index, name in enumerate(self.conditions) if name == condition],
