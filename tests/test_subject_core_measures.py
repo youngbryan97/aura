@@ -173,6 +173,23 @@ def test_a_hidden_broker_is_invisible_to_the_graph_measures():
 # ── differentiation, intrinsic, metastability ────────────────────────────
 
 
+def test_the_differentiation_threshold_is_passed_by_the_degenerate_nulls():
+    """The specification's 0.4 bar is failed by the reference and passed by the
+    two systems least like a mind.
+
+    Effective dimension is the participation ratio of the correlation
+    spectrum, and coupling lowers it because coupled variables share variance.
+    This pins the argument in the document: differentiation and irreducibility
+    pull in opposite directions on one scale, so a threshold high on both
+    cannot be met. The criterion stays in the conjunction and stays failed;
+    this is why.
+    """
+    reference = effective_dimension(_toy("recurrent")).normalised
+    for name in ("prompt_only", "frozen_slow"):
+        assert effective_dimension(_toy(name)).normalised > reference, name
+    assert reference < 0.4
+
+
 def test_effective_dimension_collapses_when_every_column_copies_one():
     rows = 500
     driver = np.random.default_rng(0).normal(size=(rows, 1))
