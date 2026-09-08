@@ -98,7 +98,7 @@ class CircuitDash:
 
     async def _draw_loop(self):
         layout = self._make_layout()
-        layout["header"].update(Panel("[bold white]Aura Zenith Production Node Monitoring[/bold white]", style="bg:blue"))
+        layout["header"].update(Panel("[bold white]Aura — Production Node Monitoring[/bold white]", style="bg:blue"))
         layout["footer"].update(Panel(f"Press Ctrl+C to exit dashboard | Refresh: {self.refresh_rate}s", style="dim"))
 
         with Live(layout, console=self.console, screen=True, refresh_per_second=1/self.refresh_rate) as live:
