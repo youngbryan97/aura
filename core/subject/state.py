@@ -402,6 +402,18 @@ _SCHEMAS: dict[str, Schema] = {
             ("concept_load", "cold.concept_graph"),
             ("user_trend", "cognition.user_emotional_trend"),
             ("model_surprise", "organ:world_model.surprise"),
+            # The learned world model carries a latent it steps on every
+            # observation, and a running surprise. Three counts of dictionary
+            # entries were most of what W read before this, which is why the
+            # partition search kept finding it cheap to cut off: a domain read
+            # as three slowly-moving counters is a domain that predicts itself.
+            ("model_hidden_norm", "organ:world_model.learned.hidden_norm"),
+            ("model_mean_surprise", "organ:world_model.learned.mean_surprise"),
+            ("model_last_surprise", "organ:world_model.learned.last_surprise"),
+            ("model_steps", "organ:world_model.learned.step_count"),
+            ("causal_nodes", "organ:world_model.causal.nodes"),
+            ("causal_edges", "organ:world_model.causal.edges"),
+            ("causal_confirmed", "organ:world_model.causal.causal_edges"),
             ("model_facets", "organ:world_model.status"),
             ("model_observations", "organ:world_model.observations"),
         ),
@@ -739,6 +751,8 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
     status = _call(organs.world_model, "status", {}) or {}
     facets = status.get("facets", {}) if isinstance(status, Mapping) else {}
     surprise = _call(organs.world_model, "surprise", None)
+    learned = (facets.get("learned", {}) or {}).get("detail", {}) or {}
+    causal = (facets.get("causal", {}) or {}).get("detail", {}) or {}
     return np.array(
         [
             _sat(_dig(state, "world.known_entities", {}) or {}, 8.0),
@@ -755,6 +769,13 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
             if isinstance(facets, Mapping)
             else 0.0,
             _f(getattr(organs.world_model, "_observations", 0.0)),
+            _sat(_f(learned.get("hidden_norm")), 8.0),
+            math.tanh(_f(learned.get("mean_surprise"))),
+            math.tanh(_f(learned.get("last_surprise"))),
+            _sat(_f(learned.get("step_count")), 10_000.0),
+            _sat(_f(causal.get("nodes")), 16.0),
+            _sat(_f(causal.get("edges")), 16.0),
+            _sat(_f(causal.get("causal_edges")), 8.0),
         ],
         dtype=np.float64,
     )
