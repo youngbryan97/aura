@@ -154,7 +154,6 @@ async def main() -> int:
     _log(f"{turns.frames} turns from {recording.frames} frames")
     phi = phi_do(turns)
     evidence["phi"] = phi.as_dict()
-    evidence["phi_frame_level"] = phi_do(recording).as_dict()
     evidence["differentiation"] = effective_dimension(recording).as_dict()
     evidence["intrinsic"] = intrinsic_gain(turns, seed=args.seed).as_dict()
     evidence["metastability"] = regimes(turns, seed=args.seed).as_dict()
