@@ -463,11 +463,65 @@ _DESKTOP_ACCESS_DIRECT_PROBE_TIMEOUT_S = _env_positive_float(
     2.0,
 )
 _SSE_IDLE_HEARTBEAT_S = _env_positive_float("AURA_SSE_IDLE_HEARTBEAT_S", 15.0)
-_SSE_QUEUE_BACKLOG_LIMIT = max(1, _safe_int(os.getenv("AURA_SSE_QUEUE_BACKLOG_LIMIT", ""), 100))
+def _declare_route_flag(name: str, *, default: str, description: str):
+    """Declare one of this module's knobs, or fall back to the raw read.
+
+    A route module must not fail to import because the flag registry is not
+    importable yet; the fallback keeps the old behaviour and the declaration is
+    what makes the knob visible in the flag report.
+    """
+    try:
+        from core.runtime.flags import FlagKind, declare
+
+        return declare(
+            name,
+            kind=FlagKind.STRING,
+            default=default,
+            description=description,
+            owner="interface.routes.system",
+        )
+    except (ImportError, ValueError):
+        class _Raw:
+            def value(self) -> str:
+                return os.environ.get(name, default)
+
+        return _Raw()
+
+
+# Declared rather than read raw. Each of these was an os.getenv or an
+# os.environ.get with its default written at the call site, so the same knob
+# had two spellings in one file and none of them appeared in the flag report.
+_FLAG_SSE_BACKLOG = _declare_route_flag(
+    "AURA_SSE_QUEUE_BACKLOG_LIMIT",
+    default="100",
+    description="How many events one SSE subscriber may fall behind before it is dropped.",
+)
+_FLAG_PROBE_THRESHOLD = _declare_route_flag(
+    "AURA_HEALTH_PROBE_DEGRADATION_THRESHOLD",
+    default="3",
+    description="Consecutive failed health probes before a degradation is recorded.",
+)
+_FLAG_PROBE_WORKERS = _declare_route_flag(
+    "AURA_HEALTH_PROBE_WORKERS",
+    default="2",
+    description="Threads the health probe pool runs with.",
+)
+_FLAG_GUI_PROXY = _declare_route_flag(
+    "AURA_GUI_PROXY",
+    default="",
+    description="Set to 1 when this process serves the desktop GUI through a proxy.",
+)
+_FLAG_REACT_SHELL = _declare_route_flag(
+    "AURA_ENABLE_REACT_SHELL",
+    default="",
+    description="Set to 1 to serve the experimental React shell.",
+)
+
+_SSE_QUEUE_BACKLOG_LIMIT = max(1, _safe_int(_FLAG_SSE_BACKLOG.value(), 100))
 _HEALTH_PROBE_TIMEOUT_S = _env_positive_float("AURA_HEALTH_PROBE_TIMEOUT_S", 2.5)
 _HEALTH_PROBE_DEGRADATION_THRESHOLD = max(
     2,
-    _safe_int(os.getenv("AURA_HEALTH_PROBE_DEGRADATION_THRESHOLD", ""), 3),
+    _safe_int(_FLAG_PROBE_THRESHOLD.value(), 3),
 )
 _HEALTH_PROBE_STUCK_THRESHOLD_S = max(
     10.0,
@@ -499,7 +553,7 @@ _HEALTH_PROBE_FUTURES: dict[bool, Future[tuple[dict[str, Any], int]]] = {}
 _HEALTH_PROBE_GENERATIONS: dict[bool, int] = {}
 _HEALTH_PROBE_STARTED_AT: dict[bool, float] = {}
 _HEALTH_PROBE_EXECUTOR = ThreadPoolExecutor(
-    max_workers=max(2, min(4, _safe_int(os.getenv("AURA_HEALTH_PROBE_WORKERS", ""), 2))),
+    max_workers=max(2, min(4, _safe_int(_FLAG_PROBE_WORKERS.value(), 2))),
     thread_name_prefix="AuraHealthProbe",
 )
 _HEALTH_CACHE_TTL_S = _env_positive_float("AURA_HEALTH_CACHE_TTL_S", 5.0)
@@ -4453,7 +4507,7 @@ async def _collect_api_health_payload(
     boot_snapshot, _ = build_boot_health_snapshot(
         orch,
         rt,
-        is_gui_proxy=os.environ.get("AURA_GUI_PROXY") == "1",
+        is_gui_proxy=str(_FLAG_GUI_PROXY.value()) == "1",
         conversation_lane=conversation_lane,
     )
     connected = bool(
@@ -5481,7 +5535,7 @@ async def api_ui_bootstrap(request: Request = None):
     boot_snapshot, _status_code = build_boot_health_snapshot(
         orch,
         rt,
-        is_gui_proxy=os.environ.get("AURA_GUI_PROXY") == "1",
+        is_gui_proxy=str(_FLAG_GUI_PROXY.value()) == "1",
         conversation_lane=conversation_lane,
     )
     status_obj = getattr(orch, "status", None)
@@ -5511,7 +5565,7 @@ async def api_ui_bootstrap(request: Request = None):
         "shell": "legacy_shell" if legacy_ui_index.exists() else "react_shell",
         "legacy_fallback_available": legacy_ui_index.exists(),
         "experimental_shell_available": (shell_dist_dir / "index.html").exists(),
-        "experimental_shell_enabled": os.environ.get("AURA_ENABLE_REACT_SHELL", "").strip().lower()
+        "experimental_shell_enabled": str(_FLAG_REACT_SHELL.value() or "").strip().lower()
         in {"1", "true", "yes", "on"},
     }
     legacy_ui_status["canonical_shell"] = (
@@ -5554,7 +5608,7 @@ async def api_ui_bootstrap(request: Request = None):
             ),
             "initialized": bool(getattr(status_obj, "initialized", False)),
             "websocket_clients": ws_manager.count(),
-            "is_gui_proxy": os.environ.get("AURA_GUI_PROXY") == "1",
+            "is_gui_proxy": str(_FLAG_GUI_PROXY.value()) == "1",
         },
         "access": access_profile,
         "runtime_revision": _runtime_revision_fallback_contract(),
@@ -5691,7 +5745,7 @@ async def api_ui_shell_error(payload: dict[str, Any] | None = _UI_SHELL_ERROR_BO
 async def api_boot_health(request: Request = None):
     _mark_runtime_service_progress("api.health.boot")
     payload, status_code = await _build_boot_health_payload_bounded(
-        is_gui_proxy=os.environ.get("AURA_GUI_PROXY") == "1",
+        is_gui_proxy=str(_FLAG_GUI_PROXY.value()) == "1",
     )
     access_profile = request_access_profile(request)
     payload = _runtime_revision_response_projection(

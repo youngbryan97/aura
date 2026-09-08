@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import importlib
 import logging
-import os
 import random
 import statistics
 import time
@@ -39,6 +38,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.connectome.types import ConnectomeSnapshot
+from core.runtime.flags import FlagKind
+
+
+def _declare(name: str, **spec: object):
+    """Declare a flag, falling back to a raw read where the registry is absent."""
+    from core.runtime.flags import declare
+
+    return declare(name, **spec)  # type: ignore[arg-type]
 
 __all__ = [
     "ArmResult",
@@ -69,10 +76,29 @@ def silenced_calls(uid: str) -> int:
     return _SUPPRESSED.get(uid, 0)
 
 
+#: AURA_TESTING is a process-bootstrap flag owned by core.runtime.state_ownership,
+#: so it is read through the registry rather than re-declared. AURA_ALLOW_LESION
+#: is this module's own, and is declared here with an owner and a default rather
+#: than left as a string comparison somebody has to find.
+_FLAG_ALLOW_LESION = _declare(
+    "AURA_ALLOW_LESION",
+    kind=FlagKind.STRING,
+    default="",
+    description=(
+        "Set to 1 to allow a lesion outside a test process, which is the caller "
+        "saying in as many words that this one is deliberate."
+    ),
+    owner="connectome",
+)
+
+
 def _guard() -> None:
-    if os.environ.get("AURA_TESTING") == "1":
+    from core.runtime.flags import get_flag
+
+    testing = get_flag("AURA_TESTING")
+    if testing is not None and str(testing.value() or "") == "1":
         return
-    if os.environ.get("AURA_ALLOW_LESION") == "1":
+    if str(_FLAG_ALLOW_LESION.value()) == "1":
         return
     raise LesionRefusedError(
         "a lesion patches a live module attribute; set AURA_TESTING=1 for a test "
