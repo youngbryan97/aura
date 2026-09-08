@@ -431,7 +431,10 @@ class SubjectRuntime:
         if condition.after == "retrieve":
             self._retrieve(condition.objective)
         elif condition.after == "act":
-            self._act(condition.objective, actor=self.actor)
+            # Off the loop. The action is a real write and a real read-back, so
+            # it carries an fsync, and an fsync on the event loop is the defect
+            # this driver exists to measure rather than to commit.
+            await asyncio.to_thread(self._act, condition.objective, actor=self.actor)
         await capture("after")
 
         await self._consciousness_tick()
@@ -592,13 +595,13 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
 
     from core.kernel.aura_kernel import AuraKernel, KernelConfig
     from core.ontogeny.state import OntogeneticState
-    from core.state.aura_state import AuraState
-    from core.state.state_repository import StateRepository
-    from core.subject.state import domain_width
 
     # The container has to exist before the kernel is built; the rest of the
     # organism comes up in `start_organism`, which is async.
     from core.service_registration import register_all_services
+    from core.state.aura_state import AuraState
+    from core.state.state_repository import StateRepository
+    from core.subject.state import domain_width
 
     try:
         register_all_services()

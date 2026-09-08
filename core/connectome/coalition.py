@@ -793,7 +793,41 @@ LESION_PREDICTIONS: tuple[LesionPrediction, ...] = (
         predicted_intact="reasoning on a single presented problem",
         predicted_lost="state-dependent prioritisation; ordering stops moving with state",
         readout="the order chosen over a fixed set of tasks under two states",
-        readout_available=False,
+        readout_available=True,
+    ),
+    # Round two. The first three were written from the theory and two of them
+    # named readouts that turned out not to be downstream of the station they
+    # were meant to test — the control lesion moved them as far. What the first
+    # run did find is below, registered as its own prediction and run again on
+    # an independent seed, because a quantity noticed in a result and a quantity
+    # written down before one are not the same kind of evidence and the only way
+    # to convert the first into the second is another run.
+    LesionPrediction(
+        name="higher_order_writes_the_self_reading",
+        station="higher_order",
+        predicted_intact="the pipeline completes and working memory still fills",
+        predicted_lost="the selfhood reading, and the variation in pending intents",
+        readout="cognition.selfhood_reading, and the spread of pending_intents across objectives",
+        readout_available=True,
+    ),
+    LesionPrediction(
+        name="workspace_computes_fragmentation",
+        station="workspace",
+        predicted_intact="the pipeline completes and affective engagement is untouched",
+        predicted_lost="the fragmentation score, and its movement across objectives",
+        readout="cognition.fragmentation_score, its spread and its affective gap",
+        readout_available=True,
+    ),
+    LesionPrediction(
+        name="affect_regulates_what_is_injected",
+        station="affect",
+        predicted_intact="the pipeline completes and pending intents still form",
+        predicted_lost=(
+            "regulation: an injected valence difference of 1.2 survives to the end of "
+            "the turn instead of being pulled back to 0.0004 of it"
+        ),
+        readout="the gap in affect.valence and affect.arousal between two injected states",
+        readout_available=True,
     ),
 )
 

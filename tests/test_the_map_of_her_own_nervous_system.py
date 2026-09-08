@@ -2049,7 +2049,13 @@ def test_a_recording_the_stations_did_not_fire_in_is_refused():
 def test_every_lesion_prediction_says_what_survives_and_what_does_not():
     from core.connectome.coalition import LESION_PREDICTIONS
 
-    assert len(LESION_PREDICTIONS) == 3
+    # Three from the theory, three from what the first run of them found. The
+    # list only grows: a prediction is deleted when the mechanism it describes
+    # is gone, never because it came out wrong.
+    assert len(LESION_PREDICTIONS) >= 6
+    assert len({prediction.name for prediction in LESION_PREDICTIONS}) == len(
+        LESION_PREDICTIONS
+    )
     for prediction in LESION_PREDICTIONS:
         assert prediction.predicted_intact
         assert prediction.predicted_lost
@@ -2352,3 +2358,163 @@ def test_each_station_claims_the_phase_assigned_to_it():
         if expected not in found:
             missing.append(f"{phase} wanted {expected}, patterns gave {sorted(found) or 'nothing'}")
     assert not missing, "\n".join(missing)
+
+
+# ---------------------------------------------------------------------------
+# do(i): the cut is exact, reversible, and scored against a comparable cut
+# ---------------------------------------------------------------------------
+
+
+def test_a_lesion_puts_the_cell_back_even_when_the_body_raises():
+    """A cut that does not heal turns one experiment into every later one."""
+    from core.connectome import intervene
+    from core.connectome.volume import VolumeReconstructor
+
+    before = VolumeReconstructor.build
+    try:
+        with intervene.silence("core.connectome.volume:VolumeReconstructor.build"):
+            assert VolumeReconstructor.build is not before
+            raise KeyboardInterrupt
+    except KeyboardInterrupt:
+        pass
+    assert VolumeReconstructor.build is before
+
+
+def test_a_silenced_cell_absorbs_its_calls_and_says_how_many():
+    from core.connectome import intervene
+
+    with intervene.silence("core.connectome.types:CellClass"):
+        pass  # a class is callable; the point is the count below
+
+    class _Holder:
+        @staticmethod
+        def work(value):
+            return value * 2
+
+    import core.connectome.types as types_module
+
+    types_module._probe_holder = _Holder  # type: ignore[attr-defined]
+    try:
+        with intervene.silence("core.connectome.types:_probe_holder.work", returns=0):
+            assert types_module._probe_holder.work(21) == 0
+            assert types_module._probe_holder.work(3) == 0
+        assert types_module._probe_holder.work(21) == 42
+        assert intervene.silenced_calls("core.connectome.types:_probe_holder.work") == 2
+    finally:
+        del types_module._probe_holder
+
+
+def test_an_async_cell_is_replaced_by_something_awaitable():
+    """Handing a coroutine's caller a plain value measures the crash, not the cut."""
+    import asyncio
+
+    from core.connectome import intervene
+    import core.connectome.types as types_module
+
+    class _Holder:
+        @staticmethod
+        async def work():
+            return "real"
+
+    types_module._probe_async = _Holder  # type: ignore[attr-defined]
+    try:
+        with intervene.silence("core.connectome.types:_probe_async.work", returns="cut"):
+            assert asyncio.run(types_module._probe_async.work()) == "cut"
+        assert asyncio.run(types_module._probe_async.work()) == "real"
+    finally:
+        del types_module._probe_async
+
+
+def test_a_lesion_refuses_what_it_cannot_cut():
+    from core.connectome import intervene
+
+    for uid in (
+        "core.connectome.types",
+        "core.connectome.types:NotThere",
+        "no.such.module:thing",
+        "core.connectome.types:CORTICAL_EI_RATIO",
+    ):
+        with pytest.raises(intervene.LesionRefusedError):
+            with intervene.silence(uid):
+                pass
+
+
+def test_the_control_is_matched_on_both_degrees():
+    from core.connectome.intervene import degree_matched_control
+    from core.connectome.types import (
+        CellClass,
+        Connection,
+        ConnectomeSnapshot,
+        EdgeKind,
+        Unit,
+    )
+
+    units = {
+        name: Unit(uid=name, name=name, neuropil="m", region="r", cell_class=CellClass.EXCITATORY)
+        for name in ("hub", "twin", "leaf", "a", "b", "c")
+    }
+    connections = {}
+    for pre, post in (
+        ("a", "hub"), ("b", "hub"), ("c", "hub"), ("hub", "leaf"),
+        ("a", "twin"), ("b", "twin"), ("c", "twin"), ("twin", "leaf"),
+    ):
+        connections[(pre, post, EdgeKind.DRIVE)] = Connection(
+            pre=pre, post=post, kind=EdgeKind.DRIVE, sign=1.0, contacts=1
+        )
+    snapshot = ConnectomeSnapshot(
+        version=1, units=units, connections=connections, neuropils={"m": tuple(units)}
+    )
+    assert degree_matched_control(snapshot, "hub") == "twin"
+
+
+def test_an_intervention_reports_a_lesion_that_never_bit():
+    """A cell nothing called is not a lesion, and looks exactly like a null one."""
+    from core.connectome.intervene import run_intervention
+    import core.connectome.types as types_module
+
+    class _Holder:
+        @staticmethod
+        def never_called():
+            return 1
+
+    types_module._probe_unused = _Holder  # type: ignore[attr-defined]
+    try:
+        report = run_intervention(
+            lambda: {"score": 1.0},
+            "core.connectome.types:_probe_unused.never_called",
+            control="core.connectome.types:_probe_unused.never_called",
+            repeats=2,
+        )
+        assert not report.bit
+        assert "never called" in report.verdict()
+    finally:
+        del types_module._probe_unused
+
+
+def test_a_registered_lesion_prediction_names_a_readout_that_exists():
+    """A prediction with no readout is a design, not an experiment.
+
+    Three of the six say what should be lost and were run; this pins that a
+    prediction claiming an available readout has one in the runner, on both
+    sides, so the claim and the machinery cannot drift apart.
+    """
+    import importlib.util
+
+    from core.connectome.coalition import LESION_PREDICTIONS
+
+    spec = importlib.util.spec_from_file_location(
+        "aura_run_lesions", Path(__file__).resolve().parents[1] / "tools" / "run_lesions.py"
+    )
+    assert spec is not None and spec.loader is not None
+    runner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runner)
+
+    for prediction in LESION_PREDICTIONS:
+        if not prediction.readout_available:
+            continue
+        assert prediction.name in runner.INTACT_READOUTS, prediction.name
+        lost = set(runner.LOST_READOUTS.get(prediction.name, ())) | set(
+            runner.RISING_READOUTS.get(prediction.name, ())
+        )
+        assert lost, f"{prediction.name} claims a readout and names nothing to lose"
+        assert prediction.station in runner.STATION_PHASES, prediction.station

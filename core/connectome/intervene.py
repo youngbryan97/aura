@@ -47,6 +47,7 @@ __all__ = [
     "degree_matched_control",
     "run_intervention",
     "silence",
+    "silence_all",
     "silenced_calls",
 ]
 
@@ -146,6 +147,24 @@ def silence(uid: str, *, returns: Any = None) -> Iterator[None]:
         yield
     finally:
         setattr(owner, name, original)
+
+
+@contextmanager
+def silence_all(uids: Sequence[str], *, returns: Any = None) -> Iterator[None]:
+    """Cut several cells at once, and put every one of them back.
+
+    A station is not one function. Silencing one of the three phases that stand
+    for higher-order monitoring and calling the result ``do(higher_order = 0)``
+    measures a third of what the prediction named, and the two are easy to
+    confuse in a report. Every cut is unwound in reverse on the way out, whether
+    or not the body raised.
+    """
+    from contextlib import ExitStack
+
+    with ExitStack() as stack:
+        for uid in uids:
+            stack.enter_context(silence(uid, returns=returns))
+        yield
 
 
 def degree_matched_control(

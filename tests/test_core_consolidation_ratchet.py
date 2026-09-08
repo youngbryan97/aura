@@ -44,6 +44,12 @@ ALLOWED_TOP_LEVEL = frozenset({
     # and the ratchet only tightens when a departed module leaves the allowlist
     # with it. Left in place, it would silently re-permit the module's return.
     "local_chat_brain", "global_workspace",
+    # the one seam that has to reach every package. The fourteen dispositions
+    # are homed next to what each is a kind of, in nine packages, and nine
+    # packages cannot import each other. Registration is by import, so one
+    # module has to do the importing, and a module that imports nine packages
+    # cannot live inside any of them. It holds no state.
+    "phenomena_wiring",
     # legacy shims shadowed by or redirecting to packaged implementations —
     # queued for the kill-shim pass; do NOT add new shims
     # drives removed: the shim no longer exists at core/ top level.
