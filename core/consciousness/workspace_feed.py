@@ -152,6 +152,28 @@ def build_candidates(state: Any) -> list[Any]:
                 )
             )
 
+    # An unprecedented moment deserves attention. The lifetime state computes
+    # exactly that number every cycle and nothing competed on it, so a life
+    # that had never seen anything like this bid the same as one on a familiar
+    # afternoon. Ordinary sits at 0.5 on the reservoir's own scale, so only a
+    # moment above ordinary enters.
+    try:
+        from core.ontogeny.lifetime import last_reading
+
+        reading = last_reading()
+        novelty = _clamp(getattr(reading, "novelty", 0.0)) if reading is not None else 0.0
+        if novelty > 0.5:
+            bids.append(
+                CognitiveCandidate(
+                    content=f"this is unlike the ordinary run of things ({novelty:.2f})",
+                    source="ontogeny",
+                    priority=novelty,
+                    content_type=ContentType.META,
+                )
+            )
+    except (ImportError, AttributeError, TypeError, ValueError):
+        pass
+
     if soma is not None:
         hardware = getattr(soma, "hardware", {}) or {}
         pressure = max(

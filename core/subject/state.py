@@ -271,6 +271,17 @@ _SCHEMAS: dict[str, Schema] = {
             ("tie_impasses", "organ:workspace.tie_impasses"),
             ("inhibited", "organ:workspace.inhibited_sources"),
             ("broadcasts", "organ:workspace.broadcast_history_len"),
+            # The homeostatic modifiers: how hot, how deep, how creative and how
+            # focused the next thought is allowed to be. They are the substrate
+            # and the drives reaching cognitive control, which is the one place
+            # the body's state becomes a parameter of thinking rather than a
+            # sentence about it.
+            ("modifier_temperature", "cognition.modifiers.temperature_mod"),
+            ("modifier_depth", "cognition.modifiers.depth_mod"),
+            ("modifier_creativity", "cognition.modifiers.creativity_mod"),
+            ("modifier_focus", "cognition.modifiers.focus_mod"),
+            ("modifier_vitality", "cognition.modifiers.overall_vitality"),
+            ("modifier_urgency", "cognition.modifiers.urgency_flag"),
         ),
     ),
     "C": _sch(
@@ -538,6 +549,7 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
 def _read_G(state: Any, organs: Organs) -> np.ndarray:
     focus = _dig(state, "cognition.attention_focus", "") or ""
     workspace = _call(organs.workspace, "get_status", {}) or {}
+    modifiers = _dig(state, "cognition.modifiers", {}) or {}
     return np.array(
         [
             1.0 if focus else 0.0,
@@ -559,6 +571,12 @@ def _read_G(state: Any, organs: Organs) -> np.ndarray:
             _sat(_f(workspace.get("tie_impasses")), 8.0),
             _sat(workspace.get("inhibited_sources") or [], 4.0),
             _sat(_f(workspace.get("broadcast_history_len")), 32.0),
+            _f(modifiers.get("temperature_mod"), 1.0),
+            _f(modifiers.get("depth_mod"), 1.0),
+            _f(modifiers.get("creativity_mod"), 1.0),
+            _f(modifiers.get("focus_mod"), 1.0),
+            _f(modifiers.get("overall_vitality"), 1.0),
+            1.0 if modifiers.get("urgency_flag") else 0.0,
         ],
         dtype=np.float64,
     )
@@ -861,8 +879,14 @@ def _perturb_P(state: Any, delta: float, ontogeny: Any) -> bool:
 
 def _perturb_I(state: Any, delta: float, ontogeny: Any) -> bool:
     del ontogeny
+    # These fields are percentages and milliseconds, not fractions. The first
+    # version clamped cpu_usage to [0, 1] while the runtime writes 0..100, so
+    # displacing the body by +0.15 set it to one percent — a large move in the
+    # wrong direction, dressed as a small one in the right one.
     hit = _bump(state, "soma.hardware.temperature", delta * 20.0, 0.0, 110.0)
-    hit |= _bump(state, "soma.hardware.cpu_usage", delta, 0.0, 1.0)
+    hit |= _bump(state, "soma.hardware.cpu_usage", delta * 100.0, 0.0, 100.0)
+    hit |= _bump(state, "soma.hardware.vram_usage", delta * 100.0, 0.0, 100.0)
+    hit |= _bump(state, "soma.hardware.ram_usage", delta * 100.0, 0.0, 100.0)
     hit |= _bump(state, "soma.latency.last_thought_ms", delta * 500.0, 0.0, 60_000.0)
     hit |= _bump(state, "vitality", -abs(delta), 0.0, 1.0)
     return hit
@@ -1026,11 +1050,24 @@ async def perturb_organs(organs: Organs, domain: str, delta: float) -> bool:
             hit = False
     elif domain == "G" and organs.workspace is not None:
         workspace = organs.workspace
+        # Displacing the workspace means changing what wins, not nudging a
+        # readout. Writing `ignition_level` moved the number the schema reads
+        # and nothing downstream, because the consumers fire on a broadcast and
+        # a broadcast comes from a competition. This enters a bid strong enough
+        # to change the outcome, which is the workspace intervention the
+        # specification asks for: perturb one workspace content.
         try:
-            workspace.ignition_level = min(
-                1.0, max(0.0, _f(getattr(workspace, "ignition_level", 0.0)) + delta)
+            from core.consciousness.global_workspace import CognitiveCandidate, ContentType
+
+            await workspace.submit(
+                CognitiveCandidate(
+                    content=f"subject core probe {delta:+.4f}",
+                    source="subject_core_probe",
+                    priority=min(1.0, max(0.0, 0.5 + delta * 3.0)),
+                    content_type=ContentType.META,
+                    affect_weight=abs(delta),
+                )
             )
-            workspace._current_phi = _f(getattr(workspace, "_current_phi", 0.0)) + delta
             hit = True
         except Exception:  # noqa: BLE001
             hit = False
