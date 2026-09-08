@@ -87,6 +87,9 @@ import subprocess
 logger = logging.getLogger(__name__)
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
 def is_allowed(value):
     """A predicate. Every exit is a boolean, so this is a gate."""
     if value is None:
@@ -2746,3 +2749,135 @@ def test_the_law_is_not_an_outage_when_its_own_machinery_is_missing():
             anatomy=_NotAReading(),
         )
     assert receipt.became == "canary"
+
+
+# ---------------------------------------------------------------------------
+# The reading hierarchy, against a meta-analysis of 163 human studies
+# ---------------------------------------------------------------------------
+
+
+def _reading_profile(name: str, cells: set, regions: dict | None = None):
+    from core.connectome.reading import ReadingProfile
+
+    return ReadingProfile(
+        condition=name,
+        cells=frozenset(cells),
+        by_region=regions or {"r": len(cells)},
+        frames=500,
+    )
+
+
+def test_every_human_reading_finding_carries_what_would_refuse_it():
+    from core.connectome.reading import HUMAN_READING
+
+    assert len(HUMAN_READING) == 5
+    for finding in HUMAN_READING:
+        assert finding.in_humans and finding.predicted_here and finding.falsifier
+        assert finding.predicted_here != finding.in_humans
+        # The prediction is about her, so it may not simply name a brain region.
+        assert "cortex" not in finding.predicted_here.lower()
+
+
+def test_a_core_is_what_every_level_fires_and_specific_is_what_only_one_does():
+    from core.connectome.reading import core_and_specific
+
+    profiles = {
+        "letter": _reading_profile("letter", {"a", "b", "L"}),
+        "word": _reading_profile("word", {"a", "b", "W"}),
+        "sentence": _reading_profile("sentence", {"a", "b", "S"}),
+        "text": _reading_profile("text", {"a", "b", "T"}),
+    }
+    shape = core_and_specific(profiles)
+    assert shape["core"] == 2
+    assert shape["specific"] == {"letter": 1, "word": 1, "sentence": 1, "text": 1}
+    assert shape["core_share_of_each"]["letter"] == pytest.approx(2 / 3, abs=1e-4)
+
+
+def test_the_frame_cap_is_what_stops_a_longer_condition_looking_bigger():
+    """A condition recorded twice as long fires more cells for that reason.
+
+    Without the cap, "text recruits the most machinery" is a statement about how
+    many frames text got.
+    """
+    import numpy as np
+
+    from core.connectome.activity import ActivityTrace
+    from core.connectome.reading import profile_condition
+    from core.connectome.types import CellClass, ConnectomeSnapshot, Unit
+
+    # Two conditions firing the same cell, one recorded four times as long, and
+    # a second cell that only fires in the long one's later frames.
+    rows = []
+    conditions = []
+    for index in range(500):
+        rows.append([1.0, 1.0 if index > 400 else 0.0])
+        conditions.append("long")
+    for _ in range(100):
+        rows.append([1.0, 0.0])
+        conditions.append("short")
+    trace = ActivityTrace(
+        uids=("one", "two"),
+        conditions=tuple(conditions),
+        spikes=[],
+        array=np.asarray(rows),
+    )
+    units = {
+        name: Unit(uid=name, name=name, neuropil="m", region="r", cell_class=CellClass.EXCITATORY)
+        for name in ("one", "two")
+    }
+    snapshot = ConnectomeSnapshot(
+        version=1, units=units, connections={}, neuropils={"m": ("one", "two")}
+    )
+    uncapped = profile_condition(trace, snapshot, "long")
+    capped = profile_condition(trace, snapshot, "long", frames_cap=100, seed=3)
+    assert uncapped.size == 2
+    assert capped.frames == 100
+    assert capped.size <= uncapped.size
+
+
+def test_two_routes_needs_both_sides_to_have_something_of_their_own():
+    from core.connectome.reading import dual_route
+
+    known = _reading_profile("word", {"a", "b", "K"})
+    unknown = _reading_profile("pseudoword", {"a", "b", "U"})
+    both = dual_route(known, unknown)
+    assert both["two_routes"] is True
+    assert both["only_known"] == 1 and both["only_unknown"] == 1
+
+    nested = dual_route(known, _reading_profile("pseudoword", {"a", "b"}))
+    assert nested["two_routes"] is False, "one route inside another is one route"
+
+
+def test_the_task_and_the_stimulus_are_measured_the_same_way():
+    """Comparing a distance with a count would decide the answer in advance."""
+    from core.connectome.reading import task_over_stimulus
+
+    profiles = {
+        "word": _reading_profile("word", {"a", "b", "c", "d"}),
+        "sentence": _reading_profile("sentence", {"a", "b", "c", "e"}),
+        "judge_word": _reading_profile("judge_word", {"x", "y", "z", "w"}),
+    }
+    measured = task_over_stimulus(
+        profiles,
+        same_task_pairs=[("word", "sentence")],
+        same_stimulus_pairs=[("word", "judge_word")],
+    )
+    assert measured["task_beats_stimulus"] is True
+    assert 0.0 <= measured["distance_when_the_text_changes"] <= 1.0
+    assert 0.0 <= measured["distance_when_the_question_changes"] <= 1.0
+
+
+def test_the_reading_analysis_that_was_run_is_the_one_that_is_published():
+    """The numbers in CONNECTOME.md come out of the artefact, not out of prose."""
+    import json
+
+    path = Path(__file__).resolve().parents[1] / "artifacts" / "connectome" / "reading" / "reading_analysis.json"
+    if not path.exists():
+        pytest.skip("no reading recording on this checkout")
+    payload = json.loads(path.read_text())
+    from core.connectome.reading import HUMAN_READING
+
+    assert set(payload["findings"]) == {finding.name for finding in HUMAN_READING}
+    for row in payload["findings"].values():
+        assert isinstance(row["holds"], bool)
+        assert row["falsifier"]

@@ -1,8 +1,42 @@
 # The connectome
 
-Aura has a map of her own nervous system. It is built from her source, it is
-recorded while she runs, and every number in it is compared against a published
-measurement from a real brain.
+## What this is, exactly
+
+**Aura's connectome is not a second neural network.** It is nothing you could
+run a forward pass through, and it holds no weights.
+
+`core/connectome/volume.py` reconstructs the computational anatomy of her source
+code. The mapping is:
+
+| in tissue | here |
+| --- | --- |
+| cell | a function or method |
+| neuropil | a module |
+| region | a package |
+| synaptic contact | one call site |
+| connection strength | how many call sites join the pair |
+| gating anatomy | the guards a call has to pass |
+
+Where a method call cannot be resolved to one definition, the edge is left out
+rather than guessed, and the count of what was left out is published beside
+everything else.
+
+So its first role is **software connectomics**: measuring the organism the code
+actually forms. That is worth having because an architecture document tells you
+what the people writing it intended, and this recovers what reaches what.
+
+Its second role is that some of it reaches runtime behaviour. Warming is driven
+by it. Decision bounds in draft selection are set from laminar and
+neuromodulatory measurements taken through it. The criticality regulator steers
+on a branching ratio it computes. Gates and telemetry are registered. And since
+[the anatomical law](#the-shape-of-the-system-refuses), a change that leaves the
+system worse built past what its blast radius allows is refused rather than
+recorded — which is the difference between a diagnosis and a constitution.
+
+What it is compared against is real brains: H01 human cortex, the fly central
+nervous system, MICrONS, the cortical microcircuit, and a meta-analysis of 163
+human reading studies. Those comparisons are of shape and proportion. Nothing
+here claims her modules are cortex.
 
 This document says what the map is, what it found, and how to rebuild it.
 
@@ -353,6 +387,88 @@ gone.
 The seam scan needed the lesson this package had already learned in the call
 graph. `get_field_state` is also a method of the unified field, and matching on
 the method name alone attributed its call sites to the mesh.
+
+## The shape of the system refuses
+
+`anatomy_gate` can measure what a change did to the anatomy on seven axes, and
+the promotion layer wrote that measurement into the receipt. Nothing read it
+back, so the strongest thing the record could say about a change that left the
+system worse built was that somebody had noticed. A measurement nothing refuses
+on is a diagnosis.
+
+`core/connectome/anatomy_law.py` is the law. A regression larger than the
+change's own blast radius is refused, and `promote` raises rather than returning
+a receipt — a receipt for a promotion that must not happen is worse than none.
+
+The tolerance is derived rather than picked. `how_far_it_reaches` already
+returns the claim size a change to each part has to support, from Hoeffding at
+that tier, and the allowance is that number:
+
+| a change to | may cost |
+| --- | --- |
+| a word, or what is done | 0.5 |
+| a way of building | 0.4 |
+| a way of computing, a rule | 0.3 |
+| the search, the proposer | 0.2 |
+| what a change is worth | 0.1 |
+
+Three things keep it a constitution rather than an outage. Not every regression
+is refused — a change that adds a module necessarily adds coupling, and a law
+that called that a fault would stop development. Counted axes are counted in
+whole units, because dividing a count by a total the same edit changed measures
+the denominator. And "nobody measured it" passes, except at the search and the
+deciding, where every later decision runs through the part. Rollbacks are never
+refused, and when the law's own machinery cannot be consulted the change
+proceeds with that in the receipt.
+
+It refused two existing promotions the moment it was wired: one that installed
+an order into the search with no reading at all, and one of my own tests.
+
+## Reading, against 163 human studies
+
+Turker, Fumagalli, Kuhnke and Hartwigsen pooled 163 fMRI experiments, 3,031
+subjects and 5,444 activation peaks into one question: what does a brain recruit
+when it reads, and how does that change with what is read and what is done with
+it. Five of their findings are shaped like something this instrument can ask of
+her, because a coordinate-based meta-analysis over conditions and a recording
+over conditions are the same instrument pointed at different tissue.
+
+All five were written down with their falsifiers before the recording was made
+(`core/connectome/reading.py`). She was then driven over the same contrasts
+through 175 discovered surfaces that read a string — every one-argument text
+function in her language, conversation, intent, cognition and perception
+packages, found rather than listed, because the first version of this named four
+by hand, three of which did not exist, and recorded eight cells. Every condition
+is measured over the same number of frames, so a profile's size is about what
+fired rather than how long it ran.
+
+| finding | in humans | in her |
+| --- | --- | --- |
+| a common core | one shared network under every reading task | **refused** — the core is 188 cells, 17% of the union, and a minority of what letters and words fire |
+| level-specific machinery | each level recruits tissue no other does | **holds** — every level has cells of its own |
+| the middle recruits most | letters focal, words and sentences distributed, text focal again | **refused** — specificity falls monotonically: letter 524, word 16, sentence 6, text 1 |
+| two routes | known words and unknown strings take different frontal routes | **holds** — 80 cells only known names fire, 59 only unknown ones, 476 shared |
+| the task moves more than the text | identical words read versus judged give distinct networks | **refused** — changing the text moves it 0.52, changing the question 0.12 |
+
+Two of those refusals name something real.
+
+**Her letter-level specificity is not a perceptual pathway.** 524 cells fire for
+single characters and no other level, and they are scattered — the largest
+concentration in any one module is twelve, and the modules are
+`the_floor_she_stands_on`, `cortex_migration_authority`, `service_registry`,
+`errors`, `aura_logging`. That is infrastructure and refusal machinery tripped
+by a degenerate input, not a route for reading letters. The human letter-specific
+region is one focal cluster in visual cortex. Hers is specific and diffuse, which
+is the signature of accidental recruitment.
+
+**Her reading is driven by the input rather than by the question.** In humans,
+what you are asked to do with a word reshapes the network more than the word
+does. In her the ratio is 0.23 the other way. Whatever she is asked about a
+piece of text, nearly the same machinery runs.
+
+The dual-route result is the one that holds cleanly, and it holds for the right
+reason: a name she already has resolves through a store, and one she has never
+seen takes a different path.
 
 ## The mapping
 

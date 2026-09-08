@@ -1,0 +1,332 @@
+{
+  "profiles": {
+    "letter": {
+      "condition": "letter",
+      "cells": 1036,
+      "frames": 467,
+      "regions": 19,
+      "concentration": 0.3609,
+      "largest_regions": [
+        {
+          "region": "runtime",
+          "cells": 218
+        },
+        {
+          "region": "cognition",
+          "cells": 122
+        },
+        {
+          "region": "conversation",
+          "cells": 85
+        },
+        {
+          "region": "brain",
+          "cells": 49
+        },
+        {
+          "region": "memory",
+          "cells": 31
+        },
+        {
+          "region": "language",
+          "cells": 24
+        }
+      ]
+    },
+    "word": {
+      "condition": "word",
+      "cells": 556,
+      "frames": 467,
+      "regions": 15,
+      "concentration": 0.377,
+      "largest_regions": [
+        {
+          "region": "runtime",
+          "cells": 207
+        },
+        {
+          "region": "cognition",
+          "cells": 102
+        },
+        {
+          "region": "conversation",
+          "cells": 80
+        },
+        {
+          "region": "brain",
+          "cells": 36
+        },
+        {
+          "region": "memory",
+          "cells": 27
+        },
+        {
+          "region": "language",
+          "cells": 22
+        }
+      ]
+    },
+    "sentence": {
+      "condition": "sentence",
+      "cells": 357,
+      "frames": 467,
+      "regions": 13,
+      "concentration": 0.479,
+      "largest_regions": [
+        {
+          "region": "runtime",
+          "cells": 171
+        },
+        {
+          "region": "cognition",
+          "cells": 52
+        },
+        {
+          "region": "conversation",
+          "cells": 42
+        },
+        {
+          "region": "perception",
+          "cells": 22
+        },
+        {
+          "region": "brain",
+          "cells": 16
+        },
+        {
+          "region": "memory",
+          "cells": 14
+        }
+      ]
+    },
+    "text": {
+      "condition": "text",
+      "cells": 321,
+      "frames": 467,
+      "regions": 13,
+      "concentration": 0.352,
+      "largest_regions": [
+        {
+          "region": "runtime",
+          "cells": 113
+        },
+        {
+          "region": "cognition",
+          "cells": 82
+        },
+        {
+          "region": "brain",
+          "cells": 36
+        },
+        {
+          "region": "conversation",
+          "cells": 32
+        },
+        {
+          "region": "memory",
+          "cells": 15
+        },
+        {
+          "region": "governance_context",
+          "cells": 13
+        }
+      ]
+    },
+    "pseudoword": {
+      "condition": "pseudoword",
+      "cells": 535,
+      "frames": 467,
+      "regions": 14,
+      "concentration": 0.385,
+      "largest_regions": [
+        {
+          "region": "runtime",
+          "cells": 206
+        },
+        {
+          "region": "cognition",
+          "cells": 110
+        },
+        {
+          "region": "conversation",
+          "cells": 99
+        },
+        {
+          "region": "brain",
+          "cells": 29
+        },
+        {
+          "region": "memory",
+          "cells": 27
+        },
+        {
+          "region": "language",
+          "cells": 21
+        }
+      ]
+    },
+    "judge_word": {
+      "condition": "judge_word",
+      "cells": 603,
+      "frames": 467,
+      "regions": 16,
+      "concentration": 0.3566,
+      "largest_regions": [
+        {
+          "region": "runtime",
+          "cells": 215
+        },
+        {
+          "region": "cognition",
+          "cells": 112
+        },
+        {
+          "region": "conversation",
+          "cells": 98
+        },
+        {
+          "region": "brain",
+          "cells": 48
+        },
+        {
+          "region": "memory",
+          "cells": 27
+        },
+        {
+          "region": "language",
+          "cells": 22
+        }
+      ]
+    },
+    "frames_per_condition": 467
+  },
+  "findings": {
+    "common_core": {
+      "holds": false,
+      "measured": {
+        "levels": [
+          "letter",
+          "word",
+          "sentence",
+          "text"
+        ],
+        "core": 188,
+        "union": 1124,
+        "core_share_of_union": 0.1673,
+        "core_share_of_each": {
+          "letter": 0.1815,
+          "word": 0.3381,
+          "sentence": 0.5266,
+          "text": 0.5857
+        },
+        "specific": {
+          "letter": 524,
+          "word": 16,
+          "sentence": 6,
+          "text": 1
+        },
+        "specific_share": {
+          "letter": 0.5058,
+          "word": 0.0288,
+          "sentence": 0.0168,
+          "text": 0.0031
+        }
+      },
+      "in_humans": "Every reading task recruits one shared peri-Sylvian network \u2014 left inferior frontal, ventral occipito-temporal and temporo-parietal cortex \u2014 whatever is being read.",
+      "predicted_here": "A set of cells fires under every level of input, and it is a large fraction of what fires at any single level.",
+      "falsifier": "The levels share almost no cells, so there is no core and each level runs its own machinery."
+    },
+    "level_specificity": {
+      "holds": true,
+      "measured": {
+        "specific": {
+          "letter": 524,
+          "word": 16,
+          "sentence": 6,
+          "text": 1
+        },
+        "specific_share": {
+          "letter": 0.5058,
+          "word": 0.0288,
+          "sentence": 0.0168,
+          "text": 0.0031
+        },
+        "concentration": {
+          "letter": 0.3609,
+          "word": 0.377,
+          "sentence": 0.479,
+          "text": 0.352,
+          "pseudoword": 0.385,
+          "judge_word": 0.3566
+        }
+      },
+      "in_humans": "Each level also recruits machinery no other level does, and that specific part is left-lateralised rather than spread over both hemispheres.",
+      "predicted_here": "Each level fires cells no other level fires, and those cells are concentrated in few regions rather than spread evenly.",
+      "falsifier": "No level has cells of its own, or the level-specific cells are spread across regions no more concentrated than the core is."
+    },
+    "the_middle_recruits_most": {
+      "holds": false,
+      "measured": {
+        "order": [
+          "letter",
+          "word",
+          "sentence",
+          "text"
+        ],
+        "specific": {
+          "letter": 524,
+          "word": 16,
+          "sentence": 6,
+          "text": 1
+        },
+        "peak": "letter",
+        "peaks_in_the_middle": false,
+        "monotonic": true
+      },
+      "in_humans": "Letters give one focal occipital cluster and text one small frontal cluster, while words and sentences give distributed networks. The middle of the hierarchy is where the most machinery is specific.",
+      "predicted_here": "Specific machinery is largest for the middle levels and smaller at both ends.",
+      "falsifier": "Specific machinery grows monotonically with level, or shrinks monotonically, rather than peaking in the middle."
+    },
+    "dual_route": {
+      "holds": true,
+      "measured": {
+        "known_cells": 556,
+        "unknown_cells": 535,
+        "shared": 476,
+        "only_known": 80,
+        "only_unknown": 59,
+        "overlap": 0.774,
+        "own_share_known": 0.1439,
+        "own_share_unknown": 0.1103,
+        "two_routes": true
+      },
+      "in_humans": "A familiar word engages pars orbitalis and the pars opercularis/MFG intersection; an unfamiliar letter string engages ventral pars opercularis toward premotor cortex. Known and unknown take different routes.",
+      "predicted_here": "A name she already holds and a well-formed name she has never seen fire measurably different cells, not merely more of the same ones.",
+      "falsifier": "Known and unknown strings fire the same cells in the same proportions; there is one route."
+    },
+    "task_beats_stimulus": {
+      "holds": false,
+      "measured": {
+        "stimulus_pairs": 3,
+        "task_pairs": 1,
+        "distance_when_the_text_changes": 0.5208,
+        "distance_when_the_question_changes": 0.1185,
+        "task_beats_stimulus": false,
+        "ratio": 0.2275
+      },
+      "in_humans": "Identical words read silently versus judged for lexicality produce clearly distinct networks \u2014 decision machinery for the judgement, a reading profile for the reading.",
+      "predicted_here": "Changing what she is asked to DO with identical text changes which cells fire more than changing the text at a fixed task does.",
+      "falsifier": "The task makes less difference than the stimulus, so what she runs is driven by the input rather than by the question."
+    }
+  },
+  "skipped": "",
+  "confirmed": [
+    "dual_route",
+    "level_specificity"
+  ],
+  "refused": [
+    "common_core",
+    "task_beats_stimulus",
+    "the_middle_recruits_most"
+  ]
+}
