@@ -48,7 +48,7 @@ FRESH = {
 async def test_she_answers_the_question_her_own_click_raised(monkeypatch):
     state = {"clicks": [], "phase": "asked"}
 
-    async def read(app_name=""):
+    async def read(app_name="", over=None):
         return ASKED if state["phase"] == "asked" else FRESH
 
     async def click(x, y, *, expect_app="", bounds=None):
@@ -69,7 +69,7 @@ async def test_she_does_not_press_the_same_control_again(monkeypatch):
     """Pressing the control that raised the question just re-asks it."""
     pressed = []
 
-    async def read(app_name=""):
+    async def read(app_name="", over=None):
         return ASKED
 
     async def click(x, y, *, expect_app="", bounds=None):
@@ -88,7 +88,7 @@ async def test_nothing_is_pressed_when_nothing_is_asking(monkeypatch):
     """A surface that simply did not change is not a dialog."""
     pressed = []
 
-    async def read(app_name=""):
+    async def read(app_name="", over=None):
         return BOARD
 
     async def click(x, y, *, expect_app="", bounds=None):
@@ -105,7 +105,7 @@ async def test_nothing_is_pressed_when_nothing_is_asking(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_a_reset_that_simply_worked_asks_nothing(monkeypatch):
-    async def read(app_name=""):
+    async def read(app_name="", over=None):
         return FRESH
 
     async def click(x, y, *, expect_app="", bounds=None):

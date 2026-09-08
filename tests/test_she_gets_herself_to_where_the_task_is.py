@@ -151,7 +151,7 @@ async def test_a_pursuit_that_cannot_get_there_does_not_start_playing(monkeypatc
         pressed.append(key)
         return True
 
-    async def read(app_name=""):
+    async def read(app_name="", over=None):
         return {"ok": True, "text": "board", "layout": [], "bounds": []}
 
     async def nowhere(wanted, **kw):
@@ -375,7 +375,7 @@ async def test_the_page_she_opened_is_the_window_she_acts_on(monkeypatch):
         fronted.append(app)
         return True
 
-    async def read(app_name=""):
+    async def read(app_name="", over=None):
         return {"ok": True, "text": "board", "layout": [], "bounds": []}
 
     async def press(key, *, expect_app=""):

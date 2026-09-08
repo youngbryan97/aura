@@ -6026,7 +6026,19 @@ async def _settled_after(
     # game, on a board she was reading perfectly.
     from core.perception.where_it_responds import places_and_text  # noqa: PLC0415
 
-    was = places_and_text(before)
+    def _reading(observation: dict[str, Any]) -> tuple[Any, str]:
+        """Where things are, and what the whole reading says.
+
+        Positions alone miss a change that happens in place. A score going from
+        996 to 0 does not move anything, and the reset that produced it is
+        exactly what this function was written to notice — measured live,
+        "Began again 1 time(s)" while the score sat unchanged. Positions alone
+        also cannot be dropped: a board mid-slide has the same words in
+        different places, and comparing words alone calls that unchanged.
+        """
+        return places_and_text(observation), str(observation.get("text") or "")
+
+    was = _reading(before)
     started = time.monotonic()
     seen = before
     moved = False
@@ -6036,7 +6048,7 @@ async def _settled_after(
             now = await asyncio.wait_for(read_screen(app), timeout=OBSERVE_TIMEOUT_S)
         except TimeoutError:
             continue
-        said = places_and_text(now)
+        said = _reading(now)
         if not moved and said != was:
             moved = True
             _ANSWERING_TOOK["longest"] = max(
@@ -6060,7 +6072,7 @@ async def _settled_after(
                         "screen_pursuit", exc, severity="info",
                         action="waited for stillness rather than for what she foretold",
                     )
-        elif moved and said == places_and_text(seen):
+        elif moved and said == _reading(seen):
             # Changed, and now the same twice running: it has finished.
             return now, True
         seen = now

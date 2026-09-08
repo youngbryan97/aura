@@ -36,7 +36,7 @@ def body(monkeypatch):
     """A body whose keypresses can be made to fail."""
     state = {"pressed": [], "said": [], "accepts": True, "text": "board 0"}
 
-    async def read(app_name=""):
+    async def read(app_name="", over=None):
         return {"ok": True, "text": state["text"], "layout": [], "bounds": []}
 
     async def press(key, *, expect_app=""):

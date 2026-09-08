@@ -86,7 +86,7 @@ def test_playing_it_out_is_offered_even_with_nothing_to_click():
 def screen(monkeypatch):
     state = {"pressed": [], "clicked": [], "text": "2048 SCORE 744 New Game 2 4 8"}
 
-    async def read(app_name=""):
+    async def read(app_name="", over=None):
         return dict(BOARD, text=state["text"])
 
     async def press(key, *, expect_app=""):
