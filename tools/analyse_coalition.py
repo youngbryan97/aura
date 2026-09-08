@@ -76,6 +76,7 @@ def main() -> int:
     out = args.out or (args.recording / "coalition_analysis.json")
 
     from core.connectome.coalition import (
+        COALITION_ORDER,
         assign_stations,
         measure_ring,
         reproducibility,
@@ -179,7 +180,50 @@ def main() -> int:
             ),
             flush=True,
         )
-    report["reproducibility"] = reproducibility(closures)
+    # Two instruments, two answers, and both belong in the file under names
+    # that say which is which. `reproducibility` reads the closure test, which
+    # counts a link only where a DIRECT effective edge between the stations
+    # survives its null; `measure_ring` asks whether one station's cells say
+    # anything about another's beyond their own rotations, which is a question
+    # about coupling rather than about a wire. On the same recording the first
+    # says one link of seven carries in every condition and the second says all
+    # seven do. Printing one of those without the other is picking an answer.
+    report["reproducibility_direct_edges"] = reproducibility(closures)
+    carried: dict[str, int] = {}
+    for entry in report["conditions"].values():
+        for link in entry["ring"]["links"]:
+            if link.get("carries"):
+                carried[link["link"]] = carried.get(link["link"], 0) + 1
+    conditions_run = len(report["conditions"])
+    report["reproducibility_rotation"] = {
+        "conditions": conditions_run,
+        "links_in_every_condition": sorted(
+            name for name, count in carried.items() if count == conditions_run
+        ),
+        "links_in_none": sorted(
+            f"{a} -> {b}"
+            for a, b in zip(
+                list(COALITION_ORDER),
+                list(COALITION_ORDER[1:]) + [COALITION_ORDER[0]],
+                strict=True,
+            )
+            if f"{a} -> {b}" not in carried
+        ),
+        "link_recurrence": {
+            name: round(count / conditions_run, 3) for name, count in sorted(carried.items())
+        },
+        "mean_percentile_among_cycles": round(
+            sum(entry["ring"]["percentile"] for entry in report["conditions"].values())
+            / max(1, conditions_run),
+            4,
+        ),
+        "verdict": (
+            f"{sum(1 for c in carried.values() if c == conditions_run)} of 7 links carry "
+            f"in every condition, and the ring's order is stronger than "
+            f"{sum(entry['ring']['percentile'] for entry in report['conditions'].values()) / max(1, conditions_run):.0%} "
+            "of the 720 cycles through the same stations"
+        ),
+    }
 
     if args.structural:
         structural = test_closure(
@@ -196,7 +240,7 @@ def main() -> int:
     report["seconds"] = round(time.monotonic() - started, 1)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2))
-    print(json.dumps(report["reproducibility"], indent=2), flush=True)
+    print(json.dumps(report["reproducibility_rotation"], indent=2), flush=True)
     print(f"written to {out}", flush=True)
     return 0
 

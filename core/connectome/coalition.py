@@ -860,6 +860,10 @@ class RingReport:
     z: float
     percentile: float
     cycles: int
+    pairs_measured: int = 0
+    pairs_carrying: int = 0
+    ring_ranks: tuple[int, ...] = ()
+    strongest_pairs: tuple[tuple[str, float, bool], ...] = ()
     stations: dict[str, int] = field(default_factory=dict)
     skipped: str = ""
 
@@ -882,6 +886,13 @@ class RingReport:
             "z": round(self.z, 3),
             "percentile": round(self.percentile, 4),
             "cycles": self.cycles,
+            "pairs_measured": self.pairs_measured,
+            "pairs_carrying": self.pairs_carrying,
+            "ring_ranks_by_gain": list(self.ring_ranks),
+            "strongest_pairs": [
+                {"link": link, "gain": round(gain, 5), "in_ring": in_ring}
+                for link, gain, in_ring in self.strongest_pairs
+            ],
             "skipped": self.skipped,
             "verdict": self._verdict(),
         }
@@ -889,6 +900,21 @@ class RingReport:
     def _verdict(self) -> str:
         if self.skipped:
             return self.skipped
+        if self.pairs_measured and self.pairs_carrying == self.pairs_measured:
+            # Every ordered pair of stations carries, so "this link carries" has
+            # stopped separating anything and the ranks are the finding. Saying
+            # "all seven links carry" without this denominator would read as
+            # support for the ring and is a statement about a pipeline over one
+            # shared state object, in which every stage is coupled to every
+            # other by construction.
+            return (
+                f"all {self.pairs_measured} ordered pairs of stations carry, so a "
+                f"link carrying separates nothing. The ring's seven rank "
+                f"{', '.join(str(rank) for rank in self.ring_ranks)} of "
+                f"{self.pairs_measured} by strength, and the architecture's order is "
+                f"stronger than {self.percentile:.1%} of the {self.cycles} cycles "
+                "through the same stations"
+            )
         if self.closed and self.percentile >= 0.95:
             return (
                 f"every link carries and the architecture's order is stronger than "
@@ -1003,6 +1029,22 @@ def measure_ring(
 
     links = tuple(measured[pair] for pair in ring_links)
     carrying = sum(1 for link in links if link.get("carries"))
+    # Where the ring's links sit among every ordered pair. Seven links that all
+    # carry mean one thing when nothing else does and another when everything
+    # does, and only the ranking says which.
+    ranked = sorted(gains.items(), key=lambda item: -item[1])
+    ring_set = set(ring_links)
+    ranks = tuple(
+        sorted(
+            index
+            for index, (pair, _gain) in enumerate(ranked, start=1)
+            if pair in ring_set
+        )
+    )
+    strongest = tuple(
+        (f"{pre} -> {post}", gain, (pre, post) in ring_set)
+        for (pre, post), gain in ranked[:8]
+    )
     return RingReport(
         condition=condition,
         order=tuple(names),
@@ -1014,5 +1056,9 @@ def measure_ring(
         z=z,
         percentile=percentile,
         cycles=int(null.size),
+        pairs_measured=len(measured),
+        pairs_carrying=sum(1 for row in measured.values() if row.get("carries")),
+        ring_ranks=ranks,
+        strongest_pairs=strongest,
         stations={name: len(stations[name].cells) for name in names},
     )
