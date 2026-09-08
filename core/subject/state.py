@@ -1064,8 +1064,18 @@ async def perturb_organs(organs: Organs, domain: str, delta: float) -> bool:
     hit = False
     if domain == "C" and organs.substrate is not None:
         try:
+            # Displace the dimensions anything downstream reads. Frustration
+            # and curiosity alone moved indices that the homeostatic blend does
+            # not look at, so the perturbation was real, gated, applied — and
+            # invisible to every consumer of the substrate.
+            reading = organs.substrate.get_substrate_affect() or {}
             await organs.substrate.update(
-                delta_frustration=delta, delta_curiosity=delta, source="subject_core_probe"
+                delta_frustration=delta,
+                delta_curiosity=delta,
+                valence=min(1.0, max(-1.0, _f(reading.get("valence")) + delta)),
+                arousal=min(1.0, max(0.0, _f(reading.get("arousal"), 0.5) + delta)),
+                dominance=min(1.0, max(-1.0, _f(reading.get("dominance")) + delta)),
+                source="subject_core_probe",
             )
             hit = True
         except Exception:  # noqa: BLE001 - a refused write is not a write

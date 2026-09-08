@@ -66,6 +66,7 @@ class ProprioceptiveLoop(BasePhase):
     """
     
     def __init__(self, container: Any):
+        self._thermal_probe: Any = None
         self.container = container
         self._last_thought_time: float = 0.0
         self._last_perception_time: float = 0.0
@@ -118,6 +119,49 @@ class ProprioceptiveLoop(BasePhase):
                 exc,
                 severity="debug",
                 action="the substrate did not receive this tick's perceptual frame",
+            )
+
+    def _report_hardware_stress(self, state: Any) -> None:
+        """Tell the homeostatic coupling what the body is doing, every tick.
+
+        `_apply_hardware_resonance` throttles thinking depth, creativity and
+        temperature when the host is stressed, and expires its reading after
+        thirty seconds if nothing refreshes it. The only reporter was the
+        integrity monitor, on its own cadence and only above its own alarm
+        thresholds, so between alarms the resonance was expired and the body
+        had no say in how hard she was allowed to think. The phase that takes
+        the readings is the one that should be reporting them.
+
+        The thermal level comes from the substrate monitor, the same source the
+        integrity monitor uses, so there are no new bands here.
+        """
+        try:
+            from core.container import ServiceContainer
+
+            coupling = ServiceContainer.get("homeostatic_coupling", default=None)
+            if coupling is None or not hasattr(coupling, "process_resource_stress"):
+                return
+            hardware = getattr(state.soma, "hardware", {}) or {}
+            level = 0
+            try:
+                from core.resilience.substrate_monitor import SubstrateMonitor
+
+                if self._thermal_probe is None:
+                    self._thermal_probe = SubstrateMonitor()
+                level = int(self._thermal_probe.thermal()[0])
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError):
+                level = 0
+            coupling.process_resource_stress(
+                cpu_load=float(hardware.get("cpu_usage", 0.0) or 0.0),
+                mem_mb=float(hardware.get("ram_usage", hardware.get("vram_usage", 0.0)) or 0.0),
+                thermal_level=level,
+            )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "proprioceptive_loop",
+                exc,
+                severity="debug",
+                action="hardware stress was not reported to the homeostatic coupling",
             )
 
     def _feel_body_pressure(self, state: Any) -> None:
@@ -409,6 +453,7 @@ class ProprioceptiveLoop(BasePhase):
         # runtime's own calibrated reading, so no new threshold is invented
         # here.
         self._feel_body_pressure(new_state)
+        self._report_hardware_stress(new_state)
 
         # And push the same reading into the substrate's own dimensions.
         # `inject_perceptual_frame` maps telemetry, user state, screen and audio
