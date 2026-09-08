@@ -80,6 +80,26 @@ _CHARS_PER_TOKEN = 4.0
 #: What to assume before this worker has been measured. Well under the
 #: 716-772 tok/s observed on this host, because being generous with an
 #: unmeasured worker costs a little latency and being mean costs the answer.
+#: What a model may call the tool's name, and what it may call its arguments.
+#: Every combination of the two is a call; neither list is ordered by
+#: preference because a payload carrying two of them is ambiguous and the
+#: first found is as good an answer as any.
+_CALL_NAME_KEYS: tuple[str, ...] = ("name", "tool", "function")
+_CALL_ARGUMENT_KEYS: tuple[str, ...] = ("arguments", "args", "parameters")
+
+
+def _first_present(payload: Mapping[str, Any], keys: tuple[str, ...]) -> Any:
+    """The first of these keys the payload has, or None when it has none.
+
+    None means absent. A key present and holding None is a key present.
+    """
+
+    for key in keys:
+        if key in payload:
+            return payload[key]
+    return None
+
+
 _UNMEASURED_PREFILL_RATE = 300.0
 
 #: Dispositions under which steering is deliberately detached. The worker
@@ -15316,11 +15336,28 @@ class MLXLocalClient:
         def _normalize(payload: Any) -> dict[str, Any] | None:
             if not isinstance(payload, dict):
                 return None
-            if "tool" in payload and "args" in payload:
-                name, args = payload.get("tool"), payload.get("args")
-            elif "name" in payload and "arguments" in payload:
-                name, args = payload.get("name"), payload.get("arguments")
-            else:
+            # A call is a call whatever the model named its keys.
+            #
+            # Two combinations were accepted, `tool`/`args` and
+            # `name`/`arguments`, and the third common one was not. A model
+            # that writes `function`/`args` produced an object nothing here
+            # recognised, so the intent became prose — and the safety gate
+            # then correctly refused it as a prompt artifact, leaving a turn
+            # with no call and no answer and no record of either.
+            #
+            # LIVE, 2026-09-07: `ResponseGeneration rejected unsafe
+            # user-facing draft (prompt_artifact, len=138):
+            # '<tool_call>\n{"function": "local_file_read", "args": {...}}'`.
+            # The fallback ladder answered from the 9B.
+            #
+            # Both halves are still required: an object with a name and no
+            # arguments is not a call, which is what keeps ordinary JSON from
+            # being read as one. And the allowlist below still decides whether
+            # the named tool may run, so a name nobody offers is refused by
+            # name rather than disappearing.
+            name = _first_present(payload, _CALL_NAME_KEYS)
+            args = _first_present(payload, _CALL_ARGUMENT_KEYS)
+            if name is None or args is None:
                 return None
             if not isinstance(name, str) or not name.strip():
                 return None
