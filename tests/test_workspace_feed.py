@@ -188,3 +188,32 @@ def test_a_novelty_of_nothing_does_not_bid():
         assert "ontogeny" not in sources
     finally:
         lifetime.last_reading = original
+
+
+def test_the_feed_stops_competing_once_something_else_is():
+    """Submission is the cycle's job and arbitration is the heartbeat's. The
+    first version competed here too, which emptied the candidate list before
+    the heartbeat reached it — so the heartbeat's winner was None and the focus
+    it hands the self-prediction loop was the string "none" on every beat."""
+    from core.consciousness.global_workspace import GlobalWorkspace
+
+    workspace = GlobalWorkspace()
+    state = AuraState.default()
+    state.affect.emotions["fear"] = 0.9
+
+    assert asyncio.run(feed_workspace(state, workspace)) is not None
+    before = workspace._tick
+
+    async def heartbeat_then_feed():
+        state.affect.emotions["fear"] = 0.8
+        await feed_workspace(state, workspace)
+        await workspace.run_competition()
+        state.affect.emotions["fear"] = 0.7
+        await feed_workspace(state, workspace)
+        return workspace._tick
+
+    after = asyncio.run(heartbeat_then_feed())
+    # Two beats since: the one the feed ran on its first pass through the
+    # helper, and the explicit one standing in for the heartbeat. The third
+    # call must not have added a fourth.
+    assert after - before <= 2

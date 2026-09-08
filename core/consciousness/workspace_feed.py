@@ -236,8 +236,27 @@ def _remember_broadcast(state: Any, winner: Any, ignited: bool) -> None:
     cognition.long_term_memory = context[-CONTEXT_LIMIT:]
 
 
+#: Ticks the workspace may go without competing before the caller runs the
+#: competition itself. One: if the heartbeat took a beat and did not arbitrate,
+#: it is not going to.
+STALE_TICKS: int = 1
+
+
 async def feed_workspace(state: Any, workspace: Any) -> Any:
-    """Submit this cycle's bids and run the competition. Returns the winner."""
+    """Submit this cycle's bids, and arbitrate only if nothing else will.
+
+    Submission is the cycle's job and arbitration is the heartbeat's — one
+    winner per cognitive tick is the whole design. The first version competed
+    here as well, which emptied the candidate list before the heartbeat reached
+    it: the heartbeat's own competition then found nothing, its winner was
+    None, and the focus it hands the self-prediction loop was the string
+    "none" on every beat. Two mechanisms both correct, and between them a
+    self-model that never learned what she had been attending to.
+
+    So this submits, and competes only when the workspace's tick has not moved
+    since the last time it looked — which is what happens when there is no
+    heartbeat running, and nothing else.
+    """
     if workspace is None:
         return None
     try:
@@ -256,14 +275,27 @@ async def feed_workspace(state: Any, workspace: Any) -> Any:
                 "workspace_feed", exc, severity="debug",
                 action=f"bid from {bid.source} was not submitted",
             )
-    try:
-        winner = await workspace.run_competition()
-    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        record_degradation(
-            "workspace_feed", exc, severity="warning",
-            action="no broadcast this cycle",
-        )
-        return None
+    tick = int(getattr(workspace, "_tick", 0) or 0)
+    seen = getattr(workspace, "_feed_last_tick", None)
+    workspace._feed_last_tick = tick
+    winner = getattr(workspace, "last_winner", None)
+    # No evidence yet that anything else arbitrates, so arbitrate. A caller
+    # with no heartbeat behind it would otherwise lose its first cycle, and
+    # from the second call on the tick count says who is doing the work.
+    if seen is None or tick - seen <= STALE_TICKS - 1:
+        try:
+            winner = await workspace.run_competition()
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "workspace_feed", exc, severity="warning",
+                action="no broadcast this cycle",
+            )
+            return None
+        workspace._feed_last_tick = int(getattr(workspace, "_tick", tick) or tick)
+
+    # What last won reaches this cycle's context whether this call arbitrated
+    # or the heartbeat did. A broadcast the cycle cannot see has not been
+    # broadcast to the part of her that answers.
     try:
         _remember_broadcast(state, winner, bool(getattr(workspace, "ignited", False)))
     except (AttributeError, TypeError, ValueError) as exc:
