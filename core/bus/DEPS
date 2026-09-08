@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 8 outbound edges when this was generated.
+# 7 outbound edges when this was generated.
 
 description = "core.bus: may import only what it already imports; every new edge is an edit here."
 
@@ -14,7 +14,6 @@ include_rules = [
     "+core.bus",
 
     # What this package reaches for today.
-    "+core.bus",
     "+core.capabilities",
     "+core.container",
     "+core.event_bus",
