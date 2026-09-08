@@ -47,7 +47,7 @@ def browser(monkeypatch):
             return True
         return False
 
-    async def read(app_name=""):
+    async def read(app_name="", over=None):
         return {"ok": True, "text": "board", "layout": [], "bounds": []}
 
     async def press(key, *, expect_app=""):
@@ -146,3 +146,21 @@ def test_a_run_without_a_target_app_is_left_alone(browser):
 
     assert result["anchored_to"] == ""
     assert browser["pressed"], "an unanchored run still acts"
+
+
+def test_the_stub_reader_matches_the_real_one():
+    """A stub that drifts from what it stands in for tests nothing.
+
+    ``read_screen`` gained an ``over`` parameter — the region to read — and the
+    stub above did not, so three tests in this file failed on a TypeError from
+    the fixture rather than on anything about anchoring to a page.
+    """
+    import inspect
+
+    from core.skills.screen_pursuit import read_screen
+
+    real = set(inspect.signature(read_screen).parameters)
+    assert real <= {"app_name", "over"}, (
+        f"read_screen takes {sorted(real)}; the stub in this file takes "
+        "app_name and over, and has to be widened with it"
+    )
