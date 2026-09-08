@@ -175,6 +175,11 @@ _COLD_START_HEADROOM = 2.0
 #: is credited with little until it proves otherwise.
 _UNMEASURED_DECODE_RATE = 8.0
 
+#: The shortest prompt whose prefill time is mostly reading rather than
+#: setting up. Below it the rate measures the fixed cost of starting a
+#: generation, which is the same for every prompt and is not a rate.
+_BIG_ENOUGH_TO_TIME_TOKENS = 128
+
 
 def reset_host_rates_for_test() -> dict[str, float]:
     """Forget the measured host rates, and hand back what they were.
@@ -6135,6 +6140,25 @@ class MLXLocalClient:
                 try:
                     reported_tps = float(performance.get("prompt_tps") or 0.0)
                 except (TypeError, ValueError, OverflowError):
+                    reported_tps = 0.0
+                try:
+                    measured_over = int(performance.get("prompt_tokens") or 0)
+                except (TypeError, ValueError, OverflowError):
+                    measured_over = 0
+                if measured_over < _BIG_ENOUGH_TO_TIME_TOKENS:
+                    # Too small to be a rate. Setting a generation up costs
+                    # the same whether it reads one token or a thousand, so
+                    # over a short prompt that fixed cost IS the measurement.
+                    #
+                    # LIVE, 2026-09-08: the readiness probes send one and four
+                    # token prompts, and MLX honestly reports 2.7 and 13.3
+                    # tokens a second for them. Averaged into the rate the
+                    # deadlines are built from, they took a 27B that reads at
+                    # 116 down to single digits, and the answer clock then
+                    # said a 9,360-character prompt would take 819 seconds to
+                    # read and sized the turn at 1,022. The same reasoning is
+                    # already written down one module over, where the read
+                    # rate refuses to learn from a prompt under 400 characters.
                     reported_tps = 0.0
                 if math.isfinite(reported_tps) and reported_tps > 0.0:
                     held = float(

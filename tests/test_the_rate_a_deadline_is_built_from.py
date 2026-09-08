@@ -118,3 +118,32 @@ def test_an_unusable_report_leaves_the_rate_alone() -> None:
         held = client._worker_measured_prefill_tps
         if not (bad > 0.0) or bad != bad or bad == float("inf"):
             assert client._measured_prefill_rate() == pytest.approx(held)
+
+
+# ── and it is not learned from a prompt too small to time ────────────────
+
+
+def test_a_probe_sized_prompt_teaches_the_clock_nothing() -> None:
+    """Setting a generation up costs the same whether it reads one token or a
+    thousand, so over a short prompt that fixed cost IS the measurement.
+
+    LIVE, 2026-09-08: the readiness probes send one- and four-token prompts,
+    and MLX honestly reported 2.7 and 13.3 tokens a second for them. Averaged
+    in, they took a 27B that reads at 116 down to single digits, and the
+    answer clock said a 9,360-character prompt would take 819 seconds to read
+    and sized the turn at 1,022 seconds.
+    """
+    import inspect
+
+    source = inspect.getsource(mc)
+    at = source.index('reported_tps = float(performance.get("prompt_tps") or 0.0)')
+    nearby = source[at : at + 1800]
+    assert "_BIG_ENOUGH_TO_TIME_TOKENS" in nearby
+    assert "reported_tps = 0.0" in nearby
+    assert mc._BIG_ENOUGH_TO_TIME_TOKENS >= 64
+
+
+def test_the_floor_is_above_every_probe_this_runtime_sends() -> None:
+    """A floor a probe can step over is not a floor. The readiness probes are
+    a handful of tokens; the shortest real turn is hundreds."""
+    assert mc._BIG_ENOUGH_TO_TIME_TOKENS > 32
