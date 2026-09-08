@@ -105,6 +105,24 @@ def build_candidates(state: Any) -> list[Any]:
             )
         )
 
+    # The exchange that has just finished is current content and belongs in the
+    # competition — but at the energy of the conversation, which is a reading,
+    # not at a flat maximum. Entered at 1.0 it was fresh on every cycle and won
+    # almost everything, and no other domain's bid decided anything.
+    working = list(getattr(cognition, "working_memory", []) or []) if cognition else []
+    if working:
+        energy = _clamp(getattr(cognition, "conversation_energy", 0.5), 0.5)
+        if energy > FLOOR:
+            last = working[-1]
+            bids.append(
+                CognitiveCandidate(
+                    content=str(last.get("content", ""))[:240] if isinstance(last, dict) else str(last)[:240],
+                    source="exchange",
+                    priority=energy,
+                    content_type=ContentType.LINGUISTIC,
+                )
+            )
+
     goals = list(getattr(cognition, "active_goals", []) or []) if cognition else []
     for goal in goals[-2:]:
         urgency = _clamp(goal.get("urgency", 0.0) if isinstance(goal, dict) else 0.0)

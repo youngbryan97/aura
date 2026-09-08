@@ -250,3 +250,15 @@ def test_a_world_that_behaved_as_predicted_does_not_bid():
 
     ServiceContainer.register_instance("unified_world_model", _Calm())
     assert not any(b.source == "world_model" for b in build_candidates(AuraState.default()))
+
+
+def test_the_exchange_bids_at_the_conversation_s_energy():
+    """It belongs in the competition — at a reading, not at a flat maximum."""
+    state = AuraState.default()
+    state.cognition.working_memory.append({"role": "user", "content": "just said"})
+    state.cognition.conversation_energy = 0.31
+    bid = next(b for b in build_candidates(state) if b.source == "exchange")
+    assert bid.priority == pytest.approx(0.31)
+
+    state.cognition.conversation_energy = 0.0
+    assert not any(b.source == "exchange" for b in build_candidates(state))
