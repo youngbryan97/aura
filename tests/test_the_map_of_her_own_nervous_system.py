@@ -2234,8 +2234,12 @@ def test_a_promotion_can_carry_what_the_change_did_to_the_shape():
         values={"local_recurrence": 1.0, "half_wired_channels": 10.0},
         unmeasured=("dormant_machinery",),
     )
+    # Worse by 0.4 of a channel rather than by ten of them. A regression larger
+    # than a change to this part is allowed to cost is refused outright now, and
+    # what this test is about is the LINE the receipt carries when a change is
+    # kept — see the anatomical-law tests for the refusal.
     after = Quality(
-        values={"local_recurrence": 2.0, "half_wired_channels": 20.0},
+        values={"local_recurrence": 2.0, "half_wired_channels": 10.4},
         unmeasured=("dormant_machinery",),
     )
     delta = compare_quality(before, after)
@@ -2254,8 +2258,9 @@ def test_a_promotion_can_carry_what_the_change_did_to_the_shape():
     assert "worse: half_wired_channels" in receipt.evidence
     assert receipt.evidence.index("worse:") < receipt.evidence.index("better:")
     assert "not measured" in receipt.evidence
-    # A promotion with nothing to say about the anatomy is unchanged.
-    assert plain.evidence == "the probe paid"
+    # A promotion with nothing to say about the anatomy still says that.
+    assert plain.evidence.startswith("the probe paid")
+    assert "was not measured" in plain.evidence
 
 
 def test_a_promotion_never_fails_because_the_shape_could_not_be_measured():
@@ -2585,3 +2590,159 @@ def test_the_mesh_seam_names_the_cells_that_touch_it():
     assert summary["code_cells_driving"] >= 1
     assert summary["code_cells_driven"] >= 1
     assert summary["columns"] == 64
+
+
+# ---------------------------------------------------------------------------
+# The shape of the system refuses, rather than only being recorded
+# ---------------------------------------------------------------------------
+
+
+def _delta(before: dict, after: dict, unmeasured: tuple = ()):
+    from core.connectome.anatomy_gate import Quality, compare_quality
+
+    return compare_quality(
+        Quality(values=dict(before), unmeasured=unmeasured),
+        Quality(values=dict(after), unmeasured=unmeasured),
+    )
+
+
+def test_the_tolerance_is_read_off_the_part_rather_than_picked():
+    """Further-reaching parts are allowed to cost less shape, from one ladder."""
+    from core.cognition.how_a_change_is_promoted import HOW_FAR
+    from core.connectome.anatomy_law import tolerated_regression
+
+    ladder = {part: tolerated_regression(part) for part in HOW_FAR}
+    assert ladder["word"] > ladder["the search"] > ladder["the deciding"]
+    for part, allowance in ladder.items():
+        assert allowance == pytest.approx(HOW_FAR[part]), part
+
+
+def test_a_regression_past_the_tolerance_refuses_the_promotion():
+    from core.cognition.how_a_change_is_promoted import (
+        AnatomyRefusedError,
+        a_ledger_of_its_own,
+        promote,
+        the_receipts,
+    )
+
+    delta = _delta({"single_points_of_failure": 3.0}, {"single_points_of_failure": 9.0})
+    with a_ledger_of_its_own():
+        with pytest.raises(AnatomyRefusedError) as refusal:
+            promote(
+                "word overreach",
+                became="canary",
+                started_by="test",
+                evidence="the probe paid",
+                anatomy=delta,
+            )
+        # No receipt for a promotion that did not happen.
+        assert the_receipts() == ()
+    assert "single point of failure" in str(refusal.value)
+    assert "tolerance" in str(refusal.value)
+
+
+def test_a_regression_inside_the_tolerance_is_promoted_and_recorded():
+    from core.cognition.how_a_change_is_promoted import a_ledger_of_its_own, promote
+
+    delta = _delta({"single_points_of_failure": 3.0}, {"single_points_of_failure": 3.2})
+    with a_ledger_of_its_own():
+        receipt = promote(
+            "word small cost",
+            became="canary",
+            started_by="test",
+            evidence="the probe paid",
+            anatomy=delta,
+        )
+    assert "worse: single_points_of_failure" in receipt.evidence
+
+
+def test_the_same_regression_is_refused_where_every_decision_runs_through_it():
+    from core.cognition.how_a_change_is_promoted import (
+        AnatomyRefusedError,
+        a_ledger_of_its_own,
+        promote,
+    )
+
+    delta = _delta({"single_points_of_failure": 3.0}, {"single_points_of_failure": 3.2})
+    with a_ledger_of_its_own(), pytest.raises(AnatomyRefusedError):
+        promote(
+            "the deciding/what a change is worth",
+            became="canary",
+            started_by="test",
+            evidence="the probe paid",
+            anatomy=delta,
+        )
+
+
+def test_an_unmeasured_change_passes_except_where_nobody_looking_is_not_an_answer():
+    from core.cognition.how_a_change_is_promoted import (
+        AnatomyRefusedError,
+        a_ledger_of_its_own,
+        promote,
+    )
+
+    with a_ledger_of_its_own():
+        receipt = promote(
+            "word unmeasured", became="canary", started_by="test", evidence="paid"
+        )
+        assert "not measured" in receipt.evidence
+        with pytest.raises(AnatomyRefusedError) as refusal:
+            promote(
+                "the search/the proposer",
+                became="canary",
+                started_by="test",
+                evidence="paid",
+            )
+    assert "nobody can account" in str(refusal.value)
+
+
+def test_putting_something_back_is_never_refused():
+    """A law that could block the remedy would trap the state it exists to stop."""
+    from core.cognition.how_a_change_is_promoted import a_ledger_of_its_own, promote
+
+    delta = _delta({"single_points_of_failure": 3.0}, {"single_points_of_failure": 99.0})
+    with a_ledger_of_its_own():
+        for became in ("rolled back", "would not go back", "retired"):
+            receipt = promote(
+                "the deciding/whatever",
+                became=became,
+                started_by="she",
+                evidence="the probe did not hold",
+                anatomy=delta,
+            )
+            assert receipt.became == became
+
+
+def test_a_counted_axis_is_counted_and_a_ratio_axis_is_scaled():
+    """One more brittle cell is one more, whatever the total was.
+
+    Dividing a count by a total that the same edit changed measures the
+    denominator. Ratio axes are scaled because a shift of 0.02 means something
+    different against 0.05 than against 5.0.
+    """
+    from core.connectome.anatomy_law import anatomy_permits
+
+    counted = _delta({"half_wired_channels": 100.0}, {"half_wired_channels": 100.4})
+    assert anatomy_permits(counted, at="word").allowed
+    ratio = _delta({"local_recurrence": 1.0}, {"local_recurrence": 0.4})
+    verdict = anatomy_permits(ratio, at="word")
+    assert not verdict.allowed
+    assert verdict.regressions["local_recurrence"] == pytest.approx(0.6)
+
+
+def test_the_law_is_not_an_outage_when_its_own_machinery_is_missing():
+    """A constitution that blocks everything when it cannot run is a failure mode."""
+    from core.cognition.how_a_change_is_promoted import a_ledger_of_its_own, promote
+
+    class _NotAReading:
+        pass
+
+    with a_ledger_of_its_own():
+        receipt = promote(
+            "word x",
+            became="canary",
+            started_by="test",
+            evidence="paid",
+            anatomy=_NotAReading(),
+        )
+    assert receipt.became == "canary"

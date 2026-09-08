@@ -3630,7 +3630,7 @@ def _collect_neurodynamic_status() -> dict[str, Any]:
     return payload
 
 
-def _collect_imagination_status() -> dict[str, Any]:
+def _collect_imagination_status(*, for_owner: bool = False) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "status": "idle",
         "frames": 0,
@@ -3647,7 +3647,7 @@ def _collect_imagination_status() -> dict[str, Any]:
         engine = ServiceContainer.peek("imagination_engine", default=None)
         if engine is None or not hasattr(engine, "snapshot"):
             return payload
-        snapshot = engine.snapshot() or {}
+        snapshot = engine.snapshot(for_owner=for_owner) or {}
         if not isinstance(snapshot, dict):
             return payload
         governance = snapshot.get("governance") or {}
@@ -3699,7 +3699,7 @@ async def api_imagination_visualize(request: Request) -> JSONResponse:
     if not _owner_authenticated(request):
         raise HTTPException(status_code=403, detail="Rendering imagination is owner-only")
 
-    snapshot = await asyncio.to_thread(_collect_imagination_status)
+    snapshot = await asyncio.to_thread(_collect_imagination_status, for_owner=True)
     frame = snapshot.get("latest") if isinstance(snapshot, dict) else None
     if not isinstance(frame, dict):
         return JSONResponse(
@@ -3801,7 +3801,7 @@ async def api_imagination_visualize(request: Request) -> JSONResponse:
 
 
 @router.get("/imagination")
-async def api_imagination() -> JSONResponse:
+async def api_imagination(request: Request) -> JSONResponse:
     """Aura's live imagination workspace, for the Imagine panel.
 
     The same frame the engine is actually reasoning with — it already ships
@@ -3811,8 +3811,15 @@ async def api_imagination() -> JSONResponse:
 
     ``status`` is "idle" until she has imagined something. The panel renders
     that as an honest empty state rather than inventing a canvas.
+
+    The owner sees the frame; anybody else sees its shape. Redacting it from
+    everyone was why the panel showed "(no objective)" and an empty canvas over
+    a frame that had both, and why the render button could never find the image
+    prompt it exists to send.
     """
-    payload = await asyncio.to_thread(_collect_imagination_status)
+    payload = await asyncio.to_thread(
+        _collect_imagination_status, for_owner=_owner_authenticated(request)
+    )
     worlds: list[dict[str, Any]] = []
     try:
         from core.worlds import get_world_host
