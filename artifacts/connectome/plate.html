@@ -366,7 +366,7 @@ footer a{color:var(--ink-dim)}
     grad.addColorStop(0, color);
     grad.addColorStop(0.30, color);
     grad.addColorStop(1, 'rgba(0,0,0,0)');
-    g.globalAlpha = 0.30;
+    g.globalAlpha = 0.20;
     g.fillStyle = grad;
     g.fillRect(0, 0, pad * 2, pad * 2);
     glowCache[key] = off;
@@ -403,7 +403,7 @@ footer a{color:var(--ink-dim)}
     // The glow first, so every orb sits on top of every haze.
     for (var g0 = 0; g0 < nodes.length; g0++){
       var gn = nodes[g0];
-      if (gn.r < 4.2) continue;
+      if (gn.r < 6.0) continue;
       var on0 = !near || near[g0];
       ctx.globalAlpha = on0 ? 1 : 0.12;
       var sprite = glow(gn.c, gn.r);
@@ -414,23 +414,14 @@ footer a{color:var(--ink-dim)}
     for (var j = 0; j < nodes.length; j++){
       var n = nodes[j], on = !near || near[j];
       ctx.globalAlpha = on ? 1 : 0.16;
-      // A lit sphere rather than a flat disc: the light sits up and left, which
-      // is the whole of what makes a circle read as an orb.
+      // Flat, in the colour of its region. A lit sphere with a white highlight
+      // and a dark rim read as a marble — the light became the subject and the
+      // colour stopped being the thing you saw first.
       var cx = px(n), cy = py(n), r = n.r;
-      var shade = ctx.createRadialGradient(cx - r * 0.38, cy - r * 0.42, r * 0.12, cx, cy, r);
-      shade.addColorStop(0, '#ffffff');
-      shade.addColorStop(0.28, n.c);
-      shade.addColorStop(1, 'rgba(0,0,0,0.55)');
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, 6.2832);
-      ctx.fillStyle = shade;
+      ctx.fillStyle = n.c;
       ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, 6.2832);
-      ctx.strokeStyle = n.c;
-      ctx.lineWidth = 0.7;
-      ctx.stroke();
       if (j === hovered){
         ctx.globalAlpha = 1;
         ctx.strokeStyle = '#ffffff';
