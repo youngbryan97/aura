@@ -111,9 +111,17 @@ def worth_a_pass(
     #
     # It tightens itself as she learns. Nothing to turn off, and nothing set:
     # the number is how often her own rule has been right about this world.
-    inside_her_own_error = (1.0 - max(0.0, min(1.0, float(how_sure)))) * (
-        scores[0] - scores[-1]
-    )
+    #
+    # The scale is the spread of what is on offer, floored at the smallest
+    # difference that means anything at all.
+    #
+    # Without the floor the rule is degenerate wherever there are exactly two
+    # options: the spread IS the gap being tested, so `gap < (1 - how_sure) *
+    # spread` reduces to `gap < gap` and is false at every value of how_sure. A
+    # choice between two futures could never buy a pass however unreliable her
+    # arithmetic was, which is the case the bar exists for.
+    spread = max(scores[0] - scores[-1], TOO_CLOSE_TO_CALL)
+    inside_her_own_error = (1.0 - max(0.0, min(1.0, float(how_sure)))) * spread
     if gap < inside_her_own_error / dear:
         return True, (
             f"the best two are {gap:.2f} apart, inside what her model of this "
