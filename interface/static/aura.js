@@ -3641,6 +3641,12 @@ const PLAIN_LANGUAGE_RULES = [
      (m) => `${humanOrgan(m[1])} recovered on its own.`],
     [/^Skynet: Subsystem '([^']+)' (?:became UNHEALTHY|remains UNHEALTHY)/i,
      (m) => `${humanOrgan(m[1])} is not well.`],
+    [/^Voice listening:\s*RMS=([\d.]+).*?speaking=(\w+)/i,
+     (m) => (String(m[2]).toLowerCase() === 'true'
+        ? 'Hearing someone speak.'
+        : `Listening — the room is quiet (level ${(+m[1]).toFixed(3)}).`)],
+    [/^INFO:\s+connection (open|closed)/i,
+     (m) => (m[1] === 'open' ? 'A window connected to her.' : 'A window disconnected.')],
     [/^InitiativeArbiter: ranked '([^']+)' first/i,
      (m) => `Decided the next thing worth doing is to ${String(m[1]).charAt(0).toLowerCase()}${String(m[1]).slice(1).replace(/\.$/, '')}.`],
     [/^(?:lease )?risk (\w+) for (\w+) \(scope=([\w_]+)/i,
@@ -3766,6 +3772,22 @@ function humanReason(raw) {
     if (text.includes('memory_pressure')) return 'memory is tight';
     if (text.includes('recent_user')) return 'you were just talking to her';
     if (text.includes('foreground')) return 'the conversation comes first';
+    // The reasons a live session actually emits, said the way somebody
+    // watching would say them. Measured from one desktop log, 2026-09-08:
+    // these are the ones that reached the feed, and "first token sla
+    // exceeded" is not a sentence.
+    if (text.includes('first_token')) return 'it took too long to start answering';
+    if (text.includes('no_user_anchor')) return 'nobody was here to check the work';
+    if (text.includes('sla')) return 'it missed its time budget';
+    if (text.includes('admission')) return 'it was not admitted';
+    if (text.includes('headroom')) return 'there was no room to spare';
+    if (text.includes('ontogeny')) return 'the part of her that learns has not decided yet';
+    if (text.includes('approved')) return 'it is approved and waiting its turn';
+    if (text.includes('fragmentation')) return 'its memory needed tidying first';
+    if (text.includes('unavailable')) return 'it was not there to ask';
+    if (text.includes('timeout') || text.includes('timed_out')) return 'it ran out of time';
+    if (text.includes('empty')) return 'it came back with nothing';
+    if (text.includes('busy') || text.includes('active')) return 'something else had it';
     return text.replace(/_/g, ' ') || 'deferred';
 }
 
