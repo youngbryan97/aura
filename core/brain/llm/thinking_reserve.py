@@ -167,6 +167,49 @@ def record_budget_that_ran_out_thinking(
     save()
 
 
+#: The smallest budget a thinking generation has been seen to finish inside,
+#: by model. The companion to the proof above and monotone in the other
+#: direction, so both survive being merged between processes: one takes the
+#: maximum, one takes the minimum, and neither depends on which was read
+#: first. :func:`proved_insufficient` reads them together.
+_finished_within_by_model: dict[str, int] = {}
+
+
+def record_budget_that_finished_thinking(
+    *, budget_tokens: int, model: str = ""
+) -> None:
+    """A thinking generation closed its channel and finished inside this budget.
+
+    The other half of the proof above, and it was missing, so the threshold
+    could only ever rise.
+
+    LIVE, 2026-09-08: the 27B's proof stood at 6,322 tokens, set by one
+    generation that ran away inside the channel. Ordinary turns are budgeted
+    at 512 to 1,345, and the gate that decides whether the private channel
+    opens refuses whenever the budget is no larger than the proof — so no
+    ordinary turn could ever think again. The model did its working in the
+    visible answer instead, ran out of tokens there, and a question about
+    daylight was published with a wrong number at the top and its correction
+    two thousand characters below.
+
+    A proof that can only be confirmed is not a proof. A generation that
+    finished inside B shows that the largest budget known to be too small is
+    smaller than B, and the threshold comes down to say so.
+    """
+
+    try:
+        spent = max(0, int(budget_tokens))
+    except (TypeError, ValueError):
+        return
+    if spent <= 0:
+        return
+    with _lock:
+        name = _model_key(model)
+        held = _finished_within_by_model.get(name, 0)
+        _finished_within_by_model[name] = spent if held <= 0 else min(held, spent)
+    save()
+
+
 #: Prefill rates, as (prompt_chars, chars_per_second) pairs. Beside the decode
 #: rates because they are the same kind of fact about the same generations.
 _read_rates: list[tuple[int, float]] = []
@@ -260,6 +303,27 @@ def reserve_tokens(model: str = "") -> int:
         index = min(len(seen) - 1, int(_PERCENTILE * len(seen)))
         measured = max(0, seen[index])
     return max(measured, proved)
+
+
+def measured_reserve_tokens(model: str = "") -> int:
+    """What the private channel has been MEASURED to cost, and nothing else.
+
+    :func:`reserve_tokens` is the larger of this and the standing proof, which
+    is right for buying tokens — a budget should cover the worst thing seen.
+    It is wrong for deciding whether the channel opens at all, because the
+    proof only ever rose: one runaway generation set the 27B's at 6,322, no
+    ordinary turn is budgeted above 1,345, and the gate refused every one of
+    them for a fortnight. A veto that nothing can lift is not a veto, it is a
+    switch someone left off.
+    """
+
+    _restore_once()
+    with _lock:
+        seen = sorted(_reasoning_window_for(model))
+    if len(seen) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
+        return 0
+    index = min(len(seen) - 1, int(_PERCENTILE * len(seen)))
+    return max(0, seen[index])
 
 
 def record_decode_rate(
@@ -447,10 +511,20 @@ def seconds_to_read(prompt_chars: int) -> float:
 
 
 def proved_insufficient(model: str = "") -> int:
-    """The largest budget a generation ran out of while still thinking."""
+    """The largest budget a generation ran out of while still thinking.
+
+    Bounded below anything that has since been seen to be enough. Without that
+    the number could only rise: one runaway set the 27B's at 6,322 tokens and
+    nothing in the runtime could ever bring it back, so the gate it feeds
+    refused every ordinary turn from then on.
+    """
 
     with _lock:
-        return _proved_insufficient_by_model.get(_model_key(model), 0)
+        proof = _proved_insufficient_by_model.get(_model_key(model), 0)
+        enough = _finished_within_by_model.get(_model_key(model), 0)
+    if enough > 0 and proof >= enough:
+        return max(0, enough - 1)
+    return proof
 
 
 def observations(model: str = "") -> int:
@@ -471,6 +545,7 @@ def forget() -> None:
         _read_rates.clear()
         _delivery_costs.clear()
         _proved_insufficient_by_model.clear()
+        _finished_within_by_model.clear()
         # And forget having read the store, or a re-read would take it back.
         _last_seen_store_mtime = -1
         # Stops THIS process taking the readings back on the next call.
@@ -590,6 +665,19 @@ def _merge_reasoning_measurements(stored: dict[str, Any]) -> None:
             _one_int,
         )
 
+    finished = stored.get("finished_within_by_model")
+    if isinstance(finished, dict):
+        for name, value in finished.items():
+            try:
+                parsed = max(0, int(value))
+            except (TypeError, ValueError):
+                continue
+            if parsed <= 0:
+                continue
+            key = _model_key(str(name))
+            held = _finished_within_by_model.get(key, 0)
+            _finished_within_by_model[key] = parsed if held <= 0 else min(held, parsed)
+
     proofs = stored.get("proved_insufficient_by_model")
     if isinstance(proofs, dict):
         for name, value in proofs.items():
@@ -668,6 +756,7 @@ def save() -> bool:
                         for name, window in _observed_by_model.items()
                     },
                 },
+                "finished_within_by_model": dict(_finished_within_by_model),
                 "proved_insufficient_by_model": dict(
                     _proved_insufficient_by_model
                 ),

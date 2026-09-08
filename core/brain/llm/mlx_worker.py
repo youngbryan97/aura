@@ -747,6 +747,19 @@ def _record_budget_that_ran_out_thinking(budget_tokens: int, model: str = "") ->
         return
 
 
+def _record_budget_that_finished_thinking(budget_tokens: int, model: str = "") -> None:
+    """Tell the reserve this budget was in fact enough for the channel."""
+
+    try:
+        from core.brain.llm.thinking_reserve import (
+            record_budget_that_finished_thinking,
+        )
+
+        record_budget_that_finished_thinking(budget_tokens=budget_tokens, model=model)
+    except (ImportError, TypeError, ValueError):
+        return
+
+
 def _record_decode_rate(generated_tokens: int, elapsed_s: float, model: str = "") -> None:
     """Tell the reserve how fast this generation decoded, and on what.
 
@@ -9143,6 +9156,22 @@ def _mlx_worker_loop(
                                             native_channels.reasoning[-220:],
                                         )
                                         _record_budget_that_ran_out_thinking(max_tokens, model_path)
+                                    elif (
+                                        native_thinking is True
+                                        and native_channels.boundary_closed
+                                        and token_count < max_tokens
+                                        and (current_response or "").strip()
+                                    ):
+                                        # The other half of that proof, and it
+                                        # was missing. This generation opened
+                                        # the channel, closed it, wrote an
+                                        # answer, and stopped on its own with
+                                        # budget left — so this budget was
+                                        # enough, and the largest one known to
+                                        # be too small is smaller than it.
+                                        _record_budget_that_finished_thinking(
+                                            max_tokens, model_path
+                                        )
                                     response_text = (
                                         f"{operator_response_prefix}{current_response}"
                                         if operator_evidence_contract and current_response.strip()

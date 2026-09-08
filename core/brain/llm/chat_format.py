@@ -1091,7 +1091,7 @@ def answer_is_derived_for_generation(
 
     try:
         from core.brain.llm.thinking_reserve import (
-            proved_insufficient,
+            measured_reserve_tokens,
             seconds_to_decode,
         )
         from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
@@ -1099,12 +1099,23 @@ def answer_is_derived_for_generation(
         floor = int(completion_floor or 0)
         budget = int(budget_tokens or 0)
         remaining = float(seconds_remaining or 0.0)
-        proved = int(proved_insufficient(str(model_name or "")))
+        costs = int(measured_reserve_tokens(str(model_name or "")))
     except (ImportError, TypeError, ValueError):
         return False
     if floor <= A_CLOSED_QUESTIONS_FLOOR:
         return False
-    if 0 < budget <= proved:
+    # Room for the channel AND the answer, judged against what the channel has
+    # been measured to cost.
+    #
+    # This used to be judged against ``proved_insufficient`` — the largest
+    # budget any generation had ever run out of while thinking — which only
+    # ever rose. LIVE, 2026-09-08: it stood at 6,322 tokens for the 27B, set
+    # by one runaway, and ordinary turns are budgeted at 512 to 1,345. So the
+    # gate refused every one of them, and the model did its working in the
+    # visible answer instead. A daylight question was published leading with
+    # "roughly 105 minutes", corrected itself to 210 two thousand characters
+    # further down, and ran out of tokens before it could say so at the top.
+    if 0 < budget <= floor + costs:
         return False
     if remaining > 0.0 and budget > 0:
         needed = float(seconds_to_decode(budget, str(model_name or "")))
