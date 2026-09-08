@@ -57,10 +57,26 @@ def _a_part() -> APart:
 
 
 def _letting_go(verdict: tuple[bool, str]) -> tuple[Any, bool]:
+    """Run one removal, with a probe whose reading can actually move.
+
+    The probe used to be ``[("fam", ())]`` with nothing patching what it cost
+    before, so the held-out reading was taken over a family with no cases and
+    came out identical on both sides — a gain of exactly zero, by construction.
+    That was invisible while an action's returned sentence was the whole of its
+    evidence. Once keeping a change required the action to SHOW the reading,
+    this fixture could no longer let anything through, and the passing test in
+    the pair was passing because both a refused removal and an unmeasurable one
+    return None.
+
+    Five against a post-removal cost of one, so the reading has something in it
+    and the only thing that differs between the two cases below is the verdict.
+    """
     part = _a_part()
     with patch.object(W, "_probe", return_value=[("fam", ())]), patch.object(
         W, "the_one_she_should_let_go", return_value=part
-    ), patch.object(W, "worth_keeping", return_value=verdict):
+    ), patch.object(W, "worth_keeping", return_value=verdict), patch.object(
+        W, "_how_it_stands", return_value={"fam": (5, True)}
+    ):
         W.offer_what_she_can_do_about_what_she_is_made_of()
         action = next(
             one for one in WHAT_SHE_COULD_DO.values() if one.kind == "letting go"
@@ -79,8 +95,16 @@ def test_a_removal_that_pays_nothing_puts_the_part_back():
 def test_a_removal_that_pays_still_removes():
     """The rollback must not be a way of never changing anything."""
     said, still_there = _letting_go((True, "it paid"))
-    assert said == "let go of word a_word_of_hers"
+    assert getattr(said, "said", said) == "let go of word a_word_of_hers"
     assert not still_there
+
+
+def test_a_removal_that_pays_shows_what_it_measured():
+    """The sentence is no longer the evidence; the reading beside it is."""
+    said, _still_there = _letting_go((True, "it paid"))
+    assert said.after > said.before, "a kept removal has to show a gain"
+    assert said.on == ("fam",)
+    assert "it paid" in said.why_it_counts
 
 
 def test_an_action_that_says_it_did_nothing_leaves_nothing_behind():
@@ -101,20 +125,59 @@ def test_an_action_that_says_it_did_nothing_leaves_nothing_behind():
     assert "written_by_a_forgetful_author" not in WHERE_FROM
 
 
-def test_an_action_that_says_it_acted_keeps_what_it_did():
+def _saying_so(name: str, *, paid: bool | None):
+    """Admit an action that mutates and says so, under a probe we control.
+
+    Whether a change is kept stopped depending on it returning a sentence. It
+    depends on a held-out probe, and this test used to depend on whether one
+    could be built from whatever module state ran before it — which is why it
+    passed inside a chunk of 117 files and failed on its own.
+
+    ``paid=None`` is the no-probe case, which is not a no and has to stay
+    different from one.
+    """
+
     def mutates_and_says_so(situation: Any = None) -> str | None:
         WHERE_FROM["kept_on_purpose"] = lambda a, b: a
         return "wrote a word"
 
     action = what_she_could_do(
-        "an action that says what it did",
+        name,
         over="the words",
         kind="a test",
         do_it=mutates_and_says_so,
         needs_a_case=False,
     )
-    assert action.do_it(None) == "wrote a word"
-    assert "kept_on_purpose" in WHERE_FROM
+    probe = [] if paid is None else [("fam", ())]
+    stands = {"fam": (5 if paid else 0, True)}
+    with patch.object(W, "_probe", return_value=probe), patch.object(
+        W, "_how_it_stands", return_value=stands
+    ):
+        said = action.do_it(None)
+    kept = "kept_on_purpose" in WHERE_FROM
+    WHERE_FROM.pop("kept_on_purpose", None)
+    return said, kept
+
+
+def test_an_action_that_says_it_acted_and_pays_keeps_what_it_did():
+    said, kept = _saying_so("an action that pays", paid=True)
+    assert said == "wrote a word"
+    assert kept
+
+
+def test_an_action_that_says_it_acted_and_does_not_pay_is_put_back():
+    """A returned sentence is not evidence. The held-out reading is."""
+    said, kept = _saying_so("an action that does not pay", paid=False)
+    assert said is None
+    assert not kept, "a change that did not pay was left in place"
+
+
+def test_an_action_nobody_can_measure_is_kept_and_counted():
+    """No probe is not a no. Refusing every unmeasurable change would stop
+    development on any faculty without one."""
+    said, kept = _saying_so("an action nobody can measure", paid=None)
+    assert said == "wrote a word"
+    assert kept
 
 
 def test_a_change_that_raises_halfway_leaves_nothing_behind():

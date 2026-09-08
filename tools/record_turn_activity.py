@@ -50,6 +50,11 @@ os.environ.setdefault("AURA_TESTING", "1")
 #: that would act on the world, a recall, an inference, and an idle tick with no
 #: objective at all. If the effective graphs of these come out identical, the
 #: phases are not reading the objective.
+#:
+#: Every one but the idle tick runs user-facing. The first recording ran them all
+#: as system ticks, and the response phase does not produce a reply for one — it
+#: is a background pass. So the action station never acted, and the one ring link
+#: that measured at chance was the one out of it.
 OBJECTIVES: tuple[tuple[str, str], ...] = (
     ("greeting", "Hello, how are you?"),
     ("self_report", "What are you feeling right now, and how sure are you?"),
@@ -88,12 +93,16 @@ def _build_kernel(tmpdir: Path) -> Any:
     return kernel
 
 
-async def _one_turn(kernel: Any, objective: str, deadline: float) -> dict[str, Any]:
+async def _one_turn(
+    kernel: Any, objective: str, deadline: float, *, origin: str = "user"
+) -> dict[str, Any]:
     """Run every phase once over one state. A phase that raises is counted."""
     from core.state.aura_state import AuraState
 
     state = AuraState.default()
     state.cognition.current_objective = objective
+    state.cognition.current_origin = origin
+    facing = origin != "system"
     ran = 0
     failed: dict[str, str] = {}
     for phase in kernel._phases:
@@ -102,14 +111,19 @@ async def _one_turn(kernel: Any, objective: str, deadline: float) -> dict[str, A
         name = phase.__class__.__name__
         try:
             result = await asyncio.wait_for(
-                phase.execute(state, objective=objective), timeout=20.0
+                phase.execute(state, objective=objective, priority=facing), timeout=25.0
             )
             ran += 1
             if result is not None:
                 state = result
         except BaseException as exc:  # noqa: BLE001 - a phase that fails is a datum
             failed[name] = f"{type(exc).__name__}: {exc}"[:160]
-    return {"phases_ran": ran, "phases_failed": len(failed), "failures": failed}
+    return {
+        "phases_ran": ran,
+        "phases_failed": len(failed),
+        "answered": len(str(getattr(state.cognition, "last_response", "") or "")),
+        "failures": failed,
+    }
 
 
 async def _drive(args: argparse.Namespace, recorder: Any) -> list[dict[str, Any]]:
@@ -125,7 +139,12 @@ async def _drive(args: argparse.Namespace, recorder: Any) -> list[dict[str, Any]
                     break
                 recorder.set_condition(condition)
                 started = time.monotonic()
-                outcome = await _one_turn(kernel, objective, deadline)
+                outcome = await _one_turn(
+                    kernel,
+                    objective,
+                    deadline,
+                    origin="system" if condition == "idle" else args.origin,
+                )
                 entry = {
                     "round": round_index,
                     "condition": condition,
@@ -152,6 +171,12 @@ def main() -> int:
     parser.add_argument("--budget", type=float, default=300.0, help="seconds of driving")
     parser.add_argument("--rounds", type=int, default=8)
     parser.add_argument("--frame-seconds", type=float, default=0.05)
+    parser.add_argument(
+        "--origin",
+        default="user",
+        help="who the turn is for. 'system' takes the background path, in which "
+        "the response phase produces no reply and the action station never acts",
+    )
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "connectome" / "turn")
     args = parser.parse_args()
 

@@ -77,6 +77,7 @@ def main() -> int:
 
     from core.connectome.coalition import (
         assign_stations,
+        measure_ring,
         reproducibility,
         test_closure,
     )
@@ -154,9 +155,14 @@ def main() -> int:
             recorded=recorded,
         )
         closures.append(closure)
+        # The link-by-link answer, and then where the ring sits among every
+        # cycle through the same stations. The first is about coupling; only
+        # the second is about the ring being a ring.
+        ring = measure_ring(trace, condition, stations, seed=1)
         report["conditions"][condition] = {
             "effective": effective.summary(),
             "closure": closure.as_json(),
+            "ring": ring.as_json(),
             "seconds": round(time.monotonic() - began, 1),
         }
         print(
@@ -164,8 +170,10 @@ def main() -> int:
                 {
                     "condition": condition,
                     "links_present": closure.links_present,
-                    "enrichment_z": round(closure.enrichment_z, 2),
-                    "verdict": closure.as_json()["verdict"],
+                    "links_carrying": ring.links_carrying,
+                    "ring_percentile": round(ring.percentile, 3),
+                    "ring_z": round(ring.z, 2),
+                    "verdict": ring.as_json()["verdict"],
                     "seconds": round(time.monotonic() - began, 1),
                 }
             ),
