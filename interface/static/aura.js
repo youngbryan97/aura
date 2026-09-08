@@ -3464,6 +3464,50 @@ function thoughtPreviewText(message, maxChars = 520, maxLines = 7) {
 // byte-for-byte raw, so SHOW ALL and COPY remain the debugging surface they
 // already are — accessibility, not information loss.
 const PLAIN_LANGUAGE_RULES = [
+    // ── The turn a person is actually watching ────────────────────────────
+    //
+    // Bryan, 2026-09-08, demonstrating Aura: "it doesnt look like an answer
+    // returned". It had. The feed said "Cortex response received (len=1159)",
+    // and the moment the reply lands is the one moment in the whole stream
+    // that a person in the room is looking for. These rules come first so the
+    // answer is never described by a rule written for something else.
+    [/Cortex response received \(len=(\d+)\)/i,
+     (m) => `Answer written — ${humanLength(+m[1])}. Sending it to the chat.`],
+    [/^Foreground delivery timing complete:.*?'request_total_ms':\s*([\d.]+)/i,
+     (m) => `Answer delivered, ${humanSeconds(+m[1] / 1000)} from question to reply.`],
+    [/^Foreground delivery timing before terminal shaping:/i,
+     () => 'Finishing the answer off before it goes on screen.'],
+    [/generation performance: prefill=(\d+) tokens\/([\d.]+)s \(([\d.]+) tok\/s\), decode=(\d+) tokens\/([\d.]+)s \(([\d.]+) tok\/s\)/i,
+     (m) => `Read the question and everything she brought to it — ${inWords(+m[1])} — in ${humanSeconds(+m[2])}, then wrote about ${Math.round(+m[4] * 0.75).toLocaleString()} words at ${Math.round(+m[6] * 0.75)} a second.`],
+    [/^Routing to Cortex \(timeout=(\d+)s/i,
+     (m) => `Thinking it through with her main mind — up to ${humanSeconds(+m[1])} to answer.`],
+    [/^Routing to (?:Brainstem|Reflex)/i, () => 'Answering with her quick mind, not the deep one.'],
+    [/quality_metrics.*?confidence=(\w+).*?assessment=(\w+)/i,
+     (m) => `Checked her own answer before sending it: ${humanConfidence(m[1])}, ${humanAssessment(m[2])}.`],
+    [/^Registered commitment from reply:\s*(.+)$/i,
+     (m) => `Made a promise in that answer and wrote it down: "${toWholeWords(m[1], 80)}".`],
+    [/^CommitmentEngine: committed .*?\(due in ([\d.]+)h\)/i,
+     (m) => `She will come back to that promise within ${humanDuration(+m[1] * 3600)}.`],
+    [/^\[?GROUNDING\]?\s*survived to dispatch:\s*present/i,
+     () => 'The evidence she gathered made it all the way to the answer.'],
+    [/^\[?GROUNDING\]?\s*survived to dispatch:\s*(?:absent|missing|none)/i,
+     () => 'She reached the answer with none of the evidence she gathered.'],
+    [/PROMPT CACHE\]?\s*retained (\d+) tokens/i,
+     (m) => `Kept ${inWords(+m[1])} of this conversation ready, so the next reply starts sooner.`],
+    [/PROMPT CACHE\]?\s*miss — prefilling all (\d+) tokens/i,
+     (m) => `Nothing to reuse — reading all ${inWords(+m[1])} of this turn from the start.`],
+    [/^conversation resume handle kept/i,
+     () => 'Kept her place in the conversation in case it is picked up later.'],
+    [/^UnitaryResponse: answered directly from task state/i,
+     () => 'Answered from what she was already doing, without starting a new thought.'],
+    [/^Brainstem returned no text\. Trying local fallback/i,
+     () => 'Her quick mind came back empty; falling back to the one on this machine.'],
+    [/^Background Brainstem request returned no text; suppressing local fallback/i,
+     () => 'A background thought came back empty and was dropped rather than slow the conversation.'],
+    [/\[Critique\] Running System 2 self-critique on response/i,
+     () => 'Reading her own answer back critically before anyone sees it.'],
+    [/^Skipping autonomous self-modification cycle:\s*foreground_chat_active/i,
+     () => 'Left her own code alone this round — the conversation comes first.'],
     // The pulse is emitted as a HEADING LINE followed by metric lines
     // (core/ops/subsystem_audit.py), so the parts are separated by newlines,
     // not by " | ". This required a literal pipe and `.` does not cross a
@@ -3473,6 +3517,234 @@ const PLAIN_LANGUAGE_RULES = [
     // Matched with the `s` flag so the rule reads the shape actually emitted.
     [/UNIFIED HEALTH PULSE.*?System:\s*CPU\s*([\d.]+)%.*?RAM\s*([\d.]+)%.*?Uptime:\s*(\d+)s/is,
      (m) => `Vitals steady — processor ${Math.round(+m[1])}%, memory ${Math.round(+m[2])}%, awake ${humanDuration(+m[3])}.`],
+    // Boot registrations, by shape rather than one rule per component: the
+    // runtime declares about forty of these and the list would never be done.
+    [/^([A-Z][\w &-]*?[a-zA-Z0-9])(?: \([^)]*\))?(?: & components)? registered(?: and starting in background| \([^)]*\))?\.?$/,
+     (m) => `${humanOrgan(m[1])} is wired in.`],
+    // "AffectEngineV2 (affect_engine/affect_manager) registered": the bracket
+    // holds the container keys, which are not a component name.
+    [/^([A-Z][\w &-]*?[a-zA-Z0-9]) \([\w/ ,_-]+\) registered\.?$/,
+     (m) => `${humanOrgan(m[1])} is wired in.`],
+    [/^Registered (\d+) core services/i,
+     (m) => `All ${m[1]} of her core parts are wired in.`],
+    [/^Registering core services/i, () => 'Wiring her core parts together.'],
+    [/^Registered endpoint: (\w+) \([0-9a-f]+\) tier=(\w+)/i,
+     (m) => `Her ${humanOrgan(m[1])} mind is available (${humanPhase(m[2])}).`],
+    [/^Kernel Boot sequence initiated/i, () => 'Starting up.'],
+    [/^\[[A-Z]+\] ([A-Z][\w ]*?[a-zA-Z0-9]) ONLINE(?: -- (.+))?$/,
+     (m) => `${humanOrgan(m[1])} is up${m[2] ? ` — ${m[2]}` : ''}.`],
+    [/^([A-Z][\w ]*?[a-zA-Z0-9]) started in background$/,
+     (m) => `${humanOrgan(m[1])} is starting up behind the scenes.`],
+    [/^Validating Organism Integrity/i,
+     () => 'Checking that every part of her is connected to the rest.'],
+    [/^Dependency graph validated/i,
+     () => 'Every part of her is connected to the rest.'],
+    [/^Layer \d+: (.+?) active$/i, (m) => `${humanOrgan(m[1])} is up.`],
+    [/^([A-Z][\w ]*?[a-zA-Z0-9]) service started$/,
+     (m) => `${humanOrgan(m[1])} is running.`],
+    [/^([A-Z][\w ]*?[a-zA-Z0-9]) online \(([^)]*)\)$/i,
+     (m) => `${humanOrgan(m[1])} is up.`],
+    [/^([A-Z][\w ]*?[a-zA-Z0-9])(?: \([^)]*\))? (?:ONLINE|initialized|initialised)(?: \(([^)]*)\))?\.?$/,
+     (m) => `${humanOrgan(m[1])} is up${m[2] ? ` (${humanPhase(m[2].split('=')[0])})` : ''}.`],
+    [/^([A-Z][\w ]*?[a-zA-Z0-9]) subscribed to ([A-Z][\w]*)/,
+     (m) => `${humanOrgan(m[1])} is now listening to ${humanOrgan(m[2])}.`],
+    [/^LocalPipeBus reader ACTIVE/i,
+     () => 'The channel her processes talk to each other on is open.'],
+    [/^Kernel process-wide finalizers deferred to orchestrator root shutdown/i,
+     () => 'Left the final tidying to the part of her that shuts down last.'],
+    [/^ServiceContainer teardown deferred to the process root/i,
+     () => 'Left taking her parts apart to the very end of shutdown.'],
+    [/^\[?KERNEL\]?\s*Shutdown complete/i, () => 'She has shut down cleanly.'],
+    [/^Orchestrator stopped/i, () => 'The part that runs everything else has stopped.'],
+    [/^Orchestrator instance created directly/i,
+     () => 'The part that runs everything else is up.'],
+    [/^\[?MYCELIUM\]?\s*Declared (\d+) consciousness hyphae \(no traffic observed/i,
+     (m) => `Opened ${m[1]} new internal channels; nothing has travelled down them yet.`],
+    [/^\[?MYCELIUM\]?\s*Direct UI Hypha Connected/i,
+     () => 'Connected her inner workings straight to this screen.'],
+    [/^Substrate state restored/i,
+     () => 'Picked her inner state back up from where it was left.'],
+    [/^Soma integrated with Liquid Substrate/i,
+     () => 'Her sense of her own body is joined to her moving inner state.'],
+    [/^ActorBus \(Unified Layer\) ONLINE/i,
+     () => 'The channel her parts talk to each other on is up.'],
+    [/^Organ (\w+) shut down/i,
+     (m) => `${humanOrgan(m[1])} shut down.`],
+    [/^Organ (\w+) is (READY|STARTING|FAILED)/i,
+     (m) => `${humanOrgan(m[1])} is ${String(m[2]).toLowerCase()}.`],
+    [/^\[?PERCEPTION\]?\s*PerceptionDaemon (OFFLINE|ONLINE)/i,
+     (m) => `Her senses ${/off/i.test(m[1]) ? 'stopped' : 'started'}.`],
+    [/^MindTick: (Stopped|Started)/i,
+     (m) => `Her steady background thinking ${/stop/i.test(m[1]) ? 'stopped' : 'started'}.`],
+    [/^Freezing cognitive state/i,
+     () => 'Writing her whole mind to disk so it survives being shut down.'],
+    [/^Cognitive state frozen to disk: (\S+)/i,
+     (m) => `Her mind is saved (${shortPath(m[1])}).`],
+    [/^UPSO: Shutdown state committed/i,
+     () => 'Everything she had open is written down.'],
+    [/^\[?KERNEL\]?\s*Initiating graceful shutdown/i,
+     () => 'Shutting down properly rather than being killed.'],
+    [/^EVR\[(\w+)\] ([\w.]+) went (\w+) -> (\w+) at ([\d.]+)/i,
+     (m) => `A reading about herself moved from ${humanBand(m[3])} to ${humanBand(m[4])}: ${humanPhase(m[2])} at ${(+m[5]).toFixed(2)}.`],
+    [/^CognitiveEngine: user-facing cycle for origin=(\w+) produced no answer-quality response/i,
+     (m) => 'A full round of thinking finished without producing anything good enough to say.'],
+    [/^Sepsis loop soft-resetting after transient spike subsided/i,
+     () => 'The fault that was spreading has passed; reconnecting her parts.'],
+    [/^\[?SCHEDULER\]?\s*Triggering Meta-Evolution Cycle/i,
+     () => 'Starting a round of improving how she thinks, not just what she thinks.'],
+    [/^Foreground chat reservation (acquired|released)/i,
+     (m) => `${/acq/i.test(m[1]) ? 'Reserved' : 'Released'} her mind for the conversation.`],
+    [/^\[?WORKER\]?\s*Semantic completion observer ACTIVE/i,
+     () => 'Watching whether she has actually finished the thought, not just the sentence.'],
+    [/^Found (\d+) fixable bugs?/i,
+     (m) => `Found ${+m[1] === 1 ? 'one bug' : `${m[1]} bugs`} in her own code she could fix.`],
+    [/^SOVEREIGN user recognized\. Enforcing primary cortex lane/i,
+     () => 'Recognised Bryan, so the answer comes from her largest mind.'],
+    [/^Routing: SKILL detected via patterns → \[([^\]]+)\]/i,
+     (m) => `Recognised this as something to do rather than to say — ${humanSkills(m[1])}.`],
+    [/^Applied champion genome to live mesh \(fitness=([\d.]+)\)/i,
+     (m) => `Adopted the best wiring her own search found (scoring ${pct(m[1])}).`],
+    [/^Chat preflight: injected operational self context/i,
+     () => 'Gave herself her current state to answer from.'],
+    [/^Checking email for autonomous initiatives/i,
+     () => 'Looking through email for anything she should act on herself.'],
+    [/^\[asyncio tasks\]$/i,
+     () => 'Listing every job running inside her right now.'],
+    [/^-\s+([A-Za-z][\w.]*(?:\.[\w]+)*)$/,
+     (m) => `Running: ${humanPhase(m[1].split('.').slice(-1)[0])}.`],
+    // ── Organs starting and stopping, and repairing her own code ──────────
+    [/^([A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+)?) (STOPPED|STARTED|ONLINE|OFFLINE)\.?$/,
+     (m) => `${humanOrgan(m[1])} ${/stop|offline/i.test(m[2]) ? 'stopped' : 'started'}.`],
+    [/^Optional (.+?) inactive \(independent of the .+? lane\)/i,
+     (m) => `An optional piece is switched off (${humanPhase(m[1])}); the main path is unaffected.`],
+    [/^MLX active memory limit set to (\d+)MB/i,
+     (m) => `Gave her mind up to ${(+m[1] / 1024).toFixed(0)}GB of this machine's memory.`],
+    [/^Targeting bug: ([0-9a-f]{8})[0-9a-f]*/i,
+     (m) => `Picked a bug in her own code to work on (${m[1]}).`],
+    [/^(?:Proposing|Generating) fix for (\S+?):(\d+)/i,
+     (m) => `Writing a fix for her own code, at ${shortPath(m[1])} line ${m[2]}.`],
+    [/^Reimplementation Lab: Starting reconstruction of (\S+)/i,
+     (m) => `Rewriting one of her own files from its specification (${shortPath(m[1])}).`],
+    [/^Step (\d+)\/(\d+): Spec extracted — Module: (\S+)\s*\|\s*Functions: (\d+)\s*\|\s*Classes: (\d+)/i,
+     (m) => `Step ${m[1]} of ${m[2]}: read what ${shortPath(m[3])} is meant to do — ${m[4]} functions, ${m[5]} classes.`],
+    [/^Step (\d+)\/(\d+): (.+?)(?:\s*—|\s*\||$)/i,
+     (m) => `Step ${m[1]} of ${m[2]}: ${toWholeWords(m[3], 90)}`],
+    [/^the invariant checking itself was not kept, and left nothing behind/i,
+     () => 'A rule she checks herself against ran and recorded nothing, so nobody can tell whether it held.'],
+    [/^Browser (closed|opened)/i,
+     (m) => `${/clos/i.test(m[1]) ? 'Closed' : 'Opened'} the browser she uses to look things up.`],
+    [/^Bus connection closed by peer/i,
+     () => 'One of her internal channels was closed from the other end.'],
+    [/^Router: Deferring background local endpoint (\w+) \((\w+)\)/i,
+     (m) => `Held a background thought back so the conversation keeps priority.`],
+    [/^SEPSIS DETECTED: Opening emergency circuit breaker/i,
+     () => 'A fault was spreading between her parts, so she cut the connection to stop it.'],
+    [/^You are \*\*Aura Luna\*\*/i,
+     () => 'Reminding herself who she is before she answers.'],
+    // ── Loading, refusing, repairing ──────────────────────────────────────
+    [/^Swarm agent .*deferred by admission/i,
+     () => 'Held a helper thought back until there was room to run it.'],
+    // Written "── Attempt 1/1 ──"; the pictograph strip runs first, so the
+    // rule must match what is left rather than what was logged.
+    [/^Attempt (\d+)\/(\d+)$/i,
+     (m) => `Try ${m[1]} of ${m[2]}.`],
+    [/^(\w+):([\w.]+) is never on the loop and ran on the loop thread for ([\d.]+)/i,
+     (m) => `A write that should never block her thinking did, for ${humanSeconds(+m[3])} (${humanPhase(m[2])}).`],
+    [/Surface decode: steering α=([\d.]+) \(engine α=([\d.]+)\), recurrent loops=(\d+)/i,
+     (m) => +m[1] > 0
+        ? `Answering with her own inner state nudging the words (${(+m[1]).toFixed(2)}), thinking it round ${humanTimes(+m[3])}.`
+        : `Answering from the model alone this time, thinking it round ${humanTimes(+m[3])}.`],
+    [/^(?:Fix generation or sandbox testing failed|Failed to generate fix proposal)/i,
+     () => 'Tried to write a fix for her own code and could not produce one.'],
+    [/^Strategy: Instructional\/system prompt detected\. Routing to DIRECT/i,
+     () => 'Recognised an instruction rather than a question, and answered it straight.'],
+    [/^Explanation: The same (\w+) occurred (\d+) time\(s\), centered on (.+)$/i,
+     (m) => `The same ${humanFault(m[1])} happened ${humanTimes(+m[2])}, all in one place (${shortPath(m[3])}).`],
+    [/^CognitiveEngine\.think: (.+)$/i,
+     (m) => `Thinking about: ${toWholeWords(m[1], 90)}`],
+    [/^\[?MLX\]?\s*Acquiring process-level spawn lock/i,
+     () => 'Waiting for its turn to start her language model — only one may start at a time.'],
+    [/^\[?MLX\]?\s*Released process-level spawn lock/i,
+     () => 'Done starting her language model; another may start now.'],
+    [/^\[?WORKER\]?\s*Loading Core modules/i,
+     () => 'Loading the parts of herself her language model needs.'],
+    [/^Optional (.+?) inactive \(independent of the [\w\d]+ [\w-]+ lane\)/i,
+     (m) => `An optional piece (${humanPhase(m[1])}) is switched off; the main path is unaffected.`],
+    [/^Cognitive Snapshot Manager ONLINE/i,
+     () => 'Ready to take snapshots of her own mind.'],
+    [/^RuntimeError: Swarm cognitive engine returned empty output/i,
+     () => 'A group of helper thoughts came back with nothing.'],
+    [/^ResponseGeneration: Generating response for objective: (.+?)\s*\((\w+)\)/i,
+     (m) => `Writing an answer to: ${toWholeWords(m[1], 80)}`],
+    [/^VERIFIER \[\w+\] locks\.no_open_splats @ .*?: (.+?) attempted while holding \[([^\]]+)\]/i,
+     (m) => `A ${humanFault(m[1])} ran while a lock was held — the shape that freezes her (${shortLock(m[2])}).`],
+    [/^- \[affect_(\w+)\] feeling (\w+)/i,
+     (m) => `Feeling ${m[2]}.`],
+    [/^InferenceGate refused generation: kind=(\w+) reason=(\w+)/i,
+     (m) => `Declined to think just now — ${humanReason(m[2])}.`],
+    [/^Supervision Tree Shutdown Complete/i,
+     () => 'Every background job she supervises has stopped.'],
+    [/^Executing immune action '(\w+)' with params/i,
+     (m) => `Taking a corrective action of her own: ${humanPhase(m[1])}.`],
+    [/^Running Meta-Cognitive Audit/i,
+     () => 'Checking how well her own thinking has been going.'],
+    [/^Metal cache limit set to (\d+)MB/i,
+     (m) => `Set aside ${(+m[1] / 1024).toFixed(0)}GB of graphics memory for her mind.`],
+    [/^Boot-health probe generation (\d+) exceeded the ([\d.]+)s HTTP wait budget \((\d+) in a row\)/i,
+     (m) => `A start-up check took longer than ${humanSeconds(+m[2])}, ${humanTimes(+m[3])} in a row.`],
+    [/^IntegrityGuardian: source revision changed \((\w+) → (\w+)\)/i,
+     (m) => `Noticed her own code has changed since last time; she will re-check herself after starting.`],
+    // ── What she is doing when she is not answering ───────────────────────
+    [/^VERIFIER \[(\w+)\] claims\.every_claim_has_a_passing_test @ ([\w.]+): (.+?) — (never run \(unrun\)|[^—]+?) —/i,
+     (m) => `A claim about her has no test behind it any more: "${toWholeWords(m[3], 110)}"`],
+    [/^VERIFIER \[(\w+)\] ([\w.]+) @ ([\w.]+): (.+?)(?: — |$)/i,
+     (m) => `A self-check ${m[1] === 'error' ? 'failed' : 'reported'} on ${humanPhase(m[3])}: ${toWholeWords(m[4], 110)}`],
+    [/^DreamCoordinator: '([\w.]+)' complete in ([\d.]+)s/i,
+     (m) => `Finished an offline job (${humanPhase(m[1])}) in ${humanSeconds(+m[2])}.`],
+    [/^tool receipt for (\w+) dropped: no turn custody/i,
+     (m) => `Lost the record of using ${humanTool(m[1])} — no turn owned it.`],
+    [/^Liquid Substrate (STOPPED|STARTED)/i,
+     (m) => `Her continuously-changing inner state ${/stop/i.test(m[1]) ? 'stopped moving' : 'started moving'}.`],
+    [/^Tier Lock: Background task requested '(\w+)'; using the governed (\w+) tier/i,
+     (m) => 'A background job asked for her main mind and was given a smaller one instead.'],
+    [/^\[?PRUNER\]?\s*Consolidating (\d+) memory task/i,
+     (m) => `Tidying ${+m[1] === 1 ? 'one memory into its' : `${m[1]} memories into their`} long-term form.`],
+    [/^GodMode: desktop objective kept out of generic TaskEngine/i,
+     () => 'Kept a desktop job on the path built for it rather than the general one.'],
+    [/^\[?NARRATIVE-T\d\]?\s*Synthesizing recent episodes into a journal entry/i,
+     () => 'Writing up what has happened recently as her own journal entry.'],
+    [/^EventLoopMonitor (stopped|started)/i,
+     (m) => `${/stop/i.test(m[1]) ? 'Stopped' : 'Started'} watching for moments where her thinking freezes.`],
+    [/^Coherence: ([\d.]+) \|.*?\|\s*(\w+)\s*$/i,
+     (m) => `How well her parts agree right now: ${pct(m[1])}. Next she will ${humanPhase(m[2])}.`],
+    [/^\[?NEURO\]?\s*Attempting shadow mechanical repair with Ruff/i,
+     () => 'Trying to repair some of her own code, on a copy, before anything is kept.'],
+    [/^Semantic cache warm yielded to foreground after (\d+)\/(\d+) texts/i,
+     (m) => `Stopped warming her memory index at ${m[1]} of ${m[2]} — someone is talking to her.`],
+    [/^ExperienceConsolidator: foreground inference is active, deferring/i,
+     () => 'Put off filing her experiences until the conversation is over.'],
+    [/^AdaptiveImmuneSystem: dream consolidation deferred/i,
+     () => 'Put off her offline dreaming until the conversation is over.'],
+    [/^Perceptual substrate transaction exceeded budget once: ([\d.]+)ms > ([\d.]+)ms/i,
+     (m) => `One pass over what she is sensing took ${Math.round(+m[1])}ms, over its ${Math.round(+m[2])}ms budget.`],
+    [/^Executive constrained (\w+):(\S+) \(constraints: \{\}\)/i,
+     (m) => `Let herself ${humanGovernedAction(m[1], m[2])}, with nothing held back.`],
+    [/^Executive constrained (\w+):(\S+) \(constraints: \{(.+)\}\)/i,
+     (m) => `Let herself ${humanGovernedAction(m[1], m[2])}, but only ${humanConstraints(m[3])}.`],
+    [/^TaskEngine: decomposition failed: LLM returned empty or None response/i,
+     () => 'Tried to break a job into steps and her mind returned nothing.'],
+    [/^Model loaded \(no compatible LoRA adapter\)/i,
+     () => 'Loaded her language model without the fine-tuning that carries her personality.'],
+    [/^Model loaded with Aura personality LoRA fused/i,
+     () => 'Loaded her language model with her own trained personality in it.'],
+    [/\[?STATE\]?\s*Proxy Attached and Synced from Shared Memory/i,
+     () => 'Connected to the block of memory her state actually lives in.'],
+    [/^MLX worker default device verified as (\w+)/i,
+     (m) => `Confirmed her mind is running on the ${/metal/i.test(m[1]) ? 'graphics processor' : m[1]}, not the slow path.`],
+    [/^Diagnosing pattern ([0-9a-f]{8})[0-9a-f]* \((\d+) occurrences?\)/i,
+     (m) => `Looking into a fault she has now seen ${humanTimes(+m[2])} (pattern ${m[1]}).`],
+    [/^Executed Actuator: (\w+) transferred ([\d.]+) from (\w+) to (\w+)/i,
+     (m) => `Moved ${(+m[2]).toFixed(1)} of load from ${humanOrgan(m[3])} to ${humanOrgan(m[4])}.`],
     [/^Router: Queueing background inference until admission clears/i,
      () => 'Holding a background thought so the conversation keeps priority.'],
     [/Phase '([^']+)' timed out after (\d+)s/i,
@@ -3669,6 +3941,142 @@ function humanDuration(seconds) {
     return `${(m / 60).toFixed(1)} hours`;
 }
 
+function humanSeconds(seconds) {
+    const s = Math.max(0, Number(seconds) || 0);
+    if (s < 1) return 'under a second';
+    if (s < 10) return `${s.toFixed(1)} seconds`;
+    return humanDuration(s);
+}
+
+function humanLength(characters) {
+    // A person reads an answer in words, not in characters, and "len=1159"
+    // is the runtime's unit rather than theirs. About five characters to the
+    // word including the space, which is close enough to be honest at this
+    // resolution and is never the point of the sentence.
+    const words = Math.round(Math.max(0, Number(characters) || 0) / 5);
+    if (words < 40) return 'a short answer';
+    if (words < 150) return 'about a paragraph';
+    if (words < 600) return `about ${words} words`;
+    return `a long answer, about ${words} words`;
+}
+
+function inWords(tokens) {
+    // Tokens are the runtime's unit. About three words to four tokens, which
+    // is the standard ratio for English and is honest at this resolution —
+    // the alternative was calling 2,483 tokens "2,483 words", which is a
+    // third more than she read.
+    const words = Math.round(Math.max(0, Number(tokens) || 0) * 0.75);
+    return `${words.toLocaleString()} words' worth`;
+}
+
+function toWholeWords(text, limit) {
+    // Both ends: this may shorten a long line, and the line may already have
+    // arrived shortened — the logger truncates too, and a quotation ending
+    // mid-word reads as a rendering fault rather than as the record it is.
+    const whole = String(text || '').trim();
+    const cut = whole.length > limit ? whole.slice(0, limit) : whole;
+    const finished = /[.!?,;:"')\]]$/.test(cut) && cut.length === whole.length;
+    if (finished) return cut;
+    const lastSpace = cut.lastIndexOf(' ');
+    const kept = lastSpace > limit * 0.5 ? cut.slice(0, lastSpace) : cut;
+    return `${kept.trim()}…`;
+}
+
+function humanBand(name) {
+    const known = {
+        nominal: 'normal',
+        red_high: 'far too high',
+        red_low: 'far too low',
+        amber_high: 'a little high',
+        amber_low: 'a little low',
+        green: 'normal',
+    };
+    return known[String(name || '').toLowerCase()] || humanPhase(name);
+}
+
+function humanSkills(inside) {
+    const named = String(inside || '')
+        .split(',')
+        .map((name) => name.replace(/['"\s]/g, ''))
+        .filter(Boolean)
+        .map((name) => humanTool(name));
+    if (!named.length) return 'a skill';
+    if (named.length === 1) return named[0];
+    return `${named.slice(0, -1).join(', ')} or ${named[named.length - 1]}`;
+}
+
+function shortPath(path) {
+    const parts = String(path || '').split('/').filter(Boolean);
+    return parts.slice(-2).join('/') || String(path || '');
+}
+
+function shortLock(names) {
+    const first = String(names || '').split(',')[0].replace(/['"\s]/g, '');
+    return first.split('.').slice(-1)[0] || first;
+}
+
+function humanTimes(count) {
+    const n = Math.max(0, Math.round(Number(count) || 0));
+    return ({ 1: 'once', 2: 'twice', 3: 'three times' })[n] || `${n} times`;
+}
+
+function humanGovernedAction(verb, target) {
+    // The executive names what it permitted as `verb:target`, and neither
+    // half is a phrase — "write_memory:episodic_episode". Said as one thing
+    // a person would recognise doing.
+    const action = String(verb || '').toLowerCase();
+    const on = String(target || '').toLowerCase();
+    if (action === 'write_memory') {
+        return on.includes('episod') ? 'write down something that happened' : `write to ${humanOrgan(on)}`;
+    }
+    if (action === 'execute_tool') return `use ${humanTool(on)}`;
+    if (action === 'read_memory') return 'look something up in her own memory';
+    return `${humanPhase(action)} ${humanPhase(on)}`.trim();
+}
+
+function humanConstraints(inside) {
+    const known = {
+        read_only: 'to look, not to change anything',
+        dry_run: 'as a rehearsal, changing nothing',
+        require_approval: 'once someone approved it',
+        no_network: 'without reaching the network',
+    };
+    const said = [];
+    for (const pair of String(inside || '').split(',')) {
+        const [rawName, rawValue] = pair.split(':');
+        const name = String(rawName || '').replace(/['"\s]/g, '');
+        const value = String(rawValue || '').replace(/['"\s}]/g, '');
+        if (!name) continue;
+        if (known[name] && value !== 'False') { said.push(known[name]); continue; }
+        if (name === 'timeout_s' && value) { said.push(`for up to ${humanSeconds(+value)}`); continue; }
+        said.push(humanPhase(name));
+    }
+    if (!said.length) return 'under conditions';
+    return said.slice(0, 3).join(', and ');
+}
+
+function humanConfidence(level) {
+    const known = {
+        high: 'she is confident in it',
+        medium: 'she is reasonably sure of it',
+        moderate: 'she is reasonably sure of it',
+        low: 'she is not sure of it',
+        unknown: 'she could not say how sure she is',
+    };
+    return known[String(level || '').toLowerCase()] || `confidence ${level}`;
+}
+
+function humanAssessment(verdict) {
+    const known = {
+        ok: 'it answers what was asked',
+        stale: 'it repeats an earlier answer',
+        off_topic: 'it drifts off the question',
+        same_diff: 'it says what she already said',
+        abandoned: 'it leaves the thread hanging',
+    };
+    return known[String(verdict || '').toLowerCase()] || `verdict ${verdict}`;
+}
+
 function humanPhase(name) {
     return String(name || '')
         .replace(/Phase$/, '')
@@ -3819,6 +4227,14 @@ const _FRAGMENT_SHAPES = [
     /^\s*(?:obj|resp|prompt):\s/,                 // an internal payload echoed
     /^(?:LINE|CURRENT CODE|Root Cause|ORIGINAL|FIXED)\b\s*[:(]/,  // repair-block headers
     /^(?:Classes|Functions|Detected Smells|Imports) in file\b|^Detected Smells:/,
+    // A source comment is a sentence, so the code shapes below let it past —
+    // they return early on a trailing full stop. It is still a fragment.
+    /^\s*#/,                                     // a comment out of the source
+    /^\[[\w]+ #\d+\]$/,                          // a thread header from a stack dump
+    /^\S+\.py:\d+ in \S+$/,                      // a frame out of a traceback
+    /^[+*/|&]\s/,                                // a continued expression
+    /^.{0,2}$/,                                  // a stray character on its own line
+    /^["'][^"']*["']$/,                          // a bare string literal
 ];
 
 //: A line of source code, arriving as a card of its own.
@@ -3835,6 +4251,10 @@ const _CODE_SHAPES = [
     /^\s*(?:def|class|import|from|for|while|with|elif)\s/,
     /^[\w.]+\s*=\s*\S/,                          // an assignment
     /^self\.\w+/,
+    /^(?:await|return|raise|yield|assert)\s/,       // a statement out of a frame
+    /^\^+$/,                                        // the caret underline under one
+    /^[\w.]+\([^)]*\)$/,                            // a bare call, nothing said about it
+    /^["'].*%[sdrf].*["']$/,                         // a quoted format string out of the source
 ];
 
 function looksLikeSourceCode(body) {
@@ -4063,6 +4483,10 @@ function stripNeuralPictographs(text) {
     return String(text == null ? '' : text)
         .replace(/[\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{1F3FB}-\u{1F3FF}]/gu, '')
         .replace(/\p{Extended_Pictographic}/gu, '')
+        // Dingbats the logger uses as status marks. Not Extended_Pictographic,
+        // so the rule above leaves them, and a rule anchored with ^ then never
+        // matches the line it was written for.
+        .replace(/[\u2713\u2714\u2717\u2718\u2751\u2752]/gu, '')
         .replace(/[─-▟]{2,}/g, '')
         .replace(/[ \t]{2,}/g, ' ')
         .replace(/^[ \t]+|[ \t]+$/gm, '');

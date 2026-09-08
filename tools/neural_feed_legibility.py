@@ -60,23 +60,41 @@ for (let i = end; i < lines.length; i++) {
 }
 const block = lines.slice(start, end + 1).join('\n') + '\n' + bodyOf('function stripNeuralPictographs');
 const make = new Function('escHtml', block + `
-  return function (raw) {
-    return plainLanguageThought(toPlainEnglish(stripNeuralPictographs(String(raw || '')).trim()));
+  return {
+    // What the card shows.
+    shown: function (raw) {
+      return plainLanguageThought(toPlainEnglish(stripNeuralPictographs(String(raw || '')).trim()));
+    },
+    // And the same line with only its pictographs taken off. Removing an
+    // emoji is not translating a sentence: measured against the RAW line,
+    // "Cortex response received (len=1159)" counted as legible because the
+    // tick mark in front of it had gone. That is the measure agreeing with
+    // itself. Compare against this instead, and a line counts only when a
+    // rule actually rewrote it.
+    stripped: function (raw) {
+      return stripNeuralPictographs(String(raw || '')).trim();
+    },
   };`);
-const asTheCardShowsIt = make((s) => String(s));
+const card = make((s) => String(s));
 
 const fixture = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-let translated = 0, raw = 0;
+let translated = 0, raw = 0, hidden = 0;
 const untouched = [];
 for (const row of fixture.lines) {
-  const shown = asTheCardShowsIt(row.text);
-  if (shown.trim() !== String(row.text).trim()) translated += row.count;
+  const shown = card.shown(row.text).trim();
+  // A rule line, a banner of box-drawing characters: the card renders
+  // nothing for it, and a line nobody sees is neither readable nor
+  // unreadable. Counting it as unreadable makes the number about how much
+  // decoration the logger emits.
+  if (!shown) { hidden += row.count; continue; }
+  if (shown !== card.stripped(row.text)) translated += row.count;
   else { raw += row.count; untouched.push(row); }
 }
 untouched.sort((a, b) => b.count - a.count);
 process.stdout.write(JSON.stringify({
   translated_events: translated,
   raw_events: raw,
+  hidden_events: hidden,
   events: translated + raw,
   share: translated / Math.max(1, translated + raw),
   untranslated: untouched.slice(0, 40),
