@@ -129,6 +129,7 @@ class Organs:
     world_model: Any = None
     ontogeny: Any = None
     agency: Any = None
+    self_prediction: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -164,6 +165,7 @@ class Organs:
             self_model=service("self_model"),
             world_model=service("unified_world_model"),
             agency=agency,
+            self_prediction=runtime("self_prediction"),
         )
 
 
@@ -343,6 +345,17 @@ _SCHEMAS: dict[str, Schema] = {
             ("agency_authored_share", "organ:agency.authored_share"),
             ("agency_capabilities", "organ:agency.capabilities"),
             ("agency_last_actor", "organ:agency.last_actor"),
+            # How well she predicts her own next internal state. The loop that
+            # computes this runs every heartbeat and its surprise signal is
+            # consumed downstream; the self-state schema was not reading the
+            # one quantity most obviously about the self model's own accuracy.
+            ("prediction_error", "organ:self_prediction.smoothed_error"),
+            ("prediction_surprises", "organ:self_prediction.surprise_count"),
+            ("valence_error", "organ:self_prediction.valence_error_ema"),
+            ("drive_error", "organ:self_prediction.drive_error_ema"),
+            ("focus_error", "organ:self_prediction.focus_error_ema"),
+            ("least_predictable", "organ:self_prediction.most_unpredictable"),
+            ("prediction_confidence", "organ:self_prediction.current_prediction.confidence"),
         ),
     ),
     "M": _sch(
@@ -652,6 +665,8 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
     introspection = _call(organs.self_model, "get_introspection", {}) or {}
     beliefs = getattr(organs.self_model, "beliefs", {}) or {}
     agency = _call(organs.agency, "snapshot", {}) or {}
+    prediction = _call(organs.self_prediction, "get_snapshot", {}) or {}
+    current = prediction.get("current_prediction") or {}
     head.extend(
         [
             _sat(_f(introspection.get("belief_count")), 16.0),
@@ -664,6 +679,13 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             _f(agency.get("authored_share")),
             _sat(_f(agency.get("capabilities")), 8.0),
             _hash_unit(agency.get("last_actor", "")),
+            _f(prediction.get("smoothed_error")),
+            _sat(_f(prediction.get("surprise_count")), 16.0),
+            _f(prediction.get("valence_error_ema")),
+            _f(prediction.get("drive_error_ema")),
+            _f(prediction.get("focus_error_ema")),
+            _hash_unit(prediction.get("most_unpredictable", "")),
+            _f(current.get("confidence")),
         ]
     )
     return np.array(head, dtype=np.float64)
