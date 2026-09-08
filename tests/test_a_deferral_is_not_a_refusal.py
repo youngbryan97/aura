@@ -92,6 +92,26 @@ def test_a_replay_that_raises_keeps_the_item() -> None:
     assert len(queue) == 1
 
 
+def test_a_replayed_write_cannot_recursively_drain_its_own_queue() -> None:
+    """The episodic writer offers replay again while replaying an episode."""
+
+    queue = None
+    landed = []
+
+    def retry(item: int) -> bool:
+        landed.append(item)
+        assert queue is not None
+        assert queue.replay() == 0
+        return True
+
+    queue = DeferredWrites("recursive", retry, interval_s=0.0)
+    queue.hold(1, "deferred")
+    queue.hold(2, "deferred")
+    assert queue.replay() == 2
+    assert landed == [1, 2]
+    assert queue.state()["queued"] == 0
+
+
 def test_the_episodic_store_holds_what_it_cannot_write_yet() -> None:
     """The live case: the module that was dropping every episode."""
 

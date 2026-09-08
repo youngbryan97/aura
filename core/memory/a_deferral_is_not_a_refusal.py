@@ -32,7 +32,10 @@ from __future__ import annotations
 import logging
 import time
 from collections import deque
-from typing import Any, Callable, Generic, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
+
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.DeferredWrites")
 
@@ -58,7 +61,7 @@ DEFERRAL_MARKERS: tuple[str, ...] = (
 #: working mechanism becomes the loudest thing in the feed.
 _SAY_EVERY = 25
 
-_T = TypeVar("_T")
+T = TypeVar("T")
 
 
 def is_a_deferral(reason: Any) -> bool:
@@ -72,7 +75,7 @@ def is_a_deferral(reason: Any) -> bool:
     return any(marker in text for marker in DEFERRAL_MARKERS)
 
 
-class DeferredWrites(Generic[_T]):
+class DeferredWrites[T]:
     """What the governor put off, and the next chance to make it.
 
     ``retry`` is given one held item and answers whether it landed. Anything
@@ -83,7 +86,7 @@ class DeferredWrites(Generic[_T]):
     def __init__(
         self,
         lane: str,
-        retry: Callable[[_T], bool],
+        retry: Callable[[T], bool],
         *,
         limit: int = 256,
         per_replay: int = 4,
@@ -93,96 +96,121 @@ class DeferredWrites(Generic[_T]):
         self._retry = retry
         self._per_replay = max(1, int(per_replay))
         self._interval_s = max(0.0, float(interval_s))
-        self._held: deque[_T] = deque(maxlen=max(1, int(limit)))
+        self._held: deque[T] = deque(maxlen=max(1, int(limit)))
+        lock_name = f"memory.deferred_writes.{self.lane}.{id(self):x}"
+        self._state_lock = checked_lock(f"{lock_name}.state", reentrant=True)
+        # A retry can call the same store, and the store offers another replay
+        # before writing. Concurrent callers do the same. Only one drain owns
+        # the deque; nested and competing drains leave it to that owner.
+        self._replay_gate = checked_lock(f"{lock_name}.replay")
         self._next_at = 0.0
         self._shed = 0
         self._landed = 0
         self._held_total = 0
 
     def __len__(self) -> int:
-        return len(self._held)
+        with self._state_lock:
+            return len(self._held)
 
     @property
     def shed(self) -> int:
         """How many were dropped because the queue was full. Never silent."""
 
-        return self._shed
+        with self._state_lock:
+            return self._shed
 
     @property
     def landed(self) -> int:
-        return self._landed
+        with self._state_lock:
+            return self._landed
 
-    def hold(self, item: _T, reason: str = "") -> None:
+    def hold(self, item: T, reason: str = "") -> None:
         """Keep a write the governor deferred."""
 
-        if len(self._held) == self._held.maxlen:
-            self._shed += 1
-            logger.warning(
-                "%s: deferred queue full at %d; shedding the oldest (%d shed so far)",
-                self.lane,
-                self._held.maxlen,
-                self._shed,
-            )
-        self._held.append(item)
-        self._held_total += 1
-        if self._next_at <= 0.0:
-            self._next_at = time.monotonic() + self._interval_s
+        with self._state_lock:
+            if len(self._held) == self._held.maxlen:
+                self._shed += 1
+                logger.warning(
+                    "%s: deferred queue full at %d; shedding the oldest (%d shed so far)",
+                    self.lane,
+                    self._held.maxlen,
+                    self._shed,
+                )
+            self._held.append(item)
+            self._held_total += 1
+            if self._next_at <= 0.0:
+                self._next_at = time.monotonic() + self._interval_s
+            held_total = self._held_total
+            queued = len(self._held)
+            landed = self._landed
         # The first, and then a line per _SAY_EVERY. A governor that defers
         # steadily makes this the most frequent line in the feed, and the
         # useful facts — that the queue exists, how deep it is, and that
         # things are landing — survive being said periodically. `state()`
         # carries the exact numbers for anything that wants them.
-        if self._held_total == 1 or self._held_total % _SAY_EVERY == 0:
+        if held_total == 1 or held_total % _SAY_EVERY == 0:
             logger.info(
                 "%s: holding deferred writes (%d queued, %d held so far, "
                 "%d landed): %s",
                 self.lane,
-                len(self._held),
-                self._held_total,
-                self._landed,
+                queued,
+                held_total,
+                landed,
                 str(reason)[:120],
             )
 
     def replay(self) -> int:
         """Try the ones held. Returns how many landed."""
 
-        if not self._held:
-            self._next_at = 0.0
+        if not self._replay_gate.acquire(blocking=False):
             return 0
-        now = time.monotonic()
-        if now < self._next_at:
-            return 0
-        landed = 0
-        for _ in range(min(self._per_replay, len(self._held))):
-            item = self._held.popleft()
-            try:
-                ok = bool(self._retry(item))
-            except Exception as exc:  # noqa: BLE001 — a replay must not kill its caller
-                logger.debug("%s: deferred replay raised: %s", self.lane, exc)
-                ok = False
-            if ok:
-                landed += 1
-                self._landed += 1
-            else:
-                # Back where it came from, not onto the end. Appending would
-                # reorder the queue every time a replay failed, and the order
-                # is the order the writes were made in.
-                self._held.appendleft(item)
-                break
-        self._next_at = now + self._interval_s if self._held else 0.0
-        return landed
+        try:
+            with self._state_lock:
+                if not self._held:
+                    self._next_at = 0.0
+                    return 0
+                now = time.monotonic()
+                if now < self._next_at:
+                    return 0
+                attempts = min(self._per_replay, len(self._held))
+            landed = 0
+            for _ in range(attempts):
+                with self._state_lock:
+                    if not self._held:
+                        break
+                    item = self._held.popleft()
+                try:
+                    ok = bool(self._retry(item))
+                except Exception as exc:  # noqa: BLE001 — a replay must not kill its caller
+                    logger.debug("%s: deferred replay raised: %s", self.lane, exc)
+                    ok = False
+                with self._state_lock:
+                    if ok:
+                        landed += 1
+                        self._landed += 1
+                    else:
+                        # Back where it came from, not onto the end. Appending
+                        # would reorder the queue on every failed replay.
+                        self._held.appendleft(item)
+                        break
+            with self._state_lock:
+                self._next_at = now + self._interval_s if self._held else 0.0
+            return landed
+        finally:
+            self._replay_gate.release()
 
     def state(self) -> dict[str, Any]:
         """What is waiting, for the health surface."""
 
-        return {
-            "lane": self.lane,
-            "queued": len(self._held),
-            "capacity": self._held.maxlen,
-            "shed": self._shed,
-            "landed": self._landed,
-            "held_total": self._held_total,
-            "next_replay_in_s": max(0.0, self._next_at - time.monotonic())
-            if self._next_at
-            else 0.0,
-        }
+        with self._state_lock:
+            return {
+                "lane": self.lane,
+                "queued": len(self._held),
+                "capacity": self._held.maxlen,
+                "shed": self._shed,
+                "landed": self._landed,
+                "held_total": self._held_total,
+                "next_replay_in_s": max(0.0, self._next_at - time.monotonic())
+                if self._next_at
+                else 0.0,
+            }
