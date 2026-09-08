@@ -1,10 +1,18 @@
 # Intrinsic recurrence
 
-Status: Guide · Reviewed against the tree 2026-08-24 at CP1012
+Status: Guide · Mechanism attribution reconciled 2026-09-08
 
-The live front of the [Recursive Latent Cortex](RECURSIVE_LATENT_CORTEX.md)
-programme. This page covers the pivot from *talking to* a recurrent workspace
-to *being* recurrent, and the training work that follows from it.
+The backbone-training branch of the
+[Recursive Latent Cortex](RECURSIVE_LATENT_CORTEX.md) programme. This page
+also records later typed semantic-machine results; those are a separate
+execution mechanism and must not be attributed to backbone-depth training.
+
+The [frozen baseline](evidence/G01_RLC_BASELINE_2026-09-08.md) separates these
+claims. The fresh v16 natural-language replication failed at **26/96** answers
+against a **48/96** preregistered floor. The v19 development repair reached
+**93/96**, with coefficient lesion **0/96**, on the exposed cohort and still
+needs fresh replication. Broad reasoning gain and static RLC fusion remain
+unproven. Present serving activation needs a live receipt.
 
 Read [RECURSIVE_LATENT_CORTEX.md](RECURSIVE_LATENT_CORTEX.md) first if you
 haven't — this page assumes the frozen-loop result.
@@ -146,7 +154,7 @@ checks the reconstructed step-zero controller hash.
 
 **A bounded resident-32B gain replicated, lesion-dependent (CP566).** On a
 frozen four-domain semantic cohort — coding, calibration, misleading premise,
-scientific inference, 15 tasks each — the trained controller answered 60/60
+scientific inference, 15 tasks each — the semantic-machine treatment answered 60/60
 exactly against 16/60 for ordinary decode, over 300 decodes. The two controls
 that matter both fell further: a matched wire base reached 7 and a coefficient
 lesion 5, and a matched wrong-state arm reached 0. Forty-four gains, no
@@ -156,9 +164,11 @@ part of the record: bounded executable families, not open-domain general
 reasoning, not static fusion, not frontier performance, not consciousness
 evidence.
 
-The lesion result is what makes it a mechanism claim rather than a score.
-Every family separated under lesion, so the gain tracks the trained
-coefficients rather than the extra decode budget. One family — misleading
+The coefficient lesion supports dependence on the learned semantic machine.
+The runner computes typed state before the state-conditioned answer decode;
+this study does not isolate repeated resident-backbone layers as the cause.
+Formatting assistance and retries remain part of its recorded contract.
+One family — misleading
 premise — gained nothing at all, and the record keeps the reason rather than
 averaging it away: ordinary decode was already at ceiling there (15/15), and
 treatment preserved all fifteen instead of manufacturing a gain by regressing
@@ -179,11 +189,14 @@ confined to one checkpoint's representation geometry. It is not evidence that
 27B is generally better than 32B, because these were separate cohorts rather
 than a paired head-to-head benchmark, and it does not expand the admitted task
 grammar.
+The ordinary 27B arm produced no parseable final answers under its fixed
+decode contract. The 0/60 score cannot establish lack of underlying knowledge
+or performance with a different completion budget.
 
-**It runs in the live serving path (CP568, CP824, CP1011).**
+**Dated serving-path qualification (CP568, CP824, CP1011).**
 `core/brain/llm/semantic_neural_serving.py` refuses to serve unless the
 activation record says `active_by_default` and matches the active model
-descriptor. The current package is
+descriptor. The CP1011 package is
 `rlc-27b-recovery-05346acd618d1c925f16`. Runtime verification over 120
 tasks — four domains, three difficulties, three scientific surface profiles —
 was 120/120 exact, 120/120 lesion-disrupted, 120/120 through foreground and
@@ -191,9 +204,11 @@ service integrations, with unsupported language refused. Latency is per
 package, and each one carries its own measurement:
 the CP567 qualification ran a median 46.160 ms and a maximum 83.188 ms, the
 CP568 shadow 34.686 / 63.737 ms, and the prior active `r1` package measured
-6.501 / 17.102 ms on the 32B. The current 27B package measured
+6.501 / 17.102 ms on the 32B. The CP1011 27B package measured
 9.229 / 38.696 ms. `make rlc-figures` recomputes retained historical figures;
 the 27B evidence remains under `artifacts/migration/27b/recovery/`.
+Qualification does not establish current process activation. Recheck source,
+model identity and an eligible live request before making that claim.
 
 CP824 removed the last thing keeping it out of reach: admission had been
 coupled to `desktop_required`, and ordinary sovereign chat does not set that,
@@ -220,8 +235,9 @@ authorize resident training.
 
 The ledger restates this at every checkpoint:
 
-- No broad behavioral gain, and nothing open-domain. The measured gain is on
-  four named executable families and does not transfer beyond them.
+- No broad behavioral gain or open-domain result. Later v14 evidence shows
+  bounded synthetic transfer to one fit-withheld program family using shared
+  primitives; this does not establish unrestricted transfer.
 - No static fusion.
 - No frontier performance.
 - No consciousness evidence.
@@ -236,9 +252,10 @@ The word *bounded* is doing the work: a replicated, lesion-dependent gain on a
 frozen four-domain cohort is a much smaller thing than the phrase suggests to
 anyone reading it without the limitations line. Everything above still holds.
 
-The next bounded milestone is the 1.5B adaptation over train depths
-`1,3,4,5,6,8,10` with held-out `12,16`, followed immediately by the
-already-frozen four-arm behavioral canary.
+The current semantic-program milestone is fresh evaluation after development
+ends, with ordinary and equal-compute controls, lesions and preregistered
+stopping rules. The master queue keeps backbone training, semantic-program
+transfer and live qualification as separate obligations.
 
 **This page is a snapshot; the ledger is the record.** It was reviewed at
 CP832, and checkpoints land faster than a narrative page can track. Between

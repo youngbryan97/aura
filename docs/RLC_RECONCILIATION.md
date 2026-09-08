@@ -7,9 +7,16 @@ plan in this file's history.
 
 **Read this page as the state of the *frozen-loop* reconciliation campaign on
 2026-08-08.** Its "remains false" lines were true that day and were overtaken by
-CP566–CP824, which measured a different mechanism: trained intrinsic recurrence,
+CP566–CP824, which measured a different mechanism: a typed semantic machine
+followed by state-conditioned language-model decoding,
 not the frozen loop this page reconciles. The fourteen defects below are the
 durable part. [INTRINSIC_RECURRENCE.md](INTRINSIC_RECURRENCE.md) is current.
+
+For the 2026-09-08 claim boundary, use the
+[frozen baseline](evidence/G01_RLC_BASELINE_2026-09-08.md). The later bounded
+result does not prove resident-backbone recurrence gain. Fresh natural-language
+replication failed its floor; the subsequent development repair still needs a
+fresh cohort. Historical activation below is not a current live-status probe.
 
 ## The one thing to understand
 
@@ -182,8 +189,8 @@ frozen-loop stack, reasoning gain, frontier performance, fusion, activation, and
 `WOW Signal` were all false.
 
 Two of those five have since moved, and only for the other mechanism. CP566
-answered the last three questions in the affirmative for **trained intrinsic
-recurrence** on a frozen four-domain cohort — replicated, lesion-dependent,
+measured a gain for a **typed semantic machine with state-conditioned decode**
+on a frozen four-domain cohort — replicated, lesion-dependent,
 adjudicated `BOUNDED_WOW_SIGNAL` — and CP568 activated it as a qualified runtime
 package. Frontier performance and static fusion remain false. Nothing here
 changes the frozen-loop verdicts this page reconciles.
