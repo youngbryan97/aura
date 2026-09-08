@@ -130,6 +130,7 @@ class Organs:
     ontogeny: Any = None
     agency: Any = None
     self_prediction: Any = None
+    comparator: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -166,7 +167,18 @@ class Organs:
             world_model=service("unified_world_model"),
             agency=agency,
             self_prediction=runtime("self_prediction"),
+            comparator=_agency_comparator(),
         )
+
+
+def _agency_comparator() -> Any:
+    """The efference-copy comparator, if it is there."""
+    try:
+        from core.consciousness.agency_comparator import get_agency_comparator
+
+        return get_agency_comparator()
+    except Exception:  # noqa: BLE001 - an absent comparator is an absent organ
+        return None
 
 
 def _call(obj: Any, name: str, default: Any = None) -> Any:
@@ -356,6 +368,14 @@ _SCHEMAS: dict[str, Schema] = {
             ("focus_error", "organ:self_prediction.focus_error_ema"),
             ("least_predictable", "organ:self_prediction.most_unpredictable"),
             ("prediction_confidence", "organ:self_prediction.current_prediction.confidence"),
+            # The efference-copy comparator: how much of what happened her own
+            # action explains. It emits and compares — both of those are wired
+            # — and every one of its readouts was called from nowhere, so the
+            # sense of agency it computes reached no part of her.
+            ("agency_score", "organ:comparator.agency_score"),
+            ("agency_traces", "organ:comparator.total_traces"),
+            ("agency_pending", "organ:comparator.pending_efferences"),
+            ("agency_attribution", "organ:comparator.recent_attribution"),
         ),
     ),
     "M": _sch(
@@ -667,6 +687,7 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
     agency = _call(organs.agency, "snapshot", {}) or {}
     prediction = _call(organs.self_prediction, "get_snapshot", {}) or {}
     current = prediction.get("current_prediction") or {}
+    comparator = _call(organs.comparator, "get_status", {}) or {}
     head.extend(
         [
             _sat(_f(introspection.get("belief_count")), 16.0),
@@ -686,6 +707,10 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             _f(prediction.get("focus_error_ema")),
             _hash_unit(prediction.get("most_unpredictable", "")),
             _f(current.get("confidence")),
+            _f(comparator.get("agency_score"), 0.5),
+            _sat(_f(comparator.get("total_traces")), 16.0),
+            _sat(_f(comparator.get("pending_efferences")), 4.0),
+            _hash_unit(comparator.get("recent_attribution", "")),
         ]
     )
     return np.array(head, dtype=np.float64)

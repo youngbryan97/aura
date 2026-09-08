@@ -263,6 +263,14 @@ class IntentionLoop:
         with self._lock:
             self._active_intentions[intention_id] = rec
 
+        # Emit the efference copy: what she expects this to do, recorded before
+        # she does it. The comparator was built for exactly this moment — "call
+        # this when an initiative is promoted, before execution" — and only the
+        # executive authority path ever called it, so an intention formed
+        # anywhere else was compared against nothing and produced no sense of
+        # having caused its own outcome.
+        self._emit_efference(rec)
+
         self._persist(rec)
 
         # Record to CognitiveLedger
@@ -431,6 +439,38 @@ class IntentionLoop:
 
         return rec.surprise
 
+    def _emit_efference(self, rec: IntentionRecord) -> None:
+        """Predict the outcome before acting. Never raises into intend()."""
+        try:
+            from core.consciousness.agency_comparator import get_agency_comparator
+
+            get_agency_comparator().emit_efference(
+                layer="intention_loop",
+                # An intention is formed because she expects it to work. That
+                # is the prediction, and recording it as anything else would be
+                # recording a hedge she did not have.
+                predicted_state={"goal_completed": 1.0, "surprise": 0.0},
+                action_goal=rec.intention,
+                action_source=rec.drive,
+            )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("efference not emitted: %s", exc)
+
+    def _compare_outcome(self, rec: IntentionRecord, succeeded: bool) -> str:
+        """Compare what happened to what she expected. Returns the attribution."""
+        try:
+            from core.consciousness.agency_comparator import get_agency_comparator
+
+            trace = get_agency_comparator().compare_and_attribute(
+                None,
+                {"goal_completed": 1.0 if succeeded else 0.0, "surprise": float(rec.surprise)},
+                action_goal=rec.intention,
+            )
+            return str(getattr(trace, "attribution_label", ""))
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("outcome not compared: %s", exc)
+            return ""
+
     def _record_authorship(self, rec: IntentionRecord, actual_outcome: str) -> None:
         """Tell the agency ledger she caused this. Never raises into observe()."""
         try:
@@ -440,14 +480,22 @@ class IntentionLoop:
             tool = ""
             if rec.actions_taken:
                 tool = str(getattr(rec.actions_taken[-1], "tool_name", "") or "")
+            succeeded = self._actual_outcome_is_success(rec.observation or "", actual_outcome)
             get_agency_ledger().observe(
                 Event(
                     what=tool or "intention",
                     actor=SELF,
-                    verified=self._actual_outcome_is_success(
-                        rec.observation or "", actual_outcome
-                    ),
-                    detail={"intention_id": rec.id, "surprise": rec.surprise},
+                    verified=succeeded,
+                    detail={
+                        "intention_id": rec.id,
+                        "surprise": rec.surprise,
+                        # What the forward model made of it, beside what she
+                        # declared. The ledger records who acted; the comparator
+                        # measures how much of the outcome that action explains.
+                        # Keeping both is what makes a mismatch visible instead
+                        # of arriving as a confident number.
+                        "attribution": self._compare_outcome(rec, succeeded),
+                    },
                 ),
                 self_model=ServiceContainer.get("self_model", default=None),
             )
