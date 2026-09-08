@@ -96,11 +96,18 @@ def build_candidates(state: Any) -> list[Any]:
     # decided anything. A memory bid should be a recollection.
     retrieved = list(getattr(cognition, "long_term_memory", []) or []) if cognition else []
     if retrieved:
+        # At the middle, not the maximum. A recollection's claim on attention
+        # is how well it matched what was asked, and that score is not carried
+        # into the context the retriever writes — so there is no reading here
+        # to price it by. The honest default for an unavailable reading is
+        # neutral: entered at 1.0 it won almost every competition and no other
+        # domain's bid decided anything, which is the same defect the exchange
+        # bid had. Plumbing the retrieval score through would replace this.
         bids.append(
             CognitiveCandidate(
                 content=str(retrieved[-1])[:240],
                 source="memory",
-                priority=1.0,
+                priority=0.5,
                 content_type=ContentType.MEMORIAL,
             )
         )

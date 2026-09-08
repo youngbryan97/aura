@@ -73,6 +73,10 @@ def test_the_memory_bid_is_a_recollection_not_the_turn_just_finished():
     state.cognition.long_term_memory = ["something recalled"]
     memory = next(bid for bid in build_candidates(state) if bid.source == "memory")
     assert memory.content == "something recalled"
+    # Neutral, because the retrieval score is not carried into the context and
+    # there is no reading here to price it by. At the maximum it won almost
+    # every competition.
+    assert memory.priority == pytest.approx(0.5)
 
 
 def test_incoherence_bids_in_proportion_to_how_bad_it_is():
