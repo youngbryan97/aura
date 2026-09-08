@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 from core.cognition.actr_activation import base_level_activation
 from core.config import config
 from core.health.degraded_events import record_degraded_event
+from core.memory.a_deferral_is_not_a_refusal import DeferredWrites, is_a_deferral
 from core.memory.engram_association import (
     get_engram_association_field,
     is_engram_association_enabled,
@@ -38,7 +39,6 @@ from core.memory.recall_observations import record_ranking
 from core.memory.reconsolidation import ReconsolidationEngine, ReconsolidationOutcome
 from core.memory.retention_policy import episodic_retention_policy
 from core.resilience.state_manager import _SafeEncoder
-from core.memory.a_deferral_is_not_a_refusal import DeferredWrites, is_a_deferral
 from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 
