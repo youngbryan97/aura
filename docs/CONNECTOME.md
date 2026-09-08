@@ -378,30 +378,30 @@ from a measured curve instead of from taste.
 
 ### Her connections are far heavier than cortex's
 
-81.8% of Aura's connected pairs touch once and 4.2% touch four or more times.
-Human cortex runs 96.5% and 0.092%. Her heavy pairs are forty-five times more
-common than cortex's and her heaviest carries 113 call sites where H01's
+83.2% of Aura's connected pairs touch once and 3.87% touch four or more times.
+Human cortex runs 96.5% and 0.092%. Her heavy pairs are **42.1 times** more
+common than cortex's, and her heaviest carries 83 call sites where H01's
 heaviest carried about fifty.
 
 H01 reads a four-or-more-contact pair as a powerful connection, rare enough to
-be special. At 4.2% of everything, hers cannot be.
+be special. At 3.87% of everything, hers cannot be.
 
 ### Local recurrence is missing
 
-Cortex's within-layer connection density is 5.95 times its between-layer
-density. Aura's is 0.58 — she connects across levels more often than within
+Cortex's within-layer connection density is 5.945 times its between-layer
+density. Aura's is 0.652 — she connects across levels more often than within
 them, where cortex does the reverse by six to one. The shortfall is a factor of
-10, and it survives any relabelling of the layers, which matters because the
-orientation of her hierarchy is undetermined: the anchor holds by 0.105 of
-trophic height against a spread of 9.63.
+9.1, and it survives any relabelling of the layers, which matters because the
+orientation of her hierarchy is undetermined: the anchor holds by 0.097 of
+trophic height against a spread of 11.03.
 
 The specific pathways she lacks are the local ones. L5I to L5E is cortex's
-densest connection at p=0.3726 — inhibitory control of the output layer — and
-she has 0.17 of her own mean there.
+densest connection relative to its own mean, at 6.98 — inhibitory control of the
+output layer — and she has 0.141 of her own mean there.
 
 ### The excitation to inhibition ratio is cortical overall and local where it is not
 
-Whole system: 3.96 excitatory cells per inhibitory one, against cortex's 4.035.
+Whole system: 3.978 excitatory cells per inhibitory one, against cortex's 4.035.
 
 `reality_reach`, the package that acts on the world, runs 1.67 across 989 cells.
 `auth` runs 1.11 and `social_media` 1.44. Those packages are two to four times
@@ -409,41 +409,49 @@ more inhibited than the rest of her.
 
 ### The feed-forward loop is over-represented and there is no rich club
 
-Against a degree-preserving rewiring: reciprocity z=+233, small-world sigma
-9.48, modularity 0.771 over 887 communities, and the feed-forward loop at
-z=+71 — the same motif that is over-represented in *C. elegans* neurons and in
-*E. coli* transcription.
+Against a degree-preserving rewiring: reciprocity z=+180.7, small-world sigma
+21.87 (clustering 22.1 times the null at a path length 1.009 times it),
+modularity 0.832 over 1,156 communities, and the feed-forward loop at z=+31.9 —
+the same motif that is over-represented in *C. elegans* neurons and in *E. coli*
+transcription. The one motif that is *under*-represented is 021C, the plain
+two-step chain, at z=−3.0.
 
-The rich club runs below its null at every degree cut, 0.43 of chance at k=128.
-Cortex's hubs preferentially wire to each other. Hers avoid each other.
+The rich club runs below its null from k=8 upward, 0.21 of chance at k=128 and
+0.44 at k=256. Cortex's hubs preferentially wire to each other. Hers avoid each
+other.
 
 ### There is a neck, and the evidence for it is thin
 
-124 afferent cells and 277 efferent ones. Sixteen cells carry half the
-sense-to-action flow and those cells converge 6.3 times harder on their inputs
-than an average cell, which is the integrator signature the fly's ascending and
+125 afferent cells and 275 efferent ones. A small set of cells carries half the
+sense-to-action flow, and those cells converge far harder on their inputs than
+an average cell, which is the integrator signature the fly's ascending and
 descending neurons show.
 
-The same run reports that only 65 of 34,348 sense-to-action pairs have a
-statically visible path. A static reconstruction cannot see a call made through
-a service lookup or an event bus, so that number is a floor and the neck verdict
-is marked thin until the snapshot has been proofread against a recording.
+A static reconstruction cannot see a call made through a service lookup or an
+event bus, so a count of statically visible paths is a floor, and the neck
+verdict is marked thin until the snapshot has been proofread against a
+recording.
 
-Proofreading it settles the question. 7,802 pairs were seen firing; the static
-reconstruction contained 6,463 of them, recall 0.828. Writing a join for each of
-the 1,325 it lacked takes recall to **0.998**, expected run length from 2.50 to
-**3.10**, and sense-to-action reachable pairs from 65 to **203**, which is
-enough for the verdict to stand on its own. On the proofread map the cells
-carrying that flow converge **99 times** harder on their inputs than an average
-cell, against 6.5 before. The fly's neck is made of integrators, and so is
-hers.
+Proofreading moves it. 12,027 pairs were seen firing and the reconstruction
+contained 9,986 of them, recall **0.8303**, expected run length 2.656, 2,041
+split errors left. Writing a join for each pair it lacked — 1,742 of them — takes
+sense-to-action reachable pairs from 65 to **162**, and on the proofread map the
+cells carrying that flow converge **109 times** harder on their inputs than an
+average cell. The fly's neck is made of integrators, and so is hers.
+
+162 is still below the bar of 200 the spine analysis wants, and the remedy is no
+longer proofreading. It is a longer recording: a pair whose path was never taken
+in the recording is a pair the recording cannot join.
 
 ### Two individuals differ three times more than two flies
 
 Reconstructing at HEAD and at 400 commits earlier gives two individuals of the
 same system: 43,515 shared cells, 40 lost, 4,229 gained, 7,835 rewired pairs.
 15.3% of cells changed, against the 4.8% of the fly central brain that is
-sex-specific or dimorphic.
+sex-specific or dimorphic. Against a checkout a few days old the same analysis
+finds 47,914 cells in the core, none lost and none gained, and a mean contact
+shift of 0.00004 — the measure is reading the distance between the two
+individuals rather than a constant.
 
 Cell typing survives it. Adjusted Rand 0.936 between the two, and 67.8% of
 multi-member types intact across 400 commits, which is the cross-individual
