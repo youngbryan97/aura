@@ -144,3 +144,38 @@ def test_the_winner_becomes_where_she_is_looking_whether_or_not_it_ignited():
     _remember_broadcast(state, winner, ignited=False)
     assert state.cognition.attention_focus.startswith("perception: ")
     assert state.cognition.long_term_memory == []
+
+
+def test_an_ordinary_moment_still_bids_on_its_novelty():
+    """The reservoir puts an ordinary moment near 0.2, so a gate at 0.5
+    excluded every real reading and admitted only the placeholder it returns
+    before it has a distribution to compare against."""
+    from types import SimpleNamespace as _NS
+
+    import core.consciousness.workspace_feed as feed
+
+    state = AuraState.default()
+    import core.ontogeny.lifetime as lifetime
+
+    original = lifetime.last_reading
+    try:
+        lifetime.last_reading = lambda: _NS(novelty=0.22, displacement=0.1)
+        sources = {bid.source for bid in feed.build_candidates(state)}
+        assert "ontogeny" in sources
+    finally:
+        lifetime.last_reading = original
+
+
+def test_a_novelty_of_nothing_does_not_bid():
+    from types import SimpleNamespace as _NS
+
+    import core.consciousness.workspace_feed as feed
+    import core.ontogeny.lifetime as lifetime
+
+    original = lifetime.last_reading
+    try:
+        lifetime.last_reading = lambda: _NS(novelty=0.0, displacement=0.0)
+        sources = {bid.source for bid in feed.build_candidates(AuraState.default())}
+        assert "ontogeny" not in sources
+    finally:
+        lifetime.last_reading = original

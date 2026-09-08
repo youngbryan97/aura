@@ -155,14 +155,20 @@ def build_candidates(state: Any) -> list[Any]:
     # An unprecedented moment deserves attention. The lifetime state computes
     # exactly that number every cycle and nothing competed on it, so a life
     # that had never seen anything like this bid the same as one on a familiar
-    # afternoon. Ordinary sits at 0.5 on the reservoir's own scale, so only a
-    # moment above ordinary enters.
+    # afternoon.
+    #
+    # It bids at whatever the novelty is, with no threshold of its own. A first
+    # version only entered above 0.5 and therefore never entered at all: the
+    # reservoir puts an ordinary moment near 0.2, so the gate excluded every
+    # real reading and admitted only the 0.5 it returns before it has a
+    # distribution to compare against. Deciding in advance which bids are worth
+    # hearing is the workspace's job, and it is better at it than a constant.
     try:
         from core.ontogeny.lifetime import last_reading
 
         reading = last_reading()
         novelty = _clamp(getattr(reading, "novelty", 0.0)) if reading is not None else 0.0
-        if novelty > 0.5:
+        if novelty > FLOOR:
             bids.append(
                 CognitiveCandidate(
                     content=f"this is unlike the ordinary run of things ({novelty:.2f})",
