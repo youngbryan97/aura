@@ -188,8 +188,10 @@ def build_candidates(state: Any) -> list[Any]:
                     content_type=ContentType.META,
                 )
             )
-    except (ImportError, AttributeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        # An organ that is not loaded offers nothing to the competition, which
+        # is a smaller candidate list rather than a fault.
+        logger.debug("ontogeny had nothing to offer the workspace: %s", exc)
 
     # A surprising world is the oldest thing there is a competition for. The
     # world model computes its own prediction error every cycle and the only
@@ -211,8 +213,8 @@ def build_candidates(state: Any) -> list[Any]:
                         content_type=ContentType.META,
                     )
                 )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("the world model had nothing to offer the workspace: %s", exc)
 
     # And a substrate that is moving fast. Volatility is the continuous
     # substrate's own reading of how much it is changing, which is what makes a
@@ -233,8 +235,8 @@ def build_candidates(state: Any) -> list[Any]:
                         content_type=ContentType.SOMATIC,
                     )
                 )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("the substrate had nothing to offer the workspace: %s", exc)
 
     if soma is not None:
         hardware = getattr(soma, "hardware", {}) or {}

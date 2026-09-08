@@ -13,10 +13,13 @@ fabricating a signal.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 import numpy as np
+
+logger = logging.getLogger("Aura.Consciousness.InnerLight.Activity")
 
 
 @dataclass
@@ -158,16 +161,17 @@ def from_live_streams(
             from core.runtime.consequence_bus import ConsequenceBus
             bus = ConsequenceBus.get()
         events.extend(_consequence_events(bus, window))
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        # One absent source is fewer events in the matrix, not an empty one.
+        logger.debug("consequence events unavailable for the activity matrix: %s", exc)
     try:
         if workspace is None:
             from core.runtime.service_access import resolve_global_workspace
             workspace = resolve_global_workspace(default=None)
         if workspace is not None:
             events.extend(_workspace_events(workspace, window))
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("workspace events unavailable for the activity matrix: %s", exc)
     return build_activity_matrix(events, n_bins=n_bins)
 
 

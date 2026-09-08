@@ -12,6 +12,7 @@ import pytest
 from core.brain.inference_gate import InferenceGate
 from core.container import ServiceContainer
 from core.state.aura_state import AuraState
+from core.utils.deadlines import get_deadline
 
 
 @pytest.fixture(autouse=True)
@@ -29,7 +30,6 @@ def _a_proof_run_does_not_hide_every_other_reason(monkeypatch):
         "core.runtime.proof_policy.proof_run_active", lambda **_kwargs: False
     )
 
-from core.utils.deadlines import get_deadline
 
 _MISSING = object()
 
