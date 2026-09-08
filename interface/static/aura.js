@@ -10386,7 +10386,7 @@ const imagination = (() => {
             ...(Array.isArray(links) ? links : []),
         ];
         if (!objects.length) {
-            svg.innerHTML = '<text x="160" y="95" text-anchor="middle" class="imagine-canvas-null">no objects in this frame</text>';
+            svg.innerHTML = '<text x="160" y="95" text-anchor="middle" class="imagine-canvas-null">nothing placed in the scene yet</text>';
             setText('imagine-canvas-caption', '');
             return;
         }
@@ -10517,7 +10517,7 @@ const imagination = (() => {
         if (!host) return;
         const probs = attractor.probabilities;
         if (!probs || typeof probs !== 'object' || !Object.keys(probs).length) {
-            host.innerHTML = '<div class="imagine-empty-inline">no attractor competition in this frame</div>';
+            host.innerHTML = '<div class="imagine-empty-inline">she considered only one way of imagining this</div>';
             setText('imagine-attractor-meta', '');
             return;
         }
