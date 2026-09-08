@@ -17,10 +17,17 @@ cycles, and vertex connectivity over a graph that does not contain the broker
 reports a healthy two or three. The synthetic star null in `core.subject.nulls`
 does exactly this and passes every graph criterion. What it fails is here.
 
-The periphery is read by walking the live phase objects and taking every
-number they carry. No list is written by hand, because a hand-written list of
-suspects is a list of the ones already thought of, and the point is to find
-the one that was not.
+The periphery is read by walking the live phase objects, the kernel, the organs
+and every service the container has already built, taking every number they
+carry. No list is written by hand, because a hand-written list of suspects is a
+list of the ones already thought of, and the point is to find the one that was
+not.
+
+Clocks are dropped before the comparison. A refresh timestamp outside K
+predicts K's future for the same reason any monotone series predicts any other
+— they are both going one way — and the first version of this test returned
+"not closed" on the strength of two of them. The question is whether a hidden
+*state* explains the core's future, and elapsed time is not a hidden state.
 """
 
 from __future__ import annotations
@@ -66,6 +73,19 @@ def _numbers(obj: Any, prefix: str, out: dict[str, float], depth: int = 0) -> No
             _numbers(value, f"{prefix}.{name}", out, depth + 1)
 
 
+def _one_way(values: np.ndarray) -> np.ndarray:
+    """Columns that only ever move one way. Clocks, not hidden state."""
+    if values.shape[0] < 8:
+        return np.zeros(values.shape[1], dtype=bool)
+    steps = np.diff(values, axis=0)
+    moving = np.abs(steps) > 1e-12
+    counts = moving.sum(axis=0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        up = np.where(counts > 0, (steps > 0).sum(axis=0) / np.maximum(counts, 1), 0.0)
+        down = np.where(counts > 0, (steps < 0).sum(axis=0) / np.maximum(counts, 1), 0.0)
+    return ((up >= 0.99) | (down >= 0.99)) & (counts >= 4)
+
+
 def read_periphery(kernel: Any) -> dict[str, float]:
     """Every number the machine is carrying that is not part of K.
 
@@ -85,6 +105,19 @@ def read_periphery(kernel: Any) -> dict[str, float]:
     if isinstance(organs, dict):
         for name, organ in organs.items():
             _numbers(organ, f"organ.{name}", out, depth=1)
+    # And every service the container has already built. That is where the
+    # hidden state would be if there were any: a phase mostly holds references,
+    # a service holds what it has accumulated.
+    try:
+        from core.container import ServiceContainer
+
+        built = getattr(ServiceContainer, "_services", {}) or {}
+        for name in sorted(built):
+            if len(out) >= MAX_PERIPHERY:
+                break
+            _numbers(built.get(name), f"service.{name}", out, depth=1)
+    except Exception:  # noqa: BLE001 - an absent container is an absent periphery
+        pass
     return out
 
 
@@ -150,7 +183,7 @@ def closure_gain(
         return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, 0.0, int(outside.shape[1] if outside.size else 0))
 
     spread = outside.std(axis=0)
-    keep = spread > 1e-9
+    keep = (spread > 1e-9) & ~_one_way(outside)
     outside = outside[:, keep]
     kept_names = tuple(name for name, flag in zip(names, keep, strict=True) if flag)
     if outside.shape[1] == 0:
