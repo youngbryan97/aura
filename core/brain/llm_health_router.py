@@ -554,10 +554,56 @@ async def _await_while_it_is_working(
             # queue is delayed, so silence here is not evidence that the owned
             # request stopped.  Wait for an explicit endpoint terminal state or
             # for the caller to cancel the turn.
+            # Two different quantities, and the runtime has one number for
+            # them: how long the WORK should take, and how long a PERSON will
+            # wait. The endpoint's first-token ceiling is the first — it is
+            # sized from the prompt and the token budget — and this wait is
+            # the second.
+            #
+            # LIVE, 2026-09-08: a desktop turn with a 49,136-character prompt
+            # got a 900-second first-token ceiling, the 27B took the job on a
+            # host at 11.8GB free with a 9B already resident, spent fifteen
+            # minutes at half a core paging weights, and produced no first
+            # token. `is_inference_ready()` said False for 631 seconds while
+            # it happened. Nothing was broken; the person was simply not being
+            # served, and nothing said so.
+            #
+            # Still waiting, deliberately: the endpoint owns first-token,
+            # livelock, heartbeat, memory-pressure and cancellation, and this
+            # outer estimate cannot see native MLX work while the loop is
+            # delayed. What changes is that the wait past a person's patience
+            # is now named, with the number it passed.
             logger.info(
                 "Endpoint past its %.1fs estimate; waiting for its owned terminal state.",
                 budget_s,
             )
+            try:
+                from core.brain.llm.mlx_client import longest_a_turn_may_take
+
+                a_person_waits = float(longest_a_turn_may_take())
+            except (ImportError, AttributeError, TypeError, ValueError):
+                a_person_waits = 0.0
+            if a_person_waits > 0.0 and budget_s < a_person_waits:
+                async def _say_when_it_passes_a_persons_patience() -> None:
+                    try:
+                        await asyncio.sleep(max(0.0, a_person_waits - budget_s))
+                    except asyncio.CancelledError:
+                        return
+                    if not task.done():
+                        logger.warning(
+                            "A person has been waiting %.0fs for a first token, "
+                            "past the %.0fs a turn is meant to take; still "
+                            "waiting because the endpoint owns the terminal "
+                            "state and has not given one.",
+                            a_person_waits,
+                            a_person_waits,
+                        )
+
+                watcher = asyncio.ensure_future(_say_when_it_passes_a_persons_patience())
+                try:
+                    return await task
+                finally:
+                    watcher.cancel()
             return await task
 
         try:
