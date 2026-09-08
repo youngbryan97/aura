@@ -688,10 +688,18 @@ header {
     text-transform: uppercase;
     letter-spacing: 1px;
     transition: all 0.2s;
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
     white-space: nowrap;
+    /* One height for the row. The pills sized themselves from their own text
+       and their own padding, so a bigger font on the reboot control and an
+       extra word on the camera control left the strip visibly uneven. */
+    height: 24px;
+    padding: 0 10px;
+    line-height: 1;
+    box-sizing: border-box;
 }
 
 .hdr-btn:hover {
@@ -706,7 +714,8 @@ header {
 }
 
 .hdr-btn.reboot {
-    padding: 6px 10px;
+    /* Its glyph is bigger; its pill is not. */
+    padding: 0 10px;
     font-size: 0.8rem;
 }
 
@@ -726,11 +735,11 @@ header {
     box-shadow: 0 0 12px rgba(0, 255, 163, 0.3);
 }
 
-.privacy-btn.disabled::before {
-    content: 'OFF ';
-    font-size: 0.6rem;
-    font-weight: bold;
-}
+/* The label already says it.
+   `● CAM OFF` came out of the button's own text and this rule prepended a
+   second "OFF", so the pill read "OFF ● CAM OFF" and outgrew the row it sits
+   in. One fact, one writer, and the writer is the one the runtime keeps in
+   sync (see the privacy branch in aura.js). */
 
 /* ── MAIN LAYOUT ─────────────────────────────────── */
 main {
@@ -1410,6 +1419,17 @@ main {
 .tab-icon {
     font-size: 0.95rem;
     transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    /* One box for every glyph.
+       These are six different characters — a fisheye, a diamond, an asterisk,
+       a lozenge, a lightning bolt, a gear — and they do not share an ascender
+       or a descender, so each one set its own line height and pushed its label
+       to a different place. SKILLS sat lowest because the bolt is the tallest.
+       A fixed box takes the glyph's own metrics out of the layout. */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.2rem;
+    line-height: 1;
 }
 
 .tab-btn.active {
@@ -5935,10 +5955,6 @@ body.perf-lean .splash-orb-ring {
 
     .hdr-actions {
         max-width: 32vw;
-    }
-
-    .privacy-btn::before {
-        display: none;
     }
 
     .input-hint {

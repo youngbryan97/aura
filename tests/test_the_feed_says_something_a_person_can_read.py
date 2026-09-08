@@ -84,3 +84,33 @@ def test_a_sentence_is_left_alone() -> None:
     report = _measure()
     assert report["translated_events"] > 0
     assert report["raw_events"] >= 0
+
+
+# ── and the card shows what the measurement measures ─────────────────────
+
+
+def test_the_complete_payload_goes_through_the_same_translation():
+    """The rule table reached the screen only for payloads too long to show.
+
+    LIVE, 2026-09-08. `showCompletePayload` is true for almost every line the
+    runtime emits, and the card took the RAW full text in that branch and the
+    translated one only in the other. So the face of nearly every card was
+    logger output, the translated string beside it was discarded, and every
+    measurement of this feed's legibility had been taken through the
+    translator rather than through the card.
+    """
+    source = (ROOT / "interface" / "static" / "aura.js").read_text()
+    at = source.index("const showCompletePayload = ")
+    window = source[at - 900 : at + 400]
+    assert "const fullPlain = toPlainEnglish(fullMsg);" in window
+    assert "showCompletePayload ? fullPlain : msg" in window
+    assert "showCompletePayload ? fullMsg : msg" not in source
+
+
+def test_the_footer_about_a_hidden_payload_is_about_size_not_translation():
+    """A face that reads in English still holds its raw text behind SHOW ALL,
+    and saying so on every card is noise."""
+    source = (ROOT / "interface" / "static" / "aura.js").read_text()
+    assert "const hasHiddenFullPayload = !showCompletePayload;" in source
+    assert "const faceIsTranslated = fullPlain !== fullMsg;" in source
+    assert "|| faceIsTranslated" in source

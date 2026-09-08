@@ -52,16 +52,35 @@ function bodyOf(startsWith) {
 }
 
 const start = lines.findIndex((l) => l.startsWith('const PLAIN_LANGUAGE_RULES = ['));
-let end = lines.findIndex((l, i) => i > start && l.startsWith('function toPlainEnglish'));
-let depth = 0, seen = false;
-for (let i = end; i < lines.length; i++) {
-  for (const ch of lines[i]) { if (ch === '{') { depth++; seen = true; } else if (ch === '}') depth--; }
-  if (seen && depth === 0) { end = i; break; }
+const opensToPlain = lines.findIndex((l, i) => i > start && l.startsWith('function toPlainEnglish'));
+if (start < 0 || opensToPlain < 0) throw new Error('the rule table or its reader moved');
+// To the closing brace in column one, not by counting braces.
+//
+// The counter read every `{` in the file including the ones inside regular
+// expressions and template literals, and it had been getting away with it
+// until a rule contained an unbalanced one. Then it sliced the module in
+// half and this tool reported that it could not run the translator at all —
+// a measurement failing for a reason that has nothing to do with what it
+// measures. These are top-level declarations; their end is a `}` alone.
+let end = -1;
+for (let i = opensToPlain + 1; i < lines.length; i++) {
+  if (lines[i] === '}') { end = i; break; }
 }
+if (end < 0) throw new Error('could not find the end of toPlainEnglish');
+// The slice already runs to the end of `toPlainEnglish`; only the
+// pictograph strip sits outside it.
 const block = lines.slice(start, end + 1).join('\n') + '\n' + bodyOf('function stripNeuralPictographs');
 const make = new Function('escHtml', block + `
   return {
-    // What the card shows.
+    // What the card shows, in the order the card does it — the pictographs
+    // come off, the rules run, and only what survives both is on the face.
+    //
+    // Taking these in a different order or leaving one out is how the number
+    // stops being about the feed: the card fed only its LONG payloads through
+    // toPlainEnglish and this harness fed everything through it, so the
+    // measurement described a function nobody was reading.
+    // (No backticks in here: this comment is inside a template literal, and
+    // one of them closed it and broke the tool.)
     shown: function (raw) {
       return plainLanguageThought(toPlainEnglish(stripNeuralPictographs(String(raw || '')).trim()));
     },

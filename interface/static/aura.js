@@ -3477,8 +3477,54 @@ const PLAIN_LANGUAGE_RULES = [
      (m) => `Answer delivered, ${humanSeconds(+m[1] / 1000)} from question to reply.`],
     [/^Foreground delivery timing before terminal shaping:/i,
      () => 'Finishing the answer off before it goes on screen.'],
+    // A generation of a handful of tokens is a readiness probe, not a turn.
+    // Rendered with the same sentence as a real answer it read as "Read the
+    // question ... 1 words' worth ... wrote about 1 words at 12579 a second",
+    // which describes nothing that happened and appears four times a boot.
+    [/generation performance: prefill=(\d+) tokens\/[\d.]+s \([\d.]+ tok\/s\), decode=(\d+) tokens/i,
+     (m) => (+m[1] <= 32 && +m[2] <= 32)
+        ? 'Checked her mind still answers, with a one-word question.'
+        : null],
     [/generation performance: prefill=(\d+) tokens\/([\d.]+)s \(([\d.]+) tok\/s\), decode=(\d+) tokens\/([\d.]+)s \(([\d.]+) tok\/s\)/i,
      (m) => `Read the question and everything she brought to it — ${inWords(+m[1])} — in ${humanSeconds(+m[2])}, then wrote about ${Math.round(+m[4] * 0.75).toLocaleString()} words at ${Math.round(+m[6] * 0.75)} a second.`],
+    [/first-token ceiling(?: raised [\d.]+s →)? ([\d.]+)s for a (\d+)-char prompt \((\d+) max tokens\)/i,
+     (m) => +m[2] <= 64
+        ? `Gave a readiness check ${humanSeconds(+m[1])} to say its first word.`
+        : `Gave this answer ${humanSeconds(+m[1])} to say its first word.`],
+    [/^\[?WORKER\]?\s*Prefill chunk reduced (\d+)→(\d+) for host headroom \(level=(\w+) available=([\d.]+)GB\)/i,
+     (m) => `Reading the question in smaller pieces to leave the machine room (${m[4]}GB free).`],
+    [/^\[?MLX\]?\s*Warmup complete — Metal shaders compiled/i,
+     () => 'Her mind is warmed up and ready.'],
+    [/^\[?MLX\]?\s*Verifying conversation readiness for (\S+) with a visible probe/i,
+     (m) => 'Checking her main mind can still hold a conversation.'],
+    [/PROMPT CACHE\]?\s*cleared everything under key=/i,
+     () => 'Threw away what she had kept of an earlier conversation.'],
+    [/PROMPT CACHE\]?\s*retained nothing — (.+?)(?:,|$)/i,
+     (m) => `Kept nothing from that one — ${humanReason(m[1])}.`],
+    [/^Foreground lane deferred \((\w+)\); waiting up to ([\d.]+)s for it to clear rather than refusing the turn/i,
+     (m) => `Her mind is still warming up; waiting up to ${humanSeconds(+m[2])} rather than turning the question away.`],
+    [/^GW IGNITION #(\d+): source=(\w+), priority=([\d.]+)/i,
+     (m) => `Something reached her awareness from ${humanOrgan(m[2])} (strength ${pct(m[3])}).`],
+    [/^\[?MYCELIUM\]?\s*Hypha established: (\w+)->(\w+)/i,
+     (m) => `Opened a channel from ${humanOrgan(m[1])} to ${humanOrgan(m[2])}.`],
+    [/^ArchitectureIndex: indexed (\d+) modules/i,
+     (m) => `Read her own structure: ${(+m[1]).toLocaleString()} parts.`],
+    [/^Loading Whisper model: (\w+)/i,
+     () => 'Loading the part of her that turns speech into words.'],
+    [/^Microphone lease (\w+) acquired by ([\w:.-]+)/i,
+     () => 'Took the microphone so she can hear the room.'],
+    [/^TheoryArbitrationFramework initialized with (\d+) theories/i,
+     (m) => `Ready to weigh ${m[1]} competing explanations against each other.`],
+    [/^Chat preflight timing:/i,
+     () => 'Finished gathering what she needs before answering.'],
+    [/^\[?ANSWER BUDGET\]?\s*Answer turn: (\d+) → (\d+) tokens at dispatch/i,
+     (m) => `Decided this answer needs room for about ${Math.round(+m[2] * 0.75)} words, up from ${Math.round(+m[1] * 0.75)}.`],
+    [/^\[?ANSWER BUDGET\]?\s*(\d+) tokens fit this turn's clock.*?raising the ceiling from (\d+)/i,
+     (m) => `Bought more room for this answer — about ${Math.round(+m[1] * 0.75)} words rather than ${Math.round(+m[2] * 0.75)}.`],
+    [/^\[?ANSWER CLOCK\]?\s*(\d+) tokens.*?decode in about ([\d.]+)s and the prompt takes about ([\d.]+)s to read.*?deadline ([\d.]+)s → ([\d.]+)s/i,
+     (m) => `Worked out what this turn needs: about ${humanSeconds(+m[3])} to read the question and ${humanSeconds(+m[2])} to write the answer, so she gave herself ${humanSeconds(+m[5])} instead of ${humanSeconds(+m[4])}.`],
+    [/^\[?ANSWER CLOCK\]?\s*not consulted for this turn/i,
+     () => 'Took this turn on the standing time limit rather than working one out.'],
     [/^Routing to Cortex \(timeout=(\d+)s/i,
      (m) => `Thinking it through with her main mind — up to ${humanSeconds(+m[1])} to answer.`],
     [/^Routing to (?:Brainstem|Reflex)/i, () => 'Answering with her quick mind, not the deep one.'],
@@ -3492,10 +3538,20 @@ const PLAIN_LANGUAGE_RULES = [
      () => 'The evidence she gathered made it all the way to the answer.'],
     [/^\[?GROUNDING\]?\s*survived to dispatch:\s*(?:absent|missing|none)/i,
      () => 'She reached the answer with none of the evidence she gathered.'],
+    // Probe-sized again: four of these a boot, each describing a one-token
+    // readiness check as though it were a conversation being remembered.
     [/PROMPT CACHE\]?\s*retained (\d+) tokens/i,
-     (m) => `Kept ${inWords(+m[1])} of this conversation ready, so the next reply starts sooner.`],
+     (m) => +m[1] <= 32
+        ? null
+        : `Kept ${inWords(+m[1])} of this conversation ready, so the next reply starts sooner.`],
     [/PROMPT CACHE\]?\s*miss — prefilling all (\d+) tokens/i,
-     (m) => `Nothing to reuse — reading all ${inWords(+m[1])} of this turn from the start.`],
+     (m) => +m[1] <= 32
+        ? null
+        : `Nothing to reuse — reading all ${inWords(+m[1])} of this turn from the start.`],
+    [/PROMPT CACHE\]?\s*(?:retained (?:\d+) tokens|miss — prefilling all (?:\d+) tokens)/i,
+     () => 'Checked her memory of the conversation; nothing to keep from a readiness check.'],
+    [/PROMPT CACHE\]?\s*retained nothing/i,
+     () => 'Kept nothing of that one.'],
     [/^conversation resume handle kept/i,
      () => 'Kept her place in the conversation in case it is picked up later.'],
     [/^UnitaryResponse: answered directly from task state/i,
@@ -4637,20 +4693,37 @@ function addThoughtCard(data) {
     const technical = cleanThoughtText(rawMsg, ts, name);
     const msg = toPlainEnglish(technical);
     const fullMsg = cleanThoughtText(rawFull, ts, name);
+    // The complete payload goes through the same translation as the short
+    // one.
+    //
+    // It did not, and `showCompletePayload` is true for almost every line the
+    // runtime emits, so almost every card showed the raw logger text and the
+    // translated `msg` beside it was discarded. The rule table reached the
+    // screen only for payloads too long to show whole. Every measurement of
+    // the feed's legibility was taken through the translator rather than
+    // through the card, so it measured a function nobody was looking at.
+    const fullPlain = toPlainEnglish(fullMsg);
     const repeatCount = Math.max(1, Number(data.repeatCount || 1));
     const fullLines = fullMsg.split(/\r?\n/).length;
     const showCompletePayload = fullMsg.length <= 8000 && fullLines <= 100;
-    const previewSource = showCompletePayload ? fullMsg : msg;
+    const previewSource = showCompletePayload ? fullPlain : msg;
     const preview = thoughtPreviewText(
         previewSource,
         showCompletePayload ? 8000 : 1200,
         showCompletePayload ? 100 : 16
     );
-    const hasHiddenFullPayload = fullMsg !== previewSource;
+    // Two different reasons the raw payload is not on the face, and only one
+    // of them warrants the "[preview card]" footer: it was too big to show.
+    // A face that reads in English still holds its raw text behind SHOW ALL
+    // and COPY, and saying so on every card is noise.
+    const hasHiddenFullPayload = !showCompletePayload;
+    const faceIsTranslated = fullPlain !== fullMsg;
     // A card whose face was redacted has hidden content just as surely as one
     // that was clipped, and must offer the same way back to it.
     const measurementsRedacted = redactsMeasurements(preview.text);
-    const longThought = preview.clipped || hasHiddenFullPayload || measurementsRedacted;
+    const longThought = (
+        preview.clipped || hasHiddenFullPayload || measurementsRedacted || faceIsTranslated
+    );
     if (longThought) cls += ' long';
     card.className = cls;
     card.style.setProperty('--tc', chan.hue);
