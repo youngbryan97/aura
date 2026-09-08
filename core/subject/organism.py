@@ -18,7 +18,7 @@ whichever arm ran while the machine was busy. The driver calls the same tick
 functions once per turn instead, so the computation is the runtime's and the
 timing is the experiment's.
 
-Cancelling the two I knew about left twelve more. The consciousness bridge
+Cancelling the two I knew about left eleven more. The consciousness bridge
 starts a loop per layer — neural mesh, neurochemistry, interoception,
 oscillatory binding, the unified field, substrate evolution — and the closed
 causal loop runs its own prediction cycle, and none of them exposes a per-tick
@@ -46,7 +46,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["Organism", "bring_up", "wind_down"]
+__all__ = ["Organism", "bring_up", "quiesce", "wind_down"]
 
 logger = logging.getLogger("Aura.Subject.Organism")
 
@@ -87,8 +87,20 @@ def _note(organism: Organism, name: str, exc: BaseException | None = None) -> No
         logger.warning("subject-core organism: %s did not come up: %s", name, exc)
 
 
-async def bring_up(*, with_bridge: bool = True) -> Organism:
-    """Register the container, start the consciousness layers, stop their loops."""
+async def bring_up(*, with_bridge: bool = True, quiet: bool = False) -> Organism:
+    """Register the container and start the consciousness layers.
+
+    ``quiet`` stops the free-running loops. Leave it off for a recording: an
+    observational measure needs a trajectory, not paired arms, and the
+    trajectory is more of the organism with the loops running. Turn it on
+    before interventions, where two arms have to see the same computation and a
+    loop running at whatever rate the machine allows makes them incomparable.
+
+    Which way round matters. Most of the cross-domain coupling flows through
+    those loops — stopping them for the whole run dropped the partition score
+    from +0.002 to -0.042 — so measuring the transition law with them stopped
+    would be measuring a quieter organism than the one that exists.
+    """
     organism = Organism()
 
     from core.container import ServiceContainer
@@ -183,7 +195,8 @@ async def bring_up(*, with_bridge: bool = True) -> Organism:
         except Exception as exc:  # noqa: BLE001
             _note(organism, "substrate_loop_stopped", exc)
 
-    organism.stopped_loops = await _stop_background_loops(organism)
+    if quiet:
+        organism.stopped_loops = await quiesce()
     organism.still_running = _live_tasks()
     return organism
 
@@ -195,7 +208,7 @@ KEPT_TASKS: tuple[str, ...] = (
 )
 
 
-async def _stop_background_loops(organism: Organism) -> list[str]:
+async def quiesce() -> list[str]:
     """Cancel every free-running cognitive loop, and say which.
 
     Cancellation is a request, not an event: the task does not end until the
@@ -205,7 +218,6 @@ async def _stop_background_loops(organism: Organism) -> list[str]:
     """
     import asyncio
 
-    del organism
     stopped: set[str] = set()
     doomed: list[Any] = []
     try:

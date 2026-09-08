@@ -160,13 +160,23 @@ def test_the_battery_leaves_no_free_running_cognitive_loop():
 
     from core.subject.driver import build_runtime, start_organism
 
+    from core.subject.driver import quiesce_organism
+
     async def run():
         with TemporaryDirectory() as tmp:
             runtime = build_runtime(Path(tmp) / "runtime", seed=5)
-            summary = await start_organism(runtime)
-            del runtime
-            return summary
+            await start_organism(runtime)
+            # Recording happens with them running; the arms do not.
+            stopped = await quiesce_organism(runtime)
+            import asyncio as _asyncio
 
-    summary = asyncio.run(run())
-    assert summary["stopped_loops"], "nothing was stopped, so nothing was running"
-    assert set(summary["still_running"]) <= {"state_registry.notification_dispatcher"}
+            live = {
+                task.get_name()
+                for task in _asyncio.all_tasks()
+                if task is not _asyncio.current_task() and not task.done()
+            }
+            return stopped, live
+
+    stopped, live = asyncio.run(run())
+    assert stopped, "nothing was stopped, so nothing was running"
+    assert live <= {"state_registry.notification_dispatcher"}

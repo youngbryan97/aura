@@ -120,7 +120,7 @@ async def main() -> int:
     from core.subject.clamp import clamped
     from core.subject.closure import closure_gain
     from core.subject.differentiation import effective_dimension
-    from core.subject.driver import CONDITIONS, build_runtime, start_organism
+    from core.subject.driver import CONDITIONS, build_runtime, quiesce_organism, start_organism
     from core.subject.graph import analyse_graph
     from core.subject.intrinsic import intrinsic_gain
     from core.subject.irreducibility import phi_do
@@ -193,6 +193,12 @@ async def main() -> int:
         f"closed={evidence['closure']['closed']}"
     )
 
+    # The recording is taken with the organism running as it runs. The
+    # interventions are not: two arms have to see the same computation, and a
+    # loop ticking at whatever rate the machine allows makes them incomparable.
+    stopped = await quiesce_organism(runtime)
+    evidence["organism"]["stopped_loops"] = stopped
+    _log(f"stopped {len(stopped)} background loops for the paired arms")
     _log(f"interventions: {len(DOMAINS)} domains x {len(CONDITIONS)} conditions x {args.trials} trials")
     results = await run_interventions(
         runtime,

@@ -55,6 +55,7 @@ __all__ = [
     "SubjectRuntime",
     "Snapshot",
     "build_runtime",
+    "quiesce_organism",
     "start_organism",
 ]
 
@@ -681,7 +682,17 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
     return runtime
 
 
-async def start_organism(runtime: SubjectRuntime) -> dict[str, Any]:
+async def quiesce_organism(runtime: SubjectRuntime) -> list[str]:
+    """Stop the free-running loops before the paired arms begin."""
+    from core.subject.organism import quiesce
+
+    stopped = await quiesce()
+    if runtime.organism is not None:
+        runtime.organism.stopped_loops = stopped
+    return stopped
+
+
+async def start_organism(runtime: SubjectRuntime, *, quiet: bool = False) -> dict[str, Any]:
     """Bring the layers up, then bind the runtime to what came up.
 
     Separate from `build_runtime` because it is async and because a caller who
@@ -690,7 +701,7 @@ async def start_organism(runtime: SubjectRuntime) -> dict[str, Any]:
     """
     from core.subject.organism import bring_up
 
-    organism = await bring_up()
+    organism = await bring_up(quiet=quiet)
     runtime.heartbeat = organism.heartbeat
     # N reads the organ's shared lifetime reservoir, not a private one. A
     # private reservoir would be a second life running beside the real one and
