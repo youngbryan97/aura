@@ -30,7 +30,7 @@ from core.subject.state import (
     feature_names,
 )
 
-__all__ = ["Recording", "build_recording", "load_recording"]
+__all__ = ["Recording", "build_recording", "load_recording", "slices_from_columns"]
 
 #: A column whose standard deviation across the whole recording is at or below
 #: this is treated as constant. It is not zero because a float that is written
@@ -192,9 +192,28 @@ def build_recording(
     )
 
 
+def slices_from_columns(columns: Sequence[str]) -> dict[str, slice]:
+    """Where each domain sits, read from the column names that were recorded.
+
+    Not from the current schema. A recording saved before a feature was added
+    or removed has its own widths, and rebuilding the slices from today's
+    schema silently reads the wrong columns for every domain after the one that
+    changed — or indexes past the end, which is the lucky case because it says
+    so.
+    """
+    out: dict[str, slice] = {}
+    start = 0
+    for key in DOMAINS:
+        width = sum(1 for name in columns if name.startswith(f"{key}."))
+        out[key] = slice(start, start + width)
+        start += width
+    return out
+
+
 def load_recording(directory: Path) -> Recording:
     blob = np.load(directory / "core_state.npz")
     manifest = json.loads((directory / "core_state_manifest.json").read_text())
+    columns = tuple(manifest["columns"])
     return Recording(
         x=blob["x"],
         conditions=tuple(manifest["conditions"]),
@@ -202,7 +221,7 @@ def load_recording(directory: Path) -> Recording:
         times=blob["times"],
         env=blob["env"],
         env_names=tuple(manifest["env_names"]),
-        columns=tuple(manifest["columns"]),
-        slices=domain_slices(),
+        columns=columns,
+        slices=slices_from_columns(columns),
         notes=dict(manifest.get("notes", {})),
     )

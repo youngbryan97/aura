@@ -389,3 +389,60 @@ def test_one_way_and_prompt_only_have_no_reentry():
     for name in ("one_way", "prompt_only"):
         report = analyse_graph(list(DOMAINS), toy_edges(architecture(name, seed=2), trials=8, seed=2))
         assert not report.every_node_reenters, name
+
+
+# ── the recording on disk ────────────────────────────────────────────────
+
+
+def test_a_saved_recording_keeps_its_own_column_layout(tmp_path):
+    """A recording outlives the schema that produced it.
+
+    Rebuilding the domain slices from today's schema reads the wrong columns
+    for every domain after the one that changed, or indexes past the end, which
+    is the lucky case because it says so.
+    """
+    from core.subject.recording import Recording, load_recording, slices_from_columns
+
+    columns = ("P.a", "P.b", "I.a", "A.a", "A.b", "A.c")
+    layout = slices_from_columns(columns)
+    assert layout["P"] == slice(0, 2)
+    assert layout["I"] == slice(2, 3)
+    assert layout["A"] == slice(3, 6)
+    assert layout["N"].stop - layout["N"].start == 0
+
+    rows = 20
+    saved = Recording(
+        x=np.arange(rows * len(columns), dtype=np.float64).reshape(rows, len(columns)),
+        conditions=tuple("x" for _ in range(rows)),
+        tags=tuple("t" for _ in range(rows)),
+        times=np.arange(rows, dtype=np.float64),
+        env=np.zeros((rows, 1)),
+        env_names=("clock",),
+        columns=columns,
+        slices=layout,
+        notes={},
+    )
+    saved.save(tmp_path)
+    loaded = load_recording(tmp_path)
+    assert loaded.columns == columns
+    assert loaded.slices == layout
+    assert np.array_equal(loaded.domain("A"), saved.domain("A"))
+
+
+def test_turn_sampling_takes_one_row_per_cycle():
+    from core.subject.recording import Recording
+
+    tags = tuple(["open", "phase", "phase", "ontogeny"] * 5)
+    rows = len(tags)
+    recording = Recording(
+        x=np.arange(rows * 3, dtype=np.float64).reshape(rows, 3),
+        conditions=tuple("x" for _ in range(rows)),
+        tags=tags,
+        times=np.arange(rows, dtype=np.float64),
+        env=np.zeros((rows, 1)),
+        env_names=("clock",),
+        columns=("P.a", "P.b", "P.c"),
+        slices={key: slice(0, 3) for key in DOMAINS},
+        notes={},
+    )
+    assert recording.by_turn().frames == 5

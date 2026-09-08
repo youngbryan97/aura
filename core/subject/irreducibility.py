@@ -77,21 +77,31 @@ COMPONENTS: int = 4
 
 
 def phase_covariates(recording: Recording, rows: np.ndarray) -> np.ndarray:
-    """One-hot of which phase produced each transition.
+    """What was done to the system, given to both sides of every comparison.
 
-    Given to both sides of every comparison, so it cannot favour either. What
-    it removes is the pipeline's running order, which is real structure and is
-    not what irreducibility is asking about.
+    Two things: which phase produced the transition, and what the environment
+    was. Neither is what irreducibility is asking about. The phase identity is
+    the pipeline's running order, which is real structure and would otherwise be
+    fitted as noise by whichever model has the most inputs to waste on it. The
+    environment is the condition and the objective — E, not K — and a turn-level
+    step crosses a change of condition, which is a large exogenous push that
+    would otherwise drown the internal coupling in both models equally and leave
+    the difference between them to noise.
     """
+    blocks: list[np.ndarray] = []
     tags = list(recording.tags)
-    if not any(tags):
+    if any(tags):
+        names = sorted({tags[index] for index in rows})
+        index_of = {name: position for position, name in enumerate(names)}
+        one_hot = np.zeros((rows.size, len(names)), dtype=np.float64)
+        for row, index in enumerate(rows):
+            one_hot[row, index_of[tags[index]]] = 1.0
+        blocks.append(one_hot)
+    if recording.env.size:
+        blocks.append(recording.env[rows])
+    if not blocks:
         return np.zeros((rows.size, 0))
-    names = sorted({tags[index] for index in rows})
-    index_of = {name: position for position, name in enumerate(names)}
-    out = np.zeros((rows.size, len(names)), dtype=np.float64)
-    for row, index in enumerate(rows):
-        out[row, index_of[tags[index]]] = 1.0
-    return out
+    return np.hstack(blocks)
 
 
 def transition_rows(recording: Recording, condition: str | None = None) -> tuple[np.ndarray, np.ndarray]:
