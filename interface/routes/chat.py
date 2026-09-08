@@ -18418,6 +18418,39 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             deterministic=True,
             authorship_effect="preserved",
         )
+        # The sums this answer does on its own numbers, recomputed.
+        #
+        # Appended, never substituted. Bryan, 2026-09-08: "shouldnt reject the
+        # whole response ever. just wondering if math is ever checked
+        # anywhere." It was checked in one place only — the arithmetic a
+        # PERSON asks for, which `arithmetic_check` recomputes and serves —
+        # and never for the arithmetic she performs inside a worked answer.
+        # Live that afternoon, one run of the daylight question computed
+        # 926 - 720 and announced 105.
+        _pre_arithmetic_note_reply = _final_reply
+        try:
+            from core.conversation.the_arithmetic_in_an_answer import (
+                a_note_about_the_arithmetic,
+            )
+
+            _arithmetic_note = a_note_about_the_arithmetic(_final_reply)
+        except (ImportError, TypeError, ValueError) as _exc:
+            logger.debug("Answer-arithmetic check unavailable: %s", _exc)
+            _arithmetic_note = ""
+        if _arithmetic_note:
+            _final_reply = f"{str(_final_reply).rstrip()}\n\n{_arithmetic_note}"
+            logger.warning("🔢 %s", _arithmetic_note)
+            _append_turn_text_mutation(
+                _live_turn_trace,
+                stage="chat.the_arithmetic_in_the_answer",
+                method="append_a_note_naming_the_step",
+                reasons=["a_stated_sum_does_not_hold"],
+                before=_pre_arithmetic_note_reply,
+                after=_final_reply,
+                deterministic=True,
+                authorship_effect="preserved",
+            )
+
         # A reply that withdrew its own opening and delivered it anyway.
         #
         # Here rather than in the phase, for the reason written above this
