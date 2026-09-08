@@ -171,6 +171,37 @@ def build_candidates(state: Any) -> list[Any]:
     return bids
 
 
+#: How many broadcast lines the cycle's context keeps. One per tick, bounded,
+#: because this is what the response is generated from and a growing list of
+#: them would crowd out the retrieval it sits beside.
+CONTEXT_LIMIT: int = 4
+
+
+def _remember_broadcast(state: Any, winner: Any, ignited: bool) -> None:
+    """An ignited broadcast becomes context for this cycle.
+
+    This is the claim global workspace theory actually makes: what wins the
+    competition becomes available to the specialised processes, and the largest
+    specialised process here is the one that answers. Without this the winner
+    reached the substrate, the self model and affect, and never reached the
+    thing that speaks.
+
+    Only on ignition, and bounded. A broadcast that did not ignite did not
+    become globally available, and saying so in the context would be asserting
+    the opposite of what the competition decided.
+    """
+    if not ignited or winner is None:
+        return
+    cognition = getattr(state, "cognition", None)
+    if cognition is None:
+        return
+    line = f"[broadcast: {winner.source}] {str(winner.content)[:180]}"
+    context = list(getattr(cognition, "long_term_memory", []) or [])
+    context = [item for item in context if not str(item).startswith("[broadcast: ")]
+    context.append(line)
+    cognition.long_term_memory = context[-CONTEXT_LIMIT:]
+
+
 async def feed_workspace(state: Any, workspace: Any) -> Any:
     """Submit this cycle's bids and run the competition. Returns the winner."""
     if workspace is None:
@@ -192,10 +223,18 @@ async def feed_workspace(state: Any, workspace: Any) -> Any:
                 action=f"bid from {bid.source} was not submitted",
             )
     try:
-        return await workspace.run_competition()
+        winner = await workspace.run_competition()
     except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation(
             "workspace_feed", exc, severity="warning",
             action="no broadcast this cycle",
         )
         return None
+    try:
+        _remember_broadcast(state, winner, bool(getattr(workspace, "ignited", False)))
+    except (AttributeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "workspace_feed", exc, severity="debug",
+            action="the broadcast did not reach this cycle's context",
+        )
+    return winner

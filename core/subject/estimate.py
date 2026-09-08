@@ -13,6 +13,14 @@ normalised squared error on rows the fit never saw. A model that has learned
 nothing scores 1.0, which is what predicting the training mean gets you, and
 that ceiling is what makes a loss ratio readable.
 
+The ridge strength is chosen per target column, not once for the block. One
+alpha for forty targets is one compromise for forty different problems, and it
+falls hardest on the model with the most inputs: a wide model that needs heavy
+shrinkage on three of its targets and none on the rest gets neither. That
+asymmetry is enough to make a cut model beat the intact one out of sample,
+which reads as "cutting helps" and means the comparison was not fair. Ten
+alphas, chosen column by column on the validation rows.
+
 Two guards matter more than the arithmetic. A column that never moves is
 dropped rather than standardised, because dividing by its spread invents
 structure out of float noise. And the split is contiguous in time, never
@@ -47,6 +55,8 @@ class Fit:
     """What a fit cost on rows it never saw."""
 
     loss: float
+    #: Median of the per-column ridge strengths chosen, for the record. The
+    #: fit itself used one per target column.
     alpha: float
     n_train: int
     n_test: int
@@ -137,23 +147,32 @@ def fit_predict(
     x_validate, y_validate = x_all[validate], y_all[validate]
     x_test, y_test = x_all[test], y_all[test]
 
-    best_alpha, best_score = ALPHAS[0], np.inf
-    for alpha in ALPHAS:
+    width_out = y_all.shape[1]
+    scores = np.full((len(ALPHAS), width_out), np.inf)
+    for index, alpha in enumerate(ALPHAS):
         weights = _ridge(x_train, y_train, alpha)
-        score = float(np.mean((x_validate @ weights - y_validate) ** 2)) if x_validate.size else np.inf
-        if score < best_score:
-            best_alpha, best_score = alpha, score
+        if x_validate.size:
+            scores[index] = ((x_validate @ weights - y_validate) ** 2).mean(axis=0)
+    chosen = scores.argmin(axis=0) if x_validate.size else np.zeros(width_out, dtype=int)
 
-    # Refit on train + validate once alpha is chosen: the validation rows are
-    # data, and holding them out of the final fit throws away a fifth of the
-    # trajectory for no benefit once they have done their job.
+    # Refit on train + validate once the alphas are chosen: the validation rows
+    # are data, and holding them out of the final fit throws away a fifth of
+    # the trajectory for no benefit once they have done their job.
     x_full = np.vstack([x_train, x_validate])
     y_full = np.vstack([y_train, y_validate])
-    weights = _ridge(x_full, y_full, best_alpha)
+    predicted = np.zeros_like(y_test)
+    for index, alpha in enumerate(ALPHAS):
+        columns = np.flatnonzero(chosen == index)
+        if columns.size == 0:
+            continue
+        weights = _ridge(x_full, y_full[:, columns], alpha)
+        if x_test.size:
+            predicted[:, columns] = x_test @ weights
 
-    residual = float(np.sum((x_test @ weights - y_test) ** 2)) if x_test.size else 0.0
+    residual = float(np.sum((predicted - y_test) ** 2)) if x_test.size else 0.0
     baseline = float(np.sum(y_test**2)) if y_test.size else 0.0
     loss = residual / baseline if baseline > _FLAT else 1.0
+    best_alpha = float(np.median([ALPHAS[i] for i in chosen])) if width_out else 0.0
     return Fit(
         loss=float(loss),
         alpha=best_alpha,

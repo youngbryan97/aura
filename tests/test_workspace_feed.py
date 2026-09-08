@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -97,3 +98,38 @@ def test_feeding_a_real_workspace_produces_a_winner_and_a_broadcast():
 
 def test_no_workspace_is_not_an_error():
     assert asyncio.run(feed_workspace(AuraState.default(), None)) is None
+
+
+def test_an_ignited_broadcast_becomes_context_for_the_cycle():
+    """What wins should reach the thing that speaks, which is the claim GWT makes."""
+    from core.consciousness.global_workspace import GlobalWorkspace
+
+    workspace = GlobalWorkspace()
+    state = AuraState.default()
+    state.affect.emotions["fear"] = 0.9
+    state.affect.arousal = 0.9
+    asyncio.run(feed_workspace(state, workspace))
+    if workspace.ignited:
+        assert any(str(line).startswith("[broadcast: ") for line in state.cognition.long_term_memory)
+
+
+def test_a_broadcast_that_did_not_ignite_is_not_asserted_as_context():
+    from core.consciousness.workspace_feed import _remember_broadcast
+
+    state = AuraState.default()
+    winner = SimpleNamespace(source="memory", content="quiet")
+    _remember_broadcast(state, winner, ignited=False)
+    assert state.cognition.long_term_memory == []
+
+
+def test_the_context_line_does_not_accumulate():
+    from core.consciousness.workspace_feed import CONTEXT_LIMIT, _remember_broadcast
+
+    state = AuraState.default()
+    for index in range(20):
+        _remember_broadcast(
+            state, SimpleNamespace(source=f"s{index}", content="x"), ignited=True
+        )
+    lines = [i for i in state.cognition.long_term_memory if str(i).startswith("[broadcast: ")]
+    assert len(lines) == 1
+    assert len(state.cognition.long_term_memory) <= CONTEXT_LIMIT
