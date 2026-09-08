@@ -188,8 +188,18 @@ def test_a_change_to_the_improvement_machinery_cannot_judge_itself() -> None:
                 if callable(found):
                     try:
                         found()
-                    except Exception:  # noqa: BLE001 - registration is best effort
-                        pass
+                    except (
+                        AttributeError,
+                        ImportError,
+                        LookupError,
+                        RuntimeError,
+                        TypeError,
+                        ValueError,
+                    ):
+                        # Registration is best effort: an offer that will not
+                        # register leaves the registry as it was, which is what
+                        # the assertions below then read.
+                        continue
 
     judging = sorted(
         name

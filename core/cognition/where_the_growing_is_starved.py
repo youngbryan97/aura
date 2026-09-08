@@ -40,6 +40,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from core.runtime.errors import record_degradation
+
 logger = logging.getLogger("Aura.WhereTheGrowingIsStarved")
 
 __all__ = ["THE_STEPS", "where_it_is_starved", "how_the_growing_stands"]
@@ -99,13 +101,39 @@ def _pairs_that_share_something() -> int:
     except (ImportError, RuntimeError, TypeError, ValueError):
         return 0
     found = 0
+    refused = 0
+    last: Exception | None = None
     for at, first in enumerate(terms):
         for second in terms[at + 1 :]:
             try:
                 if the_most_they_have_in_common(first.term, second.term) is not None:
                     found += 1
-            except Exception:  # noqa: BLE001 — a pair that raises is not a pair
-                continue
+            except (
+                ArithmeticError,
+                AttributeError,
+                IndexError,
+                KeyError,
+                RecursionError,
+                RuntimeError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                # A pair that raises is not a pair. Counted rather than
+                # swallowed: one silent `continue` per pair hides a term
+                # shape that no comparison can read, and the count is the
+                # only place that would ever say so.
+                refused += 1
+                last = exc
+    if refused and last is not None:
+        record_degradation(
+            "where_the_growing_is_starved",
+            last,
+            severity="info",
+            action=(
+                f"skipped {refused} term pair(s) the comparison could not read "
+                "while counting how many could share a part"
+            ),
+        )
     return found
 
 

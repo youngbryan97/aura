@@ -38,7 +38,7 @@ def test_every_combination_names_a_call(name_key: str, argument_key: str) -> Non
 def test_the_live_payload_is_recognised() -> None:
     payload = {
         "function": "local_file_read",
-        "args": {"path": "/Users/bryan/.aura/live-source/CLAUDE.md"},
+        "args": {"path": "CLAUDE.md"},
     }
     assert _first_present(payload, _CALL_NAME_KEYS) == "local_file_read"
     assert _first_present(payload, _CALL_ARGUMENT_KEYS)["path"].endswith("CLAUDE.md")
