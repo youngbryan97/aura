@@ -2269,3 +2269,86 @@ def test_a_promotion_never_fails_because_the_shape_could_not_be_measured():
         )
     assert "the probe paid" in receipt.evidence
     assert "anatomy:" in receipt.evidence
+
+
+# ---------------------------------------------------------------------------
+# The stations are the phases that run, not the modules that share their names
+# ---------------------------------------------------------------------------
+
+
+def _kernel_phase_names() -> list[str]:
+    """Every phase the kernel actually assembles, in order."""
+    import tempfile
+
+    from core.kernel.aura_kernel import AuraKernel, KernelConfig
+    from core.state.state_repository import StateRepository
+
+    with tempfile.TemporaryDirectory() as raw:
+        vault = StateRepository(db_path=f"{raw}/stations.db", is_vault_owner=True)
+        kernel = AuraKernel(config=KernelConfig(), vault=vault)
+        kernel._setup_phases()
+        return [type(phase).__name__ for phase in kernel._phases]
+
+
+@pytest.mark.slow
+def test_every_phase_that_runs_a_turn_is_placed_in_the_ring_or_outside_it():
+    """A phase missing from the table and one deliberately outside it differ.
+
+    The station table was written from module names and none of them ran. Nought
+    of 129 workspace cells and nought of 272 action cells fired in a recording of
+    240 turns, so the coalition test reported an architecture and measured a
+    dictionary. This is the check that stops that recurring: the kernel's own
+    phase list is the ground truth, and every phase in it has to be placed —
+    either at a station or explicitly at none, with the reason in the comment.
+    """
+    from core.connectome.coalition import COALITION_ORDER, PHASE_STATIONS
+
+    running = _kernel_phase_names()
+    unplaced = [name for name in running if name not in PHASE_STATIONS]
+    assert not unplaced, (
+        f"these phases run a turn and the station table does not mention them: {unplaced}"
+    )
+    stale = [name for name in PHASE_STATIONS if name not in running]
+    assert not stale, f"the table places phases the kernel no longer runs: {stale}"
+    placed = {station for station in PHASE_STATIONS.values() if station}
+    assert placed == set(COALITION_ORDER), (
+        f"the ring wants {sorted(COALITION_ORDER)} and the phases supply {sorted(placed)}"
+    )
+
+
+@pytest.mark.slow
+def test_each_station_claims_the_phase_assigned_to_it():
+    """The patterns have to reach the phase they were written for.
+
+    Placing ``UnitaryResponsePhase`` at ``action`` in one dictionary and failing
+    to write a pattern that matches its module in the other is the same defect as
+    before, one indirection along.
+    """
+    from core.connectome.coalition import PHASE_STATIONS, assign_stations
+    from core.connectome.volume import VolumeReconstructor
+
+    reconstructor = VolumeReconstructor(Path(__file__).resolve().parents[1])
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    stations = assign_stations(snapshot)
+    where: dict[str, str] = {}
+    for name, station in stations.items():
+        for uid in station.cells:
+            unit = snapshot.units.get(uid)
+            if unit is not None:
+                where[f"{unit.neuropil}:{unit.name}"] = name
+
+    missing: list[str] = []
+    for phase, expected in PHASE_STATIONS.items():
+        if not expected:
+            continue
+        found = {
+            station
+            for key, station in where.items()
+            if key.rsplit(":", 1)[-1].split(".")[0] == phase
+            or f":{phase}." in key
+            or key.endswith(f":{phase}")
+        }
+        if expected not in found:
+            missing.append(f"{phase} wanted {expected}, patterns gave {sorted(found) or 'nothing'}")
+    assert not missing, "\n".join(missing)
