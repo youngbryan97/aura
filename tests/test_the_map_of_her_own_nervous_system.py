@@ -2881,3 +2881,54 @@ def test_the_reading_analysis_that_was_run_is_the_one_that_is_published():
     for row in payload["findings"].values():
         assert isinstance(row["holds"], bool)
         assert row["falsifier"]
+
+
+# ---------------------------------------------------------------------------
+# What is measured, what was chosen, and what nothing here pins
+# ---------------------------------------------------------------------------
+
+
+def test_every_term_of_the_mind_says_where_its_value_comes_from():
+    from core.science.reference_mind import CONSTRAINTS, Provenance, Term
+
+    covered = {one.term for one in CONSTRAINTS}
+    assert covered == set(Term), f"missing: {sorted(set(Term) - covered)}"
+    for one in CONSTRAINTS:
+        assert one.evidence and one.what_it_pins
+        assert one.uses in set(Provenance)
+        if one.uses in (Provenance.MEASURED, Provenance.DERIVED):
+            assert one.where, f"{one.term} claims a measurement and names no module"
+            assert one.falsifier or one.note, f"{one.term} claims a measurement bare"
+
+
+def test_a_term_that_claims_a_measurement_names_a_module_that_exists():
+    """A citation to a file nobody wrote is the same defect as no citation."""
+    from core.science.reference_mind import CONSTRAINTS, Provenance
+
+    root = Path(__file__).resolve().parents[1]
+    for one in CONSTRAINTS:
+        if one.uses not in (Provenance.MEASURED, Provenance.DERIVED) or not one.where:
+            continue
+        assert (root / one.where).exists(), f"{one.term} points at {one.where}"
+
+
+def test_the_share_that_rests_on_evidence_is_reported_rather_than_assumed():
+    from core.science.reference_mind import identifiability
+
+    report = identifiability()
+    assert 0.0 <= report["grounded_share"] <= 1.0
+    assert report["grounded"] + len(report["chosen_or_absent"]) == report["terms"]
+    assert "engineer" in report["verdict"]
+
+
+def test_the_mesh_says_how_many_of_its_numbers_anybody_measured():
+    """Calling a boundary sensory does not make the index it sits at a finding."""
+    from core.science.reference_mind import audit_mesh
+
+    report = audit_mesh()
+    assert report["fields"] >= 10
+    assert report["chosen"] > 0, (
+        "every structural number in the mesh now claims a basis; if that is real "
+        "the bases belong in _MESH_MEASURED with their sources"
+    )
+    assert report["chosen"] + report["with_a_basis"] == report["fields"]
