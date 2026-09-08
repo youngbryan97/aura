@@ -27,7 +27,7 @@ from typing import Any
 import numpy as np
 
 from core.subject.driver import Condition, SubjectRuntime
-from core.subject.state import DOMAINS, CoreState, perturb, perturb_organs
+from core.subject.state import CoreState, perturb, perturb_organs
 
 __all__ = ["AgencyReport", "run_agency"]
 
@@ -144,7 +144,3 @@ async def run_agency(
         trials=trials,
         note=note,
     )
-
-
-def domains_touched() -> tuple[str, ...]:  # pragma: no cover - documentation hook
-    return DOMAINS
