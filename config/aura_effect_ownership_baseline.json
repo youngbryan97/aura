@@ -6789,6 +6789,14 @@
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
+      "path": "core/subject/archive.py",
+      "scope": "<module>.write_text"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
       "path": "core/subject/driver.py",
       "scope": "<module>.SubjectRuntime._act"
     },
@@ -6799,6 +6807,14 @@
       "count": 2,
       "path": "core/subject/driver.py",
       "scope": "<module>.build_runtime"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/provenance.py",
+      "scope": "<module>.next_run_directory"
     },
     {
       "callee": "<file_write_gateway>.ensure_directory",
@@ -16001,6 +16017,14 @@
       "scope": "<module>.PlatformRoot._verify_sys_process"
     },
     {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/subject/provenance.py",
+      "scope": "<module>._git"
+    },
+    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_python_process",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -16402,6 +16426,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "382a000d4cd9d3fc44d9701b6ed73e6369ea37b97d4065eb7df2daea8824ed3b",
+  "inventory_sha256": "2de3dc5b298e795f95f2095afcb5191afd5e528c47e23f5faecbfa4bac6badf8",
   "schema_version": 1
 }

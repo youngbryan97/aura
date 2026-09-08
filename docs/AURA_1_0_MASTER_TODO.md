@@ -575,6 +575,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   secret handling, and fail-safe behavior without suppressing correct work.
 - [ ] Q05 Persistence, migration, corruption recovery, backups, and rollback.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  2026-09-08: [six subject evidence ownership findings repaired](evidence/SUBJECT_EFFECT_OWNERSHIP_2026-09-08.md),
+  with no new raw-effect allowances. The aggregate debt test still measures
+  1900 against its unchanged 1840 ceiling; raw debt is 833 against 854.
+  Reduce the outstanding debt and rerun the tier tests; matching the exact
+  inventory alone does not close this obligation.
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,

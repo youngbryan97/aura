@@ -36,18 +36,25 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def _git(*args: str) -> str:
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
     try:
-        out = subprocess.run(
+        out = get_subprocess_gateway().run(
             ["git", *args],
             cwd=REPO,
             capture_output=True,
             text=True,
             timeout=30,
             check=False,
+            read_only=True,
+            source="subject_core.provenance.git",
+            accelerator_capability="none",
         )
     except (OSError, subprocess.SubprocessError):
         return ""
-    return out.stdout.strip()
+    if out.returncode != 0:
+        return ""
+    return str(out.stdout or "").strip()
 
 
 def _tree_hash() -> str:
@@ -146,7 +153,11 @@ def next_run_directory(root: Path) -> Path:
     come out well, and the run that did not come out well is the one a reader
     most needs.
     """
-    root.mkdir(parents=True, exist_ok=True)
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    with local_internal_governed_scope("subject_core.provenance"):
+        get_file_write_gateway().ensure_directory(root, source="subject_core.provenance")
     existing = sorted(p.name for p in root.glob("run_*") if p.is_dir())
     index = 1
     if existing:

@@ -545,6 +545,33 @@ class EffectVisitor(ast.NodeVisitor):
         self.binding_scopes: list[dict[str, str]] = [{}]
         self.scope_parts: list[str] = ["<module>"]
         self.calls: list[tuple[str, str, int]] = []
+        self.local_functions: set[str] = set()
+
+    def visit_Module(self, node: ast.Module) -> None:
+        # A local serializer named write_text is not Path.write_text. Its body
+        # is still scanned. Any possible rebinding keeps the conservative rule.
+        definitions = [
+            child.name for child in node.body
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and not child.decorator_list
+        ]
+        shadowed: set[str] = set()
+        for child in ast.walk(node):
+            if isinstance(child, ast.Name) and isinstance(child.ctx, (ast.Store, ast.Del)):
+                shadowed.add(child.id)
+            elif isinstance(child, ast.arg):
+                shadowed.add(child.arg)
+            elif isinstance(child, (ast.Import, ast.ImportFrom)):
+                shadowed.update(alias.asname or alias.name.split(".")[0] for alias in child.names)
+                if any(alias.name == "*" for alias in child.names):
+                    shadowed.update(definitions)
+            elif isinstance(child, ast.ClassDef):
+                shadowed.add(child.name)
+            elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and (child not in node.body or child.decorator_list):
+                shadowed.add(child.name)
+        self.local_functions = {
+            name for name in definitions if definitions.count(name) == 1
+        } - shadowed
+        self.generic_visit(node)
 
     @property
     def scope(self) -> str:
@@ -696,6 +723,8 @@ class EffectVisitor(ast.NodeVisitor):
         if _matches_exact(callee, _RAW_FILE_EXACT_CALLS):
             return "raw_file_mutation"
         if method in _PATH_MUTATION_METHODS:
+            if isinstance(node.func, ast.Name) and node.func.id in self.local_functions:
+                return None
             return "raw_file_mutation"
         if (
             method in _AMBIGUOUS_PATH_MUTATION_METHODS

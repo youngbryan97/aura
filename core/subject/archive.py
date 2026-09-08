@@ -30,20 +30,13 @@ __all__ = ["write_json", "write_text", "save_arms", "save_edge_table"]
 _SOURCE = "subject_core.archive"
 
 
-def _gateway() -> Any:
-    from core.runtime.file_write_gateway import get_file_write_gateway
-
-    return get_file_write_gateway()
-
-
 def write_text(directory: Path, name: str, body: str) -> Path:
     from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
 
     target = directory / name
     with local_internal_governed_scope(_SOURCE):
-        gateway = _gateway()
-        gateway.ensure_directory(directory, source=_SOURCE)
-        gateway.write_text(target, body, source=_SOURCE)
+        get_file_write_gateway().write_text(target, body, source=_SOURCE)
     return target
 
 
