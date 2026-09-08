@@ -21,7 +21,7 @@ No percentage is meaningful until that inventory is reconciled.
 
 ## Where the pass stands, 2026-09-08
 
-Eleven of sixty-one closed: I01 through I05, I07, R01, R02, R10, G01 and G13. I06 is open with
+Twelve of sixty-one closed: I01 through I05, I07, R01, R02, R07, R10, G01 and G13. I06 is open with
 a number rather than a claim — 33 of 313 release requirements name something a
 person can run.
 
@@ -252,7 +252,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   dispatch funnel so it covers handlers not yet written — 14fbd8990, evidence
   [R06 receipt](evidence/R06_LOGGING_HANDLER_DEADLOCK_2026-09-07.md). The other
   five named sources are not yet audited.
-- [ ] R07 Reconcile health probe expiry, false readiness, and actual failures.
+- [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
+  CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
+  HTTP health, readiness and heartbeat now use the same versioned snapshot;
+  websocket/SSE heartbeat cannot override expiry or revision failure. Signed
+  successor 57421 loaded 7480fec8d, verified its source, and answered two live
+  turns correctly. Twelve subsequent endpoint checks passed. Cold-model
+  admission remains R03; collector latency and neural warning causes remain
+  R06/R08/R11. This closes readiness truth, not those separate mechanisms.
   UPDATE 2026-09-08. `/api/readyz` decided readiness from five conditions and
   explained four, so a runtime blocked on `healthy` answered 503 with an empty
   `issues` list — a refusal naming nothing. The verdict and the explanation
