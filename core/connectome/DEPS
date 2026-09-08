@@ -11,6 +11,7 @@
 description = "core.connectome: may import only what it already imports; every new edge is an edit here."
 
 include_rules = [
+    "+core.cognition",
     "+core.connectome",
 
     # What this package reaches for today.

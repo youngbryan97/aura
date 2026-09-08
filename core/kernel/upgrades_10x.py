@@ -37,6 +37,8 @@ from .bridge import Phase
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
 
+from core.state.percepts import emit_percept
+
 logger = logging.getLogger("Aura.10x")
 
 
@@ -1744,25 +1746,28 @@ class NativeMultimodalBridge(Phase):
             summary = str(getattr(frame, "summary", "") or "").strip()
             if not summary:
                 return
-            percept = {
-                "role": "ambient_developer_stream",
-                "content": summary,
-                "timestamp": float(getattr(frame, "timestamp", time.time()) or time.time()),
-                "frame_id": frame_id,
-                "event_count": int(getattr(frame, "event_count", 0) or 0),
-                "repair_candidates": list(getattr(frame, "repair_candidates", ()) or ())[:6],
-                "resource_interrupts": [
+            events = int(getattr(frame, "event_count", 0) or 0)
+            # A busy frame is a stronger percept than a quiet one. The strength
+            # is read off the frame rather than fixed, because every consumer
+            # downstream multiplies by it and a frame carrying nothing should
+            # not compete with one carrying twenty events.
+            emit_percept(
+                state.world,
+                "ambient_observation",
+                content=summary,
+                intensity=min(1.0, events / 20.0),
+                frame_id=frame_id,
+                event_count=events,
+                repair_candidates=list(getattr(frame, "repair_candidates", ()) or ())[:6],
+                resource_interrupts=[
                     interrupt.to_dict() if hasattr(interrupt, "to_dict") else dict(interrupt)
                     for interrupt in list(getattr(frame, "resource_interrupts", ()) or ())[:6]
                 ],
-                "network_events": [
+                network_events=[
                     event.to_dict() if hasattr(event, "to_dict") else dict(event)
                     for event in list(getattr(frame, "network_events", ()) or ())[:6]
                 ],
-            }
-            state.world.recent_percepts.append(percept)
-            if hasattr(state.world, "trim_percepts"):
-                state.world.trim_percepts()
+            )
             self._last_ambient_frame_id = frame_id
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
             _record_upgrades_degradation(
@@ -1816,8 +1821,14 @@ class NativeMultimodalBridge(Phase):
                 ):
                     frame = await vision_organ.instance.capture_desktop()
                     if frame and hasattr(frame, "description"):
-                        state.world.recent_percepts.append(
-                            {"role": "vision", "content": frame.description}
+                        # Typed, stamped and priced. Appended raw, what she saw
+                        # on screen could not compete for broadcast, could not
+                        # reach affect, and read as infinitely old the moment
+                        # it arrived.
+                        emit_percept(
+                            state.world,
+                            "vision",
+                            content=str(frame.description),
                         )
             except (OSError, ConnectionError, TimeoutError) as e:
                 _record_upgrades_degradation(

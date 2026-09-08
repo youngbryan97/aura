@@ -30,6 +30,7 @@ include_rules = [
     "+core.observability",
     "+core.runtime",
     "+core.security",
+    "+core.state",
     "+core.tasks",
     "+core.thought_stream",
     "+core.utils",

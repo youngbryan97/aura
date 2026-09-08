@@ -11,6 +11,7 @@
 description = "core.science: may import only what it already imports; every new edge is an edit here."
 
 include_rules = [
+    "+core.consciousness",
     "+core.science",
 
     # What this package reaches for today.

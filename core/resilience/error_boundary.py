@@ -1,14 +1,15 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import asyncio
 import functools
-import logging
 import inspect
+import logging
 import time
 import traceback
 from typing import Any, Callable, Dict, Optional
+
+from core.runtime.errors import record_degradation
+from core.state.percepts import emit_percept
 
 logger = logging.getLogger("Aura.ErrorBoundary")
 
@@ -252,12 +253,15 @@ async def wrap_phase(
             phase_name,
             traceback.format_exc(),
         )
-        if hasattr(state, "world") and hasattr(state.world, "recent_percepts"):
-            state.world.recent_percepts.append({
-                "type": "internal_error",
-                "severity": "critical",
-                "payload": {"phase": phase_name, "error": str(e)},
-            })
+        if hasattr(state, "world"):
+            emit_percept(
+                state.world,
+                "internal_error",
+                content=f"{phase_name} failed: {e}",
+                intensity=0.8,
+                severity="critical",
+                payload={"phase": phase_name, "error": str(e)},
+            )
         return state
 
 

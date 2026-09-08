@@ -590,6 +590,13 @@ class AffectUpdatePhase(Phase):
             "goal_achieved": ["joy", "anticipation", "happiness", "excitement", "pride", "satisfaction", "hope", "relief"],
             "memory_replay": ["sadness", "joy", "trust", "nostalgia", "warmth", "belonging"],
             "monotony": ["boredom", "apathy", "loneliness", "indifference"],
+            # Three types the tree emits that this map had no entry for, so a
+            # phase crash, an apology and every stimulus injected through the
+            # compatibility bridge arrived and moved nothing. An internal error
+            # is an error; a self-correction is an error about her own output,
+            # without the part that is afraid of the world.
+            "internal_error": ["fear", "sadness", "unhappiness", "dread", "upset", "frustration", "confused"],
+            "self_correction": ["sadness", "unhappiness", "upset", "frustration", "confused"],
             "disconnection": ["unhappiness", "apathy", "loneliness", "longing"],
             "neural_decode": ["anticipation", "surprise"]  # Base neural burst
         }

@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 # Import of Legacy Orchestrator will be added here
 # from core.orchestrator.main import RobustOrchestrator
 
+from core.state.percepts import emit_percept
+
 logger = logging.getLogger(__name__)
 
 
@@ -232,9 +234,17 @@ class AffectBridge:
         if not state:
             return
 
-        # Inject as a 'virtual_percept' for the next tick
-        state.world.recent_percepts.append(
-            {"type": "legacy_update", "intensity": kwargs.get("intensity", 0.5), "payload": kwargs}
+        # Inject as a 'virtual_percept' for the next tick. The type is the
+        # stimulus the caller named: `apply_stimulus("threat_detected", 0.8)`
+        # went in labelled `legacy_update`, which the affect phase's event map
+        # has no entry for, so every stimulus that arrived down this path
+        # produced nothing at all.
+        emit_percept(
+            state.world,
+            str(kwargs.get("stimulus_type") or "legacy_update"),
+            content=str(kwargs.get("content") or kwargs.get("stimulus_type") or ""),
+            intensity=float(kwargs.get("intensity", 0.5) or 0.0),
+            payload=kwargs,
         )
         logger.debug("AffectBridge: Injected legacy update into percept stream.")
 

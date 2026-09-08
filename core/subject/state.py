@@ -48,6 +48,8 @@ from typing import Any
 
 import numpy as np
 
+from core.state.percepts import emit_percept, read_percept
+
 __all__ = [
     "DOMAINS",
     "DOMAIN_NAMES",
@@ -222,8 +224,9 @@ _SCHEMAS: dict[str, Schema] = {
         (
             ("percept_load", "world.recent_percepts"),
             ("percept_recency", "world.recent_percepts[-1].timestamp"),
-            ("percept_sources", "world.recent_percepts[*].source"),
+            ("percept_sources", "world.recent_percepts[*].type"),
             ("percept_novelty", "world.recent_percepts[*].content"),
+            ("percept_strength", "world.recent_percepts[*].intensity"),
             ("spatial_present", "world.spatial_context"),
             ("entity_load", "world.known_entities"),
             ("objective_len", "cognition.current_objective"),
@@ -531,13 +534,18 @@ def _percept_novelty(percepts: Any) -> float:
 
 
 def _read_P(state: Any, now: float) -> np.ndarray:
+    # Through the shared reading, because half the producers write no
+    # timestamp and none of them write `source`. Read raw, the recency of what
+    # she saw a moment ago was zero and the count of distinct sources was one
+    # for every percept in the stream.
     percepts = _dig(state, "world.recent_percepts", []) or []
-    last = percepts[-1] if isinstance(percepts, list) and percepts else {}
-    stamp = _f(_dig(last, "timestamp", 0.0)) if isinstance(last, Mapping) else 0.0
+    if not isinstance(percepts, list):
+        percepts = []
+    tail = [read_percept(item, now=now) for item in percepts[-16:]]
+    stamp = tail[-1].timestamp if tail else 0.0
     recency = 0.0 if stamp <= 0 else 1.0 / (1.0 + max(0.0, now - stamp))
-    sources = {
-        str(_dig(item, "source", "?")) for item in percepts[-16:] if isinstance(item, Mapping)
-    }
+    sources = {item.kind for item in tail}
+    strength = float(np.mean([item.intensity for item in tail])) if tail else 0.0
     objective = _dig(state, "cognition.current_objective", "") or ""
     return np.array(
         [
@@ -545,6 +553,7 @@ def _read_P(state: Any, now: float) -> np.ndarray:
             recency,
             _sat(sources, 4.0),
             _percept_novelty(percepts),
+            strength,
             1.0 if _dig(state, "world.spatial_context") else 0.0,
             _sat(_dig(state, "world.known_entities", {}) or {}, 8.0),
             _sat(str(objective), 64.0),
@@ -943,16 +952,28 @@ def _bump(obj: Any, path: str, delta: float, lo: float, hi: float) -> bool:
 
 def _perturb_P(state: Any, delta: float, ontogeny: Any) -> bool:
     del ontogeny
-    percepts = _dig(state, "world.recent_percepts", None)
-    if not isinstance(percepts, list):
+    world = _dig(state, "world", None)
+    if world is None or not isinstance(getattr(world, "recent_percepts", None), list):
         return False
-    percepts.append(
-        {
-            "source": "subject_core_probe",
-            "content": f"probe delta {delta:+.4f}",
-            "timestamp": time.time(),
-            "salience": abs(delta),
-        }
+    # In the shape a percept actually arrives in. The first version wrote a
+    # dict with `source` and `salience` and no `type`, which is not a percept
+    # any part of the tree produces: the affect phase keys on the type and
+    # dropped it, the workspace read a salience nobody writes, and the
+    # displacement of perception was a displacement of a list's length.
+    #
+    # `novel_stimulus` because that is what a probe is — something arrived that
+    # was not predicted — and the strength is the displacement itself, in the
+    # same units every other domain is displaced in.
+    #
+    # `world.spatial_context` is deliberately not written. It is a field with
+    # no reader anywhere in the tree, so displacing it would move this domain's
+    # own vector and could not move anything else: it would inflate the
+    # coupling gain with a number that means nothing.
+    emit_percept(
+        world,
+        "novel_stimulus",
+        content=f"probe delta {delta:+.4f}",
+        intensity=min(1.0, abs(delta)),
     )
     return True
 

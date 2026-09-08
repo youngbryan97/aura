@@ -26,6 +26,7 @@ import logging
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.state.percepts import read_percept
 
 __all__ = ["build_candidates", "feed_workspace"]
 
@@ -58,14 +59,18 @@ def build_candidates(state: Any) -> list[Any]:
 
     percepts = list(getattr(world, "recent_percepts", []) or []) if world else []
     if percepts:
-        latest = percepts[-1]
-        salience = _clamp(latest.get("salience") if isinstance(latest, dict) else 0.0)
-        if salience > FLOOR:
+        # Read through the shared reading rather than off the raw dict. This
+        # bid was priced from a `salience` key that no producer in the tree has
+        # ever written, so every real percept bid zero and perception never
+        # once reached the workspace. Producers state `intensity`; a stated
+        # strength is a stated claim on attention.
+        latest = read_percept(percepts[-1])
+        if latest.salience > FLOOR:
             bids.append(
                 CognitiveCandidate(
-                    content=str(latest.get("content", ""))[:240] if isinstance(latest, dict) else str(latest)[:240],
+                    content=latest.content or latest.kind,
                     source="perception",
-                    priority=salience,
+                    priority=latest.salience,
                     content_type=ContentType.PERCEPTUAL,
                 )
             )

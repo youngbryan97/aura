@@ -59,6 +59,8 @@ __all__ = [
     "start_organism",
 ]
 
+from core.state.percepts import emit_percept
+
 logger = logging.getLogger("Aura.Subject.Driver")
 
 #: How long one phase gets before it is abandoned. A phase that hangs is a
@@ -126,22 +128,33 @@ def _calm(state: Any, rng: random.Random) -> dict[str, float]:
     return {"host_load": load, "host_thermal": 0.0}
 
 
-def _percept(state: Any, rng: random.Random, source: str, content: str) -> None:
-    state.world.recent_percepts.append(
-        {
-            "source": source,
-            "content": content,
-            "timestamp": time.time(),
-            "salience": round(rng.random(), 3),
-        }
+def _percept(
+    state: Any, rng: random.Random, kind: str, source: str, content: str
+) -> None:
+    """The world arriving, in the shape the organism's own percepts arrive in.
+
+    The first version wrote `source` and `salience` and no `type`. The affect
+    phase keys on the type and dropped every one of them; the workspace prices
+    its perception bid from a strength no producer writes. So for the whole of
+    every recording, the world arrived and could not be felt. The salience is
+    still drawn — the environment is not uniform — and the draw is matched
+    across arms because the generator's state is carried through the fork.
+    """
+    emit_percept(
+        state.world,
+        kind,
+        content=content,
+        intensity=round(rng.random(), 3),
+        source=source,
     )
-    state.world.trim_percepts(50)
 
 
-def _seen(source: str, contents: Sequence[str]) -> Callable[[Any, random.Random], dict[str, float]]:
+def _seen(
+    source: str, contents: Sequence[str], *, kind: str = "interaction"
+) -> Callable[[Any, random.Random], dict[str, float]]:
     def prepare(state: Any, rng: random.Random) -> dict[str, float]:
         reading = _calm(state, rng)
-        _percept(state, rng, source, rng.choice(list(contents)))
+        _percept(state, rng, kind, source, rng.choice(list(contents)))
         reading["percept_arrived"] = 1.0
         return reading
 
@@ -648,6 +661,7 @@ class SubjectRuntime:
         _percept(
             self.state,
             self.rng,
+            "goal_achieved" if ok else "error",
             "filesystem",
             f"notes.txt {'holds' if ok else 'does not hold'} {intended[:60]}",
         )
