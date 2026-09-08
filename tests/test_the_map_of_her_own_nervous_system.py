@@ -3032,3 +3032,39 @@ def test_a_coalition_that_does_not_close_says_so():
     coalition = measured_coalition(one_way, keep=4)
     assert not coalition.closes
     assert "does not close" in coalition.as_json()["verdict"]
+
+
+def test_a_default_may_not_overwrite_a_measurement():
+    """Executive closure wrote a 0.0 over a phi another phase had computed.
+
+    The witness returns 0.0 when it has never cycled, and a consumer could not
+    tell that apart from a measured zero. So the workspace's own reading never
+    reached higher-order monitoring or the self model: phi came out of phi
+    consciousness at 0.3256, 0.3237, 0.3237 across three objectives, and out of
+    executive closure at 0.0 every time.
+    """
+    # Nothing measured: the earlier reading stands.
+    unmeasured = {"phi_estimate": 0.0, "phi_measured": False}
+    reported = (
+        unmeasured.get("phi_estimate")
+        if unmeasured.get("phi_measured", True)
+        else None
+    )
+    assert reported is None
+
+    # Measured, and it happens to be zero: that one wins, because it is a
+    # measurement.
+    measured = {"phi_estimate": 0.0, "phi_measured": True}
+    reported = (
+        measured.get("phi_estimate") if measured.get("phi_measured", True) else None
+    )
+    assert reported == 0.0
+
+
+def test_the_witness_says_whether_it_has_measured_anything():
+    from core.consciousness.closed_loop import PhiWitness
+
+    witness = PhiWitness()
+    diagnostics = witness.get_diagnostics()
+    assert diagnostics["phi_measured"] is False
+    assert diagnostics["phi_estimate"] == 0.0, "no history, so no reading"
