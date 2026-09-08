@@ -640,6 +640,17 @@ class SubjectRuntime:
             }
         )
         self.state.cognition.last_action_source = actor
+
+        # And she sees what she did. The loop the specification asks for closes
+        # through the world — action, environment, perception — and without
+        # this the probe wrote a file and nothing ever came back through the
+        # senses, so nothing she did could reach perception by any route.
+        _percept(
+            self.state,
+            self.rng,
+            "filesystem",
+            f"notes.txt {'holds' if ok else 'does not hold'} {intended[:60]}",
+        )
         if len(self.state.cognition.active_goals) > 12:
             del self.state.cognition.active_goals[:-12]
 
