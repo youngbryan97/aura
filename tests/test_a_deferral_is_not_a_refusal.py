@@ -115,3 +115,42 @@ def test_a_replayed_episode_carries_an_idempotency_key() -> None:
     start = source.index("def _hold_if_deferred")
     end = source.index("def _write_a_held_episode")
     assert "idempotency_key" in source[start:end]
+
+
+def test_a_steady_stream_of_deferrals_does_not_flood_the_feed() -> None:
+    """A working mechanism must not become the loudest line in the log.
+
+    Live on 2026-09-07 the governor deferred every episodic write, so every
+    hold logged and the queue's own line outnumbered everything else. The
+    facts worth having — that a queue exists, how deep, how much has landed —
+    survive being said periodically, and `state()` carries the exact numbers.
+    """
+
+    import logging
+
+    from core.memory.a_deferral_is_not_a_refusal import _SAY_EVERY
+
+    queue = DeferredWrites("test", lambda _item: False, limit=500, interval_s=99.0)
+    logger = logging.getLogger("Aura.DeferredWrites")
+    records: list[logging.LogRecord] = []
+
+    class _Catch(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Catch()
+    logger.addHandler(handler)
+    previous = logger.level
+    logger.setLevel(logging.INFO)
+    try:
+        for index in range(_SAY_EVERY * 2):
+            queue.hold(index, "ontogeny:deferred")
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(previous)
+
+    said = [record for record in records if "holding deferred writes" in record.getMessage()]
+    # The first, so the queue's existence is never silent, then one per
+    # _SAY_EVERY.
+    assert len(said) == 3, f"{len(said)} lines for {_SAY_EVERY * 2} holds"
+    assert queue.state()["held_total"] == _SAY_EVERY * 2

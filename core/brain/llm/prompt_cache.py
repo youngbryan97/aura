@@ -608,8 +608,24 @@ class PromptCacheLRU:
             )
             return cache_entry.prompt_cache, tokens[prefix_len:]
 
+        refused = ""
         if result.longer is not None:
             cache_entry = self._get(model_key, result.longer)
+            if not can_trim_prompt_cache(cache_entry.prompt_cache):
+                # A refusal, not an absence.
+                #
+                # The miss line below reports how far the prompt matched, and
+                # a reader seeing "matched 5202 (54.7%)" concludes the trie
+                # found nothing usable. What actually happened is that it
+                # found the entry, and mlx_lm declined to trim it — so five
+                # thousand tokens of reusable prefix were re-read with nothing
+                # anywhere saying why.
+                #
+                # LIVE, 2026-09-07: every turn of a five-step tool loop, each
+                # matching more than the last (17%, 35%, 47%, 55%), each
+                # prefilling in full. The loop then exhausted its 178.8s turn
+                # budget and the person got an unfinished answer.
+                refused = "; the entry holding them refuses to trim"
             if can_trim_prompt_cache(cache_entry.prompt_cache):
                 prefix = min(len(tokens) - 1, result.common_prefix)
                 num_to_trim = len(result.longer) - prefix
@@ -649,7 +665,8 @@ class PromptCacheLRU:
             len(self._cache),
             matched,
             100.0 * matched / max(1, len(tokens)),
-            f"; divergent text begins: {divergent[:160]!r}" if divergent else "",
+            (f"; divergent text begins: {divergent[:160]!r}" if divergent else "")
+            + refused,
         )
         return None, tokens
 

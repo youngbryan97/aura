@@ -79,6 +79,9 @@ class Arbitrated:
     transmitted: Mapping[str, float]
     #: Faculties that fired but whose state did not cross the cleft.
     failed_to_cross: tuple[str, ...]
+    #: How many readinesses the conflict above was measured against. Without
+    #: it a 1.0 from two active tendencies reads the same as a 1.0 from eight.
+    tendency_vocabulary: int = 0
     declines: Mapping[str, str] = field(default_factory=dict)
     #: The event this state was appraised from, so a later outcome can be
     #: attributed back to the faculties that fired on it.
@@ -95,6 +98,7 @@ class Arbitrated:
             "goals": [g.to_dict() for g in self.goals],
             "retention": [r.to_dict() for r in self.retention],
             "tendency_conflict": self.tendency_conflict,
+            "tendency_vocabulary": self.tendency_vocabulary,
             "dominant": list(self.dominant),
             "transmitted": dict(self.transmitted),
             "failed_to_cross": list(self.failed_to_cross),
@@ -103,14 +107,39 @@ class Arbitrated:
         }
 
 
-def _tendency_conflict(weights: Mapping[str, float]) -> float:
-    """Normalised entropy over active action tendencies.
+#: Every action readiness a faculty in this process has actually produced.
+#:
+#: The denominator of the conflict measure, and measured rather than declared:
+#: a faculty chooses its tendency per activation, so no list written here could
+#: be relied on to be the vocabulary. It only grows, so a reading taken later
+#: is against a denominator at least as large as an earlier one.
+_TENDENCIES_SEEN: set[str] = set()
 
-    Zero when everything active wants the same thing, one when the
-    active states are spread evenly over several incompatible
-    readinesses. This is a measurement of the interior's coherence, and
-    it is the quantity that makes upheaval detectable rather than
-    something an author decides to declare.
+
+def tendency_vocabulary() -> tuple[str, ...]:
+    """The readinesses this process has seen, in order."""
+
+    return tuple(sorted(_TENDENCIES_SEEN))
+
+
+def _tendency_conflict(weights: Mapping[str, float], vocabulary: int) -> float:
+    """Normalised entropy over the action readinesses this system can express.
+
+    Zero when everything active wants the same thing, one when the states
+    are spread evenly over every readiness there is. This is a measurement of
+    the interior's coherence, and it is the quantity that makes upheaval
+    detectable rather than something an author decides to declare.
+
+    ``vocabulary`` is the denominator, and it is the whole difference between
+    a measure of spread and a measure of nothing. Normalised by the number
+    ACTIVE, two equally-weighted readinesses score 1.0 — the same as eight
+    equally-weighted ones — because two of two is as even as evenness gets.
+    So the most ordinary interior state there is pinned the channel at its
+    ceiling, and `self.coherence`, which is one minus this, pinned at zero.
+
+    LIVE, 2026-09-07: `interiority.tendency_conflict went nominal -> red_high
+    at 1.0ratio` within a minute of boot, beside a vocabulary of eight
+    readinesses of which two were active.
     """
     total = sum(weights.values())
     if total <= 0.0 or len(weights) < 2:
@@ -121,7 +150,10 @@ def _tendency_conflict(weights: Mapping[str, float]) -> float:
             continue
         p = weight / total
         entropy -= p * math.log(p)
-    return max(0.0, min(1.0, entropy / math.log(len(weights))))
+    # Never below the number active: a reading cannot be against a vocabulary
+    # smaller than what it just saw.
+    denominator = max(2, vocabulary, len(weights))
+    return max(0.0, min(1.0, entropy / math.log(denominator)))
 
 
 def arbitrate(
@@ -196,7 +228,8 @@ def arbitrate(
         if action_class in hard:
             del soft[action_class]
 
-    conflict = _tendency_conflict(tendencies)
+    _TENDENCIES_SEEN.update(tendencies)
+    conflict = _tendency_conflict(tendencies, len(_TENDENCIES_SEEN))
     dominant = tendencies.most_common(1)
     dominant_pair = (
         (dominant[0][0], dominant[0][1] / max(1e-9, sum(tendencies.values())))
@@ -215,6 +248,7 @@ def arbitrate(
         ledger=tuple(ledger),
         retention=tuple(retention.values()),
         tendency_conflict=conflict,
+        tendency_vocabulary=len(_TENDENCIES_SEEN),
         dominant=dominant_pair,
         transmitted=transmitted,
         failed_to_cross=tuple(failed),

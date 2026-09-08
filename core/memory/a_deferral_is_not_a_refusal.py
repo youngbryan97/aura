@@ -54,6 +54,10 @@ DEFERRAL_MARKERS: tuple[str, ...] = (
     "retry_after",
 )
 
+#: How often a steady stream of deferrals says so. Every hold logged is how a
+#: working mechanism becomes the loudest thing in the feed.
+_SAY_EVERY = 25
+
 _T = TypeVar("_T")
 
 
@@ -93,6 +97,7 @@ class DeferredWrites(Generic[_T]):
         self._next_at = 0.0
         self._shed = 0
         self._landed = 0
+        self._held_total = 0
 
     def __len__(self) -> int:
         return len(self._held)
@@ -119,14 +124,24 @@ class DeferredWrites(Generic[_T]):
                 self._shed,
             )
         self._held.append(item)
+        self._held_total += 1
         if self._next_at <= 0.0:
             self._next_at = time.monotonic() + self._interval_s
-        logger.info(
-            "%s: holding a deferred write (%d queued): %s",
-            self.lane,
-            len(self._held),
-            str(reason)[:120],
-        )
+        # The first, and then a line per _SAY_EVERY. A governor that defers
+        # steadily makes this the most frequent line in the feed, and the
+        # useful facts — that the queue exists, how deep it is, and that
+        # things are landing — survive being said periodically. `state()`
+        # carries the exact numbers for anything that wants them.
+        if self._held_total == 1 or self._held_total % _SAY_EVERY == 0:
+            logger.info(
+                "%s: holding deferred writes (%d queued, %d held so far, "
+                "%d landed): %s",
+                self.lane,
+                len(self._held),
+                self._held_total,
+                self._landed,
+                str(reason)[:120],
+            )
 
     def replay(self) -> int:
         """Try the ones held. Returns how many landed."""
@@ -166,6 +181,7 @@ class DeferredWrites(Generic[_T]):
             "capacity": self._held.maxlen,
             "shed": self._shed,
             "landed": self._landed,
+            "held_total": self._held_total,
             "next_replay_in_s": max(0.0, self._next_at - time.monotonic())
             if self._next_at
             else 0.0,

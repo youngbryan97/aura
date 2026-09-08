@@ -284,6 +284,22 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   eviction — which is the mechanism behind "consecutive turns share no prefix",
   not a separate fault.
 
+  UPDATE, same session. "Consecutive turns share no prefix" was not the whole
+  fact, and the part that was missing is the larger one. A five-step tool loop
+  reading one file logged a cache MISS on every step while the trie reported
+  more of the prompt matching each time — 17%, 35%, 47%, 55% — and the last
+  step re-read 9,502 tokens of which 5,202 were already held. Time to first
+  token: 40s, 55s, 56s, 83s. The loop then exhausted its 178.8-second turn
+  budget and served an unfinished answer.
+
+  The reuse was found and refused: mlx_lm declined to trim the entry, and the
+  miss line said only how far the prompt matched. A refusal read as an absence,
+  so the single largest source of latency in the runtime was invisible. It is
+  named now — `the entry holding them refuses to trim`. What to do about the
+  untrimmable cache itself is the open question, and it is worth more than any
+  prompt-shortening: on the numbers above it is roughly half of every tool
+  turn.
+
 ## 2. General RLC reasoning: the scientific critical path
 
 - [ ] G01 Freeze a current baseline and exact mechanism/claim boundary.
