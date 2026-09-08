@@ -12496,6 +12496,15 @@ class InferenceGate:
                 explicit_max_tokens_cap = max(1, int(context.get("max_tokens") or 1))
             except (TypeError, ValueError, OverflowError):
                 explicit_max_tokens_cap = None
+        # Whether the CALLER asked for the floor, or the gate worked it out.
+        #
+        # A floor the caller supplied is the caller's own instruction and beats
+        # the caller's own stale cap — that is what a long-form desktop request
+        # carrying both max_tokens=1536 and user_surface_completion_floor=2560
+        # is asking for. A floor the gate computed is not an instruction, and
+        # raising a declared ceiling with it dispatched a request that asked for
+        # 384 at 1000 while the context still said 384.
+        caller_declared_completion_floor = "user_surface_completion_floor" in context
         surface_completion_floor = 0
         # How much room an answer needs is a property of the question, not of
         # the path that happens to serve it.
@@ -12537,19 +12546,30 @@ class InferenceGate:
                     initial_visible_user_prompt
                 )
             context["user_surface_completion_floor"] = surface_completion_floor
-            if max_tokens < surface_completion_floor:
+            # A declared ceiling wins, which is what the paragraph above says
+            # and what this used to contradict: it raised explicit_max_tokens_cap
+            # to the floor, so a caller asking for 384 was dispatched with 1000.
+            # The floor is for a turn nobody sized; it is not a licence to
+            # overrule a caller who did.
+            room = (
+                min(surface_completion_floor, explicit_max_tokens_cap)
+                if explicit_max_tokens_cap is not None
+                and not caller_declared_completion_floor
+                else surface_completion_floor
+            )
+            if max_tokens < room:
                 logger.info(
                     "🧠 Foreground completion contract raised the decode budget %d→%d.",
                     max_tokens,
-                    surface_completion_floor,
+                    room,
                 )
-                max_tokens = surface_completion_floor
+                max_tokens = room
             if explicit_max_tokens_cap is not None:
-                explicit_max_tokens_cap = max(
-                    explicit_max_tokens_cap,
-                    surface_completion_floor,
-                )
-                context["max_tokens"] = explicit_max_tokens_cap
+                if caller_declared_completion_floor:
+                    explicit_max_tokens_cap = max(
+                        explicit_max_tokens_cap, surface_completion_floor
+                    )
+                context["max_tokens"] = min(explicit_max_tokens_cap, max_tokens)
         if "max_tokens" not in context:
             max_tokens = self._adaptive_max_tokens_for_prompt(
                 initial_visible_user_prompt,
@@ -14194,6 +14214,12 @@ class InferenceGate:
                 )
             except (TypeError, ValueError, OverflowError):
                 _answer_floor_final = 0
+            # A floor may not raise a ceiling the caller declared. This one ran
+            # at dispatch, after the caller-cap clamp, so a request that asked
+            # for 384 was dispatched at 1000 while the context still said 384 —
+            # two numbers for one budget, and the model got the larger.
+            if explicit_max_tokens_cap is not None and not caller_declared_completion_floor:
+                _answer_floor_final = min(_answer_floor_final, explicit_max_tokens_cap)
             if 0 < _answer_floor_final and int(max_tokens or 0) < _answer_floor_final:
                 logger.info(
                     "🧠 [ANSWER BUDGET] Answer turn: %s → %d tokens at dispatch.",
@@ -14396,6 +14422,16 @@ class InferenceGate:
                     _ever_needed = 0
                 if _ever_needed > 0:
                     _affordable = min(_affordable, max(max_tokens, _ever_needed))
+                # And never past a ceiling the caller declared. This raise is
+                # written to only ever add, which is right when nobody said how
+                # much room the answer gets and wrong when somebody did: a
+                # request carrying max_tokens=384 was dispatched at 1000 because
+                # the clock could afford it.
+                if (
+                    explicit_max_tokens_cap is not None
+                    and not caller_declared_completion_floor
+                ):
+                    _affordable = min(_affordable, explicit_max_tokens_cap)
                 if _affordable > max_tokens:
                     logger.info(
                         "🧠 [ANSWER BUDGET] %d tokens fit this turn's clock at the "

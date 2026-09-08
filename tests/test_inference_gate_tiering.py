@@ -12,6 +12,23 @@ import pytest
 from core.brain.inference_gate import InferenceGate
 from core.container import ServiceContainer
 from core.state.aura_state import AuraState
+
+
+@pytest.fixture(autouse=True)
+def _a_proof_run_does_not_hide_every_other_reason(monkeypatch):
+    """``proof_run_active`` is true under AURA_TESTING, and it is checked first.
+
+    ``_background_local_deferral_reason`` returns "proof_foreground_reserved"
+    before it looks at anything else, so inside the suite every other reason in
+    that function is unreachable and every test naming one was asserting against
+    a branch it could not get to. Turning it off is what makes those tests about
+    the reasons they name; the tests that are about the proof branch itself turn
+    it back on.
+    """
+    monkeypatch.setattr(
+        "core.runtime.proof_policy.proof_run_active", lambda **_kwargs: False
+    )
+
 from core.utils.deadlines import get_deadline
 
 _MISSING = object()
