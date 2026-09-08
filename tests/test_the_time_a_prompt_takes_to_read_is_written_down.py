@@ -54,13 +54,17 @@ def test_no_read_rate_is_written_when_mlx_did_not_time_the_prompt():
     assert "first_token_latency_s" not in before.split("_read_s = 0.0")[-1]
 
 
-def test_readings_taken_with_the_other_clock_are_not_read_back():
-    """They are not slow readings; they are measurements of another quantity."""
+def test_the_stored_readings_are_read_back_through_one_named_key():
+    """Both ends of the file name the same key, so a rename cannot retire the
+    window by accident — which is what nearly happened when the wrong reader
+    was blamed for a 630-second estimate."""
     from core.brain.llm import thinking_reserve as reserve
 
-    assert reserve._READ_RATE_KEY != "read_rates"
     source = inspect.getsource(reserve)
-    assert source.count('"read_rates"') == 0
+    assert source.count("_READ_RATE_KEY") >= 4
+    assert '"read_rates"' in source
+    assert 'stored.get("read_rates")' not in source
+    assert 'raw.get("read_rates")' not in source
 
 
 def test_a_recorded_rate_makes_reading_cost_something():

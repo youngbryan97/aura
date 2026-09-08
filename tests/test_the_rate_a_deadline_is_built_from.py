@@ -45,13 +45,30 @@ def test_the_progress_estimate_never_sizes_a_deadline() -> None:
     assert client._measured_prefill_rate() == mc._UNMEASURED_PREFILL_RATE
 
 
-def test_another_worker_on_this_host_counts_before_a_constant() -> None:
+def test_another_worker_on_the_same_model_counts_before_a_constant() -> None:
     held = mc.reset_host_rates_for_test()
     try:
-        mc._HOST_RATES["prefill"] = 480.0
+        mc._HOST_PREFILL_TPS["the-27b"] = 480.0
         client = _Client()
+        client.model_path = "/models/The-27B"
         client._prefill_tokens_per_s = 6.0
         assert client._measured_prefill_rate() == pytest.approx(480.0)
+    finally:
+        mc.restore_host_rates_for_test(held)
+
+
+def test_a_rate_from_a_different_model_is_not_this_model_s_rate() -> None:
+    """LIVE, 2026-09-08: a small lane wrote 9 tokens a second into the shared
+    entry; the 27B read at 116, and the clock built from the shared number
+    said its prompt would take 630 seconds and sized the turn at 833."""
+
+    held = mc.reset_host_rates_for_test()
+    try:
+        mc._HOST_PREFILL_TPS["the-reflex-1.5b"] = 9.0
+        mc._HOST_RATES["prefill"] = 9.0
+        client = _Client()
+        client.model_path = "/models/The-27B"
+        assert client._measured_prefill_rate() == mc._UNMEASURED_PREFILL_RATE
     finally:
         mc.restore_host_rates_for_test(held)
 

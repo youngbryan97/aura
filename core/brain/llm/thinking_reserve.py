@@ -515,8 +515,16 @@ def forget() -> None:
 _STORE = "decode_measurements.json"
 
 #: Which clock the stored read rates were taken with. See the note beside the
-#: write. A row under any other key was measuring something else.
-_READ_RATE_KEY = "read_rates_from_measured_prompt_time"
+#: write.
+#:
+#: Still "read_rates". The rows already on disk were recorded from first-token
+#: latency, and the worry was that they were measuring the queue and the
+#: weights as well as the reading — but they read at 1,089 to 7,677 characters
+#: a second, which is prefill and nothing else. On a warm worker the two
+#: clocks agree. Retiring them would have thrown away 128 good readings to fix
+#: a fault they did not have; the fault was a prefill rate shared between
+#: models, in core/brain/llm/mlx_client.py.
+_READ_RATE_KEY = "read_rates"
 
 
 def _store_path() -> Path | None:

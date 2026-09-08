@@ -128,6 +128,27 @@ _PREFILL_HEADROOM = 3.0
 #: plan. These are rates this machine was seen working at, not guesses.
 _HOST_RATES: dict[str, float] = {"prefill": 0.0, "decode": 0.0, "weight_load": 0.0}
 
+#: And the prefill rate BY MODEL, because it is a property of the model and
+#: not of the machine.
+#:
+#: The decode rate learned this already — "the rate belongs to the model.
+#: Sizing a 27B's clock on readings a 9B produced is what aborted three
+#: generations on one question" — and prefill kept one number for every worker
+#: on the host.
+#:
+#: LIVE, 2026-09-08, a fresh boot: a small lane wrote 9 tokens a second into
+#: the shared entry, the 27B read its own prompt at 116, and the clock built
+#: from the shared number said reading would take 630 seconds and sized the
+#: turn at 833. Nothing was wrong with the turn. The number describing it
+#: belonged to a different model.
+_HOST_PREFILL_TPS: dict[str, float] = {}
+
+
+def _model_rate_key(model_path: object) -> str:
+    """The name a rate is filed under. Empty when there is no model to name."""
+    name = os.path.basename(str(model_path or "")).strip().lower()
+    return name
+
 #: Gigabytes of weights a second, before this host has been seen loading any.
 #: Deliberately slow for the same reason the prefill default is: being
 #: generous with an unmeasured worker costs latency, being mean costs the
@@ -167,6 +188,7 @@ def reset_host_rates_for_test() -> dict[str, float]:
     previous = dict(_HOST_RATES)
     for key in _HOST_RATES:
         _HOST_RATES[key] = 0.0
+    _HOST_PREFILL_TPS.clear()
     return previous
 
 
@@ -6127,6 +6149,9 @@ class MLXLocalClient:
                         else held * 0.7 + reported_tps * 0.3
                     )
                     _HOST_RATES["prefill"] = self._worker_measured_prefill_tps
+                    key = _model_rate_key(getattr(self, "model_path", ""))
+                    if key:
+                        _HOST_PREFILL_TPS[key] = self._worker_measured_prefill_tps
             # Old workers do not report the split. Keep the bounded fallback
             # for rolling compatibility, but never overwrite MLX's measured
             # prompt and decode clocks with an estimate when they are present.
@@ -7118,12 +7143,16 @@ class MLXLocalClient:
         measured = float(getattr(self, "_worker_measured_prefill_tps", 0.0) or 0.0)
         if measured > 0.0:
             return measured
-        # What another worker on this host measured, if one has. Same
-        # hardware, same weights class; better than a constant and much
-        # better than the progress-interval estimate.
-        host = float(_HOST_RATES.get("prefill") or 0.0)
-        if host > 0.0:
-            return host
+        # What another worker running THIS model measured, if one has. Same
+        # hardware and the same weights, so it is the same fact.
+        #
+        # Not the shared host entry. A rate from a different model is a
+        # measurement of a different thing, and taking it made a fresh 27B
+        # believe it read at the speed of a lane a thirtieth its size.
+        key = _model_rate_key(getattr(self, "model_path", ""))
+        by_model = float(_HOST_PREFILL_TPS.get(key) or 0.0) if key else 0.0
+        if by_model > 0.0:
+            return by_model
         # Deliberately NOT self._prefill_tokens_per_s. That number is the
         # rate progress MESSAGES arrive at, and it has been measured at 6
         # tokens a second on a worker doing 500 — the estimate is of the
