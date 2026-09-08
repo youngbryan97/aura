@@ -76,7 +76,8 @@ class Memory:
     def _validate_data_structure(self, data: Dict[str, Any]) -> bool:
         """Validate memory data structure integrity."""
         required_keys = {"episodic", "semantic", "goals"}
-        if not all(key in data for key in required_keys):
+        # Keys of the loaded mapping, not words in a string.
+        if not required_keys <= data.keys():
             return False
         
         # Validate episodic is a list

@@ -17,6 +17,7 @@ from core.agency.capability_system import get_capability_manager
 from core.agency.safety_registry import get_safety_registry
 from core.brain.llm.deferral_record import take_deferral
 from core.config import config
+from core.conversation.word_markers import names_any
 from core.knowledge.mycelial_graph import get_mycelial
 from core.runtime.errors import record_degradation
 from core.runtime.skill_task_bridge import (
@@ -755,6 +756,10 @@ class AutonomousTaskEngine:
         write_markers = ("write", "exec", "run", "post", "delete", "remove",
                          "shell", "terminal", "browser", "computer", "install",
                          "send", "create", "update", "modify", "rollback")
+        # Substring, deliberately: `name` is a tool identifier, not a
+        # sentence, and the words in one run together — `shell_exec`,
+        # `desktop_computer_use`. Word matching would let `gh_exec` through
+        # as read-only, and this gate is what says a tool may run unasked.
         if any(marker in name for marker in write_markers):
             return False
         return name.startswith(read_prefixes)
@@ -1498,9 +1503,9 @@ Respond ONLY with a JSON array, no other text:
     @staticmethod
     def _looks_like_desktop_goal(goal: str) -> bool:
         lowered = str(goal or "").lower()
-        return any(
-            marker in lowered
-            for marker in (
+        return names_any(
+            lowered,
+            (
                 "desktop",
                 "screen",
                 "window",
@@ -1709,9 +1714,9 @@ Respond ONLY with a JSON array, no other text:
             return True
         if matched_skills and self._looks_like_desktop_goal(goal):
             return True
-        if matched_skills and any(
-            marker in lowered
-            for marker in (
+        if matched_skills and names_any(
+            lowered,
+            (
                 "actually",
                 "on your own",
                 "interact",
@@ -2102,9 +2107,9 @@ Respond ONLY with a JSON array, no other text:
     @staticmethod
     def _looks_like_search_goal(goal: str) -> bool:
         lowered = str(goal or "").lower()
-        return any(
-            marker in lowered
-            for marker in (
+        return names_any(
+            lowered,
+            (
                 "search",
                 "look up",
                 "find online",
@@ -2131,9 +2136,8 @@ Respond ONLY with a JSON array, no other text:
     @staticmethod
     def _looks_like_memory_output_goal(goal: str) -> bool:
         lowered = str(goal or "").lower()
-        return any(
-            marker in lowered
-            for marker in ("remember", "memory", "store for later", "future recall")
+        return names_any(
+            lowered, ("remember", "memory", "store for later", "future recall")
         )
 
     #: A page named outright. The planner needs to know not just that a URL is
@@ -2323,7 +2327,7 @@ Respond ONLY with a JSON array, no other text:
             "click ",
             "type ",
         )
-        return not any(marker in lowered for marker in direct_action_markers)
+        return not names_any(lowered, direct_action_markers)
 
     def _build_cognitive_planning_fallback_plan(
         self,
@@ -3201,8 +3205,8 @@ Respond ONLY with a JSON array, no other text:
                 for marker in ("non-empty", "non empty", "response is non-empty", "any result")
             ):
                 return bool(result_str.strip())
-            if "file exists" in criterion and any(
-                token in result_str.lower() for token in ("exists", "found", "present")
+            if "file exists" in criterion and names_any(
+                result_str, ("exists", "found", "present")
             ):
                 return True
 

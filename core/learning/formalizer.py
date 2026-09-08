@@ -17,6 +17,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Formalizer")
@@ -201,7 +202,7 @@ class KnowledgeFormalizer:
     @staticmethod
     def _is_noise(sentence: str) -> bool:
         lowered = sentence.lower()
-        if any(noise in lowered for noise in (
+        if names_any(lowered, (
             "click here", "subscribe", "sign up", "cookie", "privacy policy",
             "terms of service", "advertisement", "loading", "menu", "share this",
             "all rights reserved", "javascript", "enable cookies",
@@ -214,9 +215,9 @@ class KnowledgeFormalizer:
     def _source_quality(source_title: str, source_url: str) -> float:
         text = f"{source_title} {source_url}".lower()
         quality = 0.55
-        if any(token in text for token in (".edu", ".gov", "docs.", "manual", "reference", "specification", "paper", "arxiv")):
+        if names_any(text, (".edu", ".gov", "docs.", "manual", "reference", "specification", "paper", "arxiv")):
             quality += 0.2
-        if any(token in text for token in ("forum", "reddit", "comment", "blog")):
+        if names_any(text, ("forum", "reddit", "comment", "blog")):
             quality -= 0.08
         if source_url.startswith("https://"):
             quality += 0.05
@@ -262,7 +263,7 @@ class KnowledgeFormalizer:
                 source_quality=source_quality,
             )
 
-        if any(token in lowered for token in ("avoid ", "do not ", "never ", "risk ", "unsafe ", "failure ", "error ")):
+        if names_any(lowered, ("avoid ", "do not ", "never ", "risk ", "unsafe ", "failure ", "error ")):
             return DistilledClaim(
                 content=sentence,
                 claim_type="risk_rule",
@@ -297,7 +298,7 @@ class KnowledgeFormalizer:
                 entities.add(entity)
         for match in re.finditer(r"\b([a-z][a-z0-9_/-]{2,}(?:\s+[a-z][a-z0-9_/-]{2,}){1,3})\b", content):
             phrase = match.group(1).strip()
-            if any(token in phrase for token in (" risk", " model", " graph", " policy", " planner", " parser", " state", " action", " memory", " rule")):
+            if names_any(phrase, (" risk", " model", " graph", " policy", " planner", " parser", " state", " action", " memory", " rule")):
                 entities.add(phrase)
 
         return list(entities)[:10]

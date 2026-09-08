@@ -114,3 +114,50 @@ def test_the_intention_loop_reports_its_own_actions_to_the_ledger(tmp_path):
     assert ledger.acted == 1
     assert ledger.by_capability.get("write_file", [0, 0])[0] == 1
     loop.close()
+
+
+def test_a_successful_action_is_recorded_as_one(tmp_path):
+    """`observe` re-derived success by sniffing the outcome text for `"ok": true`
+    or `completed successfully`. A caller reporting success in any other wording
+    was recorded as a failure — so a run of successful writes taught the self
+    model an efficacy of zero and an attribution of "mostly world-caused"."""
+    from core.agency.intention_loop import IntentionLoop
+
+    loop = IntentionLoop(db_path=str(tmp_path / "intentions.db"))
+    identifier = loop.intend(
+        intention="write the notes file", drive="creation", expected_outcome="the file holds the plan"
+    )
+    loop.record_action(
+        identifier,
+        tool_name="write_notes",
+        args={},
+        result="ok",
+        success=True,
+        duration_ms=1.0,
+    )
+    loop.observe(
+        identifier,
+        observation="the file holds the plan",
+        actual_outcome="the file holds the plan",
+    )
+
+    ledger = get_agency_ledger()
+    assert ledger.acted == 1
+    assert ledger.succeeded == 1
+    assert ledger.efficacy == 1.0
+    loop.close()
+
+
+def test_a_failed_action_is_still_recorded_as_one(tmp_path):
+    from core.agency.intention_loop import IntentionLoop
+
+    loop = IntentionLoop(db_path=str(tmp_path / "intentions.db"))
+    identifier = loop.intend(intention="write it", drive="creation", expected_outcome="it exists")
+    loop.record_action(
+        identifier, tool_name="write_notes", args={}, result="denied", success=False, duration_ms=1.0
+    )
+    loop.observe(identifier, observation="it exists", actual_outcome="the write did not land")
+    ledger = get_agency_ledger()
+    assert ledger.acted == 1
+    assert ledger.succeeded == 0
+    loop.close()

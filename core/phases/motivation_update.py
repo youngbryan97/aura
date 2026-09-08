@@ -77,6 +77,13 @@ class MotivationUpdatePhase(Phase):
             new_level = max(0.0, min(capacity, level - (effective_decay * dt)))
             budget["level"] = float(new_level)
 
+        # A drive that won the workspace was attended to, and attention
+        # satisfies — the same rule the conversation branch below applies,
+        # measured at the competition rather than at the dialogue. The
+        # replenishment is the broadcast's own priority, so a bare win moves
+        # the budget barely.
+        self._credit_attended_drive(mot, dt)
+
         # Active dialogue should satisfy the social drive, not merely slow its drain.
         if conv_energy > 0.5:
             engagement_recovery = max(0.0, conv_energy - 0.5) * 0.4 * dt / 60.0
@@ -144,6 +151,25 @@ class MotivationUpdatePhase(Phase):
             logger.debug("MotivationUpdate: curiosity spike decision=%s", decision.get("reason"))
 
         return next_state
+
+    @staticmethod
+    def _credit_attended_drive(mot: Any, dt: float) -> None:
+        """Replenish whichever drive last won the broadcast. Never raises."""
+        try:
+            from core.runtime.service_registry import get_runtime_service
+
+            workspace = get_runtime_service("global_workspace", default=None)
+            reading = getattr(workspace, "last_drive_attention", None)
+            if not isinstance(reading, dict):
+                return
+            budget = mot.budgets.get(str(reading.get("drive", "")))
+            if not isinstance(budget, dict):
+                return
+            gain = float(reading.get("priority", 0.0)) * dt / 60.0
+            capacity = float(budget.get("capacity", 100.0))
+            budget["level"] = min(capacity, float(budget.get("level", 0.0)) + gain)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, KeyError):
+            return
 
     def _surprise_pressure(self) -> float:
         """How urgently the world is asking to be acted on. 0.0 when unknown.

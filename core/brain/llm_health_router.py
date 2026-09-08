@@ -166,6 +166,9 @@ def _generation_owner_is_user_foreground(owner: str) -> bool:
     owner = str(owner or "").strip().lower()
     if not owner:
         return False
+    # Substring, deliberately: `owner` is the constructed `origin:purpose`
+    # key, not a sentence — `desktop:response_generation_user`,
+    # `voice_loop:reply`. The words in it run into their neighbours.
     return any(
         marker in owner
         for marker in (

@@ -18,6 +18,7 @@ import hashlib
 import html
 import re
 from core.runtime.errors import describe_error, record_degradation
+from core.conversation.word_markers import names_any
 
 
 _LIVE_PROOF_IMPERATIVE_RE = re.compile(
@@ -47,20 +48,19 @@ def _classify_live_runtime_proof(user_message: str) -> str | None:
     if not is_live_proof:
         return None
 
-    if "snake" in text and any(
-        token in text for token in ("create", "make", "build", "save", "file", "game")
+    if "snake" in text and names_any(
+        text, ("create", "make", "build", "save", "file", "game")
     ):
         return "snake"
-    if "glass arithmetic" in text and any(
-        token in text
-        for token in ("novel", "invent", "stay with", "limitation", "example", "rules")
+    if "glass arithmetic" in text and names_any(
+        text, ("novel", "invent", "stay with", "limitation", "example", "rules")
     ):
         return "novel_topic"
     if "snake" in text or "playable" in text or "game" in text:
         return "snake"
-    if any(
-        token in text
-        for token in (
+    if names_any(
+        text,
+        (
             "app",
             "browser",
             "calculator",

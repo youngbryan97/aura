@@ -4,6 +4,7 @@ import asyncio
 import logging
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.runtime import service_access
 from core.runtime.coding_session_memory import (
     build_coding_context_block,
@@ -33,9 +34,9 @@ def _is_task_context_priority(objective: str) -> bool:
     lowered = str(objective or "").lower()
     if not lowered:
         return False
-    return any(
-        marker in lowered
-        for marker in (
+    return names_any(
+        lowered,
+        (
             "keep going",
             "keep it going",
             "continue",
@@ -59,9 +60,9 @@ def _is_goal_context_priority(objective: str) -> bool:
     lowered = str(objective or "").lower()
     if not lowered:
         return False
-    return any(
-        marker in lowered
-        for marker in (
+    return names_any(
+        lowered,
+        (
             "project",
             "roadmap",
             "milestone",
@@ -654,9 +655,9 @@ def schedule_conversation_support_updates(
 
 def _conversation_emotional_valence(user_input: str) -> float:
     lowered = str(user_input or "").lower()
-    if any(token in lowered for token in ("love", "thanks", "thank you", "appreciate", "glad")):
+    if names_any(lowered, ("love", "thanks", "thank you", "appreciate", "glad")):
         return 0.4
-    if any(token in lowered for token in ("upset", "angry", "hurt", "afraid", "sad", "frustrated")):
+    if names_any(lowered, ("upset", "angry", "hurt", "afraid", "sad", "frustrated")):
         return -0.3
     return 0.1
 

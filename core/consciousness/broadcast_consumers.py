@@ -97,25 +97,26 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
                                action="the self model did not record the broadcast")
 
     async def to_affect(event: Any) -> None:
-        """Ignition is arousal. A broadcast that ignited should raise it."""
+        """Ignition is arousal, left where the affect phase will find it.
+
+        The first version wrote the blended arousal onto the affect engine,
+        which nothing reads back into `AuraState.affect` — a channel of exactly
+        the kind this file was written to fix. The reading is left on the
+        workspace instead and `AffectUpdatePhase` picks it up after its own
+        emotion channels have settled, which is a cycle later and is where
+        affect can actually keep it.
+        """
         winner = _winner(event)
         if winner is None:
             return
         try:
-            from core.container import ServiceContainer
-
-            engine = ServiceContainer.get("affect_engine", default=None)
             level = float(getattr(workspace, "ignition_level", 0.0) or 0.0)
-            if engine is None or level <= 0.0:
-                return
-            # The blend weight is the ignition level itself: a competition that
-            # barely ignited moves arousal barely, a full ignition moves it most
-            # of the way to the winner's priority.
-            current = float(getattr(engine, "arousal", 0.5) or 0.5)
-            target = min(1.0, max(0.0, float(winner.effective_priority)))
-            if hasattr(engine, "arousal"):
-                engine.arousal = (1.0 - level) * current + level * target
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            workspace.last_broadcast_arousal = {
+                "ignition": max(0.0, min(1.0, level)),
+                "priority": max(0.0, min(1.0, float(winner.effective_priority))),
+                "source": str(winner.source)[:64],
+            }
+        except (AttributeError, TypeError, ValueError) as exc:
             record_degradation("broadcast_consumers", exc, severity="debug",
                                action="affect did not take the broadcast")
 
@@ -142,21 +143,31 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
                                action="the broadcast trace was not written")
 
     async def to_deliberation(event: Any) -> None:
-        """A drive that keeps winning is a drive that is asking for something."""
+        """A drive that wins the workspace is a drive being attended to.
+
+        The motivation phase already treats attention as satisfying: active
+        conversation slows the social drive's decay and then replenishes it.
+        Winning the broadcast is the same thing measured at the competition
+        rather than at the conversation, so it is left where that phase reads
+        it and applied there.
+
+        The first version called `note_pressure` on the goal engine, which has
+        no such method — a guarded no-op, in the file written to fix exactly
+        that.
+        """
         winner = _winner(event)
         if winner is None:
             return
         try:
-            from core.container import ServiceContainer
-
             source = str(getattr(winner, "source", ""))
-            if not source.startswith("drive_"):
+            prefix = "affect_" if source.startswith("affect_") else "drive_"
+            if not source.startswith(prefix):
                 return
-            goals = ServiceContainer.get("goal_engine", default=None)
-            note = getattr(goals, "note_pressure", None)
-            if callable(note):
-                note(source[len("drive_"):], float(winner.effective_priority))
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            workspace.last_drive_attention = {
+                "drive": source[len(prefix):],
+                "priority": max(0.0, min(1.0, float(winner.effective_priority))),
+            }
+        except (AttributeError, TypeError, ValueError) as exc:
             record_degradation("broadcast_consumers", exc, severity="debug",
                                action="deliberation did not take the broadcast")
 

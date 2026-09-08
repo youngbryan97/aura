@@ -67,6 +67,11 @@ def redact_telemetry(receipt: Any) -> Dict[str, Any]:
             break
         name = str(key)
         lowered = name.lower()
+        # Substring, deliberately: `lowered` is a receipt FIELD NAME, where
+        # the words run together — `api_token`, `stdout_text`, `user_url`.
+        # Word matching would stop redacting every one of those, and this
+        # is the redaction that keeps command output and credentials out of
+        # persisted world state (CP126 ebc0d1eb).
         if any(marker in lowered for marker in _SENSITIVE_KEYS):
             text = str(value or "")
             safe[name] = {

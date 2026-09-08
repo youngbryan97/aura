@@ -33,7 +33,7 @@ from typing import Any
 import numpy as np
 
 from core.subject.recording import Recording
-from core.subject.state import DOMAINS, domain_slices
+from core.subject.state import DOMAINS
 
 __all__ = [
     "ARCHITECTURES",
@@ -299,14 +299,3 @@ def toy_edges(
         for pair, values in effects.items()
         if float(np.mean(values)) >= effect_min
     ]
-
-
-def surrogate_builders() -> dict[str, Callable[[Recording, int], Recording]]:
-    return {
-        "replay": lambda rec, seed: replay_surrogate(rec, seed=seed),
-        "time_shuffle": lambda rec, seed: shuffle_surrogate(rec, seed=seed),
-    }
-
-
-def _unused() -> Any:  # pragma: no cover - keeps the slice helper importable
-    return domain_slices()

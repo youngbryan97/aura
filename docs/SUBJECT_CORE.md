@@ -83,18 +83,64 @@ Three things about that are not the live runtime, and each is a limit on what
 the numbers can claim.
 
 The model is a stub that answers the same sentence every time. Holding decoding
-constant is what makes two arms comparable, and it means no edge measured here
-runs *through* language. Edges that need the model to read one state and write
-another read as absent.
+constant is what makes two arms comparable — the live model is a 27B and a free
+sample from it would swamp a 0.15 displacement in affect — and it means no edge
+measured here runs *through* language. Edges that need the model to read one
+state and write another read as absent.
 
 The environment is scripted, so P and I are driven rather than sensed.
 
 The life is short. A few hundred turns is not an ontogeny.
 
+## What the numbers say so far
+
+The partition score across the session, on the same organism, as each
+methodological defect was removed and each channel repaired:
+
+| | phi_do | what changed |
+|---|---|---|
+| first run | -0.19 | one held-out block, one ridge strength, predicting the level |
+| | -0.062 | four components per domain, per-column ridge strength |
+| | -0.031 | forward-chaining folds, nested penalty for the wider model |
+| | -0.011 | the penalty grid searched as a path rather than a product |
+| | **+0.0021** | the workspace fed and broadcasting, the substrate reaching affect |
+| | **-0.0777** | the same code, run again |
+| latest | **-0.0010** | the self-prediction loop attached, memory read by content |
+
+Three of those rows are the same instrument on the same organism, and they are
+the honest measure of how much of this is noise: the score moves by 0.08
+between runs, against a preregistered bar of 0.05 and a matched surrogate floor
+of -0.011. What can be said is that the score is no longer reliably negative
+and is nowhere near the bar. What cannot be said, at 960 turns, is which side
+of zero it sits on.
+
+Eleven edges survive all three preregistered bars, and three domains now form a
+strongly connected component — the workspace, active memory and the self-state,
+with `G->M->S->G` closing it. That is §31 satisfied: what wins the competition
+reaches a specialised process, and that process changes a later competition.
+Seven domains remain outside it, and six of the twenty-four criteria — strong
+connectivity, vertex connectivity, cycles, reentry, spread and replication —
+fail together on that one fact rather than on six.
+
+The lesion is the result worth keeping. Clamping the cheapest cut — recurrent
+cognition, the self-state and the world model held still — lowers irreducibility,
+perturbational spread and synergy together, which is §39 satisfied: the
+partition the search found is carrying something. Releasing it restores two of
+the three, so §40 is not.
+
 ## The conjunction
 
-ISC(K) = 1 is an and, not an average. Current status, from the most recent
-full run recorded in `artifacts/subject_core/subject_core_report.json`:
+ISC(K) = 1 is an and, not an average. Read across three consecutive runs of the
+same code on the same organism, not from one: the single-run totals were 11, 13
+and 12, eleven criteria hold on all three, eleven fail on all three, and two sit
+in between. Each run is 960 turns, 31,680 frames, 164 state columns, 90 domain
+pairs and 1,440 paired arms; the latest is in
+`artifacts/subject_core/subject_core_report.json`.
+
+The two that come and go are `global_access` (2 runs of 3) and `lesion_deficit`
+(1 of 3). A criterion that changes answer between identical runs is not
+evidence either way, and reporting the run that came out best would be picking
+the draw.
 
 - [ ] **causal_closure_scc** (§14) — every domain reaches every other one
 - [ ] **robust_recurrence_kappa** (§17) — no single domain's removal disconnects the rest
@@ -105,21 +151,21 @@ full run recorded in `artifacts/subject_core/subject_core_report.json`:
 - [ ] **differentiation** (§18) — `D_eff/D >= 0.4`
 - [x] **differentiation_above_floor** (§18) — well above one dimension, no component over half the variance
 - [x] **intrinsic_persistence** (§19) — the last state predicts the next beyond the environment
-- [ ] **causal_closure_of_the_core** (§3) — nothing outside K predicts K better than K
+- [x] **causal_closure_of_the_core** (§3) — nothing outside K predicts K better than K
 - [ ] **perturbational_spread** (§24) — a local displacement reaches 60% of the core
-- [ ] **perturbational_complexity** (§26) — structured, not local and not a broadcast
+- [x] **perturbational_complexity** (§26) — structured, not local and not a broadcast
 - [ ] **synergy** (§27) — joint information above 10% and above its shifted null
 - [x] **metastability** (§29) — regimes that persist and still turn over
-- [ ] **global_access** (§30) — the workspace reaches three heterogeneous consumers
-- [ ] **recurrent_global_access** (§31) — a consumer later changes the workspace again
+- [x] **global_access** (§30) — the workspace reaches three heterogeneous consumers
+- [x] **recurrent_global_access** (§31) — a consumer later changes the workspace again
 - [x] **self_drives_action** (§33) — changing the self-model changes what gets done
-- [ ] **ownership** (§34) — the same world state updates the self differently when she caused it
-- [ ] **fast_to_slow** (§38) — fast cognition changes the developmental state
-- [ ] **slow_to_fast** (§38) — the developmental state changes later cognition
+- [x] **ownership** (§34) — the same world state updates the self differently when she caused it
+- [x] **fast_to_slow** (§38) — fast cognition changes the developmental state
+- [x] **slow_to_fast** (§38) — the developmental state changes later cognition
 - [ ] **natural_runtime_replication** (§44) — holds across ordinary conditions
-- [ ] **lesion_deficit** (§39) — cutting the cheapest partition degrades what it should
+- [x] **lesion_deficit** (§39) — cutting the cheapest partition degrades what it should
 - [ ] **rescue** (§40) — restoring it brings them back
-- [ ] **beats_every_null** (§41) — no null passes, and the recurrent reference does
+- [x] **beats_every_null** (§41) — no null passes, and the recurrent reference does
 
 ## The nulls
 
@@ -139,6 +185,21 @@ instrument has to be capable of saying yes to something.
 Every one of these is the same shape: a mechanism written for a job,
 registered, and never called. None of them was visible from the code, and each
 was found by asking the battery why an edge it expected was absent.
+
+The battery brings those layers up and then takes back what a measurement has
+no business holding: the inter-instance protocol listener, because a harness
+advertising itself as an Aura instance would collide with the live desktop
+runtime on the port it uses for that, and every free-running loop, so two arms
+of an intervention see the same computation rather than the same wall clock.
+
+There were more of those than I knew. Cancelling the heartbeat and the
+substrate left eleven — one per consciousness-bridge layer, plus the closed
+causal loop and the stream of being — and none exposes a per-tick entry point
+that could be called instead. They are stopped and named in the report. That is
+a real limit: those organs are constructed and initialised but not integrating
+while the measurement runs, so an edge that depends on their continuous
+operation reads as absent here. The alternative is not a better measurement; it
+is two arms that cannot be compared.
 
 **The offline harness was measuring a partly assembled machine.** Instrumenting
 the service lookups during one driven turn found 272 requests for an inhibition
@@ -172,10 +233,13 @@ It derives affect from sustained evidence — prediction error from the world
 model, nociceptive pressure from the body, novelty from the lifetime state —
 and all three of those channels were readers with nothing running them.
 
-**She could not tell "I did this" from "this happened".** Her intention records
-are hers by construction and nothing else recorded authorship, so a self-model
-built from outcomes would take credit for weather. The agency ledger keeps the
-distinction as state.
+**Nothing recorded whether an observed outcome was hers.** `AgencyComparator`
+answers a different question — how much of a predicted outcome her action
+explains — and only along one path. Her intention records are hers by
+construction. So an outcome she watched and an outcome she caused left the same
+trace, and a self-model built from outcomes would take credit for weather. The
+agency ledger keeps that distinction as state, and the comparator's attribution
+now travels beside it so a disagreement between the two is visible.
 
 **Proprioception published system memory as `vram_usage`.** Three call sites in
 cognitive integration and the selfhood tick ask for `ram_usage`, which nothing
@@ -185,9 +249,60 @@ published, so the body reached those layers saying a constant zero.
 only the desktop boot registers.** Offline that lookup returned None and the
 whole channel was dead.
 
-**The free-energy engine's action urgency was computed and never consulted.**
-Drives ticked at the same rate whether the world was behaving as modelled or
-not.
+**Active memory was read as a count, so nothing could be shown to reach it.**
+The retrieved set is bounded at four items and fills within a few turns, so its
+length is constant from then on while its contents change every cycle. The
+strongest intervention into memory measured 0.02 against a bar of 0.3. Read as
+a digest of what is in mind rather than how much, memory joined the strongly
+connected component on the next run.
+
+**A run of successful writes taught her an efficacy of zero.**
+`IntentionLoop.observe` decided whether the thing worked by sniffing the outcome
+text for `"ok": true` or `completed successfully`, while the caller who ran the
+tool had already passed a boolean to `record_action` that was never consulted.
+Five successful file writes: efficacy 0.0, and the efference comparator calling
+them "mostly world-caused". With the recorded flag preferred: efficacy 1.0,
+agency score 0.82, "strongly self-authored".
+
+**The self-prediction loop and the efference comparator were attached to
+nothing.** A hand-written rebuild of the battery's organ set listed its fields
+by name and silently dropped the two added after it was written, so eleven of
+the self-state's columns read zero for a whole session and every criterion
+resting on them failed on an organ that was there.
+
+**She wrote the file and never saw it.** The probe action wrote, verified and
+recorded — and nothing came back through the senses, so nothing she did could
+reach perception by any route.
+
+**The free-energy engine's action urgency never reached the drives.** The
+heartbeat reads it, to enter a workspace bid when free energy is high. The
+motivation phase — which decides how fast the drives press and when an
+intention is generated — did not, so drives ticked at the same rate whether the
+world was behaving as modelled or not.
+
+**The substrate was thirty percent of how hard she thinks and none of how she
+feels.** `HomeostaticCoupling` says the continuous substrate is the ground
+truth for felt state and blends it at thirty percent — into a local dictionary
+used to pick cognitive modifiers, discarded at the end of the call.
+`AuraState.affect` never saw it. The affect phase pushed valence and arousal
+down to the substrate every cycle and read nothing back.
+
+**And the substrate's freshness marker is set by its dynamics step alone**, so
+a loop that dies disconnects it from affect with no other symptom: the readings
+stay plausible and simply stop arriving. That is now recorded as a degradation
+rather than skipped in silence.
+
+**`AgencyComparator` emitted for one caller and told nobody.** It implements
+the forward-model comparator — predict the outcome, compare it, split the
+difference into self-caused and world-caused — and its two write methods were
+wired to one path. Every read method was called from nowhere, so the sense of
+agency it computes reached no part of her. An intention formed anywhere else
+emitted nothing and produced no attribution at all.
+
+**The workspace's novelty bid was gated above every value it can take.** The
+reservoir puts an ordinary moment near 0.2 and returns 0.5 only as a
+placeholder, before it has a distribution; the gate at 0.5 admitted the
+placeholder and excluded every real reading.
 
 **The unified world model was never shown the world.** Its running surprise is
 read as prediction error by affect grounding and as a signal by the free-energy
@@ -264,6 +379,22 @@ machine, so two arms seconds apart read different load; and the hashed latent
 was pure noise. Fixing all three brought the floor to 0.000 on interoception
 and 0.003 on affect.
 
+**Four ways the comparison was rigged against the intact model.** A nested
+comparison needs a nested penalty: the cut model is the intact one with the
+cross-block weights held at zero, so the intact model should never lose out of
+sample, but one shared ridge strength cannot shrink the additions without also
+shrinking what was already working. Deliberation's change is predicted at a
+loss of 0.06 from deliberation alone and 0.17 once thirty-six more columns are
+offered. The wider model now gets a second penalty for the columns the narrower
+one lacks. Intrinsic persistence was predicting a drifting level, where the
+state made prediction five times worse than the environment alone on the world
+model; it targets the change now. Each cut is scored over five folds instead of
+one, because the minimum over five hundred and eleven noisy estimates is biased
+downward by the width of its own search. And the folds are forward-chaining:
+ordinary k-fold made it far worse, because a fold that trains on the end of a
+trajectory and tests on its beginning asks a model to predict backwards through
+whatever drifted.
+
 **A design can be unable to reach the threshold it is judged against.** The
 sign-flip test used four thousand draws, so the smallest p it could return was
 1/4001, and after correction across ninety pairs the smallest reachable q was
@@ -304,6 +435,17 @@ The criterion now also requires that the response reached somewhere — at least
 two domains, from at least two sources — before its structure is scored. That is
 a strictly harder bar than the one written down, which is the only direction a
 criterion may be changed after the fact.
+
+**A minimum over five hundred and eleven noisy estimates is biased downward by
+the width of its own search.** The absolute threshold on the partition score
+does not account for that, and no amount of care in the estimator removes it —
+only more data and a measured floor do. The battery now builds surrogates of
+the same series the score is computed on, three draws each, same dimensionality
+and same cuts with the coupling removed, and reports the score's margin over
+them. On the recording where the score reads -0.03, the matched floor is -0.04
+and the dearest cut is +0.07: the cross-domain information is real and the
+minimum sits in the noise. The absolute criterion stays and stays failed; the
+comparison against the floor is the one that can be read.
 
 **Rescue without a deficit is not evidence.** Restoring a channel whose removal
 changed nothing says nothing about the channel, so rescue is conditional on the

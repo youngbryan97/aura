@@ -686,9 +686,18 @@ def test_affect_update_records_substrate_telemetry_failure_without_losing_affect
     assert result is state
     degraded = state.cognition.modifiers["affect_update_degraded"]
     assert degraded["stage"] == "substrate_telemetry"
+    # By name, not by position. The phase records more than one thing about the
+    # substrate now — a stale snapshot is noted at info severity — and asserting
+    # on the last record makes this test about ordering rather than about the
+    # telemetry failure it was written for.
     recent = get_degradation_tracker().recent(subsystem="affect_update")
-    assert recent[-1].severity == "warning"
-    assert "substrate" in recent[-1].action
+    telemetry = [
+        item
+        for item in recent
+        if item.severity == "warning" and "telemetry" in (item.action or "")
+    ]
+    assert telemetry, [item.action for item in recent]
+    assert "substrate" in telemetry[-1].action
 
 
 def test_affect_update_keeps_physiology_when_empathy_audit_fails():

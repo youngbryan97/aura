@@ -29,6 +29,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from core.conversation.word_markers import names_any
+
 logger = logging.getLogger("Aura.IsThisAsyncCodeCorrect")
 
 __all__ = [
@@ -289,8 +291,8 @@ def _a_lock_released_by_cancellation(tree: ast.AST, source: str) -> list[AMistak
         # "lock-free" is a claim about there being no lock.
         if not re.search(r"\block\b(?!-free)", said):
             continue
-        if not any(
-            word in said for word in ("release", "releases", "released", "frees", "free")
+        if not names_any(
+            said, ("release", "releases", "released", "frees", "free")
         ):
             continue
         found.append(

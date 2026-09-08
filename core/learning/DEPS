@@ -12,7 +12,7 @@
 # dependency is an edit here, on purpose, and it is not `make deps-generate`
 # that makes it.
 #
-# 28 outbound edges after the common procedure currency gained evidence provenance.
+# 29 outbound edges after the common procedure currency gained evidence provenance.
 
 description = "core.learning may use cognition's procedure currency and the shared evidence algebra; other new core edges remain explicit."
 
@@ -27,6 +27,9 @@ include_rules = [
     "+core.config",
     "+core.consciousness",
     "+core.container",
+    # Word-boundary marker matching, so a keyword list here cannot fire on
+    # the word it is buried inside. Stdlib-only, no runtime behind it.
+    "+core.conversation",
     "+core.event_bus",
     "+core.evidence",
     "+core.executive",

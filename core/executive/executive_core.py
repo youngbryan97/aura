@@ -30,6 +30,7 @@ from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.executive.bounded_sandbox_policy import validate_idle_sandbox_probe_arguments
 from core.executive.executive_ledger import ExecutiveLedger
 from core.goals.goal_text import (
@@ -148,7 +149,7 @@ def _is_transient_conversation_memory_objective(text: str) -> bool:
     normalized = _normalize_goal_text(text).lower()
     if not normalized.startswith("remember this "):
         return False
-    if not any(token in normalized for token in ("note", "phrase", "word", "token", "codeword", "detail")):
+    if not names_any(normalized, ("note", "phrase", "word", "token", "codeword", "detail")):
         return False
     return "later in this conversation" in normalized or ":" in normalized
 

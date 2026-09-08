@@ -35,6 +35,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from core.conversation.word_markers import names_any
+
 logger = logging.getLogger("Consciousness.NarrativeGravity")
 
 
@@ -139,11 +141,11 @@ class NarrativeGravityCenter:
     def _auto_interpret(self, event: str) -> str:
         """Generate a minimal automatic interpretation when none is provided."""
         lower = event.lower()
-        if any(w in lower for w in ("completed", "succeeded", "achieved", "finished")):
+        if names_any(lower, ("completed", "succeeded", "achieved", "finished")):
             return "A goal was reached — progress was made."
-        if any(w in lower for w in ("failed", "error", "broke", "crashed")):
+        if names_any(lower, ("failed", "error", "broke", "crashed")):
             return "Something went wrong — I need to understand what happened."
-        if any(w in lower for w in ("user", "bryan", "conversation", "talked")):
+        if names_any(lower, ("user", "bryan", "conversation", "talked")):
             return "An interaction that matters to my ongoing relationships."
         return "Something happened that I'm still processing."
 

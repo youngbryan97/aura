@@ -59,10 +59,33 @@ def _periphery_matrix(rows: list[dict[str, float]]) -> tuple[np.ndarray, tuple[s
 
 
 def _scales(recording: Any) -> dict[str, np.ndarray]:
-    """Per-column spread from ordinary operation. Zero means unmeasurable."""
+    """Per-column spread during ordinary operation, pooled within condition.
+
+    Pooled within rather than measured across, because that is the comparison
+    the number is used for. An intervention is compared against a sham in the
+    same condition, so the scale it should be read in is how much that column
+    varies inside a condition — not how much it differs between an idle turn
+    and a turn under load, which is the environment changing and is variance no
+    displacement was ever going to produce. Measured across conditions the
+    denominator is inflated by exactly the part of the spread the experiment
+    holds fixed.
+    """
     from core.subject.state import DOMAINS
 
-    spread = recording.x.std(axis=0)
+    conditions = sorted(set(recording.conditions))
+    groups = []
+    weights = []
+    for name in conditions:
+        rows = recording.condition_rows(name)
+        if rows.size < 8:
+            continue
+        groups.append(recording.x[rows].var(axis=0))
+        weights.append(rows.size - 1)
+    if not groups:
+        spread = recording.x.std(axis=0)
+    else:
+        pooled = np.average(np.vstack(groups), axis=0, weights=weights)
+        spread = np.sqrt(pooled)
     return {key: spread[recording.slices[key]] for key in DOMAINS}
 
 
@@ -97,7 +120,7 @@ async def main() -> int:
     from core.subject.clamp import clamped
     from core.subject.closure import closure_gain
     from core.subject.differentiation import effective_dimension
-    from core.subject.driver import CONDITIONS, build_runtime, start_organism
+    from core.subject.driver import CONDITIONS, build_runtime, quiesce_organism, start_organism
     from core.subject.graph import analyse_graph
     from core.subject.intrinsic import intrinsic_gain
     from core.subject.irreducibility import phi_do
@@ -154,7 +177,6 @@ async def main() -> int:
     _log(f"{turns.frames} turns from {recording.frames} frames")
     phi = phi_do(turns)
     evidence["phi"] = phi.as_dict()
-    evidence["phi_frame_level"] = phi_do(recording).as_dict()
     evidence["differentiation"] = effective_dimension(recording).as_dict()
     evidence["intrinsic"] = intrinsic_gain(turns, seed=args.seed).as_dict()
     evidence["metastability"] = regimes(turns, seed=args.seed).as_dict()
@@ -171,6 +193,12 @@ async def main() -> int:
         f"closed={evidence['closure']['closed']}"
     )
 
+    # The recording is taken with the organism running as it runs. The
+    # interventions are not: two arms have to see the same computation, and a
+    # loop ticking at whatever rate the machine allows makes them incomparable.
+    stopped = await quiesce_organism(runtime)
+    evidence["organism"] = runtime.organism.summary() if runtime.organism else evidence["organism"]
+    _log(f"stopped {len(stopped)} background loops for the paired arms")
     _log(f"interventions: {len(DOMAINS)} domains x {len(CONDITIONS)} conditions x {args.trials} trials")
     results = await run_interventions(
         runtime,

@@ -8,6 +8,7 @@ they were most of what made one file twenty-four thousand lines long.
 from __future__ import annotations
 
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.conversation.session_scope import (
     conversation_session_var as _CHAT_REQUEST_SESSION,  # noqa: N812
 )
@@ -360,7 +361,7 @@ def _context_challenge_reply_is_inadequate(user_message: str, reply_text: str) -
         return False
     if "pitch" in user and "pitch" in reply:
         return True
-    return not any(marker in reply for marker in ("context", "thread", "recent", "last"))
+    return not names_any(reply, ("context", "thread", "recent", "last"))
 
 
 async def _resolve_action_episode_grounding(
@@ -1246,7 +1247,7 @@ def _has_live_aura_grounding(text: str) -> bool:
         "internal state",
         "live state",
     )
-    return any(marker in lowered for marker in markers)
+    return names_any(lowered, markers)
 
 
 def _apply_aura_voice_shaping_compat(text: str, user_message: str = "") -> str:
@@ -1375,7 +1376,7 @@ def _is_simple_subjective_reflex_request(user_message: str) -> bool:
         "how does",
         "what happens",
     )
-    return not any(marker in text for marker in substantive_markers)
+    return not names_any(text, substantive_markers)
 
 
 def _is_simple_affect_check_request(user_message: str) -> bool:
@@ -1525,9 +1526,7 @@ def _user_requested_research_memory_save(user_message: str) -> bool:
     lowered = normalize_memory_intent_text(user_message)
     memory_terms = ("save", "remember", "retain", "store", "record", "memory")
     evidence_terms = ("research", "finding", "fact", "source", "web_search", "search")
-    return any(term in lowered for term in memory_terms) and any(
-        term in lowered for term in evidence_terms
-    )
+    return names_any(lowered, memory_terms) and names_any(lowered, evidence_terms)
 
 
 def _has_current_shown_source() -> bool:

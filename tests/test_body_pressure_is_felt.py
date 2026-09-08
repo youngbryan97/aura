@@ -169,3 +169,26 @@ def test_a_stale_substrate_snapshot_is_not_blended():
     state.cognition.working_memory.append({"role": "user", "content": "hello"})
     asyncio.run(AffectUpdatePhase(None).execute(state))
     assert "substrate_share_of_affect" not in state.response_modifiers
+
+
+def test_the_lifetime_blend_survives_the_rest_of_the_affect_phase():
+    """It ran at the top of the phase and the derived-affect step three steps
+    later recomputed curiosity from the emotions dictionary, overwriting it.
+    Displacing the developmental state far enough to take novelty from 0.60 to
+    1.00 moved curiosity by five ten-thousandths."""
+    import asyncio
+    import inspect
+
+    from core.phases.affect_update import AffectUpdatePhase
+
+    source = inspect.getsource(AffectUpdatePhase.execute)
+    blend = source.index("_advance_lifetime")
+    derived = source.index("_update_resonance")
+    assert blend > derived, "the lifetime blend must run after affect is settled"
+
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.cognition.working_memory.append({"role": "user", "content": "hello"})
+    asyncio.run(AffectUpdatePhase(None).execute(state))
+    assert "ontogenetic_novelty" in state.response_modifiers

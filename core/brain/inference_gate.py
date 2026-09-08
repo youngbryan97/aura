@@ -14847,6 +14847,12 @@ class InferenceGate:
                                 ",".join(
                                     f"{name}={primary_surface_receipt.get(name)!r}"[:90]
                                     for name in sorted(map(str, primary_surface_receipt))
+                                    # Substring, deliberately: `name` is a
+                                    # receipt FIELD NAME — `surface_quality`,
+                                    # `rejected_by` — and this line exists to
+                                    # show what the receipt carries when it
+                                    # carries no reason. Narrowing it hides
+                                    # the fields worth seeing.
                                     if any(
                                         word in name
                                         for word in (

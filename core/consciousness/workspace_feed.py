@@ -89,28 +89,39 @@ def build_candidates(state: Any) -> list[Any]:
                     )
                 )
 
+    # What recall put in mind, not what was just said. Bidding the last
+    # working-memory item bids the turn that has only this moment finished —
+    # which is fresh on every cycle, so it entered at full priority every time
+    # and won almost every competition, and the other domains' bids never
+    # decided anything. A memory bid should be a recollection.
+    retrieved = list(getattr(cognition, "long_term_memory", []) or []) if cognition else []
+    if retrieved:
+        bids.append(
+            CognitiveCandidate(
+                content=str(retrieved[-1])[:240],
+                source="memory",
+                priority=1.0,
+                content_type=ContentType.MEMORIAL,
+            )
+        )
+
+    # The exchange that has just finished is current content and belongs in the
+    # competition — but at the energy of the conversation, which is a reading,
+    # not at a flat maximum. Entered at 1.0 it was fresh on every cycle and won
+    # almost everything, and no other domain's bid decided anything.
     working = list(getattr(cognition, "working_memory", []) or []) if cognition else []
     if working:
-        last = working[-1]
-        stamp = 0.0
-        if isinstance(last, dict):
-            try:
-                stamp = float(last.get("timestamp", 0.0) or 0.0)
-            except (TypeError, ValueError):
-                stamp = 0.0
-        memory_bid = CognitiveCandidate(
-            content=str(last.get("content", ""))[:240] if isinstance(last, dict) else str(last)[:240],
-            source="memory",
-            priority=1.0,
-            content_type=ContentType.MEMORIAL,
-        )
-        # Entered as of when the memory was formed, not when the bid was made.
-        # The workspace already decays priority with arrival age, so dating the
-        # bid correctly is what makes a stale recollection lose to a live
-        # feeling instead of winning every tick on a flat 1.0.
-        if stamp > 0.0:
-            memory_bid.submitted_at = stamp
-        bids.append(memory_bid)
+        energy = _clamp(getattr(cognition, "conversation_energy", 0.5), 0.5)
+        if energy > FLOOR:
+            last = working[-1]
+            bids.append(
+                CognitiveCandidate(
+                    content=str(last.get("content", ""))[:240] if isinstance(last, dict) else str(last)[:240],
+                    source="exchange",
+                    priority=energy,
+                    content_type=ContentType.LINGUISTIC,
+                )
+            )
 
     goals = list(getattr(cognition, "active_goals", []) or []) if cognition else []
     for goal in goals[-2:]:
@@ -155,14 +166,20 @@ def build_candidates(state: Any) -> list[Any]:
     # An unprecedented moment deserves attention. The lifetime state computes
     # exactly that number every cycle and nothing competed on it, so a life
     # that had never seen anything like this bid the same as one on a familiar
-    # afternoon. Ordinary sits at 0.5 on the reservoir's own scale, so only a
-    # moment above ordinary enters.
+    # afternoon.
+    #
+    # It bids at whatever the novelty is, with no threshold of its own. A first
+    # version only entered above 0.5 and therefore never entered at all: the
+    # reservoir puts an ordinary moment near 0.2, so the gate excluded every
+    # real reading and admitted only the 0.5 it returns before it has a
+    # distribution to compare against. Deciding in advance which bids are worth
+    # hearing is the workspace's job, and it is better at it than a constant.
     try:
         from core.ontogeny.lifetime import last_reading
 
         reading = last_reading()
         novelty = _clamp(getattr(reading, "novelty", 0.0)) if reading is not None else 0.0
-        if novelty > 0.5:
+        if novelty > FLOOR:
             bids.append(
                 CognitiveCandidate(
                     content=f"this is unlike the ordinary run of things ({novelty:.2f})",
@@ -172,6 +189,51 @@ def build_candidates(state: Any) -> list[Any]:
                 )
             )
     except (ImportError, AttributeError, TypeError, ValueError):
+        pass
+
+    # A surprising world is the oldest thing there is a competition for. The
+    # world model computes its own prediction error every cycle and the only
+    # route it had into the workspace was a heartbeat branch gated at a free
+    # energy above 0.35, which is a different and much rarer event.
+    try:
+        from core.container import ServiceContainer
+
+        model = ServiceContainer.get("unified_world_model", default=None)
+        surprise = model.surprise() if model is not None else None
+        if surprise is not None:
+            level = _clamp(float(surprise))
+            if level > FLOOR:
+                bids.append(
+                    CognitiveCandidate(
+                        content=f"the world did not do what was predicted ({level:.2f})",
+                        source="world_model",
+                        priority=level,
+                        content_type=ContentType.META,
+                    )
+                )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        pass
+
+    # And a substrate that is moving fast. Volatility is the continuous
+    # substrate's own reading of how much it is changing, which is what makes a
+    # moment worth attending to before anything has named why.
+    try:
+        from core.runtime.service_registry import get_runtime_service
+
+        substrate = get_runtime_service("conscious_substrate", default=None)
+        reading = substrate.get_state_summary_nowait() if substrate is not None else None
+        if isinstance(reading, dict) and not reading.get("snapshot_stale"):
+            level = _clamp(float(reading.get("volatility", 0.0)) / 100.0)
+            if level > FLOOR:
+                bids.append(
+                    CognitiveCandidate(
+                        content=f"the substrate is moving ({level:.2f})",
+                        source="substrate",
+                        priority=level,
+                        content_type=ContentType.SOMATIC,
+                    )
+                )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         pass
 
     if soma is not None:
@@ -230,8 +292,27 @@ def _remember_broadcast(state: Any, winner: Any, ignited: bool) -> None:
     cognition.long_term_memory = context[-CONTEXT_LIMIT:]
 
 
+#: Ticks the workspace may go without competing before the caller runs the
+#: competition itself. One: if the heartbeat took a beat and did not arbitrate,
+#: it is not going to.
+STALE_TICKS: int = 1
+
+
 async def feed_workspace(state: Any, workspace: Any) -> Any:
-    """Submit this cycle's bids and run the competition. Returns the winner."""
+    """Submit this cycle's bids, and arbitrate only if nothing else will.
+
+    Submission is the cycle's job and arbitration is the heartbeat's — one
+    winner per cognitive tick is the whole design. The first version competed
+    here as well, which emptied the candidate list before the heartbeat reached
+    it: the heartbeat's own competition then found nothing, its winner was
+    None, and the focus it hands the self-prediction loop was the string
+    "none" on every beat. Two mechanisms both correct, and between them a
+    self-model that never learned what she had been attending to.
+
+    So this submits, and competes only when the workspace's tick has not moved
+    since the last time it looked — which is what happens when there is no
+    heartbeat running, and nothing else.
+    """
     if workspace is None:
         return None
     try:
@@ -250,14 +331,27 @@ async def feed_workspace(state: Any, workspace: Any) -> Any:
                 "workspace_feed", exc, severity="debug",
                 action=f"bid from {bid.source} was not submitted",
             )
-    try:
-        winner = await workspace.run_competition()
-    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        record_degradation(
-            "workspace_feed", exc, severity="warning",
-            action="no broadcast this cycle",
-        )
-        return None
+    tick = int(getattr(workspace, "_tick", 0) or 0)
+    seen = getattr(workspace, "_feed_last_tick", None)
+    workspace._feed_last_tick = tick
+    winner = getattr(workspace, "last_winner", None)
+    # No evidence yet that anything else arbitrates, so arbitrate. A caller
+    # with no heartbeat behind it would otherwise lose its first cycle, and
+    # from the second call on the tick count says who is doing the work.
+    if seen is None or tick - seen <= STALE_TICKS - 1:
+        try:
+            winner = await workspace.run_competition()
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "workspace_feed", exc, severity="warning",
+                action="no broadcast this cycle",
+            )
+            return None
+        workspace._feed_last_tick = int(getattr(workspace, "_tick", tick) or tick)
+
+    # What last won reaches this cycle's context whether this call arbitrated
+    # or the heartbeat did. A broadcast the cycle cannot see has not been
+    # broadcast to the part of her that answers.
     try:
         _remember_broadcast(state, winner, bool(getattr(workspace, "ignited", False)))
     except (AttributeError, TypeError, ValueError) as exc:

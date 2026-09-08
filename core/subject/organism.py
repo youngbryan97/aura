@@ -18,8 +18,26 @@ whichever arm ran while the machine was busy. The driver calls the same tick
 functions once per turn instead, so the computation is the runtime's and the
 timing is the experiment's.
 
-Nothing here starts a server, opens a port, or loads a model. The live desktop
-instance is untouched.
+Cancelling the two I knew about left eleven more. The consciousness bridge
+starts a loop per layer — neural mesh, neurochemistry, interoception,
+oscillatory binding, the unified field, substrate evolution — and the closed
+causal loop runs its own prediction cycle, and none of them exposes a per-tick
+entry point that could be called instead. Extracting one from each would be a
+refactor of production code for the harness's convenience, which is the wrong
+trade, so they are stopped and named.
+
+That is a real limit and it goes in the report rather than in a footnote: those
+organs are constructed and initialised but not integrating while the
+measurement runs, so an edge that depends on their continuous operation reads
+as absent here. It is the same kind of limit as holding the model constant —
+the alternative is not a better measurement, it is arms that cannot be
+compared.
+
+No model is loaded and no port is left open. The consciousness layers include
+an inter-instance protocol listener, which `start` binds unconditionally; a
+measurement harness advertising itself as an Aura instance is wrong on its own
+terms and would collide with the live desktop runtime on the same port, so it
+is stopped as soon as it comes up, along with the free-running loops.
 """
 
 from __future__ import annotations
@@ -28,7 +46,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["Organism", "bring_up", "wind_down"]
+__all__ = ["Organism", "bring_up", "quiesce", "wind_down"]
 
 logger = logging.getLogger("Aura.Subject.Organism")
 
@@ -43,9 +61,22 @@ class Organism:
     substrate: Any = None
     up: list[str] = field(default_factory=list)
     down: dict[str, str] = field(default_factory=dict)
+    #: The free-running cognitive loops this stopped, by name. They are part of
+    #: the organism and they are not deterministic, and a measurement has to
+    #: choose; this one chooses comparable arms and says what it gave up.
+    stopped_loops: list[str] = field(default_factory=list)
+    #: What is still running after the wind-down. Reported rather than assumed:
+    #: the consciousness boot starts several things and stopping the ones I
+    #: know about is not the same as knowing what is left.
+    still_running: list[str] = field(default_factory=list)
 
     def summary(self) -> dict[str, Any]:
-        return {"up": sorted(self.up), "down": dict(sorted(self.down.items()))}
+        return {
+            "up": sorted(self.up),
+            "down": dict(sorted(self.down.items())),
+            "stopped_loops": sorted(self.stopped_loops),
+            "still_running": sorted(self.still_running),
+        }
 
 
 def _note(organism: Organism, name: str, exc: BaseException | None = None) -> None:
@@ -56,8 +87,20 @@ def _note(organism: Organism, name: str, exc: BaseException | None = None) -> No
         logger.warning("subject-core organism: %s did not come up: %s", name, exc)
 
 
-async def bring_up(*, with_bridge: bool = True) -> Organism:
-    """Register the container, start the consciousness layers, stop their loops."""
+async def bring_up(*, with_bridge: bool = True, quiet: bool = False) -> Organism:
+    """Register the container and start the consciousness layers.
+
+    ``quiet`` stops the free-running loops. Leave it off for a recording: an
+    observational measure needs a trajectory, not paired arms, and the
+    trajectory is more of the organism with the loops running. Turn it on
+    before interventions, where two arms have to see the same computation and a
+    loop running at whatever rate the machine allows makes them incomparable.
+
+    Which way round matters. Most of the cross-domain coupling flows through
+    those loops — stopping them for the whole run dropped the partition score
+    from +0.002 to -0.042 — so measuring the transition law with them stopped
+    would be measuring a quieter organism than the one that exists.
+    """
     organism = Organism()
 
     from core.container import ServiceContainer
@@ -134,6 +177,17 @@ async def bring_up(*, with_bridge: bool = True) -> Organism:
     for name, holder in (("heartbeat_loop", organism.consciousness), ("bridge_loop", organism.bridge)):
         await _cancel_loop(organism, name, holder)
 
+    # The inter-instance protocol listener. `ConsciousnessSystem.start` binds
+    # it unconditionally, so a battery run was holding a port that the live
+    # desktop runtime uses for the same purpose.
+    protocol = getattr(organism.consciousness, "aura_protocol", None)
+    if protocol is not None:
+        try:
+            await protocol.stop()
+            _note(organism, "protocol_listener_stopped")
+        except Exception as exc:  # noqa: BLE001
+            _note(organism, "protocol_listener_stopped", exc)
+
     if organism.substrate is not None:
         try:
             await organism.substrate.stop()
@@ -141,7 +195,75 @@ async def bring_up(*, with_bridge: bool = True) -> Organism:
         except Exception as exc:  # noqa: BLE001
             _note(organism, "substrate_loop_stopped", exc)
 
+    if quiet:
+        organism.stopped_loops = await quiesce()
+    organism.still_running = _live_tasks()
     return organism
+
+
+#: Tasks left alone. Infrastructure the state layer needs to commit a write,
+#: not cognition — stopping these would break the run rather than steady it.
+KEPT_TASKS: tuple[str, ...] = (
+    "state_registry.notification_dispatcher",
+)
+
+
+async def quiesce() -> list[str]:
+    """Cancel every free-running cognitive loop, and say which.
+
+    Cancellation is a request, not an event: the task does not end until the
+    loop it is suspended in gets to run and raise. So this waits for them,
+    briefly, and whatever is still alive afterwards appears in `still_running`
+    where it can be argued with rather than in nothing.
+    """
+    import asyncio
+
+    stopped: set[str] = set()
+    doomed: list[Any] = []
+    try:
+        current = asyncio.current_task()
+        for task in asyncio.all_tasks():
+            name = task.get_name()
+            if task is current or task.done() or name in KEPT_TASKS:
+                continue
+            task.cancel()
+            doomed.append(task)
+            stopped.add(name)
+    except RuntimeError:
+        return sorted(stopped)
+    if doomed:
+        await asyncio.wait(doomed, timeout=2.0)
+    stopped_list = sorted(stopped)
+    if stopped_list:
+        logger.info(
+            "subject-core: stopped %d background loops so two arms see the same "
+            "computation: %s",
+            len(stopped_list),
+            ", ".join(stopped_list),
+        )
+    return stopped_list
+
+
+def _live_tasks() -> list[str]:
+    """Every asyncio task still alive after the wind-down, by name.
+
+    Stopping the loops I know about is not the same as knowing what is left,
+    and a run whose numbers were shaped by a background task nobody listed is
+    a run that cannot be repeated. So the list goes in the report.
+    """
+    import asyncio
+
+    try:
+        current = asyncio.current_task()
+        return sorted(
+            {
+                task.get_name()
+                for task in asyncio.all_tasks()
+                if task is not current and not task.done()
+            }
+        )
+    except RuntimeError:
+        return []
 
 
 async def _cancel_loop(organism: Organism, name: str, holder: Any) -> None:

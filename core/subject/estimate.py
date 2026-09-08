@@ -121,16 +121,25 @@ def _ridge(x: np.ndarray, y: np.ndarray, alpha: float | np.ndarray) -> np.ndarra
 
 
 def _penalties(width: int, own_width: int | None) -> list[tuple[float, float, np.ndarray]]:
-    """Every penalty vector to try, with the two strengths that made it."""
+    """Every penalty vector to try, with the two strengths that made it.
+
+    The nested grid is a path rather than a product: each own-strength is
+    paired first with the largest extra-strength — which is the narrow model,
+    the addition shrunk to nothing — and then the extra-strengths are swept
+    once against the whole set of own-strengths. That is a hundred candidates
+    reduced to twenty with the same two ends: the narrow model is always
+    reachable, and so is every degree of leaning on the addition.
+    """
     if own_width is None or own_width >= width:
         return [(alpha, alpha, np.full(width, alpha)) for alpha in ALPHAS]
     out: list[tuple[float, float, np.ndarray]] = []
-    for own in ALPHAS:
-        for extra in ALPHAS:
-            vector = np.empty(width)
-            vector[:own_width] = own
-            vector[own_width:] = extra
-            out.append((own, extra, vector))
+    largest = ALPHAS[-1]
+    pairs = [(own, largest) for own in ALPHAS] + [(own, extra) for own, extra in zip(ALPHAS, ALPHAS, strict=True)]
+    for own, extra in pairs:
+        vector = np.empty(width)
+        vector[:own_width] = own
+        vector[own_width:] = extra
+        out.append((own, extra, vector))
     return out
 
 

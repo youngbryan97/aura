@@ -36,6 +36,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from core.runtime.service_registry import has_runtime_service, register_runtime_service
+from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("Aura.AutonomyLatitude")
 
@@ -123,7 +124,7 @@ class AutonomyLatitude:
 
         external = dom in _EXTERNAL_DOMAINS
         self_mod = dom in _SELF_MOD_DOMAINS
-        cue_hit = any(cue in text for cue in _IRREVERSIBLE_CUES)
+        cue_hit = names_any(text, _IRREVERSIBLE_CUES)
 
         # High-risk markers from the action context force the strict gate regardless.
         forced_governed = bool(

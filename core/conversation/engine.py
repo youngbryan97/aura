@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.memory.episodic_memory import get_episodic_memory
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.utils.exceptions import capture_and_log
@@ -292,13 +293,13 @@ class ConversationContext:
     def detect_conversation_mode(self, message: str, intent: str) -> ConversationMode:
         m = _safe_text(message, max_chars=MAX_MESSAGE_CHARS).lower()
         intent = _safe_text(intent, max_chars=80)
-        if any(w in m for w in ["help", "problem", "issue", "error", "fix"]):
+        if names_any(m, ["help", "problem", "issue", "error", "fix"]):
             return ConversationMode.PROBLEM_SOLVING
-        if any(w in m for w in ["create", "design", "imagine", "idea"]):
+        if names_any(m, ["create", "design", "imagine", "idea"]):
             return ConversationMode.CREATIVE_COLLABORATION
-        if any(w in m for w in ["learn", "teach", "explain", "understand"]):
+        if names_any(m, ["learn", "teach", "explain", "understand"]):
             return ConversationMode.LEARNING
-        if any(w in m for w in ["feel", "worried", "stressed", "anxious"]):
+        if names_any(m, ["feel", "worried", "stressed", "anxious"]):
             return ConversationMode.EMOTIONAL_SUPPORT
         if intent in ["execute_skill", "create_file", "search"]:
             return ConversationMode.TASK_ORIENTED

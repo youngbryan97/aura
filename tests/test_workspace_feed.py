@@ -20,7 +20,16 @@ from core.state.aura_state import AuraState
 
 
 def test_a_default_state_bids_only_what_it_has():
-    """No percepts, no memory, no goals, nothing wrong: almost nothing to say."""
+    """No percepts, no memory, no goals, nothing wrong: almost nothing to say.
+
+    The lifetime reading is reset first. It is process-wide and any earlier
+    test that advanced it leaves a novelty bid behind, which would make this
+    assertion depend on the order the file was run in rather than on the state
+    it was handed.
+    """
+    from core.ontogeny.lifetime import reset_for_test
+
+    reset_for_test()
     bids = build_candidates(AuraState.default())
     assert {bid.source for bid in bids} <= {"affect_anticipation", "affect_happiness"}
 
@@ -51,14 +60,19 @@ def test_the_feeling_carries_arousal_as_its_affect_weight():
     assert feeling.affect_weight == pytest.approx(0.9)
 
 
-def test_a_stale_memory_is_dated_when_it_was_formed():
-    """Otherwise recall wins every tick on a flat priority of one."""
+def test_the_memory_bid_is_a_recollection_not_the_turn_just_finished():
+    """Bidding the last working-memory item bids the turn that has only this
+    moment finished, which is fresh on every cycle — so it entered at full
+    priority every time and the other domains' bids never decided anything."""
     state = AuraState.default()
-    old = time.time() - 3600
-    state.cognition.working_memory.append({"role": "user", "content": "long ago", "timestamp": old})
+    state.cognition.working_memory.append(
+        {"role": "user", "content": "just said", "timestamp": time.time()}
+    )
+    assert not any(bid.source == "memory" for bid in build_candidates(state))
+
+    state.cognition.long_term_memory = ["something recalled"]
     memory = next(bid for bid in build_candidates(state) if bid.source == "memory")
-    assert memory.submitted_at == pytest.approx(old)
-    assert memory.effective_priority < memory.priority
+    assert memory.content == "something recalled"
 
 
 def test_incoherence_bids_in_proportion_to_how_bad_it_is():
@@ -144,3 +158,107 @@ def test_the_winner_becomes_where_she_is_looking_whether_or_not_it_ignited():
     _remember_broadcast(state, winner, ignited=False)
     assert state.cognition.attention_focus.startswith("perception: ")
     assert state.cognition.long_term_memory == []
+
+
+def test_an_ordinary_moment_still_bids_on_its_novelty():
+    """The reservoir puts an ordinary moment near 0.2, so a gate at 0.5
+    excluded every real reading and admitted only the placeholder it returns
+    before it has a distribution to compare against."""
+    from types import SimpleNamespace as _NS
+
+    import core.consciousness.workspace_feed as feed
+
+    state = AuraState.default()
+    import core.ontogeny.lifetime as lifetime
+
+    original = lifetime.last_reading
+    try:
+        lifetime.last_reading = lambda: _NS(novelty=0.22, displacement=0.1)
+        sources = {bid.source for bid in feed.build_candidates(state)}
+        assert "ontogeny" in sources
+    finally:
+        lifetime.last_reading = original
+
+
+def test_a_novelty_of_nothing_does_not_bid():
+    from types import SimpleNamespace as _NS
+
+    import core.consciousness.workspace_feed as feed
+    import core.ontogeny.lifetime as lifetime
+
+    original = lifetime.last_reading
+    try:
+        lifetime.last_reading = lambda: _NS(novelty=0.0, displacement=0.0)
+        sources = {bid.source for bid in feed.build_candidates(AuraState.default())}
+        assert "ontogeny" not in sources
+    finally:
+        lifetime.last_reading = original
+
+
+def test_the_feed_stops_competing_once_something_else_is():
+    """Submission is the cycle's job and arbitration is the heartbeat's. The
+    first version competed here too, which emptied the candidate list before
+    the heartbeat reached it — so the heartbeat's winner was None and the focus
+    it hands the self-prediction loop was the string "none" on every beat."""
+    from core.consciousness.global_workspace import GlobalWorkspace
+
+    workspace = GlobalWorkspace()
+    state = AuraState.default()
+    state.affect.emotions["fear"] = 0.9
+
+    assert asyncio.run(feed_workspace(state, workspace)) is not None
+    before = workspace._tick
+
+    async def heartbeat_then_feed():
+        state.affect.emotions["fear"] = 0.8
+        await feed_workspace(state, workspace)
+        await workspace.run_competition()
+        state.affect.emotions["fear"] = 0.7
+        await feed_workspace(state, workspace)
+        return workspace._tick
+
+    after = asyncio.run(heartbeat_then_feed())
+    # Two beats since: the one the feed ran on its first pass through the
+    # helper, and the explicit one standing in for the heartbeat. The third
+    # call must not have added a fourth.
+    assert after - before <= 2
+
+
+def test_a_surprising_world_bids_at_its_own_prediction_error():
+    """Its only route into the workspace was a heartbeat branch gated at a free
+    energy above 0.35, which is a different and much rarer event."""
+    from types import SimpleNamespace as _NS
+
+    from core.container import ServiceContainer
+
+    class _Model:
+        def surprise(self):
+            return 0.63
+
+    ServiceContainer.register_instance("unified_world_model", _Model())
+    bid = next(b for b in build_candidates(AuraState.default()) if b.source == "world_model")
+    assert bid.priority == pytest.approx(0.63)
+    del _NS
+
+
+def test_a_world_that_behaved_as_predicted_does_not_bid():
+    from core.container import ServiceContainer
+
+    class _Calm:
+        def surprise(self):
+            return 0.0
+
+    ServiceContainer.register_instance("unified_world_model", _Calm())
+    assert not any(b.source == "world_model" for b in build_candidates(AuraState.default()))
+
+
+def test_the_exchange_bids_at_the_conversation_s_energy():
+    """It belongs in the competition — at a reading, not at a flat maximum."""
+    state = AuraState.default()
+    state.cognition.working_memory.append({"role": "user", "content": "just said"})
+    state.cognition.conversation_energy = 0.31
+    bid = next(b for b in build_candidates(state) if b.source == "exchange")
+    assert bid.priority == pytest.approx(0.31)
+
+    state.cognition.conversation_energy = 0.0
+    assert not any(b.source == "exchange" for b in build_candidates(state))

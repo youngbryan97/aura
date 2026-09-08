@@ -213,12 +213,6 @@ class AffectUpdatePhase(Phase):
         
         self._ensure_affect_schema(affect)
 
-        # 1b. Advance the lifetime state on this moment, and let what it senses
-        # colour the moment. The reservoir used to step only when a memory
-        # retrieval happened to ask it something, so a day of conversation with
-        # no retrieval left her developmental state exactly where it started.
-        self._advance_lifetime(state, affect)
-
         # 2. Emotional Decay (Entropy & Momentum)
         # Ported from DamasioV2.pulse()
         self._apply_decay(affect)
@@ -246,6 +240,27 @@ class AffectUpdatePhase(Phase):
         
         # 6. Unified Personality Resonance (Unitary Logic)
         self._update_resonance(state)
+
+        # 6b. Advance the lifetime state on this moment, and let what it senses
+        # colour the moment. The reservoir used to step only when a memory
+        # retrieval happened to ask it something, so a day of conversation with
+        # no retrieval left her developmental state exactly where it started.
+        #
+        # After the emotion channels are settled, not before. The first version
+        # ran this at the top of the phase and the derived-affect step three
+        # steps later recomputed curiosity from the emotions dictionary, which
+        # overwrote the blend every time: displacing the developmental state
+        # far enough to take novelty from 0.60 to 1.00 moved curiosity by five
+        # ten-thousandths.
+        self._advance_lifetime(state, affect)
+
+        # 6c. What won the workspace, as arousal. Global workspace theory's
+        # claim is that ignition makes content available to the specialised
+        # processes, and affect is one of them; the blend weight is the
+        # ignition level itself, so a competition that barely ignited moves
+        # arousal barely and a full one moves it most of the way to the
+        # winner's priority.
+        self._blend_broadcast_into_affect(state, affect)
         
         # Direct Telemetry Bridge: Push VAD to LiquidSubstrate for real-time HUD sync
         from core.container import ServiceContainer
@@ -413,6 +428,30 @@ class AffectUpdatePhase(Phase):
                 severity="warning",
             )
 
+    def _blend_broadcast_into_affect(self, state: AuraState, affect: AffectVector) -> None:
+        """Read the last broadcast's ignition off the workspace and feel it."""
+        try:
+            from core.runtime.service_registry import get_runtime_service
+
+            workspace = get_runtime_service("global_workspace", default=None)
+            reading = getattr(workspace, "last_broadcast_arousal", None)
+            if not isinstance(reading, dict):
+                return
+            level = float(reading.get("ignition", 0.0))
+            if level <= 0.0:
+                return
+            target = float(reading.get("priority", 0.0))
+            affect.arousal = max(0.0, min(1.0, (1.0 - level) * float(affect.arousal) + level * target))
+            state.response_modifiers["broadcast_ignition"] = round(level, 4)
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="broadcast_arousal",
+                action="kept affect state without the broadcast's ignition",
+                severity="warning",
+            )
+
     def _blend_substrate_into_affect(
         self, substrate: Any, affect: AffectVector, state: AuraState
     ) -> None:
@@ -431,7 +470,23 @@ class AffectUpdatePhase(Phase):
             from core.consciousness.homeostatic_coupling import SUBSTRATE_SHARE
 
             reading = substrate.get_state_summary_nowait()
-            if not isinstance(reading, dict) or reading.get("snapshot_stale"):
+            if not isinstance(reading, dict):
+                return
+            if reading.get("snapshot_stale"):
+                # Worth recording rather than skipping quietly. The snapshot is
+                # marked fresh only by the substrate's own dynamics step, so a
+                # loop that has died disconnects the substrate from affect with
+                # no other symptom — the readings stay plausible and simply
+                # stop arriving.
+                state.response_modifiers["substrate_snapshot_age_s"] = round(
+                    float(reading.get("snapshot_age_s", 0.0)), 3
+                )
+                record_degradation(
+                    "affect_update",
+                    RuntimeError("substrate snapshot stale"),
+                    severity="info",
+                    action="affect kept its own valence; the substrate is not integrating",
+                )
                 return
             keep = 1.0 - SUBSTRATE_SHARE
             affect.valence = max(

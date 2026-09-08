@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping, Sequence
 
 from .schemas import clamp, stable_hash
+from core.conversation.word_markers import names_any
 
 
 @dataclass
@@ -50,27 +51,27 @@ class SocialCognitionLayer:
         lower = text.lower()
         reasons: list[str] = []
         subtext = "information_request"
-        if any(w in lower for w in ("worth", "believe", "real", "matter", "good is", "how good")):
+        if names_any(lower, ("worth", "believe", "real", "matter", "good is", "how good")):
             subtext = "validation_request"
             reasons.append("question implies project validation need")
-        if any(w in lower for w in ("frustrated", "angry", "annoyed", "not working", "broken", "can't")):
+        if names_any(lower, ("frustrated", "angry", "annoyed", "not working", "broken", "can't")):
             subtext = "frustration"
             reasons.append("frustration language detected")
-        if any(w in lower for w in ("proud", "excited", "amazing", "love this")):
+        if names_any(lower, ("proud", "excited", "amazing", "love this")):
             subtext = "pride_or_excitement"
             reasons.append("positive accomplishment signal")
         if "?" not in text and len(text.split()) < 8:
             subtext = "reassurance" if subtext == "information_request" else subtext
             reasons.append("short prompt may prefer presence before detail")
-        if any(w in lower for w in ("prove", "challenge", "be honest", "really")):
+        if names_any(lower, ("prove", "challenge", "be honest", "really")):
             subtext = "challenge"
             reasons.append("challenge/honesty framing")
-        if any(w in lower for w in ("what if", "could we", "idea", "brainstorm")):
+        if names_any(lower, ("what if", "could we", "idea", "brainstorm")):
             subtext = "brainstorming"
             reasons.append("open-ended ideation signal")
 
         trust_risk = 0.0
-        if any(w in lower for w in ("dismiss", "ignored", "validation", "fake", "roleplay")):
+        if names_any(lower, ("dismiss", "ignored", "validation", "fake", "roleplay")):
             trust_risk += 0.35
             reasons.append("trust/dismissal risk present")
         if len(text.split()) > 120:
@@ -81,7 +82,11 @@ class SocialCognitionLayer:
             reasons.append("low subtext confidence")
 
         state = dict(runtime_state or {})
-        genuine_state_available = any(k in state for k in ("uncertainty", "degraded_mode", "affect", "memory_salience", "confidence"))
+        # Keys of a state mapping, not words in a message: an intersection
+        # rather than `names_any`, which reads a string.
+        genuine_state_available = not state.keys().isdisjoint(
+            ("uncertainty", "degraded_mode", "affect", "memory_salience", "confidence")
+        )
         vulnerability_allowed = bool(genuine_state_available and trust_risk < 0.75)
         if not genuine_state_available:
             reasons.append("no grounded internal state for vulnerability claims")

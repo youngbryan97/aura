@@ -249,6 +249,10 @@ def _chat_delivery_state_for_response(
     if (
         int(status_code) >= 400
         or confidence == "failed"
+        # Substring, deliberately: `status` is a status CODE — "guard_blocked",
+        # "llm_timeout" — and this is what marks a turn FAILED. Word matching
+        # would stop seeing the word inside the compound and report a failed
+        # turn as delivered.
         or any(marker in status for marker in failure_markers)
     ):
         return DeliveryState.FAILED
@@ -799,6 +803,7 @@ def _report_an_empty_answer_as_one(response: Any, payload: Any) -> Any:
     if str(payload.get("response") or "").strip():
         return response
     status = str(payload.get("status") or "")
+    # Substring, deliberately: `status` is a status CODE, as above.
     if not any(token in status for token in _A_STATUS_THAT_CLAIMS_AN_ANSWER):
         return response
 

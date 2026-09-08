@@ -21,13 +21,18 @@ a dimension-by-dimension mapping of the world onto the substrate with no
 sender; `AffectGroundingEngine.gather` was registered and called zero times.
 None of those is a dead service. Each is a live service with a dead method.
 
-It reports rather than fails. A gate on either number would be a gate on how
-the tree happens to spell a lookup today.
+It reports rather than fails, and the first list needs reading with care: a
+service can be reached without ever being named. The perceptual pump is
+registered, asked for by nobody, and started every boot — through the
+capability registry, which resolves it by an accessor rather than a container
+key. A gate on either number would be a gate on how the tree happens to spell a
+lookup today.
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import subprocess
@@ -96,13 +101,27 @@ BORING: frozenset[str] = frozenset(
 
 
 def public_methods(module_path: Path) -> list[str]:
-    """Every public method defined in one module, by name."""
+    """Every public method defined on a class in one module, by name.
+
+    Parsed rather than matched. A regex on indentation cannot tell a method
+    from a function nested inside another function, and a nested function is
+    nearly always a callback registered rather than called by name — this
+    tool's own broadcast consumers are five of them, and counting those as dead
+    would be the tool failing its own test.
+    """
     try:
-        source = module_path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
+        tree = ast.parse(module_path.read_text(encoding="utf-8", errors="ignore"))
+    except (OSError, SyntaxError, ValueError):
         return []
-    names = re.findall(r"^\s+(?:async\s+)?def\s+([a-z][a-z0-9_]*)\s*\(", source, re.M)
-    return sorted({name for name in names if not name.startswith("_") and name not in BORING})
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for item in node.body:
+            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if not item.name.startswith("_") and item.name not in BORING:
+                    names.add(item.name)
+    return sorted(names)
 
 
 def method_callers(name: str, own: Path) -> int:
@@ -169,8 +188,19 @@ def main() -> int:
             thin.append((name, 1))
 
     abilities = [] if args.skip_methods else dead_abilities()
+    # Names reached by a mechanism other than a container lookup, so the list
+    # above can be read without re-deriving this every time. Each one was
+    # checked by hand and the reason is the value.
+    reached_otherwise = {
+        "perceptual_pump": "capability registry: boot_capabilities resolves its accessor",
+        "screen_perception": "capability registry: same",
+        "ontogeny": "imported directly by core/memory/intentional_retrieval.py",
+        "nociception": "imported directly by core/affect/affect_grounding.py",
+        "intentional_retriever": "constructed at the call site rather than resolved",
+    }
     report = {
         "registered": len(names),
+        "reached_without_being_named": reached_otherwise,
         "never_asked_for": unused,
         "asked_for_once": [name for name, _ in thin],
         "methods_nothing_calls": abilities,

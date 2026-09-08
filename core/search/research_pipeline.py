@@ -255,11 +255,11 @@ def query_requires_source_reading(query: str) -> bool:
         return False
     if _quoted_phrases(query):
         return True
-    if any(term in lowered for term in _SOURCE_SUMMARY_TERMS):
+    if names_any(lowered, _SOURCE_SUMMARY_TERMS):
         return True
-    if any(term in lowered for term in _SOURCE_DOCUMENT_TERMS) and any(
-        marker in lowered
-        for marker in (
+    if names_any(lowered, _SOURCE_DOCUMENT_TERMS) and names_any(
+        lowered,
+        (
             "what happens",
             "summary",
             "summarize",
@@ -665,7 +665,7 @@ class ResearchSearchPipeline:
             recent_variant = _normalize_query(f"{base} latest updates")
             if recent_variant not in expansions:
                 expansions.append(recent_variant)
-        elif not any(token in base for token in {"overview", "explained", "guide"}):
+        elif not names_any(base, {"overview", "explained", "guide"}):
             overview_variant = _normalize_query(f"{base} overview")
             if overview_variant not in expansions:
                 expansions.append(overview_variant)
@@ -1319,7 +1319,7 @@ class ResearchSearchPipeline:
         phrase_bonus = sum(0.2 for phrase in quoted_phrases if phrase.lower() in lowered)
         rank_bonus = max(0.0, 0.2 - ((max(rank, 1) - 1) * 0.02))
         currentness_bonus = 0.0
-        if any(term in lowered for term in _CURRENTNESS_TERMS):
+        if names_any(lowered, _CURRENTNESS_TERMS):
             currentness_bonus += 0.05
         if re.search(r"\b20\d{2}\b", lowered):
             currentness_bonus += 0.05

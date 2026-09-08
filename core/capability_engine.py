@@ -17,6 +17,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import CheckedLock, LockRank, checked_lock
 from core.runtime.network_gateway import get_network_gateway
@@ -1452,7 +1453,7 @@ def _maturity_enforcement_enabled() -> bool:
 
 def _is_transient(err: str) -> bool:
     """Checks if an error is likely transient (network, timeout, etc)."""
-    return any(x in str(err).lower() for x in ["timeout", "network", "retry", "limit"])
+    return names_any(str(err), ["timeout", "network", "retry", "limit"])
 
 
 def _declared_retryability(output: Any) -> bool | None:
@@ -2584,7 +2585,7 @@ class CapabilityEngine(AuraBaseModule):
             "clock strike",
             "take to strike",
         )
-        return any(marker in msg for marker in reasoning_markers)
+        return names_any(msg, reasoning_markers)
 
     def _retrieved_tool_candidates(self, objective: str, max_tools: int) -> list[str]:
         """Skills the retriever finds relevant that the trigger patterns missed.
@@ -7821,7 +7822,7 @@ class CapabilityEngine(AuraBaseModule):
             "source",
             "today",
         )
-        return any(marker in query for marker in source_markers)
+        return names_any(query, source_markers)
 
     @classmethod
     async def _apply_action_expectation_result(
