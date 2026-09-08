@@ -135,3 +135,15 @@ def test_a_turn_of_the_offline_organism_moves_every_domain(tmp_path):
     assert recording.frames > 0
     assert set(recording.live_domains()) == set("PIAGCSMWDN")
     assert not runtime.failures, runtime.failure_notes
+
+
+def test_the_battery_does_not_hold_the_inter_instance_port():
+    """`ConsciousnessSystem.start` binds a protocol listener unconditionally.
+    A measurement harness advertising itself as an Aura instance is wrong on
+    its own terms, and it collides with the live desktop runtime on the port it
+    uses for the same purpose."""
+    from core.subject import organism
+
+    source = inspect.getsource(organism.bring_up)
+    assert "aura_protocol" in source
+    assert "protocol_listener_stopped" in source

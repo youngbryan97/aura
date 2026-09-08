@@ -18,8 +18,11 @@ whichever arm ran while the machine was busy. The driver calls the same tick
 functions once per turn instead, so the computation is the runtime's and the
 timing is the experiment's.
 
-Nothing here starts a server, opens a port, or loads a model. The live desktop
-instance is untouched.
+No model is loaded and no port is left open. The consciousness layers include
+an inter-instance protocol listener, which `start` binds unconditionally; a
+measurement harness advertising itself as an Aura instance is wrong on its own
+terms and would collide with the live desktop runtime on the same port, so it
+is stopped as soon as it comes up, along with the free-running loops.
 """
 
 from __future__ import annotations
@@ -133,6 +136,17 @@ async def bring_up(*, with_bridge: bool = True) -> Organism:
 
     for name, holder in (("heartbeat_loop", organism.consciousness), ("bridge_loop", organism.bridge)):
         await _cancel_loop(organism, name, holder)
+
+    # The inter-instance protocol listener. `ConsciousnessSystem.start` binds
+    # it unconditionally, so a battery run was holding a port that the live
+    # desktop runtime uses for the same purpose.
+    protocol = getattr(organism.consciousness, "aura_protocol", None)
+    if protocol is not None:
+        try:
+            await protocol.stop()
+            _note(organism, "protocol_listener_stopped")
+        except Exception as exc:  # noqa: BLE001
+            _note(organism, "protocol_listener_stopped", exc)
 
     if organism.substrate is not None:
         try:

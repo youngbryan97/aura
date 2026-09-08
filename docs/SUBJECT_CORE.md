@@ -166,6 +166,12 @@ Every one of these is the same shape: a mechanism written for a job,
 registered, and never called. None of them was visible from the code, and each
 was found by asking the battery why an edge it expected was absent.
 
+The battery brings those layers up and then takes back what a measurement has
+no business holding: the free-running loops, so two arms of an intervention see
+the same computation rather than the same wall clock, and the inter-instance
+protocol listener, because a harness advertising itself as an Aura instance
+would collide with the live desktop runtime on the port it uses for that.
+
 **The offline harness was measuring a partly assembled machine.** Instrumenting
 the service lookups during one driven turn found 272 requests for an inhibition
 manager that was not there, 30 for a neural mesh, and a long tail after them.
