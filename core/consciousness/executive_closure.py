@@ -317,10 +317,17 @@ class ExecutiveClosureEngine:
             phi_estimate = float(reported_phi)
             state.phi_estimate = phi_estimate
             state.phi = phi_estimate
-        elif not state.phi_estimate and state.phi:
-            # The estimate has no other writer at all, so carry the measurement
-            # into it rather than leaving a field nothing ever fills.
-            state.phi_estimate = float(state.phi)
+        else:
+            if not state.phi_estimate and state.phi:
+                # The estimate has no other writer at all, so carry the
+                # measurement into it rather than leaving a field nothing fills.
+                state.phi_estimate = float(state.phi)
+            # And bind the local from what the state now holds. The first
+            # version bound it only on the branch where the closed loop
+            # reported, and three lines below read it unconditionally — so in
+            # the case this change was written for, an absent report, the phase
+            # raised UnboundLocalError and died on every turn.
+            phi_estimate = float(state.phi_estimate or state.phi or 0.0)
         state.vitality = float(homeostasis_status.get("will_to_live", state.vitality))
 
         state.response_modifiers["executive_closure"] = {

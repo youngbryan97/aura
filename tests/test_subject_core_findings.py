@@ -180,3 +180,32 @@ def test_the_battery_leaves_no_free_running_cognitive_loop():
     stopped, live = asyncio.run(run())
     assert stopped, "nothing was stopped, so nothing was running"
     assert live <= {"state_registry.notification_dispatcher"}
+
+
+def test_every_writer_moves_most_of_what_its_reader_reads():
+    """A displacement that leaves a domain's own columns alone is a
+    displacement its consumers cannot see. Affect moved three of twenty-two
+    columns — not the ten emotion channels the workspace prices its affect bid
+    by — and active memory moved the conversation buffer while calling it
+    memory."""
+    import numpy as np
+
+    from core.state.aura_state import AuraState
+    from core.subject.state import DOMAINS, perturb, read_core_state
+
+    thin = {}
+    for domain in DOMAINS:
+        if domain in {"N", "C"}:
+            # The reservoir lives outside `AuraState`, and recurrent cognition
+            # is mostly the substrate — both are displaced through
+            # `perturb_organs`, which needs a running organ set.
+            continue
+        state = AuraState.default()
+        state.cognition.long_term_memory = ["something recalled"]
+        before = read_core_state(state).domain(domain)
+        perturb(state, domain, 0.2)
+        after = read_core_state(state).domain(domain)
+        moved = int(np.sum(np.abs(after - before) > 1e-12))
+        if moved < 2:
+            thin[domain] = f"{moved} of {before.size}"
+    assert not thin, thin

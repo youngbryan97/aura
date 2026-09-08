@@ -977,6 +977,17 @@ def _perturb_A(state: Any, delta: float, ontogeny: Any) -> bool:
     hit = _bump(state, "affect.valence", delta, -1.0, 1.0)
     hit |= _bump(state, "affect.arousal", delta, 0.0, 1.0)
     hit |= _bump(state, "affect.curiosity", delta, 0.0, 1.0)
+    # And the feeling itself. Ten of this domain's twenty-two columns are
+    # emotion channels, and the workspace prices its affect bid by the
+    # strongest of them — so a displacement that moved valence and arousal and
+    # left the channels alone was a displacement of affect that affect's own
+    # consumers could not see. A writer has to move what the reader reads.
+    emotions = _dig(state, "affect.emotions", None)
+    if isinstance(emotions, dict):
+        for name in _EMOTIONS:
+            if name in emotions:
+                emotions[name] = min(1.0, max(0.0, _f(emotions[name]) + delta))
+        hit = True
     return hit
 
 
@@ -1021,17 +1032,27 @@ def _perturb_S(state: Any, delta: float, ontogeny: Any) -> bool:
 
 def _perturb_M(state: Any, delta: float, ontogeny: Any) -> bool:
     del ontogeny
+    hit = False
     working = _dig(state, "cognition.working_memory", None)
-    if not isinstance(working, list):
-        return False
-    working.append(
-        {
-            "role": "probe",
-            "content": f"subject-core memory probe {delta:+.4f}",
-            "timestamp": time.time(),
-        }
-    )
-    return True
+    if isinstance(working, list):
+        working.append(
+            {
+                "role": "probe",
+                "content": f"subject-core memory probe {delta:+.4f}",
+                "timestamp": time.time(),
+            }
+        )
+        hit = True
+    # And what is in mind. The retrieved set is what recall put there and what
+    # the workspace bids a recollection from; displacing active memory without
+    # touching it displaces the conversation buffer and calls it memory.
+    cognition = getattr(state, "cognition", None)
+    if cognition is not None:
+        retrieved = list(getattr(cognition, "long_term_memory", []) or [])
+        retrieved.append(f"probe recollection {delta:+.4f}")
+        cognition.long_term_memory = retrieved[-8:]
+        hit = True
+    return hit
 
 
 def _perturb_W(state: Any, delta: float, ontogeny: Any) -> bool:
