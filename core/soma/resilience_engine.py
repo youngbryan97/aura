@@ -102,6 +102,12 @@ class ResilienceEngine:
     STRAIN_THRESHOLD = 0.45
     FRICTION_THRESHOLD = 0.20
     SNAPSHOT_CACHE_TTL_S = 0.25
+    #: How long a reading from the proprioceptive loop stands before this
+    #: engine goes back to reading the machine itself. Three beats at the
+    #: slowest cognitive cadence — ten seconds in sleep mode — because a loop
+    #: that has missed three consecutive beats is not sensing, and a frozen
+    #: body reading is worse than a fresh one taken the long way.
+    HOST_OBSERVATION_TTL_S = 30.0
 
     def __init__(self, orchestrator=None):
         self.orchestrator = orchestrator
@@ -111,6 +117,9 @@ class ResilienceEngine:
         self._snapshot_cache_at = 0.0
         # signature -> (repeats inside the window, when it was last seen)
         self._repeats: dict[str, tuple[int, float]] = {}
+        #: (taken_at, cpu, ram, thermal) as the proprioceptive loop last sensed
+        #: the host, or None before the loop has run once.
+        self._observed_host: tuple[float, float, float, float] | None = None
 
     async def pulse(self) -> dict[str, float]:
         """Metabolic heartbeat — ensures decay is applied even if loop stalls."""
@@ -528,18 +537,57 @@ class ResilienceEngine:
             return 0.0
         return max(0.0, min(1.0, scalar))
 
+    def observe_host(
+        self,
+        *,
+        cpu_percent: float,
+        ram_percent: float,
+        temperature_c: float | None = None,
+    ) -> None:
+        """The body as the proprioceptive loop just sensed it.
+
+        There were two bodies. The loop publishes cpu, memory and temperature
+        into `state.soma.hardware`, which affect, the workspace and executive
+        closure all read; this engine went straight to psutil on every call,
+        and homeostasis reads this engine to compute her will to live. So the
+        one number that says whether she is holding together came from the host
+        by a route that never passed through her own body state, and nothing
+        the state did to those readings — damping, clamping, or an experiment
+        holding them still — could reach it.
+
+        One body. The loop is the organ that senses the host, and this is where
+        it reports.
+        """
+        # One assignment of one immutable tuple, so a reader either sees the
+        # whole previous reading or the whole new one. A lock here would sit on
+        # the path every phase takes.
+        self._observed_host = (
+            time.monotonic(),
+            self._clamp01(float(cpu_percent) / 100.0),
+            self._clamp01(float(ram_percent) / 100.0),
+            0.0 if temperature_c is None else self._clamp01((float(temperature_c) - 45.0) / 55.0),
+        )
+        # The cached snapshot was built from the old body; keeping it would
+        # hide the reading that just arrived for a quarter of a second, which
+        # is several phases.
+        self._snapshot_cache = None
+
     def _resource_snapshot(self) -> dict[str, float]:
         cpu_pressure = 0.0
         ram_pressure = 0.0
         thermal_pressure = 0.0
-        try:
-            from core.runtime import resource_psutil as psutil
+        observed = self._observed_host
+        if observed is not None and time.monotonic() - observed[0] <= self.HOST_OBSERVATION_TTL_S:
+            _, cpu_pressure, ram_pressure, thermal_pressure = observed
+        else:
+            try:
+                from core.runtime import resource_psutil as psutil
 
-            cpu_pressure = self._clamp01(psutil.cpu_percent(interval=None) / 100.0)
-            ram_pressure = self._clamp01(psutil.virtual_memory().percent / 100.0)
-            thermal_pressure = self._thermal_pressure(psutil)
-        except (ImportError, AttributeError, OSError, RuntimeError, ValueError) as exc:
-            logger.debug("Resource telemetry unavailable: %s", exc)
+                cpu_pressure = self._clamp01(psutil.cpu_percent(interval=None) / 100.0)
+                ram_pressure = self._clamp01(psutil.virtual_memory().percent / 100.0)
+                thermal_pressure = self._thermal_pressure(psutil)
+            except (ImportError, AttributeError, OSError, RuntimeError, ValueError) as exc:
+                logger.debug("Resource telemetry unavailable: %s", exc)
 
         return {
             "cpu_pressure": cpu_pressure,

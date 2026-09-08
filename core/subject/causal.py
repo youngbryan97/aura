@@ -212,6 +212,16 @@ async def _arm(
     at: int = 0,
 ) -> list[CoreState]:
     runtime.restore(snapshot)
+    # The freeze this arm was handed, kept so the arm can hand it back. An
+    # interoceptive displacement re-takes the freeze from the displaced state,
+    # which is what a sustained perturbation of the body is — and the runtime
+    # is one object shared by all three arms, so without this the re-freeze
+    # survived into the shams. With the arm order shuffled, two trials in three
+    # ran a sham under the displaced body: the effect on I read as zero because
+    # both arms ended at the same body, and every downstream consequence of the
+    # displacement was present in the floor as well, cancelling itself.
+    held_host = None if runtime.frozen_host is None else dict(runtime.frozen_host)
+    held_latency = None if runtime.frozen_latency is None else dict(runtime.frozen_latency)
     frames: list[CoreState] = []
     applied = {"done": displace is None}
 
@@ -233,14 +243,18 @@ async def _arm(
             rt.freeze_host()
         applied["done"] = bool(in_state or in_organ)
 
-    for turn in range(turns):
-        frames.extend(
-            await runtime.turn_once(
-                condition,
-                perturb_at=at if (turn == 0 and displace is not None) else None,
-                perturb=hit,
+    try:
+        for turn in range(turns):
+            frames.extend(
+                await runtime.turn_once(
+                    condition,
+                    perturb_at=at if (turn == 0 and displace is not None) else None,
+                    perturb=hit,
+                )
             )
-        )
+    finally:
+        runtime.frozen_host = held_host
+        runtime.frozen_latency = held_latency
     if displace is not None and not applied["done"]:
         return []
     return frames

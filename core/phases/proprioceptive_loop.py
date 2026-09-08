@@ -24,6 +24,7 @@ except ImportError:
     psutil = None
 
 from ..state.aura_state import AuraState
+from ..state.percepts import emit_percept
 from . import BasePhase
 
 logger = logging.getLogger("core.phases.proprioception")
@@ -199,6 +200,63 @@ class ProprioceptiveLoop(BasePhase):
                 action="the body's load was not reported to nociception this tick",
             )
 
+    def _report_host(self, state: Any, soma: Any) -> None:
+        """Hand what was just sensed to the engine homeostasis reads, and feel it.
+
+        The second half is the channel that was never built. The affect phase
+        lists `resource_pressure` among the percepts it treats as a threat, and
+        no place in the tree has ever emitted one: a receiver with no
+        transmitter, so a machine at ninety percent load reached her feeling
+        through nothing at all. The percept is emitted only past the strain the
+        resilience engine itself calls friction, and carries the pressure as
+        its strength.
+        """
+        engine = self._get_service(
+            "soma",
+            soma=soma,
+            channel="host_observation",
+            action="Left the resilience engine reading the machine directly this tick",
+            severity="debug",
+        )
+        report = getattr(engine, "observe_host", None)
+        if not callable(report):
+            return
+        hardware = soma.hardware
+        try:
+            report(
+                cpu_percent=float(hardware.get("cpu_usage", 0.0) or 0.0),
+                ram_percent=float(hardware.get("ram_usage", hardware.get("vram_usage", 0.0)) or 0.0),
+                temperature_c=(
+                    float(hardware["temperature"])
+                    if hardware.get("temperature_available")
+                    else None
+                ),
+            )
+            body = dict((engine.get_body_snapshot() or {}).get("soma", {}) or {})
+            pressure = max(
+                float(body.get("resource_anxiety", 0.0) or 0.0),
+                float(body.get("thermal_load", 0.0) or 0.0),
+            )
+            friction = float(getattr(engine, "FRICTION_THRESHOLD", 0.20))
+            if pressure > friction:
+                emit_percept(
+                    state.world,
+                    "resource_pressure",
+                    content=(
+                        f"the machine is under load: {pressure:.0%} pressure, "
+                        f"{float(hardware.get('cpu_usage', 0.0) or 0.0):.0f}% cpu"
+                    ),
+                    intensity=pressure,
+                )
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            self._mark_channel_degraded(
+                soma,
+                "host_observation",
+                exc,
+                action="Left the resilience engine reading the machine directly this tick",
+                severity="debug",
+            )
+
     def _mark_channel_degraded(
         self,
         soma: Any,
@@ -365,6 +423,13 @@ class ProprioceptiveLoop(BasePhase):
                 severity="warning",
             )
         
+        # ── 1b. And the body reports itself to the engine that judges it ──
+        # The resilience engine went straight to psutil on every call, and
+        # homeostasis reads that engine to compute her will to live. Two
+        # bodies: one in the state that every phase reads, one taken behind it.
+        # This is the sensing organ, so this is where the reading is published.
+        self._report_host(new_state, soma)
+
         # ── 2. Cognitive Latency (Self-Awareness of Thought Speed) ──
         now = time.time()
         if self._last_thought_time > 0:

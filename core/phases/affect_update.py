@@ -12,6 +12,7 @@ from core.kernel.bridge import Phase
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.task_ownership import create_tracked_task
 from core.state.aura_state import AffectVector, AuraState
+from core.state.percepts import drop_consumed, fresh_for, mark_consumed
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
@@ -219,12 +220,21 @@ class AffectUpdatePhase(Phase):
         
         # 3. Reactive Updates (from recent percepts)
         # Ported from DamasioV2.react()
-        recent_percepts = list(state.world.recent_percepts)
+        # A percept lives one turn. This phase used to take the whole list and
+        # clear it, which does prevent double-processing and also deletes the
+        # event for everyone downstream: the workspace competition, the world
+        # model's observation, the phi estimate and the state's own reading of
+        # perception all run after this phase, and all of them saw an empty
+        # stream on every turn. Now what this phase felt on a previous turn is
+        # dropped here, what arrived since is felt and marked, and the rest of
+        # the turn can see what arrived. No clock and no growth: the stream
+        # holds exactly one turn of perception by the time affect is done.
+        drop_consumed(state.world, "affect")
+        recent_percepts = fresh_for(state.world.recent_percepts, "affect")
         self._process_percepts(affect, recent_percepts)
-
-        # Percept Clearing (Atomic Hygiene)
-        # Prevent double-processing or leak. Percepts are transient impacts.
-        state.world.recent_percepts.clear()
+        for item in recent_percepts:
+            mark_consumed(item, "affect")
+        state.world.trim_percepts()
 
         # 3.5. Conversation Feedback — close the loop from discourse state → affect
         self._apply_conversation_feedback(affect, state)
@@ -596,6 +606,11 @@ class AffectUpdatePhase(Phase):
             # is an error; a self-correction is an error about her own output,
             # without the part that is afraid of the world.
             "internal_error": ["fear", "sadness", "unhappiness", "dread", "upset", "frustration", "confused"],
+            # The body under strain. This type was already listed as a threat
+            # a few lines up, and until the proprioceptive loop emitted one,
+            # nothing in the tree ever produced it — so a machine at ninety
+            # percent load reached her feeling through nothing at all.
+            "resource_pressure": ["fear", "upset", "frustration", "vulnerability"],
             "self_correction": ["sadness", "unhappiness", "upset", "frustration", "confused"],
             "disconnection": ["unhappiness", "apathy", "loneliness", "longing"],
             "neural_decode": ["anticipation", "surprise"]  # Base neural burst

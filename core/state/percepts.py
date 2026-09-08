@@ -20,11 +20,27 @@ deserves attention, and when it happened.
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass
 from typing import Any
 
-__all__ = ["Percept", "read_percept", "emit_percept", "DEFAULT_INTENSITY"]
+__all__ = [
+    "DEFAULT_INTENSITY",
+    "Percept",
+    "drop_consumed",
+    "emit_percept",
+    "fresh_for",
+    "mark_consumed",
+    "read_percept",
+]
+
+#: Where a percept records which consumers have already taken it. A consumer
+#: that deletes what it has processed is not preventing double-processing, it
+#: is deleting the event for everyone downstream of it — which is what the
+#: affect phase did, so the workspace, the world model, the phi estimate and
+#: the state's own reading of perception all saw an empty stream on every turn
+#: after affect had run.
+CONSUMED_KEY: str = "consumed_by"
 
 #: What a percept with no stated strength is worth. Half, because a producer
 #: that does not say has no opinion, and the alternative — zero — silently
@@ -94,6 +110,48 @@ def read_percept(item: Any, *, now: float | None = None) -> Percept:
         timestamp=stamp,
         raw=item,
     )
+
+
+def mark_consumed(item: Any, by: str) -> None:
+    """Record that one consumer has taken this percept. It stays in the stream."""
+    if not isinstance(item, MutableMapping):
+        return
+    seen = item.get(CONSUMED_KEY)
+    if isinstance(seen, list):
+        if by not in seen:
+            seen.append(by)
+    else:
+        item[CONSUMED_KEY] = [by]
+
+
+def fresh_for(percepts: Any, by: str) -> list[Any]:
+    """The percepts this consumer has not taken yet, oldest first."""
+    if not isinstance(percepts, list):
+        return []
+    out = []
+    for item in percepts:
+        seen = item.get(CONSUMED_KEY) if isinstance(item, Mapping) else None
+        if not isinstance(seen, list) or by not in seen:
+            out.append(item)
+    return out
+
+
+def drop_consumed(world: Any, by: str) -> int:
+    """Forget the percepts this consumer already took on an earlier pass.
+
+    Called by the consumer at the start of its own pass, this gives a percept a
+    lifetime of exactly one turn: long enough for every later stage of the turn
+    to see what arrived, short enough that the stream never grows and the count
+    of it still means something.
+    """
+    percepts = getattr(world, "recent_percepts", None)
+    if not isinstance(percepts, list):
+        return 0
+    keep = fresh_for(percepts, by)
+    dropped = len(percepts) - len(keep)
+    if dropped:
+        percepts[:] = keep
+    return dropped
 
 
 def emit_percept(

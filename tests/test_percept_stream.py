@@ -123,3 +123,42 @@ def test_the_subject_probe_displaces_perception_in_the_real_shape() -> None:
     assert latest.salience > 0.0
     after = read_core_state(state).domain("P")
     assert (after != before).any()
+
+
+def test_a_percept_survives_the_phase_that_feels_it() -> None:
+    """Affect used to clear the stream, so every later phase saw nothing."""
+    from core.state.percepts import drop_consumed, fresh_for, mark_consumed
+
+    state = AuraState.default()
+    emit_percept(state.world, "goal_achieved", content="done", intensity=0.6)
+    felt = fresh_for(state.world.recent_percepts, "affect")
+    assert len(felt) == 1
+    for item in felt:
+        mark_consumed(item, "affect")
+    # Still there for the workspace, the world model and the state's reading.
+    assert len(state.world.recent_percepts) == 1
+    assert not fresh_for(state.world.recent_percepts, "affect")
+
+
+def test_a_percept_lives_exactly_one_turn() -> None:
+    from core.state.percepts import drop_consumed, fresh_for, mark_consumed
+
+    state = AuraState.default()
+    for turn in range(4):
+        assert drop_consumed(state.world, "affect") == (1 if turn else 0)
+        emit_percept(state.world, "interaction", content=f"turn {turn}", intensity=0.5)
+        for item in fresh_for(state.world.recent_percepts, "affect"):
+            mark_consumed(item, "affect")
+        assert len(state.world.recent_percepts) == 1
+
+
+def test_the_body_under_strain_becomes_a_percept_something_can_feel() -> None:
+    """`resource_pressure` was in the threat list with no producer anywhere."""
+    from core.phases.affect_update import AffectUpdatePhase
+
+    source = (REPO / "core" / "phases" / "proprioceptive_loop.py").read_text()
+    assert '"resource_pressure"' in source, "the body still has no way to report strain"
+    affect = (REPO / "core" / "phases" / "affect_update.py").read_text()
+    body = affect[affect.index("emotion_map = {") : affect.index("command_impacts = {")]
+    assert '"resource_pressure":' in body
+    assert AffectUpdatePhase is not None
