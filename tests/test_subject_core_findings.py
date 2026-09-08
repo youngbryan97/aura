@@ -147,3 +147,26 @@ def test_the_battery_does_not_hold_the_inter_instance_port():
     source = inspect.getsource(organism.bring_up)
     assert "aura_protocol" in source
     assert "protocol_listener_stopped" in source
+
+
+def test_the_battery_leaves_no_free_running_cognitive_loop():
+    """Eleven of them survived the first wind-down, one per bridge layer plus
+    the closed causal loop. Free-running loops put an uncontrolled amount of
+    computation into whichever arm of an intervention ran while the machine was
+    busy, which does not add a limit to the measurement — it makes the two arms
+    incomparable."""
+    from pathlib import Path
+    from tempfile import TemporaryDirectory
+
+    from core.subject.driver import build_runtime, start_organism
+
+    async def run():
+        with TemporaryDirectory() as tmp:
+            runtime = build_runtime(Path(tmp) / "runtime", seed=5)
+            summary = await start_organism(runtime)
+            del runtime
+            return summary
+
+    summary = asyncio.run(run())
+    assert summary["stopped_loops"], "nothing was stopped, so nothing was running"
+    assert set(summary["still_running"]) <= {"state_registry.notification_dispatcher"}

@@ -167,10 +167,19 @@ registered, and never called. None of them was visible from the code, and each
 was found by asking the battery why an edge it expected was absent.
 
 The battery brings those layers up and then takes back what a measurement has
-no business holding: the free-running loops, so two arms of an intervention see
-the same computation rather than the same wall clock, and the inter-instance
-protocol listener, because a harness advertising itself as an Aura instance
-would collide with the live desktop runtime on the port it uses for that.
+no business holding: the inter-instance protocol listener, because a harness
+advertising itself as an Aura instance would collide with the live desktop
+runtime on the port it uses for that, and every free-running loop, so two arms
+of an intervention see the same computation rather than the same wall clock.
+
+There were more of those than I knew. Cancelling the heartbeat and the
+substrate left eleven — one per consciousness-bridge layer, plus the closed
+causal loop and the stream of being — and none exposes a per-tick entry point
+that could be called instead. They are stopped and named in the report. That is
+a real limit: those organs are constructed and initialised but not integrating
+while the measurement runs, so an edge that depends on their continuous
+operation reads as absent here. The alternative is not a better measurement; it
+is two arms that cannot be compared.
 
 **The offline harness was measuring a partly assembled machine.** Instrumenting
 the service lookups during one driven turn found 272 requests for an inhibition
