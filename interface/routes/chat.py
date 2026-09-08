@@ -13922,6 +13922,42 @@ _THE_ANSWER_ITSELF_IS_UNFINISHED = (
     "authored_answer_incomplete:generation_cut_off",
     "authored_answer_incomplete:semantically_short",
     "authored_answer_incomplete:semantic_contract_unmet",
+    "authored_answer_incomplete",
+    "final_output_contract_unsatisfied",
+    "latent_cortex_output_quality_unproven",
+    # Her mind did not answer, or its answer was refused. Whatever text is in
+    # hand did not come from the turn this contract is about.
+    "engine_think_not_invoked",
+    "engine_reply_not_accepted",
+    "engine_reply_failed",
+)
+
+#: Proofs about a RECEIPT — who owned the generation, whether a snapshot was
+#: bound, whether anybody checked. None of them is a statement that the text is
+#: wrong, so none is a reason to replace what she wrote with an apology.
+#:
+#: Prefixes, because three of these names carry a suffix naming which of
+#: several conditions failed, and the set they were matched against held the
+#: bare form. `live_mind_controls_unbound:not_applied` never matched
+#: `live_mind_controls_unbound`, so it fell through to "withhold" — and
+#: `live_mind_snapshot_unbound` was listed here while the contract emits
+#: `live_mind_snapshot_not_ready`, so that entry had never matched anything at
+#: all.
+_A_PROOF_ABOUT_THE_BOOKKEEPING = (
+    "authored_answer_incomplete:retry_exhausted",
+    "authored_answer_incomplete:nobody_checked",
+    "live_mind_controls_unbound",
+    "architecture_context_unbound",
+    "live_mind_snapshot_not_ready",
+    # LIVE, 2026-09-08: this is the one that fired. A 2,826-character answer,
+    # on topic, high confidence, `assessment=ok`, was replaced by "I couldn't
+    # get my full attention onto that one" because nothing had recorded WHICH
+    # lane owned the generation. That is a receipt about provenance and says
+    # nothing about the text.
+    "foreground_model_generation_ownership_unproven",
+    "latent_cortex_path_unproven",
+    "qualified_recurrent_path_unproven",
+    "final_output_contract_not_evaluated",
 )
 
 
@@ -13929,20 +13965,16 @@ def _a_proof_that_says_the_answer_is_unfinished(missing: tuple[str, ...]) -> boo
     """True when something in `missing` is about the text rather than a receipt.
 
     Unrecognised proofs count as being about the answer. A new proof nobody has
-    classified must not silently become a reason to serve something.
+    classified must not silently become a reason to serve something —  and
+    `tests/test_every_proof_is_classified.py` makes that a failing test rather
+    than a silent apology, because three names had drifted out of this list
+    without anything noticing.
     """
 
-    known_bookkeeping = {
-        "authored_answer_incomplete:retry_exhausted",
-        "authored_answer_incomplete:nobody_checked",
-        "live_mind_controls_unbound",
-        "architecture_context_unbound",
-        "live_mind_snapshot_unbound",
-    }
     for item in missing:
         if item in _THE_ANSWER_ITSELF_IS_UNFINISHED:
             return True
-        if item not in known_bookkeeping:
+        if not item.startswith(_A_PROOF_ABOUT_THE_BOOKKEEPING):
             return True
     return bool(not missing)
 
