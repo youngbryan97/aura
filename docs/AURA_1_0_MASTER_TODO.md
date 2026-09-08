@@ -325,7 +325,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     now; an unexplained clear flag still warns. FIXED.
 - [ ] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
-- [ ] R10 Verify executable examples semantically, not merely process exit zero.
+- [x] R10 Verify executable examples semantically, not merely process exit zero.
+  Closed 2026-09-08. The code truth engine executes module-level assertions and
+  doctest examples in the symbolic sandbox, demotes claims when execution is
+  unavailable, and the delivery grounder checks labelled Python output against
+  observed stdout. The focused semantic suite passed **97 tests in 10.03s**,
+  including a wrong-result assertion that fails despite a zero process exit.
+  Evidence: [R10 semantic executable examples](evidence/R10_SEMANTIC_EXECUTABLE_EXAMPLES_2026-09-08.md).
 - [ ] R11 Measure prefill, decode, tool, retrieval, and queue latency separately;
   remove waste without degrading reasoning or arbitrarily cancelling work.
   PARTIAL 2026-09-07. Prefill, decode, first-token, delivery and per-stage
