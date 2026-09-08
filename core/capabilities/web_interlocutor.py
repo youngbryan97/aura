@@ -32,6 +32,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Protocol
 
 from core.capabilities.browser_controller import get_browser_controller
+from core.conversation.word_markers import names_any
 from core.runtime.action_executor import ActionExecutor
 from core.runtime.errors import record_degradation
 from core.runtime.gateways import MemoryWriteRequest
@@ -2140,6 +2141,11 @@ end tell
             return False
         if "axrole:axtextfield" not in text:
             return False
+        # Substring, deliberately: `text` is an accessibility snapshot —
+        # tab-separated `key:value` attributes, not a sentence — and this
+        # is the guard that refuses to type into a browser location bar.
+        # Missing one because the label ran into its neighbour types a
+        # person's message into the address bar.
         return any(
             marker in text
             for marker in (
@@ -2236,9 +2242,9 @@ end tell
             return False
         if "process:google chrome" not in text and "process:safari" not in text:
             return True
-        if any(
-            marker in text
-            for marker in (
+        if names_any(
+            text,
+            (
                 "message chatgpt",
                 "message gemini",
                 "ask anything",

@@ -118,6 +118,9 @@ def what_an_organ_says(where: Path) -> dict[str, Any]:
             caught = 0
         if caught:
             catches.append(rel)
+        # Substring, deliberately: `text` is Python SOURCE, and these are
+        # the spellings a promise takes in it — `Protocol`, `@invariant`,
+        # `_promises(`. Case and neighbouring punctuation are the signal.
         if any(one in text for one in _A_PROMISE):
             promises.append(rel)
         # Owning something means holding module-level state others read.

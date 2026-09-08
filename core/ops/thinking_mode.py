@@ -12,6 +12,8 @@ import re
 from enum import Enum
 from typing import Optional
 
+from core.conversation.word_markers import names_any
+
 logger = logging.getLogger("Ops.ModeRouter")
 
 
@@ -80,14 +82,14 @@ class ModeRouter:
         # 2. Very short messages → REFLEX (greetings, one-word commands)
         if word_count <= REFLEX_MAX_WORDS:
             # Check for deep keywords even in short messages
-            if any(kw in lower for kw in DEEP_KEYWORDS):
+            if names_any(lower, DEEP_KEYWORDS):
                 logger.debug("Routed to DEEP: short but contains deep keyword")
                 return ThinkingTier.DEEP
             logger.debug("Routed to REFLEX: very short message (%d words)", word_count)
             return ThinkingTier.LIGHT  # Short but not a known pattern → LIGHT
 
         # 3. Check for deep keywords
-        if any(kw in lower for kw in DEEP_KEYWORDS):
+        if names_any(lower, DEEP_KEYWORDS):
             logger.debug("Routed to DEEP: keyword match")
             return ThinkingTier.DEEP
 

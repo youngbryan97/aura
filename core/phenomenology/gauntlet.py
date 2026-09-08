@@ -23,6 +23,7 @@ the one worth having.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -88,6 +89,18 @@ _VANISHES = ("vanish", "disappear", "returns to the null", "back to the null",
              "falls to the null", "removed", "collapses to the null")
 
 
+def _direction_says(wanted: str, words: tuple[str, ...]) -> bool:
+    """Does the registered direction USE one of these words, not contain it?
+
+    `core.conversation.word_markers.names_any` is this rule, and this package
+    imports nothing from core so that the judge cannot reach the defendant
+    (see its DEPS). The rule is four lines, so it is stated twice rather than
+    reached for: a word that begins with the marker is the marker inflected,
+    and a marker buried mid-word belongs to a different word.
+    """
+    return any(re.search(rf"\b{re.escape(word)}\w*\b", wanted) for word in words)
+
+
 def _direction_holds(prediction_direction: str, outcome: Outcome) -> bool:
     """Whether the measured value moved the way it was registered to move."""
     if not outcome.has_null:
@@ -96,10 +109,10 @@ def _direction_holds(prediction_direction: str, outcome: Outcome) -> bool:
     low, high = min(outcome.nulls), max(outcome.nulls)
     pad = max((high - low) * 0.5, 1e-6)
 
-    if any(word in wanted for word in _VANISHES):
+    if _direction_says(wanted, _VANISHES):
         # The effect went away: back inside the band that says "no effect".
         return low - pad <= outcome.value <= high + pad
-    if any(word in wanted for word in _RISES):
+    if _direction_says(wanted, _RISES):
         return outcome.value > high + pad
     return outcome.value < low - pad
 

@@ -210,6 +210,10 @@ def _check_physics(design, findings) -> list[Problem]:
                     f"the {name} of the {part.lay_name or part.name} is not a number.",
                 ))
                 continue
+            # Substring, deliberately: `name` is a rating KEY, where the
+            # word is compounded — `thermal_efficiency`, `duty_cycle_pct`.
+            # (core/engineering may not import core.conversation either;
+            # see this package's DEPS.)
             if any(word in name for word in _BOUNDED_RATIOS) and float(rating.value) > 1.0:
                 problems.append(Problem(
                     "impossible_ratio", "blocking", part.id,

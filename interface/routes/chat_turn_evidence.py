@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.receipts import digest_output_content
 from interface.routes import chat_capability_inventory as _chat_capability_inventory
@@ -39,9 +40,9 @@ def _benchmark_prompt_requests_fenced_artifact(prompt: str, fence: str) -> bool:
     if index < 0:
         return False
     window = prompt_l[max(0, index - 220) : index + 220]
-    return any(
-        marker in window
-        for marker in (
+    return names_any(
+        window,
+        (
             "return",
             "respond",
             "response in this format",
@@ -452,7 +453,7 @@ def _build_explicit_local_file_artifact(user_message: str, path: str) -> str | N
     suffix = Path(path).suffix.lower()
     generated_at = _chat_preflight._utc_now_iso()
     if suffix == ".html":
-        if "snake" in lowered and any(token in lowered for token in ("game", "playable", "snake")):
+        if "snake" in lowered and names_any(lowered, ("game", "playable", "snake")):
             try:
                 from core.cognitive.state_machine import StateMachine
 

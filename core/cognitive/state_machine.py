@@ -12,6 +12,7 @@ from typing import Any
 
 from core.brain.llm.runtime_wiring import is_user_facing_origin, prepare_runtime_payload
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.phases.dialogue_policy import enforce_dialogue_contract, validate_dialogue_response
 from core.phases.response_contract import ResponseContract, build_response_contract
 from core.runtime.errors import record_degradation
@@ -1061,9 +1062,9 @@ class StateMachine:
 
     def _looks_like_live_coding_artifact_request(self, user_input: str) -> bool:
         text = str(user_input or "").lower()
-        wants_code = any(
-            token in text
-            for token in (
+        wants_code = names_any(
+            text,
+            (
                 "code",
                 "coding",
                 "program",
@@ -1079,9 +1080,9 @@ class StateMachine:
                 "implement",
             )
         )
-        wants_artifact = any(
-            token in text
-            for token in (
+        wants_artifact = names_any(
+            text,
+            (
                 "make",
                 "build",
                 "create",

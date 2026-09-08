@@ -14,6 +14,7 @@ import time
 from typing import Any
 
 from core.config import config
+from core.conversation.word_markers import names_any
 from core.runtime.errors import FallbackClassification, record_degradation
 
 logger = logging.getLogger("Aura.LocalBrain")
@@ -80,9 +81,9 @@ def _record_llm_degradation(
 def detect_task_tier(prompt: str, system_prompt: str = "") -> str:
     """Detect a lightweight generation tier for callers that still ask."""
     combined = f"{prompt} {system_prompt or ''}".lower()
-    if any(keyword in combined for keyword in _CODING_KEYWORDS):
+    if names_any(combined, _CODING_KEYWORDS):
         return "coding"
-    if any(keyword in combined for keyword in ("summarize", "compress", "distill")):
+    if names_any(combined, ("summarize", "compress", "distill")):
         return "summary"
     return "chat"
 

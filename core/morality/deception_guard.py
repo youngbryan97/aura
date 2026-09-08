@@ -6,6 +6,7 @@ import logging
 from typing import Dict, Any
 
 from core.runtime.errors import record_degradation
+from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("Morality.DeceptionGuard")
 
@@ -67,8 +68,8 @@ class DeceptionGuard:
             if facts.get("sensor_blackout"):
                 visual_claims = ["i see", "i look", "screenshot", "camera", "visual"]
                 audio_claims = ["i hear", "audio", "microphone", "sound", "voice"]
-                if any(c in lowered for c in visual_claims) or any(
-                    c in lowered for c in audio_claims
+                if names_any(lowered, visual_claims) or names_any(
+                    lowered, audio_claims
                 ):
                     logger.warning(
                         "DeceptionGuard blocked sensory claim during blackout: %s", text

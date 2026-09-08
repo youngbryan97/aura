@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.skills.base_skill import BaseSkill
@@ -61,7 +62,7 @@ class SelfImprovementSkill(BaseSkill):
         """Match goals related to self-improvement or learning status."""
         objective = goal.get("objective", "").lower()
         keywords = ["improve", "better", "evolve", "learning", "upgrade", "self-reflection"]
-        return any(k in objective for k in keywords) or "how are you" in objective
+        return names_any(objective, keywords) or "how are you" in objective
 
     @staticmethod
     def _resolve_brain() -> Any:

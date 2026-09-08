@@ -22,6 +22,7 @@ from core.brain.cognitive_situation_frame import (
     clamp_unit_interval,
 )
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import optional_service
 
@@ -735,11 +736,11 @@ class CognitiveSituationEngine:
         if sensorimotor < 0.22:
             return []
         affordances: list[str] = []
-        if any(word in lower for word in ("screen", "see", "visible", "look")):
+        if names_any(lower, ("screen", "see", "visible", "look")):
             affordances.append("inspect screen state before claiming what is visible")
-        if any(word in lower for word in ("open", "click", "type", "write", "save", "export")):
+        if names_any(lower, ("open", "click", "type", "write", "save", "export")):
             affordances.append("route external actions through governed desktop/tool execution")
-        if any(word in lower for word in ("browser", "chrome", "docs", "notes", "pdf", "folder")):
+        if names_any(lower, ("browser", "chrome", "docs", "notes", "pdf", "folder")):
             affordances.append("verify target app, focus, and artifact path after each step")
         if perception_summary.get("screen_perception_available"):
             affordances.append("use existing screen perception telemetry when available")

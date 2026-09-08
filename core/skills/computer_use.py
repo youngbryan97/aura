@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from core.being.body_state_service import BodyStateService
 from core.being.welfare_state import WelfareState
 from core.being.welfare_transaction import WelfareTransaction
+from core.conversation.word_markers import names_any
 from core.runtime.app_target_resolution import resolve_installed_app_target
 from core.runtime.atomic_writer import atomic_write_bytes, atomic_write_text
 from core.runtime.content_integrity import paragraph_sha256s, text_sha256
@@ -1661,6 +1662,10 @@ end tell
             "url",
             "username",
         )
+        # Substring, deliberately: `metadata` is the tab-joined accessibility
+        # attributes of the focused element, not a sentence. This is the
+        # refusal to type into a login, password or address field, and a
+        # label whose words run together must still be caught.
         if any(hint in metadata for hint in disallowed_hints):
             return False
         return role in {
@@ -1711,7 +1716,7 @@ end tell
             "google sheets",
             "google slides",
         )
-        return role in editor_roles and any(hint in metadata for hint in editor_hints)
+        return role in editor_roles and names_any(metadata, editor_hints)
 
     def _send_hotkey_system_events(self, keys: list[str]) -> str:
         """Send a keyboard shortcut via System Events; raise with the real
@@ -4749,6 +4754,9 @@ end tell
             "login",
             "signin",
         )
+        # Substring, deliberately: `lowered` is a URL. Its words run into
+        # hosts and paths — mybank.example.com, /accounts/login — and this
+        # decides whether a page is private enough not to read.
         return any(marker in lowered for marker in private_markers)
 
     def _browser_execute_javascript(self, browser: str, js: str, *, timeout: int = 8) -> str:

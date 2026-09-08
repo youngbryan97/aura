@@ -17,6 +17,7 @@ import numpy as np
 
 from core.affect import AffectState
 from core.autonomic.iot_bridge import PhysicalActuator
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.utils.concurrency import RobustLock
 from core.utils.task_tracker import get_task_tracker
@@ -1540,12 +1541,12 @@ class AffectEngineV2:
             "unclear",
         )
 
-        if any(marker in trigger_text for marker in positive_markers):
+        if names_any(trigger_text, positive_markers):
             valence = 0.35 * max(0.5, base)
-        if any(marker in trigger_text for marker in negative_markers):
+        if names_any(trigger_text, negative_markers):
             valence = -0.35 * max(0.5, base)
             arousal = min(1.0, arousal + 0.2)
-        if any(marker in trigger_text for marker in novelty_markers):
+        if names_any(trigger_text, novelty_markers):
             engagement = min(1.0, engagement + 0.2)
         if "confused" in trigger_text or "unclear" in trigger_text:
             arousal = min(1.0, arousal + 0.15)

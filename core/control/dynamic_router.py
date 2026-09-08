@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.event_bus import get_event_bus
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, record_degradation
@@ -418,21 +419,20 @@ class DynamicRouter:
             context.get("requires_tools")
             or context.get("tool_call")
             or context.get("external_io")
-            or any(
-                k in lower
-                for k in ["tool", "execute", "search", "terminal", "browser", "shell", "click"]
+            or names_any(
+                lower, ["tool", "execute", "search", "terminal", "browser", "shell", "click"]
             )
         ):
             return "tool_heavy"
         if "goal" in lower or "plan" in lower or "research" in lower:
             return "deep_reasoning"
-        if any(k in lower for k in ["debug", "implement", "refactor", "patch", "test", "code"]):
+        if names_any(lower, ["debug", "implement", "refactor", "patch", "test", "code"]):
             return "deep_reasoning"
         if len(lower) < 80 and "?" in lower:
             return "fast_fact"
         return (
             "creative"
-            if any(k in lower for k in ["create", "write", "imagine"])
+            if names_any(lower, ["create", "write", "imagine"])
             else "autonomous_goal"
         )
 
@@ -529,6 +529,9 @@ class DynamicRouter:
             )
 
         model_lower = model.lower()
+        # Substring, deliberately: `model_lower` is a MODEL NAME, not a
+        # sentence — "qwen3-toolcall", "solver-agentic". A name is written
+        # to run its words together, which is what has to be matched here.
         if task_type == "tool_heavy" and any(
             k in model_lower for k in ("tool", "agent", "action", "planner")
         ):

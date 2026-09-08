@@ -18,6 +18,7 @@ from core.conversation.response_reliability import (
     repair_instruction_shape,
     requested_exact_reply_target,
 )
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.structured_input import looks_like_learning_resource_bundle
 
@@ -767,12 +768,17 @@ def strip_meta_commentary(text: str) -> str:
         up_stripped = stripped.upper()
         
         # 1. Block detection (Markdown headers for state)
-        if stripped.startswith('###') and any(word in up_stripped for word in ["STATE", "INTERNAL", "MONOLOGUE", "RESPONSE"]):
+        if stripped.startswith('###') and names_any(up_stripped, ["STATE", "INTERNAL", "MONOLOGUE", "RESPONSE"]):
             in_block = True
             continue
             
         # 2. Line-level meta detection
         # Skip if starts with [ and contains any technical markers
+        # Case-sensitive substring, deliberately: these are the Capitalised
+        # LABELS a scaffold writes at the head of a bracketed line, and the
+        # capital is what separates "[Tone: dry]" from a sentence about the
+        # tone of something. `names_any` folds case, so it cannot make that
+        # distinction, and a lowercase word in an answer would be dropped.
         if stripped.startswith('[') and any(word in stripped for word in ["Integrated", "Thought", "Neural", "Stream", "Persona", "Identity", "Mood", "Tone", "Voice"]):
             continue
 
@@ -794,7 +800,7 @@ def strip_meta_commentary(text: str) -> str:
             if not stripped: # Blank line might indicate end of block
                 in_block = False 
                 continue
-            if stripped.startswith('#') and not any(word in up_stripped for word in ["STATE", "INTERNAL", "MONOLOGUE"]):
+            if stripped.startswith('#') and not names_any(up_stripped, ["STATE", "INTERNAL", "MONOLOGUE"]):
                 in_block = False # Exit on normal header
             else:
                 continue # Stay in block mode

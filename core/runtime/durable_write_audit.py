@@ -293,6 +293,9 @@ def _receiver_is_safe(node: ast.AST) -> bool:
         # `entry_dir / "result.json"` — judge the base, not the join.
         return _receiver_is_safe(node.left)
     lowered = name.lower()
+    # Substring, deliberately, as the note on _SAFE_RECEIVER_MARKERS says:
+    # `lowered` is an identifier from the syntax tree — `file_gateway`,
+    # `_write_gateway` — where the word is buried on purpose.
     return any(marker in lowered for marker in _SAFE_RECEIVER_MARKERS)
 
 

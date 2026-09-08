@@ -14,6 +14,7 @@ from core.brain.llm.latent_cortex.output_quality import (
     evaluate_latent_output,
 )
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from interface.routes import chat_conversation_repair as _chat_conversation_repair  # noqa: E402
 from interface.routes import chat_delivery as _chat_delivery  # noqa: E402
@@ -1195,9 +1196,8 @@ def _looks_generic_assistantish(user_message: str, reply_text: Any) -> tuple[boo
     if telemetry_request and text.endswith("?"):
         return True, "telemetry_request_deflected"
 
-    architecture_self_assessment = any(
-        marker in user_text
-        for marker in ("architecture", "design", "runtime", "system", "codebase")
+    architecture_self_assessment = names_any(
+        user_text, ("architecture", "design", "runtime", "system", "codebase")
     ) and any(
         marker in user_text
         for marker in (
@@ -1222,9 +1222,9 @@ def _looks_generic_assistantish(user_message: str, reply_text: Any) -> tuple[boo
             )
         ):
             return True, "generic_architecture_generalization"
-        if not any(
-            anchor in text
-            for anchor in (
+        if not names_any(
+            text,
+            (
                 "memory",
                 "agency",
                 "free energy",

@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.planning.task_graph import TaskGraph, TaskNode
 from core.runtime.errors import record_degradation
 
@@ -518,7 +519,7 @@ class TaskDecomposer:
             ])
 
         # Pattern: contains "note" or "document" or "write"
-        if any(w in text for w in ("note", "document", "write", "journal", "pdf")):
+        if names_any(text, ("note", "document", "write", "journal", "pdf")):
             folder_path = str(Path.home() / "Documents" / "Aura")
             folder_id = _next_id()
             file_id = _next_id()
@@ -560,7 +561,7 @@ class TaskDecomposer:
                 })
 
         # Pattern: contains "search" or "research" or "article"
-        if any(w in text for w in ("search", "research", "article", "browse", "find information")):
+        if names_any(text, ("search", "research", "article", "browse", "find information")):
             query = self._extract_subject(text, "search|research|find|browse")
             steps.append({
                 "id": _next_id(),

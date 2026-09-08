@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from interface.routes.chat_common import (  # noqa: E402
     _CHAT_BLOCKING_PREFLIGHT_TIMEOUT_S,  # noqa: F401
     _CHAT_RECOVERABLE_ERRORS,  # noqa: F401
@@ -1433,8 +1434,8 @@ def _capability_inventory_reply_is_inadequate(user_message: str, reply_text: str
         and "explicitly marked available" in lowered
         and "measured available categories:" in lowered
     ):
-        governance_ok = any(
-            marker in lowered for marker in ("governance", "governed", "will", "authority")
+        governance_ok = names_any(
+            lowered, ("governance", "governed", "will", "authority")
         )
         non_execution_ok = "not opening" in lowered and "executing tools" in lowered
         return not (governance_ok and non_execution_ok)
@@ -1454,17 +1455,16 @@ def _capability_inventory_reply_is_inadequate(user_message: str, reply_text: str
         )
         if marker in lowered
     )
-    asks_external_tools = any(
-        marker in _chat_memory_state._normalize_user_message(user_message)
-        for marker in ("external", "desktop", "tool", "tools", "live")
+    asks_external_tools = names_any(
+        _chat_memory_state._normalize_user_message(user_message),
+        ("external", "desktop", "tool", "tools", "live"),
     )
     if asks_external_tools:
-        governance_ok = any(
-            marker in lowered for marker in ("governance", "governed", "will", "authority")
+        governance_ok = names_any(
+            lowered, ("governance", "governed", "will", "authority")
         )
-        receipt_ok = any(
-            marker in lowered
-            for marker in ("receipt", "receipts", "effect", "verified", "verification")
+        receipt_ok = names_any(
+            lowered, ("receipt", "receipts", "effect", "verified", "verification")
         )
         if not (governance_ok and receipt_ok):
             return True
@@ -1490,9 +1490,9 @@ def _is_live_presence_check_request(user_message: str) -> bool:
     stripped = text.strip(" ?!.,")
     if "live check" in text or "quick check" in text or "quick ping" in text:
         return bool(
-            any(
-                marker in text
-                for marker in (
+            names_any(
+                text,
+                (
                     "hey",
                     "hi",
                     "hello",
@@ -1719,7 +1719,7 @@ def _build_bounded_cognitive_process_reply(
     text = _chat_memory_state._normalize_user_message(user_message)
     if not text:
         return ""
-    if not any(marker in text for marker in ("you", "your", "aura")):
+    if not names_any(text, ("you", "your", "aura")):
         return ""
     # Only speak this bounded cognitive-process explanation when the user is
     # genuinely asking HOW Aura's cognition works (a self-process question or
@@ -1744,22 +1744,19 @@ def _build_bounded_cognitive_process_reply(
     requested: list[str] = []
     if any(marker in text for marker in ("confused", "confusion", "uncertain", "uncertainty")):
         requested.append("confusion")
-    if any(
-        marker in text
-        for marker in ("plan", "planning", "planner", "decision", "decide", "route", "routing")
+    if names_any(
+        text, ("plan", "planning", "planner", "decision", "decide", "route", "routing")
     ):
         requested.append("planning")
-    if any(
-        marker in text
-        for marker in ("memory", "remember", "recall", "earlier", "across sessions", "continuity")
+    if names_any(
+        text, ("memory", "remember", "recall", "earlier", "across sessions", "continuity")
     ):
         requested.append("memory")
-    if any(
-        marker in text
-        for marker in ("tool", "tools", "external", "verify", "verification", "receipt", "effect")
+    if names_any(
+        text, ("tool", "tools", "external", "verify", "verification", "receipt", "effect")
     ):
         requested.append("tools")
-    if any(marker in text for marker in ("emotion", "affect", "curiosity", "feeling", "feel")):
+    if names_any(text, ("emotion", "affect", "curiosity", "feeling", "feel")):
         requested.append("affect")
     if not requested:
         return ""
