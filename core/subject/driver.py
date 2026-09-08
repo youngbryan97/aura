@@ -36,7 +36,7 @@ import os
 import random
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -301,6 +301,9 @@ class SubjectRuntime:
     #: rather than by how long each one happened to take.
     heartbeat: Any = None
     organism: Any = None
+    #: The live intention loop, so the probe's action takes the path a real one
+    #: takes rather than writing the outcome straight into the state.
+    _intentions: Any = None
 
     # ── forking ──────────────────────────────────────────────────────────
 
@@ -538,6 +541,33 @@ class SubjectRuntime:
             self.failures["retrieve"] = self.failures.get("retrieve", 0) + 1
             logger.debug("retrieval failed: %s", exc)
 
+    def _through_the_intention_loop(self, intended: str, ok: bool, actor: str) -> None:
+        """Say, do, observe — the live agency path, for the probe's own action."""
+        if actor != "self":
+            # An intention is hers by construction. Recording an outside actor's
+            # outcome as one of her intentions is the confusion the ownership
+            # experiment exists to detect.
+            return
+        try:
+            loop = self._intentions
+            if loop is None:
+                return
+            identifier = loop.intend(
+                intention=intended, drive="creation", expected_outcome="the file holds the plan"
+            )
+            loop.record_action(
+                identifier,
+                tool_name="write_notes",
+                args={},
+                result="ok" if ok else "failed",
+                success=ok,
+                duration_ms=1.0,
+            )
+            outcome = "the file holds the plan" if ok else "the write did not land"
+            loop.observe(identifier, observation="the file holds the plan", actual_outcome=outcome)
+        except Exception as exc:  # noqa: BLE001 - the probe's action still stands
+            logger.debug("intention loop unavailable: %s", exc)
+
     def _act(self, objective: str, *, actor: str = "self") -> None:
         """The action arm of the self/world loop, and its consequence.
 
@@ -569,6 +599,13 @@ class SubjectRuntime:
             ok = path.read_text() == intended
         except OSError as exc:
             logger.debug("probe action failed: %s", exc)
+        # Through the intention loop, which is the path the live runtime takes:
+        # form the intention, record the action, observe the outcome. That is
+        # what emits the efference copy and compares it, so the agency
+        # comparator sees the action rather than sitting at its defaults — its
+        # four readings were constant for want of a caller, not for want of
+        # anything to say.
+        self._through_the_intention_loop(intended, ok, actor)
         record = {
             "intended": intended,
             "verified": ok,
@@ -579,15 +616,21 @@ class SubjectRuntime:
         self.last_action = dict(record)
         # The same world state, attributed. This is the one call that separates
         # the two arms of the ownership experiment.
-        try:
-            from core.agency.authorship import Event, get_agency_ledger
+        #
+        # Only for an outside actor. Her own action already reached the ledger
+        # through the intention loop above, and recording it here as well
+        # counted every action twice — which halved the efficacy the self model
+        # was being handed.
+        if actor != "self":
+            try:
+                from core.agency.authorship import Event, get_agency_ledger
 
-            get_agency_ledger().observe(
-                Event(what="write_notes", actor=actor, verified=ok, detail={"path": "notes.txt"}),
-                self_model=self.organs.self_model,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("authorship ledger unavailable: %s", exc)
+                get_agency_ledger().observe(
+                    Event(what="write_notes", actor=actor, verified=ok, detail={"path": "notes.txt"}),
+                    self_model=self.organs.self_model,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("authorship ledger unavailable: %s", exc)
         self.state.cognition.active_goals.append(
             {
                 "id": f"act_{self.turn}",
@@ -665,20 +708,25 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
         rng=random.Random(seed),
     )
     runtime.organs = Organs.live()
-    runtime.organs = Organs(
-        workspace=runtime.organs.workspace,
-        substrate=runtime.organs.substrate,
-        free_energy=runtime.organs.free_energy,
-        self_model=runtime.organs.self_model,
-        world_model=runtime.organs.world_model,
-        ontogeny=ontogeny,
-    )
+    # `replace`, never a fresh `Organs(...)` listing the fields by hand. A
+    # hand-written rebuild silently drops whatever was added to the dataclass
+    # after it was written: this one lost the self-prediction loop and the
+    # efference comparator, so eleven of the self-state's columns read zero for
+    # the whole of a session and every criterion that depended on them failed
+    # on an organ that was there.
+    runtime.organs = replace(runtime.organs, ontogeny=ontogeny)
     runtime._scratch = workdir / "scratch"
     with local_internal_governed_scope("subject_core.driver"):
         get_file_write_gateway().ensure_directory(
             runtime._scratch, source="subject_core.driver"
         )
     runtime.retriever = _build_retriever(runtime)
+    try:
+        from core.agency.intention_loop import IntentionLoop
+
+        runtime._intentions = IntentionLoop(db_path=str(workdir / "intentions.db"))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("intention loop unavailable: %s", exc)
     return runtime
 
 
@@ -727,23 +775,10 @@ async def start_organism(runtime: SubjectRuntime, *, quiet: bool = False) -> dic
         logger.warning("lifetime reservoir unavailable; N stays on the local one: %s", exc)
 
     live = Organs.live()
-    runtime.organs = Organs(
-        workspace=live.workspace,
+    runtime.organs = replace(
+        live,
         substrate=organism.substrate or live.substrate,
-        free_energy=live.free_energy,
-        self_model=live.self_model,
-        world_model=live.world_model,
         ontogeny=runtime.ontogeny,
-        agency=live.agency,
-    )
-    runtime.organs = Organs(
-        workspace=runtime.organs.workspace,
-        substrate=runtime.organs.substrate,
-        free_energy=runtime.organs.free_energy,
-        self_model=runtime.organs.self_model,
-        world_model=runtime.organs.world_model,
-        ontogeny=runtime.ontogeny,
-        agency=runtime.organs.agency,
     )
     runtime.organism = organism
     return organism.summary()

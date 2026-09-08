@@ -365,6 +365,13 @@ class IntentionLoop:
 
     @staticmethod
     def _actual_outcome_is_success(observation: str, actual_outcome: str) -> bool:
+        """Whether the outcome text says the thing worked.
+
+        Prose only. `_succeeded` prefers the flag the caller already recorded
+        and falls back to this, because a caller that reports success in its
+        own words was being recorded as a failure and the capability beliefs
+        were learning from it.
+        """
         text = str(actual_outcome or "").lower()
         return (
             str(observation or "").lower() == "tool_succeeded"
@@ -373,6 +380,20 @@ class IntentionLoop:
             or "status=ok" in text
             or "completed successfully" in text
         )
+
+    def _succeeded(self, rec: IntentionRecord, actual_outcome: str) -> bool:
+        """Did it work. The recorded flag first, the words only if there is none.
+
+        `record_action` is given a boolean by the caller who ran the tool. Going
+        back to the outcome string to rediscover it means an intention whose
+        result is described in any other wording is a failure, which is how a
+        run of successful writes taught the self model an efficacy of zero.
+        """
+        for action in reversed(rec.actions_taken or []):
+            flag = getattr(action, "success", None)
+            if isinstance(flag, bool):
+                return flag
+        return self._actual_outcome_is_success(rec.observation or "", actual_outcome)
 
     def observe(
         self,
@@ -480,7 +501,7 @@ class IntentionLoop:
             tool = ""
             if rec.actions_taken:
                 tool = str(getattr(rec.actions_taken[-1], "tool_name", "") or "")
-            succeeded = self._actual_outcome_is_success(rec.observation or "", actual_outcome)
+            succeeded = self._succeeded(rec, actual_outcome)
             get_agency_ledger().observe(
                 Event(
                     what=tool or "intention",

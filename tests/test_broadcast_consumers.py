@@ -127,3 +127,33 @@ def test_the_broadcast_arousal_is_left_where_affect_reads_it():
     _asyncio.run(AffectUpdatePhase(None).execute(state))
     assert state.affect.arousal > 0.5
     assert state.response_modifiers.get("broadcast_ignition") == pytest.approx(0.8)
+
+
+def test_the_winning_drive_is_credited_where_the_motivation_phase_reads_it():
+    """The first version called `note_pressure` on the goal engine, which has
+    no such method — a guarded no-op, in the file written to fix exactly that."""
+    import asyncio as _asyncio
+
+    from core.phases.motivation_update import MotivationUpdatePhase
+    from core.runtime.service_registry import register_runtime_service
+    from core.state.aura_state import AuraState
+
+    workspace = _Workspace()
+    register_broadcast_consumers(workspace, substrate=_Substrate())
+    _asyncio.run(workspace.broadcast(_winner(source="affect_curiosity", priority=0.8)))
+    assert workspace.last_drive_attention == {"drive": "curiosity", "priority": pytest.approx(0.8)}
+
+    register_runtime_service("global_workspace", workspace, required=False)
+    state = AuraState.default()
+    state.motivation.budgets["curiosity"]["level"] = 10.0
+    state.motivation.last_tick = state.motivation.last_tick - 120.0
+    phase = MotivationUpdatePhase(SimpleNamespace(organs={}))
+    _asyncio.run(phase.execute(state))
+    assert state.motivation.budgets["curiosity"]["level"] > 10.0
+
+
+def test_a_winner_that_is_not_a_drive_credits_nothing():
+    workspace = _Workspace()
+    register_broadcast_consumers(workspace, substrate=_Substrate())
+    asyncio.run(workspace.broadcast(_winner(source="memory", priority=0.9)))
+    assert getattr(workspace, "last_drive_attention", None) is None
