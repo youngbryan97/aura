@@ -321,13 +321,12 @@ subject-core:
 
 subject-core-frozen:
 	@echo "🧪 Three runs of the battery, so a criterion that changes answer says so..."
-	@for i in a b c; do \
+	@for i in 1 2 3; do \
 		$(PYTHON) tools/run_subject_core.py --rounds 120 --trials 6 \
-			--out artifacts/subject_core_$$i || exit 1; \
+			--out artifacts/subject_core || exit 1; \
 	done
-	@$(PYTHON) tools/subject_core_scorecard.py \
-		artifacts/subject_core_a artifacts/subject_core_b artifacts/subject_core_c \
-		--json artifacts/subject_core_scorecard.json
+	@$(PYTHON) tools/subject_core_scorecard.py --latest 3 artifacts/subject_core \
+		--json artifacts/subject_core/scorecard.json
 
 connectome-zapbench:
 	@echo "🧠 Forecasting whole-mind activity..."

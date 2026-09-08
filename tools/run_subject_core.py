@@ -100,6 +100,11 @@ async def main() -> int:
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "subject_core")
     parser.add_argument("--skip-nulls", action="store_true")
     parser.add_argument(
+        "--here",
+        action="store_true",
+        help="write into --out itself rather than a fresh run_NNN beneath it",
+    )
+    parser.add_argument(
         "--skip-lesion",
         action="store_true",
         help="leave the lesion and rescue unmeasured; they read as failures, which is what an unmeasured criterion is",
@@ -138,8 +143,25 @@ async def main() -> int:
     from core.subject.state import DOMAINS, FAST_DOMAINS, SLOW_DOMAINS
     from core.subject.synergy import synergy_suite
 
+    from core.subject.provenance import campaign, next_run_directory
+
     started = time.monotonic()
-    evidence: dict[str, Any] = {"notes": {}}
+    # A run never overwrites the one before it. The run that did not come out
+    # well is the one a reader most needs, and `--out` pointing at a fixed
+    # directory quietly destroyed it every time.
+    root = args.out
+    args.out = next_run_directory(root) if not args.here else root
+    evidence: dict[str, Any] = {
+        "notes": {},
+        "campaign": campaign(
+            seed=args.seed, rounds=args.rounds, trials=args.trials, turns=args.turns
+        ),
+    }
+    _log(
+        f"run {args.out.name} on {evidence['campaign']['commit'][:12]}"
+        f"{' (dirty tree)' if evidence['campaign']['dirty'] else ''}, "
+        f"campaign {evidence['campaign']['fingerprint']}"
+    )
 
     _log(f"building the offline organism in {args.out}")
     runtime = build_runtime(args.out / "runtime", seed=args.seed)
@@ -331,6 +353,7 @@ async def main() -> int:
     evidence["verdict"] = verdict.as_dict()
     evidence["notes"]["seconds"] = round(time.monotonic() - started, 1)
 
+    evidence["campaign"]["finished_at"] = time.time()
     (args.out / "subject_core_report.json").write_text(json.dumps(evidence, indent=2, default=str))
     print()
     print(verdict.table())

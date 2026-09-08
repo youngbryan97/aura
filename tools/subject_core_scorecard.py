@@ -105,8 +105,14 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
             "median": round(statistics.median(values), 5),
         }
 
+    campaigns: dict[str, list[str]] = {}
+    for index, report in enumerate(reports):
+        mark = (report.get("campaign") or {}).get("fingerprint", "unrecorded")
+        campaigns.setdefault(mark, []).append(f"run {index + 1}")
+
     return {
         "runs": runs,
+        "campaigns": campaigns,
         "holds": sum(1 for row in rows if row["verdict"] == "holds"),
         "unresolved": sum(1 for row in rows if row["verdict"] == "unresolved"),
         "fails": sum(1 for row in rows if row["verdict"] == "fails"),
@@ -121,15 +127,34 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directories", nargs="+", type=Path)
+    parser.add_argument(
+        "--latest",
+        type=int,
+        default=0,
+        help="read the N most recent run_NNN directories beneath the one given",
+    )
     parser.add_argument("--json", type=Path, default=None)
     args = parser.parse_args()
 
-    card = scorecard([load(d) for d in args.directories])
+    directories = list(args.directories)
+    if args.latest:
+        root = directories[0]
+        runs = sorted(p for p in root.glob("run_*") if (p / "subject_core_report.json").exists())
+        if not runs:
+            raise SystemExit(f"no run_NNN directories under {root}")
+        directories = runs[-args.latest :]
+    card = scorecard([load(d) for d in directories])
+    card["runs_read"] = [str(d) for d in directories]
 
     print(
         f"{card['holds']} hold, {card['unresolved']} unresolved, {card['fails']} fail "
         f"across {card['runs']} runs (per-run totals {card['totals_per_run']})"
     )
+    prints = card.get("campaigns") or {}
+    if len(prints) > 1:
+        print(f"  WARNING: {len(prints)} different campaign fingerprints — not one campaign")
+    for mark, runs in prints.items():
+        print(f"  campaign {mark}: {', '.join(runs)}")
     print()
     width = max(len(row["criterion"]) for row in card["criteria"])
     for row in card["criteria"]:
