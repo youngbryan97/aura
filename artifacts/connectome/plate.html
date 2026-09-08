@@ -203,31 +203,37 @@ footer a{color:var(--ink-dim)}
 </section>
 
 <section>
-  <div class="railcell"><b>0/129</b>workspace cells fired in a recording of 240 turns</div>
+  <div class="railcell"><b>42 / 42</b>ordered pairs of stations carry, so seven carrying says nothing</div>
   <div class="body">
     <p class="eyebrow">The ring</p>
     <h2>Three recordings, and twice the answer was about the recording</h2>
     <p>Every design document draws the same loop: interoception, affect, the global workspace, higher-order monitoring, the self model, planning, action, back to interoception. The test returned <em>does not close</em> three times.</p>
     <p>The first two recordings drove each station by calling its readers — a getter, a status, a snapshot. Calling a getter on affect hands nothing to the workspace, so no station could influence another, and a recording in which influence is impossible cannot show influence. The stations are coupled by the state object the kernel's 29-phase pipeline passes from one to the next, and that object only moves while a turn is being taken.</p>
     <p>Then the station table turned out to be written from module names, and the modules named after the stations do not run a turn. <strong>None of the 129 workspace cells and none of the 272 action cells fired</strong> in 240 turns. Reporting that as an architecture is reporting a dictionary.</p>
-    <blockquote>Six of seven links carry. The seventh, the one that closes the loop, does not — during a task. It does when she is idle.</blockquote>
+    <blockquote>Then the turns turned out to be system ticks, on which the response phase produces no reply. The action station never acted, and the one link that measured at chance was the one out of it.</blockquote>
+    <p>Driving user-facing turns instead — every condition but the idle tick answers, at 151 to 193 characters — <strong>all seven links carry, in all six conditions</strong>. Action back to interoception included: median gain +0.0033 over its own rotations, better than them on 88.6% of 493 pairs.</p>
+    <p>Which sounds like the ring closing, and is not.</p>
     <div class="tablewrap">
       <table>
-        <thead><tr><th>Link</th><th class="num">Median gain over its own rotations</th><th class="bar">&nbsp;</th><th class="num">95% interval</th><th>&nbsp;</th></tr></thead>
+        <thead><tr><th>Connection</th><th class="num">Median gain over its own rotations</th><th class="bar">&nbsp;</th><th>In the ring</th></tr></thead>
         <tbody>
-          <tr><td>self model &rarr; planning</td><td class="num">+0.1011</td><td class="bar"><i style="width:100%"></i></td><td class="num">+0.0929 … +0.1013</td><td><span class="tag ok">carries</span></td></tr>
-          <tr><td>interoception &rarr; affect</td><td class="num">+0.0257</td><td class="bar"><i style="width:25.4%"></i></td><td class="num">+0.0196 … +0.0258</td><td><span class="tag ok">carries</span></td></tr>
-          <tr><td>planning &rarr; action</td><td class="num">+0.0205</td><td class="bar"><i style="width:20.3%"></i></td><td class="num">+0.0178 … +0.0813</td><td><span class="tag ok">carries</span></td></tr>
-          <tr><td>affect &rarr; workspace</td><td class="num">+0.0173</td><td class="bar"><i style="width:17.1%"></i></td><td class="num">+0.0119 … +0.0190</td><td><span class="tag ok">carries</span></td></tr>
-          <tr><td>workspace &rarr; higher-order</td><td class="num">+0.0089</td><td class="bar"><i style="width:8.8%"></i></td><td class="num">+0.0073 … +0.0103</td><td><span class="tag ok">carries</span></td></tr>
-          <tr><td>higher-order &rarr; self model</td><td class="num">+0.0061</td><td class="bar"><i style="width:6.0%"></i></td><td class="num">+0.0061 … +0.0062</td><td><span class="tag ok">carries</span></td></tr>
-          <tr class="fails"><td>action &rarr; interoception</td><td class="num">+0.00007</td><td class="bar"><i style="width:0.6%"></i></td><td class="num">&minus;0.0005 … +0.0002</td><td><span class="tag no">chance</span></td></tr>
+          <tr><td>self model &rarr; interoception</td><td class="num">0.914</td><td class="bar"><i style="width:100%"></i></td><td><span class="tag no">no</span></td></tr>
+          <tr><td>self model &rarr; affect</td><td class="num">0.639</td><td class="bar"><i style="width:69.9%"></i></td><td><span class="tag no">no</span></td></tr>
+          <tr><td>affect &rarr; planning</td><td class="num">0.313</td><td class="bar"><i style="width:34.2%"></i></td><td><span class="tag no">no</span></td></tr>
+          <tr><td>interoception &rarr; affect</td><td class="num">0.028</td><td class="bar"><i style="width:3.1%"></i></td><td><span class="tag ok">yes</span></td></tr>
+          <tr><td>affect &rarr; workspace</td><td class="num">0.010</td><td class="bar"><i style="width:1.1%"></i></td><td><span class="tag ok">yes</span></td></tr>
+          <tr><td>workspace &rarr; higher-order</td><td class="num">0.009</td><td class="bar"><i style="width:1.0%"></i></td><td><span class="tag ok">yes</span></td></tr>
+          <tr><td>planning &rarr; action</td><td class="num">0.008</td><td class="bar"><i style="width:0.9%"></i></td><td><span class="tag ok">yes</span></td></tr>
+          <tr><td>self model &rarr; planning</td><td class="num">0.006</td><td class="bar"><i style="width:0.7%"></i></td><td><span class="tag ok">yes</span></td></tr>
+          <tr><td>higher-order &rarr; self model</td><td class="num">0.005</td><td class="bar"><i style="width:0.5%"></i></td><td><span class="tag ok">yes</span></td></tr>
+          <tr><td>action &rarr; interoception</td><td class="num">0.003</td><td class="bar"><i style="width:0.4%"></i></td><td><span class="tag ok">yes</span></td></tr>
         </tbody>
       </table>
     </div>
-    <h3>Where the ring sits among the 720</h3>
-    <p>A link beating its own rotations says two stations are coupled. It does not say the ring is a ring. Seven stations admit 720 directed cycles, and the architecture's order was scored against every one of them — exactly, not by sampling. Its mean gain of 0.0257 sits below the mean of the 720, 0.0592, at <strong>z&nbsp;=&nbsp;&minus;0.64</strong>: stronger than 36% of the orderings through the same stations.</p>
-    <p>Every station influences every other. The ring is not privileged among them, which is what a pipeline over one shared state object predicts and is not what the diagram draws.</p>
+    <h3>Where the ring sits among the other thirty-five</h3>
+    <p>Seven links that all carry mean one thing when nothing else does and another when everything does. Measuring every ordered pair of stations rather than only the seven: <strong>42 of 42 carry</strong>. A pipeline over one shared state object couples every stage to every other by construction, so a link carrying separates nothing, and reporting the seven without that denominator would read as evidence for a ring.</p>
+    <p>The ring's seven come 4th, 5th, 8th, 12th, 24th, 30th and 37th of 42 by strength. Scored against all 720 directed cycles through the same stations — exactly, not by sampling — the architecture's order comes out stronger than 25% to 55% of them depending on the condition, at z &minus;0.65 to &minus;1.03.</p>
+    <p>What the measurement supports is not the ring. It is that <strong>the self model is the hub</strong>: what she holds about herself says more about her interoceptive and affective state than anything in the system says about anything else.</p>
   </div>
 </section>
 

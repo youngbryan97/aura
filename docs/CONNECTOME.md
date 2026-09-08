@@ -221,33 +221,54 @@ against its own eight rotations, and the link on the median paired difference
 with a bootstrap interval over pairs. That discriminates: ring links score 0.006
 to 0.101, and station pairs that are not in the ring score 0.0002 to 0.004.
 
-### Where the ring sits among the 720
+### The recording was still wrong, one layer down
 
-A link beating its rotations says two stations are coupled. It does not say the
-ring is a ring. With seven stations there are 720 directed cycles through them,
-and `measure_ring` scores the architecture's order against all of them — exactly,
-not by sampling.
+Those turns ran as system ticks. The response phase produces no reply on that
+path — it is a background pass — so the action station never acted, and the one
+link that measured at chance was the one out of it. Driving user-facing turns
+instead, every condition but the idle tick answers, at 151 to 193 characters.
 
-In the `task` condition, six of the seven links carry:
+On that recording **all seven links carry, in all six conditions**, action back
+to interoception included: median gain +0.0033 over its own rotations, interval
++0.0033 to +0.0035, better than its rotations on 88.6% of 493 pairs.
 
-| link | median gain over rotation | 95% interval |
+Which sounds like the ring closing, and is not.
+
+### Where the ring sits among the other thirty-five
+
+Seven links that all carry mean one thing when nothing else does and another
+when everything does. Measuring every ordered pair of stations rather than only
+the seven: **42 of 42 carry**. A pipeline over one shared state object couples
+every stage to every other by construction, so "this link carries" separates
+nothing, and reporting the seven without that denominator would read as evidence
+for a ring.
+
+The ranking is the finding. The ring's seven links come 4th, 5th, 8th, 12th,
+24th, 30th and 37th of 42 by strength, and the three strongest connections in
+the whole system are not in the ring at all:
+
+| connection | median gain over its own rotations | in the ring |
 | --- | --- | --- |
-| self model → planning | +0.1011 | +0.0929 to +0.1013 |
-| interoception → affect | +0.0257 | +0.0196 to +0.0258 |
-| planning → action | +0.0205 | +0.0178 to +0.0813 |
-| affect → workspace | +0.0173 | +0.0119 to +0.0190 |
-| workspace → higher-order | +0.0089 | +0.0073 to +0.0103 |
-| higher-order → self model | +0.0061 | +0.0061 to +0.0062 |
-| action → interoception | +0.00007 | −0.0005 to +0.0002 |
+| self model → interoception | 0.914 | no |
+| self model → affect | 0.639 | no |
+| affect → planning | 0.313 | no |
+| interoception → affect | 0.028 | yes |
+| affect → workspace | 0.010 | yes |
+| workspace → higher-order | 0.009 | yes |
+| planning → action | 0.008 | yes |
+| self model → planning | 0.006 | yes |
+| higher-order → self model | 0.005 | yes |
+| action → interoception | 0.003 | yes |
 
-The loop-closing link carries nothing during a task — better than its rotations
-on 50.3% of pairs, which is chance — and does carry when she is idle.
+The strongest ring link is an order of magnitude below the strongest link there
+is. And scored against all 720 directed cycles through the same seven stations —
+exactly, not by sampling — the architecture's order comes out stronger than 25%
+to 55% of them depending on the condition, at z −0.65 to −1.03. It is an
+unremarkable ordering among the orderings available.
 
-And the ring's mean gain, 0.0257, sits below the mean of the 720 cycles, 0.0592,
-at z = −0.64: **stronger than only 36% of the orderings through the same
-stations**. Every station influences every other; the architecture's order is not
-privileged among them. That is what a pipeline over one shared state object
-predicts, and it is not what the design document draws.
+What the measurement supports is not the ring. It is that **the self model is
+the hub**: what she holds about herself says more about her interoceptive and
+affective state than anything in the system says about anything else.
 
 ## Cutting a station out
 

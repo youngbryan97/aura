@@ -641,10 +641,63 @@
         "z": -0.716,
         "percentile": 0.5389,
         "cycles": 720,
+        "pairs_measured": 42,
+        "pairs_carrying": 42,
+        "ring_ranks_by_gain": [
+          4,
+          9,
+          10,
+          15,
+          24,
+          30,
+          37
+        ],
+        "strongest_pairs": [
+          {
+            "link": "self_model -> interoception",
+            "gain": 0.96591,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> affect",
+            "gain": 0.77133,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> planning",
+            "gain": 0.75873,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> affect",
+            "gain": 0.06114,
+            "in_ring": true
+          },
+          {
+            "link": "workspace -> action",
+            "gain": 0.03645,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> workspace",
+            "gain": 0.01811,
+            "in_ring": false
+          },
+          {
+            "link": "planning -> workspace",
+            "gain": 0.01335,
+            "in_ring": false
+          },
+          {
+            "link": "higher_order -> workspace",
+            "gain": 0.01327,
+            "in_ring": false
+          }
+        ],
         "skipped": "",
-        "verdict": "every link carries, and the architecture's order is not stronger than a cycle drawn at random through the same stations (53.9% of 720)"
+        "verdict": "all 42 ordered pairs of stations carry, so a link carrying separates nothing. The ring's seven rank 4, 9, 10, 15, 24, 30, 37 of 42 by strength, and the architecture's order is stronger than 53.9% of the 720 cycles through the same stations"
       },
-      "seconds": 78.5
+      "seconds": 78.2
     },
     "idle": {
       "effective": {
@@ -1261,10 +1314,63 @@
         "z": -1.03,
         "percentile": 0.2514,
         "cycles": 720,
+        "pairs_measured": 42,
+        "pairs_carrying": 42,
+        "ring_ranks_by_gain": [
+          9,
+          10,
+          12,
+          17,
+          23,
+          24,
+          30
+        ],
+        "strongest_pairs": [
+          {
+            "link": "self_model -> interoception",
+            "gain": 0.98493,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> planning",
+            "gain": 0.93841,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> affect",
+            "gain": 0.93535,
+            "in_ring": false
+          },
+          {
+            "link": "action -> self_model",
+            "gain": 0.75168,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> higher_order",
+            "gain": 0.60818,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> higher_order",
+            "gain": 0.09927,
+            "in_ring": false
+          },
+          {
+            "link": "higher_order -> planning",
+            "gain": 0.06415,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> action",
+            "gain": 0.03123,
+            "in_ring": false
+          }
+        ],
         "skipped": "",
-        "verdict": "every link carries, and the architecture's order is not stronger than a cycle drawn at random through the same stations (25.1% of 720)"
+        "verdict": "all 42 ordered pairs of stations carry, so a link carrying separates nothing. The ring's seven rank 9, 10, 12, 17, 23, 24, 30 of 42 by strength, and the architecture's order is stronger than 25.1% of the 720 cycles through the same stations"
       },
-      "seconds": 48.0
+      "seconds": 43.5
     },
     "inference": {
       "effective": {
@@ -1881,10 +1987,63 @@
         "z": -0.652,
         "percentile": 0.5014,
         "cycles": 720,
+        "pairs_measured": 42,
+        "pairs_carrying": 42,
+        "ring_ranks_by_gain": [
+          4,
+          7,
+          10,
+          24,
+          28,
+          37,
+          39
+        ],
+        "strongest_pairs": [
+          {
+            "link": "self_model -> interoception",
+            "gain": 0.89512,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> affect",
+            "gain": 0.62927,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> planning",
+            "gain": 0.25689,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> affect",
+            "gain": 0.06329,
+            "in_ring": true
+          },
+          {
+            "link": "interoception -> planning",
+            "gain": 0.02557,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> higher_order",
+            "gain": 0.01132,
+            "in_ring": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "gain": 0.00901,
+            "in_ring": true
+          },
+          {
+            "link": "workspace -> planning",
+            "gain": 0.00899,
+            "in_ring": false
+          }
+        ],
         "skipped": "",
-        "verdict": "every link carries, and the architecture's order is not stronger than a cycle drawn at random through the same stations (50.1% of 720)"
+        "verdict": "all 42 ordered pairs of stations carry, so a link carrying separates nothing. The ring's seven rank 4, 7, 10, 24, 28, 37, 39 of 42 by strength, and the architecture's order is stronger than 50.1% of the 720 cycles through the same stations"
       },
-      "seconds": 97.3
+      "seconds": 95.4
     },
     "recall": {
       "effective": {
@@ -2501,10 +2660,63 @@
         "z": -0.692,
         "percentile": 0.5528,
         "cycles": 720,
+        "pairs_measured": 42,
+        "pairs_carrying": 42,
+        "ring_ranks_by_gain": [
+          4,
+          8,
+          9,
+          15,
+          24,
+          26,
+          37
+        ],
+        "strongest_pairs": [
+          {
+            "link": "self_model -> interoception",
+            "gain": 0.90002,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> affect",
+            "gain": 0.65518,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> planning",
+            "gain": 0.6468,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> affect",
+            "gain": 0.06078,
+            "in_ring": true
+          },
+          {
+            "link": "workspace -> action",
+            "gain": 0.01366,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> workspace",
+            "gain": 0.01194,
+            "in_ring": false
+          },
+          {
+            "link": "workspace -> self_model",
+            "gain": 0.01047,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> workspace",
+            "gain": 0.00973,
+            "in_ring": true
+          }
+        ],
         "skipped": "",
-        "verdict": "every link carries, and the architecture's order is not stronger than a cycle drawn at random through the same stations (55.3% of 720)"
+        "verdict": "all 42 ordered pairs of stations carry, so a link carrying separates nothing. The ring's seven rank 4, 8, 9, 15, 24, 26, 37 of 42 by strength, and the architecture's order is stronger than 55.3% of the 720 cycles through the same stations"
       },
-      "seconds": 87.5
+      "seconds": 86.9
     },
     "self_report": {
       "effective": {
@@ -3121,10 +3333,63 @@
         "z": -0.678,
         "percentile": 0.5028,
         "cycles": 720,
+        "pairs_measured": 42,
+        "pairs_carrying": 42,
+        "ring_ranks_by_gain": [
+          4,
+          8,
+          9,
+          19,
+          36,
+          37,
+          39
+        ],
+        "strongest_pairs": [
+          {
+            "link": "self_model -> interoception",
+            "gain": 0.9133,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> planning",
+            "gain": 0.67745,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> affect",
+            "gain": 0.67664,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> affect",
+            "gain": 0.07657,
+            "in_ring": true
+          },
+          {
+            "link": "interoception -> workspace",
+            "gain": 0.01586,
+            "in_ring": false
+          },
+          {
+            "link": "workspace -> action",
+            "gain": 0.01564,
+            "in_ring": false
+          },
+          {
+            "link": "workspace -> self_model",
+            "gain": 0.01155,
+            "in_ring": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "gain": 0.01153,
+            "in_ring": true
+          }
+        ],
         "skipped": "",
-        "verdict": "every link carries, and the architecture's order is not stronger than a cycle drawn at random through the same stations (50.3% of 720)"
+        "verdict": "all 42 ordered pairs of stations carry, so a link carrying separates nothing. The ring's seven rank 4, 8, 9, 19, 36, 37, 39 of 42 by strength, and the architecture's order is stronger than 50.3% of the 720 cycles through the same stations"
       },
-      "seconds": 85.9
+      "seconds": 85.8
     },
     "task": {
       "effective": {
@@ -3741,13 +4006,66 @@
         "z": -0.714,
         "percentile": 0.5542,
         "cycles": 720,
+        "pairs_measured": 42,
+        "pairs_carrying": 42,
+        "ring_ranks_by_gain": [
+          4,
+          5,
+          8,
+          12,
+          24,
+          30,
+          37
+        ],
+        "strongest_pairs": [
+          {
+            "link": "self_model -> interoception",
+            "gain": 0.914,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> affect",
+            "gain": 0.63931,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> planning",
+            "gain": 0.3127,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> affect",
+            "gain": 0.02806,
+            "in_ring": true
+          },
+          {
+            "link": "affect -> workspace",
+            "gain": 0.00997,
+            "in_ring": true
+          },
+          {
+            "link": "workspace -> action",
+            "gain": 0.00956,
+            "in_ring": false
+          },
+          {
+            "link": "workspace -> self_model",
+            "gain": 0.00955,
+            "in_ring": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "gain": 0.00943,
+            "in_ring": true
+          }
+        ],
         "skipped": "",
-        "verdict": "every link carries, and the architecture's order is not stronger than a cycle drawn at random through the same stations (55.4% of 720)"
+        "verdict": "all 42 ordered pairs of stations carry, so a link carrying separates nothing. The ring's seven rank 4, 5, 8, 12, 24, 30, 37 of 42 by strength, and the architecture's order is stronger than 55.4% of the 720 cycles through the same stations"
       },
-      "seconds": 94.6
+      "seconds": 96.5
     }
   },
-  "reproducibility": {
+  "reproducibility_direct_edges": {
     "conditions": 6,
     "closed_in": 0,
     "link_recurrence": {
@@ -3773,5 +4091,29 @@
     "mean_z": 0.345,
     "verdict": "1 of 7 links carry in every condition"
   },
-  "seconds": 519.1
+  "reproducibility_rotation": {
+    "conditions": 6,
+    "links_in_every_condition": [
+      "action -> interoception",
+      "affect -> workspace",
+      "higher_order -> self_model",
+      "interoception -> affect",
+      "planning -> action",
+      "self_model -> planning",
+      "workspace -> higher_order"
+    ],
+    "links_in_none": [],
+    "link_recurrence": {
+      "action -> interoception": 1.0,
+      "affect -> workspace": 1.0,
+      "higher_order -> self_model": 1.0,
+      "interoception -> affect": 1.0,
+      "planning -> action": 1.0,
+      "self_model -> planning": 1.0,
+      "workspace -> higher_order": 1.0
+    },
+    "mean_percentile_among_cycles": 0.4836,
+    "verdict": "7 of 7 links carry in every condition, and the ring's order is stronger than 48% of the 720 cycles through the same stations"
+  },
+  "seconds": 513.4
 }
