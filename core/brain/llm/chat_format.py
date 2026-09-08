@@ -466,6 +466,19 @@ def _record_inert_thinking_flag(template: str) -> None:
 
 
 
+def _raw_role(message: object) -> str:
+    """The role as written, before any mapping onto a template's vocabulary.
+
+    `_message_role` answers "what will the template call this", which folds
+    "tool" into "user". Anything asking which message is the PERSON's needs
+    the role as written.
+    """
+
+    if isinstance(message, dict):
+        return str(message.get("role") or "").strip().lower()
+    return str(getattr(message, "role", "") or "").strip().lower()
+
+
 def _message_role(message: object) -> str:
     if isinstance(message, dict):
         return _normalize_role(message.get("role"))
@@ -605,9 +618,33 @@ def system_first(messages: object) -> object:
     turn_state["role"] = RUNTIME_EVIDENCE_ROLE
     insert_at = len(rest)
     for index in range(len(rest) - 1, -1, -1):
-        if _message_role(rest[index]) == "user":
+        # The RAW role, not the wire role. `_message_role` maps "tool" onto
+        # "user", which is right for a template that has no tool role and
+        # wrong for finding the person's turn: in a tool loop it found the
+        # last TOOL RESULT and anchored the per-turn block in front of it,
+        # between an assistant's call and the result of that call.
+        if _raw_role(rest[index]) == "user":
             insert_at = index
             break
+    # Before the person's message when that is the last thing said, and after
+    # everything when it is not.
+    #
+    # A tool loop appends an assistant call and a tool result per step, all of
+    # them AFTER the user's turn. Anchoring the per-turn block before that turn
+    # therefore puts a block that changes every step in front of everything the
+    # loop appends, so no step can reuse the step before it — on a model whose
+    # cache cannot be trimmed, that is a full re-prefill each time.
+    #
+    # LIVE, 2026-09-07: five steps reading one file, prefilling 3,735 then
+    # 5,166 then 6,611 then 8,056 then 9,502 tokens, 40s to 83s to first
+    # token, and the turn's 178.8-second budget gone.
+    #
+    # Last is still "immediately before the answer", which is what the
+    # placement is for. The plain case is unchanged: with nothing after the
+    # user's message, before it and at the end are the same place.
+    something_follows_the_turn = insert_at < len(rest) - 1
+    if something_follows_the_turn:
+        return [canonical, *rest, turn_state]
     return [canonical, *rest[:insert_at], turn_state, *rest[insert_at:]]
 
 
