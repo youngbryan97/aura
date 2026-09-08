@@ -92,6 +92,31 @@ The environment is scripted, so P and I are driven rather than sensed.
 
 The life is short. A few hundred turns is not an ontogeny.
 
+## What the numbers say so far
+
+The partition score across the session, on the same organism, as each
+methodological defect was removed and each channel repaired:
+
+| | phi_do | what changed |
+|---|---|---|
+| first run | -0.19 | one held-out block, one ridge strength, predicting the level |
+| | -0.062 | four components per domain, per-column ridge strength |
+| | -0.031 | forward-chaining folds, nested penalty for the wider model |
+| | -0.011 | the penalty grid searched as a path rather than a product |
+| latest | **+0.0021** | the workspace fed and broadcasting, the substrate reaching affect |
+
+Against a matched surrogate floor of -0.0078, measured the same way on the same
+series with the coupling removed. So the transition law is now marginally
+irreducible and the margin is real, and it is twenty times short of the
+preregistered 0.05.
+
+Six edges survive all three preregistered bars: `S->G`, `S->W`, `S->N`, `M->G`,
+`G->N`, `W->N`. The graph has no cycle, so six of the twenty-four criteria —
+strong connectivity, vertex connectivity, cycles, reentry, spread and
+replication — fail together on the same fact. That is the honest shape of the
+result: the self-state and memory reach the workspace, the workspace and the
+world model reach the lifetime state, and nothing comes back.
+
 ## The conjunction
 
 ISC(K) = 1 is an and, not an average. Current status, from the most recent
