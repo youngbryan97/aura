@@ -102,26 +102,35 @@ class Recording:
         }
 
     def save(self, directory: Path) -> Path:
-        directory.mkdir(parents=True, exist_ok=True)
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        gateway = get_file_write_gateway()
+        with local_internal_governed_scope("subject_core.recording"):
+            gateway.ensure_directory(directory, source="subject_core.recording")
         np.savez_compressed(
             directory / "core_state.npz",
             x=self.x,
             times=self.times,
             env=self.env,
         )
-        (directory / "core_state_manifest.json").write_text(
-            json.dumps(
-                {
-                    "conditions": list(self.conditions),
-                    "tags": list(self.tags),
-                    "columns": list(self.columns),
-                    "env_names": list(self.env_names),
-                    "notes": self.notes,
-                    "summary": self.summary(),
-                },
-                indent=2,
-            )
+        manifest = json.dumps(
+            {
+                "conditions": list(self.conditions),
+                "tags": list(self.tags),
+                "columns": list(self.columns),
+                "env_names": list(self.env_names),
+                "notes": self.notes,
+                "summary": self.summary(),
+            },
+            indent=2,
         )
+        with local_internal_governed_scope("subject_core.recording"):
+            gateway.write_text(
+                directory / "core_state_manifest.json",
+                manifest,
+                source="subject_core.recording",
+            )
         return directory / "core_state.npz"
 
 
