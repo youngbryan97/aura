@@ -529,6 +529,25 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] U08 Exercise every capability from I05 with varied phrasing, follow-ups,
   failures, cancellation, and recovery; track every observed defect.
 - [ ] U09 UI accessibility, responsive layout, truthful progress, and polish.
+  PARTIAL 2026-09-08, and the part done is the one a visitor sees first.
+  - **The neural feed was 54.6% engineering.** Measured against a real session
+    — 55,000 events, 15,227 distinct lines from one desktop log — that is the
+    share a person watching could actually read. Worse than untranslated was
+    incoherent: one event per line of a multi-line block, so a card read `)`,
+    a card read "```python", and an internal repair prompt was published to
+    the watcher one instruction at a time. 88.1% now, weighted by how often
+    each line occurs, with `make feed-legibility` and a baseline that only
+    goes up — 9584968c5, 4f77e4c1a. The measurement runs the feed's own
+    JavaScript, so it cannot drift from what renders.
+  - **The interface drew its own icons everywhere except where it wrote them.**
+    Four onboarding headings, eight messages and the browser tab carried
+    emoji, while `stripNeuralPictographs` removed the backend's. Gated —
+    fdacfd8a2.
+  - **Three pages had no way in**: the first-run wizard, the drawings surface
+    and the diagnostics page. Linked, and the wizard's settings writes fixed
+    — 71dbf1342.
+  Still open: responsive layout, accessibility certification, truthful
+  progress, and the rest of the polish pass.
 
 ## 5. Reliability, security, and release
 
