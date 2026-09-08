@@ -87,12 +87,26 @@ def _production_files(root: pathlib.Path) -> list[pathlib.Path]:
     return files
 
 
+#: A call whose arity the source does not state. `f(*args)` and `f(**kwargs)`
+#: can reach any parameter, so nothing behind one can be called switched off.
+_REACHES_EVERYTHING = 1_000_000
+
+
 def _keyword_arguments_by_callee(
     trees: dict[str, ast.Module],
-) -> dict[str, dict[str, list[tuple[str, ast.AST]]]]:
-    """callee name -> parameter -> [(where it was called, what was passed)]."""
+) -> tuple[dict[str, dict[str, list[tuple[str, ast.AST]]]], dict[str, int]]:
+    """callee name -> parameter -> [(where, what was passed)], and reach.
+
+    The second half is how many positional arguments the widest call to each
+    name passes. A parameter reached positionally somewhere is not a parameter
+    every caller passes empty, and reading only the keywords said it was:
+    `_verdict(status, reason, table, checks)` is called with `checks={}` on
+    three inconclusive paths and with a populated `checks` positionally on the
+    two that decide, and the tool reported the parameter as switched off.
+    """
 
     passed: dict[str, dict[str, list[tuple[str, ast.AST]]]] = {}
+    reach: dict[str, int] = {}
     for module, tree in trees.items():
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
@@ -105,14 +119,24 @@ def _keyword_arguments_by_callee(
                 name = target.id
             if not name:
                 continue
+            positional = sum(
+                1 for argument in node.args if not isinstance(argument, ast.Starred)
+            )
+            if any(isinstance(argument, ast.Starred) for argument in node.args):
+                # `f(*args)` reaches anything. Nothing can be called switched
+                # off past a call whose arity is not in the source.
+                positional = _REACHES_EVERYTHING
+            reach[name] = max(reach.get(name, 0), positional)
             for keyword in node.keywords:
                 if keyword.arg is None:
+                    # `f(**kwargs)` can pass anything, including this.
+                    reach[name] = _REACHES_EVERYTHING
                     continue
                 where = f"{module}:{getattr(node, 'lineno', 0)}"
                 passed.setdefault(name, {}).setdefault(keyword.arg, []).append(
                     (where, keyword.value)
                 )
-    return passed
+    return passed, reach
 
 
 def switched_off_arguments(root: str = "") -> tuple[ASwitchedOffArgument, ...]:
@@ -126,7 +150,7 @@ def switched_off_arguments(root: str = "") -> tuple[ASwitchedOffArgument, ...]:
         except (OSError, SyntaxError, UnicodeDecodeError):
             continue
 
-    passed = _keyword_arguments_by_callee(trees)
+    passed, reach = _keyword_arguments_by_callee(trees)
     found: list[ASwitchedOffArgument] = []
     for module, tree in trees.items():
         for node in ast.walk(tree):
@@ -142,13 +166,18 @@ def switched_off_arguments(root: str = "") -> tuple[ASwitchedOffArgument, ...]:
                 for argument in (*node.args.args, *node.args.kwonlyargs)
                 if argument.arg not in {"self", "cls"}
             ]
-            for parameter in parameters:
+            for index, parameter in enumerate(parameters):
                 if parameter not in body_names:
                     # Unused parameters are a different finding and a noisier
                     # one; ruff already has an opinion about them.
                     continue
                 sites = passed.get(node.name, {}).get(parameter, [])
                 if not sites:
+                    continue
+                # `self` and `cls` are already out of `parameters`, and a
+                # method called on an object does not pass them, so a call
+                # with more positionals than this index reaches it either way.
+                if reach.get(node.name, 0) > index:
                     continue
                 if not all(_is_empty_literal(value) for _where, value in sites):
                     continue
