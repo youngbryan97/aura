@@ -117,6 +117,29 @@ class ConsciousnessSystem:
         register_runtime_service("liquid_state", self.liquid_substrate)
         register_runtime_service("qualia_synthesizer", self.qualia)
 
+        # Wire the winner to the domains it is supposed to become available to.
+        # The workspace ran a real competition and handed the result to an
+        # attention schema, an event emitter and a processor list nothing ever
+        # registered anything on. Global availability is the whole content of
+        # the workspace idea; a broadcast no specialised process consumes has
+        # been logged, not broadcast.
+        try:
+            from .broadcast_consumers import register_broadcast_consumers
+
+            self.broadcast_consumers = register_broadcast_consumers(
+                self.global_workspace, substrate=self.liquid_substrate
+            )
+            logger.info(
+                "Global workspace consumers registered: %s",
+                ", ".join(self.broadcast_consumers) or "none",
+            )
+        except _RECOVERABLE_SYSTEM_ERRORS as exc:
+            self.broadcast_consumers = []
+            _record_system_degradation(
+                exc,
+                action="workspace broadcasts reach the attention schema only",
+            )
+
         self.heartbeat = CognitiveHeartbeat(
             orchestrator=orchestrator,
             attention_schema=self.attention_schema,

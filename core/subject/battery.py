@@ -212,13 +212,21 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
         f">= {THRESHOLDS['spread']}",
         per_source=pci.get("spread_by_source", {}),
     ))
+    # A response matrix of all zeros beats a null of all zeros, and the first
+    # version of this line passed on exactly that. Complexity is only a
+    # question about a response that happened, so the matrix has to be
+    # non-degenerate before its structure is worth scoring.
+    reached = [
+        key for key, value in (pci.get("spread_by_source") or {}).items() if value > 0.0
+    ]
     add(_c(
         "perturbational_complexity", "26",
         "the response is structured, not local and not a broadcast",
-        bool(pci.get("beats_null")),
+        bool(pci.get("beats_null")) and len(reached) >= 2 and float(pci.get("mean_pci", 0.0)) > 0.0,
         round(float(pci.get("mean_pci", 0.0)), 4),
-        "above the 99th percentile of matched nulls",
+        "a response that reached somewhere, above the 99th percentile of matched nulls",
         null=pci.get("null_q99"),
+        sources_that_reached_anything=reached,
     ))
     add(_c(
         "synergy", "27",
@@ -293,12 +301,14 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
         lesion.get("deltas", {}),
         "irreducibility, complexity and synergy all fall",
     ))
+    # Rescue only means something after a deficit. Restoring a channel whose
+    # removal changed nothing is not evidence about the channel.
     add(_c(
         "rescue", "40",
         "restoring the cut restores them",
-        bool(lesion.get("rescued")),
+        bool(lesion.get("deficit")) and bool(lesion.get("rescued_ok")),
         lesion.get("rescue", {}),
-        "measures return towards the intact values",
+        "a deficit first, then the measures return towards the intact values",
     ))
     add(_c(
         "beats_every_null", "41",
