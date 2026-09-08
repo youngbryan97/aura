@@ -226,9 +226,16 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "architecture-lint",
+          "why": "The requirement is that the architecture-quality baseline is reconciled without normalising accumulated debt. This gate is what refuses the debt, and the baseline it reads only shrinks."
+        }
+      ],
       "id": "ARCH-BASELINE-001",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "open"
     },
@@ -1458,9 +1465,16 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "reqproof-gate",
+          "why": "The requirement IS the machine-readable requirement-to-proof control plane, and this gate is the thing that reads it: it fails on a prose token that is not a registry requirement, on stale evidence, and on an unproven closure."
+        }
+      ],
       "id": "MATRIX-01",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "open"
     },
@@ -2367,9 +2381,22 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_runtime_settings_control_plane.py",
+          "why": "The requirement names one typed version-2 schema with strict atomic compare-and-swap patch, reset and rollback, request idempotency and retained revision history. That is what the control-plane suite exercises."
+        },
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_settings_no_dead_controls.py",
+          "why": "The other half: every schema key stays classified as wired, frontend-only or known-dead, so a setting cannot be added as a silent no-op and the known-dead set cannot grow unnoticed."
+        }
+      ],
       "id": "RUNTIME-SETTINGS-001",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "in_progress"
     },
@@ -2399,9 +2426,16 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_dns_rebinding_auth.py",
+          "why": "The requirement is that tokenless DNS rebinding is blocked before the local, public, internal and desktop exceptions, and that duplicate Host and Origin authorities are parsed strictly. This file is 38 tests over exactly that boundary; if it fails the requirement is not met."
+        }
+      ],
       "id": "SECURITY-001",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "in_progress"
     },
@@ -2736,17 +2770,18 @@
   "schema_version": 1,
   "summary": {
     "by_kind": {
-      "make": 2,
+      "make": 4,
       "receipt": 30,
-      "test": 1,
+      "test": 4,
       "tool": 5
     },
     "by_source": {
       "ledger": 30,
+      "map": 5,
       "registry": 8
     },
     "complete": false,
-    "linked": 33,
+    "linked": 37,
     "requirements": 313,
     "unlinked": [
       "ACCESSIBILITY-I18N-001",
@@ -2767,7 +2802,6 @@
       "AGENCY-001",
       "AMPLIFY-001",
       "ARCH-001",
-      "ARCH-BASELINE-001",
       "ASYNC-TASK-001",
       "AUDIT-001",
       "AUTONOMY-001",
@@ -2886,7 +2920,6 @@
       "INTELLIGENCE-001",
       "LAUNCH-PROVENANCE-001",
       "LONGHORIZON-001",
-      "MATRIX-01",
       "MATRIX-02",
       "MATRIX-03",
       "MATRIX-04",
@@ -2992,8 +3025,6 @@
       "RR-10",
       "RR-11",
       "RUNTIME-001",
-      "RUNTIME-SETTINGS-001",
-      "SECURITY-001",
       "SELF-MODEL-MIRROR-001",
       "SELF-STATE-CHAT-001",
       "SEMANTIC-REVIEW-001",

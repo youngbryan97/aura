@@ -1,5 +1,39 @@
 {
   "schema_version": 1,
   "note": "Requirement -> the thing a person can run whose failing would mean the requirement is not met. Hand-written only where nothing in the registry or the evidence ledger names one. A check listed here must resolve in the tree; one that does not is counted as no check at all.",
-  "checks": {}
+  "checks": {
+    "SECURITY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_dns_rebinding_auth.py",
+        "why": "The requirement is that tokenless DNS rebinding is blocked before the local, public, internal and desktop exceptions, and that duplicate Host and Origin authorities are parsed strictly. This file is 38 tests over exactly that boundary; if it fails the requirement is not met."
+      }
+    ],
+    "RUNTIME-SETTINGS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_runtime_settings_control_plane.py",
+        "why": "The requirement names one typed version-2 schema with strict atomic compare-and-swap patch, reset and rollback, request idempotency and retained revision history. That is what the control-plane suite exercises."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_settings_no_dead_controls.py",
+        "why": "The other half: every schema key stays classified as wired, frontend-only or known-dead, so a setting cannot be added as a silent no-op and the known-dead set cannot grow unnoticed."
+      }
+    ],
+    "MATRIX-01": [
+      {
+        "kind": "make",
+        "name": "reqproof-gate",
+        "why": "The requirement IS the machine-readable requirement-to-proof control plane, and this gate is the thing that reads it: it fails on a prose token that is not a registry requirement, on stale evidence, and on an unproven closure."
+      }
+    ],
+    "ARCH-BASELINE-001": [
+      {
+        "kind": "make",
+        "name": "architecture-lint",
+        "why": "The requirement is that the architecture-quality baseline is reconciled without normalising accumulated debt. This gate is what refuses the debt, and the baseline it reads only shrinks."
+      }
+    ]
+  }
 }
