@@ -119,21 +119,34 @@ class MorphogenField:
                 node.perturb("task_pressure", min(0.25, intensity * 0.35))
 
     def diffuse_step(self) -> None:
+        # Snapshot first; update second to keep diffusion deterministic.
+        #
+        # The accumulation between them is where the time goes — a deep copy
+        # of every node's values, then every edge times every field — and it
+        # needs nothing but the snapshot. Only the read and the write need the
+        # lock, and the write stays one critical section so decay and the
+        # increments land together.
+        #
+        # LIVE, 2026-09-08: 'morphogenesis.field' held 104ms and 67ms on the
+        # event loop in one boot, and the two sites reported were `sample` and
+        # `perturb` — both cheap, both waiting on this.
         with self._lock:
-            # Snapshot first; update second to keep diffusion deterministic.
             current = {name: copy.deepcopy(node.values) for name, node in self._nodes.items()}
-            increments: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
+            edges = {src: dict(neighbours) for src, neighbours in self._edges.items()}
+            known = set(self._nodes)
 
-            for src, neighbours in self._edges.items():
-                src_values = current.get(src)
-                if not src_values:
+        increments: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
+        for src, neighbours in edges.items():
+            src_values = current.get(src)
+            if not src_values:
+                continue
+            for dst, weight in neighbours.items():
+                if dst not in known:
                     continue
-                for dst, weight in neighbours.items():
-                    if dst not in self._nodes:
-                        continue
-                    for field_name, value in src_values.items():
-                        increments[dst][field_name] += value * self.diffusion * weight
+                for field_name, value in src_values.items():
+                    increments[dst][field_name] += value * self.diffusion * weight
 
+        with self._lock:
             for name, node in self._nodes.items():
                 node.decay(self.decay_rate)
                 for field_name, amount in increments.get(name, {}).items():
