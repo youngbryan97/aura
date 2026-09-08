@@ -19,6 +19,7 @@ from interface.server import (
     _phenomenal_error_status,
 )
 from tests.chat_lane_support import chat_lane_source
+from tests.health_transport_support import publish_boot_scenario, publish_probe_scenario
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -317,6 +318,7 @@ def test_websocket_runtime_heartbeat_requires_runtime_probe_groups(monkeypatch):
         },
     )
 
+    publish_probe_scenario(monkeypatch)
     payload = runtime_heartbeat_payload("pong")
 
     assert payload["type"] == "pong"
@@ -361,6 +363,7 @@ def test_websocket_runtime_heartbeat_rejects_forged_all_passed(monkeypatch):
         },
     )
 
+    publish_probe_scenario(monkeypatch)
     payload = runtime_heartbeat_payload("ping")
 
     assert payload["type"] == "ping"
@@ -393,6 +396,7 @@ def test_websocket_runtime_heartbeat_reports_runtime_contract_degradation(monkey
         lambda _report: _complete_required_probe_payload(),
     )
 
+    publish_probe_scenario(monkeypatch)
     payload = runtime_heartbeat_payload("heartbeat")
 
     assert payload["healthy"] is False
@@ -429,6 +433,7 @@ def test_websocket_runtime_heartbeat_requires_conversation_readiness(monkeypatch
         ),
     )
 
+    publish_probe_scenario(monkeypatch)
     payload = runtime_heartbeat_payload("heartbeat")
 
     assert payload["healthy"] is False
@@ -472,6 +477,7 @@ def test_websocket_runtime_heartbeat_treats_warmup_as_working(monkeypatch):
         ),
     )
 
+    publish_probe_scenario(monkeypatch)
     payload = runtime_heartbeat_payload("heartbeat")
 
     assert payload["healthy"] is False
@@ -550,6 +556,7 @@ async def test_api_heartbeat_rejects_boot_payload_without_required_probe_compone
         ),
     )
 
+    publish_boot_scenario(monkeypatch, system_routes)
     response = await system_routes.api_heartbeat()
     payload = json.loads(response.body)
 
@@ -590,6 +597,7 @@ async def test_api_heartbeat_reports_healthy_only_with_all_required_probe_compon
         ),
     )
 
+    publish_boot_scenario(monkeypatch, system_routes)
     response = await system_routes.api_heartbeat()
     payload = json.loads(response.body)
 
@@ -645,6 +653,7 @@ async def test_api_heartbeat_surfaces_integrity_as_proof_readiness_not_launch_bl
         },
     )
 
+    publish_boot_scenario(monkeypatch, system_routes)
     response = await system_routes.api_heartbeat()
     payload = json.loads(response.body)
 
@@ -705,6 +714,7 @@ async def test_api_heartbeat_treats_integrity_advisory_as_proof_debt(
         },
     )
 
+    publish_boot_scenario(monkeypatch, system_routes)
     response = await system_routes.api_heartbeat()
     payload = json.loads(response.body)
 
@@ -750,6 +760,7 @@ async def test_api_heartbeat_requires_conversation_readiness(
         ),
     )
 
+    publish_boot_scenario(monkeypatch, system_routes)
     response = await system_routes.api_heartbeat()
     payload = json.loads(response.body)
 

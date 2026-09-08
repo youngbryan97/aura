@@ -84,42 +84,17 @@ def _env_positive_int(name: str, default: int, *, minimum: int = 1) -> int:
 
 
 def runtime_heartbeat_payload(kind: str = "heartbeat") -> dict[str, Any]:
-    """Return a heartbeat that cannot be mistaken for transport-only health."""
+    """Project the same versioned readiness evidence used by HTTP health."""
     try:
-        from core.runtime.health_contract import (
-            required_probe_blockers,
-            required_probe_groups_pass,
-            required_probe_status,
-            runtime_health_report,
+        from interface.routes.system import (
+            _runtime_revision_response_projection,
+            read_runtime_health_snapshot,
         )
 
-        report = runtime_health_report()
-        required = required_probe_status(report)
-        runtime_probe_healthy = required_probe_groups_pass(required)
-        conversation_lane, conversation_ready = _conversation_lane_readiness()
-        conversation_busy = conversation_lane_is_busy(conversation_lane)
-        healthy = bool(report.get("healthy", False)) and runtime_probe_healthy and conversation_ready
-        blockers = required_probe_blockers(required)
-        if not bool(report.get("healthy", False)):
-            blockers.extend(_runtime_report_blockers(report))
-        if not conversation_ready and not conversation_busy:
-            blockers.extend(_conversation_lane_blockers(conversation_lane))
-        status = "healthy" if healthy else "working" if runtime_probe_healthy and conversation_busy else "unhealthy"
-        return {
-            "type": kind,
-            "timestamp": time.time(),
-            "transport_connected": True,
-            "transport_only": False,
-            "status": status,
-            "healthy": healthy,
-            "runtime_probe_healthy": runtime_probe_healthy,
-            "runtime_status": str(report.get("status", "unknown")),
-            "required_probes": required,
-            "conversation_ready": bool(conversation_lane.get("conversation_ready", False)),
-            "conversation_busy": conversation_busy,
-            "conversation_lane": conversation_lane,
-            "blockers": list(dict.fromkeys(blockers)),
-        }
+        snapshot = _runtime_revision_response_projection(
+            read_runtime_health_snapshot(), include_diagnostics=False
+        )
+        return heartbeat_from_health_snapshot(snapshot, kind)
     except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("websocket_manager", exc)
         return {
@@ -133,13 +108,55 @@ def runtime_heartbeat_payload(kind: str = "heartbeat") -> dict[str, Any]:
             "runtime_status": "unknown",
             "required_probes": {"all_passed": False},
             "conversation_ready": False,
-            "conversation_lane": {
-                "conversation_ready": False,
-                "state": "unknown",
-                "last_failure_reason": str(exc)[:240],
-            },
+            "conversation_lane": {"conversation_ready": False, "state": "unknown"},
             "blockers": ["runtime_health_probe_error"],
         }
+
+
+def heartbeat_from_health_snapshot(
+    snapshot: dict[str, Any], kind: str = "heartbeat"
+) -> dict[str, Any]:
+    """Compact one health generation without probing or upgrading its verdict."""
+    from core.runtime.health_contract import (
+        required_probe_blockers,
+        required_probe_groups_pass,
+    )
+
+    required = dict(snapshot.get("required_probes") or {})
+    runtime_probe_healthy = (
+        snapshot.get("runtime_probe_healthy") is True
+        and required_probe_groups_pass(required)
+    )
+    lane = dict(snapshot.get("conversation_lane") or {})
+    conversation_ready = snapshot.get("conversation_ready") is True and lane.get("conversation_ready") is True
+    conversation_busy = conversation_lane_is_busy(lane)
+    blockers = list(snapshot.get("blockers") or []) + required_probe_blockers(required)
+    if not conversation_ready and not conversation_busy:
+        blockers.extend(_conversation_lane_blockers(lane))
+    healthy = snapshot.get("healthy") is True and runtime_probe_healthy and conversation_ready and not blockers
+    working = runtime_probe_healthy and conversation_busy and not blockers
+    return {
+        "type": kind,
+        "timestamp": time.time(),
+        "transport_connected": True,
+        "transport_only": False,
+        "status": "healthy" if healthy else "working" if working else "unhealthy",
+        "healthy": healthy,
+        "runtime_probe_healthy": runtime_probe_healthy,
+        "runtime_status": str(snapshot.get("status", "unknown")),
+        "required_probes": required,
+        "conversation_ready": conversation_ready,
+        "conversation_busy": conversation_busy,
+        "conversation_lane": lane,
+        "blockers": list(dict.fromkeys(blockers)),
+        "health_read_model": dict(snapshot.get("health_read_model") or {}),
+        "runtime_revision": dict(snapshot.get("runtime_revision") or {}),
+        "proof_readiness_healthy": snapshot.get("proof_readiness_healthy") is True,
+        "certification_ready": healthy and snapshot.get("certification_ready") is True,
+        "integrity": dict(snapshot.get("integrity") or {}),
+        "integrity_blockers": list(snapshot.get("integrity_blockers") or []),
+        "boot_phase": (snapshot.get("boot") or {}).get("boot_phase"),
+    }
 
 
 def conversation_heartbeat_payload(kind: str = "heartbeat") -> dict[str, Any]:

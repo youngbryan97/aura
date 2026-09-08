@@ -4311,9 +4311,7 @@ async def readyz(request: Request):
     try:
         from core.runtime.health_contract import required_probe_groups_pass
 
-        snapshot = _apply_health_read_model_truth(_HEALTH_READ_MODEL.read())
-        snapshot = _apply_runtime_revision_truth(snapshot)
-        snapshot = _apply_current_shutdown_truth(snapshot)
+        snapshot = read_runtime_health_snapshot()
         readiness = dict(snapshot.get("readiness_contract") or {})
         required_probes = dict(
             readiness.get("required_probes")
@@ -5444,15 +5442,21 @@ def _apply_current_shutdown_truth(payload: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def read_runtime_health_snapshot() -> dict[str, Any]:
+    """One nonblocking readiness source for HTTP, websocket and SSE clients."""
+
+    payload = _apply_health_read_model_truth(_HEALTH_READ_MODEL.read())
+    payload = _apply_runtime_revision_truth(payload)
+    return _apply_current_shutdown_truth(payload)
+
+
 @router.get("/health")
 async def api_health(request: Request):
     """Serve the latest versioned snapshot without running live probes inline."""
 
     _mark_runtime_service_progress("api.health")
     _restore_owner_session_from_request(request)
-    payload = _apply_health_read_model_truth(_HEALTH_READ_MODEL.read())
-    payload = _apply_runtime_revision_truth(payload)
-    payload = _apply_current_shutdown_truth(payload)
+    payload = read_runtime_health_snapshot()
     access_profile = request_access_profile(request)
     payload = _runtime_revision_response_projection(
         payload,
@@ -6068,63 +6072,10 @@ async def api_heartbeat():
     pass through the canonical boot health contract.
     """
     _mark_runtime_service_progress("api.health.heartbeat")
-    payload, status_code = await _build_boot_health_payload_bounded(
-        is_gui_proxy=False,
-    )
-    conversation_lane = _collect_conversation_lane_status_resilient()
-    conversation_ready = bool(conversation_lane.get("conversation_ready", False))
-    conversation_busy = conversation_lane_is_busy(conversation_lane)
-    required_probes = payload.get("required_probes", {})
-    probe_blockers = _heartbeat_probe_blockers(required_probes)
-    runtime_revision = payload.get("runtime_revision")
-    if not isinstance(runtime_revision, dict):
-        runtime_revision = _runtime_revision_fallback_contract()
-    revision_blocker = _runtime_revision_blocker(runtime_revision)
-    integrity_report = _collect_runtime_integrity_report()
-    integrity_payload = _runtime_integrity_public_payload(integrity_report)
-    proof_readiness_healthy = bool(
-        integrity_payload.get("proof_readiness", False)
-        and not revision_blocker
-    )
-    blockers = _normalize_conversation_health_blockers(
-        list(payload.get("blockers", []) or [])
-        + probe_blockers
-        + ([revision_blocker] if revision_blocker else []),
-        conversation_ready=conversation_ready,
-        conversation_busy=conversation_busy,
-    )
-    runtime_probe_healthy = not probe_blockers
-    healthy = (
-        status_code in {200, 202}
-        and bool(payload.get("system_ready", payload.get("ready", False)))
-        and runtime_probe_healthy
-        and conversation_ready
-        and not blockers
-    )
-    if not healthy and not (runtime_probe_healthy and conversation_busy and not blockers):
-        status_code = 503
-    status = "healthy" if healthy else "working" if runtime_probe_healthy and conversation_busy else "unhealthy"
-    heartbeat_payload = {
-        "status": status,
-        "healthy": healthy,
-        "runtime_probe_healthy": runtime_probe_healthy,
-        "time": time.time(),
-        "required_probes": required_probes,
-        "blockers": blockers,
-        "boot_phase": payload.get("boot_phase"),
-        "conversation_ready": conversation_ready,
-        "conversation_busy": conversation_busy,
-        "conversation_lane": conversation_lane,
-        "integrity": integrity_payload,
-        "proof_readiness_healthy": proof_readiness_healthy,
-        "certification_ready": bool(healthy and proof_readiness_healthy),
-        "integrity_blockers": integrity_payload.get("proof_blockers", []),
-        "runtime_revision": _runtime_revision_response_projection(
-            {"runtime_revision": runtime_revision},
-            include_diagnostics=False,
-        ).get("runtime_revision"),
-    }
-    return JSONResponse(heartbeat_payload, status_code=status_code)
+    payload = runtime_heartbeat_payload()
+    payload["time"] = payload["timestamp"]
+    status_code = 200 if payload["status"] in {"healthy", "working"} else 503
+    return JSONResponse(_json_safe(payload), status_code=status_code)
 
 
 # ── Hot Reload ────────────────────────────────────────────────
