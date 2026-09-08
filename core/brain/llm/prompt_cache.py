@@ -578,7 +578,7 @@ class PromptCacheLRU:
         # time-to-first-token climbs until it crosses the turn budget. Measured
         # live 2026-07-26, turns 5-7 of one conversation died that way with the
         # budget shrinking 81.1s -> 73.2s -> 55.8s against a first token that
-        # kept taking 58-82s. None of that was visible: there was no hit/miss
+        # never arrived in under 58s. None of that was visible: there was no hit/miss
         # signal anywhere, so reuse could only be inferred from latency.
         if result.exact is not None and len(tokens) > 1:
             # Never hand back an EMPTY remainder: mlx_lm has to be given at

@@ -129,6 +129,8 @@ class Organs:
     world_model: Any = None
     ontogeny: Any = None
     agency: Any = None
+    self_prediction: Any = None
+    comparator: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -164,7 +166,19 @@ class Organs:
             self_model=service("self_model"),
             world_model=service("unified_world_model"),
             agency=agency,
+            self_prediction=runtime("self_prediction"),
+            comparator=_agency_comparator(),
         )
+
+
+def _agency_comparator() -> Any:
+    """The efference-copy comparator, if it is there."""
+    try:
+        from core.consciousness.agency_comparator import get_agency_comparator
+
+        return get_agency_comparator()
+    except Exception:  # noqa: BLE001 - an absent comparator is an absent organ
+        return None
 
 
 def _call(obj: Any, name: str, default: Any = None) -> Any:
@@ -271,6 +285,17 @@ _SCHEMAS: dict[str, Schema] = {
             ("tie_impasses", "organ:workspace.tie_impasses"),
             ("inhibited", "organ:workspace.inhibited_sources"),
             ("broadcasts", "organ:workspace.broadcast_history_len"),
+            # The homeostatic modifiers: how hot, how deep, how creative and how
+            # focused the next thought is allowed to be. They are the substrate
+            # and the drives reaching cognitive control, which is the one place
+            # the body's state becomes a parameter of thinking rather than a
+            # sentence about it.
+            ("modifier_temperature", "cognition.modifiers.temperature_mod"),
+            ("modifier_depth", "cognition.modifiers.depth_mod"),
+            ("modifier_creativity", "cognition.modifiers.creativity_mod"),
+            ("modifier_focus", "cognition.modifiers.focus_mod"),
+            ("modifier_vitality", "cognition.modifiers.overall_vitality"),
+            ("modifier_urgency", "cognition.modifiers.urgency_flag"),
         ),
     ),
     "C": _sch(
@@ -332,6 +357,25 @@ _SCHEMAS: dict[str, Schema] = {
             ("agency_authored_share", "organ:agency.authored_share"),
             ("agency_capabilities", "organ:agency.capabilities"),
             ("agency_last_actor", "organ:agency.last_actor"),
+            # How well she predicts her own next internal state. The loop that
+            # computes this runs every heartbeat and its surprise signal is
+            # consumed downstream; the self-state schema was not reading the
+            # one quantity most obviously about the self model's own accuracy.
+            ("prediction_error", "organ:self_prediction.smoothed_error"),
+            ("prediction_surprises", "organ:self_prediction.surprise_count"),
+            ("valence_error", "organ:self_prediction.valence_error_ema"),
+            ("drive_error", "organ:self_prediction.drive_error_ema"),
+            ("focus_error", "organ:self_prediction.focus_error_ema"),
+            ("least_predictable", "organ:self_prediction.most_unpredictable"),
+            ("prediction_confidence", "organ:self_prediction.current_prediction.confidence"),
+            # The efference-copy comparator: how much of what happened her own
+            # action explains. It emits and compares — both of those are wired
+            # — and every one of its readouts was called from nowhere, so the
+            # sense of agency it computes reached no part of her.
+            ("agency_score", "organ:comparator.agency_score"),
+            ("agency_traces", "organ:comparator.total_traces"),
+            ("agency_pending", "organ:comparator.pending_efferences"),
+            ("agency_attribution", "organ:comparator.recent_attribution"),
         ),
     ),
     "M": _sch(
@@ -538,6 +582,7 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
 def _read_G(state: Any, organs: Organs) -> np.ndarray:
     focus = _dig(state, "cognition.attention_focus", "") or ""
     workspace = _call(organs.workspace, "get_status", {}) or {}
+    modifiers = _dig(state, "cognition.modifiers", {}) or {}
     return np.array(
         [
             1.0 if focus else 0.0,
@@ -559,6 +604,12 @@ def _read_G(state: Any, organs: Organs) -> np.ndarray:
             _sat(_f(workspace.get("tie_impasses")), 8.0),
             _sat(workspace.get("inhibited_sources") or [], 4.0),
             _sat(_f(workspace.get("broadcast_history_len")), 32.0),
+            _f(modifiers.get("temperature_mod"), 1.0),
+            _f(modifiers.get("depth_mod"), 1.0),
+            _f(modifiers.get("creativity_mod"), 1.0),
+            _f(modifiers.get("focus_mod"), 1.0),
+            _f(modifiers.get("overall_vitality"), 1.0),
+            1.0 if modifiers.get("urgency_flag") else 0.0,
         ],
         dtype=np.float64,
     )
@@ -634,6 +685,9 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
     introspection = _call(organs.self_model, "get_introspection", {}) or {}
     beliefs = getattr(organs.self_model, "beliefs", {}) or {}
     agency = _call(organs.agency, "snapshot", {}) or {}
+    prediction = _call(organs.self_prediction, "get_snapshot", {}) or {}
+    current = prediction.get("current_prediction") or {}
+    comparator = _call(organs.comparator, "get_status", {}) or {}
     head.extend(
         [
             _sat(_f(introspection.get("belief_count")), 16.0),
@@ -646,6 +700,17 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             _f(agency.get("authored_share")),
             _sat(_f(agency.get("capabilities")), 8.0),
             _hash_unit(agency.get("last_actor", "")),
+            _f(prediction.get("smoothed_error")),
+            _sat(_f(prediction.get("surprise_count")), 16.0),
+            _f(prediction.get("valence_error_ema")),
+            _f(prediction.get("drive_error_ema")),
+            _f(prediction.get("focus_error_ema")),
+            _hash_unit(prediction.get("most_unpredictable", "")),
+            _f(current.get("confidence")),
+            _f(comparator.get("agency_score"), 0.5),
+            _sat(_f(comparator.get("total_traces")), 16.0),
+            _sat(_f(comparator.get("pending_efferences")), 4.0),
+            _hash_unit(comparator.get("recent_attribution", "")),
         ]
     )
     return np.array(head, dtype=np.float64)
@@ -861,8 +926,14 @@ def _perturb_P(state: Any, delta: float, ontogeny: Any) -> bool:
 
 def _perturb_I(state: Any, delta: float, ontogeny: Any) -> bool:
     del ontogeny
+    # These fields are percentages and milliseconds, not fractions. The first
+    # version clamped cpu_usage to [0, 1] while the runtime writes 0..100, so
+    # displacing the body by +0.15 set it to one percent — a large move in the
+    # wrong direction, dressed as a small one in the right one.
     hit = _bump(state, "soma.hardware.temperature", delta * 20.0, 0.0, 110.0)
-    hit |= _bump(state, "soma.hardware.cpu_usage", delta, 0.0, 1.0)
+    hit |= _bump(state, "soma.hardware.cpu_usage", delta * 100.0, 0.0, 100.0)
+    hit |= _bump(state, "soma.hardware.vram_usage", delta * 100.0, 0.0, 100.0)
+    hit |= _bump(state, "soma.hardware.ram_usage", delta * 100.0, 0.0, 100.0)
     hit |= _bump(state, "soma.latency.last_thought_ms", delta * 500.0, 0.0, 60_000.0)
     hit |= _bump(state, "vitality", -abs(delta), 0.0, 1.0)
     return hit
@@ -1018,19 +1089,42 @@ async def perturb_organs(organs: Organs, domain: str, delta: float) -> bool:
     hit = False
     if domain == "C" and organs.substrate is not None:
         try:
+            # Displace the dimensions anything downstream reads. Frustration
+            # and curiosity alone moved indices that the homeostatic blend does
+            # not look at, so the perturbation was real, gated, applied — and
+            # invisible to every consumer of the substrate.
+            reading = organs.substrate.get_substrate_affect() or {}
             await organs.substrate.update(
-                delta_frustration=delta, delta_curiosity=delta, source="subject_core_probe"
+                delta_frustration=delta,
+                delta_curiosity=delta,
+                valence=min(1.0, max(-1.0, _f(reading.get("valence")) + delta)),
+                arousal=min(1.0, max(0.0, _f(reading.get("arousal"), 0.5) + delta)),
+                dominance=min(1.0, max(-1.0, _f(reading.get("dominance")) + delta)),
+                source="subject_core_probe",
             )
             hit = True
         except Exception:  # noqa: BLE001 - a refused write is not a write
             hit = False
     elif domain == "G" and organs.workspace is not None:
         workspace = organs.workspace
+        # Displacing the workspace means changing what wins, not nudging a
+        # readout. Writing `ignition_level` moved the number the schema reads
+        # and nothing downstream, because the consumers fire on a broadcast and
+        # a broadcast comes from a competition. This enters a bid strong enough
+        # to change the outcome, which is the workspace intervention the
+        # specification asks for: perturb one workspace content.
         try:
-            workspace.ignition_level = min(
-                1.0, max(0.0, _f(getattr(workspace, "ignition_level", 0.0)) + delta)
+            from core.consciousness.global_workspace import CognitiveCandidate, ContentType
+
+            await workspace.submit(
+                CognitiveCandidate(
+                    content=f"subject core probe {delta:+.4f}",
+                    source="subject_core_probe",
+                    priority=min(1.0, max(0.0, 0.5 + delta * 3.0)),
+                    content_type=ContentType.META,
+                    affect_weight=abs(delta),
+                )
             )
-            workspace._current_phi = _f(getattr(workspace, "_current_phi", 0.0)) + delta
             hit = True
         except Exception:  # noqa: BLE001
             hit = False

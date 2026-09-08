@@ -68,14 +68,19 @@ def _scales(recording: Any) -> dict[str, np.ndarray]:
 
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--rounds", type=int, default=24, help="baseline turns per condition")
+    parser.add_argument("--rounds", type=int, default=120, help="baseline turns per condition")
     parser.add_argument("--trials", type=int, default=6, help="paired interventions per source per condition")
     parser.add_argument("--turns", type=int, default=2, help="turns each intervention arm runs")
     parser.add_argument("--agency-trials", type=int, default=5)
-    parser.add_argument("--lesion-rounds", type=int, default=10)
+    parser.add_argument("--lesion-rounds", type=int, default=30)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "subject_core")
     parser.add_argument("--skip-nulls", action="store_true")
+    parser.add_argument(
+        "--skip-lesion",
+        action="store_true",
+        help="leave the lesion and rescue unmeasured; they read as failures, which is what an unmeasured criterion is",
+    )
     parser.add_argument("--quick", action="store_true", help="a short run for wiring checks")
     args = parser.parse_args()
 
@@ -140,14 +145,25 @@ async def main() -> int:
     evidence["recording"] = recording.summary()
 
     _log("observational measures")
-    phi = phi_do(recording)
+    # Everything that fits K_{t+1} from K_t runs on one row per turn. A
+    # frame-to-frame step inside a turn is one line of the transition function,
+    # not a transition: the phases run in a fixed order and most domains do not
+    # move between two of them, so the frame series makes the prediction task
+    # "the same as last time" and the comparison a comparison of noise.
+    turns = recording.by_turn()
+    _log(f"{turns.frames} turns from {recording.frames} frames")
+    phi = phi_do(turns)
     evidence["phi"] = phi.as_dict()
+    evidence["phi_frame_level"] = phi_do(recording).as_dict()
     evidence["differentiation"] = effective_dimension(recording).as_dict()
-    evidence["intrinsic"] = intrinsic_gain(recording, seed=args.seed).as_dict()
-    evidence["metastability"] = regimes(recording, seed=args.seed).as_dict()
-    evidence["synergy"] = [item.as_dict() for item in synergy_suite(recording, seed=args.seed)]
+    evidence["intrinsic"] = intrinsic_gain(turns, seed=args.seed).as_dict()
+    evidence["metastability"] = regimes(turns, seed=args.seed).as_dict()
+    evidence["synergy"] = [item.as_dict() for item in synergy_suite(turns, seed=args.seed)]
     matrix, names = _periphery_matrix(periphery_rows)
-    evidence["closure"] = closure_gain(recording, matrix, names, seed=args.seed).as_dict()
+    turn_rows = recording.turn_rows()
+    evidence["closure"] = closure_gain(
+        turns, matrix[turn_rows] if matrix.size else matrix, names, seed=args.seed
+    ).as_dict()
     _log(
         f"phi_do={evidence['phi']['phi_do']} cut={evidence['phi']['best_cut']} "
         f"D_eff={evidence['differentiation']['d_eff_normalised']} "
@@ -254,11 +270,15 @@ async def main() -> int:
         await run_agency(runtime, act_condition, scale=scale, trials=args.agency_trials)
     ).as_dict()
 
-    _log(f"lesion of the cheapest cut {phi.best_cut} and rescue")
-    evidence["lesion"] = await _lesion(
-        runtime, CONDITIONS, phi, args, build_recording, clamped, phi_do,
-        perturbational_complexity, synergy_suite, run_interventions, scale
-    )
+    if args.skip_lesion:
+        _log("lesion skipped")
+        evidence["lesion"] = {"deficit": False, "rescued_ok": False, "note": "not measured"}
+    else:
+        _log(f"lesion of the cheapest cut {phi.best_cut} and rescue")
+        evidence["lesion"] = await _lesion(
+            runtime, CONDITIONS, phi, args, build_recording, clamped, phi_do,
+            perturbational_complexity, synergy_suite, run_interventions, scale
+        )
 
     if not args.skip_nulls:
         _log("nulls")
@@ -317,7 +337,7 @@ async def _lesion(
         for _ in range(args.lesion_rounds):
             for condition in conditions:
                 frames.extend(await runtime.turn_once(condition))
-        recording = build_recording(frames, notes={"arm": label})
+        recording = build_recording(frames, notes={"arm": label}).by_turn()
         results = await run_interventions(
             runtime,
             conditions[:3],
@@ -379,10 +399,20 @@ def _nulls(
     table: dict[str, Any] = {}
     real_phi = float(evidence["phi"]["phi_do"])
 
+    # Surrogates of the series the score is actually computed on. Building them
+    # from the frame-level recording would compare a number measured on one
+    # sampling against a floor measured on another.
+    turns = recording.by_turn()
     for name in ("replay", "time_shuffle"):
         maker = replay_surrogate if name == "replay" else shuffle_surrogate
-        surrogate = maker(recording, seed=args.seed)
-        table[name] = {"phi_do": round(phi_do(surrogate).phi, 5), "kind": "surrogate"}
+        draws = [
+            round(phi_do(maker(turns, seed=args.seed + draw)).phi, 5) for draw in range(3)
+        ]
+        table[name] = {
+            "phi_do": max(draws),
+            "draws": draws,
+            "kind": "surrogate",
+        }
 
     for name in architectures:
         system = architecture(name, seed=args.seed)
@@ -410,9 +440,19 @@ def _nulls(
     nulls_fail = all(
         float(row["phi_do"]) <= 0.05 for name, row in table.items() if name != "recurrent"
     )
+    # The floor the real score has to clear. A minimum over five hundred and
+    # eleven noisy estimates is biased downward by the width of its own search,
+    # and the matched surrogates are the only thing that measures how far: same
+    # dimensionality, same cuts, same estimator, coupling removed.
+    floor = max(
+        (float(row["phi_do"]) for name, row in table.items() if row.get("kind") == "surrogate"),
+        default=None,
+    )
     return {
         "phi_table": {k: v["phi_do"] for k, v in table.items()},
         "detail": table,
+        "surrogate_floor": floor,
+        "phi_above_floor": None if floor is None else round(real_phi - floor, 5),
         "phi_beats_all": all(beaten.values()) if beaten else False,
         "all_nulls_fail": bool(nulls_fail and reference_passes),
         "nulls_fail_the_bar": nulls_fail,

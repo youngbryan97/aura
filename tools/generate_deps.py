@@ -188,13 +188,17 @@ def render(package: str, allowed: set[str]) -> str:
 
     lines = [HEADER.format(
         package=package,
-        counted=len(allowed),
+        counted=len({a for a in allowed if a != f"core.{package}"}),
         description=(
             f"core.{package}: may import only what it already imports; "
             "every new edge is an edit here."
         ),
     )]
     lines.append(f'    "+core.{package}",\n')
+    # The package's own name is already the line above. A submodule importing a
+    # sibling puts it in the graph as an outbound edge, and emitting it again
+    # here writes a duplicate rule and an outbound count one too high.
+    inside = [name for name in inside if name != f"core.{package}"]
     if inside:
         lines.append("\n    # What this package reaches for today.\n")
         for name in inside:

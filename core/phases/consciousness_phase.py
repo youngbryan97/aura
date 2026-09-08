@@ -48,6 +48,45 @@ class ConsciousnessPhase(BasePhase):
                     new_state.cognition.causal_reasoning = causal_context
                 logger.debug("🧶 ConsciousnessPhase: Causal world cascades injected.")
 
+        # Show the world model what just happened.
+        #
+        # Its running surprise is read by affect grounding as prediction error
+        # and by the free-energy engine as a signal, and nothing fed it: the
+        # only caller of `observe` in the tree was the ontogeny organ, on its
+        # own separate model. A predictive model that is never shown the world
+        # does not have a low prediction error, it has no prediction error, and
+        # those are the same number.
+        try:
+            from core.world_model.observe_cycle import observe_cycle
+
+            surprise = observe_cycle(new_state)
+            if surprise is not None:
+                new_state.response_modifiers["world_model_surprise"] = round(surprise, 4)
+        except _CONSCIOUSNESS_PHASE_ERRORS as exc:
+            record_degradation(
+                "consciousness_phase", exc, severity="warning",
+                action="the world model did not see this cycle",
+            )
+
+        # Give the workspace something to compete over.
+        #
+        # The competition ran on every tick with an empty candidate list, so
+        # the winner was None and nothing was ever broadcast. Two places in the
+        # tree submit anything at all and both are rare branches of the soul's
+        # drive handling. This is the cognitive cycle's own contents entering
+        # the competition, which is what a global workspace is for.
+        try:
+            from core.consciousness.workspace_feed import feed_workspace
+
+            workspace = get_runtime_service("global_workspace", default=None)
+            if workspace is not None:
+                await feed_workspace(new_state, workspace)
+        except _CONSCIOUSNESS_PHASE_ERRORS as exc:
+            record_degradation(
+                "consciousness_phase", exc, severity="warning",
+                action="the workspace was not fed this cycle",
+            )
+
         # Advance the selfhood layers.
         #
         # MinimalSelfhood.update() had no caller anywhere in the tree, so its

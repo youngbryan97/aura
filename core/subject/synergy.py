@@ -123,7 +123,12 @@ def _interaction_gain(a: np.ndarray, b: np.ndarray, y: np.ndarray) -> float:
     products = np.einsum("ti,tj->tij", a, b).reshape(rows, -1)
     plain = fit_predict(side_by_side, y, train=train, validate=validate, test=test)
     crossed = fit_predict(
-        np.hstack([side_by_side, products]), y, train=train, validate=validate, test=test
+        np.hstack([side_by_side, products]),
+        y,
+        train=train,
+        validate=validate,
+        test=test,
+        own_width=side_by_side.shape[1],
     )
     if plain.loss <= 1e-12:
         return 0.0

@@ -21,6 +21,17 @@ include_rules = [
     "+core.ontogeny",
     "+core.state",
 
+    # The organs K is read from. The workspace is imported for its candidate
+    # type, because displacing the workspace means entering a bid rather than
+    # writing a readout, and a bid has a type.
+    "+core.consciousness",
+
+    # Writing the recording. Consequential writes go through the gateway inside
+    # a governed scope like every other write in the tree; the battery is not
+    # exempt from the rule it is measuring compliance with.
+    "+core.governance_context",
+    "+core.runtime",
+
     # How it reaches the running organism to take a reading. Every one of
     # these is subject -> runtime, which is the direction the rule allows;
     # named module by module rather than package by package, so a wider reach

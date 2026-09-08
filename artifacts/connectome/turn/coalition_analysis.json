@@ -1,0 +1,862 @@
+{
+  "recording": {
+    "path": "/Users/bryan/.aura/live-source/artifacts/connectome/turn",
+    "frames": 31042,
+    "cells": 1871,
+    "frame_seconds": 0.002,
+    "conditions": [
+      "greeting",
+      "idle",
+      "inference",
+      "recall",
+      "self_report",
+      "task"
+    ]
+  },
+  "proofreading": {
+    "joins_written": 172
+  },
+  "stations": {
+    "interoception": 403,
+    "affect": 481,
+    "workspace": 227,
+    "higher_order": 427,
+    "self_model": 113,
+    "planning": 892,
+    "action": 507
+  },
+  "conditions": {
+    "greeting": {
+      "effective": {
+        "condition": "greeting",
+        "grade": "predictive",
+        "licenses": "that one cell's past helps predict another's future",
+        "frames": 5194,
+        "edges_measured": 230,
+        "edges_surviving_null": 141,
+        "surviving_share": 0.613,
+        "mean_weight_surviving": 0.27818,
+        "skipped": ""
+      },
+      "closure": {
+        "condition": "greeting",
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "mode": "effective",
+            "structural_edges": 14,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "affect -> workspace",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "mode": "effective",
+            "structural_edges": 9,
+            "hops": 0,
+            "effective_edges": 1,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "higher_order -> self_model",
+            "mode": "effective",
+            "structural_edges": 8,
+            "hops": 0,
+            "effective_edges": 2,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "self_model -> planning",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "planning -> action",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "action -> interoception",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          }
+        ],
+        "links_present": 2,
+        "links_total": 7,
+        "closed": false,
+        "ring_enrichment": 0.0,
+        "null_enrichment": 0.0,
+        "enrichment_z": 0.0,
+        "null_mean_links_present": 1.342,
+        "null_spread": 0.779,
+        "z": 0.845,
+        "nulls": 199,
+        "skipped": "",
+        "verdict": "5 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.00)"
+      },
+      "seconds": 7.2
+    },
+    "idle": {
+      "effective": {
+        "condition": "idle",
+        "grade": "predictive",
+        "licenses": "that one cell's past helps predict another's future",
+        "frames": 4120,
+        "edges_measured": 170,
+        "edges_surviving_null": 79,
+        "surviving_share": 0.4647,
+        "mean_weight_surviving": 0.30106,
+        "skipped": ""
+      },
+      "closure": {
+        "condition": "idle",
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "mode": "effective",
+            "structural_edges": 14,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "affect -> workspace",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "mode": "effective",
+            "structural_edges": 9,
+            "hops": 0,
+            "effective_edges": 1,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "higher_order -> self_model",
+            "mode": "effective",
+            "structural_edges": 8,
+            "hops": 0,
+            "effective_edges": 2,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "self_model -> planning",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "planning -> action",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "action -> interoception",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          }
+        ],
+        "links_present": 2,
+        "links_total": 7,
+        "closed": false,
+        "ring_enrichment": 0.0,
+        "null_enrichment": 0.0,
+        "enrichment_z": 0.0,
+        "null_mean_links_present": 1.171,
+        "null_spread": 0.764,
+        "z": 1.085,
+        "nulls": 199,
+        "skipped": "",
+        "verdict": "5 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.00)"
+      },
+      "seconds": 6.9
+    },
+    "inference": {
+      "effective": {
+        "condition": "inference",
+        "grade": "predictive",
+        "licenses": "that one cell's past helps predict another's future",
+        "frames": 5415,
+        "edges_measured": 210,
+        "edges_surviving_null": 121,
+        "surviving_share": 0.5762,
+        "mean_weight_surviving": 0.30334,
+        "skipped": ""
+      },
+      "closure": {
+        "condition": "inference",
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "mode": "effective",
+            "structural_edges": 14,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "affect -> workspace",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "mode": "effective",
+            "structural_edges": 9,
+            "hops": 0,
+            "effective_edges": 1,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "higher_order -> self_model",
+            "mode": "effective",
+            "structural_edges": 8,
+            "hops": 0,
+            "effective_edges": 2,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "self_model -> planning",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "planning -> action",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "action -> interoception",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          }
+        ],
+        "links_present": 2,
+        "links_total": 7,
+        "closed": false,
+        "ring_enrichment": 0.0,
+        "null_enrichment": 0.0,
+        "enrichment_z": 0.0,
+        "null_mean_links_present": 1.146,
+        "null_spread": 0.798,
+        "z": 1.07,
+        "nulls": 199,
+        "skipped": "",
+        "verdict": "5 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.00)"
+      },
+      "seconds": 7.3
+    },
+    "recall": {
+      "effective": {
+        "condition": "recall",
+        "grade": "predictive",
+        "licenses": "that one cell's past helps predict another's future",
+        "frames": 5168,
+        "edges_measured": 209,
+        "edges_surviving_null": 130,
+        "surviving_share": 0.622,
+        "mean_weight_surviving": 0.27374,
+        "skipped": ""
+      },
+      "closure": {
+        "condition": "recall",
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "mode": "effective",
+            "structural_edges": 14,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "affect -> workspace",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "mode": "effective",
+            "structural_edges": 9,
+            "hops": 0,
+            "effective_edges": 1,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "higher_order -> self_model",
+            "mode": "effective",
+            "structural_edges": 8,
+            "hops": 0,
+            "effective_edges": 2,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "self_model -> planning",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "planning -> action",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "action -> interoception",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          }
+        ],
+        "links_present": 2,
+        "links_total": 7,
+        "closed": false,
+        "ring_enrichment": 0.0,
+        "null_enrichment": 0.0,
+        "enrichment_z": 0.0,
+        "null_mean_links_present": 1.342,
+        "null_spread": 0.779,
+        "z": 0.845,
+        "nulls": 199,
+        "skipped": "",
+        "verdict": "5 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.00)"
+      },
+      "seconds": 7.1
+    },
+    "self_report": {
+      "effective": {
+        "condition": "self_report",
+        "grade": "predictive",
+        "licenses": "that one cell's past helps predict another's future",
+        "frames": 5264,
+        "edges_measured": 209,
+        "edges_surviving_null": 134,
+        "surviving_share": 0.6411,
+        "mean_weight_surviving": 0.26107,
+        "skipped": ""
+      },
+      "closure": {
+        "condition": "self_report",
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "mode": "effective",
+            "structural_edges": 14,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "affect -> workspace",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "mode": "effective",
+            "structural_edges": 9,
+            "hops": 0,
+            "effective_edges": 1,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "higher_order -> self_model",
+            "mode": "effective",
+            "structural_edges": 8,
+            "hops": 0,
+            "effective_edges": 2,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "self_model -> planning",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "planning -> action",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "action -> interoception",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          }
+        ],
+        "links_present": 2,
+        "links_total": 7,
+        "closed": false,
+        "ring_enrichment": 0.0,
+        "null_enrichment": 0.0,
+        "enrichment_z": 0.0,
+        "null_mean_links_present": 1.342,
+        "null_spread": 0.779,
+        "z": 0.845,
+        "nulls": 199,
+        "skipped": "",
+        "verdict": "5 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.00)"
+      },
+      "seconds": 7.1
+    },
+    "task": {
+      "effective": {
+        "condition": "task",
+        "grade": "predictive",
+        "licenses": "that one cell's past helps predict another's future",
+        "frames": 5881,
+        "edges_measured": 220,
+        "edges_surviving_null": 130,
+        "surviving_share": 0.5909,
+        "mean_weight_surviving": 0.26328,
+        "skipped": ""
+      },
+      "closure": {
+        "condition": "task",
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "mode": "effective",
+            "structural_edges": 14,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "affect -> workspace",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "mode": "effective",
+            "structural_edges": 9,
+            "hops": 0,
+            "effective_edges": 1,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "higher_order -> self_model",
+            "mode": "effective",
+            "structural_edges": 8,
+            "hops": 0,
+            "effective_edges": 2,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "self_model -> planning",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "planning -> action",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "action -> interoception",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          }
+        ],
+        "links_present": 2,
+        "links_total": 7,
+        "closed": false,
+        "ring_enrichment": 0.0,
+        "null_enrichment": 0.0,
+        "enrichment_z": 0.0,
+        "null_mean_links_present": 1.302,
+        "null_spread": 0.879,
+        "z": 0.794,
+        "nulls": 199,
+        "skipped": "",
+        "verdict": "5 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.00)"
+      },
+      "seconds": 7.2
+    }
+  },
+  "reproducibility": {
+    "conditions": 6,
+    "closed_in": 0,
+    "link_recurrence": {
+      "action -> interoception": 0.0,
+      "affect -> workspace": 0.0,
+      "higher_order -> self_model": 1.0,
+      "interoception -> affect": 0.0,
+      "planning -> action": 0.0,
+      "self_model -> planning": 0.0,
+      "workspace -> higher_order": 1.0
+    },
+    "links_in_every_condition": [
+      "workspace -> higher_order",
+      "higher_order -> self_model"
+    ],
+    "links_in_none": [
+      "interoception -> affect",
+      "affect -> workspace",
+      "self_model -> planning",
+      "planning -> action",
+      "action -> interoception"
+    ],
+    "mean_z": 0.914,
+    "verdict": "2 of 7 links carry in every condition"
+  },
+  "structural": {
+    "condition": "structural",
+    "stations": {
+      "interoception": 403,
+      "affect": 481,
+      "workspace": 227,
+      "higher_order": 427,
+      "self_model": 113,
+      "planning": 892,
+      "action": 507
+    },
+    "links": [
+      {
+        "link": "interoception -> affect",
+        "mode": "flow",
+        "structural_edges": 1,
+        "hops": 1,
+        "effective_edges": 0,
+        "share": 0.61745,
+        "expected": 0.18172,
+        "enrichment": 3.398,
+        "present": true
+      },
+      {
+        "link": "affect -> workspace",
+        "mode": "flow",
+        "structural_edges": 1,
+        "hops": 1,
+        "effective_edges": 0,
+        "share": 0.05491,
+        "expected": 0.08836,
+        "enrichment": 0.621,
+        "present": false
+      },
+      {
+        "link": "workspace -> higher_order",
+        "mode": "flow",
+        "structural_edges": 1,
+        "hops": 1,
+        "effective_edges": 0,
+        "share": 0.51383,
+        "expected": 0.15126,
+        "enrichment": 3.397,
+        "present": true
+      },
+      {
+        "link": "higher_order -> self_model",
+        "mode": "flow",
+        "structural_edges": 1,
+        "hops": 1,
+        "effective_edges": 0,
+        "share": 0.18151,
+        "expected": 0.04308,
+        "enrichment": 4.213,
+        "present": true
+      },
+      {
+        "link": "self_model -> planning",
+        "mode": "flow",
+        "structural_edges": 1,
+        "hops": 1,
+        "effective_edges": 0,
+        "share": 0.40876,
+        "expected": 0.30371,
+        "enrichment": 1.346,
+        "present": false
+      },
+      {
+        "link": "planning -> action",
+        "mode": "flow",
+        "structural_edges": 1,
+        "hops": 1,
+        "effective_edges": 0,
+        "share": 0.06831,
+        "expected": 0.23494,
+        "enrichment": 0.291,
+        "present": false
+      },
+      {
+        "link": "action -> interoception",
+        "mode": "flow",
+        "structural_edges": 1,
+        "hops": 1,
+        "effective_edges": 0,
+        "share": 0.45236,
+        "expected": 0.15847,
+        "enrichment": 2.854,
+        "present": true
+      }
+    ],
+    "links_present": 4,
+    "links_total": 7,
+    "closed": false,
+    "ring_enrichment": 2.303,
+    "null_enrichment": 1.1337,
+    "enrichment_z": 3.159,
+    "null_mean_links_present": 1.809,
+    "null_spread": 0.811,
+    "z": 2.703,
+    "nulls": 199,
+    "skipped": "",
+    "verdict": "3 of 7 links carry nothing; the ring is no better than a random one (enrichment z 3.16)"
+  },
+  "seconds": 71.5
+}

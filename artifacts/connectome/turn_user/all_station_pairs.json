@@ -1,0 +1,342 @@
+{
+  "condition": "task",
+  "rows": [
+    {
+      "link": "self_model -> interoception",
+      "in_ring": false,
+      "gain": 0.9140043966304345,
+      "carries": true,
+      "pairs": 289,
+      "share": 0.986159169550173
+    },
+    {
+      "link": "self_model -> affect",
+      "in_ring": false,
+      "gain": 0.6393136323457651,
+      "carries": true,
+      "pairs": 442,
+      "share": 0.995475113122172
+    },
+    {
+      "link": "affect -> planning",
+      "in_ring": false,
+      "gain": 0.31270156543694233,
+      "carries": true,
+      "pairs": 1898,
+      "share": 0.9757639620653319
+    },
+    {
+      "link": "interoception -> affect",
+      "in_ring": true,
+      "gain": 0.028062623055402976,
+      "carries": true,
+      "pairs": 442,
+      "share": 0.8280542986425339
+    },
+    {
+      "link": "affect -> workspace",
+      "in_ring": true,
+      "gain": 0.009966454710682523,
+      "carries": true,
+      "pairs": 1066,
+      "share": 0.9803001876172608
+    },
+    {
+      "link": "workspace -> action",
+      "in_ring": false,
+      "gain": 0.009562792646976834,
+      "carries": true,
+      "pairs": 1189,
+      "share": 0.9554247266610597
+    },
+    {
+      "link": "workspace -> self_model",
+      "in_ring": false,
+      "gain": 0.009551043722174656,
+      "carries": true,
+      "pairs": 697,
+      "share": 0.9583931133428981
+    },
+    {
+      "link": "workspace -> higher_order",
+      "in_ring": true,
+      "gain": 0.00943232957324851,
+      "carries": true,
+      "pairs": 1722,
+      "share": 0.9001161440185831
+    },
+    {
+      "link": "affect -> higher_order",
+      "in_ring": false,
+      "gain": 0.008554950035942342,
+      "carries": true,
+      "pairs": 1092,
+      "share": 0.967948717948718
+    },
+    {
+      "link": "planning -> higher_order",
+      "in_ring": false,
+      "gain": 0.008530859428303507,
+      "carries": true,
+      "pairs": 3066,
+      "share": 0.8326810176125244
+    },
+    {
+      "link": "planning -> self_model",
+      "in_ring": false,
+      "gain": 0.008505630923719393,
+      "carries": true,
+      "pairs": 1241,
+      "share": 0.9621273166800967
+    },
+    {
+      "link": "planning -> action",
+      "in_ring": true,
+      "gain": 0.007981600152498491,
+      "carries": true,
+      "pairs": 2117,
+      "share": 0.9962210675484175
+    },
+    {
+      "link": "higher_order -> action",
+      "in_ring": false,
+      "gain": 0.007971696005537023,
+      "carries": true,
+      "pairs": 1218,
+      "share": 0.9548440065681445
+    },
+    {
+      "link": "planning -> workspace",
+      "in_ring": false,
+      "gain": 0.007826712430786704,
+      "carries": true,
+      "pairs": 2993,
+      "share": 0.8823922485800201
+    },
+    {
+      "link": "higher_order -> affect",
+      "in_ring": false,
+      "gain": 0.007355942528573606,
+      "carries": true,
+      "pairs": 1092,
+      "share": 0.706959706959707
+    },
+    {
+      "link": "workspace -> interoception",
+      "in_ring": false,
+      "gain": 0.0068121201031800475,
+      "carries": true,
+      "pairs": 697,
+      "share": 0.9569583931133429
+    },
+    {
+      "link": "affect -> self_model",
+      "in_ring": false,
+      "gain": 0.006556502895077674,
+      "carries": true,
+      "pairs": 442,
+      "share": 0.9864253393665159
+    },
+    {
+      "link": "interoception -> planning",
+      "in_ring": false,
+      "gain": 0.006442948134829555,
+      "carries": true,
+      "pairs": 1241,
+      "share": 0.934730056406124
+    },
+    {
+      "link": "higher_order -> workspace",
+      "in_ring": false,
+      "gain": 0.006272657585140798,
+      "carries": true,
+      "pairs": 1722,
+      "share": 0.9407665505226481
+    },
+    {
+      "link": "workspace -> planning",
+      "in_ring": false,
+      "gain": 0.006138213454744752,
+      "carries": true,
+      "pairs": 2993,
+      "share": 0.8810557968593384
+    },
+    {
+      "link": "workspace -> affect",
+      "in_ring": false,
+      "gain": 0.0061171197398220654,
+      "carries": true,
+      "pairs": 1066,
+      "share": 0.9108818011257036
+    },
+    {
+      "link": "interoception -> workspace",
+      "in_ring": false,
+      "gain": 0.006004315119016708,
+      "carries": true,
+      "pairs": 697,
+      "share": 0.9110473457675753
+    },
+    {
+      "link": "self_model -> higher_order",
+      "in_ring": false,
+      "gain": 0.005836523536313728,
+      "carries": true,
+      "pairs": 714,
+      "share": 0.9453781512605042
+    },
+    {
+      "link": "self_model -> planning",
+      "in_ring": true,
+      "gain": 0.00580286706085314,
+      "carries": true,
+      "pairs": 1241,
+      "share": 0.9323126510878323
+    },
+    {
+      "link": "action -> workspace",
+      "in_ring": false,
+      "gain": 0.005784115789263829,
+      "carries": true,
+      "pairs": 1189,
+      "share": 0.9377628259041211
+    },
+    {
+      "link": "planning -> affect",
+      "in_ring": false,
+      "gain": 0.0056236486913391615,
+      "carries": true,
+      "pairs": 1898,
+      "share": 0.8034773445732349
+    },
+    {
+      "link": "planning -> interoception",
+      "in_ring": false,
+      "gain": 0.005572867778707505,
+      "carries": true,
+      "pairs": 1241,
+      "share": 0.9452054794520548
+    },
+    {
+      "link": "affect -> action",
+      "in_ring": false,
+      "gain": 0.00541819096313019,
+      "carries": true,
+      "pairs": 754,
+      "share": 0.9429708222811671
+    },
+    {
+      "link": "action -> affect",
+      "in_ring": false,
+      "gain": 0.005081534313230715,
+      "carries": true,
+      "pairs": 754,
+      "share": 0.9960212201591512
+    },
+    {
+      "link": "higher_order -> self_model",
+      "in_ring": true,
+      "gain": 0.004556759192135177,
+      "carries": true,
+      "pairs": 714,
+      "share": 0.7969187675070029
+    },
+    {
+      "link": "interoception -> action",
+      "in_ring": false,
+      "gain": 0.0043531565709731814,
+      "carries": true,
+      "pairs": 493,
+      "share": 0.7302231237322515
+    },
+    {
+      "link": "action -> higher_order",
+      "in_ring": false,
+      "gain": 0.004266111194388883,
+      "carries": true,
+      "pairs": 1218,
+      "share": 0.9532019704433498
+    },
+    {
+      "link": "self_model -> workspace",
+      "in_ring": false,
+      "gain": 0.0037630185587788217,
+      "carries": true,
+      "pairs": 697,
+      "share": 0.6197991391678622
+    },
+    {
+      "link": "higher_order -> interoception",
+      "in_ring": false,
+      "gain": 0.0035365823065429706,
+      "carries": true,
+      "pairs": 714,
+      "share": 0.8501400560224089
+    },
+    {
+      "link": "self_model -> action",
+      "in_ring": false,
+      "gain": 0.003521767882878793,
+      "carries": true,
+      "pairs": 493,
+      "share": 0.9918864097363083
+    },
+    {
+      "link": "interoception -> higher_order",
+      "in_ring": false,
+      "gain": 0.0034267940678351415,
+      "carries": true,
+      "pairs": 714,
+      "share": 0.8991596638655462
+    },
+    {
+      "link": "action -> interoception",
+      "in_ring": true,
+      "gain": 0.003328657709697723,
+      "carries": true,
+      "pairs": 493,
+      "share": 0.8864097363083164
+    },
+    {
+      "link": "action -> self_model",
+      "in_ring": false,
+      "gain": 0.0028222049043730105,
+      "carries": true,
+      "pairs": 493,
+      "share": 0.7910750507099391
+    },
+    {
+      "link": "higher_order -> planning",
+      "in_ring": false,
+      "gain": 0.002803545951934898,
+      "carries": true,
+      "pairs": 3066,
+      "share": 0.7609262883235486
+    },
+    {
+      "link": "action -> planning",
+      "in_ring": false,
+      "gain": 0.0023364790482133272,
+      "carries": true,
+      "pairs": 2117,
+      "share": 0.9461502125649504
+    },
+    {
+      "link": "affect -> interoception",
+      "in_ring": false,
+      "gain": 0.0019286917430947584,
+      "carries": true,
+      "pairs": 442,
+      "share": 0.9004524886877828
+    },
+    {
+      "link": "interoception -> self_model",
+      "in_ring": false,
+      "gain": 0.001584266981962128,
+      "carries": true,
+      "pairs": 289,
+      "share": 0.8062283737024222
+    }
+  ],
+  "carrying": 42
+}

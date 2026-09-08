@@ -2049,7 +2049,13 @@ def test_a_recording_the_stations_did_not_fire_in_is_refused():
 def test_every_lesion_prediction_says_what_survives_and_what_does_not():
     from core.connectome.coalition import LESION_PREDICTIONS
 
-    assert len(LESION_PREDICTIONS) == 3
+    # Three from the theory, three from what the first run of them found. The
+    # list only grows: a prediction is deleted when the mechanism it describes
+    # is gone, never because it came out wrong.
+    assert len(LESION_PREDICTIONS) >= 6
+    assert len({prediction.name for prediction in LESION_PREDICTIONS}) == len(
+        LESION_PREDICTIONS
+    )
     for prediction in LESION_PREDICTIONS:
         assert prediction.predicted_intact
         assert prediction.predicted_lost
@@ -2269,3 +2275,313 @@ def test_a_promotion_never_fails_because_the_shape_could_not_be_measured():
         )
     assert "the probe paid" in receipt.evidence
     assert "anatomy:" in receipt.evidence
+
+
+# ---------------------------------------------------------------------------
+# The stations are the phases that run, not the modules that share their names
+# ---------------------------------------------------------------------------
+
+
+def _kernel_phase_names() -> list[str]:
+    """Every phase the kernel actually assembles, in order."""
+    import tempfile
+
+    from core.kernel.aura_kernel import AuraKernel, KernelConfig
+    from core.state.state_repository import StateRepository
+
+    with tempfile.TemporaryDirectory() as raw:
+        vault = StateRepository(db_path=f"{raw}/stations.db", is_vault_owner=True)
+        kernel = AuraKernel(config=KernelConfig(), vault=vault)
+        kernel._setup_phases()
+        return [type(phase).__name__ for phase in kernel._phases]
+
+
+@pytest.mark.slow
+def test_every_phase_that_runs_a_turn_is_placed_in_the_ring_or_outside_it():
+    """A phase missing from the table and one deliberately outside it differ.
+
+    The station table was written from module names and none of them ran. Nought
+    of 129 workspace cells and nought of 272 action cells fired in a recording of
+    240 turns, so the coalition test reported an architecture and measured a
+    dictionary. This is the check that stops that recurring: the kernel's own
+    phase list is the ground truth, and every phase in it has to be placed —
+    either at a station or explicitly at none, with the reason in the comment.
+    """
+    from core.connectome.coalition import COALITION_ORDER, PHASE_STATIONS
+
+    running = _kernel_phase_names()
+    unplaced = [name for name in running if name not in PHASE_STATIONS]
+    assert not unplaced, (
+        f"these phases run a turn and the station table does not mention them: {unplaced}"
+    )
+    stale = [name for name in PHASE_STATIONS if name not in running]
+    assert not stale, f"the table places phases the kernel no longer runs: {stale}"
+    placed = {station for station in PHASE_STATIONS.values() if station}
+    assert placed == set(COALITION_ORDER), (
+        f"the ring wants {sorted(COALITION_ORDER)} and the phases supply {sorted(placed)}"
+    )
+
+
+@pytest.mark.slow
+def test_each_station_claims_the_phase_assigned_to_it():
+    """The patterns have to reach the phase they were written for.
+
+    Placing ``UnitaryResponsePhase`` at ``action`` in one dictionary and failing
+    to write a pattern that matches its module in the other is the same defect as
+    before, one indirection along.
+    """
+    from core.connectome.coalition import PHASE_STATIONS, assign_stations
+    from core.connectome.volume import VolumeReconstructor
+
+    reconstructor = VolumeReconstructor(Path(__file__).resolve().parents[1])
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    stations = assign_stations(snapshot)
+    where: dict[str, str] = {}
+    for name, station in stations.items():
+        for uid in station.cells:
+            unit = snapshot.units.get(uid)
+            if unit is not None:
+                where[f"{unit.neuropil}:{unit.name}"] = name
+
+    missing: list[str] = []
+    for phase, expected in PHASE_STATIONS.items():
+        if not expected:
+            continue
+        found = {
+            station
+            for key, station in where.items()
+            if key.rsplit(":", 1)[-1].split(".")[0] == phase
+            or f":{phase}." in key
+            or key.endswith(f":{phase}")
+        }
+        if expected not in found:
+            missing.append(f"{phase} wanted {expected}, patterns gave {sorted(found) or 'nothing'}")
+    assert not missing, "\n".join(missing)
+
+
+# ---------------------------------------------------------------------------
+# do(i): the cut is exact, reversible, and scored against a comparable cut
+# ---------------------------------------------------------------------------
+
+
+def test_a_lesion_puts_the_cell_back_even_when_the_body_raises():
+    """A cut that does not heal turns one experiment into every later one."""
+    from core.connectome import intervene
+    from core.connectome.volume import VolumeReconstructor
+
+    before = VolumeReconstructor.build
+    try:
+        with intervene.silence("core.connectome.volume:VolumeReconstructor.build"):
+            assert VolumeReconstructor.build is not before
+            raise KeyboardInterrupt
+    except KeyboardInterrupt:
+        pass
+    assert VolumeReconstructor.build is before
+
+
+def test_a_silenced_cell_absorbs_its_calls_and_says_how_many():
+    from core.connectome import intervene
+
+    with intervene.silence("core.connectome.types:CellClass"):
+        pass  # a class is callable; the point is the count below
+
+    class _Holder:
+        @staticmethod
+        def work(value):
+            return value * 2
+
+    import core.connectome.types as types_module
+
+    types_module._probe_holder = _Holder  # type: ignore[attr-defined]
+    try:
+        with intervene.silence("core.connectome.types:_probe_holder.work", returns=0):
+            assert types_module._probe_holder.work(21) == 0
+            assert types_module._probe_holder.work(3) == 0
+        assert types_module._probe_holder.work(21) == 42
+        assert intervene.silenced_calls("core.connectome.types:_probe_holder.work") == 2
+    finally:
+        del types_module._probe_holder
+
+
+def test_an_async_cell_is_replaced_by_something_awaitable():
+    """Handing a coroutine's caller a plain value measures the crash, not the cut."""
+    import asyncio
+
+    from core.connectome import intervene
+    import core.connectome.types as types_module
+
+    class _Holder:
+        @staticmethod
+        async def work():
+            return "real"
+
+    types_module._probe_async = _Holder  # type: ignore[attr-defined]
+    try:
+        with intervene.silence("core.connectome.types:_probe_async.work", returns="cut"):
+            assert asyncio.run(types_module._probe_async.work()) == "cut"
+        assert asyncio.run(types_module._probe_async.work()) == "real"
+    finally:
+        del types_module._probe_async
+
+
+def test_a_lesion_refuses_what_it_cannot_cut():
+    from core.connectome import intervene
+
+    for uid in (
+        "core.connectome.types",
+        "core.connectome.types:NotThere",
+        "no.such.module:thing",
+        "core.connectome.types:CORTICAL_EI_RATIO",
+    ):
+        with pytest.raises(intervene.LesionRefusedError):
+            with intervene.silence(uid):
+                pass
+
+
+def test_the_control_is_matched_on_both_degrees():
+    from core.connectome.intervene import degree_matched_control
+    from core.connectome.types import (
+        CellClass,
+        Connection,
+        ConnectomeSnapshot,
+        EdgeKind,
+        Unit,
+    )
+
+    units = {
+        name: Unit(uid=name, name=name, neuropil="m", region="r", cell_class=CellClass.EXCITATORY)
+        for name in ("hub", "twin", "leaf", "a", "b", "c")
+    }
+    connections = {}
+    for pre, post in (
+        ("a", "hub"), ("b", "hub"), ("c", "hub"), ("hub", "leaf"),
+        ("a", "twin"), ("b", "twin"), ("c", "twin"), ("twin", "leaf"),
+    ):
+        connections[(pre, post, EdgeKind.DRIVE)] = Connection(
+            pre=pre, post=post, kind=EdgeKind.DRIVE, sign=1.0, contacts=1
+        )
+    snapshot = ConnectomeSnapshot(
+        version=1, units=units, connections=connections, neuropils={"m": tuple(units)}
+    )
+    assert degree_matched_control(snapshot, "hub") == "twin"
+
+
+def test_an_intervention_reports_a_lesion_that_never_bit():
+    """A cell nothing called is not a lesion, and looks exactly like a null one."""
+    from core.connectome.intervene import run_intervention
+    import core.connectome.types as types_module
+
+    class _Holder:
+        @staticmethod
+        def never_called():
+            return 1
+
+    types_module._probe_unused = _Holder  # type: ignore[attr-defined]
+    try:
+        report = run_intervention(
+            lambda: {"score": 1.0},
+            "core.connectome.types:_probe_unused.never_called",
+            control="core.connectome.types:_probe_unused.never_called",
+            repeats=2,
+        )
+        assert not report.bit
+        assert "never called" in report.verdict()
+    finally:
+        del types_module._probe_unused
+
+
+def test_a_registered_lesion_prediction_names_a_readout_that_exists():
+    """A prediction with no readout is a design, not an experiment.
+
+    Three of the six say what should be lost and were run; this pins that a
+    prediction claiming an available readout has one in the runner, on both
+    sides, so the claim and the machinery cannot drift apart.
+    """
+    import importlib.util
+
+    from core.connectome.coalition import LESION_PREDICTIONS
+
+    spec = importlib.util.spec_from_file_location(
+        "aura_run_lesions", Path(__file__).resolve().parents[1] / "tools" / "run_lesions.py"
+    )
+    assert spec is not None and spec.loader is not None
+    runner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runner)
+
+    for prediction in LESION_PREDICTIONS:
+        if not prediction.readout_available:
+            continue
+        assert prediction.name in runner.INTACT_READOUTS, prediction.name
+        lost = set(runner.LOST_READOUTS.get(prediction.name, ())) | set(
+            runner.RISING_READOUTS.get(prediction.name, ())
+        )
+        assert lost, f"{prediction.name} claims a readout and names nothing to lose"
+        assert prediction.station in runner.STATION_PHASES, prediction.station
+
+
+# ---------------------------------------------------------------------------
+# The mesh, as a layer of the same graph
+# ---------------------------------------------------------------------------
+
+
+def test_what_the_code_injects_can_reach_what_the_code_reads():
+    """The two ends of the mesh the rest of the system touches must connect.
+
+    ``EmbodiedInteroception._push_to_mesh`` injects into the sensory tier and
+    ``ConsciousnessBridge._integration_tick`` reads the executive projection. For
+    a long time nothing injected could arrive: inter-column probability decayed
+    as exp(-|i - j| * 0.15) and a tier boundary is where that distance is
+    largest, so on eight seeds nought of sixteen executive columns was reachable
+    from any sensory column, 7 to 16 columns were isolated, and the mesh came
+    apart into 13 to 25 pieces.
+
+    Several seeds, because the topology is a random draw and one draw is one
+    draw.
+    """
+    import numpy as np
+
+    from core.connectome.neural import build_mesh_layer, signal_can_cross
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    reached = []
+    isolated = []
+    for seed in range(4):
+        mesh = NeuralMesh(MeshConfig())
+        mesh._rng = np.random.default_rng(seed=seed)
+        mesh._inter_W = mesh._build_inter_column_weights() + mesh._build_feedforward_weights()
+        mesh._build_feedback_weights()
+        crossing = signal_can_cross(build_mesh_layer(mesh))
+        reached.append(crossing["executive_share_reached"])
+        isolated.append(crossing["isolated_columns"])
+    assert min(reached) > 0.5, (
+        f"a signal injected into the sensory tier reaches {min(reached):.0%} of the "
+        "executive columns on the worst of four draws"
+    )
+    assert max(isolated) <= 8, f"{max(isolated)} columns are wired to nothing"
+
+
+def test_the_mesh_seam_names_the_cells_that_touch_it():
+    """A mesh method called on something that is not a mesh is not a seam edge.
+
+    ``get_field_state`` is also a method of the unified field. Matching on the
+    method name alone attributed its call sites to the mesh, which is the merge
+    error this package already paid for once in the call graph.
+    """
+    from core.connectome.neural import SEAM_CALLS, _find_callers, build_mesh_layer, join_to_code
+    from core.connectome.volume import VolumeReconstructor
+
+    reconstructor = VolumeReconstructor(Path(__file__).resolve().parents[1])
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    callers = _find_callers(snapshot, SEAM_CALLS)
+    assert callers["inject_sensory"], "nothing drives the mesh"
+    assert callers["get_executive_projection"], "nothing reads the mesh"
+    for uid in callers["get_field_state"]:
+        assert "unified_field" not in snapshot.units[uid].neuropil
+
+    layer = join_to_code(build_mesh_layer(), snapshot)
+    summary = layer.summary()
+    assert summary["code_cells_driving"] >= 1
+    assert summary["code_cells_driven"] >= 1
+    assert summary["columns"] == 64

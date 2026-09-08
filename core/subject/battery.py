@@ -163,13 +163,22 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
         round(float(phi.get("phi_do", 0.0)), 4),
         f"> {THRESHOLDS['phi_do']}",
         cheapest_cut=phi.get("best_cut"),
+        dearest_cuts=phi.get("dearest_cuts"),
+        surrogate_floor=nulls.get("surrogate_floor"),
+        above_surrogate_floor=nulls.get("phi_above_floor"),
     ))
+    # The comparison the absolute threshold cannot make. A minimum over 511
+    # noisy estimates is biased downward by the width of its own search, and the
+    # matched surrogates — same dimensionality, same cuts, same estimator, the
+    # coupling removed — are the only thing that measures how far.
     add(_c(
         "partition_beats_nulls", "18",
-        "irreducibility exceeds every null architecture and surrogate",
+        "irreducibility exceeds every null architecture and matched surrogate",
         bool(nulls.get("phi_beats_all")),
         nulls.get("phi_table", {}),
         "above all nulls",
+        surrogate_floor=nulls.get("surrogate_floor"),
+        margin_over_floor=nulls.get("phi_above_floor"),
     ))
     add(_c(
         "differentiation", "18",
@@ -212,13 +221,21 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
         f">= {THRESHOLDS['spread']}",
         per_source=pci.get("spread_by_source", {}),
     ))
+    # A response matrix of all zeros beats a null of all zeros, and the first
+    # version of this line passed on exactly that. Complexity is only a
+    # question about a response that happened, so the matrix has to be
+    # non-degenerate before its structure is worth scoring.
+    reached = [
+        key for key, value in (pci.get("spread_by_source") or {}).items() if value > 0.0
+    ]
     add(_c(
         "perturbational_complexity", "26",
         "the response is structured, not local and not a broadcast",
-        bool(pci.get("beats_null")),
+        bool(pci.get("beats_null")) and len(reached) >= 2 and float(pci.get("mean_pci", 0.0)) > 0.0,
         round(float(pci.get("mean_pci", 0.0)), 4),
-        "above the 99th percentile of matched nulls",
+        "a response that reached somewhere, above the 99th percentile of matched nulls",
         null=pci.get("null_q99"),
+        sources_that_reached_anything=reached,
     ))
     add(_c(
         "synergy", "27",
@@ -293,12 +310,14 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
         lesion.get("deltas", {}),
         "irreducibility, complexity and synergy all fall",
     ))
+    # Rescue only means something after a deficit. Restoring a channel whose
+    # removal changed nothing is not evidence about the channel.
     add(_c(
         "rescue", "40",
         "restoring the cut restores them",
-        bool(lesion.get("rescued")),
+        bool(lesion.get("deficit")) and bool(lesion.get("rescued_ok")),
         lesion.get("rescue", {}),
-        "measures return towards the intact values",
+        "a deficit first, then the measures return towards the intact values",
     ))
     add(_c(
         "beats_every_null", "41",

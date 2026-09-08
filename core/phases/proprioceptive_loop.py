@@ -66,6 +66,7 @@ class ProprioceptiveLoop(BasePhase):
     """
     
     def __init__(self, container: Any):
+        self._thermal_probe: Any = None
         self.container = container
         self._last_thought_time: float = 0.0
         self._last_perception_time: float = 0.0
@@ -78,6 +79,125 @@ class ProprioceptiveLoop(BasePhase):
         for channel in _PROPRIOCEPTIVE_CHANNELS:
             soma.hardware.pop(f"{channel}_degraded", None)
             soma.hardware.pop(f"{channel}_error", None)
+
+    def _push_perceptual_frame(self, state: Any) -> None:
+        """Give the substrate the frame it was built to take.
+
+        Every value is a reading the phase already has. Nothing is invented for
+        the frame, and a key with no reading is left out rather than filled
+        with a plausible number, because the substrate treats an absent key as
+        zero and that is the honest answer for a channel that reported nothing.
+        """
+        try:
+            from core.runtime.service_registry import get_runtime_service
+
+            substrate = get_runtime_service("liquid_substrate", default=None) or get_runtime_service(
+                "conscious_substrate", default=None
+            )
+            if substrate is None or not hasattr(substrate, "inject_perceptual_frame"):
+                return
+            hardware = getattr(state.soma, "hardware", {}) or {}
+            percepts = list(getattr(state.world, "recent_percepts", []) or [])
+            frame = {
+                "cpu_percent": float(hardware.get("cpu_usage", 0.0) or 0.0),
+                "memory_percent": float(hardware.get("ram_usage", hardware.get("vram_usage", 0.0)) or 0.0),
+                "thermal": float(hardware.get("temperature", 0.0) or 0.0) / 100.0,
+                "valence": float(getattr(state.affect, "valence", 0.0) or 0.0),
+                "arousal": float(getattr(state.affect, "arousal", 0.0) or 0.0),
+                "user_presence": 1.0 if percepts else 0.0,
+                "screen_changed": 1.0 if any(
+                    str(item.get("source", "")) == "screen" for item in percepts[-4:] if isinstance(item, dict)
+                ) else 0.0,
+            }
+            reading = state.response_modifiers.get("ontogenetic_novelty")
+            if reading is not None:
+                frame["novelty"] = float(reading)
+            substrate.inject_perceptual_frame(frame)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "proprioceptive_loop",
+                exc,
+                severity="debug",
+                action="the substrate did not receive this tick's perceptual frame",
+            )
+
+    def _report_hardware_stress(self, state: Any) -> None:
+        """Tell the homeostatic coupling what the body is doing, every tick.
+
+        `_apply_hardware_resonance` throttles thinking depth, creativity and
+        temperature when the host is stressed, and expires its reading after
+        thirty seconds if nothing refreshes it. The only reporter was the
+        integrity monitor, on its own cadence and only above its own alarm
+        thresholds, so between alarms the resonance was expired and the body
+        had no say in how hard she was allowed to think. The phase that takes
+        the readings is the one that should be reporting them.
+
+        The thermal level comes from the substrate monitor, the same source the
+        integrity monitor uses, so there are no new bands here.
+        """
+        try:
+            from core.container import ServiceContainer
+
+            coupling = ServiceContainer.get("homeostatic_coupling", default=None)
+            if coupling is None or not hasattr(coupling, "process_resource_stress"):
+                return
+            hardware = getattr(state.soma, "hardware", {}) or {}
+            level = 0
+            try:
+                from core.resilience.substrate_monitor import SubstrateMonitor
+
+                if self._thermal_probe is None:
+                    self._thermal_probe = SubstrateMonitor()
+                level = int(self._thermal_probe.thermal()[0])
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError):
+                level = 0
+            # Megabytes, because that is what the consumer compares against —
+            # it throttles above 3500 — and the hardware dict carries percents.
+            # Passing a percent there is a threshold that can never be crossed.
+            coupling.process_resource_stress(
+                cpu_load=float(hardware.get("cpu_usage", 0.0) or 0.0),
+                mem_mb=self._process_megabytes(),
+                thermal_level=level,
+            )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "proprioceptive_loop",
+                exc,
+                severity="debug",
+                action="hardware stress was not reported to the homeostatic coupling",
+            )
+
+    @staticmethod
+    def _process_megabytes() -> float:
+        """Resident set size in MB, or zero when it cannot be read."""
+        try:
+            import psutil
+
+            return float(psutil.Process().memory_info().rss) / (1024.0 * 1024.0)
+        except (ImportError, AttributeError, RuntimeError, OSError, ValueError):
+            return 0.0
+
+    def _feel_body_pressure(self, state: Any) -> None:
+        """Hold the nociceptive strain channel at the body's current pressure.
+
+        Total, and silent when the reading is unavailable: an absent body is
+        not a painless one, but guessing a level for it would be worse than
+        leaving the channel to decay.
+        """
+        try:
+            from core.affect.nociception import DamageChannel, get_nociception_engine
+            from core.being.aura_now import BodyState
+
+            pressure = float(BodyState.from_aura_state(state).total_pressure)
+            if pressure > 0.0:
+                get_nociception_engine().hold(DamageChannel.RESOURCE_EXHAUSTION, pressure)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "proprioceptive_loop",
+                exc,
+                severity="debug",
+                action="the body's load was not reported to nociception this tick",
+            )
 
     def _mark_channel_degraded(
         self,
@@ -338,6 +458,24 @@ class ProprioceptiveLoop(BasePhase):
                 )
                 logger.debug("Proprioception homeostatic probe failed: %s", e)
             
+        # The body's own load is a strain, and nothing was reporting it as one.
+        # Nociception had a resource-exhaustion channel that only the immune
+        # system and the degradation sink ever wrote to, so a machine running
+        # hot and full felt nothing about it and the whole interoception ->
+        # affect path carried a constant. `BodyState.total_pressure` is the
+        # runtime's own calibrated reading, so no new threshold is invented
+        # here.
+        self._feel_body_pressure(new_state)
+        self._report_hardware_stress(new_state)
+
+        # And push the same reading into the substrate's own dimensions.
+        # `inject_perceptual_frame` maps telemetry, user state, screen and audio
+        # into fixed bands of the continuous substrate, and the only thing in
+        # the tree with that name is a different class in the language layer, so
+        # this one had no caller: perception and the body reached recurrent
+        # cognition through nothing at all.
+        self._push_perceptual_frame(new_state)
+
         soma.updated_at = time.time()
 
         # ── 4b. [RUBICON] Motor Cortex Awareness ───────────────

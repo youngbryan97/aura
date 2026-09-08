@@ -41,6 +41,7 @@ SECTIONS = (
     "delays",
     "criticality",
     "ground_truth",
+    "neural",
 )
 
 
@@ -214,6 +215,22 @@ def main() -> int:
             )
             report["prefetch"] = evaluate_prefetch(trace, proofread, hops=1).as_json()
             print("prefetch done", flush=True)
+
+    if "neural" in wanted:
+        from core.connectome.neural import (
+            build_mesh_layer,
+            compare_draws,
+            join_to_code,
+            signal_can_cross,
+        )
+
+        layer = join_to_code(build_mesh_layer(), snapshot)
+        report["neural"] = {
+            "layer": layer.summary(),
+            "crossing": signal_can_cross(layer),
+            "draws": compare_draws(4),
+        }
+        print("neural done", flush=True)
 
     if "spine" in wanted:
         from core.connectome.spine import analyse_spine, descending_directness

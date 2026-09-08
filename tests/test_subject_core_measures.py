@@ -207,28 +207,43 @@ def build_recording_from(matrix: np.ndarray):
     )
 
 
-def test_intrinsic_gain_is_zero_when_the_state_is_a_function_of_the_input():
-    rows = 600
+def test_intrinsic_gain_is_small_when_the_state_is_a_function_of_the_input():
+    """Nothing carries forward, so the state says nothing the input does not."""
+    rows = 800
     rng = np.random.default_rng(0)
     drive = rng.normal(size=(rows, 3))
     reactive = np.hstack([np.tanh(drive), np.tanh(drive * 2), np.tanh(drive * 0.5)])
-    recording = build_recording_from(reactive)
-    recording = _with_env(recording, drive)
-    report = intrinsic_gain(recording)
-    assert report.gain < 0.5
+    recording = _with_env(build_recording_from(reactive), drive)
+    assert intrinsic_gain(recording).gain < 0.3
 
 
 def test_intrinsic_gain_is_large_when_the_state_carries_its_own_history():
-    rows = 600
+    """A state whose next move follows from where it is, not from the input.
+
+    The measure predicts the change rather than the level, so the case that
+    should score high is one where the change is a function of the state — an
+    oscillator, not a leaky integrator of its input. A leaky integrator scores
+    low here and should: almost all of its movement is the new input arriving,
+    which is exactly what the environment column already says.
+    """
+    rows = 800
     rng = np.random.default_rng(0)
-    drive = rng.normal(size=(rows, 3))
+    drive = rng.normal(scale=0.05, size=(rows, 3))
     state = np.zeros((rows, 9))
+    state[0] = 1.0
+    angle = 0.4
+    rotate = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
     for index in range(1, rows):
-        state[index] = 0.9 * state[index - 1] + 0.1 * np.tile(drive[index], 3)
+        previous = state[index - 1].reshape(-1, 2) if state.shape[1] % 2 == 0 else None
+        del previous
+        pair = state[index - 1][:2] @ rotate.T
+        state[index] = np.concatenate([pair, state[index - 1][2:] * 0.99 + 0.01 * pair[0]])
+        state[index, 6:] += drive[index]
     recording = _with_env(build_recording_from(state), drive)
     report = intrinsic_gain(recording)
     assert report.gain > 0.5
     assert report.gain_over_shuffle > 0.0
+    assert report.passes
 
 
 def _with_env(recording, env):
@@ -389,3 +404,60 @@ def test_one_way_and_prompt_only_have_no_reentry():
     for name in ("one_way", "prompt_only"):
         report = analyse_graph(list(DOMAINS), toy_edges(architecture(name, seed=2), trials=8, seed=2))
         assert not report.every_node_reenters, name
+
+
+# ── the recording on disk ────────────────────────────────────────────────
+
+
+def test_a_saved_recording_keeps_its_own_column_layout(tmp_path):
+    """A recording outlives the schema that produced it.
+
+    Rebuilding the domain slices from today's schema reads the wrong columns
+    for every domain after the one that changed, or indexes past the end, which
+    is the lucky case because it says so.
+    """
+    from core.subject.recording import Recording, load_recording, slices_from_columns
+
+    columns = ("P.a", "P.b", "I.a", "A.a", "A.b", "A.c")
+    layout = slices_from_columns(columns)
+    assert layout["P"] == slice(0, 2)
+    assert layout["I"] == slice(2, 3)
+    assert layout["A"] == slice(3, 6)
+    assert layout["N"].stop - layout["N"].start == 0
+
+    rows = 20
+    saved = Recording(
+        x=np.arange(rows * len(columns), dtype=np.float64).reshape(rows, len(columns)),
+        conditions=tuple("x" for _ in range(rows)),
+        tags=tuple("t" for _ in range(rows)),
+        times=np.arange(rows, dtype=np.float64),
+        env=np.zeros((rows, 1)),
+        env_names=("clock",),
+        columns=columns,
+        slices=layout,
+        notes={},
+    )
+    saved.save(tmp_path)
+    loaded = load_recording(tmp_path)
+    assert loaded.columns == columns
+    assert loaded.slices == layout
+    assert np.array_equal(loaded.domain("A"), saved.domain("A"))
+
+
+def test_turn_sampling_takes_one_row_per_cycle():
+    from core.subject.recording import Recording
+
+    tags = tuple(["open", "phase", "phase", "ontogeny"] * 5)
+    rows = len(tags)
+    recording = Recording(
+        x=np.arange(rows * 3, dtype=np.float64).reshape(rows, 3),
+        conditions=tuple("x" for _ in range(rows)),
+        tags=tags,
+        times=np.arange(rows, dtype=np.float64),
+        env=np.zeros((rows, 1)),
+        env_names=("clock",),
+        columns=("P.a", "P.b", "P.c"),
+        slices={key: slice(0, 3) for key in DOMAINS},
+        notes={},
+    )
+    assert recording.by_turn().frames == 5

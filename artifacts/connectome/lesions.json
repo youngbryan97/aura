@@ -1,0 +1,848 @@
+{
+  "predictions": [
+    {
+      "lesion": "higher_order_feedback",
+      "station": "higher_order",
+      "predicted_intact": "raw competence on tasks with a checkable answer",
+      "predicted_lost": "calibrated self-report; confidence stops tracking correctness",
+      "readout": "a calibration curve over tasks whose answers are known",
+      "readout_available": true,
+      "target": [
+        "core.phases.phi_consciousness:PhiConsciousnessPhase.execute",
+        "core.phases.consciousness_phase:ConsciousnessPhase.execute",
+        "core.kernel.self_review:SelfReviewPhase.execute"
+      ],
+      "control": [
+        "core.phases.social_context_phase:SocialContextPhase.execute",
+        "core.phases.conversational_dynamics_phase:ConversationalDynamicsPhase.execute",
+        "core.phases.memory_retrieval:MemoryRetrievalPhase.execute"
+      ],
+      "target_module_degree": 123,
+      "control_module_degree": 114,
+      "calls_suppressed": 108,
+      "control_calls_suppressed": 108,
+      "bit": true,
+      "scored": [
+        {
+          "readout": "phases_ran",
+          "side": "intact",
+          "usable": true,
+          "why_not": "",
+          "baseline": 29.0,
+          "lesion_effect": 0.0,
+          "control_effect": 0.0,
+          "relative": 0.0,
+          "beats_control": false,
+          "held": true
+        },
+        {
+          "readout": "cognition.working_memory",
+          "side": "intact",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.833333,
+          "lesion_effect": 0.0,
+          "control_effect": 0.0,
+          "relative": 0.0,
+          "beats_control": false,
+          "held": true
+        },
+        {
+          "readout": "cognition.fragmentation_score",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.140722,
+          "lesion_effect": -0.003158,
+          "control_effect": -0.003739,
+          "relative": -0.0224,
+          "beats_control": false,
+          "held": false
+        },
+        {
+          "readout": "spread:cognition.fragmentation_score",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.019417,
+          "lesion_effect": -0.006734,
+          "control_effect": -0.007506,
+          "relative": -0.3468,
+          "beats_control": false,
+          "held": false
+        }
+      ],
+      "verdict": "not attributable: every readout for what should be lost moved at least as far under a control lesion, so none of them is specific to this station",
+      "also_moved": [
+        {
+          "readout": "cognition.selfhood_reading",
+          "baseline": 5.0,
+          "lesion_effect": -5.0,
+          "control_effect": 0.0,
+          "relative": -1.0
+        },
+        {
+          "readout": "gap:cognition.pending_intents",
+          "baseline": 0.166667,
+          "lesion_effect": -0.166667,
+          "control_effect": 0.0,
+          "relative": -1.0
+        },
+        {
+          "readout": "spread:cognition.pending_intents",
+          "baseline": 0.372678,
+          "lesion_effect": -0.372678,
+          "control_effect": 0.0,
+          "relative": -1.0
+        },
+        {
+          "readout": "spread:soma.updated_at",
+          "baseline": 0.046189,
+          "lesion_effect": -0.017595,
+          "control_effect": -0.016211,
+          "relative": -0.3809
+        },
+        {
+          "readout": "gap:identity.last_evolution_timestamp",
+          "baseline": 0.151128,
+          "lesion_effect": -0.05266,
+          "control_effect": -0.047308,
+          "relative": -0.3484
+        },
+        {
+          "readout": "gap:identity.formation_timestamp",
+          "baseline": 0.151128,
+          "lesion_effect": -0.05266,
+          "control_effect": -0.047308,
+          "relative": -0.3484
+        },
+        {
+          "readout": "gap:affect.updated_at",
+          "baseline": 0.151128,
+          "lesion_effect": -0.052659,
+          "control_effect": -0.047308,
+          "relative": -0.3484
+        },
+        {
+          "readout": "gap:cognition.last_thought_at",
+          "baseline": 0.151128,
+          "lesion_effect": -0.052659,
+          "control_effect": -0.047307,
+          "relative": -0.3484
+        }
+      ]
+    },
+    {
+      "lesion": "workspace_broadcast",
+      "station": "workspace",
+      "predicted_intact": "each local processor's own output",
+      "predicted_lost": "cross-domain availability; one domain stops using another's result",
+      "readout": "a task needing two domains, scored against each domain alone",
+      "readout_available": true,
+      "target": [
+        "core.phases.cognitive_integration_phase:CognitiveIntegrationPhase.execute",
+        "core.phases.unity_binding:UnityBindingPhase.execute"
+      ],
+      "control": [
+        "core.phases.inference_phase:InferencePhase.execute",
+        "core.phases.memory_consolidation:MemoryConsolidationPhase.execute"
+      ],
+      "target_module_degree": 64,
+      "control_module_degree": 43,
+      "calls_suppressed": 72,
+      "control_calls_suppressed": 72,
+      "bit": true,
+      "scored": [
+        {
+          "readout": "phases_ran",
+          "side": "intact",
+          "usable": true,
+          "why_not": "",
+          "baseline": 29.0,
+          "lesion_effect": 0.0,
+          "control_effect": 0.0,
+          "relative": 0.0,
+          "beats_control": false,
+          "held": true
+        },
+        {
+          "readout": "affect.engagement",
+          "side": "intact",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.575,
+          "lesion_effect": 0.0,
+          "control_effect": 0.0,
+          "relative": 0.0,
+          "beats_control": false,
+          "held": true
+        },
+        {
+          "readout": "cognition.working_memory",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.833333,
+          "lesion_effect": -0.083333,
+          "control_effect": -0.833333,
+          "relative": -0.1,
+          "beats_control": false,
+          "held": false
+        },
+        {
+          "readout": "spread:cognition.working_memory",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.471405,
+          "lesion_effect": 0.028595,
+          "control_effect": -0.471405,
+          "relative": 0.0607,
+          "beats_control": false,
+          "held": false
+        }
+      ],
+      "verdict": "not attributable: every readout for what should be lost moved at least as far under a control lesion, so none of them is specific to this station",
+      "also_moved": [
+        {
+          "readout": "cognition.fragmentation_score",
+          "baseline": 0.140722,
+          "lesion_effect": -0.140722,
+          "control_effect": -0.002511,
+          "relative": -1.0
+        },
+        {
+          "readout": "spread:cognition.fragmentation_score",
+          "baseline": 0.019417,
+          "lesion_effect": -0.019417,
+          "control_effect": -0.009654,
+          "relative": -1.0
+        },
+        {
+          "readout": "gap:cognition.last_thought_at",
+          "baseline": 0.151128,
+          "lesion_effect": -0.126901,
+          "control_effect": -0.058402,
+          "relative": -0.8397
+        },
+        {
+          "readout": "gap:affect.updated_at",
+          "baseline": 0.151128,
+          "lesion_effect": -0.126901,
+          "control_effect": -0.058402,
+          "relative": -0.8397
+        },
+        {
+          "readout": "gap:identity.formation_timestamp",
+          "baseline": 0.151128,
+          "lesion_effect": -0.1269,
+          "control_effect": -0.058403,
+          "relative": -0.8397
+        },
+        {
+          "readout": "gap:identity.last_evolution_timestamp",
+          "baseline": 0.151128,
+          "lesion_effect": -0.1269,
+          "control_effect": -0.058403,
+          "relative": -0.8397
+        },
+        {
+          "readout": "spread:soma.updated_at",
+          "baseline": 0.046189,
+          "lesion_effect": -0.038354,
+          "control_effect": -0.02028,
+          "relative": -0.8304
+        },
+        {
+          "readout": "gap:soma.updated_at",
+          "baseline": 0.120518,
+          "lesion_effect": -0.096322,
+          "control_effect": -0.027777,
+          "relative": -0.7992
+        }
+      ]
+    },
+    {
+      "lesion": "affective_loop",
+      "station": "affect",
+      "predicted_intact": "reasoning on a single presented problem",
+      "predicted_lost": "state-dependent prioritisation; ordering stops moving with state",
+      "readout": "the order chosen over a fixed set of tasks under two states",
+      "readout_available": true,
+      "target": [
+        "core.phases.affect_update:AffectUpdatePhase.execute",
+        "core.kernel.upgrades_10x:PerfectEmotionPhase.execute"
+      ],
+      "control": [
+        "core.phases.learning_phase:LearningPhase.execute",
+        "core.kernel.upgrades_10x:EternalMemoryPhase.execute"
+      ],
+      "target_module_degree": 226,
+      "control_module_degree": 237,
+      "calls_suppressed": 72,
+      "control_calls_suppressed": 72,
+      "bit": true,
+      "scored": [
+        {
+          "readout": "phases_ran",
+          "side": "intact",
+          "usable": true,
+          "why_not": "",
+          "baseline": 29.0,
+          "lesion_effect": 0.0,
+          "control_effect": 0.0,
+          "relative": 0.0,
+          "beats_control": false,
+          "held": true
+        },
+        {
+          "readout": "cognition.pending_intents",
+          "side": "intact",
+          "usable": true,
+          "why_not": "",
+          "baseline": 1.083333,
+          "lesion_effect": 0.0,
+          "control_effect": -1.0,
+          "relative": 0.0,
+          "beats_control": false,
+          "held": true
+        },
+        {
+          "readout": "affect.engagement",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.575,
+          "lesion_effect": -0.075,
+          "control_effect": 0.0,
+          "relative": -0.1304,
+          "beats_control": true,
+          "held": true
+        },
+        {
+          "readout": "gap:affect.engagement",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.35,
+          "lesion_effect": -0.35,
+          "control_effect": 0.0,
+          "relative": -1.0,
+          "beats_control": true,
+          "held": true
+        },
+        {
+          "readout": "gap:cognition.working_memory",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.333333,
+          "lesion_effect": 0.0,
+          "control_effect": -0.333333,
+          "relative": 0.0,
+          "beats_control": false,
+          "held": false
+        }
+      ],
+      "verdict": "partly: 2 of 3 readouts fell as predicted, 2 of 2 held",
+      "also_moved": [
+        {
+          "readout": "gap:affect.valence",
+          "baseline": 0.000586,
+          "lesion_effect": 1.199414,
+          "control_effect": -0.000474,
+          "relative": 2045.918
+        },
+        {
+          "readout": "gap:affect.arousal",
+          "baseline": 0.000475,
+          "lesion_effect": 0.699525,
+          "control_effect": -0.000301,
+          "relative": 1472.0394
+        },
+        {
+          "readout": "affect.arousal",
+          "baseline": 0.274915,
+          "lesion_effect": 0.275085,
+          "control_effect": 5e-05,
+          "relative": 1.0006
+        },
+        {
+          "readout": "affect.markers",
+          "baseline": 1.0,
+          "lesion_effect": -1.0,
+          "control_effect": 0.0,
+          "relative": -1.0
+        },
+        {
+          "readout": "affect.resonance",
+          "baseline": 2.0,
+          "lesion_effect": -2.0,
+          "control_effect": 0.0,
+          "relative": -1.0
+        },
+        {
+          "readout": "affect.valence",
+          "baseline": 0.000499,
+          "lesion_effect": -0.000499,
+          "control_effect": -0.000131,
+          "relative": -1.0
+        },
+        {
+          "readout": "gap:affect.curiosity",
+          "baseline": 0.000864,
+          "lesion_effect": -0.000864,
+          "control_effect": -0.000547,
+          "relative": -1.0
+        },
+        {
+          "readout": "gap:affect.engagement",
+          "baseline": 0.35,
+          "lesion_effect": -0.35,
+          "control_effect": 0.0,
+          "relative": -1.0
+        }
+      ]
+    },
+    {
+      "lesion": "higher_order_writes_the_self_reading",
+      "station": "higher_order",
+      "predicted_intact": "the pipeline completes and working memory still fills",
+      "predicted_lost": "the selfhood reading, and the variation in pending intents",
+      "readout": "cognition.selfhood_reading, and the spread of pending_intents across objectives",
+      "readout_available": true,
+      "target": [
+        "core.phases.phi_consciousness:PhiConsciousnessPhase.execute",
+        "core.phases.consciousness_phase:ConsciousnessPhase.execute",
+        "core.kernel.self_review:SelfReviewPhase.execute"
+      ],
+      "control": [
+        "core.phases.bonding_phase:BondingPhase.execute",
+        "core.phases.repair_phase:RepairPhase.execute",
+        "core.kernel.upgrades_10x:EternalGrowthEngine.execute"
+      ],
+      "target_module_degree": 123,
+      "control_module_degree": 185,
+      "calls_suppressed": 108,
+      "control_calls_suppressed": 108,
+      "bit": true,
+      "scored": [
+        {
+          "readout": "phases_ran",
+          "side": "intact",
+          "usable": true,
+          "why_not": "",
+          "baseline": 29.0,
+          "lesion_effect": 0.0,
+          "control_effect": 0.0,
+          "relative": 0.0,
+          "beats_control": false,
+          "held": true
+        },
+        {
+          "readout": "cognition.working_memory",
+          "side": "intact",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.833333,
+          "lesion_effect": 0.0,
+          "control_effect": 0.0,
+          "relative": 0.0,
+          "beats_control": false,
+          "held": true
+        },
+        {
+          "readout": "cognition.selfhood_reading",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 5.0,
+          "lesion_effect": -5.0,
+          "control_effect": 0.0,
+          "relative": -1.0,
+          "beats_control": true,
+          "held": true
+        },
+        {
+          "readout": "spread:cognition.pending_intents",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.372678,
+          "lesion_effect": -0.372678,
+          "control_effect": 0.0,
+          "relative": -1.0,
+          "beats_control": true,
+          "held": true
+        },
+        {
+          "readout": "gap:cognition.pending_intents",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.166667,
+          "lesion_effect": -0.166667,
+          "control_effect": 0.0,
+          "relative": -1.0,
+          "beats_control": true,
+          "held": true
+        }
+      ],
+      "verdict": "confirmed: what was predicted to survive survived and what was predicted to go went",
+      "also_moved": [
+        {
+          "readout": "gap:cognition.fragmentation_score",
+          "baseline": 0.004144,
+          "lesion_effect": 0.010278,
+          "control_effect": 0.002094,
+          "relative": 2.4799
+        },
+        {
+          "readout": "cognition.selfhood_reading",
+          "baseline": 5.0,
+          "lesion_effect": -5.0,
+          "control_effect": 0.0,
+          "relative": -1.0
+        },
+        {
+          "readout": "gap:cognition.pending_intents",
+          "baseline": 0.166667,
+          "lesion_effect": -0.166667,
+          "control_effect": 0.0,
+          "relative": -1.0
+        },
+        {
+          "readout": "spread:cognition.pending_intents",
+          "baseline": 0.372678,
+          "lesion_effect": -0.372678,
+          "control_effect": 0.0,
+          "relative": -1.0
+        },
+        {
+          "readout": "gap:affect.curiosity",
+          "baseline": 0.000864,
+          "lesion_effect": -0.000618,
+          "control_effect": -0.000584,
+          "relative": -0.7152
+        },
+        {
+          "readout": "gap:affect.arousal",
+          "baseline": 0.000475,
+          "lesion_effect": -0.00034,
+          "control_effect": -0.000321,
+          "relative": -0.7152
+        },
+        {
+          "readout": "spread:cognition.fragmentation_score",
+          "baseline": 0.019417,
+          "lesion_effect": -0.008644,
+          "control_effect": -0.007008,
+          "relative": -0.4452
+        },
+        {
+          "readout": "spread:soma.updated_at",
+          "baseline": 0.046189,
+          "lesion_effect": -0.016961,
+          "control_effect": -0.015896,
+          "relative": -0.3672
+        }
+      ]
+    },
+    {
+      "lesion": "workspace_computes_fragmentation",
+      "station": "workspace",
+      "predicted_intact": "the pipeline completes and affective engagement is untouched",
+      "predicted_lost": "the fragmentation score, and its movement across objectives",
+      "readout": "cognition.fragmentation_score, its spread and its affective gap",
+      "readout_available": true,
+      "target": [
+        "core.phases.cognitive_integration_phase:CognitiveIntegrationPhase.execute",
+        "core.phases.unity_binding:UnityBindingPhase.execute"
+      ],
+      "control": [],
+      "target_module_degree": 64,
+      "control_module_degree": 0,
+      "calls_suppressed": 72,
+      "control_calls_suppressed": 0,
+      "bit": true,
+      "scored": [
+        {
+          "readout": "phases_ran",
+          "side": "intact",
+          "usable": true,
+          "why_not": "",
+          "baseline": 29.0,
+          "lesion_effect": 0.0,
+          "control_effect": 0.0,
+          "relative": 0.0,
+          "beats_control": false,
+          "held": true
+        },
+        {
+          "readout": "affect.engagement",
+          "side": "intact",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.575,
+          "lesion_effect": 0.0,
+          "control_effect": 0.0,
+          "relative": 0.0,
+          "beats_control": false,
+          "held": true
+        },
+        {
+          "readout": "cognition.fragmentation_score",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.140722,
+          "lesion_effect": -0.140722,
+          "control_effect": -0.001231,
+          "relative": -1.0,
+          "beats_control": true,
+          "held": true
+        },
+        {
+          "readout": "spread:cognition.fragmentation_score",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.019417,
+          "lesion_effect": -0.019417,
+          "control_effect": -0.005308,
+          "relative": -1.0,
+          "beats_control": true,
+          "held": true
+        },
+        {
+          "readout": "gap:cognition.fragmentation_score",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.004144,
+          "lesion_effect": -0.004144,
+          "control_effect": 0.000506,
+          "relative": -1.0,
+          "beats_control": true,
+          "held": true
+        }
+      ],
+      "verdict": "confirmed: what was predicted to survive survived and what was predicted to go went",
+      "also_moved": [
+        {
+          "readout": "cognition.fragmentation_score",
+          "baseline": 0.140722,
+          "lesion_effect": -0.140722,
+          "control_effect": -0.001231,
+          "relative": -1.0
+        },
+        {
+          "readout": "gap:cognition.fragmentation_score",
+          "baseline": 0.004144,
+          "lesion_effect": -0.004144,
+          "control_effect": 0.000506,
+          "relative": -1.0
+        },
+        {
+          "readout": "spread:cognition.fragmentation_score",
+          "baseline": 0.019417,
+          "lesion_effect": -0.019417,
+          "control_effect": -0.005308,
+          "relative": -1.0
+        },
+        {
+          "readout": "gap:cognition.last_thought_at",
+          "baseline": 0.151128,
+          "lesion_effect": -0.128529,
+          "control_effect": -0.046869,
+          "relative": -0.8505
+        },
+        {
+          "readout": "gap:affect.updated_at",
+          "baseline": 0.151128,
+          "lesion_effect": -0.128528,
+          "control_effect": -0.046869,
+          "relative": -0.8505
+        },
+        {
+          "readout": "gap:identity.formation_timestamp",
+          "baseline": 0.151128,
+          "lesion_effect": -0.128528,
+          "control_effect": -0.046869,
+          "relative": -0.8505
+        },
+        {
+          "readout": "gap:identity.last_evolution_timestamp",
+          "baseline": 0.151128,
+          "lesion_effect": -0.128528,
+          "control_effect": -0.046869,
+          "relative": -0.8505
+        },
+        {
+          "readout": "spread:soma.updated_at",
+          "baseline": 0.046189,
+          "lesion_effect": -0.038206,
+          "control_effect": -0.015107,
+          "relative": -0.8272
+        }
+      ]
+    },
+    {
+      "lesion": "affect_regulates_what_is_injected",
+      "station": "affect",
+      "predicted_intact": "the pipeline completes and pending intents still form",
+      "predicted_lost": "regulation: an injected valence difference of 1.2 survives to the end of the turn instead of being pulled back to 0.0004 of it",
+      "readout": "the gap in affect.valence and affect.arousal between two injected states",
+      "readout_available": true,
+      "target": [
+        "core.phases.affect_update:AffectUpdatePhase.execute",
+        "core.kernel.upgrades_10x:PerfectEmotionPhase.execute"
+      ],
+      "control": [],
+      "target_module_degree": 226,
+      "control_module_degree": 0,
+      "calls_suppressed": 72,
+      "control_calls_suppressed": 0,
+      "bit": true,
+      "scored": [
+        {
+          "readout": "phases_ran",
+          "side": "intact",
+          "usable": true,
+          "why_not": "",
+          "baseline": 29.0,
+          "lesion_effect": 0.0,
+          "control_effect": 0.0,
+          "relative": 0.0,
+          "beats_control": false,
+          "held": true
+        },
+        {
+          "readout": "cognition.pending_intents",
+          "side": "intact",
+          "usable": true,
+          "why_not": "",
+          "baseline": 1.083333,
+          "lesion_effect": 0.0,
+          "control_effect": 0.0,
+          "relative": 0.0,
+          "beats_control": false,
+          "held": true
+        },
+        {
+          "readout": "affect.markers",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 1.0,
+          "lesion_effect": -1.0,
+          "control_effect": 0.0,
+          "relative": -1.0,
+          "beats_control": true,
+          "held": true
+        },
+        {
+          "readout": "affect.resonance",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 2.0,
+          "lesion_effect": -2.0,
+          "control_effect": 0.0,
+          "relative": -1.0,
+          "beats_control": true,
+          "held": true
+        },
+        {
+          "readout": "gap:affect.valence",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.000586,
+          "lesion_effect": 1.199414,
+          "control_effect": -0.000527,
+          "relative": 2045.918,
+          "beats_control": true,
+          "held": true
+        },
+        {
+          "readout": "gap:affect.arousal",
+          "side": "lost",
+          "usable": true,
+          "why_not": "",
+          "baseline": 0.000475,
+          "lesion_effect": 0.699525,
+          "control_effect": -0.000428,
+          "relative": 1472.0394,
+          "beats_control": true,
+          "held": true
+        }
+      ],
+      "verdict": "confirmed: what was predicted to survive survived and what was predicted to go went",
+      "also_moved": [
+        {
+          "readout": "gap:affect.valence",
+          "baseline": 0.000586,
+          "lesion_effect": 1.199414,
+          "control_effect": -0.000527,
+          "relative": 2045.918
+        },
+        {
+          "readout": "gap:affect.arousal",
+          "baseline": 0.000475,
+          "lesion_effect": 0.699525,
+          "control_effect": -0.000428,
+          "relative": 1472.0394
+        },
+        {
+          "readout": "affect.arousal",
+          "baseline": 0.274915,
+          "lesion_effect": 0.275085,
+          "control_effect": 0.00012,
+          "relative": 1.0006
+        },
+        {
+          "readout": "affect.markers",
+          "baseline": 1.0,
+          "lesion_effect": -1.0,
+          "control_effect": 0.0,
+          "relative": -1.0
+        },
+        {
+          "readout": "affect.resonance",
+          "baseline": 2.0,
+          "lesion_effect": -2.0,
+          "control_effect": 0.0,
+          "relative": -1.0
+        },
+        {
+          "readout": "affect.valence",
+          "baseline": 0.000499,
+          "lesion_effect": -0.000499,
+          "control_effect": 0.000119,
+          "relative": -1.0
+        },
+        {
+          "readout": "gap:affect.curiosity",
+          "baseline": 0.000864,
+          "lesion_effect": -0.000864,
+          "control_effect": -0.000778,
+          "relative": -1.0
+        },
+        {
+          "readout": "gap:affect.engagement",
+          "baseline": 0.35,
+          "lesion_effect": -0.35,
+          "control_effect": 0.0,
+          "relative": -1.0
+        }
+      ]
+    }
+  ],
+  "seconds": 24.3,
+  "baseline": {
+    "readouts": 222,
+    "non_zero": 42,
+    "seconds": 1.8
+  }
+}

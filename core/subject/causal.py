@@ -222,6 +222,15 @@ async def _arm(
         domain, delta = displace
         in_state = perturb(rt.state, domain, delta, ontogeny=rt.ontogeny)
         in_organ = await perturb_organs(rt.organs, domain, delta)
+        if domain == "I" and rt.frozen_host is not None:
+            # The body readings are held still for the duration of a trial so
+            # the host's own load cannot drift between arms. That hold also
+            # erased the one perturbation aimed at the body, which is why
+            # displacing interoception reached nothing at all. Re-taking the
+            # freeze from the displaced state carries the displacement instead
+            # of overwriting it — which is what a sustained interoceptive
+            # perturbation is.
+            rt.freeze_host()
         applied["done"] = bool(in_state or in_organ)
 
     for turn in range(turns):

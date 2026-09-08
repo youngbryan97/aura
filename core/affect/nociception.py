@@ -154,6 +154,34 @@ class NociceptionEngine:
             self._pressure_trace.append((now, self._pressure_locked(now)))
             return new_level
 
+    def hold(
+        self,
+        channel: DamageChannel,
+        level: float,
+        *,
+        now: Optional[float] = None,
+    ) -> float:
+        """Report an ongoing strain rather than a fresh injury.
+
+        `register_damage` is for events, and repeated hits inside the window
+        escalate on purpose: being hurt twice is worse than being hurt once. A
+        sustained condition is not a sequence of injuries. A machine that has
+        been hot for an hour has one strain, and putting it through
+        `register_damage` once per tick saturates the channel in seconds and
+        then reports maximum pain on a warm afternoon forever.
+
+        This holds the channel at the level reported, and lets the ordinary
+        decay carry it down when the condition passes.
+        """
+        now = time.time() if now is None else now
+        level = _clamp(float(level))
+        with self._lock:
+            base = self._decayed(channel, now)
+            new_level = max(base, level)
+            self._levels[channel] = (new_level, now)
+            self._pressure_trace.append((now, self._pressure_locked(now)))
+            return new_level
+
     def ingest_degradation(self, subsystem: str, severity: str, *, now: Optional[float] = None) -> None:
         """Feed a runtime degradation event into the matching damage channel.
 

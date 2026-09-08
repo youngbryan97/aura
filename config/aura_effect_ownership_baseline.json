@@ -3422,7 +3422,7 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/agency/what_she_invented.py",
-      "scope": "<module>.keep"
+      "scope": "<module>.keep._write"
     },
     {
       "callee": "<file_write_gateway>.ensure_directory_async",
@@ -3958,7 +3958,7 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/cognition/what_she_gave_meaning.py",
-      "scope": "<module>.keep"
+      "scope": "<module>.keep._write"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -3966,7 +3966,7 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/cognition/what_she_gave_meaning.py",
-      "scope": "<module>.keep"
+      "scope": "<module>.keep._write"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -4198,15 +4198,15 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/continuity.py",
-      "scope": "<module>.ContinuityEngine.note_failure_obligation"
+      "scope": "<module>._persist_continuity_record"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/continuity.py",
-      "scope": "<module>.ContinuityEngine.save"
+      "scope": "<module>._persist_continuity_record._deferred"
     },
     {
       "callee": "<file_write_gateway>.write_text",
@@ -5071,6 +5071,14 @@
       "count": 1,
       "path": "core/observability/trace_events.py",
       "scope": "<module>.Tracer.write"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/observability/unified_action_log.py",
+      "scope": "<module>.UnifiedActionLog._persist_entry"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
@@ -6775,6 +6783,38 @@
       "count": 1,
       "path": "core/state/where_checkpoints_are_kept.py",
       "scope": "<module>.InSqlite.__init__"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/driver.py",
+      "scope": "<module>.SubjectRuntime._act"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 2,
+      "path": "core/subject/driver.py",
+      "scope": "<module>.build_runtime"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/recording.py",
+      "scope": "<module>.Recording.save"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/recording.py",
+      "scope": "<module>.Recording.save"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -16362,6 +16402,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "e73f4bf15613128cc6dc87d87a56919f2bc185fab00d3bbd5d17cba0dad93008",
+  "inventory_sha256": "382a000d4cd9d3fc44d9701b6ed73e6369ea37b97d4065eb7df2daea8824ed3b",
   "schema_version": 1
 }

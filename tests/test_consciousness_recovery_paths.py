@@ -611,9 +611,17 @@ def test_homeostatic_entropy_floor_failure_is_visible(monkeypatch):
     assert recorded == [("homeostatic_coupling", "RuntimeError")]
 
 
-def test_homeostatic_constructor_preserves_substrate_default_on_lookup_failure(
+def test_homeostatic_substrate_lookup_failure_is_visible_on_first_use(
     monkeypatch,
 ):
+    """The lookup moved out of the constructor; the degradation went with it.
+
+    Resolving in the constructor made the link depend on boot order — the
+    consciousness system builds this object before anything registers the
+    substrate under the name it looked for — so it resolves on first use now.
+    A failure there is still recorded, and still leaves the link absent rather
+    than half-formed.
+    """
     recorded: list[tuple[str, str]] = []
     monkeypatch.setattr(
         homeostatic_coupling,
@@ -627,9 +635,23 @@ def test_homeostatic_constructor_preserves_substrate_default_on_lookup_failure(
     )
 
     coupling = homeostatic_coupling.HomeostaticCoupling(types.SimpleNamespace())
+    assert recorded == []
 
     assert coupling.substrate is None
     assert recorded == [("homeostatic_coupling", "RuntimeError")]
+
+
+def test_homeostatic_substrate_set_to_none_stays_none(monkeypatch):
+    """An explicit None means there is none, not "look again next time"."""
+    monkeypatch.setattr(
+        homeostatic_coupling.ServiceContainer,
+        "get",
+        lambda *_args, **_kwargs: types.SimpleNamespace(name="a substrate"),
+    )
+    coupling = homeostatic_coupling.HomeostaticCoupling(types.SimpleNamespace())
+    assert coupling.substrate is not None
+    coupling.substrate = None
+    assert coupling.substrate is None
 
 
 def test_liquid_substrate_bridge_affect_failure_is_visible(monkeypatch):

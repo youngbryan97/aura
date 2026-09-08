@@ -30,7 +30,7 @@ from core.subject.state import (
     feature_names,
 )
 
-__all__ = ["Recording", "build_recording", "load_recording"]
+__all__ = ["Recording", "build_recording", "load_recording", "slices_from_columns"]
 
 #: A column whose standard deviation across the whole recording is at or below
 #: this is treated as constant. It is not zero because a float that is written
@@ -80,6 +80,67 @@ class Recording:
         live = self.live_columns()
         return tuple(key for key in DOMAINS if bool(live[self.slices[key]].any()))
 
+    def turn_rows(self, marker: str = "ontogeny") -> np.ndarray:
+        """One row per turn: the last frame of each cognitive cycle.
+
+        A frame-to-frame step inside a turn is not a transition of the system,
+        it is one line of the transition function — the phases run in a fixed
+        order and most domains do not move at all between two of them. Every
+        measure that fits K_{t+1} from K_t belongs on this series, and the
+        frame series belongs to the perturbation measures, which are asking
+        about propagation inside a cycle rather than about the law between
+        cycles.
+        """
+        return np.array(
+            [index for index, tag in enumerate(self.tags) if tag == marker],
+            dtype=np.int64,
+        )
+
+    def by_turn(self, marker: str = "ontogeny") -> Recording:
+        """The same recording sampled once per turn."""
+        rows = self.turn_rows(marker)
+        if rows.size == 0:
+            return self
+        return Recording(
+            x=self.x[rows],
+            conditions=tuple(self.conditions[index] for index in rows),
+            tags=tuple(self.tags[index] for index in rows),
+            times=self.times[rows],
+            env=self.env[rows],
+            env_names=self.env_names,
+            columns=self.columns,
+            slices=self.slices,
+            notes={**self.notes, "sampled": "one frame per turn"},
+        )
+
+    def monotone_columns(self, tolerance: float = 0.99) -> np.ndarray:
+        """Columns that only ever go one way. Clocks, not state.
+
+        A running total changes what the system computes — a version counter
+        gates a phase every twentieth turn — so a counter is state by the
+        definition the schema opens with. It is also a trend, and a trend in
+        the inputs lets a fitted model extrapolate elapsed time across a
+        contiguous train/test split and then fail on rows beyond the range it
+        saw.
+
+        Reported rather than removed. Differencing them was tried and made the
+        partition score worse, not better, so the fix that worked was in what
+        the measures predict rather than in what the recording holds: the
+        transition measures target the change, where a level's trend cancels.
+        The list stays in the summary because a run whose count of these jumps
+        has grown a clock somewhere, and that is worth seeing.
+        """
+        if self.frames < 8:
+            return np.zeros(self.width, dtype=bool)
+        steps = np.diff(self.x, axis=0)
+        moving = np.abs(steps) > FLAT_EPS
+        counts = moving.sum(axis=0)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            up = np.where(counts > 0, (steps > FLAT_EPS).sum(axis=0) / np.maximum(counts, 1), 0.0)
+            down = np.where(counts > 0, (steps < -FLAT_EPS).sum(axis=0) / np.maximum(counts, 1), 0.0)
+        one_way = (up >= tolerance) | (down >= tolerance)
+        return one_way & (counts >= 4)
+
     def condition_rows(self, condition: str) -> np.ndarray:
         return np.array(
             [index for index, name in enumerate(self.conditions) if name == condition],
@@ -96,32 +157,46 @@ class Recording:
             "conditions": counts,
             "live_domains": list(self.live_domains()),
             "flat_columns": len(self.flat_columns()),
+            "one_way_columns": [
+                name
+                for name, flag in zip(self.columns, self.monotone_columns(), strict=True)
+                if flag
+            ],
             "flat_column_names": list(self.flat_columns()),
             "env_names": list(self.env_names),
             "notes": self.notes,
         }
 
     def save(self, directory: Path) -> Path:
-        directory.mkdir(parents=True, exist_ok=True)
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        gateway = get_file_write_gateway()
+        with local_internal_governed_scope("subject_core.recording"):
+            gateway.ensure_directory(directory, source="subject_core.recording")
         np.savez_compressed(
             directory / "core_state.npz",
             x=self.x,
             times=self.times,
             env=self.env,
         )
-        (directory / "core_state_manifest.json").write_text(
-            json.dumps(
-                {
-                    "conditions": list(self.conditions),
-                    "tags": list(self.tags),
-                    "columns": list(self.columns),
-                    "env_names": list(self.env_names),
-                    "notes": self.notes,
-                    "summary": self.summary(),
-                },
-                indent=2,
-            )
+        manifest = json.dumps(
+            {
+                "conditions": list(self.conditions),
+                "tags": list(self.tags),
+                "columns": list(self.columns),
+                "env_names": list(self.env_names),
+                "notes": self.notes,
+                "summary": self.summary(),
+            },
+            indent=2,
         )
+        with local_internal_governed_scope("subject_core.recording"):
+            gateway.write_text(
+                directory / "core_state_manifest.json",
+                manifest,
+                source="subject_core.recording",
+            )
         return directory / "core_state.npz"
 
 
@@ -150,9 +225,28 @@ def build_recording(
     )
 
 
+def slices_from_columns(columns: Sequence[str]) -> dict[str, slice]:
+    """Where each domain sits, read from the column names that were recorded.
+
+    Not from the current schema. A recording saved before a feature was added
+    or removed has its own widths, and rebuilding the slices from today's
+    schema silently reads the wrong columns for every domain after the one that
+    changed — or indexes past the end, which is the lucky case because it says
+    so.
+    """
+    out: dict[str, slice] = {}
+    start = 0
+    for key in DOMAINS:
+        width = sum(1 for name in columns if name.startswith(f"{key}."))
+        out[key] = slice(start, start + width)
+        start += width
+    return out
+
+
 def load_recording(directory: Path) -> Recording:
     blob = np.load(directory / "core_state.npz")
     manifest = json.loads((directory / "core_state_manifest.json").read_text())
+    columns = tuple(manifest["columns"])
     return Recording(
         x=blob["x"],
         conditions=tuple(manifest["conditions"]),
@@ -160,7 +254,7 @@ def load_recording(directory: Path) -> Recording:
         times=blob["times"],
         env=blob["env"],
         env_names=tuple(manifest["env_names"]),
-        columns=tuple(manifest["columns"]),
-        slices=domain_slices(),
+        columns=columns,
+        slices=slices_from_columns(columns),
         notes=dict(manifest.get("notes", {})),
     )

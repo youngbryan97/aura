@@ -669,6 +669,13 @@ def test_affect_update_records_substrate_telemetry_failure_without_losing_affect
             assert isinstance(kwargs["valence"], float)
             raise RuntimeError("substrate unavailable")
 
+        def get_state_summary_nowait(self):
+            # The affect phase reads the substrate back as well as writing to
+            # it. A stale snapshot is skipped rather than blended, so this
+            # leaves the telemetry write as the only failing path and the test
+            # keeps testing what it was written to test.
+            return {"valence": 0.0, "arousal": 0.0, "snapshot_stale": True}
+
     state = AuraState.default()
     state.cognition.working_memory.append({"role": "user", "content": "hello"})
     ServiceContainer.register_instance("liquid_substrate", _Substrate())

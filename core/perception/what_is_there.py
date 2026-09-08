@@ -178,7 +178,11 @@ class Arrangement:
             self.place_of(cell) for cell in self.cells if cell.says.strip().lower() == wanted
         }
 
-    def without(self, places: set[tuple[int, int]]) -> "Arrangement":
+    def without(
+        self,
+        places: set[tuple[int, int]],
+        ever_held: set[tuple[int, int]] | None = None,
+    ) -> "Arrangement":
         """This thing with some places dropped, and any row or column they
         were the whole of dropped with them.
 
@@ -212,15 +216,41 @@ class Arrangement:
             #
             # Only a line that was ENTIRELY dropped goes, which is what the
             # cropping was for: a row nothing ever moves into.
+            # A place that has never held anything is not evidence that the
+            # line survives. ``places`` names the cells found to be furniture,
+            # and a score sitting alone above a board occupies one of the four
+            # places in its row — so requiring all four made the row survive,
+            # empty, and the board was read as five rows for the rest of the
+            # run. Every rule then had to be right about a row that does not
+            # exist: measured on this fixture, "slides and combines" sat at 64%
+            # of 47 and no rule was ever named.
+            #
+            # With ``ever_held`` the test is the one the docstring always
+            # described: a line goes when every place in it is either furniture
+            # or a place nothing has ever been.
+            held = ever_held if ever_held is not None else None
+            # A line that still holds something is never dropped, whatever the
+            # rest of the test says. ``ever_held`` is gathered as readings
+            # arrive, so an arrangement read before the first one was noted has
+            # places it does not mention, and dropping a line under a kept cell
+            # loses the cell and the address of every cell after it.
+            occupied_rows = {cell.row for cell in kept}
+            occupied_columns = {cell.column for cell in kept}
+
+            def _gone(place: tuple[int, int]) -> bool:
+                return place in places or (held is not None and place not in held)
+
             gone_down = {
                 row
                 for row in range(self.rows)
-                if all((row, column) in places for column in range(self.columns))
+                if row not in occupied_rows
+                and all(_gone((row, column)) for column in range(self.columns))
             }
             gone_across = {
                 column
                 for column in range(self.columns)
-                if all((row, column) in places for row in range(self.rows))
+                if column not in occupied_columns
+                and all(_gone((row, column)) for row in range(self.rows))
             }
             rows = [row for row in range(self.rows) if row not in gone_down]
             columns = [column for column in range(self.columns) if column not in gone_across]

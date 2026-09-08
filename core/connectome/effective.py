@@ -56,6 +56,8 @@ __all__ = [
     "predictive_influence",
     "model_influence",
     "compare_conditions",
+    "cross_influence",
+    "CrossInfluence",
     "MIN_FRAMES_PER_CONDITION",
 ]
 
@@ -429,3 +431,274 @@ def compare_conditions(
             "the other"
         ),
     }
+
+
+#: How many rotations each pair is scored against. The null has to be built per
+#: pair because the thing it has to destroy — the alignment between two cells —
+#: is a property of the pair, and because a workload that repeats gives every
+#: cell the same period, so a null that does not preserve that period would be
+#: too easy to beat.
+ROTATIONS_PER_PAIR: int = 8
+
+#: Resamples of the pair list for the confidence interval on the paired median.
+PAIRED_DRAWS: int = 400
+
+
+@dataclass(frozen=True, slots=True)
+class CrossInfluence:
+    """Influence between two sets of cells that need share no call edge.
+
+    ``predictive_influence`` tests the edges the reconstruction found, which is
+    the right restriction when the question is about a wire. It is the wrong one
+    when the question is about two stages of a pipeline: the kernel's phases are
+    coupled through the state object they are handed in turn, and almost none of
+    them call each other. Restricting to call edges asked whether the workspace
+    calls higher-order monitoring — it does not — and reported the answer as
+    though it were about influence.
+    """
+
+    condition: str
+    source_station: str
+    target_station: str
+    pairs_tested: int
+    median_gain: float
+    ci_low: float
+    ci_high: float
+    share_above_null: float
+    mean_weight: float
+    mean_null_weight: float
+    strongest: tuple[tuple[str, str, float], ...] = ()
+    rotations: int = ROTATIONS_PER_PAIR
+    draws: int = PAIRED_DRAWS
+    skipped: str = ""
+
+    @property
+    def carries(self) -> bool:
+        """Does the source say more about the target than its own rotations do?
+
+        The interval has to clear zero. A median gain with an interval straddling
+        zero is a number, not a link, and the first version of this reported one
+        for all seven links because it asked a parametric test a question the
+        data could not answer.
+        """
+        if self.skipped or not self.pairs_tested:
+            return False
+        return self.ci_low > 0.0 and self.median_gain > 0.0
+
+    def as_json(self) -> dict[str, Any]:
+        return {
+            "link": f"{self.source_station} -> {self.target_station}",
+            "condition": self.condition,
+            "pairs_tested": self.pairs_tested,
+            "median_gain": round(self.median_gain, 6),
+            "ci_low": round(self.ci_low, 6),
+            "ci_high": round(self.ci_high, 6),
+            "share_above_null": round(self.share_above_null, 4),
+            "mean_weight": round(self.mean_weight, 5),
+            "mean_null_weight": round(self.mean_null_weight, 5),
+            "rotations": self.rotations,
+            "draws": self.draws,
+            "carries": self.carries,
+            "strongest": [
+                {"pre": pre, "post": post, "gain": round(gain, 5)}
+                for pre, post, gain in self.strongest
+            ],
+            "skipped": self.skipped,
+        }
+
+
+def cross_influence(
+    trace: Any,
+    condition: str,
+    sources: Sequence[str],
+    targets: Sequence[str],
+    *,
+    source_station: str = "source",
+    target_station: str = "target",
+    lags: int = 3,
+    ridge: float = 1e-3,
+    seed: int = 0,
+    max_pairs: int = 40_000,
+    rotations: int = ROTATIONS_PER_PAIR,
+    draws: int = PAIRED_DRAWS,
+    deconfound: bool = True,
+) -> CrossInfluence:
+    """Score every ordered pair between two sets against its own rotations.
+
+    Each pair gets Granger's quantity — how much of the target's residual the
+    source's recent past removes, beyond the target's own past — and then the
+    same quantity with the source rotated in time, several times over. The
+    difference between the two is what the pair contributes, and the link is
+    judged on the median of those differences across pairs, with a bootstrap
+    interval over the pairs.
+
+    Two earlier versions of this were wrong and both looked right.
+
+    The first tested the pairs with an F distribution and corrected the p-values
+    for multiple comparisons. Every one of the seven ring links came out
+    carrying, at 93 to 100% of pairs — and when a sample of pairs was re-run with
+    the source rotated, one in four passed the same threshold. A parametric
+    p-value on a spike train recorded at two milliseconds is not a p-value.
+
+    The second added the population's recent past to both models, on the theory
+    that what the test had found was a shared turn rhythm. It barely moved: the
+    rotated pairs still fired at a quarter. That is the tell for a periodic
+    workload — a turn repeats, so rotating a source by any shift lands it on
+    another turn and preserves the alignment the null was supposed to destroy.
+
+    So rotation is kept, and it is used as the null it is rather than as a check
+    on a different null. A pair only contributes if it beats its own rotations,
+    which is the comparison that survives the periodicity: both arms have it.
+
+    ``deconfound`` still holds the population's past in both models, because
+    conditioning on what everything was doing is worth having even when it is
+    not sufficient on its own.
+    """
+    import numpy as np
+
+    matrix = trace.matrix()
+    conditions = list(trace.conditions)
+    rows = [i for i, name in enumerate(conditions) if name == condition]
+    if len(rows) < MIN_FRAMES_PER_CONDITION:
+        return CrossInfluence(
+            condition=condition,
+            source_station=source_station,
+            target_station=target_station,
+            pairs_tested=0,
+            median_gain=0.0,
+            ci_low=0.0,
+            ci_high=0.0,
+            share_above_null=0.0,
+            mean_weight=0.0,
+            mean_null_weight=0.0,
+            skipped=(
+                f"{len(rows)} frames is below the {MIN_FRAMES_PER_CONDITION} a lagged "
+                "regression needs"
+            ),
+        )
+    activity = np.asarray(matrix[rows], dtype=np.float64)
+    index = {uid: i for i, uid in enumerate(trace.uids)}
+    source_ids = [uid for uid in sources if uid in index and activity[:, index[uid]].std() > 0]
+    target_ids = [uid for uid in targets if uid in index and activity[:, index[uid]].std() > 0]
+    if not source_ids or not target_ids:
+        return CrossInfluence(
+            condition=condition,
+            source_station=source_station,
+            target_station=target_station,
+            pairs_tested=0,
+            median_gain=0.0,
+            ci_low=0.0,
+            ci_high=0.0,
+            share_above_null=0.0,
+            mean_weight=0.0,
+            mean_null_weight=0.0,
+            skipped=(
+                f"{len(source_ids)} sources and {len(target_ids)} targets varied in this "
+                "condition; a station that did not fire cannot be asked what it influenced"
+            ),
+        )
+
+    rng = np.random.default_rng(seed)
+    frames = activity.shape[0]
+    samples = frames - lags
+    bias = np.ones((samples, 1))
+    own_cache: dict[str, Any] = {}
+    lagged_cache: dict[str, Any] = {}
+    population = activity.mean(axis=1) if deconfound else None
+    width = activity.shape[1]
+
+    def confound_of(source: str, target: str) -> Any:
+        if population is None:
+            return np.zeros((samples, 0))
+        rest = population - (activity[:, index[source]] + activity[:, index[target]]) / width
+        return _lagged(rest * (width / max(1, width - 2)), lags)
+
+    def own_of(uid: str) -> Any:
+        cached = own_cache.get(uid)
+        if cached is None:
+            cached = np.hstack([_lagged(activity[:, index[uid]], lags), bias])
+            own_cache[uid] = cached
+        return cached
+
+    def lagged_of(uid: str) -> Any:
+        cached = lagged_cache.get(uid)
+        if cached is None:
+            cached = _lagged(activity[:, index[uid]], lags)
+            lagged_cache[uid] = cached
+        return cached
+
+    # One rotation schedule, shared by every pair. A schedule drawn per pair
+    # would let a link win by drawing kinder shifts than its neighbour did.
+    shifts = [
+        int(rng.integers(lags + 1, max(lags + 2, frames - lags))) for _ in range(rotations)
+    ]
+
+    records: list[tuple[str, str, float, float]] = []
+    pairs = 0
+    for target in target_ids:
+        y = activity[lags:, index[target]]
+        if y.std() <= 0:
+            continue
+        own = own_of(target)
+        for source in source_ids:
+            if source == target or pairs >= max_pairs:
+                continue
+            base = np.hstack([own, confound_of(source, target)])
+            restricted = _residual(base, y, ridge)
+            if not np.isfinite(restricted) or restricted <= 0:
+                continue
+            other = lagged_of(source)
+            full = _residual(np.hstack([base, other]), y, ridge)
+            if not np.isfinite(full) or full <= 0:
+                continue
+            weight = max(0.0, (restricted - full) / restricted)
+            raw = activity[:, index[source]]
+            null_weights = []
+            for shift in shifts:
+                rotated = _lagged(np.roll(raw, shift), lags)
+                null_full = _residual(np.hstack([base, rotated]), y, ridge)
+                if not np.isfinite(null_full) or null_full <= 0:
+                    continue
+                null_weights.append(max(0.0, (restricted - null_full) / restricted))
+            if not null_weights:
+                continue
+            records.append((source, target, weight, float(np.mean(null_weights))))
+            pairs += 1
+
+    if not records:
+        return CrossInfluence(
+            condition=condition,
+            source_station=source_station,
+            target_station=target_station,
+            pairs_tested=0,
+            median_gain=0.0,
+            ci_low=0.0,
+            ci_high=0.0,
+            share_above_null=0.0,
+            mean_weight=0.0,
+            mean_null_weight=0.0,
+            skipped="no pair could be regressed",
+        )
+
+    gains = np.array([row[2] - row[3] for row in records], dtype=np.float64)
+    median = float(np.median(gains))
+    resamples = rng.integers(0, gains.size, size=(draws, gains.size))
+    medians = np.median(gains[resamples], axis=1)
+    low = float(np.percentile(medians, 2.5))
+    high = float(np.percentile(medians, 97.5))
+    ranked = sorted(records, key=lambda row: -(row[2] - row[3]))
+    return CrossInfluence(
+        condition=condition,
+        source_station=source_station,
+        target_station=target_station,
+        pairs_tested=len(records),
+        median_gain=median,
+        ci_low=low,
+        ci_high=high,
+        share_above_null=float((gains > 0).mean()),
+        mean_weight=float(np.mean([row[2] for row in records])),
+        mean_null_weight=float(np.mean([row[3] for row in records])),
+        strongest=tuple((row[0], row[1], row[2] - row[3]) for row in ranked[:10]),
+        rotations=len(shifts),
+        draws=draws,
+    )

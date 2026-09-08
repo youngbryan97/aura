@@ -431,7 +431,10 @@ class SubjectRuntime:
         if condition.after == "retrieve":
             self._retrieve(condition.objective)
         elif condition.after == "act":
-            self._act(condition.objective, actor=self.actor)
+            # Off the loop. The action is a real write and a real read-back, so
+            # it carries an fsync, and an fsync on the event loop is the defect
+            # this driver exists to measure rather than to commit.
+            await asyncio.to_thread(self._act, condition.objective, actor=self.actor)
         await capture("after")
 
         await self._consciousness_tick()
@@ -537,8 +540,14 @@ class SubjectRuntime:
         intended = f"plan for turn {self.turn}: {objective[:80]}"
         ok = False
         try:
+            from core.governance_context import local_internal_governed_scope
+            from core.runtime.file_write_gateway import get_file_write_gateway
+
             path = Path(target) / "notes.txt"
-            path.write_text(intended)
+            with local_internal_governed_scope("subject_core.action_probe"):
+                get_file_write_gateway().write_text(
+                    path, intended, source="subject_core.action_probe"
+                )
             ok = path.read_text() == intended
         except OSError as exc:
             logger.debug("probe action failed: %s", exc)
@@ -584,7 +593,11 @@ def _condition_index(name: str) -> int:
 def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectRuntime:
     """Assemble the offline organism. Import cost lives here, not at module load."""
     os.environ.setdefault("AURA_TESTING", "1")
-    workdir.mkdir(parents=True, exist_ok=True)
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    with local_internal_governed_scope("subject_core.driver"):
+        get_file_write_gateway().ensure_directory(workdir, source="subject_core.driver")
     os.environ.setdefault("AURA_LOG_DIR", str(workdir / "logs"))
 
     import threading
@@ -592,13 +605,13 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
 
     from core.kernel.aura_kernel import AuraKernel, KernelConfig
     from core.ontogeny.state import OntogeneticState
-    from core.state.aura_state import AuraState
-    from core.state.state_repository import StateRepository
-    from core.subject.state import domain_width
 
     # The container has to exist before the kernel is built; the rest of the
     # organism comes up in `start_organism`, which is async.
     from core.service_registration import register_all_services
+    from core.state.aura_state import AuraState
+    from core.state.state_repository import StateRepository
+    from core.subject.state import domain_width
 
     try:
         register_all_services()
@@ -643,7 +656,10 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
         ontogeny=ontogeny,
     )
     runtime._scratch = workdir / "scratch"
-    runtime._scratch.mkdir(parents=True, exist_ok=True)
+    with local_internal_governed_scope("subject_core.driver"):
+        get_file_write_gateway().ensure_directory(
+            runtime._scratch, source="subject_core.driver"
+        )
     runtime.retriever = _build_retriever(runtime)
     return runtime
 

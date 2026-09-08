@@ -147,6 +147,23 @@ class MeshConfig:
     # Lateral inhibition
     lateral_inhibition_strength: float = 0.25
 
+    # Feedforward pathway (sensory → association → executive)
+    #
+    # Built explicitly, and without a distance term, because a projection from
+    # one tier to the next is not a local connection. The mesh used to leave
+    # this to inter_column_weights, whose probability decays as
+    # exp(-|i - j| * 0.15); a sensory column at index 0 and an executive column
+    # at index 48 are 48 apart, which makes that probability 0.05 * e^-7.2, or
+    # about one edge in twenty-eight thousand. Measured over eight seeds with
+    # both matrices built, nought of sixteen executive columns was reachable
+    # from any sensory column, every time, while the code injects into the
+    # sensory tier and reads the executive projection. The density is the same
+    # 0.05 the local wiring uses; only the decay is gone.
+    feedforward_density: float = 0.05
+    feedforward_strength: float = 0.06
+    #: Sensory straight to executive, sparser, as a shortcut rather than a path.
+    feedforward_direct_density: float = 0.01
+
     # Tier boundaries (column indices)
     sensory_end: int = 16
     association_end: int = 48
@@ -346,6 +363,11 @@ class NeuralMesh:
         self._recurrent_feedback_strength: float = 0.8  # relative to feedforward
         self._feedback_W: np.ndarray | None = None
         self._build_feedback_weights()
+        # And the pathway that carries signal the other way. Built after the
+        # feedback one so both are on the same draw, and folded into _inter_W
+        # rather than applied separately: the feedforward sweep is the mesh's
+        # ordinary integration step, not a second pass over it.
+        self._inter_W = self._inter_W + self._build_feedforward_weights()
 
         # Stats
         self._mean_column_energy: float = 0.0
@@ -512,6 +534,49 @@ class NeuralMesh:
                        (tier_i == CorticalTier.ASSOCIATION and tier_j == CorticalTier.EXECUTIVE):
                         strength *= 1.5
                     weights[i, j] = strength
+        return weights
+
+    def _build_feedforward_weights(self) -> np.ndarray:
+        """The bottom-up pathway, built the way the top-down one is.
+
+        The mesh had an explicit feedback matrix and no explicit feedforward
+        one. What carried signal upward was ``_build_inter_column_weights``,
+        which is local wiring — its probability decays with the distance between
+        column indices — and a tier boundary is exactly where that distance is
+        large. So sensory injection could not reach the executive projection,
+        and the two ends of the mesh that the rest of the system actually
+        touches were in different connected components on every seed tried.
+
+        Distance is left out here on purpose. A projection between cortical
+        areas is an axon bundle, not a local connection, and its existence does
+        not fall off with how far apart the areas are.
+        """
+        n = self.cfg.columns
+        weights = np.zeros((n, n), dtype=np.float32)
+        for i in range(n):
+            tier_i = self._tier_for(i)
+            for j in range(n):
+                if i == j:
+                    continue
+                tier_j = self._tier_for(j)
+                forward = (
+                    tier_i == CorticalTier.SENSORY and tier_j == CorticalTier.ASSOCIATION
+                ) or (
+                    tier_i == CorticalTier.ASSOCIATION and tier_j == CorticalTier.EXECUTIVE
+                )
+                direct = (
+                    tier_i == CorticalTier.SENSORY and tier_j == CorticalTier.EXECUTIVE
+                )
+                if forward:
+                    probability = self.cfg.feedforward_density
+                    scale = self.cfg.feedforward_strength
+                elif direct:
+                    probability = self.cfg.feedforward_direct_density
+                    scale = self.cfg.feedforward_strength
+                else:
+                    continue
+                if self._rng.random() < probability:
+                    weights[i, j] = self._rng.standard_normal() * scale
         return weights
 
     def _build_feedback_weights(self):
