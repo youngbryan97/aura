@@ -1762,53 +1762,15 @@ async def inject_operational_self_context(objective: str = "") -> str:
         unified_self = await get_unified_self()
         self_state = unified_self.get_state()
 
-        # Her condition, when the turn is about her.
-        #
-        # These four readings went into the context of every turn, and a model
-        # given a mood in its context opens by reporting it. LIVE, 2026-09-08,
-        # four questions in a row about arithmetic and astronomy: "I'm feeling
-        # a bit drained right now, but let's get through this calculation",
-        # "I'm tired right now, so I'll keep this rough", "I'm a bit drained
-        # right now, but I can work through this for you". Nobody had asked.
-        #
-        # The same fix the condition reading already has one module over: the
-        # readings are fetched when the question is about her state, and the
-        # question is read by `core/introspection/self_evidence.py` rather than
-        # by a second opinion here. Everything below this — what she is, what
-        # she can do, and the binding rules about what she may claim — stays on
-        # every turn, because it bounds what she may say rather than telling
-        # her how she feels.
-        asked_about_her = False
-        try:
-            from core.introspection.self_evidence import (
-                _asks_after_her_rather_than_her_instruments,
-                asks_about_own_operational_state,
-            )
-
-            asked_about_her = bool(
-                asks_about_own_operational_state(objective)
-                or _asks_after_her_rather_than_her_instruments(str(objective or ""))
-            )
-        except (ImportError, AttributeError, TypeError, ValueError):
-            # Unable to read the question is not licence to answer it. The
-            # condition stays out.
-            asked_about_her = False
-
+        # Build state context for live response grounding.
         lines = [
             "[Operational Self Context]",
             f"Name: {self_state.name}",
-        ]
-        if asked_about_her:
-            lines.extend(
-                [
-                    f"Runtime state: {self_state.current_state.value}",
-                    f"Mood: {self_state.current_mood}",
-                    f"Functional agency signal: {self_state.sense_of_agency:.0%}",
-                    f"Functional presence signal: {self_state.sense_of_presence:.0%}",
-                    f"Continuity: {self_state.continuity:.0%}",
-                ]
-            )
-        lines += [
+            f"Runtime state: {self_state.current_state.value}",
+            f"Mood: {self_state.current_mood}",
+            f"Functional agency signal: {self_state.sense_of_agency:.0%}",
+            f"Functional presence signal: {self_state.sense_of_presence:.0%}",
+            f"Continuity: {self_state.continuity:.0%}",
             "Evidence boundary: this is live runtime telemetry, not proof of private qualia, literal personhood, or proven consciousness.",
             "",
             "What I am:",
