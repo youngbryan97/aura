@@ -4113,7 +4113,7 @@
       "scope": "<module>.NeologismEngine._save_lexicon"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
@@ -16426,6 +16426,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "2de3dc5b298e795f95f2095afcb5191afd5e528c47e23f5faecbfa4bac6badf8",
+  "inventory_sha256": "84c0d4718152f6d52e35d3e20c0fd2f2241a14bd7d5a01702c12ad238f1ad060",
   "schema_version": 1
 }
