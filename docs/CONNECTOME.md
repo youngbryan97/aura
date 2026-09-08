@@ -726,10 +726,18 @@ and one that changes which decision is being taken. A gate set that closes
 everything is treated as a bug and the race runs anyway.
 
 **`prefetch`** warms through `integration.warm_upcoming`, and which rule it
-warms by comes from a measurement rather than a preference. At 914 ms frames
-persistence wins and the connectome rule would be the worse choice; at 20 ms the
-connectome rule wins on F1 and on recall. `record_prefetch_rule` stores whichever
-won on this system's own recording and the warm-up uses it.
+warms by comes from a measurement rather than a preference. `record_prefetch_rule`
+stores whichever won on this system's own recording and the warm-up uses it.
+
+On this system persistence wins on F1 at both frame rates — 0.7129 against the
+connectome rule's 0.6149 at 914 ms, 0.7056 against 0.6675 at 20 ms — so the
+warm-up uses persistence. A 20 ms recording of 74 cells once put the connectome
+rule ahead at 0.7934, and a broader one at the same rate over 8,171 cells
+reversed it; [CONNECTOME_PREDICTION.md](CONNECTOME_PREDICTION.md) carries both
+and what the difference was. What survives is narrower: the connectome rule has
+the highest recall of the four, 0.7450 against 0.7000, so it finds more of what
+is about to run and pays for it in precision. Nothing about the wiring is
+decided here — the mechanism reads the recording rather than either number.
 
 **`integration`** publishes eight telemetry channels at 0x1901, a health
 fragment under `runtime_health_report()["connectome"]` that never builds a
