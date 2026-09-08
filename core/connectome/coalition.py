@@ -288,7 +288,13 @@ def assign_stations(
         for uid, unit in snapshot.units.items():
             if uid in claimed:
                 continue
-            where = f"{unit.neuropil}:{unit.name}"
+            # A reconstruction's unit.name already carries the module, so it is
+            # module:qualname; a hand-built snapshot's may be the bare name.
+            where = (
+                unit.name
+                if unit.name.startswith(unit.neuropil)
+                else f"{unit.neuropil}:{unit.name}"
+            )
             if any(pattern in where for pattern in patterns):
                 cells.append(uid)
                 modules.add(unit.neuropil)

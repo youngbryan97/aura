@@ -2518,3 +2518,70 @@ def test_a_registered_lesion_prediction_names_a_readout_that_exists():
         )
         assert lost, f"{prediction.name} claims a readout and names nothing to lose"
         assert prediction.station in runner.STATION_PHASES, prediction.station
+
+
+# ---------------------------------------------------------------------------
+# The mesh, as a layer of the same graph
+# ---------------------------------------------------------------------------
+
+
+def test_what_the_code_injects_can_reach_what_the_code_reads():
+    """The two ends of the mesh the rest of the system touches must connect.
+
+    ``EmbodiedInteroception._push_to_mesh`` injects into the sensory tier and
+    ``ConsciousnessBridge._integration_tick`` reads the executive projection. For
+    a long time nothing injected could arrive: inter-column probability decayed
+    as exp(-|i - j| * 0.15) and a tier boundary is where that distance is
+    largest, so on eight seeds nought of sixteen executive columns was reachable
+    from any sensory column, 7 to 16 columns were isolated, and the mesh came
+    apart into 13 to 25 pieces.
+
+    Several seeds, because the topology is a random draw and one draw is one
+    draw.
+    """
+    import numpy as np
+
+    from core.connectome.neural import build_mesh_layer, signal_can_cross
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    reached = []
+    isolated = []
+    for seed in range(4):
+        mesh = NeuralMesh(MeshConfig())
+        mesh._rng = np.random.default_rng(seed=seed)
+        mesh._inter_W = mesh._build_inter_column_weights() + mesh._build_feedforward_weights()
+        mesh._build_feedback_weights()
+        crossing = signal_can_cross(build_mesh_layer(mesh))
+        reached.append(crossing["executive_share_reached"])
+        isolated.append(crossing["isolated_columns"])
+    assert min(reached) > 0.5, (
+        f"a signal injected into the sensory tier reaches {min(reached):.0%} of the "
+        "executive columns on the worst of four draws"
+    )
+    assert max(isolated) <= 8, f"{max(isolated)} columns are wired to nothing"
+
+
+def test_the_mesh_seam_names_the_cells_that_touch_it():
+    """A mesh method called on something that is not a mesh is not a seam edge.
+
+    ``get_field_state`` is also a method of the unified field. Matching on the
+    method name alone attributed its call sites to the mesh, which is the merge
+    error this package already paid for once in the call graph.
+    """
+    from core.connectome.neural import SEAM_CALLS, _find_callers, build_mesh_layer, join_to_code
+    from core.connectome.volume import VolumeReconstructor
+
+    reconstructor = VolumeReconstructor(Path(__file__).resolve().parents[1])
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    callers = _find_callers(snapshot, SEAM_CALLS)
+    assert callers["inject_sensory"], "nothing drives the mesh"
+    assert callers["get_executive_projection"], "nothing reads the mesh"
+    for uid in callers["get_field_state"]:
+        assert "unified_field" not in snapshot.units[uid].neuropil
+
+    layer = join_to_code(build_mesh_layer(), snapshot)
+    summary = layer.summary()
+    assert summary["code_cells_driving"] >= 1
+    assert summary["code_cells_driven"] >= 1
+    assert summary["columns"] == 64
