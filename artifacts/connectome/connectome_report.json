@@ -1,95 +1,95 @@
 {
-  "built_at": 1788771772.639332,
+  "built_at": 1788828429.434025,
   "celltypes": {
-    "adjusted_rand_mean": 0.8314,
-    "adjusted_rand_min": 0.8278,
-    "cells": 48044,
-    "cells_in_multi_member_types": 41785,
+    "adjusted_rand_mean": 0.8333,
+    "adjusted_rand_min": 0.8313,
+    "cells": 48324,
+    "cells_in_multi_member_types": 42044,
     "drop_edges": 0.1,
-    "largest_type": 6330,
-    "mean_type_size": 5.772,
-    "multi_member_share": 0.8697,
+    "largest_type": 6384,
+    "mean_type_size": 5.786,
+    "multi_member_share": 0.87,
     "repeats": 3,
     "rounds": 1,
     "seed_labels": "cell_class",
-    "singleton_types": 6259,
-    "types": 8323,
-    "types_under_dropout_mean": 7478.0
+    "singleton_types": 6280,
+    "types": 8352,
+    "types_under_dropout_mean": 7465.0
   },
   "criticality": {
     "avalanches": {
-      "active_fraction": 0.7371,
-      "count": 96,
-      "largest": 116228197,
-      "longest": 557,
-      "mean_size": 1551321.396,
-      "threshold": 741.0
+      "active_fraction": 0.7492,
+      "count": 221,
+      "largest": 169845880,
+      "longest": 1005,
+      "mean_size": 863805.679,
+      "threshold": 877.0
     },
     "branching": {
-      "autocorrelation_time_steps": 109.492,
+      "autocorrelation_time_steps": 10.46,
       "kmax": 40,
-      "m": 0.99091,
-      "method": "multistep-regression",
-      "offset": 0.0,
-      "r_squared": 0.9245,
+      "m": 0.90882,
+      "method": "multistep-regression+offset",
+      "offset": 0.70843,
+      "r_squared": 0.9009,
       "regime": "critical",
-      "samples": 2107
+      "samples": 2632
     },
-    "crackling_error": 0.0713,
+    "crackling_error": 0.3162,
     "duration_exponent_alpha": {
-      "alpha": 1.6528,
-      "ks": 0.1433,
-      "n": 96.0,
-      "tail_n": 35.0,
-      "xmin": 4.0
+      "alpha": 2.3114,
+      "ks": 0.1128,
+      "n": 221.0,
+      "tail_n": 16.0,
+      "xmin": 19.0
     },
-    "measured_gamma": 1.512,
-    "naive_branching_ratio": 17.38456,
-    "predicted_gamma": 1.5833,
+    "measured_gamma": 1.5727,
+    "naive_branching_ratio": 8.29736,
+    "predicted_gamma": 1.8889,
     "size_exponent_tau": {
-      "alpha": 1.4123,
-      "ks": 0.0901,
-      "n": 96.0,
-      "tail_n": 79.0,
-      "xmin": 1724.0
+      "alpha": 1.6942,
+      "ks": 0.2159,
+      "n": 221.0,
+      "tail_n": 186.0,
+      "xmin": 1453.0
     },
-    "subsampling_bias": -16.39365,
-    "verdict": "consistent with criticality: exponents satisfy the scaling relation, m=0.991"
+    "subsampling_bias": -7.38853,
+    "verdict": "avalanche exponents are not reliable enough to test criticality"
   },
   "delays": {
-    "convergence_cells": 11485,
-    "edges": 71894,
-    "improvement": 0.82758,
-    "jitter_after": 0.13507,
-    "jitter_before": 0.78335,
-    "jitter_random_null": 0.79845,
-    "mean_added_delay": 0.0604,
-    "total_added_delay": 4341.364,
+    "convergence_cells": 11526,
+    "edges": 72218,
+    "improvement": 0.82772,
+    "jitter_after": 0.13509,
+    "jitter_before": 0.78413,
+    "jitter_random_null": 0.80006,
+    "mean_added_delay": 0.0603,
+    "total_added_delay": 4355.824,
     "verdict": "solving beats leaving it alone and beats random holds"
   },
   "ground_truth": {
     "base_score": {
-      "expected_run_length": 2.5073,
-      "mean_run_length": 1.746,
-      "observed_pairs": 7802,
-      "recall": 0.8258,
-      "recovered": 6443,
-      "runs": 630,
-      "split_errors": 1359,
-      "suspected_merges": 1287,
-      "suspicion_denominator": 5690
+      "expected_run_length": 2.6556,
+      "mean_run_length": 1.8287,
+      "observed_pairs": 12027,
+      "recall": 0.8303,
+      "recovered": 9986,
+      "runs": 724,
+      "split_errors": 2041,
+      "suspected_merges": 2669,
+      "suspicion_denominator": 10480
     },
     "focused_queue": [
       {
         "impact": 0.0031,
         "kind": "join",
-        "observed_calls": 274826,
+        "observed_calls": 345838,
         "post": "5e7ef53d637fad64",
         "pre": "7a6bf66a2b1d4e6e",
         "reason": "observed firing, absent from the reconstruction"
       },
       {
-        "impact": 0.0021,
+        "impact": 0.0017,
         "kind": "join",
         "observed_calls": 188956,
         "post": "4f874bc9e5cdc6f6",
@@ -97,7 +97,7 @@
         "reason": "observed firing, absent from the reconstruction"
       },
       {
-        "impact": 0.0021,
+        "impact": 0.0017,
         "kind": "join",
         "observed_calls": 188956,
         "post": "68fd90f7f1f055fe",
@@ -105,7 +105,7 @@
         "reason": "observed firing, absent from the reconstruction"
       },
       {
-        "impact": 0.0021,
+        "impact": 0.0017,
         "kind": "join",
         "observed_calls": 188956,
         "post": "a2d7323b751617be",
@@ -113,7 +113,7 @@
         "reason": "observed firing, absent from the reconstruction"
       },
       {
-        "impact": 0.0015,
+        "impact": 0.0012,
         "kind": "join",
         "observed_calls": 133172,
         "post": "08fb4739210f308c",
@@ -121,7 +121,7 @@
         "reason": "observed firing, absent from the reconstruction"
       },
       {
-        "impact": 0.0014,
+        "impact": 0.0011,
         "kind": "join",
         "observed_calls": 127200,
         "post": "d3e10e2d45bc266d",
@@ -129,7 +129,7 @@
         "reason": "observed firing, absent from the reconstruction"
       },
       {
-        "impact": 0.001,
+        "impact": 0.0008,
         "kind": "join",
         "observed_calls": 90040,
         "post": "9ec34f5a01169a72",
@@ -137,7 +137,7 @@
         "reason": "observed firing, absent from the reconstruction"
       },
       {
-        "impact": 0.0005,
+        "impact": 0.0004,
         "kind": "join",
         "observed_calls": 48607,
         "post": "40974da1e8346317",
@@ -145,7 +145,7 @@
         "reason": "observed firing, absent from the reconstruction"
       },
       {
-        "impact": 0.0004,
+        "impact": 0.0003,
         "kind": "join",
         "observed_calls": 32946,
         "post": "be7ae739cf2c28e5",
@@ -171,13 +171,53 @@
       {
         "impact": 0.0002,
         "kind": "join",
+        "observed_calls": 20604,
+        "post": "af28895fc62f5a44",
+        "pre": "3a8738cc95889191",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0002,
+        "kind": "join",
+        "observed_calls": 18412,
+        "post": "5584ae41f141a5f0",
+        "pre": "7064520df2194edc",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0002,
+        "kind": "join",
+        "observed_calls": 18392,
+        "post": "5584ae41f141a5f0",
+        "pre": "f3520ed42322d3cf",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0002,
+        "kind": "join",
         "observed_calls": 17582,
         "post": "6afe09feb7bbadb5",
         "pre": "d3e10e2d45bc266d",
         "reason": "observed firing, absent from the reconstruction"
       },
       {
-        "impact": 0.0002,
+        "impact": 0.0001,
+        "kind": "join",
+        "observed_calls": 16564,
+        "post": "af28895fc62f5a44",
+        "pre": "58de9ed1f502ece6",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0001,
+        "kind": "join",
+        "observed_calls": 13776,
+        "post": "cdc4b53b9e93eab2",
+        "pre": "5ff759c360b0a2ae",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0001,
         "kind": "join",
         "observed_calls": 13766,
         "post": "ed5f0361f9241e6d",
@@ -187,76 +227,36 @@
       {
         "impact": 0.0001,
         "kind": "join",
+        "observed_calls": 13520,
+        "post": "69b81c50fded8a09",
+        "pre": "826fc6cdd0726d52",
+        "reason": "observed firing, absent from the reconstruction"
+      },
+      {
+        "impact": 0.0001,
+        "kind": "join",
         "observed_calls": 13120,
         "post": "284bb7c24c53970d",
         "pre": "6e6f4741e0bcf63c",
         "reason": "observed firing, absent from the reconstruction"
-      },
-      {
-        "impact": 0.0001,
-        "kind": "join",
-        "observed_calls": 12152,
-        "post": "0c2afcf28a58e3ce",
-        "pre": "7300bce7860d4d4c",
-        "reason": "observed firing, absent from the reconstruction"
-      },
-      {
-        "impact": 0.0001,
-        "kind": "join",
-        "observed_calls": 11979,
-        "post": "ed141d0fd8358946",
-        "pre": "7300bce7860d4d4c",
-        "reason": "observed firing, absent from the reconstruction"
-      },
-      {
-        "impact": 0.0001,
-        "kind": "join",
-        "observed_calls": 11968,
-        "post": "acedecd33bfd5b03",
-        "pre": "7300bce7860d4d4c",
-        "reason": "observed firing, absent from the reconstruction"
-      },
-      {
-        "impact": 0.0001,
-        "kind": "join",
-        "observed_calls": 11840,
-        "post": "c7ba86153e179c46",
-        "pre": "7300bce7860d4d4c",
-        "reason": "observed firing, absent from the reconstruction"
-      },
-      {
-        "impact": 0.0001,
-        "kind": "join",
-        "observed_calls": 11768,
-        "post": "4963cff3343572a6",
-        "pre": "812e45ad879c009b",
-        "reason": "observed firing, absent from the reconstruction"
-      },
-      {
-        "impact": 0.0001,
-        "kind": "join",
-        "observed_calls": 11456,
-        "post": "36efae12cc9df20a",
-        "pre": "7300bce7860d4d4c",
-        "reason": "observed firing, absent from the reconstruction"
       }
     ],
     "observed": {
-      "calls": 88675901,
-      "pairs": 7802
+      "calls": 112337096,
+      "pairs": 12027
     },
     "pruning": {
-      "connected_cells_random_mean": 32022.8,
-      "connected_cells_use": 29941,
+      "connected_cells_random_mean": 32133.4,
+      "connected_cells_use": 29749,
       "fraction_removed": 0.4,
-      "mean_degree_random": 1.3468,
-      "mean_degree_use": 1.4414,
-      "random_mean_traffic_retained": 0.51592,
-      "traffic_advantage": 0.48408,
+      "mean_degree_random": 1.3482,
+      "mean_degree_use": 1.4579,
+      "random_mean_traffic_retained": 0.5634,
+      "traffic_advantage": 0.4366,
       "use": {
-        "kept": 43596,
+        "kept": 43792,
         "method": "use",
-        "removed": 29064,
+        "removed": 29194,
         "removed_fraction": 0.4,
         "traffic_retained": 1.0
       },
@@ -264,115 +264,115 @@
     },
     "threshold_sweep": [
       {
-        "attached": 3318,
-        "drive_edges": 75267,
-        "expected_run_length": 2.6377,
-        "left_split": 12556,
+        "attached": 3348,
+        "drive_edges": 75614,
+        "expected_run_length": 2.8442,
+        "left_split": 12639,
         "margin": 0.2,
-        "mean_run_length": 1.7897,
-        "observed_pairs": 7802,
-        "recall": 0.8504,
-        "recovered": 6635,
-        "runs": 623,
-        "split_errors": 1167,
-        "suspected_merges": 1353,
-        "suspicion_denominator": 5870,
+        "mean_run_length": 1.8801,
+        "observed_pairs": 12027,
+        "recall": 0.8505,
+        "recovered": 10229,
+        "runs": 717,
+        "split_errors": 1798,
+        "suspected_merges": 2784,
+        "suspicion_denominator": 10764,
         "threshold": 0.3
       },
       {
-        "attached": 2838,
-        "drive_edges": 74861,
-        "expected_run_length": 2.5935,
-        "left_split": 13036,
+        "attached": 2861,
+        "drive_edges": 75206,
+        "expected_run_length": 2.7823,
+        "left_split": 13126,
         "margin": 0.2,
-        "mean_run_length": 1.7792,
-        "observed_pairs": 7802,
-        "recall": 0.848,
-        "recovered": 6616,
-        "runs": 625,
-        "split_errors": 1186,
-        "suspected_merges": 1338,
-        "suspicion_denominator": 5845,
+        "mean_run_length": 1.8651,
+        "observed_pairs": 12027,
+        "recall": 0.8475,
+        "recovered": 10193,
+        "runs": 719,
+        "split_errors": 1834,
+        "suspected_merges": 2762,
+        "suspicion_denominator": 10722,
         "threshold": 0.45
       },
       {
-        "attached": 2379,
-        "drive_edges": 74514,
-        "expected_run_length": 2.5928,
-        "left_split": 13495,
+        "attached": 2390,
+        "drive_edges": 74851,
+        "expected_run_length": 2.7821,
+        "left_split": 13597,
         "margin": 0.2,
-        "mean_run_length": 1.776,
-        "observed_pairs": 7802,
-        "recall": 0.8449,
-        "recovered": 6592,
-        "runs": 625,
-        "split_errors": 1210,
-        "suspected_merges": 1328,
-        "suspicion_denominator": 5822,
+        "mean_run_length": 1.8637,
+        "observed_pairs": 12027,
+        "recall": 0.8452,
+        "recovered": 10165,
+        "runs": 719,
+        "split_errors": 1862,
+        "suspected_merges": 2747,
+        "suspicion_denominator": 10689,
         "threshold": 0.6
       },
       {
-        "attached": 1620,
-        "drive_edges": 73908,
-        "expected_run_length": 2.5888,
-        "left_split": 14254,
+        "attached": 1634,
+        "drive_edges": 74244,
+        "expected_run_length": 2.7773,
+        "left_split": 14353,
         "margin": 0.2,
-        "mean_run_length": 1.7716,
-        "observed_pairs": 7802,
-        "recall": 0.8395,
-        "recovered": 6550,
-        "runs": 626,
-        "split_errors": 1252,
-        "suspected_merges": 1306,
-        "suspicion_denominator": 5771,
+        "mean_run_length": 1.8583,
+        "observed_pairs": 12027,
+        "recall": 0.8414,
+        "recovered": 10119,
+        "runs": 720,
+        "split_errors": 1908,
+        "suspected_merges": 2712,
+        "suspicion_denominator": 10618,
         "threshold": 0.8
       },
       {
-        "attached": 967,
-        "drive_edges": 73374,
-        "expected_run_length": 2.5122,
-        "left_split": 14907,
+        "attached": 977,
+        "drive_edges": 73706,
+        "expected_run_length": 2.6546,
+        "left_split": 15010,
         "margin": 0.2,
-        "mean_run_length": 1.7536,
-        "observed_pairs": 7802,
-        "recall": 0.8327,
-        "recovered": 6497,
-        "runs": 629,
-        "split_errors": 1305,
-        "suspected_merges": 1295,
-        "suspicion_denominator": 5732,
+        "mean_run_length": 1.829,
+        "observed_pairs": 12027,
+        "recall": 0.8354,
+        "recovered": 10047,
+        "runs": 725,
+        "split_errors": 1980,
+        "suspected_merges": 2692,
+        "suspicion_denominator": 10548,
         "threshold": 1.0
       },
       {
-        "attached": 561,
-        "drive_edges": 73102,
-        "expected_run_length": 2.5122,
-        "left_split": 15313,
+        "attached": 565,
+        "drive_edges": 73433,
+        "expected_run_length": 2.6556,
+        "left_split": 15422,
         "margin": 0.2,
-        "mean_run_length": 1.7536,
-        "observed_pairs": 7802,
-        "recall": 0.8317,
-        "recovered": 6489,
-        "runs": 629,
-        "split_errors": 1313,
-        "suspected_merges": 1293,
-        "suspicion_denominator": 5723,
+        "mean_run_length": 1.8287,
+        "observed_pairs": 12027,
+        "recall": 0.8342,
+        "recovered": 10033,
+        "runs": 724,
+        "split_errors": 1994,
+        "suspected_merges": 2680,
+        "suspicion_denominator": 10525,
         "threshold": 1.25
       },
       {
-        "attached": 283,
-        "drive_edges": 72852,
-        "expected_run_length": 2.5077,
-        "left_split": 15591,
+        "attached": 281,
+        "drive_edges": 73177,
+        "expected_run_length": 2.6556,
+        "left_split": 15706,
         "margin": 0.2,
-        "mean_run_length": 1.7476,
-        "observed_pairs": 7802,
-        "recall": 0.8274,
-        "recovered": 6455,
-        "runs": 630,
-        "split_errors": 1347,
-        "suspected_merges": 1288,
-        "suspicion_denominator": 5695,
+        "mean_run_length": 1.8287,
+        "observed_pairs": 12027,
+        "recall": 0.8321,
+        "recovered": 10008,
+        "runs": 724,
+        "split_errors": 2019,
+        "suspected_merges": 2672,
+        "suspicion_denominator": 10499,
         "threshold": 1.45
       }
     ]
@@ -392,25 +392,25 @@
     },
     "layers": {
       "gap": {
-        "cells_touched": 827,
-        "mean_degree": 0.158,
-        "pairs": 3795,
+        "cells_touched": 831,
+        "mean_degree": 0.1581,
+        "pairs": 3821,
         "rich_club_normalised": {
-          "16": 1.3551,
-          "2": 1.0246,
-          "32": 1.2587,
-          "4": 1.0564,
-          "64": 0.9231,
-          "8": 1.1588
+          "16": 1.3492,
+          "2": 1.0242,
+          "32": 1.3284,
+          "4": 1.0581,
+          "64": 0.7059,
+          "8": 1.1617
         },
         "top_hubs": [
           {
             "cell": "core.service_registration:_register_all_services_body",
-            "degree": 106
+            "degree": 110
           },
           {
             "cell": "core.providers.consciousness_provider:register_consciousness_services",
-            "degree": 103
+            "degree": 107
           },
           {
             "cell": "core.brain.inference_gate:InferenceGate._build_living_mind_context",
@@ -433,6 +433,10 @@
             "degree": 53
           },
           {
+            "cell": "core.orchestrator.boot:OrchestratorBootMixin._async_init_subsystems",
+            "degree": 50
+          },
+          {
             "cell": "core.mind_tick:MindTick._run_loop",
             "degree": 49
           },
@@ -445,23 +449,19 @@
             "degree": 48
           },
           {
-            "cell": "core.orchestrator.boot:OrchestratorBootMixin._async_init_subsystems",
-            "degree": 47
-          },
-          {
             "cell": "interface.routes.inner_state:get_inner_state",
             "degree": 43
           }
         ],
-        "unique_fraction": 0.986
+        "unique_fraction": 0.9861
       },
       "io": {
-        "cells_touched": 80,
+        "cells_touched": 82,
         "mean_degree": 0.0045,
-        "pairs": 108,
+        "pairs": 109,
         "rich_club_normalised": {
-          "2": 1.1205,
-          "4": 1.2233
+          "2": 1.1553,
+          "4": 1.1667
         },
         "top_hubs": [
           {
@@ -513,11 +513,11 @@
             "degree": 6
           }
         ],
-        "unique_fraction": 0.9722
+        "unique_fraction": 0.9725
       },
       "ipc": {
         "cells_touched": 55,
-        "mean_degree": 0.0108,
+        "mean_degree": 0.0107,
         "pairs": 259,
         "rich_club_normalised": {
           "16": 1.4322,
@@ -635,27 +635,27 @@
         "unique_fraction": 1.0
       },
       "wired": {
-        "cells_touched": 38454,
-        "mean_degree": 2.9928,
-        "pairs": 71894,
+        "cells_touched": 38658,
+        "mean_degree": 2.9889,
+        "pairs": 72218,
         "rich_club_normalised": {
-          "128": 0.2182,
-          "16": 0.7181,
-          "2": 1.0117,
-          "256": 0.5,
-          "32": 0.4781,
-          "4": 1.0179,
-          "64": 0.3581,
-          "8": 0.9508
+          "128": 0.1905,
+          "16": 0.7103,
+          "2": 1.0131,
+          "256": 1.0,
+          "32": 0.4753,
+          "4": 1.0188,
+          "64": 0.3342,
+          "8": 0.9456
         },
         "top_hubs": [
           {
             "cell": "core.runtime.errors:record_degradation",
-            "degree": 3783
+            "degree": 3788
           },
           {
             "cell": "core.container:ServiceContainer.get",
-            "degree": 1015
+            "degree": 1021
           },
           {
             "cell": "core.runtime.file_write_gateway:get_file_write_gateway",
@@ -675,11 +675,11 @@
           },
           {
             "cell": "core.interiority.ledger:StandingRegister.norm",
-            "degree": 281
+            "degree": 282
           },
           {
             "cell": "core.runtime.service_registry:get_runtime_service",
-            "degree": 238
+            "degree": 239
           },
           {
             "cell": "core.brain.llm.latent_cortex.engine:LatentCortexEngine._latent_episode",
@@ -695,81 +695,525 @@
           },
           {
             "cell": "core.container:ServiceContainer.register_instance",
-            "degree": 197
+            "degree": 198
           }
         ],
         "unique_fraction": 0.9992
       }
     },
     "multilink": {
-      "gap": 7537,
+      "gap": 7589,
       "gap+wired": 53,
-      "io": 106,
+      "io": 107,
       "io+wired": 2,
       "ipc": 517,
       "ipc+wired": 1,
       "volume": 11,
-      "wired": 72604
+      "wired": 72930
     },
     "summary": {
-      "channels": 1245,
-      "combined_pairs": 76804,
-      "gap_pairs": 3795,
-      "io_pairs": 108,
+      "channels": 1248,
+      "combined_pairs": 77157,
+      "gap_pairs": 3821,
+      "io_pairs": 109,
       "ipc_pairs": 259,
       "unique_fraction": {
-        "gap": 0.986,
-        "io": 0.9722,
+        "gap": 0.9861,
+        "io": 0.9725,
         "ipc": 0.9961,
         "volume": 1.0,
         "wired": 0.9992
       },
       "unresolved_channels": 16,
       "volume_pairs": 11,
-      "wired_pairs": 72660
+      "wired_pairs": 72986
     }
   },
   "likewise": {
-    "active_cells": 2386,
-    "connected_mean_correlation": 0.77034,
-    "connected_pairs": 3306,
-    "null_mean_correlation": 0.08634,
-    "null_spread": 0.00225,
+    "active_cells": 4278,
+    "connected_mean_correlation": 0.73541,
+    "connected_pairs": 6646,
+    "null_mean_correlation": 0.05955,
+    "null_spread": 0.00095,
     "nulls": 8,
     "verdict": "connected cells move together more than a degree-preserving rewiring allows, which is MICrONS's like-to-like rule",
     "within_condition": true,
-    "z": 303.462
+    "z": 712.84
   },
   "longitudinal": {
-    "skipped": "no --against checkout given, so there is one timepoint"
+    "against": "/Users/bryan/.aura/live-source/.claude/worktrees/agi-gauntlet-sep5",
+    "alignment": {
+      "cross_module_overlap_floor": 0.8,
+      "matched_across_modules": 0,
+      "matched_by_connectivity": 0,
+      "matched_by_identifier": 47914,
+      "minimum_overlap": 0.6,
+      "pairs": [],
+      "unmatched_left": 60,
+      "unmatched_right": 410
+    },
+    "drift": {
+      "cells_new_to_the_individual": 0,
+      "core_cells": 47914,
+      "core_cells_lost": 0,
+      "core_edges": 72506,
+      "core_edges_lost": 0,
+      "core_loss_share": 0.0,
+      "edges_new_to_the_individual": 0,
+      "mean_contact_shift": 4e-05,
+      "timepoints_in_template": 2,
+      "verdict": "the core is intact; every change is to something that was already moving"
+    },
+    "earlier": {
+      "cells": 47974,
+      "class_counts": {
+        "excitatory": 33873,
+        "glial": 529,
+        "inhibitory": 8536,
+        "modulatory": 5036
+      },
+      "connections": 124569,
+      "contacts": 167513,
+      "digest": "22e6ae9c0aa90fb01ddea14e55e406b7",
+      "drive_connections": 72603,
+      "ei_ratio": 3.9683,
+      "neuropils": 3605,
+      "return_connections": 51966,
+      "source": "/Users/bryan/.aura/live-source/.claude/worktrees/agi-gauntlet-sep5",
+      "version": 1
+    },
+    "projection": {
+      "most_inward": [
+        [
+          "runtime",
+          73.05533000000001
+        ],
+        [
+          "container",
+          13.25294000000001
+        ],
+        [
+          "utils",
+          7.096790000000005
+        ],
+        [
+          "consciousness",
+          4.87052
+        ],
+        [
+          "memory",
+          3.6524000000000014
+        ],
+        [
+          "brain",
+          3.303579999999999
+        ],
+        [
+          "agency",
+          3.038490000000001
+        ],
+        [
+          "security",
+          2.7408900000000007
+        ],
+        [
+          "cognition",
+          2.7166700000000006
+        ],
+        [
+          "interiority",
+          2.22186
+        ],
+        [
+          "conversation",
+          2.1513400000000003
+        ],
+        [
+          "autonomy",
+          1.96685
+        ]
+      ],
+      "most_outward": [
+        [
+          "service_registration",
+          11.999999999999986
+        ],
+        [
+          "initializers",
+          11.0
+        ],
+        [
+          "chat_dependencies",
+          4.0
+        ],
+        [
+          "system_ops",
+          3.5
+        ],
+        [
+          "helpers",
+          3.5
+        ],
+        [
+          "coherence",
+          3.2000000000000006
+        ],
+        [
+          "mind_tick",
+          3.03125
+        ],
+        [
+          "orchestrator",
+          2.5630599999999926
+        ],
+        [
+          "server",
+          2.361719999999999
+        ],
+        [
+          "providers",
+          2.346130000000002
+        ],
+        [
+          "event_bridge",
+          2.28571
+        ],
+        [
+          "startup",
+          1.9999799999999996
+        ]
+      ],
+      "normalised": true,
+      "region_pairs": 2303,
+      "regions": 227,
+      "strongest": [
+        {
+          "contacts": 9,
+          "per_source_cell": 9.0,
+          "source": "initializers",
+          "target": "runtime",
+          "weight": 9.0
+        },
+        {
+          "contacts": 7,
+          "per_source_cell": 3.5,
+          "source": "system_ops",
+          "target": "runtime",
+          "weight": 3.5
+        },
+        {
+          "contacts": 10,
+          "per_source_cell": 2.0,
+          "source": "service_registration",
+          "target": "runtime",
+          "weight": 2.0
+        },
+        {
+          "contacts": 2,
+          "per_source_cell": 2.0,
+          "source": "initializers",
+          "target": "consciousness",
+          "weight": 2.0
+        },
+        {
+          "contacts": 3,
+          "per_source_cell": 1.5,
+          "source": "helpers",
+          "target": "runtime",
+          "weight": 1.5
+        },
+        {
+          "contacts": 3,
+          "per_source_cell": 1.5,
+          "source": "helpers",
+          "target": "autonomy",
+          "weight": 1.5
+        },
+        {
+          "contacts": 13,
+          "per_source_cell": 1.3,
+          "source": "coherence",
+          "target": "runtime",
+          "weight": 1.3
+        },
+        {
+          "contacts": 9,
+          "per_source_cell": 1.28571,
+          "source": "event_bridge",
+          "target": "runtime",
+          "weight": 1.28571
+        },
+        {
+          "contacts": 6,
+          "per_source_cell": 1.2,
+          "source": "service_registration",
+          "target": "security",
+          "weight": 1.2
+        },
+        {
+          "contacts": 9,
+          "per_source_cell": 1.125,
+          "source": "gui_actor",
+          "target": "runtime",
+          "weight": 1.125
+        },
+        {
+          "contacts": 5,
+          "per_source_cell": 1.0,
+          "source": "service_registration",
+          "target": "agency",
+          "weight": 1.0
+        },
+        {
+          "contacts": 5,
+          "per_source_cell": 1.0,
+          "source": "soul",
+          "target": "runtime",
+          "weight": 1.0
+        },
+        {
+          "contacts": 2,
+          "per_source_cell": 1.0,
+          "source": "chat_dependencies",
+          "target": "container",
+          "weight": 1.0
+        },
+        {
+          "contacts": 24,
+          "per_source_cell": 0.92308,
+          "source": "providers",
+          "target": "runtime",
+          "weight": 0.92308
+        },
+        {
+          "contacts": 9,
+          "per_source_cell": 0.9,
+          "source": "coherence",
+          "target": "container",
+          "weight": 0.9
+        },
+        {
+          "contacts": 60,
+          "per_source_cell": 0.88235,
+          "source": "evolution",
+          "target": "container",
+          "weight": 0.88235
+        },
+        {
+          "contacts": 6,
+          "per_source_cell": 0.85714,
+          "source": "maintenance",
+          "target": "runtime",
+          "weight": 0.85714
+        },
+        {
+          "contacts": 9,
+          "per_source_cell": 0.81818,
+          "source": "scheduler",
+          "target": "runtime",
+          "weight": 0.81818
+        },
+        {
+          "contacts": 4,
+          "per_source_cell": 0.8,
+          "source": "service_registration",
+          "target": "consciousness",
+          "weight": 0.8
+        },
+        {
+          "contacts": 4,
+          "per_source_cell": 0.8,
+          "source": "service_registration",
+          "target": "mycelium",
+          "weight": 0.8
+        },
+        {
+          "contacts": 707,
+          "per_source_cell": 0.75293,
+          "source": "routes",
+          "target": "runtime",
+          "weight": 0.75293
+        },
+        {
+          "contacts": 9,
+          "per_source_cell": 0.75,
+          "source": "startup",
+          "target": "runtime",
+          "weight": 0.75
+        },
+        {
+          "contacts": 7,
+          "per_source_cell": 0.7,
+          "source": "coherence",
+          "target": "agency",
+          "weight": 0.7
+        },
+        {
+          "contacts": 129,
+          "per_source_cell": 0.69355,
+          "source": "organism",
+          "target": "cognition",
+          "weight": 0.69355
+        },
+        {
+          "contacts": 20,
+          "per_source_cell": 0.68966,
+          "source": "initiative_synthesis",
+          "target": "runtime",
+          "weight": 0.68966
+        },
+        {
+          "contacts": 23,
+          "per_source_cell": 0.67647,
+          "source": "guardians",
+          "target": "runtime",
+          "weight": 0.67647
+        },
+        {
+          "contacts": 2,
+          "per_source_cell": 0.66667,
+          "source": "latent",
+          "target": "interiority",
+          "weight": 0.66667
+        },
+        {
+          "contacts": 4,
+          "per_source_cell": 0.66667,
+          "source": "predictive",
+          "target": "runtime",
+          "weight": 0.66667
+        },
+        {
+          "contacts": 2,
+          "per_source_cell": 0.66667,
+          "source": "services",
+          "target": "autonomic",
+          "weight": 0.66667
+        },
+        {
+          "contacts": 2,
+          "per_source_cell": 0.66667,
+          "source": "network_ops",
+          "target": "runtime",
+          "weight": 0.66667
+        },
+        {
+          "contacts": 299,
+          "per_source_cell": 0.66004,
+          "source": "orchestrator",
+          "target": "container",
+          "weight": 0.66004
+        },
+        {
+          "contacts": 22,
+          "per_source_cell": 0.64706,
+          "source": "sleep",
+          "target": "runtime",
+          "weight": 0.64706
+        },
+        {
+          "contacts": 32,
+          "per_source_cell": 0.62745,
+          "source": "container",
+          "target": "runtime",
+          "weight": 0.62745
+        },
+        {
+          "contacts": 117,
+          "per_source_cell": 0.62567,
+          "source": "ops",
+          "target": "runtime",
+          "weight": 0.62567
+        },
+        {
+          "contacts": 3,
+          "per_source_cell": 0.6,
+          "source": "service_registration",
+          "target": "resilience",
+          "weight": 0.6
+        },
+        {
+          "contacts": 3,
+          "per_source_cell": 0.6,
+          "source": "service_registration",
+          "target": "cognition",
+          "weight": 0.6
+        },
+        {
+          "contacts": 6,
+          "per_source_cell": 0.6,
+          "source": "shell",
+          "target": "runtime",
+          "weight": 0.6
+        },
+        {
+          "contacts": 10,
+          "per_source_cell": 0.58824,
+          "source": "curiosity_engine",
+          "target": "runtime",
+          "weight": 0.58824
+        },
+        {
+          "contacts": 7,
+          "per_source_cell": 0.58333,
+          "source": "startup",
+          "target": "container",
+          "weight": 0.58333
+        },
+        {
+          "contacts": 22,
+          "per_source_cell": 0.57895,
+          "source": "constitution",
+          "target": "executive",
+          "weight": 0.57895
+        }
+      ]
+    },
+    "stereotypy": {
+      "correlation": 0.9996,
+      "only_in_left": 5504,
+      "only_in_right": 5761,
+      "reference": "Platynereis left-right, 0.91",
+      "shared_type_pairs": 50140,
+      "verdict": "as stereotyped as the two halves of an annelid larva"
+    },
+    "template": {
+      "cell_core_share": 0.9903,
+      "cells_in_every_timepoint": 47914,
+      "cells_seen": 48384,
+      "edge_core_share": 0.9921,
+      "edges_in_every_timepoint": 72506,
+      "edges_seen": 73083,
+      "timepoints": 2
+    }
   },
   "microcircuit": {
     "against_cortex": {
       "cortical_mean_density": 0.05340625,
-      "mean_density": 5.991913881298727e-05,
+      "mean_density": 5.9618501720559484e-05,
       "missing_pathways": [
         {
-          "aura_relative": 0.142,
+          "aura_relative": 0.141,
           "cortex_relative": 6.977,
           "pathway": "L5I->L5E"
         },
         {
-          "aura_relative": 0.183,
+          "aura_relative": 0.19,
           "cortex_relative": 2.52,
           "pathway": "L23E->L23I"
         },
         {
-          "aura_relative": 0.225,
+          "aura_relative": 0.228,
           "cortex_relative": 1.889,
           "pathway": "L23E->L23E"
         },
         {
-          "aura_relative": 0.016,
+          "aura_relative": 0.013,
           "cortex_relative": 1.88,
           "pathway": "L23E->L5E"
         },
         {
-          "aura_relative": 0.089,
+          "aura_relative": 0.086,
           "cortex_relative": 1.556,
           "pathway": "L5E->L5E"
         },
@@ -784,7 +1228,7 @@
           "pathway": "L23I->L5E"
         },
         {
-          "aura_relative": 0.065,
+          "aura_relative": 0.064,
           "cortex_relative": 1.123,
           "pathway": "L5E->L5I"
         },
@@ -794,82 +1238,82 @@
           "pathway": "L5E->L6E"
         },
         {
-          "aura_relative": 0.036,
+          "aura_relative": 0.035,
           "cortex_relative": 1.026,
           "pathway": "L23E->L5I"
         }
       ],
       "orientation_free": {
-        "aura_within_over_between": 0.654,
+        "aura_within_over_between": 0.652,
         "cortex_within_over_between": 5.945,
-        "shortfall": 9.09
+        "shortfall": 9.118
       },
       "over_expressed_pathways": [
         {
-          "aura_relative": 5.119,
+          "aura_relative": 5.098,
           "cortex_relative": 0.0,
           "pathway": "L5I->L4I"
         },
         {
-          "aura_relative": 4.668,
+          "aura_relative": 4.682,
           "cortex_relative": 0.054,
           "pathway": "L23I->L4I"
         },
         {
-          "aura_relative": 4.274,
+          "aura_relative": 4.26,
           "cortex_relative": 0.0,
           "pathway": "L6I->L23I"
         },
         {
-          "aura_relative": 2.966,
-          "cortex_relative": 0.0,
-          "pathway": "L6I->L23E"
-        },
-        {
-          "aura_relative": 2.932,
+          "aura_relative": 3.099,
           "cortex_relative": 0.0,
           "pathway": "L6I->L5I"
         },
         {
-          "aura_relative": 2.905,
+          "aura_relative": 2.949,
+          "cortex_relative": 0.0,
+          "pathway": "L6I->L23E"
+        },
+        {
+          "aura_relative": 2.875,
           "cortex_relative": 0.062,
           "pathway": "L5E->L4I"
         },
         {
-          "aura_relative": 2.425,
+          "aura_relative": 2.422,
           "cortex_relative": 0.142,
           "pathway": "L6E->L23E"
         },
         {
-          "aura_relative": 2.369,
+          "aura_relative": 2.34,
           "cortex_relative": 0.0,
           "pathway": "L6I->L4I"
         },
         {
-          "aura_relative": 2.083,
+          "aura_relative": 2.079,
           "cortex_relative": 0.006,
           "pathway": "L5I->L4E"
         },
         {
-          "aura_relative": 2.062,
+          "aura_relative": 2.064,
           "cortex_relative": 0.11,
           "pathway": "L23I->L4E"
         }
       ],
-      "spearman": -0.2301,
-      "spearman_if_orientation_reversed": 0.2604
+      "spearman": -0.2294,
+      "spearman_if_orientation_reversed": 0.2645
     },
     "assignment": {
       "anchors": {
         "afferent_cells": 124,
-        "anchor_margin": 0.0969,
+        "anchor_margin": 0.0968,
         "efferent_cells": 274,
-        "height_spread": 11.021,
-        "mean_afferent_height": 4.961,
-        "mean_efferent_height": 4.864,
+        "height_spread": 11.029,
+        "mean_afferent_height": 4.962,
+        "mean_efferent_height": 4.865,
         "orientation_flipped": true
       },
-      "assigned": 38454,
+      "assigned": 38658,
       "cortical_share": {
         "L23E": 0.268,
         "L23I": 0.0756,
@@ -880,99 +1324,99 @@
         "L6E": 0.1865,
         "L6I": 0.0382
       },
-      "incoherence": 0.1267,
+      "incoherence": 0.1266,
       "population_share": {
-        "L23E": 0.2735,
-        "L23I": 0.0701,
-        "L4E": 0.2883,
-        "L4I": 0.0667,
-        "L5E": 0.0628,
-        "L5I": 0.0139,
-        "L6E": 0.1857,
-        "L6I": 0.0391
+        "L23E": 0.2736,
+        "L23I": 0.07,
+        "L4E": 0.2884,
+        "L4I": 0.0666,
+        "L5E": 0.0626,
+        "L5I": 0.014,
+        "L6E": 0.186,
+        "L6I": 0.0388
       },
       "populations": {
-        "L23E": 10517,
-        "L23I": 2697,
-        "L4E": 11087,
-        "L4I": 2564,
-        "L5E": 2413,
-        "L5I": 534,
-        "L6E": 7139,
-        "L6I": 1503
+        "L23E": 10576,
+        "L23I": 2707,
+        "L4E": 11150,
+        "L4I": 2574,
+        "L5E": 2421,
+        "L5I": 542,
+        "L6E": 7190,
+        "L6I": 1498
       },
-      "unassigned": 9590
+      "unassigned": 9666
     },
     "matrix": [
       [
-        1.345e-05,
-        1.622e-05,
-        2.3e-07,
+        1.36e-05,
+        1.624e-05,
+        2.4e-07,
         3.3e-07,
-        5.138e-05,
-        6.838e-05,
-        0.00014528,
-        0.00017771
+        5.058e-05,
+        6.804e-05,
+        0.00014442,
+        0.00017579
       ],
       [
-        1.096e-05,
-        2.998e-05,
-        3e-07,
+        1.132e-05,
+        2.99e-05,
+        3.3e-07,
         0.0,
-        4.103e-05,
-        0.00010276,
-        0.0001153,
-        0.00025607
+        4.074e-05,
+        0.00010224,
+        0.0001156,
+        0.000254
       ],
       [
-        0.00010538,
-        0.00012354,
-        3.995e-05,
-        4.742e-05,
-        0.00010896,
-        0.00012482,
-        4.467e-05,
-        6.151e-05
+        0.00010491,
+        0.00012308,
+        3.984e-05,
+        4.714e-05,
+        0.00010654,
+        0.00012394,
+        4.499e-05,
+        6.041e-05
       ],
       [
-        0.00016451,
-        0.00027968,
-        5.048e-05,
-        0.00010363,
-        0.00017408,
-        0.00030675,
-        9.943e-05,
-        0.00014194
+        0.0001638,
+        0.00027914,
+        5.007e-05,
+        0.00010283,
+        0.00017138,
+        0.00030392,
+        9.764e-05,
+        0.00013953
       ],
       [
-        9.5e-07,
-        1.54e-06,
-        0.0,
-        0.0,
-        5.33e-06,
-        8.54e-06,
-        8.144e-05,
-        8.327e-05
-      ],
-      [
-        2.14e-06,
-        2.08e-06,
+        7.8e-07,
+        1.53e-06,
         0.0,
         0.0,
-        3.88e-06,
-        2.811e-05,
-        9.601e-05,
-        0.00017568
+        5.12e-06,
+        8.38e-06,
+        7.974e-05,
+        8.603e-05
       ],
       [
-        3.1e-07,
+        2.09e-06,
+        2.04e-06,
+        0.0,
+        0.0,
+        3.81e-06,
+        2.728e-05,
+        9.443e-05,
+        0.00018475
+      ],
+      [
+        3.4e-07,
         2.1e-07,
         1e-08,
         0.0,
-        1.04e-06,
-        1.57e-06,
-        6.653e-05,
-        6.123e-05
+        1.03e-06,
+        1.54e-06,
+        6.582e-05,
+        6.174e-05
       ],
       [
         2.5e-07,
@@ -980,11 +1424,96 @@
         0.0,
         0.0,
         1.38e-06,
-        6.23e-06,
-        7.158e-05,
-        0.0001289
+        6.16e-06,
+        7.056e-05,
+        0.00012754
       ]
     ]
+  },
+  "neural": {
+    "crossing": {
+      "columns": 64,
+      "components": 6,
+      "edges": 82,
+      "executive_columns": 16,
+      "executive_reached_from_sensory": 8,
+      "executive_share_reached": 0.5,
+      "isolated_columns": 5,
+      "largest_component": 59,
+      "mean_degree": 2.5625,
+      "sensory_columns": 16,
+      "verdict": "a signal injected into the sensory tier reaches 8 of 16 executive columns"
+    },
+    "draws": {
+      "density_mean": 0.01283,
+      "density_spread": 0.0018,
+      "draws": 4,
+      "feedforward_over_feedback_mean": 0.5153,
+      "feedforward_over_feedback_spread": 0.1917,
+      "verdict": "the draw moves this as much as the construction does"
+    },
+    "layer": {
+      "between_tiers": {
+        "association -> association": {
+          "edges": 14,
+          "mean_weight": 0.041812,
+          "total_weight": 0.5854
+        },
+        "association -> executive": {
+          "edges": 17,
+          "mean_weight": 0.031777,
+          "total_weight": 0.5402
+        },
+        "association -> sensory": {
+          "edges": 10,
+          "mean_weight": 0.027464,
+          "total_weight": 0.2746
+        },
+        "executive -> association": {
+          "edges": 9,
+          "mean_weight": 0.027867,
+          "total_weight": 0.2508
+        },
+        "executive -> executive": {
+          "edges": 3,
+          "mean_weight": 0.046981,
+          "total_weight": 0.1409
+        },
+        "executive -> sensory": {
+          "edges": 1,
+          "mean_weight": 0.003137,
+          "total_weight": 0.0031
+        },
+        "sensory -> association": {
+          "edges": 18,
+          "mean_weight": 0.037239,
+          "total_weight": 0.6703
+        },
+        "sensory -> executive": {
+          "edges": 3,
+          "mean_weight": 0.088527,
+          "total_weight": 0.2656
+        },
+        "sensory -> sensory": {
+          "edges": 7,
+          "mean_weight": 0.040535,
+          "total_weight": 0.2837
+        }
+      },
+      "code_cells_driven": 5,
+      "code_cells_driving": 2,
+      "columns": 64,
+      "density": 0.02034,
+      "edges": 82,
+      "note": "built offline from NeuralMesh() with its own seed; a live mesh's weights will have moved under STDP",
+      "seam_edges": 272,
+      "seed": 42,
+      "tiers": {
+        "association": 32,
+        "executive": 16,
+        "sensory": 16
+      }
+    }
   },
   "neuroglancer": {
     "segment_properties": "artifacts/connectome/neuroglancer/segment_properties.json",
@@ -1011,15 +1540,15 @@
         "closes_when": "a step refines its result against its own level before passing it up, and the ratio rises",
         "confidence": "measured",
         "detail": {
-          "aura_within_over_between": 0.654,
+          "aura_within_over_between": 0.652,
           "cortex_within_over_between": 5.945,
-          "shortfall": 9.09
+          "shortfall": 9.118
         },
-        "evidence": "within-layer density is 0.654 times between-layer, against cortex at 5.945, a shortfall of 9.09x",
+        "evidence": "within-layer density is 0.652 times between-layer, against cortex at 5.945, a shortfall of 9.118x",
         "kind": "missing_local_recurrence",
         "severity": "high",
         "subject": "whole system",
-        "weight": 909.0
+        "weight": 911.8
       },
       {
         "closes_when": "the pair is joined by one call, or the two modules are one",
@@ -1546,13 +2075,13 @@
         "closes_when": "the edge is in the reconstruction, or the ledger records the join",
         "confidence": "observed",
         "detail": {
-          "observed_calls": 274826
+          "observed_calls": 345838
         },
-        "evidence": "seen firing 274826 times and absent from the map",
+        "evidence": "seen firing 345838 times and absent from the map",
         "kind": "split_error",
         "severity": "medium",
         "subject": "core.connectome.volume:VolumeReconstructor._record_unit -> core.connectome.types:stable_id",
-        "weight": 274826.0
+        "weight": 345838.0
       },
       {
         "closes_when": "the edge is in the reconstruction, or the ledger records the join",
@@ -1678,6 +2207,42 @@
         "closes_when": "the edge is in the reconstruction, or the ledger records the join",
         "confidence": "observed",
         "detail": {
+          "observed_calls": 20604
+        },
+        "evidence": "seen firing 20604 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.skills.discovery:build_skill_catalog -> core.skills.discovery:SkillDeclaration.to_dict",
+        "weight": 20604.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 18412
+        },
+        "evidence": "seen firing 18412 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.frontier_tasks:PublicTaskRecord._body -> core.brain.llm.latent_cortex.frontier_tasks:ContaminationFingerprint.to_dict",
+        "weight": 18412.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 18392
+        },
+        "evidence": "seen firing 18392 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.brain.llm.latent_cortex.frontier_tasks:_make_task -> core.brain.llm.latent_cortex.frontier_tasks:ContaminationFingerprint.to_dict",
+        "weight": 18392.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
           "observed_calls": 17582
         },
         "evidence": "seen firing 17582 times and absent from the map",
@@ -1690,6 +2255,30 @@
         "closes_when": "the edge is in the reconstruction, or the ledger records the join",
         "confidence": "observed",
         "detail": {
+          "observed_calls": 16564
+        },
+        "evidence": "seen firing 16564 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.skills.discovery:_candidate_payload_json -> core.skills.discovery:SkillDeclaration.to_dict",
+        "weight": 16564.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 13776
+        },
+        "evidence": "seen firing 13776 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.connectome.synaptology:measure_multiplicity -> core.connectome.types:_Reference.get",
+        "weight": 13776.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
           "observed_calls": 13766
         },
         "evidence": "seen firing 13766 times and absent from the map",
@@ -1697,6 +2286,18 @@
         "severity": "medium",
         "subject": "core.cognition.the_floor_she_stands_on:run -> core.cognition.the_floor_she_stands_on:_times",
         "weight": 13766.0
+      },
+      {
+        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
+        "confidence": "observed",
+        "detail": {
+          "observed_calls": 13520
+        },
+        "evidence": "seen firing 13520 times and absent from the map",
+        "kind": "split_error",
+        "severity": "medium",
+        "subject": "core.being.self_model_attractor:FunctionalIAttractor.update -> core.being.causal_self_state:CausalSelfVector.value",
+        "weight": 13520.0
       },
       {
         "closes_when": "the edge is in the reconstruction, or the ledger records the join",
@@ -1762,30 +2363,6 @@
         "closes_when": "the edge is in the reconstruction, or the ledger records the join",
         "confidence": "observed",
         "detail": {
-          "observed_calls": 11768
-        },
-        "evidence": "seen firing 11768 times and absent from the map",
-        "kind": "split_error",
-        "severity": "medium",
-        "subject": "core.resilience.unknown_failure:_KeptOntology.keep -> core.resilience.unknown_failure:Signature.to_dict",
-        "weight": 11768.0
-      },
-      {
-        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
-        "confidence": "observed",
-        "detail": {
-          "observed_calls": 11456
-        },
-        "evidence": "seen firing 11456 times and absent from the map",
-        "kind": "split_error",
-        "severity": "medium",
-        "subject": "core.cognition.an_operation_that_generalises:Expression.__call__ -> core.cognition.an_operation_that_generalises:_the_larger",
-        "weight": 11456.0
-      },
-      {
-        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
-        "confidence": "observed",
-        "detail": {
           "observed_calls": 11456
         },
         "evidence": "seen firing 11456 times and absent from the map",
@@ -1793,54 +2370,6 @@
         "severity": "medium",
         "subject": "core.cognition.an_operation_that_generalises:Expression.__call__ -> core.cognition.an_operation_that_generalises:_the_smaller",
         "weight": 11456.0
-      },
-      {
-        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
-        "confidence": "observed",
-        "detail": {
-          "observed_calls": 11392
-        },
-        "evidence": "seen firing 11392 times and absent from the map",
-        "kind": "split_error",
-        "severity": "medium",
-        "subject": "core.cognition.an_operation_that_generalises:Expression.__call__ -> core.cognition.an_operation_that_generalises:_how_many_times",
-        "weight": 11392.0
-      },
-      {
-        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
-        "confidence": "observed",
-        "detail": {
-          "observed_calls": 11392
-        },
-        "evidence": "seen firing 11392 times and absent from the map",
-        "kind": "split_error",
-        "severity": "medium",
-        "subject": "core.cognition.an_operation_that_generalises:Expression.__call__ -> core.cognition.an_operation_that_generalises:_what_is_left_over",
-        "weight": 11392.0
-      },
-      {
-        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
-        "confidence": "observed",
-        "detail": {
-          "observed_calls": 10032
-        },
-        "evidence": "seen firing 10032 times and absent from the map",
-        "kind": "split_error",
-        "severity": "medium",
-        "subject": "core.connectome.synaptology:measure_multiplicity -> core.connectome.types:_Reference.get",
-        "weight": 10032.0
-      },
-      {
-        "closes_when": "the edge is in the reconstruction, or the ledger records the join",
-        "confidence": "observed",
-        "detail": {
-          "observed_calls": 9600
-        },
-        "evidence": "seen firing 9600 times and absent from the map",
-        "kind": "split_error",
-        "severity": "medium",
-        "subject": "core.cognition.what_the_old_language_cannot_say:the_bound -> core.cognition.one_algebra:Term.how_long",
-        "weight": 9600.0
       },
       {
         "closes_when": "the ratio reaches half of cortex's, by a guard being removed or by the package gaining the productive path it is missing",
@@ -2712,17 +3241,17 @@
       }
     ],
     "scanned": {
-      "cells": 48044,
-      "gap_pairs": 3795,
-      "heavy_pairs_crossing_modules": 615,
-      "observed_pairs": 7802,
-      "stores": 113,
+      "cells": 48324,
+      "gap_pairs": 3821,
+      "heavy_pairs_crossing_modules": 618,
+      "observed_pairs": 12027,
+      "stores": 115,
       "stores_read_only": 25,
       "stores_write_only": 64,
       "topics": 120,
       "topics_read_only": 26,
       "topics_write_only": 87,
-      "within_over_between": 0.654
+      "within_over_between": 0.652
     },
     "total": 214
   },
@@ -2731,76 +3260,76 @@
     "hops": 1,
     "rules": [
       {
-        "f1": 0.5595,
+        "f1": 0.61492,
         "frames": 600,
-        "mean_actual": 46.76,
-        "mean_predicted": 77.3,
-        "precision": 0.44897,
-        "recall": 0.74221,
+        "mean_actual": 69.25,
+        "mean_predicted": 95.18,
+        "precision": 0.53114,
+        "recall": 0.73009,
         "rule": "connectome"
       },
       {
-        "f1": 0.65719,
+        "f1": 0.69391,
         "frames": 600,
-        "mean_actual": 46.76,
-        "mean_predicted": 56.48,
-        "precision": 0.60065,
-        "recall": 0.72549,
+        "mean_actual": 69.25,
+        "mean_predicted": 75.12,
+        "precision": 0.66676,
+        "recall": 0.72337,
         "rule": "connectome_weighted"
       },
       {
-        "f1": 0.0971,
+        "f1": 0.09965,
         "frames": 600,
-        "mean_actual": 46.76,
-        "mean_predicted": 77.0,
-        "precision": 0.07803,
-        "recall": 0.1285,
+        "mean_actual": 69.25,
+        "mean_predicted": 95.0,
+        "precision": 0.08614,
+        "recall": 0.11818,
         "rule": "frequent"
       },
       {
-        "f1": 0.6822,
+        "f1": 0.71288,
         "frames": 600,
-        "mean_actual": 46.76,
-        "mean_predicted": 52.3,
-        "precision": 0.64605,
-        "recall": 0.72264,
+        "mean_actual": 69.25,
+        "mean_predicted": 70.93,
+        "precision": 0.70439,
+        "recall": 0.72157,
         "rule": "persistent"
       }
     ],
     "verdict": "the connectome does not beat its nulls; persistent wins"
   },
   "proofreading": {
-    "digest_after": "b0dccb97ff4d4124b6e22e8faf00ecc0",
-    "digest_before": "e4efd59447af2fb510ddb7f2647634e5",
-    "joins_written": 1340,
-    "observed_pairs": 7802
+    "digest_after": "d11f83ee225f6f45fdbe101e8a43bfdd",
+    "digest_before": "1a3098e3ad5f8ecabb87cfac48897343",
+    "joins_written": 1742,
+    "observed_pairs": 12027
   },
   "reconstruction": {
     "afferent_cells": 133,
-    "bytes_read": 64516655,
-    "call_sites": 438557,
-    "calls_ambiguous": 15874,
-    "calls_out_of_volume": 303212,
-    "calls_resolved": 99657,
-    "calls_unresolved": 19814,
-    "cells": 48044,
+    "bytes_read": 64899304,
+    "call_sites": 441290,
+    "calls_ambiguous": 15987,
+    "calls_out_of_volume": 305093,
+    "calls_resolved": 100286,
+    "calls_unresolved": 19924,
+    "cells": 48324,
     "class_counts": {
-      "excitatory": 33929,
+      "excitatory": 34151,
       "glial": 529,
-      "inhibitory": 8546,
-      "modulatory": 5040
+      "inhibitory": 8585,
+      "modulatory": 5059
     },
-    "connections": 124661,
-    "contacts": 167640,
-    "digest": "e4efd59447af2fb510ddb7f2647634e5",
-    "drive_connections": 72660,
+    "connections": 125256,
+    "contacts": 168804,
+    "digest": "1a3098e3ad5f8ecabb87cfac48897343",
+    "drive_connections": 72986,
     "efferent_cells": 293,
-    "ei_ratio": 3.9702,
-    "files_read": 3615,
+    "ei_ratio": 3.978,
+    "files_read": 3645,
     "in_volume_coverage": 0.7363,
-    "neuropils": 3609,
+    "neuropils": 3639,
     "parse_failures": 0,
-    "return_connections": 52001,
+    "return_connections": 52270,
     "roots": [
       "core",
       "interface",
@@ -2814,12 +3343,12 @@
   },
   "repo": "/Users/bryan/.aura/live-source",
   "serial_homology": {
-    "share_spanning": 0.1288,
-    "types": 8323,
-    "types_spanning_regions": 1072,
+    "share_spanning": 0.129,
+    "types": 8352,
+    "types_spanning_regions": 1077,
     "widest": [
       {
-        "cells": 6330,
+        "cells": 6384,
         "example": "core.agency_core:__getattr__",
         "region_names": [
           "actuators",
@@ -2831,11 +3360,11 @@
           "agency_core",
           "agi"
         ],
-        "regions": 192,
+        "regions": 193,
         "type": "ca32082699af87f2"
       },
       {
-        "cells": 1878,
+        "cells": 1884,
         "example": "core.capability_engine:Shell.__init__",
         "region_names": [
           "_local_media_generation",
@@ -2847,11 +3376,11 @@
           "agi",
           "architect"
         ],
-        "regions": 171,
+        "regions": 172,
         "type": "af7788ebade8ecba"
       },
       {
-        "cells": 3595,
+        "cells": 3618,
         "example": "core.capability_engine:_humanize_skill_name",
         "region_names": [
           "actuation",
@@ -2863,11 +3392,11 @@
           "agency",
           "agi"
         ],
-        "regions": 165,
+        "regions": 166,
         "type": "b22bcde31cb1941c"
       },
       {
-        "cells": 1941,
+        "cells": 1953,
         "example": "core.capability_engine:CapabilityEngine.check_package",
         "region_names": [
           "actuation",
@@ -2879,11 +3408,11 @@
           "agency",
           "agi"
         ],
-        "regions": 149,
+        "regions": 150,
         "type": "5bc6fb081e7453e0"
       },
       {
-        "cells": 1319,
+        "cells": 1324,
         "example": "core.capability_engine:_generic_skill_invocation_patterns",
         "region_names": [
           "_local_media_generation",
@@ -2895,11 +3424,11 @@
           "affect",
           "agency"
         ],
-        "regions": 131,
+        "regions": 132,
         "type": "ab220f7ec2bbf487"
       },
       {
-        "cells": 1248,
+        "cells": 1264,
         "example": "core.capability_engine:SkillMetadata.declares_its_result",
         "region_names": [
           "actuators",
@@ -2911,11 +3440,11 @@
           "agi",
           "architect"
         ],
-        "regions": 116,
+        "regions": 117,
         "type": "e55bacfd61e7ce04"
       },
       {
-        "cells": 811,
+        "cells": 815,
         "example": "core.capability_engine:SkillMetadata.to_json_schema",
         "region_names": [
           "actuation",
@@ -2927,11 +3456,11 @@
           "agi",
           "architect"
         ],
-        "regions": 116,
+        "regions": 117,
         "type": "6c7d94d7b01661bc"
       },
       {
-        "cells": 624,
+        "cells": 627,
         "example": "core.capability_engine:WebClient._is_allowed",
         "region_names": [
           "actuators",
@@ -2943,11 +3472,11 @@
           "agi",
           "architect"
         ],
-        "regions": 108,
+        "regions": 109,
         "type": "692e0e07d30328bb"
       },
       {
-        "cells": 726,
+        "cells": 733,
         "example": "core.capability_engine:SkillMetadata.schema_def",
         "region_names": [
           "actuation",
@@ -2975,11 +3504,11 @@
           "agency",
           "architect"
         ],
-        "regions": 104,
+        "regions": 105,
         "type": "f6a7e2365e699a24"
       },
       {
-        "cells": 453,
+        "cells": 455,
         "example": "core.constitution:ConstitutionalCore.__init__",
         "region_names": [
           "actuation",
@@ -2991,11 +3520,11 @@
           "agency",
           "agi"
         ],
-        "regions": 104,
+        "regions": 105,
         "type": "49c9ff58ee399003"
       },
       {
-        "cells": 363,
+        "cells": 365,
         "example": "core.curiosity_engine:_PassiveProactiveComm.get_boredom_level",
         "region_names": [
           "actuators",
@@ -3011,7 +3540,7 @@
         "type": "0145d14f689beede"
       },
       {
-        "cells": 608,
+        "cells": 617,
         "example": "core.mycelium:MycelialNetwork.get_unity_report",
         "region_names": [
           "actuation",
@@ -3023,11 +3552,11 @@
           "architect",
           "autonomy"
         ],
-        "regions": 90,
+        "regions": 91,
         "type": "e9b5efca8329df7b"
       },
       {
-        "cells": 344,
+        "cells": 345,
         "example": "core.container:ServiceContainer._manifest_snapshot",
         "region_names": [
           "actuators",
@@ -3039,7 +3568,7 @@
           "agi",
           "architecture_quality"
         ],
-        "regions": 79,
+        "regions": 80,
         "type": "ada6004505d7518e"
       },
       {
@@ -3059,7 +3588,7 @@
         "type": "93d6b4d92c88065f"
       },
       {
-        "cells": 421,
+        "cells": 422,
         "example": "core.capability_engine:CapabilityEngine.maturity_backlog",
         "region_names": [
           "actuation",
@@ -3075,7 +3604,7 @@
         "type": "d2e1ea93827f3b1f"
       },
       {
-        "cells": 436,
+        "cells": 442,
         "example": "core.capability_engine:CapabilityEngine._explicitly_named_skills",
         "region_names": [
           "adaptation",
@@ -3087,11 +3616,27 @@
           "autonomic",
           "autonomy"
         ],
-        "regions": 74,
+        "regions": 75,
         "type": "359af0a61896f956"
       },
       {
-        "cells": 355,
+        "cells": 218,
+        "example": "core.capability_engine:CapabilityEngine._call_method",
+        "region_names": [
+          "actuators",
+          "adaptation",
+          "adapters",
+          "advanced_cognition",
+          "affect",
+          "agency",
+          "architect",
+          "architecture_quality"
+        ],
+        "regions": 74,
+        "type": "ec3a411167de78cc"
+      },
+      {
+        "cells": 354,
         "example": "core.capability_engine:CapabilityEngine._user_benefit_for_execution",
         "region_names": [
           "actuators",
@@ -3107,7 +3652,7 @@
         "type": "14759775ec5cc31f"
       },
       {
-        "cells": 291,
+        "cells": 294,
         "example": "core.capability_engine:CapabilityEngine._is_mention_rather_than_request",
         "region_names": [
           "actuators",
@@ -3121,41 +3666,25 @@
         ],
         "regions": 73,
         "type": "62483e3cae1bf32d"
-      },
-      {
-        "cells": 213,
-        "example": "core.capability_engine:CapabilityEngine._call_method",
-        "region_names": [
-          "actuators",
-          "adaptation",
-          "adapters",
-          "advanced_cognition",
-          "affect",
-          "agency",
-          "architect",
-          "architecture_quality"
-        ],
-        "regions": 73,
-        "type": "ec3a411167de78cc"
       }
     ]
   },
   "spine": {
     "afferent": 125,
     "concentration": {
-      "cells_carrying_half": 9.0,
-      "top_10": 0.5425,
+      "cells_carrying_half": 8.0,
+      "top_10": 0.5808,
       "top_100": 1.0,
-      "top_25": 0.8402,
+      "top_25": 0.822,
       "top_250": 1.0,
-      "top_50": 0.926
+      "top_50": 0.9167
     },
     "descending_directness": {
-      "effectors": 211,
-      "effectors_over_twenty_percent": 14,
+      "effectors": 210,
+      "effectors_over_twenty_percent": 15,
       "fly_neck_motor_neuron_range": "0.20 to 0.60",
       "fly_typical_motor_neuron_share": 0.07,
-      "mean_direct_share": 0.0535,
+      "mean_direct_share": 0.0561,
       "median_direct_share": 0.0,
       "most_direct": [
         {
@@ -3212,154 +3741,90 @@
       "verdict": "cognition mostly reaches the world through local circuitry, as in the fly"
     },
     "efferent": 275,
-    "evidence": "thin: only 190 statically reachable pairs; proofread the snapshot first",
-    "graph_mean_indegree": 1.887,
-    "integration_ratio": 109.099,
-    "integrator_indegree": 205.88,
-    "mean_path": 6.784,
-    "median_path": 6.0,
-    "reachable_pairs": 190,
+    "evidence": "thin: 162 reachable pairs against a bar of 200. On a raw reconstruction the remedy is to proofread it against a recording; on a proofread one it is a longer recording, because a pair whose path was never taken is a pair the recording could not join",
+    "graph_mean_indegree": 1.894,
+    "integration_ratio": 109.078,
+    "integrator_indegree": 206.56,
+    "mean_path": 6.062,
+    "median_path": 5.5,
+    "reachable_pairs": 162,
     "top_cells": [
       {
         "cell": "core.runtime.errors:record_degradation",
         "cell_class": "inhibitory",
-        "flow_share": 0.11416,
-        "in_degree": 3760,
+        "flow_share": 0.12626,
+        "in_degree": 3765,
         "out_degree": 27,
         "region": "runtime"
       },
       {
         "cell": "core.runtime.receipts:ReceiptStore.emit",
         "cell_class": "excitatory",
-        "flow_share": 0.0758,
-        "in_degree": 3,
+        "flow_share": 0.09975,
+        "in_degree": 4,
         "out_degree": 10,
         "region": "runtime"
       },
       {
         "cell": "core.runtime.atomic_writer:atomic_write_text",
         "cell_class": "excitatory",
-        "flow_share": 0.05753,
+        "flow_share": 0.07576,
         "in_degree": 177,
         "out_degree": 1,
         "region": "runtime"
       },
       {
+        "cell": "core.runtime.atomic_writer:atomic_write_json",
+        "cell_class": "inhibitory",
+        "flow_share": 0.06061,
+        "in_degree": 14,
+        "out_degree": 1,
+        "region": "runtime"
+      },
+      {
+        "cell": "core.runtime.secure_path_custody:DirectoryCustody.verify",
+        "cell_class": "inhibitory",
+        "flow_share": 0.04167,
+        "in_degree": 12,
+        "out_degree": 2,
+        "region": "runtime"
+      },
+      {
+        "cell": "core.runtime.secure_path_custody:DirectoryCustody.fileno",
+        "cell_class": "excitatory",
+        "flow_share": 0.03914,
+        "in_degree": 25,
+        "out_degree": 1,
+        "region": "runtime"
+      },
+      {
+        "cell": "core.runtime.audit_chain:AuditChain.append",
+        "cell_class": "inhibitory",
+        "flow_share": 0.03914,
+        "in_degree": 1,
+        "out_degree": 6,
+        "region": "runtime"
+      },
+      {
         "cell": "core.container:ServiceContainer.get",
         "cell_class": "inhibitory",
-        "flow_share": 0.04749,
-        "in_degree": 1013,
+        "flow_share": 0.03283,
+        "in_degree": 1020,
         "out_degree": 10,
         "region": "container"
       },
       {
         "cell": "core.service_registration:_register_all_services_body",
         "cell_class": "excitatory",
-        "flow_share": 0.04749,
+        "flow_share": 0.03283,
         "in_degree": 2,
-        "out_degree": 61,
+        "out_degree": 58,
         "region": "service_registration"
-      },
-      {
-        "cell": "core.runtime.atomic_writer:atomic_write_json",
-        "cell_class": "inhibitory",
-        "flow_share": 0.04658,
-        "in_degree": 14,
-        "out_degree": 1,
-        "region": "runtime"
-      },
-      {
-        "cell": "core.resilience.degradation_repair:DegradationRepairRouter.route",
-        "cell_class": "excitatory",
-        "flow_share": 0.03836,
-        "in_degree": 1,
-        "out_degree": 3,
-        "region": "resilience"
-      },
-      {
-        "cell": "core.resilience.degradation_repair:DegradationRepairRouter._route_to_adaptive_immunity",
-        "cell_class": "modulatory",
-        "flow_share": 0.03836,
-        "in_degree": 1,
-        "out_degree": 4,
-        "region": "resilience"
-      },
-      {
-        "cell": "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem.observe_event",
-        "cell_class": "excitatory",
-        "flow_share": 0.03836,
-        "in_degree": 1,
-        "out_degree": 7,
-        "region": "adaptation"
-      },
-      {
-        "cell": "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._maybe_execute_artifact",
-        "cell_class": "excitatory",
-        "flow_share": 0.03836,
-        "in_degree": 1,
-        "out_degree": 13,
-        "region": "adaptation"
-      },
-      {
-        "cell": "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._get_service",
-        "cell_class": "excitatory",
-        "flow_share": 0.03836,
-        "in_degree": 6,
-        "out_degree": 2,
-        "region": "adaptation"
-      },
-      {
-        "cell": "core.runtime.secure_path_custody:DirectoryCustody.verify",
-        "cell_class": "inhibitory",
-        "flow_share": 0.03014,
-        "in_degree": 12,
-        "out_degree": 2,
-        "region": "runtime"
-      },
-      {
-        "cell": "core.runtime.audit_chain:AuditChain.append",
-        "cell_class": "inhibitory",
-        "flow_share": 0.02922,
-        "in_degree": 1,
-        "out_degree": 6,
-        "region": "runtime"
-      },
-      {
-        "cell": "core.runtime.secure_path_custody:DirectoryCustody.fileno",
-        "cell_class": "excitatory",
-        "flow_share": 0.02831,
-        "in_degree": 25,
-        "out_degree": 1,
-        "region": "runtime"
-      },
-      {
-        "cell": "core.providers.memory_provider:register_memory_services",
-        "cell_class": "excitatory",
-        "flow_share": 0.02374,
-        "in_degree": 1,
-        "out_degree": 9,
-        "region": "providers"
-      },
-      {
-        "cell": "core.runtime.file_write_gateway:FileWriteGateway.move_path",
-        "cell_class": "excitatory",
-        "flow_share": 0.02374,
-        "in_degree": 8,
-        "out_degree": 4,
-        "region": "runtime"
-      },
-      {
-        "cell": "core.runtime.file_write_gateway:FileWriteGateway.replace_file",
-        "cell_class": "excitatory",
-        "flow_share": 0.02374,
-        "in_degree": 2,
-        "out_degree": 4,
-        "region": "runtime"
       },
       {
         "cell": "core.security.defensive_runtime:ensure_defensive_runtime_active",
         "cell_class": "excitatory",
-        "flow_share": 0.02374,
+        "flow_share": 0.03283,
         "in_degree": 2,
         "out_degree": 2,
         "region": "security"
@@ -3367,15 +3832,55 @@
       {
         "cell": "core.security.enforcement:install_default_enforcement",
         "cell_class": "excitatory",
-        "flow_share": 0.02374,
+        "flow_share": 0.03283,
         "in_degree": 6,
         "out_degree": 7,
         "region": "security"
       },
       {
+        "cell": "core.resilience.degradation_repair:DegradationRepairRouter.route",
+        "cell_class": "excitatory",
+        "flow_share": 0.02652,
+        "in_degree": 1,
+        "out_degree": 3,
+        "region": "resilience"
+      },
+      {
+        "cell": "core.resilience.degradation_repair:DegradationRepairRouter._route_to_adaptive_immunity",
+        "cell_class": "modulatory",
+        "flow_share": 0.02652,
+        "in_degree": 1,
+        "out_degree": 4,
+        "region": "resilience"
+      },
+      {
+        "cell": "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem.observe_event",
+        "cell_class": "excitatory",
+        "flow_share": 0.02652,
+        "in_degree": 1,
+        "out_degree": 7,
+        "region": "adaptation"
+      },
+      {
+        "cell": "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._maybe_execute_artifact",
+        "cell_class": "excitatory",
+        "flow_share": 0.02652,
+        "in_degree": 1,
+        "out_degree": 13,
+        "region": "adaptation"
+      },
+      {
+        "cell": "core.adaptation.adaptive_immunity:AdaptiveImmuneSystem._get_service",
+        "cell_class": "excitatory",
+        "flow_share": 0.02652,
+        "in_degree": 6,
+        "out_degree": 2,
+        "region": "adaptation"
+      },
+      {
         "cell": "core.governance_context:governance_runtime_active",
         "cell_class": "excitatory",
-        "flow_share": 0.01553,
+        "flow_share": 0.01641,
         "in_degree": 51,
         "out_degree": 3,
         "region": "governance_context"
@@ -3383,7 +3888,7 @@
       {
         "cell": "core.orchestrator.main:RobustOrchestrator.process_event",
         "cell_class": "inhibitory",
-        "flow_share": 0.00822,
+        "flow_share": 0.00884,
         "in_degree": 1,
         "out_degree": 2,
         "region": "orchestrator"
@@ -3391,60 +3896,84 @@
       {
         "cell": "core.orchestrator.mixins.message_handling:MessageHandlingMixin._authorize_background_enqueue_sync",
         "cell_class": "inhibitory",
-        "flow_share": 0.00822,
+        "flow_share": 0.00884,
         "in_degree": 3,
         "out_degree": 5,
         "region": "orchestrator"
       },
       {
-        "cell": "core.autonomy.content_fetcher:_record_fetch_degradation",
-        "cell_class": "excitatory",
-        "flow_share": 0.00731,
-        "in_degree": 11,
-        "out_degree": 1,
-        "region": "autonomy"
-      },
-      {
         "cell": "core.capabilities.clipboard_manager:ClipboardManager.paste",
         "cell_class": "excitatory",
-        "flow_share": 0.00731,
+        "flow_share": 0.00884,
         "in_degree": 3,
         "out_degree": 2,
         "region": "capabilities"
       },
       {
+        "cell": "core.autonomy.content_fetcher:_record_fetch_degradation",
+        "cell_class": "excitatory",
+        "flow_share": 0.00758,
+        "in_degree": 11,
+        "out_degree": 1,
+        "region": "autonomy"
+      },
+      {
+        "cell": "core.constitution:ConstitutionalCore.approve_initiative_sync",
+        "cell_class": "excitatory",
+        "flow_share": 0.00631,
+        "in_degree": 1,
+        "out_degree": 9,
+        "region": "constitution"
+      },
+      {
+        "cell": "core.security.screen_capture_policy:evaluate_screen_capture_admission",
+        "cell_class": "excitatory",
+        "flow_share": 0.00631,
+        "in_degree": 5,
+        "out_degree": 5,
+        "region": "security"
+      },
+      {
         "cell": "core.constitution:get_constitutional_core",
         "cell_class": "excitatory",
-        "flow_share": 0.00639,
+        "flow_share": 0.00631,
         "in_degree": 42,
         "out_degree": 4,
         "region": "constitution"
+      },
+      {
+        "cell": "core.brain.llm.latent_cortex.action_state_capture:PrivateActionSnapshotStore._directory",
+        "cell_class": "excitatory",
+        "flow_share": 0.00631,
+        "in_degree": 9,
+        "out_degree": 1,
+        "region": "brain"
       }
     ],
-    "unreachable_pairs": 34185,
+    "unreachable_pairs": 34213,
     "verdict": "neck present: flow concentrates and the carriers integrate"
   },
   "synaptology": {
     "compartments": {
       "by_compartment": {
-        "axon_initial_segment": 2671,
-        "dendrite": 65868
+        "axon_initial_segment": 2677,
+        "dendrite": 66402
       },
-      "excitatory_on_initial_segment": 1388,
-      "inhibitory_on_dendrite": 11855,
-      "inhibitory_on_initial_segment": 1283,
-      "total": 68539
+      "excitatory_on_initial_segment": 1393,
+      "inhibitory_on_dendrite": 11897,
+      "inhibitory_on_initial_segment": 1284,
+      "total": 69079
     },
     "excitation_inhibition": {
       "class_counts": {
-        "excitatory": 33929,
+        "excitatory": 34151,
         "glial": 529,
-        "inhibitory": 8546,
-        "modulatory": 5040
+        "inhibitory": 8585,
+        "modulatory": 5059
       },
       "cortical_ei_ratio": 4.0352,
-      "ei_ratio": 3.9702,
-      "inhibition_excess": 1.016,
+      "ei_ratio": 3.978,
+      "inhibition_excess": 1.014,
       "least_inhibited_regions": [
         {
           "cells": 23,
@@ -3699,51 +4228,51 @@
       }
     ],
     "multiplicity": {
-      "contacts": 99657,
-      "four_or_more_fraction": 0.038426,
-      "heavy_excess_over_reference": 41.77,
+      "contacts": 100286,
+      "four_or_more_fraction": 0.03872,
+      "heavy_excess_over_reference": 42.09,
       "histogram": {
-        "1": 60443,
-        "10": 66,
+        "1": 60678,
+        "10": 69,
         "11": 47,
-        "12": 49,
-        "13": 26,
+        "12": 51,
+        "13": 28,
         "14": 24,
-        "15": 21,
+        "15": 22,
         "16": 20,
         "17": 10,
         "18": 8,
         "19": 8,
-        "2": 7302,
+        "2": 7343,
         "20": 9,
         "21": 5,
         "22": 6,
         "23": 10,
-        "24": 4,
+        "24": 5,
         "25": 4,
         "26": 4,
         "28": 4,
         "29": 3,
-        "3": 2123,
+        "3": 2139,
         "31": 3,
         "32": 2,
         "33": 1,
         "34": 2,
-        "4": 1040,
-        "5": 610,
-        "6": 316,
-        "7": 226,
+        "4": 1047,
+        "5": 616,
+        "6": 321,
+        "7": 229,
         "8": 152,
-        "9": 102
+        "9": 106
       },
       "maximum": 83,
-      "mean": 1.3716,
-      "pairs": 72660,
+      "mean": 1.374,
+      "pairs": 72986,
       "reference": "H01",
       "reference_four_or_more_fraction": 0.00092,
       "reference_maximum": 50.0,
       "reference_single_fraction": 0.965,
-      "single_fraction": 0.83186
+      "single_fraction": 0.83136
     },
     "strongest": [
       {
@@ -3854,87 +4383,87 @@
     ]
   },
   "topology": {
-    "communities": 1130,
-    "edges": 71894,
+    "communities": 1156,
+    "edges": 72218,
     "in_degree_fit": {
-      "alpha": 2.2506,
-      "ks": 0.0564,
-      "n": 29838.0,
-      "tail_n": 164.0,
-      "xmin": 20.0
+      "alpha": 2.2266,
+      "ks": 0.0537,
+      "n": 29976.0,
+      "tail_n": 152.0,
+      "xmin": 21.0
     },
-    "modularity": 0.8331,
-    "nodes": 38454,
+    "modularity": 0.8319,
+    "nodes": 38658,
     "out_degree_fit": {
-      "alpha": 2.9115,
-      "ks": 0.0757,
-      "n": 26371.0,
+      "alpha": 2.9075,
+      "ks": 0.0761,
+      "n": 26509.0,
       "tail_n": 74.0,
       "xmin": 24.0
     },
-    "reciprocity": 0.00223,
-    "reciprocity_null": 7e-05,
-    "reciprocity_z": 37.593,
+    "reciprocity": 0.00224,
+    "reciprocity_null": 8e-05,
+    "reciprocity_z": 180.711,
     "rich_club": {
       "128": 0.01449,
       "16": 0.00383,
       "2": 0.00014,
       "256": 0.02381,
-      "32": 0.0106,
+      "32": 0.01027,
       "4": 0.00032,
       "64": 0.01572,
       "8": 0.00105
     },
     "rich_club_normalised": {
-      "128": 0.2051,
-      "16": 0.7187,
-      "2": 1.0128,
-      "256": 0.5,
-      "32": 0.4926,
-      "4": 1.0183,
-      "64": 0.3614,
-      "8": 0.9473
+      "128": 0.2078,
+      "16": 0.7076,
+      "2": 1.0125,
+      "256": 0.4444,
+      "32": 0.4775,
+      "4": 1.015,
+      "64": 0.334,
+      "8": 0.9455
     },
     "rich_club_null": {
-      "128": 0.07065,
-      "16": 0.00532,
+      "128": 0.06975,
+      "16": 0.00541,
       "2": 0.00013,
-      "256": 0.04762,
+      "256": 0.05357,
       "32": 0.02152,
       "4": 0.00031,
-      "64": 0.0435,
+      "64": 0.04708,
       "8": 0.00111
     },
     "significant_motifs": [
       [
         "030T",
-        25.647215463222302
+        31.888787008008084
       ],
       [
         "021C",
-        -4.714951667914447
+        -3.0037188338039824
       ]
     ],
     "small_world": {
-      "clustering": 0.1229,
-      "clustering_null": 0.0108,
-      "gamma": 11.3743,
-      "lambda": 1.0074,
-      "path": 4.851,
-      "path_null": 4.8152,
-      "sigma": 11.2905
+      "clustering": 0.1162,
+      "clustering_null": 0.0053,
+      "gamma": 22.0656,
+      "lambda": 1.0091,
+      "path": 4.8762,
+      "path_null": 4.8322,
+      "sigma": 21.8665
     },
     "triad_sample": 1500,
     "triad_z": {
       "003": 0.0,
       "012": 0.0,
-      "021C": -4.715,
-      "021D": -1.481,
-      "021U": 1.027,
+      "021C": -3.004,
+      "021D": 1.085,
+      "021U": -1.357,
       "030C": 0.0,
-      "030T": 25.647,
+      "030T": 31.889,
       "102": 0.0,
-      "111D": 1.732,
+      "111D": 0.0,
       "111U": 0.0,
       "120C": 0.0,
       "120D": 0.0,
@@ -3946,19 +4475,19 @@
     "triads_over_connected_triples": {
       "003": 0,
       "012": 0,
-      "021C": 345,
-      "021D": 488,
-      "021U": 595,
+      "021C": 317,
+      "021D": 525,
+      "021U": 564,
       "030C": 1,
-      "030T": 52,
+      "030T": 72,
       "102": 0,
-      "111D": 1,
-      "111U": 6,
+      "111D": 2,
+      "111U": 3,
       "120C": 0,
       "120D": 0,
       "120U": 1,
       "201": 0,
-      "210": 1,
+      "210": 0,
       "300": 0
     }
   },
@@ -4258,15 +4787,15 @@
     "explained": [
       {
         "lesion": {
-          "components_after": 991,
-          "components_before": 991,
+          "components_after": 1003,
+          "components_before": 1003,
           "excess_reach_loss": 0.0,
           "flow_loss": 0.0,
           "null_flow_loss": 0.0,
           "null_reach_loss": 0.0,
           "null_samples": 9,
-          "reach_after": 1051,
-          "reach_before": 1051,
+          "reach_after": 1057,
+          "reach_before": 1057,
           "reach_loss": 0.0,
           "removed": [
             "core.runtime.settings_control_plane:RuntimeSettingsStore._notify_subscribers",
@@ -4301,15 +4830,15 @@
       },
       {
         "lesion": {
-          "components_after": 991,
-          "components_before": 991,
+          "components_after": 1003,
+          "components_before": 1003,
           "excess_reach_loss": 0.0,
           "flow_loss": 0.0,
           "null_flow_loss": 0.0,
           "null_reach_loss": 0.0,
           "null_samples": 8,
-          "reach_after": 1051,
-          "reach_before": 1051,
+          "reach_after": 1057,
+          "reach_before": 1057,
           "reach_loss": 0.0,
           "removed": [
             "core.state.state_repository:StateRepository._defer_proxy_commit",
@@ -4343,15 +4872,15 @@
       },
       {
         "lesion": {
-          "components_after": 993,
-          "components_before": 991,
+          "components_after": 1005,
+          "components_before": 1003,
           "excess_reach_loss": 0.0,
           "flow_loss": 0.0,
           "null_flow_loss": 0.0,
           "null_reach_loss": 0.0,
           "null_samples": 7,
-          "reach_after": 1051,
-          "reach_before": 1051,
+          "reach_after": 1057,
+          "reach_before": 1057,
           "reach_loss": 0.0,
           "removed": [
             "core.mind_tick:MindTick._attempt_liveness_repair",
@@ -4383,15 +4912,15 @@
       },
       {
         "lesion": {
-          "components_after": 991,
-          "components_before": 991,
+          "components_after": 1003,
+          "components_before": 1003,
           "excess_reach_loss": 0.0,
           "flow_loss": 0.0,
           "null_flow_loss": 0.0,
           "null_reach_loss": 0.0,
           "null_samples": 6,
-          "reach_after": 1051,
-          "reach_before": 1051,
+          "reach_after": 1057,
+          "reach_before": 1057,
           "reach_loss": 0.0,
           "removed": [
             "core.brain.inference_gate:InferenceGate.ensure_foreground_ready",
@@ -4421,15 +4950,15 @@
       },
       {
         "lesion": {
-          "components_after": 995,
-          "components_before": 991,
-          "excess_reach_loss": -0.00024,
+          "components_after": 1007,
+          "components_before": 1003,
+          "excess_reach_loss": -0.00035,
           "flow_loss": 0.0,
           "null_flow_loss": 0.0,
-          "null_reach_loss": 0.00024,
+          "null_reach_loss": 0.00035,
           "null_samples": 8,
-          "reach_after": 1051,
-          "reach_before": 1051,
+          "reach_after": 1057,
+          "reach_before": 1057,
           "reach_loss": 0.0,
           "removed": [
             "core.brain.llm_health_router:HealthAwareLLMRouter.think_and_act",

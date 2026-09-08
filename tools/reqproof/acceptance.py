@@ -18,8 +18,8 @@ Three places a link can come from, in order of how much it is worth:
 
 Every link is resolved against the tree — a test file that is gone, a make
 target that was renamed, a tool that moved. A link nobody can run is counted
-as no link, which is the whole point: the failure mode this replaces is a
-paragraph that reads like a check.
+as no link. The failure mode this replaces is a paragraph that reads like a
+check.
 """
 
 from __future__ import annotations

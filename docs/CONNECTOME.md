@@ -177,27 +177,161 @@ two.
 
 So the workload ends with an interleaved condition where every station's modules
 are cycled together. 2,982 frames at 50 ms, 36 passes over all 162 modules, 85
-million events, every station awake at once:
+million events, every station awake at once. Between any two stations: nothing.
 
-| influences surviving their null | count |
-| --- | --- |
-| within planning | 12 |
-| within self model | 7 |
-| within higher-order | 3 |
-| within action | 2 |
-| within affect | 2 |
-| within interoception | 1 |
-| **between any two stations** | **0** |
+That answer was also about the workload, and it took a third recording to see
+why. The probes call each station's readers — a getter, a status, a snapshot.
+Calling a getter on affect hands nothing to the workspace. **The stations are not
+coupled by calling each other.** They are coupled by the state object the
+kernel's phase pipeline passes from one to the next, and that object only moves
+while a turn is being taken.
 
-Structurally a star, and functionally seven islands. Each station has internal
-recurrent influence — which is why those 27 survive a rotation null — and none
-of them influences another in a way that shows up while both are running.
+### The recording that could have shown it
 
-Two limits on that, and both name the next experiment. The probes call each
-station's read-only surface in a process where the runtime is not booted, so what
-fires is each station's behaviour with its dependencies absent; the degradation
-records in the log say so. And influence is measured at a 50 ms frame, so a
-coupling that acts over seconds would not appear.
+`tools/record_turn_activity.py` runs the kernel's 29-phase pipeline over one
+shared `AuraState`: 240 turns across six objectives, 31,042 frames at 2 ms,
+1,871 cells, 3.9 million calls, no phase failing. The model is a deterministic
+stub, which is the one part that cannot run offline, and holding it constant is
+what makes the six conditions comparable.
+
+Then the station table turned out to be wrong, in a way only that recording could
+show. It was written from module names, and the modules named after the stations
+do not run a turn: **0 of 129 workspace cells and 0 of 272 action cells fired**.
+`PHASE_STATIONS` now places all 29 phases the kernel assembles — seventeen at a
+station, twelve explicitly outside the ring with the reason — and two tests fail
+if a phase the kernel runs is missing from it, or if a station's patterns do not
+reach the phase it was assigned.
+
+### Three measurements, two of them wrong
+
+The first scored each cross-station pair with an F test and a false-discovery
+correction. All seven ring links carried, at 93 to 100% of pairs. Then a sample
+of pairs was re-run with the source rotated in time, and **one rotated pair in
+four passed the same threshold**. A parametric p-value on a spike train recorded
+at two milliseconds is not a p-value.
+
+The second added the population's recent past to both models, on the theory that
+what the test had found was the shared rhythm of a turn. It barely moved. That is
+the tell for a periodic workload: a turn repeats, so rotating a source by any
+shift lands it on another turn and preserves the alignment the null was meant to
+destroy.
+
+So rotation became the null rather than a check on one. Each pair is scored
+against its own eight rotations, and the link on the median paired difference
+with a bootstrap interval over pairs. That discriminates: ring links score 0.006
+to 0.101, and station pairs that are not in the ring score 0.0002 to 0.004.
+
+### Where the ring sits among the 720
+
+A link beating its rotations says two stations are coupled. It does not say the
+ring is a ring. With seven stations there are 720 directed cycles through them,
+and `measure_ring` scores the architecture's order against all of them — exactly,
+not by sampling.
+
+In the `task` condition, six of the seven links carry:
+
+| link | median gain over rotation | 95% interval |
+| --- | --- | --- |
+| self model → planning | +0.1011 | +0.0929 to +0.1013 |
+| interoception → affect | +0.0257 | +0.0196 to +0.0258 |
+| planning → action | +0.0205 | +0.0178 to +0.0813 |
+| affect → workspace | +0.0173 | +0.0119 to +0.0190 |
+| workspace → higher-order | +0.0089 | +0.0073 to +0.0103 |
+| higher-order → self model | +0.0061 | +0.0061 to +0.0062 |
+| action → interoception | +0.00007 | −0.0005 to +0.0002 |
+
+The loop-closing link carries nothing during a task — better than its rotations
+on 50.3% of pairs, which is chance — and does carry when she is idle.
+
+And the ring's mean gain, 0.0257, sits below the mean of the 720 cycles, 0.0592,
+at z = −0.64: **stronger than only 36% of the orderings through the same
+stations**. Every station influences every other; the architecture's order is not
+privileged among them. That is what a pipeline over one shared state object
+predicts, and it is not what the design document draws.
+
+## Cutting a station out
+
+Everything above measures what varies with what. `core/connectome/intervene.py`
+does the other thing: it replaces a cell with one that does nothing, runs the
+same work again, and puts it back. The cut is exact, it is reversible, it refuses
+anything it cannot cut, it matches an async cell with an async stub, and it
+counts the calls it absorbed — a lesion on a cell nothing called looks exactly
+like a lesion that did nothing.
+
+`tools/run_lesions.py` cuts every phase of a station together, because
+`do(station = 0)` is not one function, and scores it against the same number of
+non-ring phases at the closest connectivity. Removing anything from a running
+system changes something; the number means nothing without a comparable removal.
+
+Five defects in the experiment, each found by running it. The first readouts —
+`coherence_score`, `phi_estimate`, `last_response`, `active_goals` — are all
+constant across all six objectives and both affect arms with the model held
+fixed. **56 of the state's 72 numeric fields are.** All four would have read "no
+change" under every lesion and all three predictions would have come out
+confirmed with nothing behind them, so a readout is now refused unless it moved
+at baseline. One kernel served every arm in sequence, so a drift down the run
+read as an effect of the cut; each arm gets its own now and shuffles the
+objectives. `version` counts writes to the state, so silencing any writing phase
+decrements it by construction — it fell by exactly 1.0 under two lesions and 0.0
+under both controls, which reads as a competence loss and is arithmetic.
+`hash(mode)` was a readout, in a codebase that has been bitten by hash
+randomisation before. And "refuted" was reported for a readout that a control
+lesion moved further, which is not a refutation but the wrong readout: working
+memory is filled by memory retrieval, which was one of the controls.
+
+Of the three predictions registered from the theory, one is partly confirmed and
+two are not attributable. What the first run found was registered as three more
+and run again on an independent seed, all three confirmed:
+
+| cut | intact | lost | control |
+| --- | --- | --- | --- |
+| higher-order monitoring | pipeline completes, working memory fills | the selfhood reading, 5.0 → 0.0; spread of pending intents, 0.373 → 0.0 | 0.0 on both |
+| the workspace | pipeline completes, engagement untouched | fragmentation score, 0.1407 → 0.0, with its spread and its affective gap | −0.0012 |
+| affect | pipeline completes, pending intents still form | regulation: an injected valence difference of 1.2 is normally pulled back to 0.0006 by the end of a turn, and without the two affect phases the whole 1.2 survives | −0.0005 |
+
+The last one is the clearest thing in this document. The affect phases are not
+decoration on the pipeline; they are a controller, and they remove 99.95% of an
+injected displacement within one turn.
+
+## The mesh, and the two ends that were not connected
+
+Everything above is made of functions. The neural mesh is not: 64 cortical
+columns of 64 neurons, wired by a distance-decayed weight matrix, running at
+10 Hz on its own clock. Keeping it in a separate object made one question
+unanswerable, because a distance needs both ends in the same graph.
+
+`core/connectome/neural.py` turns the columns into cells and both weight
+matrices into edges, then finds the seam — which functions call the mesh's own
+surface, and on what. Two drive it: `EmbodiedInteroception._push_to_mesh`
+injects sensory, `ConsciousnessBridge._integration_tick` injects association.
+Five read it, three through `get_executive_projection`.
+
+So: can what is injected reach what is read?
+
+| across 8 seeds | before | after |
+| --- | --- | --- |
+| executive columns reachable from sensory | 0 of 16, every seed | 12 to 16 of 16 |
+| columns wired to nothing | 7 to 16 | 0 to 5 |
+| connected components | 13 to 25 | 1 to 6 |
+| largest component | 19 to 49 | 59 to 64 |
+
+The cause was one missing pathway. The mesh builds its top-down feedback
+explicitly, tier pair by tier pair, and left the bottom-up direction to the local
+wiring, whose probability decays as `exp(-|i - j| * 0.15)`. A tier boundary is
+exactly where that index distance is largest: sensory column 0 to executive
+column 48 is `0.05 * e^-7.2`, about one edge in twenty-eight thousand. The 1.5×
+feedforward bias inside that function could only apply to edges the decay had
+already made impossible.
+
+`_build_feedforward_weights` builds the pathway the way the feedback one is
+built and leaves distance out, because a projection between cortical areas is an
+axon bundle and its existence does not fall off with how far apart the areas are.
+The density is the same 0.05 the local wiring already uses; only the decay is
+gone.
+
+The seam scan needed the lesson this package had already learned in the call
+graph. `get_field_state` is also a method of the unified field, and matching on
+the method name alone attributed its call sites to the mesh.
 
 ## The mapping
 
