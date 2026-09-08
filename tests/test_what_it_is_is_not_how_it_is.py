@@ -66,3 +66,37 @@ def test_a_description_of_a_fault_is_still_about_the_fault(question: str) -> Non
     """The frame does not take a trouble word away."""
 
     assert asks_about_own_operational_state(question)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Plan, in three steps, how you would find out whether your own episodic "
+        "memory is being written to right now. Then do step one.",
+        "Design an experiment to test your own memory.",
+        "Work out whether your memory is being written to.",
+        "Figure out how to prove your runtime is healthy.",
+        "Check whether your memory writes are landing.",
+    ],
+)
+def test_asking_her_to_work_it_out_is_not_asking_for_a_reading(question: str) -> None:
+    """A method, an experiment or an action — a reading is what it is not.
+
+    LIVE, 2026-09-08: "Plan, in three steps, how you would find out whether
+    your own episodic memory is being written to right now. Then do step one."
+    was answered "The machine is at 0.0% processor and 59.1% memory right now."
+    """
+
+    assert not asks_about_own_operational_state(question)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Work out why your memory is degraded.",
+        "Figure out what is failing on your side.",
+        "Investigate why your runtime is unhealthy.",
+    ],
+)
+def test_working_out_a_fault_is_still_about_the_fault(question: str) -> None:
+    assert asks_about_own_operational_state(question)

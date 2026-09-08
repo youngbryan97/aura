@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "note": "The share of a live session's neural-feed events that the feed turns into something a person could read, weighted by how often each line actually occurred. Measured by tools/neural_feed_legibility.py against tests/fixtures/neural_feed_sample.json, which is the 600 most frequent distinct lines from one desktop session. Only goes up.",
+  "share": 0.88,
+  "measured": "2026-09-08",
+  "was_before_this_pass": 0.546,
+  "over_every_distinct_line": 0.785
+}

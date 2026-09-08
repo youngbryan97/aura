@@ -196,6 +196,28 @@ _ABOUT_WHAT_COMES_NEXT = re.compile(
 #:
 #: A trouble word overrides this: "explain why your memory is degraded" is
 #: asking after a condition and the frame does not take that away.
+#: Asking her to DO something about a part, rather than to report on it.
+#:
+#: The host reading settles as soon as a possessive reaches a machine word, so
+#: "your memory" claimed a turn whose verb was plan, design, work out or find
+#: out. Those ask for a method, an experiment or an action; a reading is the
+#: one thing they are not asking for, and answering with one is the same
+#: category error as answering "describe your memory system" with a
+#: percentage.
+#:
+#: LIVE, 2026-09-08: "Plan, in three steps, how you would find out whether your
+#: own episodic memory is being written to right now. Then do step one." was
+#: answered "The machine is at 0.0% processor and 59.1% memory right now."
+#:
+#: A trouble word still overrides this, because "work out why your memory is
+#: degraded" is asking after a condition.
+_ASKS_HER_TO_WORK_IT_OUT = re.compile(
+    r"\b(?:plan|design|devise|work\s+out|figure\s+out|find\s+out|"
+    r"investigate|test|experiment|prove|demonstrate|check\s+whether|"
+    r"determine|establish)\b",
+    re.IGNORECASE,
+)
+
 _ASKS_WHAT_IT_IS = re.compile(
     r"\b(?:describe|explain|walk\s+me\s+through|talk\s+me\s+through|"
     r"tell\s+me\s+about|what\s+(?:is|are|does)\b[^.?!]{0,40}?"
@@ -505,7 +527,9 @@ def asks_about_own_operational_state(text: Any) -> bool:
     # every question about what her memory is. A trouble word keeps the
     # condition reading, because "explain why your memory is degraded" really
     # is asking after one.
-    if not in_trouble and _ASKS_WHAT_IT_IS.search(subject):
+    if not in_trouble and (
+        _ASKS_WHAT_IT_IS.search(subject) or _ASKS_HER_TO_WORK_IT_OUT.search(subject)
+    ):
         about_her_host = False
         about_her = False
     settled = about_her_host or (

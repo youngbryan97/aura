@@ -3547,6 +3547,110 @@ const PLAIN_LANGUAGE_RULES = [
     // "Recorded candidate voice transcript in WorldState"
     [/^Recorded candidate voice transcript/i,
      () => 'Heard speech in the room and set it aside — it was not addressed to her.'],
+
+    // ── Measured against a real feed, 2026-09-08 ───────────────────────────
+    //
+    // 55,000 events from one live log, 15,227 distinct lines: 14.6% of what a
+    // person watching this feed saw had a rule. The rest was raw engineering,
+    // and the shapes below are the ones that actually occur, in the order
+    // they occur — the top nine families are two thirds of everything
+    // untranslated. A rule written for a line nobody emits is decoration.
+    [/^EpisodicMemory: deferring episode write|^episodic_memory: holding (?:a )?deferred write/i,
+     () => 'Holding a memory until the governor lets her write it.'],
+    [/^MemoryFacade: deferring interaction commit/i,
+     () => 'Holding this exchange until the governor lets her keep it.'],
+    [/^Successfully locked: '([^']+)'/i,
+     (m) => `Took exclusive use of ${humanOrgan(m[1])} for a moment.`],
+    [/^Released lock: '([^']+)'/i,
+     (m) => `Finished with ${humanOrgan(m[1])}.`],
+    [/Signal Routed:\s*(\w+)\s*->\s*(\w+)/i,
+     (m) => `Passed a signal from ${humanOrgan(m[1])} to ${humanOrgan(m[2])}.`],
+    [/HARDWARE RESONANCE: High host load\. Throttling cognitive depth/i,
+     () => 'The machine is busy, so she is thinking less deeply for now.'],
+    [/^Metabolism: Throttling due to resource pressure/i,
+     () => 'Slowing herself down because the machine is under pressure.'],
+    [/^SomaticComputeSentinel initialized/i,
+     () => 'Started watching how hard the machine is working.'],
+    [/^Circuit OPEN for (\w+).*?Reason:\s*(\S+)/i,
+     (m) => `Stopped using her ${humanLane(m[1])} for a while — ${humanReason(m[2])}.`],
+    [/^Circuit HALF-OPEN for (\w+)/i,
+     (m) => `Trying her ${humanLane(m[1])} again to see whether it recovered.`],
+    [/^Circuit CLOSED for (\w+)/i,
+     (m) => `Her ${humanLane(m[1])} is working again.`],
+    [/^Skipping autonomous self-modification cycle:\s*(\S+)/i,
+     (m) => `Left her own code alone this round — ${humanReason(m[1])}.`],
+    [/^AUTONOMOUS SELF-MODIFICATION CYCLE/i,
+     () => 'Looking over her own code for anything worth fixing.'],
+    [/^Diagnosing current bugs/i, () => 'Looking for faults in herself.'],
+    [/^(?:Found (\d+) bugs? that can be fixed)/i,
+     (m) => (+m[1] === 0
+        ? 'Found nothing in herself that needs fixing.'
+        : `Found ${m[1]} thing${+m[1] === 1 ? '' : 's'} in herself she could fix.`)],
+    [/^No bugs detected - system healthy/i, () => 'Looked herself over and found nothing wrong.'],
+    [/^Detected (\d+) error patterns/i,
+     (m) => (+m[1] === 0
+        ? 'No repeating faults in her recent history.'
+        : `Spotted ${m[1]} repeating fault${+m[1] === 1 ? '' : 's'} in her recent history.`)],
+    [/Router: no endpoints matched routing plan for tier '([^']+)'/i,
+     (m) => `Nothing was available in her ${humanLane(m[1])}, so she fell back to a lane she trusts.`],
+    [/^Endpoint (\w+) failed validation:\s*(\S+)/i,
+     (m) => `Her ${humanLane(m[1])} did not pass its check — ${humanReason(m[2])}.`],
+    [/Router: Background generation deferred behind active gate/i,
+     () => 'Put a background thought behind the conversation.'],
+    [/^Substrate state saved \(atomic\)/i, () => 'Saved her current state to disk.'],
+    [/^Eternal Vault: Appended state record/i, () => 'Wrote one more line into her permanent record.'],
+    [/^\[COST\]\s*(\w+) \(cost \d+\) withheld: this turn allows (\d+)/i,
+     (m) => `Held back ${humanOrgan(m[1])} — this turn has room for ${m[2]}.`],
+    [/^kept (\d+) propert/i,
+     (m) => `Kept ${m[1]} propert${+m[1] === 1 ? 'y' : 'ies'} she worked out for herself.`],
+    [/^kept (\d+) meaning\(s\) and (\d+) derived word/i,
+     (m) => `Kept ${m[1]} meaning${+m[1] === 1 ? '' : 's'} and ${m[2]} new word${+m[2] === 1 ? '' : 's'} she invented.`],
+    [/^\[SubjectiveChoice\] Chose '([^']+)'/i,
+     (m) => `Decided to ${String(m[1]).charAt(0).toLowerCase()}${String(m[1]).slice(1).replace(/\.$/, '')}.`],
+    [/^Routing: ([^.]+)\. Forcing (\w+)/i,
+     (m) => `Read this as ${String(m[1]).toLowerCase()} and answered in her ${String(m[2]).toLowerCase()} mode.`],
+    [/^UnitaryResponse: Using tier=(\w+) for response generation/i,
+     (m) => `Answering with her ${humanLane(m[1])}.`],
+    [/^\[LOOP DETECTED\] Assistant repeated content/i,
+     () => 'Caught herself repeating and stopped.'],
+    [/^Integrity warnings:\s*\[?'?([^'\]]+)/i,
+     (m) => `Something to keep an eye on: ${String(m[1]).toLowerCase()}.`],
+    [/^Webhook alerting disabled/i,
+     () => 'No outside alerting is configured, so problems stay on this screen.'],
+    [/^\[WORKER\] (?:Rendering native chat\/tool template|Non-empty start guard|Semantic terminal guard|Native thinking)/i,
+     () => 'Setting up the model for this answer.'],
+    [/^MindTick: Predicted/i, () => 'Guessed what would happen next, to check herself against it.'],
+    [/^\[CASIE\] Strategy: (\w+)/i,
+     (m) => `Reading the room as ${String(m[1]).toLowerCase()} and answering accordingly.`],
+    [/^\[STATE\] ConstitutionalCore deferred state mutation/i,
+     () => 'Put off a change to her own state until the governor allows it.'],
+    [/^Unitary Tick Initiated/i, () => 'Started a round of thinking.'],
+
+    // What a person most needs to read, and what read worst.
+    [/^\[DEGRADATION\]\s*([\w.]+)\s*\(([^)]+)\):\s*(\w+):?\s*(.*)$/i,
+     (m) => `${humanOrgan(m[1])} had trouble (${String(m[2]).toLowerCase()}): ${humanFault(m[4] || m[3])}`],
+    [/^FAULT [\w-]+ \[(\w+)\] in ([\w.]+):\s*(\w+):?\s*(.*)$/i,
+     (m) => `A fault in ${humanOrgan(m[2])}, rated ${String(m[1]).toLowerCase()}: ${humanFault(m[4] || m[3])}`],
+    [/^NEW INCIDENT [\w-]+ \[(\w+)\]\s*[\w:.]*\s*(.*)$/i,
+     (m) => `Opened an incident (${String(m[1]).toLowerCase()}): ${humanFault(m[2])}`],
+    [/^Error logged:\s*(\w+) in ([\w.]+)\s*reason=(\S+)/i,
+     (m) => `Recorded a fault in ${humanOrgan(m[2])} — ${humanReason(m[3])}.`],
+    [/^\[Resilience\] Failure recorded \[([^\]]+)\].*?state=(\w+)/i,
+     (m) => `Felt that as a setback in ${humanOrgan(String(m[1]).split(':').pop())}; she is running ${String(m[2]).toLowerCase()}.`],
+    [/^Subsystem ([\w.]+) auto-recovered back to healthy/i,
+     (m) => `${humanOrgan(m[1])} recovered on its own.`],
+    [/^Skynet: Subsystem '([^']+)' (?:became UNHEALTHY|remains UNHEALTHY)/i,
+     (m) => `${humanOrgan(m[1])} is not well.`],
+    [/^InitiativeArbiter: ranked '([^']+)' first/i,
+     (m) => `Decided the next thing worth doing is to ${String(m[1]).charAt(0).toLowerCase()}${String(m[1]).slice(1).replace(/\.$/, '')}.`],
+    [/^(?:lease )?risk (\w+) for (\w+) \(scope=([\w_]+)/i,
+     (m) => `Judged using ${humanTool(m[2])} to be ${String(m[1]).toLowerCase()} risk (${String(m[3]).replace(/_/g, ' ')}).`],
+    [/\[STATE\] ConstitutionalCore deferred state mutation.*?cause=(\w+)/i,
+     (m) => `Put off a change to her own state raised by ${humanOrgan(m[1])}, until the governor allows it.`],
+    [/^OutputReceptor: injected (\w+) delta \(mag=([\d.]+)/i,
+     (m) => `What she just said moved her own state a little (${(+m[2]).toFixed(2)}).`],
+    [/^lease risk (\w+) for (\w+) \(scope=([\w_]+)/i,
+     (m) => `Judged using ${humanTool(m[2])} to be ${String(m[1]).toLowerCase()} risk (${String(m[3]).replace(/_/g, ' ')}).`],
 ];
 
 function pct(value) { return `${Math.round(parseFloat(value) * 100)}%`; }
@@ -3578,7 +3682,45 @@ function humanTool(name) {
 }
 
 function humanOrgan(name) {
-    return String(name || '').replace(/_/g, ' ');
+    // Lock and channel names arrive as `Affect.AffectEngine`,
+    // `AuraKernel.StateLock`, `voice_engine`. A person reading the feed wants
+    // the part that means something, said the way it is said out loud.
+    const known = {
+        'affect.affectengine': 'her feelings',
+        'aurakernel.statelock': 'her current state',
+        voice_engine: 'her hearing',
+        sensory_gate: 'her senses',
+        consciousness: 'her awareness',
+        workspace: 'her working memory',
+        attention: 'her attention',
+        substrate: 'the layer under her thinking',
+        sovereign_vision: 'looking at the screen',
+        iit_phi: 'how unified her mind is',
+    };
+    const raw = String(name || '').trim();
+    const hit = known[raw.toLowerCase()];
+    if (hit) return hit;
+    const tail = raw.split('.').pop() || raw;
+    return tail
+        .replace(/_/g, ' ')
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .toLowerCase();
+}
+
+// The lanes have names a person can hold: which model answered, and how big.
+function humanLane(name) {
+    const known = {
+        cortex: 'main mind',
+        primary: 'main mind',
+        deep: 'deep solver',
+        brainstem: 'quick mind',
+        secondary: 'quick mind',
+        reflex: 'reflex',
+        tertiary: 'reflex',
+        fallback: 'reflex',
+    };
+    const key = String(name || '').trim().toLowerCase();
+    return known[key] || key.replace(/_/g, ' ') || 'a lane';
 }
 
 // Internal metric ids, said the way a person would say them. The measurement
@@ -3607,6 +3749,18 @@ function humanMetricUnit(name) {
     }[suffix[1].toLowerCase()] || '';
 }
 
+// A Python exception, said as what went wrong.
+function humanFault(raw) {
+    const text = String(raw || '').trim().replace(/^\w*Error:?\s*/, '');
+    if (!text) return 'no reason recorded.';
+    const first = text.split(/[.\n]/)[0].trim();
+    const said = first
+        .replace(/_/g, ' ')
+        .replace(/\s+/g, ' ')
+        .slice(0, 120);
+    return said.endsWith('.') ? said : `${said}.`;
+}
+
 function humanReason(raw) {
     const text = String(raw || '').toLowerCase();
     if (text.includes('memory_pressure')) return 'memory is tight';
@@ -3617,9 +3771,68 @@ function humanReason(raw) {
 
 // A line that is mostly key=value telemetry reads as noise no matter what it
 // says. If no rule matched and it looks like that, say what it is instead.
+//: A line that is part of something bigger, arriving on its own.
+//
+// The runtime logs multi-line blocks — a traceback, a code fence, an internal
+// prompt — and the feed receives one event per line, so a person watching sees
+// cards reading `)`, "```python", "DIAGNOSIS:", and a row of equals signs.
+// Measured on a real log, 2026-09-08: 1,100 events in one session were a
+// fragment of something else with no meaning of their own.
+const _FRAGMENT_SHAPES = [
+    /^[=─━—\-_*#·.]{4,}$/,                       // a rule drawn in characters
+    /^Traceback \(most recent call last\):/,     // a stack, one frame per card
+    /^\s*File ".*", line \d+/,
+    /^\s*(?:raise|assert)\s/,                    // a line of her own source
+    // An instruction written FOR a model. The feed is where she thinks, not
+    // where her prompts are published: "Return ONLY the fixed code", "return
+    // compact JSON with keys ..." is scaffolding a watcher cannot act on and
+    // was never addressed to them.
+    /\breturn (?:ONLY|compact JSON|only the)\b/i,
+    /^Start your response with\b/i,
+    /^```/,                                      // a code fence
+    /^[)\]}>,;:]+$/,                              // punctuation left on its own
+    /^(?:return|pass|continue|break|else|try|finally|raise)\b[^\w]*$/,
+    /^(?:FILE|TASK|DIAGNOSIS|STRUCTURAL CONTEXT|Requirements|Proposed Fix)\b\s*[:(]?/,
+    /^\d+\.\s/,                                  // a numbered instruction
+    /^\s*(?:obj|resp|prompt):\s/,                 // an internal payload echoed
+    /^(?:LINE|CURRENT CODE|Root Cause|ORIGINAL|FIXED)\b\s*[:(]/,  // repair-block headers
+    /^(?:Classes|Functions|Detected Smells|Imports) in file\b|^Detected Smells:/,
+];
+
+//: A line of source code, arriving as a card of its own.
+//
+// The self-repair pass logs the code it is reading, one line per event, so a
+// person watching sees `agent.status = "DEFERRED"` and `self.logger.info(` as
+// separate thoughts. Deliberately narrow: a sentence about code is a thought,
+// a line OF code is not, and the two are told apart by whether it reads as
+// prose. Indentation, a trailing opener, or an assignment to an attribute is
+// code; a sentence that ends in a full stop is not.
+const _CODE_SHAPES = [
+    /^\s+\S/,                                    // indented: part of a block
+    /[({[,:]$/,                                  // left open for the next line
+    /^\s*(?:def|class|import|from|for|while|with|elif)\s/,
+    /^[\w.]+\s*=\s*\S/,                          // an assignment
+    /^self\.\w+/,
+];
+
+function looksLikeSourceCode(body) {
+    if (/[.!?]$/.test(body) && !/[({[,]$/.test(body)) return false;
+    return _CODE_SHAPES.some((shape) => shape.test(body));
+}
+
+function looksLikeAFragment(body) {
+    return _FRAGMENT_SHAPES.some((shape) => shape.test(body));
+}
+
 function plainLanguageThought(text) {
     const body = String(text || '').trim();
     if (!body) return body;
+    // Say what it is rather than showing a piece of it. The whole block is
+    // still under SHOW ALL and in COPY; what changes is that the face of the
+    // card stops being a stray bracket.
+    if (looksLikeAFragment(body) || looksLikeSourceCode(body)) {
+        return 'Part of a longer block she was working through (SHOW ALL for it).';
+    }
     for (const [pattern, render] of PLAIN_LANGUAGE_RULES) {
         const match = body.match(pattern);
         if (match) {
