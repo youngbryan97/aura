@@ -83,9 +83,10 @@ Three things about that are not the live runtime, and each is a limit on what
 the numbers can claim.
 
 The model is a stub that answers the same sentence every time. Holding decoding
-constant is what makes two arms comparable, and it means no edge measured here
-runs *through* language. Edges that need the model to read one state and write
-another read as absent.
+constant is what makes two arms comparable — the live model is a 27B and a free
+sample from it would swamp a 0.15 displacement in affect — and it means no edge
+measured here runs *through* language. Edges that need the model to read one
+state and write another read as absent.
 
 The environment is scripted, so P and I are driven rather than sensed.
 
@@ -189,6 +190,34 @@ whole channel was dead.
 Drives ticked at the same rate whether the world was behaving as modelled or
 not.
 
+**The substrate was thirty percent of how hard she thinks and none of how she
+feels.** `HomeostaticCoupling` says the continuous substrate is the ground
+truth for felt state and blends it at thirty percent — into a local dictionary
+used to pick cognitive modifiers, discarded at the end of the call.
+`AuraState.affect` never saw it. The affect phase pushed valence and arousal
+down to the substrate every cycle and read nothing back.
+
+**And the substrate's freshness marker is set by its dynamics step alone**, so
+a loop that dies disconnects it from affect with no other symptom: the readings
+stay plausible and simply stop arriving. That is now recorded as a degradation
+rather than skipped in silence.
+
+**`AgencyComparator` emitted for one caller and told nobody.** It implements
+the forward-model comparator — predict the outcome, compare it, split the
+difference into self-caused and world-caused — and its two write methods were
+wired to one path. Every read method was called from nowhere, so the sense of
+agency it computes reached no part of her. An intention formed anywhere else
+emitted nothing and produced no attribution at all.
+
+**`SelfPredictionLoop.observe` had no caller.** The loop that predicts her own
+next state and measures the error was constructed, registered, started, and
+never given an observation.
+
+**The workspace's novelty bid was gated above every value it can take.** The
+reservoir puts an ordinary moment near 0.2 and returns 0.5 only as a
+placeholder, before it has a distribution; the gate at 0.5 admitted the
+placeholder and excluded every real reading.
+
 **The unified world model was never shown the world.** Its running surprise is
 read as prediction error by affect grounding and as a signal by the free-energy
 engine, and the only caller of `observe` in the tree was the ontogeny organ on
@@ -264,6 +293,22 @@ machine, so two arms seconds apart read different load; and the hashed latent
 was pure noise. Fixing all three brought the floor to 0.000 on interoception
 and 0.003 on affect.
 
+**Four ways the comparison was rigged against the intact model.** A nested
+comparison needs a nested penalty: the cut model is the intact one with the
+cross-block weights held at zero, so the intact model should never lose out of
+sample, but one shared ridge strength cannot shrink the additions without also
+shrinking what was already working. Deliberation's change is predicted at a
+loss of 0.06 from deliberation alone and 0.17 once thirty-six more columns are
+offered. The wider model now gets a second penalty for the columns the narrower
+one lacks. Intrinsic persistence was predicting a drifting level, where the
+state made prediction five times worse than the environment alone on the world
+model; it targets the change now. Each cut is scored over five folds instead of
+one, because the minimum over five hundred and eleven noisy estimates is biased
+downward by the width of its own search. And the folds are forward-chaining:
+ordinary k-fold made it far worse, because a fold that trains on the end of a
+trajectory and tests on its beginning asks a model to predict backwards through
+whatever drifted.
+
 **A design can be unable to reach the threshold it is judged against.** The
 sign-flip test used four thousand draws, so the smallest p it could return was
 1/4001, and after correction across ninety pairs the smallest reachable q was
@@ -304,6 +349,17 @@ The criterion now also requires that the response reached somewhere — at least
 two domains, from at least two sources — before its structure is scored. That is
 a strictly harder bar than the one written down, which is the only direction a
 criterion may be changed after the fact.
+
+**A minimum over five hundred and eleven noisy estimates is biased downward by
+the width of its own search.** The absolute threshold on the partition score
+does not account for that, and no amount of care in the estimator removes it —
+only more data and a measured floor do. The battery now builds surrogates of
+the same series the score is computed on, three draws each, same dimensionality
+and same cuts with the coupling removed, and reports the score's margin over
+them. On the recording where the score reads -0.03, the matched floor is -0.04
+and the dearest cut is +0.07: the cross-domain information is real and the
+minimum sits in the noise. The absolute criterion stays and stays failed; the
+comparison against the floor is the one that can be read.
 
 **Rescue without a deficit is not evidence.** Restoring a channel whose removal
 changed nothing says nothing about the channel, so rescue is conditional on the
