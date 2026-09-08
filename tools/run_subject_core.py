@@ -143,6 +143,7 @@ async def main() -> int:
     from core.subject.state import DOMAINS, FAST_DOMAINS, SLOW_DOMAINS
     from core.subject.synergy import synergy_suite
 
+    from core.subject.archive import save_arms, save_edge_table, write_json
     from core.subject.provenance import campaign, next_run_directory
 
     started = time.monotonic()
@@ -233,6 +234,11 @@ async def main() -> int:
     )
     edges, tested = build_edges(results, seed=args.seed)
     evidence["edges"] = tested
+    # The arms, not only the conclusion drawn from them. An edge that missed
+    # the bar by one condition and an edge that carried in none read the same
+    # from the summary, and neither can be rechecked from it.
+    save_arms(args.out, results)
+    save_edge_table(args.out, tested)
     _log(
         "coupling gain: "
         + ", ".join(
@@ -349,12 +355,17 @@ async def main() -> int:
     else:
         evidence["nulls"] = {"phi_beats_all": False, "all_nulls_fail": False, "note": "skipped"}
 
+    if not args.skip_nulls:
+        write_json(args.out, "nulls.json", evidence["nulls"])
+    write_json(args.out, "lesion.json", evidence["lesion"])
+    write_json(args.out, "campaign.json", evidence["campaign"])
+
     verdict = assemble(evidence)
     evidence["verdict"] = verdict.as_dict()
     evidence["notes"]["seconds"] = round(time.monotonic() - started, 1)
 
     evidence["campaign"]["finished_at"] = time.time()
-    (args.out / "subject_core_report.json").write_text(json.dumps(evidence, indent=2, default=str))
+    write_json(args.out, "subject_core_report.json", evidence)
     print()
     print(verdict.table())
     print()

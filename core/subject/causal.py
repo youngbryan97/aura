@@ -412,7 +412,7 @@ def build_edges(
     """
     pairs = results.by_pair()
     tested: list[dict[str, Any]] = []
-    raw: list[tuple[str, str, float, float, tuple[str, ...], int]] = []
+    raw: list[tuple[str, str, float, float, tuple[str, ...], int, dict[str, float]]] = []
 
     for (source, target), trials in sorted(pairs.items()):
         if source == target:
@@ -424,6 +424,7 @@ def build_edges(
         effect = float(differences.mean()) if differences.size else 0.0
         p = _sign_flip_p(differences, seed=abs(hash((source, target, seed))) % (2**31))
         replicated: list[str] = []
+        by_condition: dict[str, float] = {}
         for condition in sorted({trial.condition for trial in trials}):
             local = np.array(
                 [
@@ -433,13 +434,22 @@ def build_edges(
                 ],
                 dtype=np.float64,
             )
-            if local.size and float(local.mean()) >= effect_min:
+            if not local.size:
+                continue
+            by_condition[condition] = round(float(local.mean()), 4)
+            if float(local.mean()) >= effect_min:
                 replicated.append(condition)
-        raw.append((source, target, effect, p, tuple(replicated), len(trials)))
+        raw.append((source, target, effect, p, tuple(replicated), len(trials), by_condition))
 
     q_values = benjamini_hochberg([item[3] for item in raw])
     edges: list[Edge] = []
-    for (source, target, effect, p, replicated, count), q in zip(raw, q_values, strict=True):
+    for (source, target, effect, p, replicated, count, by_condition), q in zip(
+        raw, q_values, strict=True
+    ):
+        # Which conditions carried it, not only how many. A pair that misses
+        # the replication bar in one condition and a pair that carries in none
+        # both read as "not kept" from the count alone, and they are the two
+        # ends of the evidence.
         record = {
             "source": source,
             "target": target,
@@ -447,6 +457,8 @@ def build_edges(
             "p": round(p, 6),
             "q": round(q, 6),
             "replication": len(replicated),
+            "conditions": list(replicated),
+            "by_condition": by_condition,
             "trials": count,
             "kept": False,
         }
