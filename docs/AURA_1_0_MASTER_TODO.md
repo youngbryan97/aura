@@ -178,6 +178,28 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   cd4cb7917.
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
+  UPDATE 2026-09-08. Lockdep reported nine distinct loop-blocking holds in one
+  boot; five are fixed and the pattern behind them is one thing.
+  - `core.knowledge.atomspace.AtomSpace`, 52ms, beside a 6.0s hard lag: the
+    economy cycle walked every record under one lock inside an `async def`.
+    Off the loop — 9edbe43e9.
+  - `core.ontogeny.service._core_lock` and `..._spine_lock`: both singletons
+    constructed their store, and its fsync, inside their own lock. Built
+    outside and published under it — 56dc82759.
+  - `morphogenesis.graph`, 78ms and 87ms: `edges`, `out_edges` and `in_edges`
+    sorted the whole edge map under the lock, so a filter by one node paid
+    O(E log E) inside the critical section — 195770d4a.
+  - `morphogenesis.registry`, 132ms and 116ms, and `morphogenesis.field`,
+    104ms and 67ms: two histograms over every cell, a filter over every cell,
+    and a diffusion pass that deep-copies every node then walks every edge
+    times every field — 4befc7c1f.
+  Every one is the same defect: the lock is held across the WORK rather than
+  across the read the work needs. Snapshot under the lock, compute outside.
+  Still open, and each measured rather than guessed:
+  `core.runtime.health_fragments` 273ms at a line that assigns one dict entry,
+  which is contention and not the section itself; `core.language.learned_matcher`
+  148ms; `earned_metric.axis.valence` 87ms; `core.canonical.state.singleton`
+  53ms.
   PARTIAL 2026-09-07. The wedge itself is fixed: an ABBA deadlock between two
   logging handlers, eleven threads blocked in `logging.Handler.acquire`, the
   process alive and the port listening for thirty-three minutes. Guarded at the
@@ -185,6 +207,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [R06 receipt](evidence/R06_LOGGING_HANDLER_DEADLOCK_2026-09-07.md). The other
   five named sources are not yet audited.
 - [ ] R07 Reconcile health probe expiry, false readiness, and actual failures.
+  UPDATE 2026-09-08. `/api/readyz` decided readiness from five conditions and
+  explained four, so a runtime blocked on `healthy` answered 503 with an empty
+  `issues` list — a refusal naming nothing. The verdict and the explanation
+  read one list now, and live it reports `important:unified_runtime_pressure`
+  by name — 56dc82759.
+  The remaining half is not a code defect. A turn arrived while the host was at
+  `available=11.8GB (level=warning)` with a 9B resident beside the 27B; the
+  27B took the job, burned 50% of a core paging weights for fifteen minutes,
+  and produced no first token. `is_inference_ready()` returned False for 631
+  seconds and said so. The runtime accepts a foreground turn before the cortex
+  can serve it and then holds the person rather than answering from the smaller
+  model at once — the fallback fired at 417s on one attempt and not at all on
+  the next. That is R03's question about admission, and it is open.
   PARTIAL 2026-09-07. False readiness is fixed and verified live: `/api/readyz`
   answered 503 for the whole of every turn because it re-derived readiness from
   the raw `conversation_ready` flag rather than asking
