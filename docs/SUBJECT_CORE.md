@@ -25,6 +25,19 @@ or directly, which is what the make target does:
 .venv/bin/python tools/run_subject_core.py --rounds 24 --trials 6
 ```
 
+One run gives a number between ten and thirteen of twenty-four and the
+difference between those numbers is noise, so the reading that counts comes
+from three:
+
+```bash
+PYTHON=.venv/bin/python make subject-core-frozen
+```
+
+which runs the battery three times and hands the reports to
+`tools/subject_core_scorecard.py`. That says, per criterion, whether it held
+every time, failed every time, or changed its answer, and carries each number
+across the runs with its spread.
+
 `--quick` wires everything through in about two minutes and is underpowered on
 purpose; the report says so rather than returning an empty graph. Results land
 in `artifacts/subject_core/`: the recording, the manifest, and
