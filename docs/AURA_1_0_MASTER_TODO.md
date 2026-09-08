@@ -175,6 +175,36 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  PARTIAL 2026-09-07, second session. Seven taken by cause from one live
+  battery, each with the turn that produced it:
+  - `Rejected live user-surface draft reasons=ungrounded_person_narrative`.
+    The confabulation gate captures `[A-Z][a-z]{2,}` in a relational frame, so
+    "Nobody asked me anything" invents a Nobody. English's closed classes are
+    a set now, beside the stoplist of words seen going wrong. FIXED, 9edbe43e9.
+  - `reasons=fabricated_shared_history` on a recall question. The check read
+    the conversation from `user_surface_recent_messages`, a key nothing in the
+    tree ever put in a job, so it judged every recall against an empty
+    vocabulary. Reads the transcript now. FIXED, 9edbe43e9.
+  - `PROMPT CACHE retained nothing: disabled=True` on every conversational
+    turn. Not its own fault: a rejected draft goes to the repair path, which
+    disables the cache. The two fixes above remove the cause. FIXED.
+  - `blocking lock 'core.knowledge.atomspace.AtomSpace' … held 52ms on the
+    event loop`, beside `hard event-loop lag 6.0253s` and an exhausted
+    tick_duration_p95 budget. The atomspace economy cycle walked every record
+    under one lock inside an `async def`. Off the loop. FIXED, 9edbe43e9.
+  - `fsync attempted while holding ['core.ontogeny.service._core_lock',
+    'core.ontogeny.experience._spine_lock']` — found the first time those two
+    locks became visible to lockdep. Both singletons construct outside the
+    lock now. FIXED, 56dc82759.
+  - `/api/readyz` answering `{"ready":false,"issues":[]}` mid-turn: five
+    conditions decided it and four were explained. FIXED, 56dc82759.
+  - `Foreground non-parametric memory REFUSED: 408 entries is too sparse to
+    steer a 5120-wide space (need 50,000)`. Every turn. A threshold nothing on
+    this host can reach, so the warning is a standing fact rather than an
+    event. NOT FIXED.
+  Still open: `Boot-health probe generation N exceeded the 2.5s HTTP wait
+  budget`, `Perceptual substrate transaction exceeded budget`, and
+  `⚠️ [STEERING] Liveness flag CLEAR for this worker`.
 - [ ] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
 - [ ] R10 Verify executable examples semantically, not merely process exit zero.
@@ -345,6 +375,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  FOUND 2026-09-07, second session, and it was not order dependence.
+  `test_runtime_invariants_are_registered_and_run_clean` passed alone and
+  failed in a batch; the batch had built the ontogeny singletons, so
+  `locks.no_open_splats` had a real splat to report. Fixing the splat fixed
+  the test — the isolated pass was the one that was wrong.
+  `test_cognition_invariants_registered_and_clean` fails at 9edbe43e9 too, on
+  three registered claims whose evidence has decayed: two undeclared telemetry
+  channels (`empathy.autonomy`, `care.depleted`), and two resident-27B
+  composition-decode canaries reporting False. Not order dependence either.
+
   FOUND 2026-09-07, not fixed.
   `tests/test_cognitive_ingress.py::test_conversation_recall_requires_subject_overlap_but_admits_relevant_quality`
   fails 4 runs in 5 IN ISOLATION, so it is not order-dependence but genuine
