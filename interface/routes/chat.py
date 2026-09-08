@@ -8222,9 +8222,26 @@ async def _answer_from_fallback_ladder(
         if cut_short
         else ""
     )
+    # Say which thing happened, not the one that usually happens.
+    #
+    # This line asserted "the main one is still loading" whatever the reason
+    # was, and the reason is right here in the argument. LIVE, 2026-09-07: it
+    # was said while the 27B had been resident for seven minutes and the real
+    # cause was a latent-cortex receipt contract failing — so the person was
+    # told to wait for something that was not going to change by waiting.
+    lowered = str(reason or "").lower()
+    still_coming = any(
+        marker in lowered
+        for marker in ("load", "warm", "booting", "starting", "not ready", "spawning")
+    )
+    why = (
+        "the main one is still loading"
+        if still_coming
+        else "the main one could not finish this turn"
+    )
     return (
         f"{answer}\n\n"
-        "(That came from my smaller model — the main one is still loading. "
+        f"(That came from my smaller model — {why}. "
         f"Ask again in a moment if you want me to think about it properly.{ran_out})"
     )
 

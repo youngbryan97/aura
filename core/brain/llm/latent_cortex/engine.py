@@ -8506,6 +8506,24 @@ class LatentCortexEngine:
                         if deployable_candidate_available
                         else research_oracle_candidates.get(winner.index)
                     )
+                    # A branch that decoded nothing HAS no prior candidate.
+                    #
+                    # The validator's rule is that a prior candidate, when
+                    # there is one, is non-empty text — and it accepts None for
+                    # when there is not. The winning branch's probe can come
+                    # back empty, which is an ordinary outcome, and passing ""
+                    # made it a caller's type error instead.
+                    #
+                    # LIVE, 2026-09-07: "post-adaptation prior candidate is
+                    # invalid" killed the episode, the receipt came back
+                    # without its kv_state_tree, decode_incumbent, terminal
+                    # disposition, causal receipt or branch isolation, all five
+                    # contract checks failed, the cortex was declared
+                    # unavailable, and a 9B answered a question the 27B was
+                    # resident for.
+                    if isinstance(prior_candidate, str) and not prior_candidate:
+                        receipt.flag("post_adaptation_prior_candidate_empty")
+                        prior_candidate = None
                     post_probe_tokens = self._decode_probe(
                         winner,
                         cache,
