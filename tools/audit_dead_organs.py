@@ -21,8 +21,12 @@ a dimension-by-dimension mapping of the world onto the substrate with no
 sender; `AffectGroundingEngine.gather` was registered and called zero times.
 None of those is a dead service. Each is a live service with a dead method.
 
-It reports rather than fails. A gate on either number would be a gate on how
-the tree happens to spell a lookup today.
+It reports rather than fails, and the first list needs reading with care: a
+service can be reached without ever being named. The perceptual pump is
+registered, asked for by nobody, and started every boot — through the
+capability registry, which resolves it by an accessor rather than a container
+key. A gate on either number would be a gate on how the tree happens to spell a
+lookup today.
 """
 
 from __future__ import annotations
@@ -169,8 +173,19 @@ def main() -> int:
             thin.append((name, 1))
 
     abilities = [] if args.skip_methods else dead_abilities()
+    # Names reached by a mechanism other than a container lookup, so the list
+    # above can be read without re-deriving this every time. Each one was
+    # checked by hand and the reason is the value.
+    reached_otherwise = {
+        "perceptual_pump": "capability registry: boot_capabilities resolves its accessor",
+        "screen_perception": "capability registry: same",
+        "ontogeny": "imported directly by core/memory/intentional_retrieval.py",
+        "nociception": "imported directly by core/affect/affect_grounding.py",
+        "intentional_retriever": "constructed at the call site rather than resolved",
+    }
     report = {
         "registered": len(names),
+        "reached_without_being_named": reached_otherwise,
         "never_asked_for": unused,
         "asked_for_once": [name for name, _ in thin],
         "methods_nothing_calls": abilities,
