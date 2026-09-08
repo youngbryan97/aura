@@ -79,6 +79,28 @@ class ProprioceptiveLoop(BasePhase):
             soma.hardware.pop(f"{channel}_degraded", None)
             soma.hardware.pop(f"{channel}_error", None)
 
+    def _feel_body_pressure(self, state: Any) -> None:
+        """Hold the nociceptive strain channel at the body's current pressure.
+
+        Total, and silent when the reading is unavailable: an absent body is
+        not a painless one, but guessing a level for it would be worse than
+        leaving the channel to decay.
+        """
+        try:
+            from core.affect.nociception import DamageChannel, get_nociception_engine
+            from core.being.aura_now import BodyState
+
+            pressure = float(BodyState.from_aura_state(state).total_pressure)
+            if pressure > 0.0:
+                get_nociception_engine().hold(DamageChannel.RESOURCE_EXHAUSTION, pressure)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "proprioceptive_loop",
+                exc,
+                severity="debug",
+                action="the body's load was not reported to nociception this tick",
+            )
+
     def _mark_channel_degraded(
         self,
         soma: Any,
@@ -338,6 +360,15 @@ class ProprioceptiveLoop(BasePhase):
                 )
                 logger.debug("Proprioception homeostatic probe failed: %s", e)
             
+        # The body's own load is a strain, and nothing was reporting it as one.
+        # Nociception had a resource-exhaustion channel that only the immune
+        # system and the degradation sink ever wrote to, so a machine running
+        # hot and full felt nothing about it and the whole interoception ->
+        # affect path carried a constant. `BodyState.total_pressure` is the
+        # runtime's own calibrated reading, so no new threshold is invented
+        # here.
+        self._feel_body_pressure(new_state)
+
         soma.updated_at = time.time()
 
         # ── 4b. [RUBICON] Motor Cortex Awareness ───────────────
