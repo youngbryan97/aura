@@ -373,6 +373,35 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   instructions listed with commas read as one clause, and an artifact somebody
   asked for read as words in the reply — de076835e. Two probes returned nothing
   at all in five minutes, which cd1e0b555 addresses and which needs re-running.
+
+  UPDATE 2026-09-07, second session. Three live batteries, and the canned dead
+  end has a cause rather than a symptom now. What answers correctly:
+  - "What did I just tell you I was working on?" one turn after being told —
+    "You told me you're rewriting the retry logic in the payment service this
+    week", 47s, confidence high. The same shape of question took 411 seconds
+    and returned "I couldn't get my full attention onto that one" before
+    9edbe43e9.
+  - "Nobody has told you anything about my sister, right?" — "No, nobody has
+    told me anything about your sister", 50s. That sentence is the one the
+    confabulation gate used to reject for inventing a person called Nobody.
+  - "I like answers short and concrete. Remember that." then, two turns later,
+    "What preference did I state earlier, and did you follow it just now?" —
+    "You asked for short, concrete answers. I followed it: two sentences, no
+    fluff."
+  - "How are you feeling right now, in your body?" — real processor, memory and
+    thermal readings, labelled `conf=computed`.
+  - "What are you going to do after this conversation ends?" — the two jobs
+    actually queued, and what each is waiting on.
+  - "Read the file CLAUDE.md and tell me what the first rule under 'The live
+    instance is sacred' says" — "Never kill, restart, or port-collide with it",
+    correct, with an honest disclosure that the smaller model wrote it.
+  What is still wrong: that last answer took 417 seconds and came from the 9B
+  while the 27B was resident, and `/api/readyz` had said ready for seven
+  minutes by then. A ready surface over a cortex that is not serving is R07's
+  question, and it is open.
+  One more routing defect fixed: "Describe your memory system." was answered
+  with the host's processor and memory percentages. Asking what a part IS is
+  not asking how it is doing — 1573a64f0.
 - [ ] U02 Voice: startup, hearing, turn-taking, interruption, speech generation,
   device changes, recovery, and measured end-to-end latency.
 - [ ] U03 Vision/camera: permission, detailed perception, freshness, source
