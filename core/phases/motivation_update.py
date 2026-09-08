@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 import time
 import random
-from typing import Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 from core.kernel.bridge import Phase
 from core.state.aura_state import AuraState
 from core.consciousness.executive_authority import get_executive_authority as get_executive_authority

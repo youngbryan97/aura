@@ -7777,7 +7777,7 @@ def _mlx_worker_loop(
                 #    suppresses low-information mode-collapse filler.
                 #  • AURA_CONTRASTIVE_DECODING + AURA_CONTRASTIVE_AMATEUR_MODEL —
                 #    real dual-model contrastive decoding against a small same-family
-                #    amateur (e.g. Qwen2.5-1.5B vs the 32B cortex), subtracting the
+                #    amateur (e.g. Qwen2.5-1.5B vs the cortex), subtracting the
                 #    amateur's lazy preferences within the cortex's plausible set.
                 _steer_on = _FLAG_REASONING_STEERING.value().strip().lower() in {
                     "1",

@@ -3253,7 +3253,7 @@ class HealthAwareLLMRouter:
         """Protect live desktop Aura from background local-model memory spikes.
 
         Background cognition should stay active, but on a 64GB-class desktop it
-        cannot freely wake extra 9B/1.5B MLX workers beside the 32B Cortex lane.
+        cannot freely wake extra 9B/1.5B MLX workers beside the cortex lane.
         That pattern is what showed up in the live neural stream as a large
         footprint spike followed by forced shedding.  Admission is endpoint
         specific: Reflex is light enough to run with moderate headroom, while
@@ -3324,7 +3324,7 @@ class HealthAwareLLMRouter:
         # still binds. It represents memory the new worker and the already
         # resident foreground lane need after admission; kernel pressure says
         # whether pages are currently contested, not whether two model peaks
-        # fit together. Lowering this floor to 4GB admitted a 9B beside the 32B
+        # fit together. Lowering this floor to 4GB admitted a 9B beside the cortex
         # at 67% host use, then the emergency reclaimer killed the Cortex.
         try:
             from core.utils.memory_monitor import kernel_memory_pressure_level
@@ -3475,7 +3475,7 @@ class HealthAwareLLMRouter:
 
     async def _restore_primary_after_deep_handoff(self) -> None:
         """
-        Return the system to the 32B conversational brain after a 72B handoff.
+        Return the system to the cortex conversational brain after a 72B handoff.
         This keeps the 72B strictly transient and prevents it from lingering in RAM.
         """
         # Own the generation lane before rebooting workers: this task is

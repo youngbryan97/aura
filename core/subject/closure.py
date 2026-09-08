@@ -116,8 +116,13 @@ def read_periphery(kernel: Any) -> dict[str, float]:
             if len(out) >= MAX_PERIPHERY:
                 break
             _numbers(built.get(name), f"service.{name}", out, depth=1)
-    except Exception:  # noqa: BLE001 - an absent container is an absent periphery
-        pass
+    except (AttributeError, ImportError, LookupError, RuntimeError, TypeError, ValueError):
+        # An absent container is an absent periphery. Named rather than bare:
+        # every way this can fail is the container not being importable, not
+        # holding services yet, or holding something `_numbers` cannot read,
+        # and a genuinely unexpected failure while measuring the periphery
+        # should reach somebody rather than read as "there is none".
+        return out
     return out
 
 

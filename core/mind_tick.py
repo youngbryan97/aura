@@ -78,7 +78,7 @@ def _schedule_mind_task(awaitable: Any, *, name: str, tracker: Any = None) -> as
 def _dead_tiers_are_policy_deferred_cortex(gate: Any, dead_tiers: list[str]) -> bool:
     """Return true for the deliberate desktop cold-Cortex standby state.
 
-    Desktop safe boot may defer the 32B lane until the first foreground user
+    Desktop safe boot may defer the cortex lane until the first foreground user
     turn to avoid launch-time memory spikes. That state must keep boot health
     unready, but it is not an incident and must not start a repair storm.
     """

@@ -264,7 +264,7 @@ _EXPLICIT_DEFERRED_PREWARM_REFUSAL_LOG_INTERVAL_S = 60.0
 
 #: Lane failures that are TRANSIENT and must be re-armed rather than left
 #: terminal. A refused worker spawn is the clearest case: the runtime declined
-#: to load the 32B because the host was momentarily short of headroom, and host
+#: to load the cortex because the host was momentarily short of headroom, and host
 #: memory frees constantly. Parking the lane in `failed` over it meant she
 #: reported a broken mind for a condition that had already passed — live
 #: 2026-07-26, `memory_pressure_refused_worker_spawn:model_load_headroom:23.3GB
@@ -1493,7 +1493,7 @@ async def _recover_the_cortex_before_answering(
                         break
             # If cortex is STILL dead after recovery wait, downgrade to secondary
             # tier rather than sending the user a fallback/"wound up" response.
-            # A real answer from the 7B is better than no answer from the 32B.
+            # A real answer from the 7B is better than no answer from the cortex.
             if (
                 self._mlx_client
                 and hasattr(self._mlx_client, "is_alive")
@@ -5300,7 +5300,7 @@ class InferenceGate:
                 await self._proactive_cortex_watchdog()
 
                 # [STABILITY v53] Don't eagerly load brainstem/deep at boot.
-                # The 7B brainstem consumes ~5GB RAM that the 32B cortex needs.
+                # The 7B brainstem consumes ~5GB RAM that the cortex needs.
                 # At 62% RAM with both loaded, the cortex swaps and first-turn
                 # response time balloons to 80+ seconds. Load on demand only.
                 # await self._ensure_hot_spare_ready(BRAINSTEM_ENDPOINT)
@@ -5334,7 +5334,7 @@ class InferenceGate:
 
         # 1. Detect dead cortex and trigger recovery.
         #
-        # A WARMING lane is not a dead lane. During a 32B cold load the
+        # A WARMING lane is not a dead lane. During a cortex cold load the
         # worker legitimately fails is_alive() for 120-150s while the state
         # sits in warming/spawning/handshaking — and a warmup is not flagged
         # as "recovery in progress". The 20260708-postdoomfix soak showed
@@ -6197,7 +6197,7 @@ class InferenceGate:
     ) -> float:
         """Admission control for the foreground preflight — break the doom loop.
 
-        A COLD first boot legitimately needs ~150s to load the 32B, and the
+        A COLD first boot legitimately needs ~150s to load the cortex, and the
         user expects that one-time wait. But a RECOVERY (Cortex was ready, got
         force-killed on a first-token stall, is reloading) must NOT hold every
         foreground turn hostage for 90-180s — observed live (Jul 7 soak):
@@ -7296,7 +7296,7 @@ class InferenceGate:
             return
 
         # Never shed the small fallback models when memory is abundant. They
-        # are the guaranteed fast-answer path while the 32B cortex warms; with
+        # are the guaranteed fast-answer path while the cortex warms; with
         # the router now routing AROUND a not-ready cortex, shedding them left
         # nothing resident to answer and cascaded into a no-reply death spiral
         # (2026-07-15 soak: 7B >56s, 1.5B >14.7s, all thrashing to reload
@@ -7606,7 +7606,7 @@ class InferenceGate:
         [STABILITY v50] Raised ceiling from 90→150s for M5 64GB hardware.
         The previous 90s cap was too aggressive — after warmup checks,
         trust gate PBKDF2, and 20+ consciousness subsystem context assembly,
-        the 32B model often had only 40-55s of actual generation budget.
+        the cortex often had only 40-55s of actual generation budget.
         On M5 hardware there is no gateway proxy, so 504 risk is zero.
         """
         if is_background or requested_tier == "tertiary":
@@ -8163,7 +8163,7 @@ class InferenceGate:
     def _split_attempt_timeouts(total_timeout: float, requested_tier: str) -> tuple[float, float]:
         """[STABILITY v50] Give the primary Cortex 80% of the budget.
 
-        The previous 65/35 split starved the 32B model and gave 35% of
+        The previous 65/35 split starved the cortex and gave 35% of
         the user's patience to the brainstem fallback — which rarely
         produces a satisfying answer anyway. 80/20 gives Cortex full
         room to generate while preserving a meaningful brainstem window.
@@ -8180,7 +8180,7 @@ class InferenceGate:
         elif requested_tier == "tertiary":
             primary_budget = min(60.0, total_timeout * 0.7)
         else:
-            # Give cortex 80% of the total budget so the 32B model has
+            # Give cortex 80% of the total budget so the cortex has
             # real headroom. On an API-protected 300s turn, preserve the heavy
             # lane instead of silently dropping it after the old 120s cap.
             if total_timeout >= 240.0:
@@ -8337,7 +8337,7 @@ class InferenceGate:
             yield
 
     async def _restore_primary_after_deep_handoff(self) -> None:
-        """Return the system to the 32B conversational brain after a 72B request."""
+        """Return the system to the cortex conversational brain after a 72B request."""
         try:
             from core.brain.llm.mlx_client import get_mlx_client
             from core.brain.llm.model_registry import ACTIVE_MODEL, get_runtime_model_path
@@ -10653,7 +10653,7 @@ class InferenceGate:
     def _build_compact_messages(
         self, prompt: str, system_prompt: str, history: list[dict]
     ) -> list[dict[str, str]]:
-        """Compact prompt path for live conversation on the 32B lane."""
+        """Compact prompt path for live conversation on the cortex lane."""
         messages = [{"role": "system", "content": system_prompt}]
 
         for msg in history[-12:]:
@@ -12558,7 +12558,7 @@ class InferenceGate:
                 requested_tier=requested_tier,
                 is_background=is_background,
             )
-        # When the 32B cortex is still warming or recovering, refuse to load
+        # When the cortex is still warming or recovering, refuse to load
         # the 72B Solver alongside it — they don't fit in 64GB together and
         # the resulting MemoryGuard panic-eviction creates a thrash loop where
         # neither lane stays up long enough to answer. Force primary; the
@@ -14598,7 +14598,7 @@ class InferenceGate:
                             try:
                                 # Admission control — break the cortex doom-loop.
                                 # A COLD first boot legitimately needs ~150s to
-                                # load the 32B and the user expects that one-time
+                                # load the cortex and the user expects that one-time
                                 # wait. But a RECOVERY (Cortex was ready, got
                                 # force-killed on a first-token stall, is now
                                 # reloading) must NOT block every foreground turn

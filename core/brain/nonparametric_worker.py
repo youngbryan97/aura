@@ -2,7 +2,7 @@
 
 The validation-grade processor in ``nonparametric_generation`` recomputes a full forward
 over the running tokens every step just to recover the hidden-state query key. That is
-O(n²) and would make the 32B foreground take minutes — which is exactly why it was kept out
+O(n²) and would make the cortex foreground take minutes — which is exactly why it was kept out
 of the live response path.
 
 This module closes that gap. The model's *normal* generation forward (the one

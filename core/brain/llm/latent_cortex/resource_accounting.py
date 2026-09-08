@@ -313,7 +313,7 @@ class ModelComputeProfile:
 
         The frontier certificate declares a parameter count and, separately, a
         compute profile. Nothing tied the two together, so a producer could
-        claim a 32B model and estimate its FLOPs against a toy decoder. This
+        claim a cortex-sized model and estimate its FLOPs against a toy decoder. This
         is the arithmetic that connects them.
 
         Counted: untied input and output embeddings, the four attention

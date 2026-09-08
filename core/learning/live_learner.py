@@ -1498,7 +1498,7 @@ class LiveLearner:
 # recycles the worker onto the new path; MLXLocalClient.set_expert_adapter
 # attaches adapters onto the resident model in the worker process). The old
 # monkey-patch loaded a second full copy of the model into the ORCHESTRATOR
-# process — ~20GB wired on the 32B lane — while generations kept flowing
+# process — ~20GB wired on the cortex lane — while generations kept flowing
 # through the worker's old weights.
 
 

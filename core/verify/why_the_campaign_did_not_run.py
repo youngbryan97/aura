@@ -8,7 +8,7 @@ reports the result, and a conductor job that calls all three every hour.
 So the interesting question is not what is missing. It is why an hourly job
 has produced nothing, and the answer is in its admission bar. The campaign
 runs under the research background profile: fifteen minutes of no user
-activity, memory below 85%, conversation ready. A machine with a resident 32B
+activity, memory below 85%, conversation ready. A machine with a resident cortex
 sits above that memory line most of the time, and a machine somebody is
 working on is rarely idle for fifteen minutes. Both conditions are right for a
 job that spends three generations per trial. Together they are a job that

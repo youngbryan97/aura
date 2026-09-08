@@ -169,7 +169,7 @@ class SovereignPruner:
         prompt = f"Distill this memory to its essential insight in one sentence. If it contributed nothing, say 'null'.\n\nMEMORY: {mem.content[:500]}\nSOURCE: {mem.source}\n\nInsight:"
         try:
             # Route memory consolidation through the 7B background lane so
-            # housekeeping never steals the 32B conversation brain.
+            # housekeeping never steals the cortex's conversation brain.
             if hasattr(brain, "think"):
                 from core.brain.cognitive_engine import ThinkingMode
 

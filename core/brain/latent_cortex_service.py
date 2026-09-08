@@ -1034,7 +1034,7 @@ class LatentCortexService:
         allocation_profile = "general_full_stack_v1"
         if foreground_request and model_parameter_count >= 20_000_000_000:
             # Interactive resident-scale profile: every production mechanism
-            # remains causal, but the 32B lane receives a bounded amount of
+            # remains causal, but the cortex lane receives a bounded amount of
             # virtual width and optimizer work instead of a small-model lab
             # schedule that cannot meet the desktop deadline.
             allocation_profile = "resident_32b_interactive_full_stack_v2"

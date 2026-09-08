@@ -11554,7 +11554,7 @@ class MLXLocalClient:
         The model lives in the WORKER process, so the only correct swap is a
         worker recycle with the new path. (This replaces a retired
         live_learner monkey-patch that loaded a second full copy of the model
-        into the ORCHESTRATOR process — ~20GB of wired memory on the 32B lane
+        into the ORCHESTRATOR process — ~20GB of wired memory on the cortex lane
         — while generations kept flowing through the worker's old weights.)
         Busy lanes defer the recycle until the active request finishes; the
         respawn path re-resolves the fused manifest, so crash recovery after

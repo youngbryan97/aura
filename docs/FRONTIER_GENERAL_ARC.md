@@ -9,7 +9,7 @@ the claim falsifiable with a measured trend line.
 
 ## The wall, stated exactly
 
-Making the resident 32B's *weights* match a frontier model's raw pretrained
+Making the resident cortex's *weights* match a frontier model's raw pretrained
 capability is off the table — the pretraining compute gap is orders of
 magnitude, LoRA does not close it, and self-training on unverifiable outputs
 collapses models. That wall is real and stays real.

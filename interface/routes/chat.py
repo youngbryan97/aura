@@ -8401,7 +8401,7 @@ _FORCE_PRIMARY_PHRASES = (
 
 
 def _user_requested_primary_only(text: str) -> bool:
-    """Honor explicit user directives to stay on the 32B cortex."""
+    """Honor explicit user directives to stay on the cortex."""
     lower = (text or "").lower()
     return any(phrase in lower for phrase in _FORCE_PRIMARY_PHRASES)
 

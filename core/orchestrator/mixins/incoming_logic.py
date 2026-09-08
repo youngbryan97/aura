@@ -802,7 +802,7 @@ class IncomingLogicMixin:
         if origin in ("user", "voice", "admin"):
             self._last_user_interaction_time = time.time()
             # v50: Reset idle model swap flag so AutonomicCore knows to
-            # re-warm the 32B cortex if it was hibernated.
+            # re-warm the cortex if it was hibernated.
             try:
                 autonomic = optional_service("autonomic_core")
                 if autonomic and hasattr(autonomic, "_reset_idle_swap"):

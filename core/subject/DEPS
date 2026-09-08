@@ -37,6 +37,7 @@ include_rules = [
     # named module by module rather than package by package, so a wider reach
     # into any of them is a line in a diff.
     "+core.agency.authorship",
+    "+core.agency.intention_loop",
     "+core.consciousness.consciousness_bridge",
     "+core.consciousness.system",
     "+core.container",
