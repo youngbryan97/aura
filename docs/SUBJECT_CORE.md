@@ -173,10 +173,13 @@ It derives affect from sustained evidence — prediction error from the world
 model, nociceptive pressure from the body, novelty from the lifetime state —
 and all three of those channels were readers with nothing running them.
 
-**She could not tell "I did this" from "this happened".** Her intention records
-are hers by construction and nothing else recorded authorship, so a self-model
-built from outcomes would take credit for weather. The agency ledger keeps the
-distinction as state.
+**Nothing recorded whether an observed outcome was hers.** `AgencyComparator`
+answers a different question — how much of a predicted outcome her action
+explains — and only along one path. Her intention records are hers by
+construction. So an outcome she watched and an outcome she caused left the same
+trace, and a self-model built from outcomes would take credit for weather. The
+agency ledger keeps that distinction as state, and the comparator's attribution
+now travels beside it so a disagreement between the two is visible.
 
 **Proprioception published system memory as `vram_usage`.** Three call sites in
 cognitive integration and the selfhood tick ask for `ram_usage`, which nothing
@@ -186,9 +189,11 @@ published, so the body reached those layers saying a constant zero.
 only the desktop boot registers.** Offline that lookup returned None and the
 whole channel was dead.
 
-**The free-energy engine's action urgency was computed and never consulted.**
-Drives ticked at the same rate whether the world was behaving as modelled or
-not.
+**The free-energy engine's action urgency never reached the drives.** The
+heartbeat reads it, to enter a workspace bid when free energy is high. The
+motivation phase — which decides how fast the drives press and when an
+intention is generated — did not, so drives ticked at the same rate whether the
+world was behaving as modelled or not.
 
 **The substrate was thirty percent of how hard she thinks and none of how she
 feels.** `HomeostaticCoupling` says the continuous substrate is the ground
