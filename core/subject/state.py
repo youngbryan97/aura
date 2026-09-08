@@ -384,6 +384,12 @@ _SCHEMAS: dict[str, Schema] = {
             ("working_load", "cognition.working_memory"),
             ("working_recency", "cognition.working_memory[-1]"),
             ("retrieved_load", "cognition.long_term_memory"),
+            # What is in mind, not how much of it. The retrieved set is bounded
+            # and fills within a few turns, so its length is constant from then
+            # on while its contents change every cycle — an active memory read
+            # as a count is a domain nothing can be shown to reach.
+            ("retrieved_digest", "cognition.long_term_memory[*]"),
+            ("working_digest", "cognition.working_memory[*]"),
             ("summary_len", "cognition.rolling_summary"),
             ("ledger_load", "cognition.continuity_ledger"),
             ("thread_present", "cognition.active_thread_id"),
@@ -730,12 +736,15 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
 
 def _read_M(state: Any) -> np.ndarray:
     working = _dig(state, "cognition.working_memory", []) or []
+    retrieved = _dig(state, "cognition.long_term_memory", []) or []
     last = working[-1] if isinstance(working, list) and working else {}
     return np.array(
         [
             _sat(working, 24.0),
             _hash_unit(str(last)),
-            _sat(_dig(state, "cognition.long_term_memory", []) or [], 8.0),
+            _sat(retrieved, 8.0),
+            _hash_unit("|".join(str(item)[:120] for item in list(retrieved)[-4:])),
+            _hash_unit("|".join(str(item)[:120] for item in list(working)[-4:])),
             _sat(str(_dig(state, "cognition.rolling_summary", "") or ""), 512.0),
             _sat(_dig(state, "cognition.continuity_ledger", {}) or {}, 8.0),
             1.0 if _dig(state, "cognition.active_thread_id") else 0.0,
