@@ -103,24 +103,34 @@ methodological defect was removed and each channel repaired:
 | | -0.062 | four components per domain, per-column ridge strength |
 | | -0.031 | forward-chaining folds, nested penalty for the wider model |
 | | -0.011 | the penalty grid searched as a path rather than a product |
-| latest | **+0.0021** | the workspace fed and broadcasting, the substrate reaching affect |
+| | **+0.0021** | the workspace fed and broadcasting, the substrate reaching affect |
+| latest | **-0.0777** | the same code, run again |
 
-Against a matched surrogate floor of -0.0078, measured the same way on the same
-series with the coupling removed. So the transition law is now marginally
-irreducible and the margin is real, and it is twenty times short of the
-preregistered 0.05.
+The last two rows are the same instrument on the same organism, and they are
+the honest measure of how much of this is noise: the score moves by 0.08
+between runs, against a preregistered bar of 0.05 and a matched surrogate floor
+of -0.011. What can be said is that the score is no longer reliably negative
+and is nowhere near the bar. What cannot be said, at 960 turns, is which side
+of zero it sits on.
 
-Six edges survive all three preregistered bars: `S->G`, `S->W`, `S->N`, `M->G`,
-`G->N`, `W->N`. The graph has no cycle, so six of the twenty-four criteria —
-strong connectivity, vertex connectivity, cycles, reentry, spread and
-replication — fail together on the same fact. That is the honest shape of the
-result: the self-state and memory reach the workspace, the workspace and the
-world model reach the lifetime state, and nothing comes back.
+Ten edges survive all three preregistered bars: `S->G`, `S->C`, `S->W`, `S->N`,
+`M->G`, `G->N`, `W->N`, `A->N`, `D->N`, `P->N`. Six of them end at the lifetime
+state and three at the workspace, and nothing leaves either. The graph has no
+cycle, so six of the twenty-four criteria — strong connectivity, vertex
+connectivity, cycles, reentry, spread and replication — fail together on that
+one fact rather than on six.
+
+The lesion is the result worth keeping. Clamping the cheapest cut — recurrent
+cognition, the self-state and the world model held still — lowers irreducibility,
+perturbational spread and synergy together, which is §39 satisfied: the
+partition the search found is carrying something. Releasing it restores two of
+the three, so §40 is not.
 
 ## The conjunction
 
-ISC(K) = 1 is an and, not an average. Current status, from the most recent
-full run recorded in `artifacts/subject_core/subject_core_report.json`:
+ISC(K) = 1 is an and, not an average. Eleven of twenty-four hold, from the most
+recent full run recorded in `artifacts/subject_core/subject_core_report.json` —
+960 turns, 31,680 frames, 164 state columns, 90 domain pairs, 1,440 paired arms:
 
 - [ ] **causal_closure_scc** (§14) — every domain reaches every other one
 - [ ] **robust_recurrence_kappa** (§17) — no single domain's removal disconnects the rest
@@ -131,21 +141,21 @@ full run recorded in `artifacts/subject_core/subject_core_report.json`:
 - [ ] **differentiation** (§18) — `D_eff/D >= 0.4`
 - [x] **differentiation_above_floor** (§18) — well above one dimension, no component over half the variance
 - [x] **intrinsic_persistence** (§19) — the last state predicts the next beyond the environment
-- [ ] **causal_closure_of_the_core** (§3) — nothing outside K predicts K better than K
+- [x] **causal_closure_of_the_core** (§3) — nothing outside K predicts K better than K
 - [ ] **perturbational_spread** (§24) — a local displacement reaches 60% of the core
-- [ ] **perturbational_complexity** (§26) — structured, not local and not a broadcast
+- [x] **perturbational_complexity** (§26) — structured, not local and not a broadcast
 - [ ] **synergy** (§27) — joint information above 10% and above its shifted null
 - [x] **metastability** (§29) — regimes that persist and still turn over
 - [ ] **global_access** (§30) — the workspace reaches three heterogeneous consumers
 - [ ] **recurrent_global_access** (§31) — a consumer later changes the workspace again
 - [x] **self_drives_action** (§33) — changing the self-model changes what gets done
-- [ ] **ownership** (§34) — the same world state updates the self differently when she caused it
-- [ ] **fast_to_slow** (§38) — fast cognition changes the developmental state
-- [ ] **slow_to_fast** (§38) — the developmental state changes later cognition
+- [x] **ownership** (§34) — the same world state updates the self differently when she caused it
+- [x] **fast_to_slow** (§38) — fast cognition changes the developmental state
+- [x] **slow_to_fast** (§38) — the developmental state changes later cognition
 - [ ] **natural_runtime_replication** (§44) — holds across ordinary conditions
-- [ ] **lesion_deficit** (§39) — cutting the cheapest partition degrades what it should
+- [x] **lesion_deficit** (§39) — cutting the cheapest partition degrades what it should
 - [ ] **rescue** (§40) — restoring it brings them back
-- [ ] **beats_every_null** (§41) — no null passes, and the recurrent reference does
+- [x] **beats_every_null** (§41) — no null passes, and the recurrent reference does
 
 ## The nulls
 
