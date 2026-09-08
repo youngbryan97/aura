@@ -19,6 +19,43 @@ No percentage is meaningful until that inventory is reconciled.
 - Platform limits can suspend execution; continuation does not bypass them.
 - Unknown research outcomes are not deadline commitments or guaranteed wins.
 
+## Where the pass stands, 2026-09-08
+
+Eight of sixty-one closed: I01 through I05, I07, R01 and R02. I06 is open with
+a number rather than a claim — 33 of 313 release requirements name something a
+person can run.
+
+Twenty-two defects fixed and verified live this session, and the ones worth
+knowing about are not the individual fixes but what they had in common.
+
+**A list of spellings deciding a fact.** The executive decided whether a person
+was waiting from a literal set of origin names — the thirteenth such list in
+the tree, and it disagreed with the twelfth, so a person's tool call queued
+behind Aura's own errand. The confabulation gate decided whether a word was
+somebody's name the same way, and rejected "Nobody asked me anything".
+
+**A reader with no writer.** The check that decides whether a recall is
+invented read the conversation from a job key nothing in the tree ever set, so
+it judged every recall against an empty vocabulary.
+
+**A constant hiding a dependency.** `tendency_conflict` was normalised entropy
+over the ACTIVE readinesses, so two of them scored the ceiling and coherence
+was a constant zero. Measuring it against the whole vocabulary immediately
+exposed a calibration parameter that had been reordering conclusions all along.
+
+**The lock held across the work.** Nine loop-blocking holds in one boot, five
+fixed, every one of them the same shape: the lock held across the computation
+rather than across the read the computation needs.
+
+**A refusal read as an absence.** The prompt cache found five thousand reusable
+tokens and mlx_lm declined to trim them, and the miss line said only how far
+the prompt matched. The resident model is `Qwen3_5`, whose `make_cache` returns
+an `ArraysCache` that never trims, so the largest source of latency in this
+runtime had been invisible since the model was installed.
+
+**A standing fact reported as an event.** Four warnings fired every turn for
+conditions that could not change while the process ran.
+
 ## 0. Reconcile the complete inventory
 
 Working evidence: [inherited reconciliation](AURA_INHERITED_RECONCILIATION.md),
