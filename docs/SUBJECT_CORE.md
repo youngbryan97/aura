@@ -209,10 +209,6 @@ wired to one path. Every read method was called from nowhere, so the sense of
 agency it computes reached no part of her. An intention formed anywhere else
 emitted nothing and produced no attribution at all.
 
-**`SelfPredictionLoop.observe` had no caller.** The loop that predicts her own
-next state and measures the error was constructed, registered, started, and
-never given an observation.
-
 **The workspace's novelty bid was gated above every value it can take.** The
 reservoir puts an ordinary moment near 0.2 and returns 0.5 only as a
 placeholder, before it has a distribution; the gate at 0.5 admitted the
