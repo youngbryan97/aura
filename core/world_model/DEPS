@@ -8,7 +8,7 @@
 #
 # 12 outbound edges when this was generated.
 
-description = "core.world_model: may import only what it already imports; every new edge is an edit here."
+description = "core.world_model: declared dependencies only; cycle observation reads the canonical percept representation through core.state.percepts."
 
 include_rules = [
     "+core.soma",
@@ -25,6 +25,7 @@ include_rules = [
     "+core.health",
     "+core.resilience",
     "+core.runtime",
+    "+core.state.percepts",
     "+core.thought_stream",
     "+core.values",
 

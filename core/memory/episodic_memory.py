@@ -237,7 +237,8 @@ class EpisodicMemory:
         # same thing as a refusal.
         self._last_refusal_reason = ""
         self._deferred_episodes: DeferredWrites[dict[str, Any]] = DeferredWrites(
-            "episodic_memory", self._write_a_held_episode
+            "episodic_memory", self._write_a_held_episode,
+            identity=lambda held: held["idempotency_key"],
         )
 
     def _hold_if_deferred(
