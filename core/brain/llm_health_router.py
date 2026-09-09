@@ -3751,7 +3751,22 @@ class HealthAwareLLMRouter:
                     ctx_summary.append(f"[Soma: CPU {cpu:.0f}%, VRAM {vram:.0f}%]")
 
             if ctx_summary:
-                context_header = " ".join(ctx_summary)
+                # One block per line, because the splitter reads lines.
+                #
+                # These were joined with a space, and the header pattern that
+                # decides which sections are per-turn — `^\[[A-Z][^\n\]]*\]$`
+                # — cannot match a line holding two bracket groups. So the most
+                # volatile text in the whole prompt was invisible to the one
+                # stage that exists to move volatile text out of the stable
+                # head, and it stayed there.
+                #
+                # LIVE, 2026-09-08: `matched 596 (25.5%) before diverging;
+                # divergent text begins: ' INQUISITIVE (substrate energy: 0.31,
+                # substrate focus: 0.78, substrate'`. Everything after token
+                # 596 — three quarters of the prompt — was re-prefilled every
+                # turn on a model whose cache cannot be trimmed, so a strict
+                # prefix is the only reuse there is.
+                context_header = "\n".join(ctx_summary)
                 # [Fix] Move Affective and Somatic state to system_prompt instead of user prompt to prevent echoing.
                 #
                 # APPENDED, never prepended. This block is the single most
@@ -3768,10 +3783,15 @@ class HealthAwareLLMRouter:
                 # 31,697 tokens re-prefilled because 21 were reusable. Volatile
                 # grounding last means the stable identity and contract text
                 # forms a long shared prefix and only the tail is recomputed.
+                # No label above them. Each bracketed block is already a
+                # header the splitter recognises and files under its own
+                # label, so an extra "System State Context:" line only leaves
+                # an empty section behind in the stable head once its contents
+                # have moved to the turn.
                 if system_prompt:
-                    system_prompt = f"{system_prompt}\n\nSystem State Context:\n{context_header}"
+                    system_prompt = f"{system_prompt}\n\n{context_header}"
                 else:
-                    system_prompt = f"System State Context:\n{context_header}"
+                    system_prompt = context_header
 
                 # We no longer prepend this to the user prompt.
 
