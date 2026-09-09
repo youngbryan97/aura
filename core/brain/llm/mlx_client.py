@@ -16745,6 +16745,23 @@ class MLXLocalClient:
             origin_label = str(kwargs.get("origin", "") or "")
             purpose_label = str(kwargs.get("purpose", "") or "")
             expected_cancel_reason = self._consume_expected_generation_cancellation(req_id)
+            from core.runtime.what_stops_it import current as current_execution
+
+            owner_stopped = current_execution(whose="mlx_generation").stopping.stopped
+            # Cancelling the parent future does not reach the worker process.
+            # Signal only this request before cleanup clears its sequence.
+            if self._current_request_id == req_id:
+                cancellation = self.soft_cancel_active_generation("generation_caller_cancelled")
+                if cancellation.get("requested") and self.is_alive():
+                    acknowledged = await asyncio.shield(self._soft_cancel_acknowledged())
+                    if not acknowledged:
+                        self._deferred_reboot_reason = "cancelled_worker_not_acknowledged"
+                        self._record_degraded_event(
+                            "generation_cancel_not_acknowledged",
+                            detail=os.path.basename(self.model_path),
+                            severity="error",
+                            foreground_request=foreground_request,
+                        )
             # CP126 9edfb10c. This used to be the labels alone, so ANY request
             # could suppress a cancellation degradation by calling itself
             # "baseline" — a self-signed excuse for the exact signal that says
@@ -16762,6 +16779,11 @@ class MLXLocalClient:
                     "🧹 [MLX] Generation cancelled for %s during expected reboot (%s).",
                     os.path.basename(self.model_path),
                     expected_cancel_reason,
+                )
+            elif owner_stopped:
+                logger.info(
+                    "Generation cancelled for %s by its execution owner.",
+                    os.path.basename(self.model_path),
                 )
             elif benchmark_baseline_cancel:
                 logger.info(
@@ -16781,6 +16803,7 @@ class MLXLocalClient:
             self._pending_generations.pop(req_id, None)
             if (
                 not expected_cancel_reason
+                and not owner_stopped
                 and not benchmark_baseline_cancel
                 and not shutdown_cancel
                 and (

@@ -229,10 +229,16 @@ def _slug(model_identity: str) -> str:
 
 def write_certificate(certificate: FusionCertificate, *, root: Path | None = None) -> Path:
     """Record one measurement. Writing it does not make it hold."""
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
     directory = (root or Path(".")) / CERTIFICATE_DIR
-    directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{_slug(certificate.model_identity)}.json"
-    path.write_text(json.dumps(certificate.as_json(), indent=2) + "\n", encoding="utf-8")
+    with local_internal_governed_scope("fusion_certificate.write", domain="file_write"):
+        get_file_write_gateway().write_text(
+            path, json.dumps(certificate.as_json(), indent=2) + "\n",
+            source="fusion_certificate.write",
+        )
     logger.info(
         "fusion certificate written for %s: %s",
         certificate.model_identity,

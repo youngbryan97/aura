@@ -92,6 +92,59 @@ _QUALIFIED_RECURRENT_SKIPPED_PREFLIGHT_COMPONENTS = (
 )
 
 
+@dataclasses.dataclass
+class TerminalExchangeCapture:
+    exchanges: dict[str, dict[str, Any]] = dataclasses.field(default_factory=dict)
+
+
+_TERMINAL_EXCHANGES: ContextVar[TerminalExchangeCapture | None] = ContextVar(
+    "aura_terminal_exchanges", default=None,
+)
+
+
+def bind_terminal_exchanges():
+    """Give the durable delivery boundary custody of transcript finalization."""
+    capture = TerminalExchangeCapture()
+    return capture, _TERMINAL_EXCHANGES.set(capture)
+
+
+def reset_terminal_exchanges(token) -> None:
+    _TERMINAL_EXCHANGES.reset(token)
+
+
+async def finalize_terminal_exchanges(capture: TerminalExchangeCapture, payload: dict[str, Any]) -> None:
+    """Persist the exact sealed answer, including early returns and cancellation."""
+    reply = str(payload.get("response") or "")
+    if not reply.strip():
+        return
+    token = _TERMINAL_EXCHANGES.set(None)
+    try:
+        for exchange_id, entry in capture.exchanges.items():
+            principal_token = _CHAT_REQUEST_PRINCIPAL.set(entry["principal"])
+            surface_token = _CHAT_REQUEST_SURFACE.set(entry["surface"])
+            session_token = _CHAT_REQUEST_SESSION.set(entry["session"])
+            try:
+                metadata = dict(entry.get("metadata") or {})
+                metadata.update({
+                    "delivery_turn_id": str(payload.get("turn_id") or ""),
+                    "delivery_status": str(payload.get("status") or ""),
+                    "delivered_response_sha256": hashlib.sha256(reply.encode("utf-8")).hexdigest(),
+                })
+                await _complete_logged_exchange(
+                    exchange_id, entry["user"], reply,
+                    regenerated=entry.get("regenerated", False),
+                    record_experience=entry.get("record_experience", True)
+                    and payload.get("status") != "cancelled_by_user",
+                    exchange_metadata=metadata,
+                )
+            finally:
+                _CHAT_REQUEST_SESSION.reset(session_token)
+                _CHAT_REQUEST_SURFACE.reset(surface_token)
+                _CHAT_REQUEST_PRINCIPAL.reset(principal_token)
+    finally:
+        _TERMINAL_EXCHANGES.reset(token)
+
+
 def _chat_evidence_profile(user_message: str, *, bounded_surface: bool) -> tuple[str, Any]:
     """Resolve which answer owner is allowed to consume evidence this turn."""
 
@@ -567,6 +620,13 @@ async def _begin_logged_exchange(user_msg: str, *, session_id: str = "") -> str:
     """Create and durably pre-log an in-flight exchange."""
     exchange_id = _new_exchange_id()
     principal_id, principal_surface = _chat_memory_state._chat_memory_identity()
+    capture = _TERMINAL_EXCHANGES.get()
+    if capture is not None:
+        capture.exchanges[exchange_id] = {
+            "user": user_msg, "session": str(session_id or ""),
+            "principal": _CHAT_REQUEST_PRINCIPAL.get(),
+            "surface": _CHAT_REQUEST_SURFACE.get(),
+        }
     async with _chat_memory_state._get_convo_lock():
         _conversation_log.append(
             {
@@ -609,6 +669,14 @@ async def _complete_logged_exchange(
     exchange_metadata: dict[str, Any] | None = None,
 ) -> str:
     """Finalize a pending exchange in place so history is never duplicated."""
+    capture = _TERMINAL_EXCHANGES.get()
+    if capture is not None and exchange_id in capture.exchanges:
+        capture.exchanges[exchange_id].update({
+            "regenerated": regenerated,
+            "record_experience": record_experience,
+            "metadata": dict(exchange_metadata or {}),
+        })
+        return "pending_terminal_delivery"
     final_response = aura_response or "…"
     recorded_user = str(user_msg or "")
 

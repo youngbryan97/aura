@@ -342,6 +342,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   now share one predicate. Explicit owner-bound cancellation and stable shell
   addressing have focused coverage; live proof is pending. See
   [cancellation and custody](evidence/R09_CANCELLATION_SHELL_CUSTODY_2026-09-08.md).
+  UPDATE 2026-09-08, 20:35: desktop cancellation completed, but the worker
+  continued its abandoned decode. A completed journal answer also failed to
+  reach conversation history on an early return. Both ownership paths are
+  repaired with focused coverage; live closure remains required. See
+  [terminal history and worker stop](evidence/R09_TERMINAL_HISTORY_AND_WORKER_STOP_2026-09-08.md).
 - [x] R10 Verify executable examples semantically, not merely process exit zero.
   Closed 2026-09-08. The code truth engine executes module-level assertions and
   doctest examples in the symbolic sandbox, demotes claims when execution is
