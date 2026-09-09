@@ -54,6 +54,25 @@ MAX_PERIPHERY: int = 400
 MAX_DEPTH: int = 2
 
 
+#: Anything at least this large is a wall-clock instant, not a quantity. Epoch
+#: seconds passed a billion in 2001; a counter, a rate, a score or a cached
+#: distance never reaches it.
+EPOCH_FLOOR: float = 1e9
+
+
+def _is_clock(value: float) -> bool:
+    """A stored instant is the run's time index, not hidden state.
+
+    The statistical filter below catches a counter that ticks every frame. It
+    does not catch a timestamp that is written twice in a whole recording,
+    because two moves are not enough to establish a direction — and two moves
+    are all a summary refresh makes. Both of the largest leaks in the first
+    campaign were exactly that: `_last_summary_refresh_at` and its completion
+    stamp, predicting the core because everything in a run drifts with time.
+    """
+    return abs(value) >= EPOCH_FLOOR
+
+
 def _numbers(obj: Any, prefix: str, out: dict[str, float], depth: int = 0) -> None:
     if len(out) >= MAX_PERIPHERY or depth > MAX_DEPTH:
         return
@@ -65,7 +84,7 @@ def _numbers(obj: Any, prefix: str, out: dict[str, float], depth: int = 0) -> No
             out[f"{prefix}.{name}"] = 1.0 if value else 0.0
         elif isinstance(value, (int, float)):
             number = float(value)
-            if math.isfinite(number):
+            if math.isfinite(number) and not _is_clock(number):
                 out[f"{prefix}.{name}"] = number
         elif isinstance(value, (list, tuple, dict, set)):
             out[f"{prefix}.{name}#"] = float(len(value))

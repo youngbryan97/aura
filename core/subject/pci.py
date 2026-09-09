@@ -161,7 +161,10 @@ def perturbational_complexity(
     reached = tuple(
         target for row, target in enumerate(targets) if matrix[row].any()
     )
-    spread = len(reached) / float(len(DOMAINS))
+    # Out of the domains that could be reached. A displaced domain cannot
+    # reach itself, so dividing by all ten made a perfect result read as 0.9
+    # and put a tenth of the scale out of reach of every source.
+    spread = len(reached) / float(len(targets)) if targets else 0.0
     touched_lags = int((matrix.sum(axis=0) > 0).sum())
     return PerturbationReport(
         source=source,
