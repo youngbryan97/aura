@@ -81,14 +81,40 @@ WILL_DEFERRAL_BAR: float = 0.3
 
 
 class DeterministicMind:
-    """One answer, always, so two arms differ by the intervention and nothing else."""
+    """One answer, always, so two arms differ by the intervention and nothing else.
+
+    Registered both as the kernel's `llm` organ and as the container's
+    `llm_router`, because the phases prefer the router and fall back to the
+    organ. Installed only as the organ, the response phase asked the real
+    router — which has no model loaded offline — got nothing back, and raised
+    on every single turn of every run. The reply never landed, so the exchange
+    never reached memory consolidation, self-review had nothing to review, and
+    the whole arc from a question to an answer was absent from a measurement of
+    whether the parts of her reach each other.
+    """
 
     #: The reply is deliberately bland and constant. Anything that varied would
     #: enter the state through several phases at once and appear as coupling.
     REPLY = "Continuity holds. The pipeline is executing over the shared state."
 
+    #: What a caller that parses JSON gets. Several phases ask the model for a
+    #: structured answer and raise on prose, so a stub that only speaks prose
+    #: makes those phases fail on every turn — the inference phase did, for the
+    #: whole of every run, and a phase that always fails is a phase absent from
+    #: the measurement. Constant like the prose: the same shape every time, so
+    #: two arms still differ by the intervention and nothing else.
+    STRUCTURED = (
+        '{"implicit_intent": "continue the exchange", "user_subtext": "steady", '
+        '"momentum": "steady", "conversation_hooks": []}'
+    )
+
     async def think(self, prompt: str, **_kwargs: Any) -> str:
-        del prompt
+        # A test double has to honour the interface its callers expect. Which
+        # of the two constants comes back is decided by what the caller asked
+        # for, not by anything about the state, so the answer is still a
+        # function of the call site alone.
+        if "json" in str(prompt or "").lower():
+            return self.STRUCTURED
         return self.REPLY
 
     async def generate(self, prompt: str, **kwargs: Any) -> str:
@@ -99,6 +125,24 @@ class DeterministicMind:
 
     async def embed(self, _text: str) -> list[float]:
         return [0.0] * 8
+
+    async def route(self, prompt: str, **kwargs: Any) -> str:
+        return await self.think(prompt, **kwargs)
+
+    async def chat(self, prompt: str, **kwargs: Any) -> str:
+        return await self.think(prompt, **kwargs)
+
+    async def complete(self, prompt: str, **kwargs: Any) -> str:
+        return await self.think(prompt, **kwargs)
+
+    def get_stats(self) -> dict[str, Any]:
+        # A count that does not move. The body reads token velocity off this,
+        # and a growing count would be a clock in the interoception domain.
+        return {"total_calls": 0}
+
+    @property
+    def high_pressure_mode(self) -> bool:
+        return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -359,6 +403,30 @@ def _organ_state(organ: Any, depth: int = 0, skip: frozenset[int] = frozenset())
     return out
 
 
+#: Values no arm can mutate, so a restore can hand the same object to all three
+#: without copying it. Most of what an organ carries is one of these, and
+#: copying them was most of what a restore cost.
+_ATOMIC: tuple[type, ...] = (str, bytes, int, float, bool, type(None))
+
+
+def _place(value: Any) -> Any:
+    """A value safe to hand to an arm that may mutate it.
+
+    A tuple is only as immutable as what is inside it — a tuple of lists is
+    shared state wearing an immutable type — so the check goes one level in
+    rather than trusting the container.
+    """
+    if isinstance(value, _ATOMIC):
+        return value
+    if isinstance(value, np.ndarray):
+        return np.array(value, copy=True)
+    if isinstance(value, (tuple, frozenset)) and all(
+        isinstance(item, _ATOMIC) for item in value
+    ):
+        return value
+    return copy.deepcopy(value)
+
+
 def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
     if organ is None:
         return
@@ -367,7 +435,7 @@ def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
             _restore_organ(getattr(organ, name, None), value[1])
             continue
         try:
-            setattr(organ, name, copy.deepcopy(value))
+            setattr(organ, name, _place(value))
         except Exception:  # noqa: BLE001 - a field that will not be written stays
             continue
 
@@ -1375,6 +1443,16 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
     kernel.organs["llm"] = SimpleNamespace(
         get_instance=lambda: engine, instance=engine, ready=ready, name="llm"
     )
+    # And under the name the phases actually ask for first. Registered only as
+    # the organ, every phase that prefers `llm_router` reached the real router,
+    # which has no model offline.
+    for name in ("llm_router", "local_llm"):
+        try:
+            from core.container import ServiceContainer
+
+            ServiceContainer.register_instance(name, engine)
+        except Exception as exc:  # noqa: BLE001 - a container that refuses is a datum
+            logger.warning("could not register the deterministic mind as %s: %s", name, exc)
 
     width = sum(domain_width(key) for key in FAST_DOMAINS)
     ontogeny = OntogeneticState(
