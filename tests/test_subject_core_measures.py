@@ -603,3 +603,33 @@ def test_a_null_is_a_distribution_not_one_draw():
     ]
     assert len(set(round(v, 4) for v in values)) > 1, "the draws are identical"
     assert max(values) < 0.05
+
+
+def test_the_driver_runs_the_projection_the_kernel_runs():
+    """Four workspace columns were constants because a projection never ran.
+
+    `AuraState._refresh_cognitive_health` computes coherence, fragmentation,
+    the contradiction count and the cognitive-health block from the finished
+    state. The kernel calls it at the end of `tick`, outside the phase loop,
+    and this driver runs the phases directly — so during a run it never ran at
+    all, and the deliberation phase's reading of how badly the moment was going
+    was reading two of its outputs.
+    """
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "core" / "subject" / "driver.py").read_text()
+    assert "_refresh_cognitive_health" in source
+
+
+def test_the_projection_moves_when_the_state_does():
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state._refresh_cognitive_health()
+    calm = state.cognition.coherence_score
+
+    for index in range(6):
+        state.cognition.working_memory.append({"role": "user", "content": f"a message {index}"})
+    state.cognition.contradiction_count = 3
+    state._refresh_cognitive_health()
+    assert state.cognition.coherence_score != calm

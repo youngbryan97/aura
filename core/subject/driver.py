@@ -970,6 +970,16 @@ class SubjectRuntime:
             if fields:
                 _restore_organ(phase, fields)
 
+    def _refresh_health(self) -> None:
+        """Run the kernel's own end-of-tick projection over the finished state."""
+        refresh = getattr(self.state, "_refresh_cognitive_health", None)
+        if not callable(refresh):
+            return
+        try:
+            refresh()
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("cognitive health projection failed: %s", exc)
+
     def _republish_body(self) -> None:
         """Tell the engine that judges the body what the body was just held at.
 
@@ -1125,6 +1135,15 @@ class SubjectRuntime:
             if self.after_phase is not None:
                 self.after_phase()
             await capture(name)
+
+        # The projection the real tick makes once the phases are done. The
+        # kernel refreshes it at the end of `tick`, outside the phase loop, and
+        # this driver runs the phases directly — so coherence, fragmentation,
+        # the contradiction count and the whole cognitive-health block were
+        # never computed during a run. Four of the workspace domain's columns
+        # were constants because of it, and the deliberation phase's reading of
+        # how badly the moment was going was reading two of them.
+        self._refresh_health()
 
         if condition.after == "retrieve":
             self._retrieve(condition.objective)
