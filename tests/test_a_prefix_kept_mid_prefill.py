@@ -166,3 +166,53 @@ def test_progress_still_reports_when_nothing_is_being_kept():
     report(64, 400)
     assert watchdog.beats == 1
     assert writer.sent[0]["prompt_tokens_processed"] == 64
+
+
+# ── and the key survives from one turn to the next ───────────────────────
+
+
+def test_the_cache_is_keyed_on_the_checkpoint_not_an_address():
+    """`id(model)` is a memory address: it changes when the object it points
+    at is rebuilt, and CPython reuses it after a collection.
+
+    LIVE, 2026-09-08: two keys in one process for one resident model —
+    `key=(5090059008, 'default')` and `key=(5091808816, 'user_surface')` — and
+    every user turn searched a trie that had just been written under a
+    different number. `matched 0 (0.0%)` with 489 tokens retained a moment
+    earlier, and the key it searched held `<0 branch(es), none walkable>`.
+    """
+    import inspect
+
+    from core.brain.llm import mlx_worker
+
+    source = inspect.getsource(mlx_worker)
+    code = "\n".join(
+        line for line in source.splitlines() if not line.lstrip().startswith("#")
+    )
+    assert "id(model)" not in code
+    assert "_prompt_cache_model_key(model_path)" in code
+
+
+def test_the_same_checkpoint_gives_the_same_key_every_time():
+    from core.brain.llm.mlx_worker import _prompt_cache_model_key
+
+    path = "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83"
+    assert _prompt_cache_model_key(path) == _prompt_cache_model_key(path)
+    assert _prompt_cache_model_key(path) == "Aura-Qwen3.8-27B-persona-crsm-7f6a2e83"
+    # A trailing separator is the same checkpoint.
+    assert _prompt_cache_model_key(path + "/") == _prompt_cache_model_key(path)
+
+
+def test_two_checkpoints_do_not_share_a_key():
+    from core.brain.llm.mlx_worker import _prompt_cache_model_key
+
+    assert _prompt_cache_model_key("/models/aura-27b") != _prompt_cache_model_key(
+        "/models/aura-9b"
+    )
+
+
+def test_an_unnamed_model_still_gets_a_key_of_its_own():
+    from core.brain.llm.mlx_worker import _prompt_cache_model_key
+
+    assert _prompt_cache_model_key("") == "<unnamed model>"
+    assert _prompt_cache_model_key(None) == "<unnamed model>"

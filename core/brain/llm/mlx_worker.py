@@ -576,6 +576,19 @@ def _job_requires_exact_continuation_cache(job: dict[str, Any]) -> bool:
     )
 
 
+def _prompt_cache_model_key(model_path: Any) -> str:
+    """What to file this model's cached prefixes under.
+
+    The checkpoint's own name. Two workers holding the same weights should
+    share nothing — they are separate processes with separate caches — but
+    within one worker the same weights must resolve to the same key on every
+    turn, and an object address does not.
+    """
+
+    name = str(model_path or "").strip()
+    return os.path.basename(name.rstrip("/")) or name or "<unnamed model>"
+
+
 def _prompt_cache_scope_for_job(job: dict[str, Any]) -> str:
     """Partition the prompt cache so lanes cannot cross-contaminate.
 
@@ -8553,8 +8566,30 @@ def _mlx_worker_loop(
                                     # turns only ever see user-surface
                                     # entries, so internal lanes cannot leak
                                     # KV into the conversation or vice versa.
+                                    # The model, named. Not its address.
+                                    #
+                                    # `id(model)` is a memory address: it
+                                    # changes whenever the object it points at
+                                    # is rebuilt, and CPython reuses it after a
+                                    # collection, so it is neither stable
+                                    # enough to find an entry again nor unique
+                                    # enough to be sure the entry is this
+                                    # model's.
+                                    #
+                                    # LIVE, 2026-09-08: two keys in one process
+                                    # for one resident model —
+                                    # `key=(5090059008, 'default')` and
+                                    # `key=(5091808816, 'user_surface')` — and
+                                    # every user turn searching a trie that had
+                                    # just been written under a different
+                                    # number. The miss line said `matched 0
+                                    # (0.0%)` with 489 tokens retained a moment
+                                    # earlier, and the diagnosis for the key it
+                                    # actually searched was `<0 branch(es),
+                                    # none walkable>`: nothing was there,
+                                    # because nothing had ever been put there.
                                     model_key = (
-                                        id(model),
+                                        _prompt_cache_model_key(model_path),
                                         _prompt_cache_scope_for_job(job),
                                     )
                                     cache = None
