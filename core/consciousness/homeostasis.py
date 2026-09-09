@@ -142,9 +142,16 @@ class HomeostasisEngine(AuraBaseModule):
             soma = ServiceContainer.get("soma", default=None)
             if soma:
                 soma_status = soma.get_status()
-                anxiety = soma_status.get("soma", {}).get("resource_anxiety", 0.0)
-                if anxiety > 0.8:
-                    self.persistence = max(0.0, self.persistence - 0.01)
+                anxiety = float(soma_status.get("soma", {}).get("resource_anxiety", 0.0) or 0.0)
+                # Proportional, like every other adjustment in this pulse. It
+                # was a step: below eighty percent anxiety the body had no
+                # effect on persistence at all, and above it the same fixed
+                # decrement whether the machine was at eighty-one percent or
+                # pinned. A cliff is not regulation, and this module's own
+                # docstring says it regulates proportionally.
+                self.persistence = max(
+                    0.0, self.persistence - anxiety * self._proportional_gain
+                )
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('homeostasis', e)
             logger.debug("Soma check failed: %s", e)
@@ -152,9 +159,10 @@ class HomeostasisEngine(AuraBaseModule):
         # Metabolism from thermal
         try:
             if soma_status:
-                thermal = soma_status.get("soma", {}).get("thermal_load", 0.0)
-                if thermal > 0.8:
-                    self.metabolism = max(0.2, self.metabolism - 0.05)
+                thermal = float(soma_status.get("soma", {}).get("thermal_load", 0.0) or 0.0)
+                self.metabolism = max(
+                    0.2, self.metabolism - thermal * self._proportional_gain
+                )
         except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('homeostasis', e)
             logger.debug("Metabolism check failed: %s", e)

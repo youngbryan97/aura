@@ -57,6 +57,9 @@ class Soma:
         self.update_interval = 5.0 # Check stats every 5 seconds
         self._last_disk_io = None
         self._last_disk_time = None
+        #: (taken_at, cpu percent, ram percent) as the proprioceptive loop last
+        #: sensed the host, or None before the loop has run once.
+        self._observed_host: tuple[float, float, float] | None = None
         configured_root = str(os.getenv("AURA_ROOT") or "").strip()
         self._repo_dir = (
             Path(configured_root).expanduser().resolve()
@@ -81,9 +84,13 @@ class Soma:
         """Periodically update hardware metrics and compute affective mapping."""
         while self.running:
             try:
-                # 1. Update Hardware Metrics
-                self.state.cpu_percent = psutil.cpu_percent()
-                self.state.ram_percent = psutil.virtual_memory().percent
+                # 1. Update Hardware Metrics. The proprioceptive loop's own
+                # reading wins while it is fresh: it is the organ that senses
+                # the host for the rest of the system, and a second timer
+                # reading the machine behind it is a second body.
+                if not self._host_is_observed():
+                    self.state.cpu_percent = psutil.cpu_percent()
+                    self.state.ram_percent = psutil.virtual_memory().percent
                 
                 # Visceral Pressure (Disk I/O deltas)
                 try:
@@ -244,6 +251,50 @@ class Soma:
             self.state.last_audio_transcript = data
         elif source == "action":
             self.state.last_action_result = data
+
+    #: How long a reading from the proprioceptive loop stands before this
+    #: sense goes back to its own timer. Three beats at the slowest cognitive
+    #: cadence — ten seconds in sleep mode — because a loop that has missed
+    #: three consecutive beats is not sensing, and a frozen body reading is
+    #: worse than a stale one taken the long way.
+    HOST_OBSERVATION_TTL_S = 30.0
+
+    def observe_host(
+        self,
+        *,
+        cpu_percent: float,
+        ram_percent: float,
+        temperature_c: float | None = None,
+    ) -> None:
+        """The body as the proprioceptive loop just sensed it.
+
+        There were three bodies. This one runs its own timer against psutil;
+        the resilience engine ran another; and the proprioceptive loop
+        publishes a third into `state.soma.hardware`, which affect, the
+        workspace and executive closure all read. Homeostasis asks whichever of
+        the first two is registered under `soma` for the numbers it turns into
+        her will to live — so the one figure that says whether she is holding
+        together came from the host by a route her own sensing never touched.
+
+        The two engines now answer the same call, and the sensing organ reports
+        into it. One body, whichever object is registered.
+        """
+        self._observed_host = (
+            time.monotonic(),
+            max(0.0, min(100.0, float(cpu_percent))),
+            max(0.0, min(100.0, float(ram_percent))),
+        )
+        del temperature_c  # this sense reads temperature off the cpu, not a probe
+        self.state.cpu_percent = self._observed_host[1]
+        self.state.ram_percent = self._observed_host[2]
+        self._map_affective_states()
+
+    def _host_is_observed(self) -> bool:
+        observed = self._observed_host
+        return (
+            observed is not None
+            and time.monotonic() - observed[0] <= self.HOST_OBSERVATION_TTL_S
+        )
 
     def get_body_snapshot(self) -> dict[str, Any]:
         """Returns a snapshot of the current somatic state."""

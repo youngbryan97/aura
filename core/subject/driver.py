@@ -210,19 +210,52 @@ CONDITIONS: tuple[Condition, ...] = (
 #: Attribute names never carried across a fork. Locks, events, tasks and
 #: sockets are process furniture; copying one is at best useless and at worst a
 #: deadlock, and none of them is state in the sense this battery measures.
-_UNCOPYABLE: tuple[str, ...] = (
-    "_lock",
-    "_loop",
-    "_task",
-    "_thread",
-    "_executor",
-    "_queue",
-    "_event",
-    "_condition",
-    "_socket",
-    "_conn",
-    "_db",
-)
+#: Locks, events, tasks and sockets are process furniture; copying one is at
+#: best useless and at worst a deadlock, and none of them is state in the sense
+#: this battery measures.
+#:
+#: Decided by the type, never by the name. The first version matched substrings
+#: of the attribute name, which excluded `_cached_connectivity_norm` because it
+#: contains `_conn`, `total_collapse_events` because it contains `_event`, and
+#: `_loop_failure_streak` because it contains `_loop` — three pieces of real
+#: substrate state, dropped from every fork, and therefore three contributions
+#: to a floor that no experiment could get below. A name is not a type.
+def _is_process_furniture(value: Any) -> bool:
+    import socket as _socket_module
+    import sqlite3
+    import threading as _threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    if isinstance(
+        value,
+        (
+            _threading.Event,
+            _threading.Barrier,
+            _threading.Semaphore,
+            _threading.Thread,
+            _socket_module.socket,
+            sqlite3.Connection,
+            sqlite3.Cursor,
+            asyncio.Task,
+            asyncio.Future,
+            asyncio.Event,
+            asyncio.Lock,
+            asyncio.Condition,
+            asyncio.Queue,
+            asyncio.AbstractEventLoop,
+            ThreadPoolExecutor,
+        ),
+    ):
+        return True
+    # Lock and RLock are factory functions, not classes, so they cannot be
+    # named in the tuple above.
+    if isinstance(value, type(_threading.Lock())) or isinstance(value, type(_threading.RLock())):
+        return True
+    if isinstance(value, (list, tuple, set, frozenset)) and len(value) <= 64:
+        return any(_is_process_furniture(item) for item in value)
+    if isinstance(value, dict) and len(value) <= 64:
+        return any(_is_process_furniture(item) for item in value.values())
+    return False
 
 
 def _organ_state(organ: Any) -> dict[str, Any]:
@@ -237,9 +270,7 @@ def _organ_state(organ: Any) -> dict[str, Any]:
         return {}
     out: dict[str, Any] = {}
     for name, value in list(vars(organ).items()):
-        if any(marker in name for marker in _UNCOPYABLE):
-            continue
-        if callable(value) or inspect.ismodule(value):
+        if callable(value) or inspect.ismodule(value) or _is_process_furniture(value):
             continue
         try:
             out[name] = copy.deepcopy(value)
@@ -258,6 +289,89 @@ def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
             continue
 
 
+#: The reservoir attributes that make up an ontogenetic state's whole memory.
+_RESERVOIR_FIELDS: tuple[str, ...] = (
+    "h",
+    "steps",
+    "era",
+    "_centre",
+    "_scatter",
+    "_centre_n",
+)
+
+
+def _torch_random_state() -> Any:
+    try:
+        import torch
+    except ImportError:
+        return None
+    try:
+        return torch.get_rng_state().clone()
+    except (AttributeError, RuntimeError):
+        return None
+
+
+def _restore_torch_random(saved: Any) -> None:
+    if saved is None:
+        return
+    try:
+        import torch
+
+        torch.set_rng_state(saved)
+    except (ImportError, AttributeError, RuntimeError, TypeError):
+        return
+
+
+def _moments_of(service: Any) -> dict[str, Any] | None:
+    """Everything the ontogeny service mutates that is not in a snapshot yet.
+
+    The running moments normalise the design row, so an arm that displaced a
+    domain shifted the mean that the next arm was measured against. The last
+    reading is what `novelty` reports. And the service's reservoir is a
+    different object from the one the N domain reads — the affect phase steps
+    that one every turn — so it drifts across the fork unless it is carried.
+    """
+    if service is None:
+        return None
+    saved: dict[str, Any] = {}
+    moments = getattr(service, "_advance_moments", None)
+    if moments is not None:
+        saved["moments"] = (
+            np.array(moments.count, copy=True),
+            np.array(moments.mean, copy=True),
+            np.array(moments.m2, copy=True),
+        )
+    reservoir = getattr(service, "_state", None)
+    if reservoir is not None:
+        saved["reservoir"] = {
+            name: (
+                np.array(value, copy=True)
+                if isinstance(value := getattr(reservoir, name, None), np.ndarray)
+                else value
+            )
+            for name in _RESERVOIR_FIELDS
+        }
+    return saved or None
+
+
+def _restore_moments(service: Any, saved: dict[str, Any] | None) -> None:
+    if service is None or not saved:
+        return
+    moments = getattr(service, "_advance_moments", None)
+    columns = saved.get("moments")
+    if moments is not None and columns is not None:
+        moments.count = np.array(columns[0], copy=True)
+        moments.mean = np.array(columns[1], copy=True)
+        moments.m2 = np.array(columns[2], copy=True)
+    reservoir = getattr(service, "_state", None)
+    fields = saved.get("reservoir")
+    if reservoir is not None and fields:
+        for name, value in fields.items():
+            setattr(
+                reservoir, name, np.array(value, copy=True) if isinstance(value, np.ndarray) else value
+            )
+
+
 @dataclass
 class Snapshot:
     """Everything a fork has to carry for two arms to start from one place."""
@@ -271,6 +385,30 @@ class Snapshot:
     centre_n: float
     turn: int
     rng_state: tuple
+    #: The ontogeny service's own accumulators, which are not in the reservoir
+    #: and are mutated by every step. The running moments normalise the design
+    #: row, so an arm that displaced a domain shifted the mean the next arm was
+    #: measured against; and the last reading is what `novelty` reports. Both
+    #: are process-wide, so without carrying them the sham arm started from a
+    #: state the displaced arm had already moved — a floor on N of nearly two
+    #: standard deviations before a single phase had run.
+    moments: dict[str, Any] | None = None
+    last_reading: Any = None
+    #: The process-wide generators. Phases draw from `random` and `numpy.random`
+    #: directly — the affect decay adds a Gaussian drift on every turn, and for
+    #: an emotion that never otherwise moves that drift is the whole of the
+    #: column's recorded spread. Two arms drawing different numbers from it
+    #: differ by more than a standard deviation before anything has happened.
+    #: Two arms have to see the same computation, and a generator the phases
+    #: draw from is part of the computation.
+    global_random: Any = None
+    numpy_random: Any = None
+    #: Torch's global generator. The substrate draws its integration noise from
+    #: `torch.randn` on every step, so two arms integrating the same state
+    #: diverged by more than a standard deviation of the substrate's own
+    #: spread — the largest single term left in the floor once the organs
+    #: themselves were carried.
+    torch_random: Any = None
     #: The organs are process-wide singletons. Without carrying them across the
     #: fork, whatever the displaced arm did to the workspace, the self model,
     #: the world model or the agency ledger was still there when the sham arm
@@ -287,6 +425,9 @@ class SubjectRuntime:
     state: Any
     ontogeny: Any
     rng: random.Random
+    #: The ontogeny service that owns the reservoir. Its accumulators live
+    #: outside the reservoir and are carried across the fork with it.
+    ontogeny_service: Any = None
     turn: int = 0
     retriever: Any = None
     failures: dict[str, int] = field(default_factory=dict)
@@ -328,6 +469,14 @@ class SubjectRuntime:
         "self_model",
         "world_model",
         "agency",
+        "soma",
+        # Both of these are process-wide and both write into the self-state
+        # domain every turn. Left out of the fork, the sham arm inherited the
+        # prediction error the displaced arm had just produced, which put four
+        # tenths of a standard deviation into the floor of every S column
+        # before a single phase had run.
+        "self_prediction",
+        "comparator",
     )
 
     def freeze_host(self) -> dict[str, float]:
@@ -348,6 +497,31 @@ class SubjectRuntime:
         }
         return self.frozen_host
 
+    def _republish_body(self) -> None:
+        """Tell the engine that judges the body what the body was just held at.
+
+        The proprioceptive loop reads the machine and reports it to the
+        resilience engine mid-phase, and the hold is applied after the phase.
+        Without this the engine — and through it homeostasis, and through that
+        her will to live — kept reading the real machine while the state was
+        held at the displaced value, which is the two-bodies problem again with
+        the seam moved. One body: the held reading is the reading.
+        """
+        engine = getattr(self.organs, "soma", None)
+        report = getattr(engine, "observe_host", None)
+        if not callable(report) or self.frozen_host is None:
+            return
+        try:
+            report(
+                cpu_percent=self.frozen_host.get("cpu_usage", 0.0),
+                ram_percent=self.frozen_host.get(
+                    "ram_usage", self.frozen_host.get("vram_usage", 0.0)
+                ),
+                temperature_c=self.frozen_host.get("temperature"),
+            )
+        except (AttributeError, TypeError, ValueError):
+            return
+
     def thaw_host(self) -> None:
         self.frozen_host = None
         self.frozen_latency = None
@@ -367,6 +541,11 @@ class SubjectRuntime:
             centre_n=float(self.ontogeny._centre_n),
             turn=self.turn,
             rng_state=self.rng.getstate(),
+            moments=_moments_of(self.ontogeny_service),
+            last_reading=getattr(self.ontogeny_service, "_last_reading", None),
+            global_random=random.getstate(),
+            numpy_random=np.random.get_state(),
+            torch_random=_torch_random_state(),
         )
 
     def restore(self, snapshot: Snapshot) -> None:
@@ -379,8 +558,17 @@ class SubjectRuntime:
         self.ontogeny._centre = np.array(snapshot.centre, copy=True)
         self.ontogeny._scatter = np.array(snapshot.scatter, copy=True)
         self.ontogeny._centre_n = snapshot.centre_n
+        _restore_moments(self.ontogeny_service, snapshot.moments)
+        service = self.ontogeny_service
+        if service is not None:
+            service._last_reading = snapshot.last_reading
         self.turn = snapshot.turn
         self.rng.setstate(snapshot.rng_state)
+        if snapshot.global_random is not None:
+            random.setstate(snapshot.global_random)
+        if snapshot.numpy_random is not None:
+            np.random.set_state(snapshot.numpy_random)
+        _restore_torch_random(snapshot.torch_random)
 
     # ── reading ──────────────────────────────────────────────────────────
 
@@ -447,6 +635,7 @@ class SubjectRuntime:
                 self.state.soma.hardware.update(self.frozen_host)
                 if self.frozen_latency is not None:
                     self.state.soma.latency.update(self.frozen_latency)
+                self._republish_body()
             if self.after_phase is not None:
                 self.after_phase()
             await capture(name)
@@ -726,11 +915,23 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
     ontogeny.last_novelty = 0.5
     ontogeny.last_displacement = 0.0
 
+    # The service's reservoir is a different object from the one N reads, and
+    # the affect phase steps that one every turn through
+    # `core.ontogeny.lifetime.advance`. Its accumulators are process-wide, so
+    # they have to be carried across the fork with everything else.
+    try:
+        from core.ontogeny.service import get_ontogeny
+
+        ontogeny_service = get_ontogeny()
+    except Exception:  # noqa: BLE001 - an absent organ is an absent organ
+        ontogeny_service = None
+
     runtime = SubjectRuntime(
         kernel=kernel,
         state=AuraState.default(),
         ontogeny=ontogeny,
         rng=random.Random(seed),
+        ontogeny_service=ontogeny_service,
     )
     runtime.organs = Organs.live()
     # `replace`, never a fresh `Organs(...)` listing the fields by hand. A
@@ -757,9 +958,7 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
 
 async def quiesce_organism(runtime: SubjectRuntime) -> list[str]:
     """Stop the free-running loops before the paired arms begin."""
-    from core.subject.organism import quiesce
-
-    from core.subject.organism import _live_tasks
+    from core.subject.organism import _live_tasks, quiesce
 
     stopped = await quiesce()
     if runtime.organism is not None:

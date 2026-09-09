@@ -133,6 +133,10 @@ class Organs:
     agency: Any = None
     self_prediction: Any = None
     comparator: Any = None
+    #: The resilience engine. Carried because the body it holds is the body
+    #: homeostasis reads, and an arm that displaces interoception has to
+    #: displace that one too or the displacement stops at the state.
+    soma: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -170,6 +174,7 @@ class Organs:
             agency=agency,
             self_prediction=runtime("self_prediction"),
             comparator=_agency_comparator(),
+            soma=service("soma"),
         )
 
 
@@ -223,7 +228,7 @@ _SCHEMAS: dict[str, Schema] = {
         "P",
         (
             ("percept_load", "world.recent_percepts"),
-            ("percept_recency", "world.recent_percepts[-1].timestamp"),
+            ("percept_claim", "world.recent_percepts[*].salience"),
             ("percept_sources", "world.recent_percepts[*].type"),
             ("percept_novelty", "world.recent_percepts[*].content"),
             ("percept_strength", "world.recent_percepts[*].intensity"),
@@ -542,15 +547,19 @@ def _read_P(state: Any, now: float) -> np.ndarray:
     if not isinstance(percepts, list):
         percepts = []
     tail = [read_percept(item, now=now) for item in percepts[-16:]]
-    stamp = tail[-1].timestamp if tail else 0.0
-    recency = 0.0 if stamp <= 0 else 1.0 / (1.0 + max(0.0, now - stamp))
+    # The strongest claim on attention in the stream, which is the number the
+    # workspace prices its perception bid from. This column was the recency of
+    # the newest percept, in seconds of wall clock — so two arms of the same
+    # trial, run a second apart, differed here by half a standard deviation
+    # before anything had happened to either of them. A clock is not state.
+    claim = max((item.salience for item in tail), default=0.0)
     sources = {item.kind for item in tail}
     strength = float(np.mean([item.intensity for item in tail])) if tail else 0.0
     objective = _dig(state, "cognition.current_objective", "") or ""
     return np.array(
         [
             _sat(percepts, 16.0),
-            recency,
+            claim,
             _sat(sources, 4.0),
             _percept_novelty(percepts),
             strength,
