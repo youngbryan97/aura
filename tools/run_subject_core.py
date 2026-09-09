@@ -97,6 +97,13 @@ async def main() -> int:
     parser.add_argument("--agency-trials", type=int, default=5)
     parser.add_argument("--lesion-rounds", type=int, default=30)
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument(
+        "--null-draws",
+        type=int,
+        default=8,
+        help="instantiations of each null and surrogate, so a null is a "
+        "distribution rather than one draw",
+    )
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "subject_core")
     parser.add_argument("--skip-nulls", action="store_true")
     parser.add_argument(
@@ -472,21 +479,42 @@ def _nulls(
     for name in ("replay", "time_shuffle"):
         maker = replay_surrogate if name == "replay" else shuffle_surrogate
         draws = [
-            round(phi_do(maker(turns, seed=args.seed + draw)).phi, 5) for draw in range(3)
+            round(phi_do(maker(turns, seed=args.seed + draw)).phi, 5)
+            for draw in range(args.null_draws)
         ]
+        # The bar the real score has to clear is the top of the surrogate's
+        # distribution, not its middle — but a maximum over a handful of draws
+        # is an unstable bar, so the distribution goes in the report and the
+        # comparison is against a stated quantile of it.
         table[name] = {
-            "phi_do": max(draws),
+            "phi_do": round(float(np.quantile(draws, 0.95)), 5),
             "draws": draws,
+            "max": max(draws),
+            "median": round(float(np.median(draws)), 5),
+            "quantile": 0.95,
             "kind": "surrogate",
         }
 
     for name in architectures:
-        system = architecture(name, seed=args.seed)
-        toy = toy_recording(system, steps=2500, seed=args.seed)
-        edges = toy_edges(system, trials=16, seed=args.seed)
-        graph = analyse_graph(domains, edges)
+        # Several instantiations of each, so a null is a distribution rather
+        # than one draw of a random weight matrix. A single instantiation can
+        # be lucky in either direction and the comparison is with its tail.
+        values: list[float] = []
+        graphs: list[Any] = []
+        for draw in range(args.null_draws):
+            system = architecture(name, seed=args.seed + draw)
+            toy = toy_recording(system, steps=2500, seed=args.seed + draw)
+            values.append(round(phi_do(toy).phi, 5))
+            if draw == 0:
+                edges = toy_edges(system, trials=16, seed=args.seed)
+                graphs.append(analyse_graph(domains, edges))
+        graph = graphs[0]
         table[name] = {
-            "phi_do": round(phi_do(toy).phi, 5),
+            "phi_do": round(float(np.quantile(values, 0.95)), 5),
+            "draws": values,
+            "max": max(values),
+            "median": round(float(np.median(values)), 5),
+            "quantile": 0.95,
             "kind": "architecture",
             "one_component": graph.one_component,
             "vertex_connectivity": graph.connectivity,

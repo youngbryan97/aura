@@ -66,6 +66,7 @@ the score has to collapse.
 from __future__ import annotations
 
 import itertools
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -188,6 +189,11 @@ class PartitionReport:
     pairs: int = 0
     degenerate: bool = False
     note: str = ""
+    #: The per-fold held-out readings the score is the mean of, and the
+    #: standard error of that mean. A point estimate with no spread beside it
+    #: cannot say whether it has established a sign.
+    held_out: tuple[float, ...] = ()
+    standard_error: float = 0.0
 
     def as_dict(self) -> dict[str, Any]:
         ranked = sorted(self.scores.items(), key=lambda kv: kv[1])
@@ -201,6 +207,9 @@ class PartitionReport:
             "cheapest_cuts": [{"cut": k, "phi": round(v, 6)} for k, v in ranked[:8]],
             "dearest_cuts": [{"cut": k, "phi": round(v, 6)} for k, v in ranked[-4:]],
             "degenerate": self.degenerate,
+            "held_out": list(self.held_out),
+            "standard_error": round(self.standard_error, 6),
+            "lower_bound": round(self.phi - 1.96 * self.standard_error, 6),
             "note": self.note,
         }
 
@@ -395,6 +404,12 @@ def phi_do(
         )
     unselected = best[0]
     phi = float(np.mean(held_out)) if held_out else unselected
+    # How much of that number is the estimate and how much is the fold it came
+    # from. Five held-out readings of the same quantity, so their spread is the
+    # uncertainty in the mean of them — and a score whose lower bound is below
+    # zero has not established a sign, whatever the point estimate says.
+    spread = float(np.std(held_out, ddof=1)) if len(held_out) > 1 else 0.0
+    error = spread / math.sqrt(len(held_out)) if held_out else 0.0
     return PartitionReport(
         phi=phi,
         best_cut=best[1],
@@ -403,6 +418,8 @@ def phi_do(
         scores=scores,
         domains=live,
         pairs=int(now.shape[0]),
+        held_out=tuple(round(value, 6) for value in held_out),
+        standard_error=error,
         note=(
             f"cross-fitted over {len(held_out)} folds; the in-sample minimum over "
             f"{len(cuts)} cuts is {unselected:.4f}"

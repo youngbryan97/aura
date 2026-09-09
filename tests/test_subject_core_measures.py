@@ -581,3 +581,25 @@ def test_a_difference_of_exactly_zero_votes_for_nothing():
     # Six of forty-eight is not consistency, and the forty-two zeros must not
     # be ranked into agreement with them.
     assert _sign_flip_p(six, seed=1) > 0.01
+
+
+def test_the_partition_score_carries_its_own_uncertainty():
+    """A point estimate with no spread beside it cannot establish a sign."""
+    report = phi_do(_toy("recurrent"))
+    blob = report.as_dict()
+    assert len(blob["held_out"]) >= 2
+    assert blob["standard_error"] >= 0.0
+    assert blob["lower_bound"] <= blob["phi_do"]
+    # The reference architecture is genuinely recurrent: its lower bound clears
+    # the bar, not only its point estimate.
+    assert blob["lower_bound"] > 0.05
+
+
+def test_a_null_is_a_distribution_not_one_draw():
+    """One instantiation of a random weight matrix can be lucky either way."""
+    values = [
+        phi_do(toy_recording(architecture("star", seed=7 + draw), steps=1500, seed=7 + draw)).phi
+        for draw in range(3)
+    ]
+    assert len(set(round(v, 4) for v in values)) > 1, "the draws are identical"
+    assert max(values) < 0.05
