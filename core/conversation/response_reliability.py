@@ -7709,6 +7709,7 @@ def _has_truncated_tail(
         return True
     if has_terminal_sentence_boundary(body):
         return False
+    trailing_block = None
     if re.search(r"(?:^|\n)\s*\d+\.\s+\S+", body) or re.search(r"\*\*[^*\n]{2,80}:\*\*", body):
         # A structured answer legitimately ends on its last item with no full
         # stop. This branch used to flag every one of them, so a well-formatted
@@ -7743,8 +7744,24 @@ def _has_truncated_tail(
             and len(punctuated) * 2 >= len(earlier_items)
             and marker_match
         )
-        if ends_on_bare_heading or not ends_on_complete_item or inconsistent_tail:
+        if ends_on_bare_heading or (
+            marker_match and (not ends_on_complete_item or inconsistent_tail)
+        ):
             return True
+        if not marker_match:
+            # A footer or concluding paragraph is not another list item.
+            # Judge its own structure, without inheriting the preceding list's
+            # punctuation or hiding clipped prose behind that list's shape.
+            last_item = next(
+                (
+                    index
+                    for index in range(len(structured_lines) - 2, -1, -1)
+                    if _LIST_LINE_RE.match(structured_lines[index])
+                ),
+                None,
+            )
+            if last_item is not None:
+                trailing_block = "\n".join(structured_lines[last_item + 1 :])
     unwrapped_body = terminal_content(body)
     if unwrapped_body.endswith(("-", "—", ":", ";", ",")):
         return True
@@ -7756,6 +7773,10 @@ def _has_truncated_tail(
         return True
     if last_word in _INCOMPLETE_TAIL_WORDS:
         return True
+    if trailing_block is not None:
+        return _has_truncated_tail(
+            trailing_block, generation_stop_reason=generation_stop_reason
+        )
     # Prose that simply stops. Everything above looks for a SUSPICIOUS last
     # word — a dangling conjunction, a two-letter fragment — so a reply cut off
     # on an ordinary noun read as finished.

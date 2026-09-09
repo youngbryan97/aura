@@ -233,7 +233,7 @@
       "scope": "<module>.OnlineLoRAGovernor.write_status"
     },
     {
-      "callee": "core.runtime.atomic_writer.atomic_write_text",
+      "callee": "core.runtime.atomic_writer.async_atomic_write_text",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
@@ -16426,6 +16426,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "84c0d4718152f6d52e35d3e20c0fd2f2241a14bd7d5a01702c12ad238f1ad060",
+  "inventory_sha256": "51504016bea73bfc3455bbf60f298c08214bf37702819a2f847f4b59d54232c9",
   "schema_version": 1
 }

@@ -332,6 +332,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     now; an unexplained clear flag still warns. FIXED.
 - [ ] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
+  UPDATE 2026-09-08. Reconnect restored the pending live turn, but a complete
+  footer after its numbered list was misclassified as truncation and triggered
+  repeated model repairs. The structural classifier is repaired with 64 focused
+  tests and 164 smoke passes (one skipped); live replay remains required.
+  Evidence: [R09 list footer delivery](evidence/R09_LIST_FOOTER_DELIVERY_2026-09-08.md).
 - [x] R10 Verify executable examples semantically, not merely process exit zero.
   Closed 2026-09-08. The code truth engine executes module-level assertions and
   doctest examples in the symbolic sandbox, demotes claims when execution is
