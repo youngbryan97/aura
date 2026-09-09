@@ -152,8 +152,37 @@ def test_the_winning_drive_is_credited_where_the_motivation_phase_reads_it():
     assert state.motivation.budgets["curiosity"]["level"] > 10.0
 
 
-def test_a_winner_that_is_not_a_drive_credits_nothing():
+def test_every_kind_of_winner_credits_the_need_it_serves():
+    """This fired only for a `drive_` winner, and those almost never enter.
+
+    Drive candidates reach the competition through an alert gated at seventy
+    percent urgency and five minutes since the last one, so for an ordinary
+    hour of thinking attention had no motivational consequence at all.
+    """
+    from core.consciousness.broadcast_consumers import SOURCE_DRIVES
+
+    for source, drive in SOURCE_DRIVES.items():
+        workspace = _Workspace()
+        register_broadcast_consumers(workspace, substrate=_Substrate())
+        asyncio.run(workspace.broadcast(_winner(source=source, priority=0.9)))
+        assert workspace.last_drive_attention == {
+            "drive": drive,
+            "priority": pytest.approx(0.9),
+        }, source
+
+
+def test_a_winner_from_nowhere_credits_nothing():
     workspace = _Workspace()
     register_broadcast_consumers(workspace, substrate=_Substrate())
-    asyncio.run(workspace.broadcast(_winner(source="memory", priority=0.9)))
+    asyncio.run(workspace.broadcast(_winner(source="something_unnamed", priority=0.9)))
     assert getattr(workspace, "last_drive_attention", None) is None
+
+
+def test_every_named_drive_is_a_budget_that_exists():
+    """A credit to a budget nobody has is a credit to nothing."""
+    from core.consciousness.broadcast_consumers import SOURCE_DRIVES
+
+    from core.state.aura_state import AuraState as _State
+
+    budgets = set(_State.default().motivation.budgets)
+    assert set(SOURCE_DRIVES.values()) <= budgets, set(SOURCE_DRIVES.values()) - budgets

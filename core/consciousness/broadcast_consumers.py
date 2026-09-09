@@ -44,6 +44,37 @@ def _winner(event: Any) -> Any:
     return winners[0] if winners else None
 
 
+#: Which need each kind of broadcast content serves. The budgets are named
+#: for what they are, and so are the sources, so this is a reading of both
+#: rather than an invention: an exchange is social contact, a percept or a
+#: recollection or an unprecedented moment is something learned, noticing one's
+#: own incoherence is integrity, the body is energy, and an intention pursued
+#: is growth.
+SOURCE_DRIVES: dict[str, str] = {
+    "exchange": "social",
+    "perception": "curiosity",
+    "memory": "curiosity",
+    "ontogeny": "curiosity",
+    "world_model": "curiosity",
+    "substrate": "energy",
+    "interoception": "energy",
+    "metacognition": "integrity",
+    "self": "integrity",
+    "deliberation": "growth",
+}
+
+
+def _drive_served(source: str) -> str:
+    """The budget a broadcast from this source replenishes, or an empty name."""
+    for prefix in ("drive_", "affect_"):
+        if source.startswith(prefix):
+            named = source[len(prefix) :]
+            # An affect channel is not a budget. Feeling something about the
+            # world is curiosity being met, not a drive called `joy`.
+            return named if prefix == "drive_" else "curiosity"
+    return SOURCE_DRIVES.get(source, "")
+
+
 def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> list[str]:
     """Wire the winner to the domains it is supposed to become available to.
 
@@ -143,13 +174,22 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
                                action="the broadcast trace was not written")
 
     async def to_deliberation(event: Any) -> None:
-        """A drive that wins the workspace is a drive being attended to.
+        """Whatever wins the workspace is a need being attended to.
 
         The motivation phase already treats attention as satisfying: active
         conversation slows the social drive's decay and then replenishes it.
         Winning the broadcast is the same thing measured at the competition
         rather than at the conversation, so it is left where that phase reads
         it and applied there.
+
+        It used to fire only for a `drive_` winner. Drive candidates enter the
+        competition through an alert gated at seventy percent urgency and five
+        minutes since the last one, so in an ordinary hour of thinking this
+        consumer set nothing at all and attention had no motivational
+        consequence whatsoever. Every source serves some need — attending to an
+        exchange satisfies the social one, to a recollection or a percept the
+        curious one, to her own coherence the integrity one — and the mapping
+        is written down rather than left to a prefix that almost never matches.
 
         The first version called `note_pressure` on the goal engine, which has
         no such method — a guarded no-op, in the file written to fix exactly
@@ -160,11 +200,11 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
             return
         try:
             source = str(getattr(winner, "source", ""))
-            prefix = "affect_" if source.startswith("affect_") else "drive_"
-            if not source.startswith(prefix):
+            drive = _drive_served(source)
+            if not drive:
                 return
             workspace.last_drive_attention = {
-                "drive": source[len(prefix):],
+                "drive": drive,
                 "priority": max(0.0, min(1.0, float(winner.effective_priority))),
             }
         except (AttributeError, TypeError, ValueError) as exc:
