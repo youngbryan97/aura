@@ -460,7 +460,9 @@ def build_edges(
     """
     pairs = results.by_pair()
     tested: list[dict[str, Any]] = []
-    raw: list[tuple[str, str, float, float, tuple[str, ...], int, dict[str, float]]] = []
+    raw: list[
+        tuple[str, str, float, float, tuple[str, ...], int, dict[str, float], float, int]
+    ] = []
 
     for (source, target), trials in sorted(pairs.items()):
         if source == target:
@@ -487,13 +489,34 @@ def build_edges(
             by_condition[condition] = round(float(local.mean()), 4)
             if float(local.mean()) >= effect_min:
                 replicated.append(condition)
-        raw.append((source, target, effect, p, tuple(replicated), len(trials), by_condition))
+        # Where in the arm the response peaked, in frames after the
+        # displacement. An effect that always peaks at the last frame recorded
+        # is an effect the horizon cut off, and a horizon that is binding is a
+        # fact about the measurement rather than about the organism.
+        peaks = []
+        for trial in trials:
+            series = trial.trace.get(target) or []
+            if series:
+                peaks.append(int(np.argmax(series)))
+        peak_lag = float(np.median(peaks)) if peaks else 0.0
+        lags = max((len(trial.trace.get(target) or []) for trial in trials), default=0)
+        raw.append(
+            (source, target, effect, p, tuple(replicated), len(trials), by_condition, peak_lag, lags)
+        )
 
     q_values = benjamini_hochberg([item[3] for item in raw])
     edges: list[Edge] = []
-    for (source, target, effect, p, replicated, count, by_condition), q in zip(
-        raw, q_values, strict=True
-    ):
+    for (
+        source,
+        target,
+        effect,
+        p,
+        replicated,
+        count,
+        by_condition,
+        peak_lag,
+        lags,
+    ), q in zip(raw, q_values, strict=True):
         # Which conditions carried it, not only how many. A pair that misses
         # the replication bar in one condition and a pair that carries in none
         # both read as "not kept" from the count alone, and they are the two
@@ -508,6 +531,9 @@ def build_edges(
             "conditions": list(replicated),
             "by_condition": by_condition,
             "trials": count,
+            "peak_lag": peak_lag,
+            "lags": lags,
+            "at_the_horizon": bool(lags and peak_lag >= lags - 1),
             "kept": False,
         }
         if q < q_max and effect >= effect_min and len(replicated) >= replication_min:

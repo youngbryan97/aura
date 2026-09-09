@@ -310,6 +310,18 @@ async def main() -> int:
         "matrices": rows,
     }
     evidence["notes"]["intervention_power"] = power_note(results)
+    # Whether the two-turn horizon is binding. An effect that peaks at the last
+    # frame recorded is an effect the horizon cut off, and that is a fact about
+    # the measurement rather than about the organism. The specification asks
+    # for the horizon to be preregistered and for the question to be asked.
+    at_horizon = [row for row in tested if row.get("at_the_horizon")]
+    evidence["notes"]["horizon"] = {
+        "turns_per_arm": args.turns,
+        "pairs_peaking_at_the_last_frame": len(at_horizon),
+        "of_pairs_tested": len(tested),
+        "kept_edges_peaking_there": sum(1 for row in at_horizon if row.get("kept")),
+        "binding": len(at_horizon) > len(tested) // 4 if tested else False,
+    }
     evidence["notes"]["attenuation"] = results.attenuation()
 
     consumers = sorted({t for s, t in kept if s == "G"})
