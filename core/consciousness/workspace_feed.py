@@ -171,6 +171,26 @@ def build_candidates(state: Any) -> list[Any]:
                 )
             )
 
+    # And what she has decided to do about it. An initiative is an intention
+    # competing for attention, which is what this competition is for — and the
+    # motivation phase writes them to `pending_initiatives` while this bid read
+    # `active_goals`, so the one thing deliberation actually produces within a
+    # turn never reached the workspace at all.
+    initiatives = list(getattr(cognition, "pending_initiatives", []) or []) if cognition else []
+    for initiative in initiatives[:2]:
+        urgency = _goal_priority(initiative)
+        if urgency > FLOOR:
+            bids.append(
+                CognitiveCandidate(
+                    content=str(initiative.get("goal", initiative))[:240]
+                    if isinstance(initiative, dict)
+                    else str(initiative)[:240],
+                    source="deliberation",
+                    priority=urgency,
+                    content_type=ContentType.INTENTIONAL,
+                )
+            )
+
     if cognition is not None:
         trouble = max(
             _clamp(getattr(cognition, "fragmentation_score", 0.0)),

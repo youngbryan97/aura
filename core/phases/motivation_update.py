@@ -244,7 +244,21 @@ class MotivationUpdatePhase(Phase):
         
         if budget["level"] > threshold:
             return None
-            
+
+        # How urgent, rather than how urgent that kind of need is in general.
+        # The three branches below carried fixed numbers — 0.65, 0.7, 0.9 — so
+        # a drive one point below the line asked as loudly as one that had been
+        # empty for a week, and nothing about her state could change how hard
+        # anything pressed. The standing weight of each need is kept, and
+        # scaled by two readings: how much of the drive is unmet, and how badly
+        # the moment is going. A need presses harder when something is actually
+        # wrong, which is why the same intention is worth acting on now and not
+        # worth acting on an hour ago.
+        capacity = max(1e-6, float(budget.get("capacity", 100.0) or 100.0))
+        unmet = max(0.0, min(1.0, (capacity - float(budget["level"])) / capacity))
+        pressure = self._situational_pressure(state)
+        deficit = max(0.0, min(1.0, unmet * (1.0 + pressure)))
+
         # Drive mappings
         if name == "curiosity":
             if not _background_curiosity_allowed():
@@ -257,15 +271,72 @@ class MotivationUpdatePhase(Phase):
                 topic = random.choice(mot.latent_interests)
             else:
                 topic = "novel patterns"
-            return {"drive": "curiosity", "goal": f"Reviewing internal knowledge patterns around {topic}", "urgency": 0.65}
+            return {
+                "drive": "curiosity",
+                "goal": f"Reviewing internal knowledge patterns around {topic}",
+                "urgency": round(0.65 * deficit, 4),
+            }
         
         if name == "social":
-            return {"drive": "social", "goal": "Initiating social engagement", "urgency": 0.7}
+            return {
+                "drive": "social",
+                "goal": "Initiating social engagement",
+                "urgency": round(0.7 * deficit, 4),
+            }
             
         if name == "integrity":
-            return {"drive": "integrity", "goal": "Running a self-integrity scan", "urgency": 0.9}
-            
+            return {
+                "drive": "integrity",
+                "goal": "Running a self-integrity scan",
+                "urgency": round(0.9 * deficit, 4),
+            }
+
+        if name == "growth":
+            # The branch that was missing. Growth starts lowest of the five and
+            # decays, so it is the most depleted drive on almost every tick of
+            # an ordinary life — and with no arm here to take it, this whole
+            # assessment returned None every time it ran. The intention
+            # generator could not fire, and deliberation had nothing to
+            # generate within a turn.
+            #
+            # What to grow is read off what is currently worst, so a moment
+            # that has just gone incoherent produces a different intention from
+            # one where the self-model is unstable.
+            return {
+                "drive": "growth",
+                "goal": f"Working on {self._weakest_footing(state)}",
+                "urgency": round(0.6 * deficit, 4),
+            }
+
         return None
+
+    @staticmethod
+    def _footing(state: AuraState) -> dict[str, float]:
+        """How solid each part of the moment is. Larger means worse."""
+        cognition = getattr(state, "cognition", None)
+        identity = getattr(state, "identity", None)
+        return {
+            "coherence between what I am saying and what I hold": 1.0
+            - float(getattr(cognition, "coherence_score", 1.0) or 1.0),
+            "the fragmentation in how this is being put together": float(
+                getattr(cognition, "fragmentation_score", 0.0) or 0.0
+            ),
+            "how steady the sense of myself is": 1.0
+            - float(getattr(identity, "stability", 1.0) or 1.0),
+        }
+
+    @classmethod
+    def _situational_pressure(cls, state: AuraState) -> float:
+        """How badly the moment is going, in [0, 1]. Read, not chosen."""
+        worst = max(cls._footing(state).values(), default=0.0)
+        return max(0.0, min(1.0, worst))
+
+    @staticmethod
+    def _weakest_footing(state: AuraState) -> str:
+        """Whatever is least solid right now, named. Read, not chosen."""
+        candidates = MotivationUpdatePhase._footing(state)
+        worst = max(candidates, key=lambda key: candidates[key])
+        return worst if candidates[worst] > 0.0 else "a capability I have not exercised lately"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
