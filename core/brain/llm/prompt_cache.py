@@ -743,6 +743,12 @@ class PromptCacheLRU:
                 held = f"<unreadable: {type(exc).__name__}>"
             if not held:
                 held = "<nothing stored under this key>"
+            # Which cache this is. Offline the insert and the search round-trip
+            # correctly, so a live miss against an entry retained a moment
+            # earlier under the same key means the two calls are reaching
+            # different LRU objects — and nothing in either log line could say
+            # so.
+            held = f"{held} (cache {id(self):x}, {len(self._cache)} key(s))"
         logger.info(
             "🧊 [PROMPT CACHE] miss — prefilling all %d tokens; key=%s known_keys=%d "
             "matched %d (%.1f%%) before diverging%s",

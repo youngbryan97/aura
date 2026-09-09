@@ -9408,10 +9408,11 @@ def _mlx_worker_loop(
                                         )
                                         logger.info(
                                             "🧊 [PROMPT CACHE] retained %d tokens "
-                                            "scope=%s key=%s",
+                                            "scope=%s key=%s (cache %x)",
                                             len(tokens),
                                             _prompt_cache_scope_for_job(job),
                                             model_key,
+                                            id(prompt_cache_lru),
                                         )
                                     elif prompt_cache_lru is not None:
                                         # A turn that retains nothing makes the
