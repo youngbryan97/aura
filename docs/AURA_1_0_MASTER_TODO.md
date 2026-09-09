@@ -289,6 +289,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   spans pending and in-flight writes; 25 focused tests pass. Admission and
   live drain remain separate checks. See
   [deferred write custody](evidence/R08_DEFERRED_WRITE_CUSTODY_2026-09-09.md).
+  UPDATE 2026-09-09. Lag health was also being used as hypervisor task
+  liveness, causing reconciliation to cancel a working observer. Published
+  lifecycle probes now distinguish those states without relaxing health;
+  64 initializer/control-plane tests pass. Resident replay remains required.
+  See [watchdog lifecycle](evidence/R08_WATCHDOG_LIFECYCLE_2026-09-09.md).
   PARTIAL 2026-09-07, second session. Seven taken by cause from one live
   battery, each with the turn that produced it:
   - `Rejected live user-surface draft reasons=ungrounded_person_narrative`.
