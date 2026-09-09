@@ -284,6 +284,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  UPDATE 2026-09-09. Episodic retry re-deferral duplicated the pending write,
+  overflowing the queue without new experience. Stable identity custody now
+  spans pending and in-flight writes; 25 focused tests pass. Admission and
+  live drain remain separate checks. See
+  [deferred write custody](evidence/R08_DEFERRED_WRITE_CUSTODY_2026-09-09.md).
   PARTIAL 2026-09-07, second session. Seven taken by cause from one live
   battery, each with the turn that produced it:
   - `Rejected live user-surface draft reasons=ungrounded_person_narrative`.

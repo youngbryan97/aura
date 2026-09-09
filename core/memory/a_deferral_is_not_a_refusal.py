@@ -33,7 +33,7 @@ import logging
 import threading
 import time
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Hashable
 from typing import Any, TypeVar
 
 from core.runtime.lockdep import checked_lock
@@ -92,12 +92,15 @@ class DeferredWrites[T]:
         limit: int = 256,
         per_replay: int = 4,
         interval_s: float = 5.0,
+        identity: Callable[[T], Hashable] = id,
     ) -> None:
         self.lane = str(lane)
         self._retry = retry
         self._per_replay = max(1, int(per_replay))
         self._interval_s = max(0.0, float(interval_s))
         self._held: deque[T] = deque(maxlen=max(1, int(limit)))
+        self._identity = identity
+        self._owned: set[Hashable] = set()
         lock_name = f"memory.deferred_writes.{self.lane}.{id(self):x}"
         self._state_lock = checked_lock(f"{lock_name}.state", reentrant=True)
         # A retry can call the same store, and the store offers another replay
@@ -146,16 +149,26 @@ class DeferredWrites[T]:
     def hold(self, item: T, reason: str = "") -> None:
         """Keep a write the governor deferred."""
 
+        key = self._identity(item)
         with self._state_lock:
-            if len(self._held) == self._held.maxlen:
+            # The drain retains custody while the store retries. A renewed
+            # deferral of that write must not enqueue another obligation.
+            if key in self._owned:
+                return
+            if len(self._owned) == self._held.maxlen:
                 self._shed += 1
                 logger.warning(
-                    "%s: deferred queue full at %d; shedding the oldest (%d shed so far)",
+                    "%s: deferred capacity full at %d; shedding one pending write (%d shed so far)",
                     self.lane,
                     self._held.maxlen,
                     self._shed,
                 )
+                if not self._held:
+                    # The sole slot belongs to an in-flight write.
+                    return
+                self._owned.remove(self._identity(self._held.popleft()))
             self._held.append(item)
+            self._owned.add(key)
             self._held_total += 1
             if self._next_at <= 0.0:
                 self._next_at = time.monotonic() + self._interval_s
@@ -212,6 +225,7 @@ class DeferredWrites[T]:
                     if ok:
                         landed += 1
                         self._landed += 1
+                        self._owned.remove(self._identity(item))
                     else:
                         # Back where it came from, not onto the end. Appending
                         # would reorder the queue on every failed replay.
