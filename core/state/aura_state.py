@@ -475,6 +475,13 @@ class SomaState:
         "is_visible": True
     })
     
+    # Her own exertion this cycle, and one number for how hard it was. The
+    # hardware readings above are the machine's load, most of which is not
+    # hers; this is what she spent thinking. Filled by the proprioceptive loop
+    # from the effort ledger the working subsystems report into.
+    effort: dict[str, float] = field(default_factory=dict)
+    exertion: float = 0.0
+
     # Cognitive Performance (Self-Awareness of Thought)
     latency: dict[str, float] = field(default_factory=lambda: {
         "last_thought_ms": 0.0,

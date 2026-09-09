@@ -50,6 +50,7 @@ include_rules = [
     "+core.service_names",
     "+core.skills",
     "+core.social",
+    "+core.soma",
     "+core.somatic",
     "+core.state",
     "+core.synthesis",

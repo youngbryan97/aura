@@ -5,6 +5,7 @@ import logging
 from typing import Any
 
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.soma.effort import note_effort
 from core.utils.queues import decode_stringified_priority_message, role_for_origin
 from core.utils.task_tracker import get_task_tracker
 
@@ -611,6 +612,9 @@ class MemoryRetrievalPhase(BasePhase):
         new_state = state.derive("memory_retrieval")
         new_state.cognition.long_term_memory = memories
         new_state.cognition.memory_scores = scores
+        # Recall costs something, and a body that cannot feel its own exertion
+        # cannot notice that thinking harder was expensive.
+        note_effort("recall", len(memory_candidates))
         new_state.response_modifiers["memory_retrieval_signature"] = {
             "query": query[:160],
             "retrieval_limit": retrieval_limit,

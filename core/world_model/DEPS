@@ -11,6 +11,7 @@
 description = "core.world_model: may import only what it already imports; every new edge is an edit here."
 
 include_rules = [
+    "+core.soma",
     "+core.world_model",
 
     # What this package reaches for today.

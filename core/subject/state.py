@@ -250,6 +250,12 @@ _SCHEMAS: dict[str, Schema] = {
             ("pulse_rate", "soma.expressive.pulse_rate"),
             ("mycelium_density", "soma.expressive.mycelium_density"),
             ("vitality", "vitality"),
+            # Her own exertion, which is not the machine's load. The host
+            # readings above are the environment; this is what she spent
+            # thinking, and it is the one body channel an experiment can hold
+            # the host still without also holding still.
+            ("exertion", "soma.exertion"),
+            ("recall_effort", "soma.effort"),
             ("sensor_load", "soma.sensors"),
         ),
     ),
@@ -589,6 +595,8 @@ def _read_I(state: Any) -> np.ndarray:
             _f(_dig(state, "soma.expressive.pulse_rate"), 1.0),
             _f(_dig(state, "soma.expressive.mycelium_density"), 0.5),
             _f(_dig(state, "vitality"), 1.0),
+            _f(_dig(state, "soma.exertion")),
+            _sat(_f((_dig(state, "soma.effort", {}) or {}).get("recall")), 32.0),
             _sat(_dig(state, "soma.sensors", {}) or {}, 4.0),
         ],
         dtype=np.float64,
@@ -1011,6 +1019,11 @@ def _perturb_I(state: Any, delta: float, ontogeny: Any) -> bool:
     hit |= _bump(state, "soma.hardware.ram_usage", delta * 100.0, 0.0, 100.0)
     hit |= _bump(state, "soma.latency.last_thought_ms", delta * 500.0, 0.0, 60_000.0)
     hit |= _bump(state, "vitality", -abs(delta), 0.0, 1.0)
+    # And her own exertion, which is the half of the body that is hers rather
+    # than the machine's. An experiment that holds the host still to keep two
+    # arms comparable holds still every host channel, so without this the body
+    # has no channel left that an intervention can move.
+    hit |= _bump(state, "soma.exertion", delta, 0.0, 1.0)
     return hit
 
 

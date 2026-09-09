@@ -43,6 +43,8 @@ import numpy as np
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
+from core.soma.effort import note_effort
+
 logger = logging.getLogger("Aura.LearnedWorldModel")
 
 _DATA_DIR = state_root() / "data" / "world_model"
@@ -558,6 +560,7 @@ class LearnedWorldModel:
         self._adam_step({name: g * scale * clip for name, g in grads.items()})
         self._last_loss = loss / len(caches)
         self._train_steps += 1
+        note_effort("train_steps", 1.0)
         return self._last_loss
 
     # ── the training lane ────────────────────────────────────────────────

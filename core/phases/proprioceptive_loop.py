@@ -233,9 +233,13 @@ class ProprioceptiveLoop(BasePhase):
                 ),
             )
             body = dict((engine.get_body_snapshot() or {}).get("soma", {}) or {})
+            # Her own exertion counts as pressure. Working hard is a strain
+            # whoever else is using the machine, and it is the only part of
+            # this reading she causes.
             pressure = max(
                 float(body.get("resource_anxiety", 0.0) or 0.0),
                 float(body.get("thermal_load", 0.0) or 0.0),
+                float(getattr(soma, "exertion", 0.0) or 0.0),
             )
             friction = float(getattr(engine, "FRICTION_THRESHOLD", 0.20))
             if pressure > friction:
@@ -243,8 +247,9 @@ class ProprioceptiveLoop(BasePhase):
                     state.world,
                     "resource_pressure",
                     content=(
-                        f"the machine is under load: {pressure:.0%} pressure, "
-                        f"{float(hardware.get('cpu_usage', 0.0) or 0.0):.0f}% cpu"
+                        f"under load: {pressure:.0%} pressure, "
+                        f"{float(hardware.get('cpu_usage', 0.0) or 0.0):.0f}% cpu, "
+                        f"{float(getattr(soma, 'exertion', 0.0) or 0.0):.0%} of it mine"
                     ),
                     intensity=pressure,
                 )
@@ -423,6 +428,28 @@ class ProprioceptiveLoop(BasePhase):
                 severity="warning",
             )
         
+        # ── 1a. Her own exertion, which is not the machine's load ────────
+        # The host readings say what the computer is doing; most of that is not
+        # hers. This is what she spent: how wide a recall she asked for, how
+        # many steps the substrate integrated, how much the world model learned
+        # from what she showed it. Without it, nothing she chooses can come
+        # back to her as a felt cost.
+        try:
+            from core.soma.effort import EffortLedger, get_effort_ledger
+
+            ledger = get_effort_ledger()
+            spent = ledger.drain()
+            soma.effort = dict(spent)
+            soma.exertion = EffortLedger.exertion(spent)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            self._mark_channel_degraded(
+                soma,
+                "effort",
+                exc,
+                action="Left this tick's exertion unmeasured and kept the rest of the body schema",
+                severity="debug",
+            )
+
         # ── 1b. And the body reports itself to the engine that judges it ──
         # The resilience engine went straight to psutil on every call, and
         # homeostasis reads that engine to compute her will to live. Two
