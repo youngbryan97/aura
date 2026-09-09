@@ -1165,6 +1165,17 @@ def _sample_standard_telemetry() -> None:
         logger.debug("orchestration telemetry sample failed", exc_info=True)
 
 
+async def _run_periodic_read_off_loop(read: Callable[[], Any]) -> Any:
+    """Keep synchronous report construction off the cognition loop.
+
+    These readers walk mutable registries and can touch process or filesystem
+    state. Live measurements showed telemetry and diagnostics taking seconds
+    under host pressure. They remain ordered rate-group members, but their
+    synchronous work no longer owns the main event loop.
+    """
+    return await asyncio.to_thread(read)
+
+
 async def _activate_flight_software(*, foreground_only: bool) -> ActivationResult:
     """Wave 6 — telemetry dictionary, rate groups, restart protection, commands."""
     from core.fsw.command_dispatch import install_runtime_commands
@@ -1184,10 +1195,15 @@ async def _activate_flight_software(*, foreground_only: bool) -> ActivationResul
         # in declared order under one measured budget — rather than five
         # independent sleep loops that slip together with no ordering.
         one_hz = rate_group("1hz", 1.0)
-        one_hz.add("telemetry_sample", _sample_standard_telemetry, budget_fraction=0.20, order=10)
+        one_hz.add(
+            "telemetry_sample",
+            lambda: _run_periodic_read_off_loop(_sample_standard_telemetry),
+            budget_fraction=0.20,
+            order=10,
+        )
         one_hz.add(
             "diagnostics",
-            lambda: _safe_diagnostics_update(),
+            lambda: _run_periodic_read_off_loop(_safe_diagnostics_update),
             budget_fraction=0.20,
             order=20,
         )
@@ -1215,7 +1231,7 @@ async def _activate_flight_software(*, foreground_only: bool) -> ActivationResul
             logger.debug("rate group shutdown registration skipped", exc_info=True)
 
     # One sample immediately so the dictionary is not empty at first read.
-    _sample_standard_telemetry()
+    await _run_periodic_read_off_loop(_sample_standard_telemetry)
 
     return ActivationResult(
         name="flight_software",

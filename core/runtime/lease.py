@@ -274,6 +274,10 @@ class LeaderElector:
             logger.warning("lease %s is corrupt; treating as unheld", self.name)
             return None
 
+    async def _read_async(self) -> LeaseRecord | None:
+        """Read lease storage without lending filesystem latency to the loop."""
+        return await asyncio.to_thread(self._read)
+
     def _write_sync(self, record: LeaseRecord) -> bool:
         from core.governance_context import local_internal_governed_scope
         from core.runtime.file_write_gateway import get_file_write_gateway
@@ -353,7 +357,7 @@ class LeaderElector:
     async def try_acquire_or_renew(self) -> bool:
         """One attempt. Returns whether we hold the lease afterwards."""
         now = time.time()
-        existing = self._read()
+        existing = await self._read_async()
         action, record = self._decide(existing, now)
 
         if action == "observe" and record is not None:

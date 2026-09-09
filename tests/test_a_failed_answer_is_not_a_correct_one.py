@@ -565,7 +565,7 @@ async def test_stop_waits_for_the_worker_before_touching_its_queues(reasoner):
     await asyncio.sleep(0)
     reasoner._flush_accepted = _record(observed, "flushed")  # type: ignore[method-assign]
     reasoner._flush_quarantine = _record(observed, "quarantine_flushed")  # type: ignore[method-assign]
-    reasoner._save_stats = lambda: None  # type: ignore[method-assign]
+    reasoner._save_stats = _record(observed, "stats_saved")  # type: ignore[method-assign]
 
     await reasoner.stop()
     assert observed[0] == "worker_finished", (
@@ -658,6 +658,34 @@ def test_a_stats_file_with_junk_counters_restores_zero(reasoner):
     reasoner._load_stats()
     assert reasoner._accepted_count == 0
     assert reasoner._rejected_count == 0
+
+
+@pytest.mark.asyncio
+async def test_star_stats_durable_write_does_not_block_the_event_loop(
+    reasoner, monkeypatch
+):
+    """A slow fsync may delay persistence, never the foreground loop."""
+    import threading
+    import time
+
+    from core.runtime import atomic_writer
+
+    main_thread = threading.get_ident()
+    writer_threads: list[int] = []
+    real_write = atomic_writer.atomic_write_bytes
+
+    def slow_write(*args, **kwargs):
+        writer_threads.append(threading.get_ident())
+        time.sleep(0.08)
+        return real_write(*args, **kwargs)
+
+    monkeypatch.setattr(atomic_writer, "atomic_write_bytes", slow_write)
+    persistence = asyncio.create_task(reasoner._save_stats())
+    await asyncio.sleep(0.01)
+
+    assert not persistence.done()
+    assert writer_threads and writer_threads[0] != main_thread
+    await persistence
 
 
 # ── 66c32281: identifiers in a durable corpus ───────────────────────────────
