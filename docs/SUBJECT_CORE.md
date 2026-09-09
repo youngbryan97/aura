@@ -118,7 +118,9 @@ methodological defect was removed and each channel repaired:
 | | -0.011 | the penalty grid searched as a path rather than a product |
 | | **+0.0021** | the workspace fed and broadcasting, the substrate reaching affect |
 | | **-0.0777** | the same code, run again |
-| latest | **-0.0010** | the self-prediction loop attached, memory read by content |
+| | **-0.0010** | the self-prediction loop attached, memory read by content |
+| | **-0.0071** | 480 turns, the max-based edge statistic, six trials |
+| latest | **-0.0007** | the weakest cut chosen on folds the score is not read from |
 
 Three of those rows are the same instrument on the same organism, and they are
 the honest measure of how much of this is noise: the score moves by 0.08
@@ -127,13 +129,47 @@ of -0.011. What can be said is that the score is no longer reliably negative
 and is nowhere near the bar. What cannot be said, at 960 turns, is which side
 of zero it sits on.
 
-Eleven edges survive all three preregistered bars, and three domains now form a
-strongly connected component — the workspace, active memory and the self-state,
-with `G->M->S->G` closing it. That is §31 satisfied: what wins the competition
-reaches a specialised process, and that process changes a later competition.
-Seven domains remain outside it, and six of the twenty-four criteria — strong
-connectivity, vertex connectivity, cycles, reentry, spread and replication —
-fail together on that one fact rather than on six.
+The last row is not a repair to the organism. A minimum over five hundred and
+eleven noisy estimates sits about three standard errors below the truth however
+unbiased each one is, so the statistic was punishing the system for the width
+of a search it did not choose. Choosing the weakest cut on some folds and
+reading its score off the others removes that bias exactly, and it accounted
+for nine tenths of the negative number.
+
+What the cross-domain structure actually looks like, measured at the turn: the
+full model beats the own-domain model for eight of the ten domains, by between
+three and thirty-three hundredths of the loss. The two exceptions were the
+self-state, at minus a thousandth, and the world model, at minus two hundredths
+— and Phi is a minimum over cuts, so a single pair of domains that nothing
+predicts is enough to hold the whole score at zero. That is why the self-model
+was rebuilt to predict from the situation rather than from its own history: a
+model of oneself built only from oneself cannot be wrong for a reason.
+
+### The floor
+
+Every effect the battery reports is a displaced arm measured against a sham,
+minus what two shams do to each other. That subtraction only works if the two
+shams are the same computation, and for most of this work they were not.
+Measured over five sham-to-sham pairs on one condition, the largest floor term
+fell as each shared variable was found:
+
+| largest floor term | what was still shared |
+|---|---|
+| 1.8σ | the ontogeny service's moments and reservoir, the self-prediction loop, the efference comparator |
+| 1.4σ | `random`, `numpy.random` |
+| 1.1σ | `torch`'s generator, which the substrate draws its integration noise from |
+| 0.95σ | the world model's forward network, dropped from every fork because a lock cannot be copied |
+| 0.78σ | conversation dynamics behind a module-level singleton no container holds |
+| 0.52σ | content columns encoded as hashes, where one word changing moved a coordinate a full standard deviation |
+| **0.17σ** | the substrate's curiosity, and nothing else above a tenth |
+
+Eighteen edges survive all three preregistered bars at 480 turns and six trials,
+and four domains form a strongly connected component — affect, the workspace,
+the self-state and the world model. That is §31 satisfied: what wins the
+competition reaches a specialised process, and that process changes a later
+competition. Six domains remain outside it, and six of the twenty-four criteria
+— strong connectivity, vertex connectivity, cycles, reentry, spread and
+replication — fail together on that one fact rather than on six.
 
 The lesion is the result worth keeping. Clamping the cheapest cut — recurrent
 cognition, the self-state and the world model held still — lowers irreducibility,
@@ -350,6 +386,71 @@ anywhere in the tree**, and thirty-five more are asked for in exactly one
 place. `tools/audit_dead_organs.py` produces the list. It reports rather than
 fails, because a gate on that number would be a gate on how the tree happens to
 spell a lookup today.
+
+**A whole sensory stream arrived and nothing could read it.** Nine places
+append to `world.recent_percepts` and four read it, and the readers and the
+writers agreed on nothing. The workspace priced its perception bid from a
+`salience` key no producer has ever written, so every real percept bid zero.
+The affect phase keys on a `type` and drops what it does not recognise, and
+three of the types the tree emits had no entry — a phase crash, her own
+apology, and every stimulus injected through the compatibility bridge. What she
+saw on screen was appended with a role and a string: no type, no strength, no
+stamp, so it was unfeelable, unbroadcastable and infinitely old on arrival. And
+the affect phase cleared the list after reading it, so the workspace
+competition, the world model's observation, the phi estimate and the state's own
+reading of perception all ran afterwards and all saw an empty stream.
+
+**There were three bodies.** The proprioceptive loop publishes cpu, memory and
+temperature into the state that every phase reads. `core/senses/soma.py` runs
+its own timer against psutil. `core/soma/resilience_engine.py` goes to psutil on
+every call. Homeostasis asks whichever of the last two is registered under
+`soma` for the numbers it turns into her will to live — so the one figure that
+says whether she is holding together came from the host by a route her own
+sensing never touched.
+
+**The body's load reached her will to live through two cliffs at eighty
+percent.** Below them the machine had no effect at all; above them the same
+fixed decrement whether the host was at eighty-one percent or pinned. The same
+module's docstring says it regulates proportionally, and the drives it updates
+below do.
+
+**Attention had no motivational consequence for anything but a drive alert.**
+The motivation phase replenishes whichever drive last won the broadcast, and
+the consumer that names it fired only for a source called `drive_`. Drive
+candidates enter the competition through an alert gated at seventy percent
+urgency and five minutes since the last one, so across an ordinary hour of
+thinking that consumer set nothing at all.
+
+**The goal bid read a key no producer writes.** The workspace priced
+deliberation's bid from `urgency`; the goal engine writes `priority`. So every
+real goal bid zero and deliberation never once reached attention. The memory bid
+had the mirror-image defect: retrieval ranks its candidates by how well each
+matched the question and discarded the number at the line that used it, so the
+bid entered at a flat neutral and nothing about what was recalled could change
+what won.
+
+**The world model the cognitive cycle feeds never trained.** `observe(...,
+learn=True)` appends to a replay buffer; the gradient steps are taken by a lane
+that has to be started, and the only caller of `start_training` in the tree was
+the ontogeny organ on its own model. The one the cycle observes into filled a
+buffer for the whole of every session and never took a step. Its surprise was
+not low — it was arbitrary, and two subsystems read it as evidence about the
+world.
+
+**Nine of the world model's seventeen columns were named for the wrong
+quantity.** The reader returned values in a different order from the schema's
+declaration from `model_hidden_norm` onward, so `causal_nodes` was carrying the
+forward model's last surprise and the hidden norm was carrying a count of
+available facets. Every value was real. The schema's own source annotations are
+now checked by a test, which fails on two columns if the reader is put back one
+place.
+
+**Interoception was proprioception of the host.** She had no sense of her own
+exertion — how wide a recall she asked for, how many steps the substrate
+integrated, how much the world model learned from what she showed it — only of
+a machine whose load is mostly not hers. So nothing she chose could return to
+her as a felt cost, and an experiment that holds the host still to keep two arms
+comparable held still the only body channel she had.
 
 ## Findings from building the instrument
 
