@@ -598,14 +598,45 @@ def _expected_empty_warmup_precompile(job: dict[str, Any]) -> bool:
     )
 
 
+#: The descriptor digest of the checkpoint this worker loaded, set at steering
+#: attach. The fusion certificate is per-checkpoint — evidence earned by one set
+#: of weights says nothing about another — so the lookup needs the identity of
+#: the model actually in memory, not its name.
+_FUSION_MODEL_IDENTITY = ""
+
+
+def _surface_alpha_from_certificate() -> float:
+    """How much residual steering this checkpoint has earned on a person's turn.
+
+    Zero until measured. For a long time this was zero unconditionally, and the
+    reason given was an A/B whose steered and baseline samples came out
+    byte-identical while the statistic still passed. That A/B was void: alpha
+    was an absolute number of units added to a residual stream whose magnitude
+    grows with width and depth, so the shipped 3.0 sat under the threshold at
+    which either model changes its output. Alpha became a fraction of the stream
+    and the gate stayed shut, which left her substrate reaching the model as
+    text in a prompt and never as part of the computation.
+
+    The comment that closed it asked for a model-specific no-regression
+    certificate. `core/consciousness/fusion_certificate.py` is that certificate
+    and `tools/measure_fusion_channel.py` earns one. Absent, unreadable and
+    failing certificates all return zero, so the failure direction is still
+    shut.
+    """
+    identity = _FUSION_MODEL_IDENTITY
+    if not identity:
+        return 0.0
+    try:
+        from core.consciousness.fusion_certificate import certified_alpha
+
+        return certified_alpha(identity)
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Fusion certificate lookup unavailable: %s", exc)
+        return 0.0
+
+
 def _surface_control_alpha(job: dict[str, Any], current_alpha: Any) -> float:
-    # The only resident-32B live-alpha A/B is explicitly VOID: its steered and
-    # baseline samples were byte-identical while the statistic still passed.
-    # Residual steering therefore has no authority to perturb user-visible
-    # tokens by default. Affect remains causal through attention, sampling,
-    # action value, memory and voice; a future model-specific no-regression
-    # certificate may request a non-zero alpha explicitly.
-    default_alpha = "0.0"
+    default_alpha = str(_surface_alpha_from_certificate())
     configured = job.get(
         "clean_user_surface_steering_alpha",
         os.environ.get("AURA_USER_SURFACE_STEERING_ALPHA", default_alpha),
@@ -6504,6 +6535,138 @@ class AffectiveSteeringAttachment:
     disposition: str
 
 
+def _remember_fusion_identity(descriptor: Any) -> None:
+    """Note which checkpoint is in memory, so its certificate can be found."""
+    global _FUSION_MODEL_IDENTITY
+
+    digest = ""
+    if isinstance(descriptor, dict):
+        digest = str(descriptor.get("descriptor_sha256") or "")
+    _FUSION_MODEL_IDENTITY = digest
+    if not digest:
+        return
+    try:
+        from core.consciousness.fusion_certificate import certificate_for
+
+        certificate = certificate_for(digest)
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        return
+    if certificate is None:
+        logger.info(
+            "Fusion channel shut for %s: no certificate yet. The worker will measure "
+            "one when it has been idle long enough to do it without delaying a turn.",
+            digest[:16],
+        )
+    elif certificate.holds:
+        logger.info(
+            "🔗 Fusion channel open for %s at alpha %.3f: answers change on %d of %d "
+            "probes, opposing states separate by %.2f.",
+            digest[:16],
+            certificate.alpha,
+            certificate.prompts_that_change,
+            certificate.prompts,
+            certificate.state_separation,
+        )
+    else:
+        logger.info("Fusion channel shut for %s: %s", digest[:16], certificate.why_not())
+
+
+#: How long the worker must have had nothing to do before it spends the GPU on
+#: certifying its own steering channel. Twelve empty five-second waits: long
+#: enough that nobody is mid-conversation, short enough that it happens the
+#: first time the user steps away rather than never.
+FUSION_IDLE_TICKS_BEFORE_SELF_CERTIFY = 12
+
+#: The probe is smaller in the worker than on the command line. The full sweep
+#: is a research instrument; this one has to fit in an idle gap on a 27B, so it
+#: measures the shipped alpha only and takes fewer, shorter probes.
+FUSION_SELF_CERTIFY_ALPHAS = (0.1, 0.2)
+FUSION_SELF_CERTIFY_STEPS = 12
+
+
+def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
+    """Measure this checkpoint's steering channel and write what came back.
+
+    Runs on the worker's own loop thread while the request queue is empty, so it
+    cannot overlap a generation. It has to be that thread: the probe moves the
+    engine's alpha and overrides the composite, and doing either underneath a
+    turn in flight would steer somebody's answer with a control vector.
+
+    The alternative was to certify at load, and a fresh checkpoint would then
+    cost minutes of boot before the first token. The alternative to that was to
+    leave the channel shut forever unless somebody remembered to run a tool.
+    """
+    global _FUSION_MODEL_IDENTITY
+
+    identity = _FUSION_MODEL_IDENTITY
+    hooks = list(getattr(engine, "_hooks", None) or [])
+    if not identity or not hooks or model is None or tokenizer is None:
+        return False
+    try:
+        from core.consciousness.fusion_certificate import certificate_for, write_certificate
+        from core.consciousness.fusion_probe import measure_fusion
+    except ImportError as exc:
+        logger.debug("Fusion probe unavailable: %s", exc)
+        return False
+    if certificate_for(identity) is not None:
+        return False
+
+    restore_alpha = float(getattr(engine, "_alpha", 0.0) or 0.0)
+    logger.info(
+        "Measuring the fusion channel for %s on an idle worker; this holds the GPU "
+        "for a minute and happens once per checkpoint.",
+        identity[:16],
+    )
+    try:
+        certificates = measure_fusion(
+            model,
+            tokenizer,
+            hooks,
+            engine.set_alpha,
+            model_identity=identity,
+            model_name=str((getattr(engine, "_model_info", None) or {}).get("model_path", "")),
+            alphas=FUSION_SELF_CERTIFY_ALPHAS,
+            steps=FUSION_SELF_CERTIFY_STEPS,
+            runner="core/brain/llm/mlx_worker._self_certify_fusion",
+        )
+    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        _record_mlx_degradation(
+            exc,
+            action="left the fusion channel shut after the self-certification probe failed",
+            severity="warning",
+        )
+        return False
+    finally:
+        try:
+            engine.set_alpha(restore_alpha)
+        except (AttributeError, TypeError, ValueError):
+            pass
+
+    if not certificates:
+        return False
+    holding = [certificate for certificate in certificates if certificate.holds]
+    chosen = (
+        min(holding, key=lambda item: item.alpha)
+        if holding
+        else min(certificates, key=lambda item: item.alpha)
+    )
+    write_certificate(chosen)
+    if chosen.holds:
+        logger.info(
+            "🔗 Fusion channel earned alpha %.3f for %s: answers change on %d of %d probes, "
+            "opposing states separate by %.2f, accuracy moved %+.3f.",
+            chosen.alpha,
+            identity[:16],
+            chosen.prompts_that_change,
+            chosen.prompts,
+            chosen.state_separation,
+            chosen.quality_delta,
+        )
+    else:
+        logger.info("Fusion channel stays shut for %s: %s", identity[:16], chosen.why_not())
+    return True
+
+
 def _affective_attachment_available(engine: Any) -> bool:
     return bool(
         getattr(engine, "_model_attached", False) and (getattr(engine, "_hooks", None) or [])
@@ -6592,6 +6755,7 @@ def _attach_affective_steering(
             )
         else:
             engine.attach(model, tokenizer)
+        _remember_fusion_identity(cortex_resolution.descriptor)
         active = _finish_affective_attachment(
             engine,
             substrate_mem=substrate_mem,
@@ -7368,6 +7532,12 @@ def _mlx_worker_loop(
     # exactly what this worker wrapped.
     expert_adapter_state: dict[str, Any] = {"path": "", "wrapped": []}
 
+    # Idle bookkeeping for the fusion self-certification. It runs on this
+    # thread and only when the queue has been empty for a while, so it can never
+    # overlap a turn.
+    idle_ticks = 0
+    fusion_certified = False
+
     worker_active = True
     while worker_active:
         try:
@@ -7385,6 +7555,13 @@ def _mlx_worker_loop(
                 # check above runs even when the request queue is idle.
                 job = request_queue.get(timeout=5.0)
             except queue.Empty:
+                idle_ticks += 1
+                if not fusion_certified and idle_ticks >= FUSION_IDLE_TICKS_BEFORE_SELF_CERTIFY:
+                    # Nobody has asked for anything in a minute, so the GPU is
+                    # free for the one measurement that decides whether her
+                    # substrate may touch the residual stream on a real turn.
+                    fusion_certified = _self_certify_fusion(model, tokenizer, engine)
+                    idle_ticks = 0
                 continue
             except KeyboardInterrupt:
                 logger.info("🛑 [WORKER] Shutdown signal received while idle; exiting quietly.")
@@ -7392,6 +7569,7 @@ def _mlx_worker_loop(
             except (EOFError, BrokenPipeError, OSError) as queue_exc:
                 logger.info("🛑 [WORKER] Request queue closed; exiting quietly (%s).", queue_exc)
                 break
+            idle_ticks = 0
             if job is None:
                 worker_active = False
                 continue
