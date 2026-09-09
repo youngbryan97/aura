@@ -26,11 +26,17 @@ import pytest
 mx = pytest.importorskip("mlx.core")
 
 from core.brain.llm.a_bounded_private_channel import (  # noqa: E402
-    THE_CHANNEL_FITS_IN,
     close_the_channel_after,
 )
 
 _CLOSING_TOKEN = 248069  # `</think>` in the resident checkpoint.
+_A_RATE_MODEL = "a-model-with-a-known-rate"
+
+from core.brain.llm import thinking_reserve  # noqa: E402
+
+
+def _forget_rates() -> None:
+    thinking_reserve.forget()
 
 
 class _ATokenizer:
@@ -90,22 +96,101 @@ def test_it_refuses_rather_than_pretends():
 # ── the budget it is given ───────────────────────────────────────────────
 
 
-def test_the_channel_takes_a_share_and_leaves_the_answer_the_rest():
-    from core.brain.llm.mlx_worker import _the_private_channel_budget
+def test_the_channel_gets_what_the_clock_can_pay_for_after_the_answer():
+    """From the clock, not from a fraction.
 
-    assert _the_private_channel_budget({}, 1024) == 512
-    assert _the_private_channel_budget({}, 2048) == 1024
-    # Never all of it: the answer keeps room to be written.
-    assert _the_private_channel_budget({}, 1024) < 1024
-    # Too small to think in.
-    assert _the_private_channel_budget({}, 128) == 0
-    assert _the_private_channel_budget({}, 0) == 0
+    The first version took half the token budget, and half is a number
+    somebody chose. LIVE, 2026-09-08: a 7,314-token budget produced a
+    3,657-token channel — 400 seconds of thinking at the measured rate before
+    a word of the answer — and the turn ran past fifteen minutes with nothing
+    delivered.
+    """
+    from core.brain.llm.a_bounded_private_channel import the_channel_budget_for
+
+    _forget_rates()
+    try:
+        for _ in range(12):
+            thinking_reserve.record_decode_rate(
+                generated_tokens=100, elapsed_s=10.0, model=_A_RATE_MODEL
+            )
+        # 10 tokens a second. 400 seconds buys 4,000 tokens; the answer keeps
+        # 1,024 of them.
+        assert the_channel_budget_for(
+            max_tokens=8000,
+            seconds_left=400.0,
+            answer_floor=1024,
+            model=_A_RATE_MODEL,
+        ) == pytest.approx(4000 - 1024, abs=40)
+        # A turn whose whole clock is spent on the answer thinks in the open.
+        assert the_channel_budget_for(
+            max_tokens=2048,
+            seconds_left=110.0,
+            answer_floor=1024,
+            model=_A_RATE_MODEL,
+        ) == 0
+    finally:
+        _forget_rates()
 
 
-def test_a_job_may_name_its_own_channel_budget():
-    from core.brain.llm.mlx_worker import _the_private_channel_budget
+def test_no_deadline_is_not_permission_to_think_for_a_whole_turn():
+    from core.brain.llm.a_bounded_private_channel import the_channel_budget_for
 
-    assert _the_private_channel_budget({"private_channel_budget": 256}, 4096) == 256
+    assert the_channel_budget_for(max_tokens=4096, seconds_left=0.0) == 0
+    assert the_channel_budget_for(max_tokens=4096, seconds_left=None) == 0
+    assert the_channel_budget_for(max_tokens=0, seconds_left=900.0) == 0
+
+
+def test_a_caller_may_name_its_own_channel_budget():
+    from core.brain.llm.a_bounded_private_channel import the_channel_budget_for
+
+    assert the_channel_budget_for(
+        max_tokens=4096, seconds_left=0.0, asked_for=256
+    ) == 256
+
+
+def test_the_worker_asks_the_one_owner():
+    import inspect
+
+    from core.brain.llm import mlx_worker
+
+    source = inspect.getsource(mlx_worker._the_private_channel_budget)
+    assert "the_channel_budget_for(" in source
+
+
+def test_the_gate_never_opens_a_channel_that_cannot_be_bounded():
+    """The worst case is thinking switched on with no budget to bound it."""
+    from core.brain.llm.a_bounded_private_channel import the_channel_budget_for
+    from core.brain.llm.chat_format import answer_is_derived_for_generation
+
+    _forget_rates()
+    try:
+        for _ in range(12):
+            thinking_reserve.record_decode_rate(
+                generated_tokens=100, elapsed_s=10.0, model=_A_RATE_MODEL
+            )
+        for floor, budget, seconds in (
+            (1024, 2048, 211.0),
+            (1408, 7314, 480.0),
+            (1024, 1345, 211.0),
+            (512, 4096, 900.0),
+            (1024, 2048, 20.0),
+        ):
+            opened = answer_is_derived_for_generation(
+                completion_floor=floor,
+                budget_tokens=budget,
+                model_name=_A_RATE_MODEL,
+                seconds_remaining=seconds,
+            )
+            room = the_channel_budget_for(
+                max_tokens=budget,
+                seconds_left=seconds,
+                answer_floor=floor,
+                model=_A_RATE_MODEL,
+            )
+            if opened:
+                assert room > 0, (floor, budget, seconds)
+    finally:
+        _forget_rates()
 
 
 # ── and the gate can now afford to open ──────────────────────────────────
@@ -124,7 +209,7 @@ def test_a_budget_too_small_for_both_halves_still_refuses():
 
     assert answer_is_derived_for_generation(
         completion_floor=1024,
-        budget_tokens=THE_CHANNEL_FITS_IN - 1,
+        budget_tokens=200,
         seconds_remaining=480.0,
     ) is False
 

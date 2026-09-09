@@ -1107,8 +1107,7 @@ def answer_is_derived_for_generation(
     """
 
     try:
-        from core.brain.llm.a_bounded_private_channel import THE_CHANNEL_FITS_IN
-        from core.brain.llm.thinking_reserve import seconds_to_decode
+        from core.brain.llm.a_bounded_private_channel import the_channel_budget_for
         from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
         floor = int(completion_floor or 0)
@@ -1118,30 +1117,30 @@ def answer_is_derived_for_generation(
         return False
     if floor <= A_CLOSED_QUESTIONS_FLOOR:
         return False
-    # Room for both halves of one generation.
+    # The same question the bound asks, asked by its one owner.
     #
-    # The channel is a share of the SAME budget the answer is written from and
-    # the decoder closes it there, so there is no reserve to buy and nothing to
-    # estimate. Before it was bounded, its cost could only be read off the
-    # generations that had run away with it — a percentile standing at 3,916
-    # tokens against turns budgeted at 1,024 — and the gate refused every one.
-    if budget < THE_CHANNEL_FITS_IN:
-        return False
-    # And whether the clock can decode that budget.
+    # These two decisions have to agree or the worst case happens: thinking
+    # switched on and no budget to bound it with. What the channel may take is
+    # the tokens the clock can decode in the time this turn has, less the room
+    # the answer needs — and zero is a real answer, meaning this turn cannot
+    # afford to think privately and nothing should open the channel.
     #
-    # Two earlier versions of this question were both unanswerable. It first
+    # Two earlier versions of this question were unanswerable. It first
     # compared the budget against the largest budget any generation had ever
     # run out of while thinking — a number that only ever rose, standing at
     # 6,322 for the 27B against turns budgeted at 512 to 1,345. Comparing
     # against the measured cost instead was a deadlock: the answer clock added
     # the reserve only once this returned True, and this returned False
-    # because the budget had no reserve in it. Bounding the channel dissolves
-    # both, because there is no second quantity left to compare.
-    if remaining > 0.0 and budget > 0:
-        needed = float(seconds_to_decode(budget, str(model_name or "")))
-        if 0.0 < remaining < needed:
-            return False
-    return True
+    # because the budget held no reserve.
+    return (
+        the_channel_budget_for(
+            max_tokens=budget,
+            seconds_left=remaining,
+            answer_floor=floor,
+            model=str(model_name or ""),
+        )
+        > 0
+    )
 
 
 class NativeThinkingChannels(NamedTuple):

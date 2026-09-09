@@ -34,11 +34,17 @@ def test_one_runaway_does_not_close_the_channel_for_every_later_turn():
             budget_tokens=6322, model=_A_MODEL
         )
         assert thinking_reserve.proved_insufficient(_A_MODEL) == 6322
-        # An ordinary turn: a real completion floor, an ordinary budget.
+        # An ordinary turn: a real completion floor, an ordinary budget, and a
+        # clock with room in it. The runaway is on record and decides nothing.
+        for _ in range(12):
+            thinking_reserve.record_decode_rate(
+                generated_tokens=100, elapsed_s=10.0, model=_A_MODEL
+            )
         assert answer_is_derived_for_generation(
             completion_floor=1024,
-            budget_tokens=1345,
+            budget_tokens=4096,
             model_name=_A_MODEL,
+            seconds_remaining=600.0,
         ) is True
     finally:
         _forget()
@@ -95,7 +101,8 @@ def test_the_budget_is_not_asked_to_contain_a_reserve_nothing_has_added_yet():
     )
     assert "proved_insufficient" not in code
     assert "measured_reserve_tokens" not in code
-    assert "THE_CHANNEL_FITS_IN" in code
+    # One owner for the question "can this turn afford to think privately".
+    assert "the_channel_budget_for(" in code
 
 
 def test_a_closed_question_never_opens_the_channel():

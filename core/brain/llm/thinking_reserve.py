@@ -899,6 +899,37 @@ def chars_readable_in(seconds: float, *, ceiling: int = 1_000_000) -> int:
     return low
 
 
+def tokens_decodable_in(seconds: float, model: str = "", *, ceiling: int = 100_000) -> int:
+    """How many tokens fit in this much time, at the rate measured for `model`.
+
+    :func:`seconds_to_decode` asked from the other end, and searched rather
+    than inverted for the same reason :func:`chars_readable_in` is: two pieces
+    of arithmetic over one set of rates disagree eventually, and the graded
+    fallbacks the forward function uses when nothing comparable has been timed
+    then apply here unchanged.
+
+    Returns ``ceiling`` where the forward function is silent, because a rate
+    nobody has measured constrains nothing.
+    """
+
+    try:
+        allowed = float(seconds)
+    except (TypeError, ValueError):
+        return int(ceiling)
+    if allowed <= 0:
+        return 0
+    if seconds_to_decode(int(ceiling), model) <= allowed:
+        return int(ceiling)
+    low, high = 0, int(ceiling)
+    while low < high:
+        middle = (low + high + 1) // 2
+        if seconds_to_decode(middle, model) <= allowed:
+            low = middle
+        else:
+            high = middle - 1
+    return low
+
+
 def record_delivery_cost(elapsed_s: float) -> None:
     """Log what this turn spent between the last token and the answer landing."""
 

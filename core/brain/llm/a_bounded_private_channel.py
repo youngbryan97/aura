@@ -45,13 +45,70 @@ _CLOSES_THE_CHANNEL = "</think>"
 _A_FEW_TOKENS_TO_FINISH_THE_THOUGHT = 16
 
 
-#: The smallest whole generation that holds a channel and an answer.
-#:
-#: Read by whoever decides that this call owns the answer's computation, so the
-#: two agree about what "affordable" means. The channel takes half and the
-#: answer keeps the rest, and neither half is worth having below about a
-#: hundred tokens.
-THE_CHANNEL_FITS_IN = 256
+#: Below this a channel is not worth opening — the model cannot conclude
+#: anything in it and the tokens are better spent on the answer.
+TOO_SMALL_TO_THINK_IN = 96
+
+
+def the_channel_budget_for(
+    *,
+    max_tokens: Any,
+    seconds_left: Any,
+    answer_floor: Any = 0,
+    model: str = "",
+    asked_for: Any = None,
+) -> int:
+    """How many tokens the private channel may spend on one generation.
+
+    From the clock, not from a fraction.
+
+    The first version took half the token budget, and half is a number
+    somebody chose. LIVE, 2026-09-08: a turn with a 7,314-token budget got a
+    3,657-token channel, which at the measured 9 tokens a second is 400
+    seconds of thinking before a word of the answer. The turn ran past fifteen
+    minutes and delivered nothing.
+
+    What the channel may take is what is left after the answer: the tokens the
+    clock can decode in the time this generation has, less the room the visible
+    request needs. Both are measured, and the answer is reserved first because
+    it is the thing the person asked for. Zero is a real answer — it means this
+    turn cannot afford to think privately, and whoever asked should not open
+    the channel either.
+    """
+
+    try:
+        total = int(max_tokens or 0)
+    except (TypeError, ValueError):
+        return 0
+    if total <= 0:
+        return 0
+
+    try:
+        named = int(asked_for or 0)
+    except (TypeError, ValueError):
+        named = 0
+    if named > 0:
+        return min(named, max(0, total - TOO_SMALL_TO_THINK_IN))
+
+    try:
+        seconds = float(seconds_left or 0.0)
+    except (TypeError, ValueError):
+        return 0
+    if seconds <= 0.0:
+        # No stated deadline is not permission to think for a whole turn.
+        return 0
+
+    try:
+        from core.brain.llm.thinking_reserve import tokens_decodable_in
+    except ImportError:
+        return 0
+    affordable = int(tokens_decodable_in(seconds, str(model or ""), ceiling=total))
+    try:
+        needed = int(answer_floor or 0)
+    except (TypeError, ValueError):
+        needed = 0
+    budget = min(affordable, total) - max(needed, TOO_SMALL_TO_THINK_IN)
+    return budget if budget >= TOO_SMALL_TO_THINK_IN else 0
 
 
 def _the_token_that_closes_it(tokenizer: Any) -> int | None:

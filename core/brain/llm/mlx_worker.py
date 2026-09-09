@@ -747,38 +747,20 @@ def _record_budget_that_ran_out_thinking(budget_tokens: int, model: str = "") ->
         return
 
 
-#: What share of a turn's tokens the private channel may take.
-#:
-#: Half, so the answer always has at least as much room as the thinking that
-#: produced it. A share rather than a constant because the budget it divides is
-#: itself measured: an answer clock that has bought 1,345 tokens has bought
-#: room for both halves of one generation.
-_THE_CHANNEL_MAY_TAKE = 0.5
-
-#: Below this a channel is not worth opening — the model cannot conclude
-#: anything in it and the tokens are better spent on the answer.
-_TOO_SMALL_TO_THINK_IN = 96
-
-
 def _the_private_channel_budget(job: dict[str, Any] | None, max_tokens: Any) -> int:
-    """How many tokens the private channel may spend on this generation."""
+    """How many tokens the private channel may spend, from its one owner."""
 
     try:
-        total = int(max_tokens or 0)
-    except (TypeError, ValueError):
-        total = 0
-    if total <= 0:
+        from core.brain.llm.a_bounded_private_channel import the_channel_budget_for
+    except ImportError:
         return 0
-    asked = 0
-    if isinstance(job, dict):
-        try:
-            asked = int(job.get("private_channel_budget") or 0)
-        except (TypeError, ValueError):
-            asked = 0
-    budget = asked if asked > 0 else int(total * _THE_CHANNEL_MAY_TAKE)
-    if budget < _TOO_SMALL_TO_THINK_IN:
-        return 0
-    return min(budget, total - _TOO_SMALL_TO_THINK_IN)
+    return the_channel_budget_for(
+        max_tokens=max_tokens,
+        seconds_left=_seconds_left_on(job or {}),
+        answer_floor=(job or {}).get("user_surface_completion_floor"),
+        model=os.path.basename(str((job or {}).get("model_path") or (job or {}).get("model") or "")),
+        asked_for=(job or {}).get("private_channel_budget"),
+    )
 
 
 def _record_budget_that_finished_thinking(budget_tokens: int, model: str = "") -> None:
