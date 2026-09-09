@@ -319,14 +319,44 @@ def test_a_real_goal_can_bid_at_all() -> None:
     assert "deliberation" in sources
 
 
-def test_a_goal_with_a_named_priority_is_understood() -> None:
+def test_a_goal_with_a_named_urgency_is_understood() -> None:
     from core.consciousness.workspace_feed import build_candidates
     from core.state.aura_state import AuraState
 
     state = AuraState.default()
-    state.cognition.active_goals = [{"goal": "urgent thing", "priority": "critical"}]
+    state.cognition.active_goals = [{"goal": "urgent thing", "urgency": "critical"}]
     bids = [b for b in build_candidates(state) if getattr(b, "source", "") == "deliberation"]
     assert bids and bids[0].priority == 1.0
+
+
+def test_importance_is_not_a_claim_on_attention() -> None:
+    """Priority is how important the work is; urgency is what it is asking for.
+
+    Read as a claim, the goal engine's own projection arrived at a flat one and
+    won every competition — deliberation beating perception, memory, affect and
+    the body on every turn, not because anything was pressing but because a
+    default had been read as a demand.
+    """
+    from core.consciousness.workspace_feed import build_candidates
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.cognition.active_goals = [
+        {"goal": "important but not pressing", "priority": 1.0}
+    ]
+    bids = [b for b in build_candidates(state) if getattr(b, "source", "") == "deliberation"]
+    assert bids and bids[0].priority == pytest.approx(0.5)
+
+
+def test_one_intention_bids_once_however_many_lists_it_is_in() -> None:
+    from core.consciousness.workspace_feed import build_candidates
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.cognition.active_goals = [{"goal": "the same intention", "urgency": 0.7}]
+    state.cognition.pending_initiatives = [{"goal": "the same intention", "urgency": 0.9}]
+    bids = [b for b in build_candidates(state) if getattr(b, "source", "") == "deliberation"]
+    assert len(bids) == 1
 
 
 def test_a_recollection_bids_at_how_well_it_matched() -> None:
@@ -362,8 +392,8 @@ def test_a_finished_goal_is_a_record_not_an_intention():
     """
     state = AuraState.default()
     state.cognition.active_goals = [
-        {"goal": "wrote the file", "status": "done", "priority": 1.0},
-        {"goal": "still working on this", "status": "pending", "priority": 0.4},
+        {"goal": "wrote the file", "status": "done", "urgency": 1.0},
+        {"goal": "still working on this", "status": "pending", "urgency": 0.4},
     ]
     bids = [b for b in build_candidates(state) if getattr(b, "source", "") == "deliberation"]
     assert len(bids) == 1

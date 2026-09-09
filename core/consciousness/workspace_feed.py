@@ -51,6 +51,17 @@ def _clamp(value: Any, default: float = 0.0) -> float:
     return max(0.0, min(1.0, out))
 
 
+def _intention_text(item: Any) -> str:
+    """What this goal or initiative is, however the producer spelled it."""
+    if not isinstance(item, dict):
+        return str(item or "").strip()
+    for key in ("goal", "description", "objective", "name", "content"):
+        text = item.get(key)
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    return ""
+
+
 def _is_open_goal(goal: Any) -> bool:
     """Whether this is an intention at all.
 
@@ -64,24 +75,33 @@ def _is_open_goal(goal: Any) -> bool:
         return bool(str(goal).strip())
     if str(goal.get("status", "")) in _FINISHED:
         return False
-    text = goal.get("goal") or goal.get("description") or goal.get("objective") or goal.get("name")
-    return bool(str(text or "").strip())
+    return bool(_intention_text(goal))
 
 
 def _goal_priority(goal: Any) -> float:
-    """What a goal's claim on attention is, however the producer stated it."""
+    """What an intention is asking to be thought about, if it has said.
+
+    `urgency` only. A goal also carries a `priority`, and the two are not the
+    same thing: priority is how important the work is once it has been chosen,
+    urgency is how much it is asking to be thought about now. Read as a claim
+    on attention, priority arrived as a flat one from the goal engine's own
+    projection and won every competition in the workspace — deliberation
+    beating perception, memory, affect and the body on every single turn, not
+    because anything was pressing but because a default had been read as a
+    demand.
+
+    An intention that states no urgency has made no claim, so it enters at
+    neutral and the competition decides.
+    """
     if not isinstance(goal, dict):
         return 0.5
-    for key in ("urgency", "priority", "importance"):
-        if key in goal and goal[key] is not None:
-            value = goal[key]
-            if isinstance(value, str):
-                named = {"critical": 1.0, "high": 0.8, "medium": 0.5, "normal": 0.5, "low": 0.25}
-                if value.strip().lower() in named:
-                    return named[value.strip().lower()]
-                continue
-            return _clamp(value)
-    return 0.5
+    stated = goal.get("urgency")
+    if stated is None:
+        return 0.5
+    if isinstance(stated, str):
+        named = {"critical": 1.0, "high": 0.8, "medium": 0.5, "normal": 0.5, "low": 0.25}
+        return named.get(stated.strip().lower(), 0.5)
+    return _clamp(stated, 0.5)
 
 
 def build_candidates(state: Any) -> list[Any]:
@@ -185,6 +205,10 @@ def build_candidates(state: Any) -> list[Any]:
         for goal in (list(getattr(cognition, "active_goals", []) or []) if cognition else [])
         if _is_open_goal(goal)
     ]
+    # One bid per intention, however many lists it appears in. The same
+    # intention is projected into both `active_goals` and
+    # `pending_initiatives`, and bid twice it competes with itself.
+    spoken: set[str] = set()
     for goal in goals[-2:]:
         # `priority` is what the goal engine writes; `urgency` is what this bid
         # read, and no producer in the tree has ever written it. So every real
@@ -192,10 +216,12 @@ def build_candidates(state: Any) -> list[Any]:
         # goal that is active and carries no stated priority still has a claim
         # — it is on the list — so the fallback is neutral rather than silence.
         urgency = _goal_priority(goal)
-        if urgency > FLOOR:
+        text = _intention_text(goal)
+        if urgency > FLOOR and text not in spoken:
+            spoken.add(text)
             bids.append(
                 CognitiveCandidate(
-                    content=str(goal.get("goal", goal))[:240] if isinstance(goal, dict) else str(goal)[:240],
+                    content=text[:240],
                     source="deliberation",
                     priority=urgency,
                     content_type=ContentType.INTENTIONAL,
@@ -209,13 +235,25 @@ def build_candidates(state: Any) -> list[Any]:
     # turn never reached the workspace at all.
     initiatives = list(getattr(cognition, "pending_initiatives", []) or []) if cognition else []
     for initiative in initiatives[:2]:
-        urgency = _goal_priority(initiative)
+        # An initiative's claim on attention is its `urgency` — what the
+        # intention itself asks for. Several producers also carry a `priority`,
+        # which is how important the work is once chosen, not how much it is
+        # asking to be thought about; read as a claim it arrived as a flat
+        # maximum and won every competition. A record that states no urgency
+        # has not made a claim, so it enters at neutral.
+        text = _intention_text(initiative)
+        if not text or text in spoken:
+            continue
+        spoken.add(text)
+        urgency = (
+            _clamp(initiative.get("urgency"), 0.5)
+            if isinstance(initiative, dict) and initiative.get("urgency") is not None
+            else 0.5
+        )
         if urgency > FLOOR:
             bids.append(
                 CognitiveCandidate(
-                    content=str(initiative.get("goal", initiative))[:240]
-                    if isinstance(initiative, dict)
-                    else str(initiative)[:240],
+                    content=text[:240],
                     source="deliberation",
                     priority=urgency,
                     content_type=ContentType.INTENTIONAL,
