@@ -11842,7 +11842,20 @@ class InferenceGate:
             halt = current(whose="inference_gate.generate").stopping
             if halt.stopped:
                 logger.info("🛑 generation not started: %s", halt.why)
-                return None
+                # Through the receipt, like every other policy exit here.
+                #
+                # A bare None is the same value the model returns when it
+                # produces no text, so a caller cannot tell "the runtime is
+                # stopping" from "the model said nothing" — and those want
+                # opposite handling. Four other exits on this path already
+                # carry a typed refusal to the caller's context, to the gate
+                # for health, and to the turn ledger; this one is a fifth.
+                return self._refuse_generation(
+                    "halted",
+                    str(halt.why or "the runtime is stopping"),
+                    context=context if isinstance(context, dict) else None,
+                    origin=str((context or {}).get("origin") or ""),
+                )
         except (ImportError, RuntimeError, TypeError, ValueError):
             pass
 

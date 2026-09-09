@@ -148,6 +148,9 @@ def _clause_asks(piece: str, *, settled: bool) -> bool:
         try:
             surface.observe(piece, holds=True)
         except (RuntimeError, TypeError, ValueError):
+            # Teaching the surface is a side effect of answering, never the
+            # answer. The floor already decided this clause asks, and it is
+            # right whether or not the learned surface could record it.
             pass
         return True
     try:

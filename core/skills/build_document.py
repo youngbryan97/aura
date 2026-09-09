@@ -315,6 +315,9 @@ def _form_wanted(given: object, request: object) -> str:
             try:
                 _WANTS_A_DECK.observe(text, holds=(form == "deck"))
             except (RuntimeError, TypeError, ValueError):
+                # The form word settled this, and it settles it whether or not
+                # the observation was recorded. Failing to learn from a case
+                # must not lose the case.
                 pass
             return form
     try:

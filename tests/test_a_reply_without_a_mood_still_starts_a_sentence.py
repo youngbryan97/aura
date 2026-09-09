@@ -33,7 +33,13 @@ def test_nothing_to_say_says_nothing():
 
 def test_every_degraded_reply_goes_through_it():
     """Seven of them, all written as continuations."""
-    from interface.routes import chat
+    # Where the block lives now, not where it was written.
+    #
+    # This read `interface.routes.chat`, and the mood prefix moved to
+    # `chat_lane_bookkeeping` when that module was split out — so the test
+    # failed with `ValueError: substring not found`, which says nothing about
+    # moods and sends the reader to the wrong file.
+    from interface.routes import chat_lane_bookkeeping as chat
 
     source = inspect.getsource(chat)
     where = source.index("# Build a mood-aware prefix for softer messages")
