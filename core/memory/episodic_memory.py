@@ -693,6 +693,19 @@ class EpisodicMemory:
             import uuid
 
             episode_id = str(uuid.uuid4())[:12]
+        # Before the check, not after it.
+        #
+        # The replay sat below the deferral branch, so it ran only on a write
+        # the governor had just approved — and the queue only ever fills when
+        # the governor is deferring. LIVE, 2026-09-08: "holding deferred
+        # writes (50 queued, 50 held so far, 0 landed)". Nothing had landed in
+        # that process because nothing could: the retry was behind the failure
+        # it retries.
+        #
+        # Here it runs on every attempt, so the first write after the governor
+        # relents drains what was held, and so does the first write of a turn
+        # that is itself about to be deferred.
+        self._deferred_episodes.replay()
         approved, governance_decision = self._approve_memory_write(
             context,
             action,
@@ -730,7 +743,6 @@ class EpisodicMemory:
                 stable_key,
             )
             return ""
-        self._deferred_episodes.replay()
         # Rate limiting — prevent flood during rapid tool loops
         # ISSUE 31 fix: Capture constant timestamp for storage consistency
         now_mono = time.monotonic()

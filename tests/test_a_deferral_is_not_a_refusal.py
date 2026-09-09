@@ -174,3 +174,26 @@ def test_a_steady_stream_of_deferrals_does_not_flood_the_feed() -> None:
     # _SAY_EVERY.
     assert len(said) == 3, f"{len(said)} lines for {_SAY_EVERY * 2} holds"
     assert queue.state()["held_total"] == _SAY_EVERY * 2
+
+
+# ── and the retry is not behind the failure it retries ───────────────────
+
+
+def test_the_replay_runs_before_the_governor_is_asked():
+    """LIVE, 2026-09-08: "holding deferred writes (50 queued, 50 held so far,
+    0 landed)". The replay sat below the deferral branch, so it ran only on a
+    write the governor had just approved — and the queue only fills when the
+    governor is deferring. Nothing could ever land."""
+    import inspect
+
+    from core.memory import episodic_memory
+
+    source = inspect.getsource(episodic_memory)
+    replay_at = source.index("self._deferred_episodes.replay()")
+    approve_at = source.index("approved, governance_decision = self._approve_memory_write(")
+    assert replay_at < approve_at, (
+        "the replay must run before the approval that decides whether this "
+        "write is itself deferred"
+    )
+    # And only once: a second call below the branch is the old ordering back.
+    assert source.count("self._deferred_episodes.replay()") == 1
