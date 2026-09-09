@@ -10031,6 +10031,20 @@ def _mlx_worker_loop(
                                                     "strip_private_planning_prefix",
                                                     "separate_private_plan_and_revalidate_public_suffix",
                                                 ),
+                                                # A leak in the MIDDLE. The
+                                                # prefix repair above cannot
+                                                # reach one, and until this
+                                                # existed a 2,128-character
+                                                # answer was discarded over
+                                                # item one of its own list.
+                                                "internal_task_prompt_leak_sentences": (
+                                                    "strip_internal_task_leak_sentences",
+                                                    "remove_scaffolding_sentences_and_revalidate",
+                                                ),
+                                                "prompt_echo_contamination": (
+                                                    "strip_internal_task_leak_sentences",
+                                                    "remove_scaffolding_sentences_and_revalidate",
+                                                ),
                                                 "prompt_artifact": (
                                                     "strip_prompt_artifacts",
                                                     "cut_transcript_continuation_and_revalidate",
@@ -10048,7 +10062,16 @@ def _mlx_worker_loop(
                                                 _repair_name,
                                                 _method,
                                             ) in repairs.items():
-                                                if _reason not in rejection_reasons:
+                                                # The sentence-level leak
+                                                # repair is keyed under its own
+                                                # name so it runs AFTER the
+                                                # prefix one on the same
+                                                # rejection, rather than
+                                                # instead of it.
+                                                _applies = _reason.removesuffix(
+                                                    "_sentences"
+                                                )
+                                                if _applies not in rejection_reasons:
                                                     continue
                                                 try:
                                                     import core.conversation.response_reliability as _rr
