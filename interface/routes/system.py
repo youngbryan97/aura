@@ -1322,6 +1322,17 @@ def _collect_runtime_revision_uncached() -> dict[str, Any]:
                 shell_assets_sha256=frozen_digest,
                 assets=frozen_assets,
             )
+            from core.runtime.runtime_shell_snapshot import runtime_shell_revision
+
+            shell_revision = runtime_shell_revision(
+                str(result.get("actual_source_root_sha256") or ""), frozen_digest,
+            )
+            _publish_runtime_shell_snapshot(
+                revision_token=shell_revision,
+                shell_assets_sha256=frozen_digest,
+                assets=frozen_assets,
+            )
+            result["shell_revision_token"] = shell_revision
         except _SYSTEM_RECOVERABLE_ERRORS as exc:
             result["verified"] = False
             result["capture_stable"] = False

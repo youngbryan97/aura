@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.conversation.response_reliability import _has_truncated_tail
+from core.conversation.response_reliability import _has_truncated_tail, complete_truncated_tail
 
 LIST = (
     "1. Persist the session before acknowledging delivery.\n"
@@ -25,6 +25,7 @@ def test_complete_footer_is_not_an_unfinished_list_item(footer, stop):
     assert not _has_truncated_tail(
         LIST + "\n" + footer, generation_stop_reason=stop
     )
+    assert complete_truncated_tail(LIST + "\n" + footer) == LIST + "\n" + footer
 
 
 @pytest.mark.parametrize(

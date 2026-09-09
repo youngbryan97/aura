@@ -337,6 +337,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   repeated model repairs. The structural classifier is repaired with 64 focused
   tests and 164 smoke passes (one skipped); live replay remains required.
   Evidence: [R09 list footer delivery](evidence/R09_LIST_FOOTER_DELIVERY_2026-09-08.md).
+  UPDATE 2026-09-08, later replay: zero repair retries, but the terminal trimmer
+  removed the footer after the classifier accepted it. Admission and trimming
+  now share one predicate. Explicit owner-bound cancellation and stable shell
+  addressing have focused coverage; live proof is pending. See
+  [cancellation and custody](evidence/R09_CANCELLATION_SHELL_CUSTODY_2026-09-08.md).
 - [x] R10 Verify executable examples semantically, not merely process exit zero.
   Closed 2026-09-08. The code truth engine executes module-level assertions and
   doctest examples in the symbolic sandbox, demotes claims when execution is

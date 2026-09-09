@@ -498,7 +498,7 @@ _DANGLING_GERUND_TAIL_RE = re.compile(
 #: conjunction was assessed ok. The floor is right for its actual purpose —
 #: not demanding a full stop from "Yes." — and wrong as a gate on grammar.
 _DANGLING_FUNCTION_WORD_TAIL_RE = re.compile(
-    r"\b(?:and|but|or|nor|so|yet|because|although|though|whereas|while|since|"
+    r"\b(?:and|but|or|nor|so|yet|because|although|though|however|whereas|while|since|"
     r"unless|until|if|than|that|which|whose|the|an?|of|to|into|onto|upon|with|"
     r"within|from|by|about|over|under|between|among|through|across|toward|"
     r"towards|is|are|was|were|be|been|being|has|have|had|will|would|can|could|"
@@ -6672,6 +6672,11 @@ def complete_truncated_tail(text: Any) -> str:
     """
     original = str(text or "").strip()
     if len(original) < 24:
+        return original
+    # The same structural judge must govern admission and trimming. A footer
+    # or an unpunctuated but complete response must not be discarded after
+    # the reliability check already accepted it.
+    if not _has_truncated_tail(original):
         return original
 
     repaired = re.sub(r"(?:\.{3,}|…)+$", "", original).rstrip()

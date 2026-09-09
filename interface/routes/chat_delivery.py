@@ -80,6 +80,7 @@ from core.runtime.principal_context import (
 import time
 import uuid
 from functools import lru_cache, wraps
+from dataclasses import dataclass
 
 from interface.routes.chat_common import (
     MAX_CHAT_MESSAGE_BYTES,
@@ -93,6 +94,42 @@ _CHAT_DELIVERY_WAIT_TIMEOUT_FLAG = declare(
     description="Maximum wait for another owner of an admitted chat turn",
     owner="interface.routes.chat",
 )
+
+USER_CANCEL_REASON = "chat_delivery_cancelled_by_user"
+
+
+@dataclass
+class _ExecutingDelivery:
+    admission: DeliveryAdmission
+    task: asyncio.Task[Any]
+    cancel_requested: bool = False
+
+
+_executing_deliveries: dict[DeliveryIdentity, _ExecutingDelivery] = {}
+
+
+def request_delivery_cancellation(record: DeliveryRecord) -> str:
+    """Cancel only the current execution of the authenticated journal record."""
+    if record.terminal:
+        return "already_terminal"
+    owner = _executing_deliveries.get(record.identity)
+    if owner is None or owner.task.done():
+        return "execution_not_cancellable"
+    current = owner.admission.record
+    if current.turn_id != record.turn_id or current.generation != record.generation:
+        return "owner_changed"
+    if not owner.cancel_requested:
+        owner.cancel_requested = True
+        owner.task.cancel(USER_CANCEL_REASON)
+    return "cancellation_requested"
+
+
+def _user_cancelled_response() -> JSONResponse:
+    return JSONResponse({
+        "response": "Stopped this turn. Actions already completed were not undone.",
+        "status": "cancelled_by_user",
+        "response_confidence": "cancelled",
+    })
 
 _PAIRED_CHAT_RESPONSE_KEYS = frozenset(
     {
@@ -233,6 +270,8 @@ def _chat_delivery_state_for_response(
     confidence = str(payload.get("response_confidence") or "").strip().casefold()
     if status in {"approval_required", "require_fresh_user_auth"}:
         return DeliveryState.AWAITING_APPROVAL
+    if status == "cancelled_by_user":
+        return DeliveryState.FAILED
     if "cancel" in status or status == "delivery_ambiguous":
         return DeliveryState.AMBIGUOUS
     failure_markers = (
@@ -963,7 +1002,20 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                         message="Understanding the request and gathering its relevant context.",
                         details={"surface": request_access_profile(request).get("surface", "")},
                     )
-                    response = await handler(*args, **kwargs)
+                    owner = _ExecutingDelivery(admission, asyncio.current_task())
+                    _executing_deliveries[admission.record.identity] = owner
+                    try:
+                        try:
+                            response = await handler(*args, **kwargs)
+                        except asyncio.CancelledError:
+                            if not owner.cancel_requested:
+                                raise
+                            response = _user_cancelled_response()
+                    finally:
+                        if _executing_deliveries.get(admission.record.identity) is owner:
+                            _executing_deliveries.pop(admission.record.identity, None)
+                    if owner.cancel_requested:
+                        response = _user_cancelled_response()
                     response = _no_empty_answer_leaves_this_boundary(response)
                     await report_chat_delivery_progress(
                         phase="finalizing",

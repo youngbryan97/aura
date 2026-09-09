@@ -11808,6 +11808,41 @@ async def api_chat_delivery_status(
     return response
 
 
+@router.post("/chat/delivery/{idempotency_key}/cancel")
+async def api_chat_delivery_cancel(
+    idempotency_key: str,
+    request: Request,
+    session_id: str | None = None,
+    _: None = Depends(_require_internal),
+    __: None = Depends(_check_rate_limit),
+):
+    """Request cancellation without making transport loss cancel a turn."""
+    body = ChatRequest(message="", session_id=session_id)
+    try:
+        session_key = _chat_delivery._chat_turn_session_key(request, body)
+        principal = _chat_delivery._authenticated_chat_principal(request)
+        identity = DeliveryIdentity.create(
+            principal=_chat_delivery._chat_delivery_principal(request, principal, session_key),
+            session_id=session_key,
+            idempotency_key=idempotency_key,
+        )
+        journal = await asyncio.to_thread(get_chat_delivery_journal)
+        record = await journal.get(identity)
+    except ValueError as exc:
+        return JSONResponse({"status": "invalid_chat_delivery_identity", "detail": str(exc)}, status_code=400)
+    except (ChatDeliveryJournalCorruption, ChatDeliveryJournalUnavailable) as exc:
+        logger.error("Chat cancellation journal unavailable: %s", exc)
+        return JSONResponse({"status": "chat_delivery_journal_unavailable"}, status_code=503)
+    if record is None:
+        return JSONResponse({"status": "chat_delivery_not_found"}, status_code=404)
+    disposition = _chat_delivery.request_delivery_cancellation(record)
+    return JSONResponse(
+        {**record.public_status(include_result=True), "cancellation_status": disposition},
+        status_code=200 if record.terminal else 202,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 async def _apply_regenerated_reply(
     *,
     exchange_id: str,
@@ -12779,6 +12814,11 @@ async def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         )
         if served_from_record:
             data["response"] = recorded
+            if recorded != reply:
+                _chat_delivery._invalidate_answer_proof_after_delivery_mutation(
+                    data, original_text=reply, reason="recorded_answer_replacement",
+                )
+                contract = data.get("live_turn_contract")
             data["response_confidence"] = "computed"
             if isinstance(contract, dict):
                 contract["response_confidence"] = "computed"
@@ -12852,6 +12892,9 @@ async def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         if corrected == reply:
             return response
         data["response"] = corrected
+        _chat_delivery._invalidate_answer_proof_after_delivery_mutation(
+            data, original_text=reply, reason="terminal_answer_correction",
+        )
         # A served record is not the draft's confidence.
         #
         # Live 2026-08-19 the verbatim conversation history — five turns with
@@ -18968,7 +19011,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         # Don't ask the user to re-send. If we got cancelled while a newer
         # message was already inbound, the user has already moved on; if
         # the client just disconnected, the reply is never seen anyway.
+        user_cancelled = _chat_delivery.USER_CANCEL_REASON in {str(value) for value in cancel_exc.args}
         cancel_reply = (
+            "Stopped this turn. Actions already completed were not undone."
+            if user_cancelled else
             "I'm here. My response was cut short — I'll pick up with whatever you say next."
         )
         if pending_exchange_id:

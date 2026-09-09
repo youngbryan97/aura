@@ -5519,6 +5519,47 @@ async function fetchChatDeliveryStatus(item) {
     }
 }
 
+function updateChatStopControl() {
+    const button = $('chat-stop-btn');
+    if (!button) return;
+    const item = state.activeChatRequest;
+    button.style.display = item && state.isSubmitting ? 'inline-flex' : 'none';
+    button.disabled = Boolean(item && item.cancelRequested);
+    button.title = button.disabled ? 'Stopping this turn' : 'Stop this turn';
+}
+
+async function cancelActiveChatRequest() {
+    const item = state.activeChatRequest;
+    if (!item || item.cancelRequested || item.handoffScope !== chatHandoffScope()) return;
+    item.cancelRequested = true;
+    updateChatStopControl();
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), CHAT_DELIVERY_STATUS_TIMEOUT_MS);
+    try {
+        const response = await fetch(
+            `/api/chat/delivery/${encodeURIComponent(item.idempotencyKey)}/cancel`,
+            { method: 'POST', cache: 'no-store', credentials: 'same-origin', headers: auraDesktopHeaders(), signal: controller.signal },
+        );
+        const data = await response.json();
+        if (!response.ok || data.cancellation_status !== 'cancellation_requested') {
+            item.cancelRequested = false;
+        } else {
+            updateTypingLabel('Stopping the current turn...');
+        }
+    } catch (error) {
+        item.cancelRequested = false;
+        console.warn('[CHAT] Cancellation was not acknowledged:', error);
+    } finally {
+        window.clearTimeout(timeoutId);
+        // The original delivery observer owns the terminal response. A stop
+        // acknowledgement neither settles the turn nor advances the queue.
+        updateChatStopControl();
+    }
+}
+
+const chatStopButton = $('chat-stop-btn');
+if (chatStopButton) chatStopButton.addEventListener('click', cancelActiveChatRequest);
+
 function waitForChatDelivery(delayMs) {
     return new Promise(resolve => window.setTimeout(resolve, delayMs));
 }
@@ -5695,6 +5736,7 @@ async function runChatRequest(value, { messageAlreadyRendered = false } = {}) {
     state.isSubmitting = true;
     publishSurfaceWorkload('chat_submit');
     state.activeChatRequest = item;
+    updateChatStopControl();
     persistChatHandoff({ force: true });
 
     const requestId = item.idempotencyKey;
@@ -5887,6 +5929,7 @@ async function runChatRequest(value, { messageAlreadyRendered = false } = {}) {
         persistChatHandoff({ force: true });
     } finally {
         state.isSubmitting = false;
+        updateChatStopControl();
         publishSurfaceWorkload('chat_settled');
         if (state.activeChatRequestId === requestId) {
             state.activeChatRequestId = null;
@@ -6956,7 +6999,11 @@ function verifiedRuntimeRevision(payload) {
         return '';
     }
     const token = String(revision.revision_token || '').toLowerCase();
-    return /^[0-9a-f]{64}$/.test(token) ? token : '';
+    if (!/^[0-9a-f]{64}$/.test(token)) return '';
+    const shell = String(revision.shell_revision_token || '').toLowerCase();
+    // Source drift stays in the health contract. Only different served bytes
+    // require replacing an open document and its delivery observer.
+    return /^[0-9a-f]{64}$/.test(shell) ? shell : token;
 }
 
 function runtimeRevisionPolicySatisfied(payload) {
