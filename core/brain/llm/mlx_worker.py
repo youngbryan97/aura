@@ -4457,12 +4457,70 @@ def _generation_stream_with_activity(
                 close()
 
 
+def _a_prefix_worth_keeping(
+    prompt_cache_lru: Any,
+    model_key: Any,
+    tokens: Any,
+    already_reused: int,
+    cache: Any,
+    step_size: int,
+) -> tuple[int, Any]:
+    """Where to snapshot this prefill, and the call that does it.
+
+    `(0, None)` when there is nothing worth keeping: no cache, no measured
+    divergence yet, or a divergence so early that the prefix would be shorter
+    than one chunk and save less than it costs to hold.
+
+    The offset returned is in the coordinates the progress callback speaks —
+    tokens of THIS prefill — while the trie is keyed on the whole prompt, so
+    the two are converted here and nowhere else.
+    """
+
+    if prompt_cache_lru is None or cache is None or not tokens:
+        return 0, None
+    try:
+        diverged = int(prompt_cache_lru.where_it_last_diverged(model_key))
+    except (AttributeError, TypeError, ValueError):
+        return 0, None
+    # Just short of where it ran out, rounded down to a chunk boundary, since
+    # the callback only ever reports at one.
+    chunk = max(1, int(step_size or 1))
+    keep_to = (diverged // chunk) * chunk
+    if keep_to <= already_reused or keep_to <= chunk:
+        return 0, None
+    if keep_to >= len(tokens):
+        return 0, None
+
+    def keep(processed_here: int) -> None:
+        import copy
+
+        absolute = already_reused + int(processed_here)
+        if absolute <= 0 or absolute >= len(tokens):
+            return
+        kept = prompt_cache_lru.snapshot_prefix(
+            model_key,
+            list(tokens[:absolute]),
+            cache,
+            deep_copy=copy.deepcopy,
+        )
+        if kept:
+            logger.info(
+                "🧊 [PROMPT CACHE] kept a %d-token prefix mid-prefill; the next "
+                "turn can reuse it without a trim.",
+                absolute,
+            )
+
+    return max(0, keep_to - already_reused), keep
+
+
 def _build_prefill_progress_callback(
     watchdog: Any,
     writer: Any,
     *,
     request_id: str,
     action: str,
+    snapshot_at: int = 0,
+    keep_prefix: Any = None,
 ):
     """Return an ``mlx_lm`` callback with causal worker/parent liveness.
 
@@ -4472,9 +4530,33 @@ def _build_prefill_progress_callback(
     """
     normalized_request_id = str(request_id or "")
     normalized_action = str(action or "generate")
+    taken = {"snapshot": False}
 
     def report(processed: int, total: int) -> None:
         watchdog.activity()
+        # Keep a strict prefix on the way past it.
+        #
+        # On this model only a strict prefix can be reused — `ArraysCache
+        # .is_trimmable` is a bare `return False` — and the entry the previous
+        # turn stored is always LONGER than the match, because it holds that
+        # turn's volatile block and its reply. So the trie has the tokens and
+        # cannot give them back: `matched 598 (92.7%) ... the entry holding
+        # them refuses to trim`.
+        #
+        # The prefill happening right now is the one moment the KV for a
+        # shorter prefix exists. Taken once, just past where the last search
+        # ran out of trie, so what is kept is the part that actually recurs.
+        if (
+            snapshot_at > 0
+            and keep_prefix is not None
+            and not taken["snapshot"]
+            and processed >= snapshot_at
+        ):
+            taken["snapshot"] = True
+            try:
+                keep_prefix(processed)
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("Prompt-cache prefix snapshot skipped: %s", exc)
         writer.put(
             {
                 "id": normalized_request_id,
@@ -8826,12 +8908,22 @@ def _mlx_worker_loop(
                                     )
                                     prefill_step_size = _runtime_prefill_step_size(model_path)
                                     clean_kwargs["prefill_step_size"] = prefill_step_size
+                                    _snapshot_at, _keep_prefix = _a_prefix_worth_keeping(
+                                        prompt_cache_lru,
+                                        model_key,
+                                        tokens,
+                                        len(tokens) - len(remaining_tokens),
+                                        cache,
+                                        prefill_step_size,
+                                    )
                                     clean_kwargs["prompt_progress_callback"] = (
                                         _build_prefill_progress_callback(
                                             watchdog,
                                             ipc_writer,
                                             request_id=str(job.get("id") or ""),
                                             action="generate",
+                                            snapshot_at=_snapshot_at,
+                                            keep_prefix=_keep_prefix,
                                         )
                                     )
 

@@ -226,6 +226,19 @@ class PromptCacheLRU:
         # this many tokens, bounding per-entry KV RAM on heavy models while
         # leaving generation itself untouched.
         self.max_entry_tokens = max_entry_tokens
+        # Where the last search for each key ran out of trie.
+        #
+        # On this model only a strict PREFIX can be reused: `ArraysCache
+        # .is_trimmable` is a bare `return False`, so an entry that is longer
+        # than the match — which the previous turn's entry always is, because
+        # it holds that turn's volatile block and its reply — cannot be cut
+        # down to the part that matches. LIVE, 2026-09-08: `matched 598
+        # (92.7%) ... the entry holding them refuses to trim (ArraysCache)`.
+        #
+        # The remedy is to have a strict prefix in the trie, and the cheapest
+        # place to get one is during the prefill that is happening anyway. This
+        # says where to take it: just short of where the last turn diverged.
+        self._diverged_at: dict[Any, int] = {}
         # An entry COUNT is not a memory bound. Twelve entries of unbounded
         # length is unbounded memory: once insertion actually worked, a
         # 31,718-token prompt was measured live and managed RSS grew
@@ -687,6 +700,7 @@ class PromptCacheLRU:
         # sits at the front of the prompt and no conversation will ever reuse
         # anything.
         matched = result.common_prefix
+        self._diverged_at[model_key] = matched
         divergent = ""
         if describe is not None and matched < len(tokens):
             try:
@@ -734,6 +748,37 @@ class PromptCacheLRU:
             + refused,
         )
         return None, tokens
+
+    def where_it_last_diverged(self, model_key: Any) -> int:
+        """How far the previous prompt for this key matched before running out.
+
+        Zero when nothing has been searched, which is also the honest answer
+        for "there is no prefix worth snapshotting yet".
+        """
+
+        return int(self._diverged_at.get(model_key, 0))
+
+    def snapshot_prefix(
+        self, model_key: Any, tokens: list[int], prompt_cache: list[Any], *, deep_copy: Any
+    ) -> bool:
+        """Keep a strict prefix of a prompt now being prefilled.
+
+        Called mid-prefill, when the KV for `tokens` is exactly what is in
+        `prompt_cache`. A copy, because generation keeps mutating the live
+        object; without one this stores a reference that has become the whole
+        prompt by the time anybody reads it.
+        """
+
+        if not tokens or prompt_cache is None:
+            return False
+        if self.max_entry_tokens > 0 and len(tokens) > self.max_entry_tokens:
+            return False
+        try:
+            kept = deep_copy(prompt_cache)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return False
+        self.insert_cache(model_key, list(tokens), kept)
+        return True
 
     def insert_cache(self, model_key: Any, tokens: list[int], prompt_cache: list[Any]) -> None:
         if self.max_entry_tokens > 0 and len(tokens) > self.max_entry_tokens:

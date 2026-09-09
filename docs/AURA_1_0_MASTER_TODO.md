@@ -418,6 +418,43 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   of the prompt and the new tool result is rebuilt each turn. That is the next
   thing to fix, and it is the largest single latency item in the runtime.
 
+  UPDATE 2026-09-08. Consecutive turns went from sharing NOTHING to sharing
+  92.7% of the prompt, measured on the live runtime, and the reason they shared
+  nothing was not the assembler.
+
+  `split_on_volatility` exists to keep the stable part of a prompt in the
+  authority head and move the per-turn part down beside the turn. What it moves
+  is decided by `volatility_of`, which prefers what has actually been watched
+  changing over the authored prior. Nothing had ever been watched:
+  `section_volatility.json` held zero sections. A bracketed header carries its
+  own reading — `[Affect: Current Mood: TIRED (substrate energy: 0.14)]` — and
+  a section is filed under its header, so every turn invented a section that
+  had never been seen, no count was ever incremented, and the most volatile
+  text in the prompt measured as perfectly stable and stayed in the head. It is
+  filed under its label now.
+
+  Underneath that, the router joined its state blocks onto one line, and the
+  header pattern cannot match a line holding two bracket groups — so the block
+  was invisible to the stage that exists to move it, whatever the measurement
+  said.
+
+  Before: `matched 0 (0.0%)`, twice, on consecutive turns with 1,812 tokens
+  retained from the turn before. After: `matched 571 (67.5%)` then `matched 598
+  (92.7%)`.
+
+  What remains is one thing, and it is a property of the model rather than of
+  the assembler. The reusable prefix now ends exactly where the affect block
+  begins, and the stored entry from the previous turn CONTAINS that block, so
+  it is longer than the match and reuse needs a trim. `ArraysCache.is_trimmable`
+  is a bare `return False`. Only a stored entry that is a strict prefix can be
+  reused, and no entry is stored at the stable boundary because the KV for that
+  boundary is a mid-prefill state nobody keeps.
+
+  So the next step is named and small: snapshot the prompt cache at the last
+  stable boundary during prefill and insert it as its own entry. Then the
+  following turn takes the strict-prefix path for the 92.7% already matching,
+  and this item closes on a measurement rather than an argument.
+
 ## 2. General RLC reasoning: the scientific critical path
 
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
