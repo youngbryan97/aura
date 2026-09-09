@@ -38,6 +38,10 @@ UNIT_COST: dict[str, float] = {
     "train_steps": 2.0,
     "phases": 30.0,
     "tool_calls": 1.0,
+    # How many things were competing for the workspace. Weighing eleven
+    # candidates is more work than weighing two, and it is work she causes:
+    # the count is what the rest of her had to say this cycle.
+    "candidates": 8.0,
 }
 
 

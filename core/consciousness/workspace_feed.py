@@ -27,6 +27,7 @@ import math
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.soma.effort import note_effort
 from core.state.percepts import read_percept
 
 __all__ = ["build_candidates", "feed_workspace"]
@@ -520,6 +521,12 @@ async def feed_workspace(state: Any, workspace: Any) -> Any:
     # or the heartbeat did. A broadcast the cycle cannot see has not been
     # broadcast to the part of her that answers.
     try:
+        # Weighing them costs something, and what it costs varies with how
+        # much the rest of her had to say. Without a reporter here the body's
+        # sense of its own exertion moved only with recall, which finds nothing
+        # offline — so the one channel an experiment can leave free was a
+        # constant.
+        note_effort("candidates", len(bids))
         _remember_broadcast(state, winner, bool(getattr(workspace, "ignited", False)))
     except (AttributeError, TypeError, ValueError) as exc:
         record_degradation(
