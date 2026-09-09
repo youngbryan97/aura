@@ -347,6 +347,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   reach conversation history on an early return. Both ownership paths are
   repaired with focused coverage; live closure remains required. See
   [terminal history and worker stop](evidence/R09_TERMINAL_HISTORY_AND_WORKER_STOP_2026-09-08.md).
+  UPDATE 2026-09-09: live cancellation survived reload, but prefill did not
+  acknowledge Stop. The callback now checks the job-bound cancellation word
+  between materialized chunks; installed-MLX tests prove interruption and
+  subsequent model reuse. Resident replay is still required. See
+  [prefill stop](evidence/R09_PREFILL_STOP_2026-09-09.md).
 - [x] R10 Verify executable examples semantically, not merely process exit zero.
   Closed 2026-09-08. The code truth engine executes module-level assertions and
   doctest examples in the symbolic sandbox, demotes claims when execution is

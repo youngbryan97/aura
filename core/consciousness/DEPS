@@ -8,7 +8,7 @@
 #
 # 47 outbound edges when this was generated.
 
-description = "core.consciousness: may import only what it already imports; every new edge is an edit here."
+description = "core.consciousness: declared organ dependencies, including shared word markers for narrative classification."
 
 include_rules = [
     "+core.consciousness",
@@ -26,6 +26,7 @@ include_rules = [
     "+core.constitution",
     "+core.container",
     "+core.continuity",
+    "+core.conversation.word_markers",
     "+core.conversation_reflection",
     "+core.coordinators",
     "+core.evals",

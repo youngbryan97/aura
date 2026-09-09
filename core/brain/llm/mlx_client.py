@@ -12514,9 +12514,8 @@ class MLXLocalClient:
     async def _soft_cancel_acknowledged(self, timeout_s: float | None = None) -> bool:
         """Wait (bounded) for the worker to acknowledge a soft-cancel.
 
-        Acknowledgement = the worker cleared the shared cancel flag (it
-        demonstrably passed through its token loop) while staying alive with
-        fresh heartbeats. When this returns True the orphaned generation has
+        Acknowledgement is a terminal frame for the exact cancelled request,
+        observed after its cancel was issued. When this returns True the orphaned generation has
         already been dropped worker-side — late text cannot bleed into the
         next turn because its request id is no longer pending — so the warm
         model can be preserved instead of paying a ~60-90s reload.

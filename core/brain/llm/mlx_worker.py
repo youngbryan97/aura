@@ -4526,6 +4526,30 @@ def _a_prefix_worth_keeping(
     return max(0, keep_to - already_reused), keep
 
 
+class _PrefillCancelledError(InterruptedError):
+    """Unwind model/cache contexts before acknowledging an interrupted prefill."""
+
+    def __init__(self, request_id: str, action: str, processed: int, total: int):
+        super().__init__("soft_cancelled_during_prefill")
+        self.request_id = request_id
+        self.action = action
+        self.processed = processed
+        self.total = total
+
+    def terminal_frame(self) -> dict[str, Any]:
+        return {
+            "id": self.request_id,
+            "action": "stream_done" if self.action == "stream" else self.action,
+            "status": "ok",
+            "text": "",
+            "soft_cancelled": True,
+            "generation_stop_reason": "soft_cancelled",
+            "tokens_used": 0,
+            "prompt_tokens_processed": self.processed,
+            "prompt_tokens_total": self.total,
+        }
+
+
 def _build_prefill_progress_callback(
     watchdog: Any,
     writer: Any,
@@ -4534,6 +4558,7 @@ def _build_prefill_progress_callback(
     action: str,
     snapshot_at: int = 0,
     keep_prefix: Any = None,
+    cancel_check: Callable[[], bool] | None = None,
 ):
     """Return an ``mlx_lm`` callback with causal worker/parent liveness.
 
@@ -4547,6 +4572,10 @@ def _build_prefill_progress_callback(
 
     def report(processed: int, total: int) -> None:
         watchdog.activity()
+        # mlx_lm calls here before work and after each materialized chunk.
+        # Waiting for its first yielded token leaves the whole prompt uncancellable.
+        if cancel_check is not None and cancel_check():
+            raise _PrefillCancelledError(normalized_request_id, normalized_action, processed, total)
         # Keep a strict prefix on the way past it.
         #
         # On this model only a strict prefix can be reused — `ArraysCache
@@ -8980,6 +9009,7 @@ def _mlx_worker_loop(
                                             action="generate",
                                             snapshot_at=_snapshot_at,
                                             keep_prefix=_keep_prefix,
+                                            cancel_check=lambda seq=job_seq: soft_cancel_requested(cancel_seq, seq),
                                         )
                                     )
 
@@ -11347,6 +11377,7 @@ def _mlx_worker_loop(
                                 _stream_prompt_text = str(prompt or "")
                                 _stream_prompt_tokens = len(tokenizer.encode(_stream_prompt_text))
                                 _stream_prefill_step_size = _runtime_prefill_step_size(model_path)
+                                _stream_job_seq = _safe_int(job.get("seq"), 0)
                                 clean_kwargs["prefill_step_size"] = _stream_prefill_step_size
                                 clean_kwargs["prompt_progress_callback"] = (
                                     _build_prefill_progress_callback(
@@ -11354,6 +11385,9 @@ def _mlx_worker_loop(
                                         ipc_writer,
                                         request_id=str(job.get("id") or ""),
                                         action="stream",
+                                        cancel_check=lambda seq=_stream_job_seq: soft_cancel_requested(
+                                            cancel_seq, seq
+                                        ),
                                     )
                                 )
                                 if _speculative_eligible(
@@ -12327,6 +12361,17 @@ def _mlx_worker_loop(
                     }
                 )
 
+        except _PrefillCancelledError as cancelled:
+            # All per-generation contexts have unwound, including steering
+            # restoration and stream closure. A borrowed KV entry can now be
+            # longer than its trie key, so retire that lane before its receipt.
+            if cancelled.action == "generate" and prompt_cache_lru is not None:
+                prompt_cache_lru.clear_model_key(model_key)
+            logger.info(
+                "Worker stopped %s during prefill at %d/%d tokens (job seq=%s).",
+                cancelled.action, cancelled.processed, cancelled.total, job.get("seq"),
+            )
+            ipc_writer.put(cancelled.terminal_frame())
         except KeyboardInterrupt:
             logger.info("🛑 [WORKER] Shutdown signal received; exiting quietly.")
             break

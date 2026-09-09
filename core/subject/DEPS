@@ -10,7 +10,7 @@
 # today" — and would widen the moment somebody added an import, which is the
 # direction this rule exists to hold.
 
-description = "core.subject: may read the organism it measures; the organism may not read it."
+description = "core.subject: may read and restore measured organism state, including effort; the organism may not read it."
 
 include_rules = [
     "+core.subject",
@@ -43,6 +43,7 @@ include_rules = [
     "+core.container",
     "+core.runtime.service_registry",
     "+core.service_registration",
+    "+core.soma.effort",
 
     # Everything else.
     "-core",
