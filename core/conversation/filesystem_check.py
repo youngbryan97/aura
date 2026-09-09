@@ -633,11 +633,13 @@ _CONVENTIONAL_FILE_SUFFIXES = frozenset(
         ".yml",
     }
 )
-_EXPLICIT_FILE_SUBJECT_RE = re.compile(
-    r"\b(?:file|path|document|spreadsheet|workbook|script|source|readme|"
-    r"configuration|config|log)\b",
-    re.IGNORECASE,
-)
+#: Which file this message points at is the language substrate's question.
+#:
+#: `core/language/named_paths.py` was written to be the one reader of "what
+#: filesystem thing does this message name", after six regexes in this tree
+#: each answered it where they stood. This was a seventh, and it matched the
+#: bare noun: "what file format do you use?" and "my source of truth" both
+#: said a dotted token nearby was a filename.
 
 
 def _missing_token_names_a_file(candidate: str, message: str) -> bool:
@@ -648,7 +650,9 @@ def _missing_token_names_a_file(candidate: str, message: str) -> bool:
         return False
     if token.startswith(("/", "~/", "./")) or "/" in token or "\\" in token:
         return True
-    if _EXPLICIT_FILE_SUBJECT_RE.search(str(message or "")):
+    from core.language.named_paths import points_at_a_file
+
+    if points_at_a_file(message):
         return True
     return Path(token).suffix.casefold() in _CONVENTIONAL_FILE_SUFFIXES
 

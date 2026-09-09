@@ -216,20 +216,40 @@ def _title_worth_using(given: object, asked: object) -> str:
     cleaned = title_from_request(proposed)
     if cleaned and cleaned.lower() != proposed.lower():
         return cleaned
-    if _READS_LIKE_THE_ASKING.search(proposed):
+    if _reads_like_the_asking(proposed):
         from_request = title_from_request(asked)
         if from_request and from_request != "Document":
             return from_request
     return proposed
 
 
-#: A count or a verb about answering, left inside a title.
-_READS_LIKE_THE_ASKING = re.compile(
-    r"\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d{1,2})\b"
-    r"|\b(?:present|presenting|write|writing|make|making|build|building|draft|"
-    r"drafting|produce|prepare|give|show)\b",
-    re.IGNORECASE,
-)
+def _reads_like_the_asking(proposed: str) -> bool:
+    """Whether this title is the request wearing a title's clothes.
+
+    Asked of the language substrate rather than of a pattern here.
+    `core.language.asking_clauses` owns this question: it has the floor —
+    interrogative openings, producing verbs, and a count against a named
+    deliverable — and behind the floor a learned surface, because "a list of
+    openings is always the list one person thought of". Its own note says the
+    title extractor must agree with it, and this is the title extractor.
+
+    The first version of this was a pattern that fired on bare tokens: `one`,
+    `make` and `write` alone were enough to throw a title away, so "One Health
+    Strategy", "Make-or-Buy Analysis" and "Write-Down Policy" all read as the
+    asking. That is the mistake this repository has recorded a hundred and
+    thirteen times and formed into a constraint — a token is not a decision —
+    and rewriting it as a longer pattern here would have been the same mistake
+    with more characters.
+    """
+
+    text = str(proposed or "").strip()
+    if not text:
+        return False
+    try:
+        from core.language.asking_clauses import asking_clauses
+    except ImportError:
+        return False
+    return bool(asking_clauses(text))
 
 
 def _sections_asked_for(request: object) -> int:
