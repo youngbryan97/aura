@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
 import inspect
 import logging
 import os
@@ -93,6 +94,13 @@ class DeterministicMind:
     whether the parts of her reach each other.
     """
 
+    #: Which turn this is. Set by the runtime before each turn and carried
+    #: across the fork with everything else, so the two arms of a trial share
+    #: it and the reply cannot differ between them — while two different turns
+    #: get different replies, which is what stops the loop detector from
+    #: reading the harness's constancy as her repeating herself.
+    moment: int = 0
+
     #: The reply is deliberately bland and constant. Anything that varied would
     #: enter the state through several phases at once and appear as coupling.
     REPLY = "Continuity holds. The pipeline is executing over the shared state."
@@ -115,7 +123,20 @@ class DeterministicMind:
         # function of the call site alone.
         if "json" in str(prompt or "").lower():
             return self.STRUCTURED
-        return self.REPLY
+        # And the prose carries a mark of what was asked. A reply that is
+        # byte-identical on every turn is a repetition, and the memory
+        # consolidation phase is right to call it one: it degrades identity
+        # stability to its floor and clears the pending initiatives that
+        # produced it. So the harness pinned the self-state at its worst value
+        # and suppressed deliberation's only output, on every turn of every
+        # run, by being too constant.
+        #
+        # Still a function of the prompt alone, so two arms of a trial — which
+        # share a snapshot and therefore a prompt — get the same answer, and
+        # nothing about the displacement can reach the decoder.
+        seed = f"{self.moment}|{prompt or ''}"
+        mark = hashlib.blake2b(seed.encode("utf-8", "ignore"), digest_size=4)
+        return f"{self.REPLY} [{mark.hexdigest()}]"
 
     async def generate(self, prompt: str, **kwargs: Any) -> str:
         return await self.think(prompt, **kwargs)
@@ -1059,6 +1080,10 @@ class SubjectRuntime:
         frame is read, so the arms share every reading before it and differ
         only from the next one on.
         """
+        engine = self.kernel.organs.get("llm") if hasattr(self.kernel, "organs") else None
+        mind = getattr(engine, "instance", None) if engine is not None else None
+        if mind is not None and hasattr(mind, "moment"):
+            mind.moment = self.turn
         env = {"turn": float(self.turn), "condition_id": float(_condition_index(condition.name))}
         if condition.prepare is not None:
             env.update(condition.prepare(self.state, self.rng))
@@ -1383,7 +1408,10 @@ class SubjectRuntime:
                 "origin": actor,
                 "status": "done" if ok else "failed",
                 # Priced, because a goal the workspace cannot price is a goal
-                # attention can never reach.
+                # attention can never reach — but this one is finished, and a
+                # finished goal is a record rather than an intention. The
+                # workspace drops it on status; the number is here for whatever
+                # reads the record.
                 "priority": 1.0 if ok else 0.5,
             }
         )

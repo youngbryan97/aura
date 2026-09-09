@@ -182,7 +182,24 @@ class AffectUpdatePhase(Phase):
         affect.emotions[emotion] = self._clip01(value)
 
     def _bump_emotion(self, affect: AffectVector, emotion: str, delta: float) -> None:
-        self._set_emotion(affect, emotion, affect.emotions.get(emotion, 0.0) + delta)
+        """Raise a feeling by a share of the room it has left.
+
+        Added flat, every event of a kind pushed the same distance, so a
+        channel already near its ceiling took the same step as one at rest and
+        the ceiling arrived within a dozen turns. Three emotions then sat at
+        1.0 for the whole of a session — and a feeling that is always at
+        maximum is not a feeling, it is a constant. Nothing downstream could
+        tell an ordinary moment from an overwhelming one, and displacing affect
+        moved nothing because there was nowhere for it to move.
+
+        The gain is unchanged. What changed is that it applies to the headroom:
+        a channel at rest still takes the full step, one near the top takes
+        almost none, and the same event lands differently depending on what she
+        already feels. Lowering a feeling is symmetric — the room below.
+        """
+        current = affect.emotions.get(emotion, 0.0)
+        room = (1.0 - current) if delta >= 0.0 else current
+        self._set_emotion(affect, emotion, current + delta * room)
 
     def _ensure_affect_schema(self, affect: AffectVector) -> None:
         """Backfill newer affect dimensions into persisted older AuraState snapshots."""

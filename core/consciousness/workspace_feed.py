@@ -23,6 +23,7 @@ rather than a round-robin over ten fixed sources.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 from core.runtime.errors import record_degradation
@@ -37,6 +38,10 @@ logger = logging.getLogger("Aura.Consciousness.WorkspaceFeed")
 #: there rather than repeated here if it is available.
 FLOOR: float = 0.05
 
+#: Statuses that mean a goal is no longer an intention. A finished goal is a
+#: record of what happened and has no claim on attention.
+_FINISHED: frozenset[str] = frozenset({"done", "failed", "complete", "completed", "cancelled"})
+
 
 def _clamp(value: Any, default: float = 0.0) -> float:
     try:
@@ -44,6 +49,23 @@ def _clamp(value: Any, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
     return max(0.0, min(1.0, out))
+
+
+def _is_open_goal(goal: Any) -> bool:
+    """Whether this is an intention at all.
+
+    A goal marked done is a record of what happened. A goal with no text is not
+    a goal — the goal engine writes one when the objective it was built from
+    has neither an objective nor a name, and it arrives carrying a priority of
+    one, which is a flat maximum that wins every competition and crowds every
+    other domain out of the workspace.
+    """
+    if not isinstance(goal, dict):
+        return bool(str(goal).strip())
+    if str(goal.get("status", "")) in _FINISHED:
+        return False
+    text = goal.get("goal") or goal.get("description") or goal.get("objective") or goal.get("name")
+    return bool(str(text or "").strip())
 
 
 def _goal_priority(goal: Any) -> float:
@@ -153,7 +175,16 @@ def build_candidates(state: Any) -> list[Any]:
                 )
             )
 
-    goals = list(getattr(cognition, "active_goals", []) or []) if cognition else []
+    # Only the ones still open. A goal marked done is a record of what
+    # happened, not an intention — and the action arm appends one on every turn
+    # it acts, at the priority of a completed thing, which is a flat maximum
+    # that won every competition and crowded every other domain out of the
+    # workspace. The same defect the memory and exchange bids had.
+    goals = [
+        goal
+        for goal in (list(getattr(cognition, "active_goals", []) or []) if cognition else [])
+        if _is_open_goal(goal)
+    ]
     for goal in goals[-2:]:
         # `priority` is what the goal engine writes; `urgency` is what this bid
         # read, and no producer in the tree has ever written it. So every real
@@ -258,7 +289,11 @@ def build_candidates(state: Any) -> list[Any]:
         model = ServiceContainer.get("unified_world_model", default=None)
         surprise = model.surprise() if model is not None else None
         if surprise is not None:
-            level = _clamp(float(surprise))
+            # Squashed, not clipped. Prediction error is unbounded above and a
+            # clip turns every surprise past one into the same maximum — so
+            # this bid sat at its ceiling on every turn and stopped being a
+            # reading of anything. The state schema already reads it this way.
+            level = _clamp(math.tanh(max(0.0, float(surprise))))
             if level > FLOOR:
                 bids.append(
                     CognitiveCandidate(
