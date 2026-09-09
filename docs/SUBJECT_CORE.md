@@ -508,6 +508,31 @@ more than it is worth — and every one of those is a reading that already
 existed, that nothing here consulted. Eight now, one per channel that bears on
 whether to act and on what.
 
+**A default read as a demand won every competition.** Deliberation beat
+perception, memory, affect and the body on every single turn, and not because
+anything was pressing: the workspace's bid read a goal's `priority` as its claim
+on attention, and the goal engine's own projection carries a flat one. Priority
+is how important the work is once it has been chosen; urgency is how much it is
+asking to be thought about now. Three more bids sat at their ceilings for the
+same kind of reason — a feeling raised by a flat amount saturates within a dozen
+turns, ignition was the winner's priority divided by its own threshold and
+clipped at one, and prediction error was clipped at one when it is unbounded
+above. A competition decided by ties at the ceiling is not a competition, and a
+displacement of any of those four moved nothing because there was nowhere left
+to move.
+
+**A degradation with no way back.** `identity.stability` had exactly one writer
+in the whole tree — the loop detector — and it only ever subtracted. One
+repeated sentence dropped it three tenths and nothing raised it again for the
+life of the state, so the phi estimate, the executive closure, the causal
+self-state and the workspace's self bid all read a number pinned at its floor.
+
+**Everything she ever did was recorded as one capability.** The agency ledger
+keys capability beliefs on the name of what was done, and the intention loop was
+handed the same name for every action. It learned one thing about her however
+many different things she tried, and her confidence about any particular thing
+she can do was her confidence about all of them at once.
+
 **A registered broadcast processor wrote where nothing reads.** One of the five
 appended a bounded trace of each winner to an attribute on the workspace, and
 nothing anywhere read it — a writer with no reader, inside the file written to
@@ -524,6 +549,14 @@ invisible to a graph over the ten declared domains, which is why the closure
 test — does anything outside K predict K's future better than K does — is in
 the conjunction. Both facts are pinned by tests in
 `tests/test_subject_core_measures.py`.
+
+**The end-of-tick projection never ran.** `AuraState._refresh_cognitive_health`
+computes coherence, fragmentation, the contradiction count and the whole
+cognitive-health block from the state a turn has finished with, and the kernel
+calls it at the end of `tick`, outside the phase loop, deliberately. This driver
+runs the phases directly, so during a battery run it never ran at all: four of
+the workspace domain's columns were constants, and the deliberation phase's
+reading of how badly the moment was going was reading two of them.
 
 **The battery's own model was never asked.** It installs a deterministic mind
 so that two arms differ by the intervention and not by decoding, and it
