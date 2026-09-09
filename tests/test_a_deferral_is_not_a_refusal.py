@@ -197,3 +197,52 @@ def test_the_replay_runs_before_the_governor_is_asked():
     )
     # And only once: a second call below the branch is the old ordering back.
     assert source.count("self._deferred_episodes.replay()") == 1
+
+
+# ── and the replay holds nothing while it writes ─────────────────────────
+
+
+def test_a_replay_that_replays_finds_the_claim_taken_and_leaves():
+    """A held write is retried by calling the thing that defers, and that
+    thing replays first — so a replay can reach a replay.
+
+    It used to guard with a `checked_lock` acquired non-blockingly, and
+    lockdep reports a thread reaching for a lock it already holds before the
+    non-blocking acquire can decline. LIVE, 2026-09-09: `LOCKDEP
+    self_deadlock: non-reentrant lock 'memory.deferred_writes.
+    episodic_memory...replay'`, and the runtime tainted for a lock-order
+    violation on a boot where nothing was wrong.
+    """
+    from core.memory.a_deferral_is_not_a_refusal import DeferredWrites
+
+    seen = []
+
+    def _retry(item):
+        seen.append(item)
+        # The nested call the live path makes.
+        assert queue.replay() == 0, "a nested replay must decline, not deadlock"
+        return True
+
+    queue = DeferredWrites(lane="test", retry=_retry, interval_s=0.0)
+    queue.hold("one")
+    assert queue.replay() == 1
+    assert seen == ["one"]
+
+
+def test_nothing_is_held_while_the_write_happens():
+    """The retry writes an episode. A blocking disk write under a
+    process-wide lock is the shape that freezes a runtime, and lockdep said so:
+    `blocking_op_under_lock: fsync attempted while holding [...replay]`."""
+    import inspect
+
+    from core.memory import a_deferral_is_not_a_refusal as module
+
+    source = inspect.getsource(module.DeferredWrites.replay)
+    at = source.index("self._retry(item)")
+    # The retry call sits outside every `with self._state_lock:` block.
+    opened = source[:at].count("with self._state_lock:")
+    closed = source[:at].count("return 0") + source[:at].count("item = self._held.popleft()")
+    assert "_replay_gate" not in source
+    assert opened > 0 and closed > 0
+    # And the claim is a plain field, not a lock object.
+    assert "self._replaying_on" in source

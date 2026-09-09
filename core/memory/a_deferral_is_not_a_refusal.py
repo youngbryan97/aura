@@ -30,6 +30,7 @@ newest is the one most likely to still describe what happened.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections import deque
 from collections.abc import Callable
@@ -102,7 +103,25 @@ class DeferredWrites[T]:
         # A retry can call the same store, and the store offers another replay
         # before writing. Concurrent callers do the same. Only one drain owns
         # the deque; nested and competing drains leave it to that owner.
-        self._replay_gate = checked_lock(f"{lock_name}.replay")
+        # A claim, not a lock held across the work.
+        #
+        # This was a `checked_lock` acquired non-blockingly for the whole
+        # replay, which is two faults in one. The retry writes an episode, so
+        # a blocking disk write happened under a process-wide lock — the shape
+        # that freezes a runtime and the one lockdep exists to catch. And a
+        # replay can reach `record_episode`, which replays: lockdep sees the
+        # same thread reaching for a lock it already holds and reports a
+        # self-deadlock before the non-blocking acquire can decline.
+        #
+        # LIVE, 2026-09-09, in a single boot: `LOCKDEP self_deadlock:
+        # non-reentrant lock 'memory.deferred_writes.episodic_memory...replay'`
+        # and `LOCKDEP blocking_op_under_lock: fsync attempted while holding
+        # [...replay]`, and the runtime tainted for a lock-order violation.
+        #
+        # The claim is taken and released under `_state_lock`, which is held
+        # only across the bookkeeping, so nothing is held while an episode is
+        # written and a nested call finds the claim taken and leaves.
+        self._replaying_on: int | None = None
         self._next_at = 0.0
         self._shed = 0
         self._landed = 0
@@ -162,8 +181,13 @@ class DeferredWrites[T]:
     def replay(self) -> int:
         """Try the ones held. Returns how many landed."""
 
-        if not self._replay_gate.acquire(blocking=False):
-            return 0
+        me = threading.get_ident()
+        with self._state_lock:
+            if self._replaying_on is not None:
+                # Somebody is already replaying, possibly this very call
+                # further up the stack. Either way there is nothing to do.
+                return 0
+            self._replaying_on = me
         try:
             with self._state_lock:
                 if not self._held:
@@ -197,7 +221,8 @@ class DeferredWrites[T]:
                 self._next_at = now + self._interval_s if self._held else 0.0
             return landed
         finally:
-            self._replay_gate.release()
+            with self._state_lock:
+                self._replaying_on = None
 
     def state(self) -> dict[str, Any]:
         """What is waiting, for the health surface."""
