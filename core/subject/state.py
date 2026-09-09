@@ -796,6 +796,19 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
             _sat(_dig(state, "cold.concept_graph", {}) or {}, 32.0),
             _hash_unit(_dig(state, "cognition.user_emotional_trend", "neutral")),
             math.tanh(_f(surprise)) if surprise is not None else 0.0,
+            # In the schema's order. Nine of these seventeen were one place out
+            # from `model_hidden_norm` onward: the values were all real and all
+            # attached to the wrong names, so every reading of this domain
+            # named the wrong quantity — `causal_nodes` was carrying the
+            # model's last surprise, and the hidden norm was carrying a count
+            # of available facets.
+            _sat(_f(learned.get("hidden_norm")), 8.0),
+            math.tanh(_f(learned.get("mean_surprise"))),
+            math.tanh(_f(learned.get("last_surprise"))),
+            _sat(_f(learned.get("step_count")), 10_000.0),
+            _sat(_f(causal.get("nodes")), 16.0),
+            _sat(_f(causal.get("edges")), 16.0),
+            _sat(_f(causal.get("causal_edges")), 8.0),
             _sat(
                 [name for name, entry in facets.items() if entry.get("available")], 3.0
             )
@@ -805,13 +818,6 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
             # not exist on the object — a feature of my own reading nothing,
             # which is the defect this file was written to find.
             _sat(_f(learned.get("train_steps")), 5_000.0),
-            _sat(_f(learned.get("hidden_norm")), 8.0),
-            math.tanh(_f(learned.get("mean_surprise"))),
-            math.tanh(_f(learned.get("last_surprise"))),
-            _sat(_f(learned.get("step_count")), 10_000.0),
-            _sat(_f(causal.get("nodes")), 16.0),
-            _sat(_f(causal.get("edges")), 16.0),
-            _sat(_f(causal.get("causal_edges")), 8.0),
         ],
         dtype=np.float64,
     )

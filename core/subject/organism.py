@@ -220,6 +220,7 @@ async def quiesce() -> list[str]:
 
     stopped: set[str] = set()
     doomed: list[Any] = []
+    stopped.update(_stop_threads())
     try:
         current = asyncio.current_task()
         for task in asyncio.all_tasks():
@@ -242,6 +243,29 @@ async def quiesce() -> list[str]:
             ", ".join(stopped_list),
         )
     return stopped_list
+
+
+def _stop_threads() -> list[str]:
+    """Stop the background threads that are not asyncio tasks.
+
+    The world model learns on a plain daemon thread, so cancelling every task
+    leaves it running: it would take gradient steps between two arms of a
+    paired trial and the arms would see different weights. A thread is a
+    free-running loop like any other, and the wind-down has to reach it.
+    """
+    stopped: list[str] = []
+    try:
+        from core.container import ServiceContainer
+
+        model = ServiceContainer.get("unified_world_model", default=None)
+        learned = getattr(model, "learned", None) if model is not None else None
+        halt = getattr(learned, "stop_training", None)
+        if callable(halt):
+            halt()
+            stopped.append("learned_world_model.trainer")
+    except Exception:  # noqa: BLE001 - an absent organ has no thread to stop
+        return stopped
+    return stopped
 
 
 def _live_tasks() -> list[str]:

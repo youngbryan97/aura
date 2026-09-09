@@ -582,8 +582,20 @@ class LearnedWorldModel:
         self._trainer_thread.start()
         logger.info("World model training lane started (every %.1fs)", self._train_interval)
 
-    def stop_training(self) -> None:
+    def stop_training(self, *, timeout_s: float = 5.0) -> None:
+        """Stop the lane and wait for it, so a caller can rely on it being still.
+
+        Setting the flag is a request. A measurement that has to hold the
+        weights fixed needs the thread to have actually left its loop, and a
+        later `start_training` needs the handle cleared or it returns having
+        started nothing.
+        """
         self._trainer_stop.set()
+        thread = self._trainer_thread
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=timeout_s)
+        self._trainer_thread = None
+        self._trainer_stop.clear()
 
     def _train_loop(self) -> None:
         while not self._trainer_stop.wait(self._train_interval):

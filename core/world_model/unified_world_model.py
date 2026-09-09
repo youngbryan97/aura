@@ -63,6 +63,15 @@ class UnifiedWorldModel:
             try:
                 from core.world_model.learned_world_model import get_learned_world_model
                 self._learned = get_learned_world_model()
+                # And start the lane that learns from what it is shown. The
+                # only caller of `start_training` in the tree was the ontogeny
+                # organ, on its own model; the one the cognitive cycle observes
+                # into collected a replay buffer for the whole of every session
+                # and never took a gradient step. A forward model that is never
+                # trained does not have a small prediction error, it has an
+                # arbitrary one — and two subsystems read that number as
+                # evidence about the world.
+                self._learned.start_training()
             except (ImportError, AttributeError, RuntimeError, OSError, ValueError, TypeError) as exc:
                 record_degradation("unified_world_model", exc, severity="debug",
                                    action="learned (forward-dynamics) facet unavailable")
