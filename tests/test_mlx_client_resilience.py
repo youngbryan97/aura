@@ -1148,6 +1148,12 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client._soft_cancel_target["reason"], "generation_caller_cancelled")
 
     async def test_owner_stop_reaches_worker_without_recording_an_unexpected_failure(self):
+        await self._assert_owner_stop(acknowledged=True)
+
+    async def test_owner_stop_without_worker_acknowledgement_requests_recovery(self):
+        await self._assert_owner_stop(acknowledged=False)
+
+    async def _assert_owner_stop(self, *, acknowledged):
         from core.runtime.what_stops_it import stopping_with
 
         client = MLXLocalClient(model_path=TEST_MODEL)
@@ -1162,15 +1168,25 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
                 execution.stopping.stop("explicit owner stop")
                 raise asyncio.CancelledError
 
+            async def acknowledge():
+                self.assertTrue(client._current_request_id)
+                self.assertGreater(client._active_generations, 0)
+                return acknowledged
+
             with ReplaceAttr(client, "_ensure_worker_alive", AsyncCallProbe(return_value=True)), \
                  ReplaceAttr(client, "_wait_for_generation_result", AsyncCallProbe(side_effect=cancelled)), \
                  ReplaceAttr(client, "_worker_unhealthy", lambda *args, **kwargs: False), \
-                 ReplaceAttr(client, "_soft_cancel_acknowledged", AsyncCallProbe(return_value=True)), \
+                 ReplaceAttr(client, "_soft_cancel_acknowledged", acknowledge), \
                  ReplaceAttr(client, "_record_degraded_event", degraded):
                 with self.assertRaises(asyncio.CancelledError):
                     await client._generate_inner("hello", foreground_request=True)
 
-        degraded.assert_not_called()
+        if acknowledged:
+            degraded.assert_not_called()
+        else:
+            self.assertEqual(client._deferred_reboot_reason, "cancelled_worker_not_acknowledged")
+            self.assertEqual(len(degraded.call_args_list), 1)
+            self.assertEqual(degraded.call_args.args[0], "generation_cancel_not_acknowledged")
         self.assertGreater(client._cancel_seq.value, 0)
 
     async def test_expected_cancelled_generation_does_not_mark_worker_unhealthy(self):
