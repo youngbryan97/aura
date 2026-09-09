@@ -162,3 +162,39 @@ def test_the_body_under_strain_becomes_a_percept_something_can_feel() -> None:
     body = affect[affect.index("emotion_map = {") : affect.index("command_impacts = {")]
     assert '"resource_pressure":' in body
     assert AffectUpdatePhase is not None
+
+
+#: The consumers that were re-deriving the percept reading and now share one.
+#: Named rather than discovered, because a heuristic over the source calls a
+#: producer writing `"type"` a reader of it and misses a reader that named its
+#: variable `p`. These four are where the defects were.
+SHARED_READING_CONSUMERS: tuple[str, ...] = (
+    "core/consciousness/workspace_feed.py",
+    "core/phases/proprioceptive_loop.py",
+    "core/subject/state.py",
+    "core/state/percepts.py",
+)
+
+
+def test_the_consumers_that_were_repaired_still_share_one_reading() -> None:
+    """Each re-derivation is another chance to ask for a key nobody writes.
+
+    The workspace priced every percept at zero from a `salience` no producer
+    writes; the perceptual frame read a `source` with the same problem; the
+    state's own reading of perception counted distinct sources that were all
+    the same unknown. All four now go through `read_percept`.
+    """
+    for relative in SHARED_READING_CONSUMERS:
+        text = (REPO / relative).read_text(errors="ignore")
+        assert "read_percept" in text, f"{relative} is deriving its own reading again"
+
+
+def test_the_shared_reading_is_the_only_place_the_defaults_live() -> None:
+    """One place decides what an absent field means, or there is no contract."""
+    from core.state.percepts import DEFAULT_INTENSITY, read_percept
+
+    seen = read_percept({})
+    assert seen.kind == "unknown"
+    assert seen.intensity == DEFAULT_INTENSITY
+    assert seen.salience == DEFAULT_INTENSITY
+    assert seen.timestamp > 0.0
