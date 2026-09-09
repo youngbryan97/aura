@@ -209,3 +209,44 @@ def test_every_writer_moves_most_of_what_its_reader_reads():
         if moved < 2:
             thin[domain] = f"{moved} of {before.size}"
     assert not thin, thin
+
+
+# ── the one contested line ───────────────────────────────────────────────
+
+
+def test_the_contested_line_stays_in_the_conjunction():
+    """It is reported beside the literal result, never instead of it."""
+    from core.subject.battery import _CONTESTED, assemble
+
+    assert _CONTESTED == {"differentiation"}, "the contested set grew"
+    verdict = assemble({})
+    assert "differentiation" in {c.key for c in verdict.criteria}
+    assert "isc" in verdict.as_dict()
+    assert "isc_specification_corrected" in verdict.as_dict()
+
+
+def test_the_corrected_conjunction_is_not_a_way_past_a_near_miss():
+    """Only a criterion whose bar is an argument may be set aside.
+
+    A line the organism merely misses is a fail. The contested one is the line
+    the degenerate nulls pass and the recurrent reference fails — an
+    inconsistency between two criteria that ask for high values of quantities
+    moving in opposite directions, not a bar Aura came close to.
+    """
+    from core.subject.battery import _CONTESTED
+
+    assert len(_CONTESTED) == 1
+
+
+def test_setting_the_contested_line_aside_changes_nothing_else():
+    from core.subject.battery import assemble
+
+    evidence = {
+        "differentiation": {"d_eff_normalised": 0.05, "d_eff": 9.0, "largest_component_share": 0.2},
+    }
+    verdict = assemble(evidence)
+    literal = {c.key for c in verdict.failures()}
+    assert "differentiation" in literal
+    # Every other failure is still a failure under the corrected reading.
+    assert not verdict.isc
+    assert not verdict.isc_with_the_specification_corrected

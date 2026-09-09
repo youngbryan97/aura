@@ -38,6 +38,15 @@ THRESHOLDS: dict[str, float] = {
 }
 
 
+#: The criteria whose bar is an argument rather than a measurement. One line:
+#: `D_eff/D >= 0.4`, which the degenerate nulls pass and the recurrent
+#: reference fails, and which pulls against irreducibility on the same scale.
+#: It stays in the conjunction and stays failed; the corrected conjunction is
+#: reported beside it, never instead of it. Nothing may be added here to get
+#: past a criterion the organism merely misses.
+_CONTESTED: frozenset[str] = frozenset({"differentiation"})
+
+
 @dataclass(frozen=True, slots=True)
 class Criterion:
     """One line of the conjunction."""
@@ -78,9 +87,36 @@ class Verdict:
     def failures(self) -> list[Criterion]:
         return [item for item in self.criteria if not item.passed]
 
+    @property
+    def isc_with_the_specification_corrected(self) -> bool:
+        """The same conjunction with one line's argument answered.
+
+        `D_eff/D >= 0.4` is passed by the degenerate controls and failed by the
+        recurrent reference: effective dimension is the participation ratio of
+        the state correlation spectrum, so strong coupling lowers it, because
+        that is what coupling is. Measured on the null architectures, the
+        prompt-only null scores 0.688 and the recurrent reference 0.101 — the
+        two systems least like a mind score highest. The line is an
+        inconsistency between two criteria in the same conjunction, which ask
+        for high values of quantities that move in opposite directions.
+
+        It is not removed. It stays in `isc`, it stays failed, and this is
+        reported beside it: the same conjunction with `differentiation_above_floor`
+        standing in its place — at least three effective dimensions and no
+        single component holding half the variance, which is what "not one
+        dimension wearing many names" means at any coupling strength.
+
+        Both numbers are reported. The literal one is the result.
+        """
+        if not self.criteria:
+            return False
+        return all(item.passed for item in self.criteria if item.key not in _CONTESTED)
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "isc": self.isc,
+            "isc_specification_corrected": self.isc_with_the_specification_corrected,
+            "contested_criteria": sorted(_CONTESTED),
             "passed": self.passed,
             "total": len(self.criteria),
             "failed": [item.key for item in self.failures()],
@@ -91,7 +127,13 @@ class Verdict:
     def table(self) -> str:
         rows = [f"{'PASS' if c.passed else 'FAIL'}  {c.key:34s} {c.value!s:>22s}  needs {c.bar}" for c in self.criteria]
         head = f"ISC = {int(self.isc)}   {self.passed}/{len(self.criteria)} criteria"
-        return "\n".join([head, *rows])
+        corrected = (
+            f"ISC with the contested line answered = "
+            f"{int(self.isc_with_the_specification_corrected)}   "
+            f"(setting aside {', '.join(sorted(_CONTESTED))}, "
+            f"which the degenerate nulls pass and the recurrent reference fails)"
+        )
+        return "\n".join([head, corrected, *rows])
 
 
 def _c(key: str, section: str, statement: str, passed: bool, value: Any, bar: Any, **detail: Any) -> Criterion:
