@@ -1,0 +1,85 @@
+{
+  "phi_table": {
+    "replay": -0.3223,
+    "time_shuffle": -0.02131,
+    "recurrent": 0.26392,
+    "star": 0.00558,
+    "hub": 0.01121,
+    "one_way": 0.03305,
+    "prompt_only": 0.00456,
+    "frozen_slow": 0.02068
+  },
+  "detail": {
+    "replay": {
+      "phi_do": -0.3223,
+      "draws": [
+        -0.3223,
+        -0.36573,
+        -70.07207
+      ],
+      "kind": "surrogate"
+    },
+    "time_shuffle": {
+      "phi_do": -0.02131,
+      "draws": [
+        -0.02458,
+        -0.02705,
+        -0.02131
+      ],
+      "kind": "surrogate"
+    },
+    "recurrent": {
+      "phi_do": 0.26392,
+      "kind": "architecture",
+      "one_component": false,
+      "vertex_connectivity": 0,
+      "reentry": false
+    },
+    "star": {
+      "phi_do": 0.00558,
+      "kind": "architecture",
+      "one_component": true,
+      "vertex_connectivity": 3,
+      "reentry": true
+    },
+    "hub": {
+      "phi_do": 0.01121,
+      "kind": "architecture",
+      "one_component": true,
+      "vertex_connectivity": 1,
+      "reentry": true
+    },
+    "one_way": {
+      "phi_do": 0.03305,
+      "kind": "architecture",
+      "one_component": false,
+      "vertex_connectivity": 0,
+      "reentry": false
+    },
+    "prompt_only": {
+      "phi_do": 0.00456,
+      "kind": "architecture",
+      "one_component": true,
+      "vertex_connectivity": 3,
+      "reentry": true
+    },
+    "frozen_slow": {
+      "phi_do": 0.02068,
+      "kind": "architecture",
+      "one_component": false,
+      "vertex_connectivity": 0,
+      "reentry": false
+    }
+  },
+  "surrogate_floor": -0.02131,
+  "phi_above_floor": 0.01424,
+  "phi_beats_all": false,
+  "all_nulls_fail": true,
+  "nulls_fail_the_bar": true,
+  "reference_architecture_passes": true,
+  "reference_recurrent_phi": 0.26392,
+  "summary": {
+    "reference_recurrent": 0.26392,
+    "worst_null": 0.03305
+  }
+}

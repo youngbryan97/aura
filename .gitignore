@@ -202,3 +202,14 @@ artifacts/reliability/runs/
 artifacts/**/features/
 artifacts/**/*.npz
 tools/appcheck/node_modules/
+
+# Subject-core runs: the reports, edge tables, campaign blocks, null draws and
+# lesion arms are the evidence and are kept. The recordings and the per-trial
+# intervention arms are five megabytes a run and are kept on disk beside them —
+# a campaign keeps its failures, and a repository is not where five hundred
+# megabytes of raw arms belong.
+artifacts/subject_core/**/intervention_arms.jsonl
+artifacts/subject_core/**/core_state.npz
+artifacts/subject_core/**/runtime/
+artifacts/subject_core/**/logs/
+artifacts/subject_core/logs/

@@ -1,0 +1,104 @@
+{
+  "frozen": {
+    "thresholds": {
+      "cycles_per_node": 2.0,
+      "d_eff_normalised": 0.4,
+      "edge_effect": 0.3,
+      "edge_q": 0.01,
+      "edge_replication": 3.0,
+      "global_access_consumers": 3.0,
+      "phi_do": 0.05,
+      "reentry_domains": 3.0,
+      "spread": 0.6,
+      "synergy_fraction": 0.1,
+      "vertex_connectivity": 2.0
+    },
+    "edge_rules": {
+      "q_max": 0.01,
+      "effect_min": 0.3,
+      "replication_min": 3,
+      "sign_flip_draws": 200000
+    },
+    "intervention": {
+      "delta": 0.15,
+      "divergence_ceiling": 10.0,
+      "trials": 6,
+      "turns_per_arm": 2,
+      "substrate_step_seconds": 0.5
+    },
+    "recording": {
+      "rounds": 60,
+      "conditions": [
+        "conversation",
+        "problem_solving",
+        "autonomy",
+        "idle",
+        "salience",
+        "stress",
+        "memory",
+        "tool_use"
+      ]
+    },
+    "estimator": {
+      "components_per_domain": 4,
+      "folds": 5
+    },
+    "nulls": {
+      "architectures": [
+        "recurrent",
+        "star",
+        "hub",
+        "one_way",
+        "prompt_only",
+        "frozen_slow"
+      ]
+    },
+    "synergy_triples": [
+      [
+        "A",
+        "S",
+        "G"
+      ],
+      [
+        "P",
+        "M",
+        "W"
+      ],
+      [
+        "W",
+        "A",
+        "D"
+      ],
+      [
+        "S",
+        "D",
+        "C"
+      ]
+    ],
+    "domains": [
+      "P",
+      "I",
+      "A",
+      "G",
+      "C",
+      "S",
+      "M",
+      "W",
+      "D",
+      "N"
+    ],
+    "schema": {
+      "width": 170,
+      "hash": "4f046f1170755c773fae1f0c41fd800d"
+    },
+    "seed": 7
+  },
+  "fingerprint": "58e895f19258a83413d7ddc6f7ddf9a8",
+  "commit": "4bfa7fbbd3ede551e462636da8550277055d9818",
+  "commit_subject": "feat(subject): three ways to act on the world, chosen by what she needs",
+  "tree_hash": "7f762b5a543f51ff58560c9ebf5f8e52",
+  "dirty": true,
+  "python": "3.12.13",
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "started_at": 1788929098.541623
+}
