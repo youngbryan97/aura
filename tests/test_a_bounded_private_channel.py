@@ -137,3 +137,41 @@ def test_the_worker_bounds_the_channel_on_both_generation_paths():
 
     source = inspect.getsource(mlx_worker)
     assert source.count("close_the_channel_after(") == 2
+
+
+# ── and the mode no longer decides where the thinking happens ────────────
+
+_A_MODEL_PATH = "Aura-Qwen3.8-27B-persona"
+
+
+def test_a_derived_answer_opens_the_channel_whatever_the_mode():
+    """`fast` resolves to no-thinking, and on a turn whose answer is worked
+    out in this call that does not buy a shorter turn — it moves the search
+    out of the private channel and into the reply.
+
+    LIVE, 2026-09-08: "Native thinking False (surface=True floor=1024
+    mode=fast)", and the visible draft began "We need answer user's question.
+    Need".
+    """
+    from core.brain.llm.chat_format import thinking_enabled_for_generation
+
+    assert thinking_enabled_for_generation(
+        _A_MODEL_PATH,
+        cognitive_mode="fast",
+        final_user_surface=True,
+        answer_is_derived_here=True,
+    ) is True
+
+
+def test_a_turn_that_only_renders_an_answer_keeps_the_channel_shut():
+    """The premise the closure rests on: the answer was settled upstream and
+    this stage renders it. Opening a second channel there makes the search
+    compete with the answer for one deadline."""
+    from core.brain.llm.chat_format import thinking_enabled_for_generation
+
+    assert thinking_enabled_for_generation(
+        _A_MODEL_PATH,
+        cognitive_mode="fast",
+        final_user_surface=True,
+        answer_is_derived_here=False,
+    ) is False

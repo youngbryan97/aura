@@ -1052,6 +1052,23 @@ def thinking_enabled_for_generation(
         model_name,
         cognitive_mode=cognitive_mode,
     )
+    if answer_is_derived_here and resolved is not True:
+        # The mode says how deep to think. It does not say WHERE.
+        #
+        # `fast` resolves to False, and on a turn whose answer is worked out
+        # in this call that does not buy a shorter turn — it moves the search
+        # out of the private channel and into the reply. LIVE, 2026-09-08:
+        # "Native thinking False (surface=True floor=1024 mode=fast)", and the
+        # visible draft began "We need answer user's question. Need", was
+        # rejected as an internal prompt leak, and the person was told the
+        # runtime could not get to an answer.
+        #
+        # Affordable to open because the channel is bounded now: it takes half
+        # of the same budget the answer is written from and the decoder closes
+        # it there (core/brain/llm/a_bounded_private_channel.py). Before that
+        # bound this branch would have been a way to spend a whole turn
+        # thinking, which is why it waited for one.
+        return True
     if answer_is_derived_here and resolved is None:
         # None means "whatever the artifact ships with", and every consumer
         # downstream reads ``native_thinking is True``. So an unresolved
