@@ -479,6 +479,11 @@ class ChatDeliveryJournal:
                     str(row[1])
                     for row in conn.execute("PRAGMA table_info(chat_deliveries)").fetchall()
                 }
+                conn.execute(
+                    "CREATE TABLE IF NOT EXISTS chat_delivery_history ("
+                    "turn_id TEXT PRIMARY KEY, capture_json TEXT NOT NULL, "
+                    "capture_hash TEXT NOT NULL)"
+                )
                 progress_columns = {
                     "progress_sequence": "INTEGER NOT NULL DEFAULT 0",
                     "progress_at": "REAL",
@@ -834,7 +839,8 @@ class ChatDeliveryJournal:
             ),
         ).rowcount
         expired = conn.execute(
-            "DELETE FROM chat_deliveries WHERE terminal_at IS NOT NULL AND terminal_at < ?",
+            "DELETE FROM chat_deliveries WHERE terminal_at IS NOT NULL AND terminal_at < ? "
+            "AND turn_id NOT IN (SELECT turn_id FROM chat_delivery_history)",
             (now - self.retention_s,),
         ).rowcount
         total = int(conn.execute("SELECT COUNT(*) FROM chat_deliveries").fetchone()[0])
@@ -846,6 +852,7 @@ class ChatDeliveryJournal:
                 DELETE FROM chat_deliveries WHERE rowid IN (
                     SELECT rowid FROM chat_deliveries
                     WHERE terminal_at IS NOT NULL
+                      AND turn_id NOT IN (SELECT turn_id FROM chat_delivery_history)
                     ORDER BY terminal_at ASC, rowid ASC LIMIT ?
                 )
                 """,
@@ -1188,6 +1195,7 @@ class ChatDeliveryJournal:
         http_status: int,
         response: dict[str, Any],
         now: float,
+        history_capture: dict[str, Any] | None = None,
     ) -> DeliveryRecord:
         if not admission.may_execute:
             raise ValueError("only an execution owner may finalize a delivery")
@@ -1198,6 +1206,7 @@ class ChatDeliveryJournal:
         if not math.isfinite(now) or now < 0:
             raise ValueError("chat delivery finalization time must be finite")
         response_json, response_hash = _canonical_response(response)
+        capture = _canonical_response(history_capture) if history_capture else None
         try:
             conn = self._connect()
             try:
@@ -1233,6 +1242,12 @@ class ChatDeliveryJournal:
                     raise ChatDeliveryFenceLost(
                         "chat delivery execution fence is no longer current"
                     )
+                if capture is not None:
+                    conn.execute(
+                        "INSERT INTO chat_delivery_history(turn_id,capture_json,capture_hash) "
+                        "VALUES(?,?,?)",
+                        (admission.record.turn_id, *capture),
+                    )
                 conn.commit()
                 return self._decode_row(row)
             except BaseException:  # noqa: BLE001 - transaction must roll back on interruption
@@ -1255,6 +1270,7 @@ class ChatDeliveryJournal:
         state: DeliveryState,
         http_status: int,
         response: dict[str, Any],
+        history_capture: dict[str, Any] | None = None,
     ) -> DeliveryRecord:
         return await asyncio.to_thread(
             self._finalize_sync,
@@ -1263,7 +1279,65 @@ class ChatDeliveryJournal:
             http_status,
             response,
             time.time(),
+            history_capture,
         )
+
+    def _pending_history_sync(self, limit: int) -> list[tuple[DeliveryRecord, dict[str, Any]]]:
+        try:
+            conn = self._connect()
+            try:
+                rows = conn.execute(
+                    "SELECT d.*,h.capture_json,h.capture_hash FROM chat_deliveries d "
+                    "JOIN chat_delivery_history h ON h.turn_id=d.turn_id "
+                    "ORDER BY d.terminal_at,d.turn_id LIMIT ?",
+                    (max(1, min(int(limit), 100)),),
+                ).fetchall()
+                pending = []
+                for row in rows:
+                    record = self._decode_row(row)
+                    raw = str(row["capture_json"])
+                    if not secrets.compare_digest(
+                        hashlib.sha256(raw.encode("utf-8")).hexdigest(), row["capture_hash"]
+                    ):
+                        raise ChatDeliveryJournalCorruption("terminal history capture hash mismatch")
+                    try:
+                        capture = json.loads(raw)
+                    except json.JSONDecodeError as exc:
+                        raise ChatDeliveryJournalCorruption("invalid terminal history JSON") from exc
+                    if not record.terminal or not isinstance(capture, dict):
+                        raise ChatDeliveryJournalCorruption("invalid terminal history capture")
+                    pending.append((record, capture))
+                return pending
+            finally:
+                conn.close()
+        except sqlite3.Error as exc:
+            self._raise_sqlite(exc)
+
+    async def pending_history(self, *, limit: int = 20) -> list[tuple[DeliveryRecord, dict[str, Any]]]:
+        """Read private transcript obligations without changing public receipts."""
+        return await asyncio.to_thread(self._pending_history_sync, limit)
+
+    def _acknowledge_history_sync(self, record: DeliveryRecord) -> None:
+        try:
+            conn = self._connect()
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                row = self._select_row(conn, record.identity)
+                current = self._decode_row(row) if row is not None else None
+                if current is None or not current.terminal or current.turn_id != record.turn_id:
+                    raise ChatDeliveryFenceLost("terminal history identity changed")
+                if current.response != record.response:
+                    raise ChatDeliveryFenceLost("terminal history response changed")
+                conn.execute("DELETE FROM chat_delivery_history WHERE turn_id=?", (record.turn_id,))
+                conn.commit()
+            finally:
+                conn.close()
+        except sqlite3.Error as exc:
+            self._raise_sqlite(exc)
+
+    async def acknowledge_history(self, record: DeliveryRecord) -> None:
+        """Retire an obligation only after its transcript commit succeeds."""
+        await asyncio.to_thread(self._acknowledge_history_sync, record)
 
     def _get_sync(self, identity: DeliveryIdentity) -> DeliveryRecord | None:
         try:

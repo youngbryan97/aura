@@ -352,6 +352,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   between materialized chunks; installed-MLX tests prove interruption and
   subsequent model reuse. Resident replay is still required. See
   [prefill stop](evidence/R09_PREFILL_STOP_2026-09-09.md).
+  UPDATE 2026-09-09, live replay: the full five-item answer and footer survived
+  reconnect. Latent cancellation still recycled its worker, and a referential
+  follow-up reached generation without the preceding answer. Crash-safe terminal
+  history recovery now has real SQLite/outbox coverage; deployment and the two
+  live failures remain. See [durable history recovery](evidence/R09_DURABLE_HISTORY_RECOVERY_2026-09-09.md).
 - [x] R10 Verify executable examples semantically, not merely process exit zero.
   Closed 2026-09-08. The code truth engine executes module-level assertions and
   doctest examples in the symbolic sandbox, demotes claims when execution is

@@ -221,6 +221,20 @@ class UnifiedTranscript:
             metadata=details,
         )
         with self._lock:
+            # Durable delivery recovery may replay either half of an exchange.
+            # A correction must use replace_aura_reply, never append a second answer.
+            exchange_id = str(details.get("exchange_id") or "").strip()
+            if exchange_id:
+                for existing in reversed(self._entries):
+                    if (
+                        existing.conversation_id == entry.conversation_id
+                        and existing.channel == channel
+                        and existing.role == role
+                        and str(existing.metadata.get("exchange_id") or "").strip() == exchange_id
+                    ):
+                        if existing.content != content:
+                            raise ValueError("transcript exchange replay changed its content")
+                        return existing
             self._entries.append(entry)
             # Prune if over max
             if len(self._entries) > self._max_history:

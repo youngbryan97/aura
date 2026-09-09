@@ -451,6 +451,7 @@ async def _finalize_chat_delivery(
     state: DeliveryState,
     status_code: int,
     payload: dict[str, Any],
+    history_capture: dict[str, Any] | None = None,
 ) -> DeliveryRecord:
     operation = get_task_tracker().create_task(
         journal.finalize(
@@ -458,6 +459,7 @@ async def _finalize_chat_delivery(
             state=state,
             http_status=status_code,
             response=payload,
+            **({"history_capture": history_capture} if history_capture else {}),
         ),
         name=f"ChatDeliveryFinalize:{admission.record.turn_id}",
     )
@@ -952,6 +954,11 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
 
         if admission.kind is AdmissionKind.REPLAY:
             try:
+                await _chat_preflight.reconcile_terminal_history(journal)
+            except _CHAT_RECOVERABLE_ERRORS as exc:
+                record_degradation("chat.terminal_transcript_recovery", exc)
+                _chat_preflight._schedule_chat_turn_memory_log(chat_origin="terminal_recovery")
+            try:
                 response = _chat_delivery_replay_response(admission.record)
                 replay_payload = dict(admission.record.response or {})
                 replay_payload["delivery_replayed"] = True
@@ -1047,7 +1054,9 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                         state=DeliveryState.AMBIGUOUS,
                         status_code=409,
                         payload=cancelled_payload,
+                        history_capture=terminal_exchanges.exchanges,
                     )
+                    _chat_preflight._schedule_chat_turn_memory_log(chat_origin="terminal_recovery")
                 except (ChatDeliveryFenceLost, ChatDeliveryJournalError) as exc:
                     logger.error(
                         "Chat cancellation could not seal its authoritative state: %s",
@@ -1245,6 +1254,7 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                     state=terminal_state,
                     status_code=response.status_code,
                     payload=payload,
+                    history_capture=terminal_exchanges.exchanges,
                 )
             except ChatDeliveryFenceLost:
                 return await _chat_delivery_fence_response(journal, admission)
@@ -1269,12 +1279,18 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
 
             _run_chat_delivery_commit_hooks(request, payload)
             try:
-                await _chat_preflight.finalize_terminal_exchanges(terminal_exchanges, payload)
+                async with _chat_preflight._TERMINAL_HISTORY_LOCK:
+                    committed = await _chat_preflight.finalize_terminal_exchanges(terminal_exchanges, payload)
+                    if committed and terminal_exchanges.exchanges:
+                        await journal.acknowledge_history(terminal_record)
+                if not committed:
+                    _chat_preflight._schedule_chat_turn_memory_log(chat_origin="terminal_recovery")
             except _CHAT_RECOVERABLE_ERRORS as exc:
                 record_degradation(
                     "chat.terminal_transcript", exc,
                     action="retained the sealed delivery journal while transcript finalization failed",
                 )
+                _chat_preflight._schedule_chat_turn_memory_log(chat_origin="terminal_recovery")
 
             response.body = response.render(payload)
             response.headers["content-length"] = str(len(response.body))
