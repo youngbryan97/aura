@@ -44,29 +44,23 @@ def test_one_runaway_does_not_close_the_channel_for_every_later_turn():
         _forget()
 
 
-def test_a_clock_with_no_time_for_the_channel_still_refuses():
+def test_a_clock_with_no_time_for_the_generation_still_refuses():
     """Not gating into a coma is not the same as never gating.
 
-    The refusal that remains is the affordable one: there has to be time to
-    decode the answer AND the channel. The budget arriving here does not hold
-    the channel yet — the answer clock adds that reserve once this says yes,
-    which is why comparing the two was a deadlock.
+    The refusal that remains is about ONE generation. The channel is a share
+    of the same budget the answer is written from and the decoder closes it
+    there (see core/brain/llm/a_bounded_private_channel.py), so there is no
+    second cost to afford — which is what made comparing the two a deadlock:
+    the clock added the reserve only once the gate said yes, and the gate said
+    no because the budget had no reserve in it.
     """
     _forget()
     try:
         for _ in range(12):
-            thinking_reserve.record_reasoning_cost(
-                reasoning_chars=4000,
-                surface_chars=400,
-                generated_tokens=1200,
-                model=_A_MODEL,
-            )
             thinking_reserve.record_decode_rate(
                 generated_tokens=100, elapsed_s=10.0, model=_A_MODEL
             )
-        costs = thinking_reserve.measured_reserve_tokens(_A_MODEL)
-        assert costs > 0, "the window should have a measurement to judge against"
-        needed = thinking_reserve.seconds_to_decode(1024 + costs, _A_MODEL)
+        needed = thinking_reserve.seconds_to_decode(1024, _A_MODEL)
         assert needed > 0.0, "the rate window should be able to price it"
         assert answer_is_derived_for_generation(
             completion_floor=512,
@@ -85,15 +79,23 @@ def test_a_clock_with_no_time_for_the_channel_still_refuses():
 
 
 def test_the_budget_is_not_asked_to_contain_a_reserve_nothing_has_added_yet():
-    """The deadlock itself: the clock adds the reserve only when this returns
-    True, and this returned False because the budget had no reserve in it."""
+    """The deadlock itself: the clock added the reserve only when this
+    returned True, and this returned False because the budget had no reserve
+    in it. Neither the standing proof nor the measured window decides it now."""
     import inspect
 
     from core.brain.llm import chat_format
 
     source = inspect.getsource(chat_format.answer_is_derived_for_generation)
     assert "budget <= floor + costs" not in source
-    assert "seconds_to_decode(budget + costs" in source
+    assert "budget + costs" not in source
+    # The code, not the note explaining what it used to do.
+    code = "\n".join(
+        line for line in source.splitlines() if not line.lstrip().startswith("#")
+    )
+    assert "proved_insufficient" not in code
+    assert "measured_reserve_tokens" not in code
+    assert "THE_CHANNEL_FITS_IN" in code
 
 
 def test_a_closed_question_never_opens_the_channel():
