@@ -40,9 +40,45 @@ across the runs with its spread.
 
 `--quick` wires everything through in about two minutes and is underpowered on
 purpose; the report says so rather than returning an empty graph. Results land
-in `artifacts/subject_core/`: the recording, the manifest, and
-`subject_core_report.json` with every criterion, its bar, its value and the
-evidence behind it.
+in `artifacts/subject_core/run_NNN/`: the recording, the manifest,
+`subject_core_report.json` with every criterion and the evidence behind it,
+`intervention_arms.jsonl` with one line per trial, `edges.csv` with every pair
+tested, and the null draws, lesion arms and campaign block beside them.
+
+## What makes two runs one campaign
+
+A result is worth nothing without the campaign around it. Two runs of the same
+command on two different heads produce numbers that look comparable and are
+not, and a threshold that can be edited between the run and the reading is not
+a threshold.
+
+Every artifact carries a **fingerprint**: one hash over everything fixed before
+the run — the twenty-four thresholds, the three edge rules, the displacement
+size and its ceiling, the trial and turn counts, the substrate step, the eight
+conditions, the estimator's components and folds, the null architectures, the
+synergy triples, the lesion length, the seed, and a hash of the state schema.
+Beside it: the commit, a hash over the measurement code and the organism it
+measures, and whether the tree was dirty.
+
+Two runs with the same fingerprint were measured the same way. Two with
+different fingerprints belong to different campaigns however similar the
+command looked, and the scorecard says so rather than averaging them. That is
+the mechanical form of the rule that any methodological change made after
+seeing a result begins a new campaign.
+
+Runs go to `run_001`, `run_002`, and never to a name that already holds a
+report. The run that did not come out well is the one a reader most needs.
+
+Three rules the fingerprint cannot enforce, kept by hand:
+
+- A threshold is never moved because Aura narrowly missed it. One line is
+  contested — see the section below — and it stays in the conjunction, stays
+  failed, and is reported as contested rather than removed.
+- A change to how something is measured is made because the old way was wrong,
+  with the argument written next to it, and it is allowed to make results worse
+  as often as better. The paired test was changed from a mean to a signed rank
+  for that reason, and the change refuses edges the mean would have certified.
+- Every failed run is kept.
 
 ## What counts as evidence
 
