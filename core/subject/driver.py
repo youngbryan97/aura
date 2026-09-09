@@ -1236,7 +1236,21 @@ class SubjectRuntime:
             self.failures["retrieve"] = self.failures.get("retrieve", 0) + 1
             logger.debug("retrieval failed: %s", exc)
 
-    def _through_the_intention_loop(self, intended: str, ok: bool, actor: str) -> None:
+    #: What she expects of each thing she can do. The intention loop compares
+    #: this against what happened, and the agency ledger keys its capability
+    #: beliefs on the name — so a hardcoded `write_notes` made every action she
+    #: ever took the same capability, and left her expecting a file to hold a
+    #: plan on the turns she was looking in a room.
+    ACTION_EXPECTATIONS: ClassVar[dict[str, str]] = {
+        "write_notes": "the file holds the plan",
+        "append_log": "the line is on the end of the log",
+        "make_room": "the room is there",
+        "read_room": "the room from last turn is there to look in",
+    }
+
+    def _through_the_intention_loop(
+        self, intended: str, ok: bool, actor: str, kind: str = "write_notes"
+    ) -> None:
         """Say, do, observe — the live agency path, for the probe's own action."""
         if actor != "self":
             # An intention is hers by construction. Recording an outside actor's
@@ -1247,19 +1261,20 @@ class SubjectRuntime:
             loop = self._intentions
             if loop is None:
                 return
+            expected = self.ACTION_EXPECTATIONS.get(kind, "the action lands")
             identifier = loop.intend(
-                intention=intended, drive="creation", expected_outcome="the file holds the plan"
+                intention=intended, drive="creation", expected_outcome=expected
             )
             loop.record_action(
                 identifier,
-                tool_name="write_notes",
+                tool_name=kind,
                 args={},
                 result="ok" if ok else "failed",
                 success=ok,
                 duration_ms=1.0,
             )
-            outcome = "the file holds the plan" if ok else "the write did not land"
-            loop.observe(identifier, observation="the file holds the plan", actual_outcome=outcome)
+            outcome = expected if ok else f"{expected} — it did not"
+            loop.observe(identifier, observation=expected, actual_outcome=outcome)
         except Exception as exc:  # noqa: BLE001 - the probe's action still stands
             logger.debug("intention loop unavailable: %s", exc)
 
@@ -1439,7 +1454,7 @@ class SubjectRuntime:
         # comparator sees the action rather than sitting at its defaults — its
         # four readings were constant for want of a caller, not for want of
         # anything to say.
-        self._through_the_intention_loop(intended, ok, actor)
+        self._through_the_intention_loop(intended, ok, actor, kind)
         record = {
             "intended": intended,
             "verified": ok,

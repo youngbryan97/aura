@@ -82,3 +82,28 @@ def test_one_of_them_can_fail_for_a_reason_that_is_hers() -> None:
     source = (Path(__file__).resolve().parents[1] / "core" / "subject" / "driver.py").read_text()
     assert "read_room" in SubjectRuntime.ACTIONS
     assert "there is no room" in source
+
+
+def test_each_kind_of_action_is_its_own_capability() -> None:
+    """`tool_name` was hardcoded, so everything she ever did was one capability.
+
+    The agency ledger keys capability beliefs on the name of what was done, and
+    the intention loop was handed `write_notes` for every action — so the
+    ledger learned one thing about her however many different things she tried,
+    and the self-state's capability column was a constant. The expected outcome
+    was hardcoded with it, which left her expecting a file to hold a plan on
+    the turns she was looking in a room.
+    """
+    assert set(SubjectRuntime.ACTION_EXPECTATIONS) == set(SubjectRuntime.ACTIONS)
+    assert len(set(SubjectRuntime.ACTION_EXPECTATIONS.values())) == len(SubjectRuntime.ACTIONS)
+
+
+def test_the_ledger_can_tell_two_capabilities_apart() -> None:
+    from core.agency.authorship import SELF, AgencyLedger, Event
+
+    ledger = AgencyLedger()
+    for _ in range(4):
+        ledger.observe(Event(what="write_notes", actor=SELF, verified=True))
+    ledger.observe(Event(what="read_room", actor=SELF, verified=False))
+    assert ledger.snapshot()["capabilities"] == 2
+    assert ledger.confidence("write_notes") > ledger.confidence("read_room")
