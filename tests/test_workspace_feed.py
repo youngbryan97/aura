@@ -86,13 +86,33 @@ def test_incoherence_bids_in_proportion_to_how_bad_it_is():
     assert meta.priority == pytest.approx(0.6)
 
 
-def test_a_body_under_load_bids_and_a_quiet_one_does_not():
+def test_a_body_under_load_bids_harder_than_a_quiet_one():
+    """At the same floor as every other bid.
+
+    This one alone was gated at a half, so the body could only speak once the
+    machine was already at fifty percent. Deciding in advance which bids are
+    worth hearing is the competition's job.
+    """
     state = AuraState.default()
     state.soma.hardware["cpu_usage"] = 95.0
-    assert any(bid.source == "interoception" for bid in build_candidates(state))
-    state.soma.hardware["cpu_usage"] = 5.0
+    loud = next(bid for bid in build_candidates(state) if bid.source == "interoception")
+    state.soma.hardware["cpu_usage"] = 20.0
     state.soma.hardware["temperature"] = 30.0
+    quiet = next(bid for bid in build_candidates(state) if bid.source == "interoception")
+    assert loud.priority > quiet.priority
+    state.soma.hardware["cpu_usage"] = 0.0
+    state.soma.hardware["temperature"] = 0.0
     assert not any(bid.source == "interoception" for bid in build_candidates(state))
+
+
+def test_her_own_exertion_can_bid_when_the_machine_is_idle():
+    """The one somatic channel an experiment can leave free."""
+    state = AuraState.default()
+    state.soma.hardware["cpu_usage"] = 0.0
+    state.soma.hardware["temperature"] = 0.0
+    state.soma.exertion = 0.4
+    bid = next(bid for bid in build_candidates(state) if bid.source == "interoception")
+    assert bid.priority == pytest.approx(0.4)
 
 
 def test_feeding_a_real_workspace_produces_a_winner_and_a_broadcast():

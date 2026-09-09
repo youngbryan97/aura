@@ -275,11 +275,18 @@ def build_candidates(state: Any) -> list[Any]:
 
     if soma is not None:
         hardware = getattr(soma, "hardware", {}) or {}
+        # Her own exertion counts, and it is the part of this reading she
+        # causes. The rest is the machine, most of whose load is not hers.
         pressure = max(
             _clamp(float(hardware.get("cpu_usage", 0.0) or 0.0) / 100.0),
             _clamp(float(hardware.get("temperature", 0.0) or 0.0) / 100.0),
+            _clamp(getattr(soma, "exertion", 0.0)),
         )
-        if pressure > 0.5:
+        # At the same floor as every other bid. This one alone was gated at a
+        # half, so the body could only speak when the machine was already at
+        # fifty percent — and deciding in advance which bids are worth hearing
+        # is the competition's job, which it is better at than a constant.
+        if pressure > FLOOR:
             bids.append(
                 CognitiveCandidate(
                     content=f"body under load {pressure:.2f}",

@@ -836,6 +836,30 @@ class SubjectRuntime:
         except Exception as exc:  # noqa: BLE001 - the probe's action still stands
             logger.debug("intention loop unavailable: %s", exc)
 
+    #: What she can do to the world, in the order the drives are read. Each is
+    #: a real filesystem change with a real reading back, and which one happens
+    #: is decided by her state rather than fixed by this harness.
+    ACTIONS: ClassVar[tuple[str, ...]] = ("write_notes", "append_log", "make_room")
+
+    def _chosen_action(self) -> str:
+        """The action her most depleted drive picks.
+
+        Not a constant and not a random draw: the budgets are part of the
+        deliberation domain, so displacing that domain changes what she does,
+        which changes what the filesystem holds, which changes what her senses
+        report back. That is the whole of the return route through the world.
+        """
+        budgets = getattr(getattr(self.state, "motivation", None), "budgets", {}) or {}
+        levels = []
+        for name in ("social", "curiosity", "creation", "rest", "energy"):
+            entry = budgets.get(name)
+            if isinstance(entry, dict):
+                levels.append((float(entry.get("level", 100.0) or 0.0), name))
+        if not levels:
+            return self.ACTIONS[0]
+        levels.sort()
+        return self.ACTIONS[hash(levels[0][1]) % len(self.ACTIONS)]
+
     def _act(self, objective: str, *, actor: str = "self") -> None:
         """The action arm of the self/world loop, and its consequence.
 
@@ -853,18 +877,46 @@ class SubjectRuntime:
         target = getattr(self, "_scratch", None)
         if target is None:
             return
-        intended = f"plan for turn {self.turn}: {objective[:80]}"
+        # Which action, chosen from her own state rather than fixed here. The
+        # completion specification asks for the reafference loop to be more
+        # than one scratch-file pathway, and for the return to be genuinely
+        # environmental: the drive that is most depleted picks what she does,
+        # the filesystem is what changes, and what comes back is read off the
+        # filesystem rather than asserted. Displacing deliberation therefore
+        # changes what the world holds, and the world is what she then sees.
+        kind = self._chosen_action()
+        intended = f"{kind} for turn {self.turn}: {objective[:80]}"
         ok = False
+        observed = ""
         try:
             from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway
 
-            path = Path(target) / "notes.txt"
+            gateway = get_file_write_gateway()
+            room = Path(target)
             with local_internal_governed_scope("subject_core.action_probe"):
-                get_file_write_gateway().write_text(
-                    path, intended, source="subject_core.action_probe"
-                )
-            ok = path.read_text() == intended
+                if kind == "append_log":
+                    path = room / "actions.log"
+                    prior = path.read_text() if path.exists() else ""
+                    gateway.write_text(
+                        path, prior + intended + "\n", source="subject_core.action_probe"
+                    )
+                    lines = path.read_text().splitlines()
+                    ok = bool(lines) and lines[-1] == intended
+                    observed = f"the log holds {len(lines)} lines"
+                elif kind == "make_room":
+                    path = room / f"room_{self.turn:04d}"
+                    gateway.ensure_directory(path, source="subject_core.action_probe")
+                    rooms = sorted(p.name for p in room.glob("room_*") if p.is_dir())
+                    ok = path.is_dir()
+                    observed = f"{len(rooms)} rooms exist"
+                else:
+                    path = room / "notes.txt"
+                    gateway.write_text(
+                        path, intended, source="subject_core.action_probe"
+                    )
+                    ok = path.read_text() == intended
+                    observed = f"notes.txt holds {len(intended)} characters"
         except OSError as exc:
             logger.debug("probe action failed: %s", exc)
         # Through the intention loop, which is the path the live runtime takes:
@@ -903,10 +955,15 @@ class SubjectRuntime:
             {
                 "id": f"act_{self.turn}",
                 "goal": intended,
+                "description": intended,
                 "origin": actor,
                 "status": "done" if ok else "failed",
+                # Priced, because a goal the workspace cannot price is a goal
+                # attention can never reach.
+                "priority": 1.0 if ok else 0.5,
             }
         )
+        self._last_observed = observed
         self.state.cognition.last_action_source = actor
 
         # And she sees what she did. The loop the specification asks for closes
@@ -918,7 +975,7 @@ class SubjectRuntime:
             self.rng,
             "goal_achieved" if ok else "error",
             "filesystem",
-            f"notes.txt {'holds' if ok else 'does not hold'} {intended[:60]}",
+            observed or f"{kind} {'took' if ok else 'did not take'}",
         )
         if len(self.state.cognition.active_goals) > 12:
             del self.state.cognition.active_goals[:-12]

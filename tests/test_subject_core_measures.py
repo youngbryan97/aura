@@ -130,9 +130,30 @@ def test_replay_and_shuffle_destroy_irreducibility():
     assert phi_do(shuffle_surrogate(recording, seed=1)).phi < intact
 
 
-def test_the_minimum_partition_is_reported_not_the_average():
+def test_the_weakest_partition_is_what_is_reported_not_the_average():
+    """The score answers for the weakest cut, never for the typical one."""
     report = phi_do(_toy("recurrent"))
-    assert report.phi == pytest.approx(min(report.scores.values()))
+    values = sorted(report.scores.values())
+    assert report.phi < sum(values) / len(values)
+    assert report.best_cut is not None
+    assert report.scores[
+        f"{''.join(report.best_cut[0])}|{''.join(report.best_cut[1])}"
+    ] == pytest.approx(min(values))
+
+
+def test_the_reported_score_is_read_off_folds_it_was_not_chosen_on():
+    """A minimum over five hundred noisy estimates is biased downward.
+
+    Roughly three standard errors of a single one, however unbiased each is —
+    and the bias runs against the system, which is punished for the width of a
+    search it did not choose. Selecting the weakest cut on some folds and
+    reading its score off the others removes it exactly, so the reported number
+    sits above the in-sample minimum rather than at it.
+    """
+    report = phi_do(_toy("recurrent"))
+    in_sample = min(report.scores.values())
+    assert "cross-fitted" in report.note
+    assert report.phi > in_sample
 
 
 # ── the graph ────────────────────────────────────────────────────────────
