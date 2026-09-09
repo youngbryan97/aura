@@ -20,10 +20,20 @@
 
     /* Mood Overrides (via JS) */
     --mood-primary: var(--primary);
+    /* The readable one, for text. `--mood-primary` is the mood's colour and
+       carries whatever contrast that mood happens to have; anything a person
+       has to READ takes this, and the darker one stays for glows and rules. */
+    --mood-primary-bright: var(--primary-bright);
     --mood-accent: var(--accent);
 
     --text: #d8d4e8;
-    --text-dim: #6a6280;
+    /* Measured against every backdrop this text actually sits on — the page,
+       the panels, the cards — and #6a6280 reached 3.02:1 where WCAG AA wants
+       4.5. Six of the interface's nine contrast failures were this one token:
+       the version chip, the runtime status, the feed's PAUSE and SLOW, its
+       backlog line, and the inactive tab icons. #8e86a4 measures 5.02 against
+       the lightest of those backdrops. */
+    --text-dim: #8e86a4;
     --success: #00ffa3;
     --warn: #ffaa00;
     --error: #ff3e5e;
@@ -309,10 +319,18 @@ header {
 }
 
 .brand-title {
+    /* An h1 now, so its user-agent margin and size have to be said here
+       rather than inherited from a span that had neither. */
+    margin: 0;
     font-family: var(--font-head);
     font-weight: 800;
     font-size: 1.15rem;
-    color: var(--mood-primary);
+    /* The brighter of the two purples the palette already holds. `--primary`
+       measures 3.5:1 on the page ground and this wordmark is 18.4px, just
+       under the 18.66px at which 3:1 would be enough; `--primary-bright`
+       measures 5.41. The glow keeps the darker one, which is what a glow is
+       for. */
+    color: var(--mood-primary-bright, var(--primary-bright));
     letter-spacing: 2px;
     text-shadow: 0 0 10px var(--mood-primary);
 }
@@ -1470,21 +1488,24 @@ main {
 .tab-pane {
     display: none;
     padding: 24px;
-    animation: paneFadeIn 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+    /* No entrance animation on the pane itself.
+       A running animation applies its first keyframe, and this one never
+       advanced: measured live 2026-09-09, `paneFadeIn` sat at `playState:
+       running, currentTime: 0` with the active pane holding
+       `matrix(0.98, 0, 0, 0.98, 0, 10)` — the whole sidebar two per cent small
+       and ten pixels low, for as long as the page was open. Every pointer
+       target inside it measured 23.52 against a 24-pixel rule for that reason
+       alone, and with the opacity keyframe it also started invisible.
+       A clock that does not tick should cost a flourish, not the pane. The
+       cards inside still animate individually, where a frozen one costs one
+       card. */
 }
 
 .tab-pane.active {
     display: block;
 }
 
-@keyframes paneFadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px) scale(0.98);
-    }
-
     to {
-        opacity: 1;
         transform: translateY(0) scale(1);
     }
 }
@@ -2015,6 +2036,15 @@ main {
     }
 
     main {
+        /* Stacked, and said in the language this element actually speaks.
+           `main` is a flex ROW, so `grid-template-columns` set nothing and the
+           two panels went on sharing the width — with the sidebar's
+           `flex: 3 1 330px` taking 338 of a 375-pixel screen and the chat
+           panel, which is the product, left with 21. Measured live 2026-09-09
+           at 375x812: `.chat-panel` at `width: 20.9px`, its composer
+           overflowing its own box by 187. The grid line stays because a later
+           layout may want it; the flex direction is what decides this one. */
+        flex-direction: column;
         grid-template-columns: 1fr;
         height: calc(100dvh - 56px);
         /* Scrolls, because both panels now stack here instead of one of them
@@ -7507,7 +7537,16 @@ body.theme-light .skill-card::before {
 .thought-tag-btn {
     background: none;
     border: none;
-    padding: 0;
+    /* Padding, not size. The chip reads as a small label and should keep
+       doing so, but `padding: 0` made the thing a person has to HIT fourteen
+       pixels tall — measured live on every card in the feed — where WCAG 2.5.5
+       and both platform guidelines want twenty-four. The vertical padding is
+       transparent, so the chip looks the same and the target is the size of
+       the gesture. */
+    padding: 5px 2px;
+    margin: -5px -2px;
+    min-height: 24px;
+    box-sizing: border-box;
     gap: 6px;
     color: color-mix(in srgb, var(--tc) 78%, var(--text));
 }
@@ -7677,7 +7716,11 @@ body.theme-light .skill-card::before {
 
 .thought-ts {
     font-size: 0.58rem;
-    color: color-mix(in srgb, var(--text-dim) 78%, transparent);
+    /* At full strength. Thinned to 78% this measured 2.57:1 — the least
+       readable text in the interface — and a timestamp nobody can read is not
+       a quieter timestamp, it is a missing one. The token above is already the
+       quiet colour. */
+    color: var(--text-dim);
 }
 
 /* ── media in the chat ─────────────────────────────────────────────────

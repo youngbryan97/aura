@@ -413,7 +413,12 @@
             <!-- The app is called Aura. Her full name lives in PRODUCT_NAME
                  (core/runtime/version.py) and in the version strings built from
                  it; the wordmark at the top of the window is the app. -->
-            <span class="brand-title">Aura</span>
+            <!-- The wordmark is the page's heading, so it is one. A document
+                 with no h1 has no title in the accessibility tree, and a
+                 screen reader landing here was told the name of the browser
+                 tab and nothing about the page. The class carries every bit of
+                 the styling, so nothing moves. -->
+            <h1 class="brand-title">Aura</h1>
             <span class="brand-ver" id="ui-ver"></span>
             <div class="brand-status" aria-live="polite">
                 <span class="brand-status-dot" id="brand-status-dot"></span>
@@ -1368,6 +1373,10 @@
     <script src="/static/error_banner.js"></script>
     <script src="/static/sound_design.js"></script>
     <script src="/static/perf_collector.js"></script>
+    <!-- Read-only. Exposes auraAccessibilityAudit() so the interface can be
+         measured against WCAG on the page a person actually sees, rather than
+         on a copy of it that may have drifted. -->
+    <script src="/static/a11y_audit.js"></script>
     <script src="/static/aura.js"></script>
     <script src="/static/voice_mode.js"></script>
 </body>

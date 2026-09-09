@@ -3372,11 +3372,64 @@ async function processThoughtQueue() {
     state.thoughtDrainTimer = setTimeout(processThoughtQueue, delay);
 }
 
+//: The page ground every mood colour is read against.
+const THE_GROUND = [5, 3, 10];
+
+//: What WCAG asks of ordinary text.
+const READABLE_AGAINST_IT = 4.5;
+
+function channelsOf(hex) {
+    const value = String(hex || '').trim().replace('#', '');
+    const full = value.length === 3 ? value.split('').map((c) => c + c).join('') : value;
+    if (!/^[0-9a-f]{6}$/i.test(full)) return null;
+    return [0, 2, 4].map((at) => parseInt(full.slice(at, at + 2), 16));
+}
+
+function relativeLuminance(channels) {
+    const linear = channels.map((v) => {
+        const c = v / 255;
+        return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+function contrastBetween(a, b) {
+    const one = relativeLuminance(a);
+    const other = relativeLuminance(b);
+    return (Math.max(one, other) + 0.05) / (Math.min(one, other) + 0.05);
+}
+
+// The same colour, light enough to read.
+//
+// A mood's colour is chosen for the mood; whether a person can read text in it
+// is a separate question with a measurable answer. `stealth` is #4a4a4a and
+// `curious` is #0077ff — 1.9:1 and 3.4:1 against the page ground, where
+// ordinary text wants 4.5 — so hand-picking a second hex per mood would be
+// five guesses that go stale the moment a sixth mood is added.
+//
+// This lightens toward white until the ratio is met, which keeps the hue and
+// cannot be wrong for a mood nobody has thought of yet.
+function readableVersionOf(hex, ground = THE_GROUND, want = READABLE_AGAINST_IT) {
+    const channels = channelsOf(hex);
+    if (!channels) return hex;
+    if (contrastBetween(channels, ground) >= want) return hex;
+    let lifted = channels;
+    for (let step = 1; step <= 20; step++) {
+        const mix = step / 20;
+        lifted = channels.map((v) => Math.round(v + (255 - v) * mix));
+        if (contrastBetween(lifted, ground) >= want) break;
+    }
+    return '#' + lifted.map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+
 function updateMood(mood) {
     if (state.currentMood === mood || !MOODS[mood]) return;
     state.currentMood = mood;
     const colors = MOODS[mood];
     document.documentElement.style.setProperty('--mood-primary', colors.primary);
+    document.documentElement.style.setProperty(
+        '--mood-primary-bright', readableVersionOf(colors.primary)
+    );
     document.documentElement.style.setProperty('--mood-accent', colors.accent);
     // Mood shift applied
 }
