@@ -77,6 +77,21 @@ async def test_liquid_substrate_loop_failure_uses_adaptive_backoff(monkeypatch, 
         thread_calls.append((_args, _kwargs))
         raise RuntimeError("integration offline")
 
+    def _the_math_step(calls) -> list:
+        """The tick this test is about, picked out of the loop's thread hops.
+
+        Counting every hop made this fail when the loop gained a legitimate
+        one: `constitutive_compute_budget_async` also goes to a thread, its
+        failure is caught and recorded on its own, and the tick continues. The
+        subject here is the backoff after the MATH step fails.
+        """
+
+        return [
+            call
+            for call in calls
+            if any("_step_torch_math" in str(arg) for arg in call[0])
+        ]
+
     async def _stop_after_backoff(delay):
         sleep_delays.append(delay)
         raise asyncio.CancelledError
@@ -92,7 +107,7 @@ async def test_liquid_substrate_loop_failure_uses_adaptive_backoff(monkeypatch, 
 
     await substrate._run_loop()
 
-    assert len(thread_calls) == 1
+    assert len(_the_math_step(thread_calls)) == 1
     assert substrate.running is False
     assert substrate._loop_failure_streak == 1
     assert sleep_delays == [1.0]
