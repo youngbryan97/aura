@@ -220,36 +220,53 @@ CONDITIONS: tuple[Condition, ...] = (
 #: `_loop_failure_streak` because it contains `_loop` — three pieces of real
 #: substrate state, dropped from every fork, and therefore three contributions
 #: to a floor that no experiment could get below. A name is not a type.
-def _is_process_furniture(value: Any) -> bool:
+#: How deep the furniture scan looks inside an object before giving up and
+#: treating it as safe. Deep enough to find a lock a service keeps behind one
+#: helper, shallow enough that the scan is bounded.
+_FURNITURE_DEPTH: int = 3
+
+
+def _furniture_types() -> tuple[type, ...]:
+    import io
+    import multiprocessing
     import socket as _socket_module
     import sqlite3
     import threading as _threading
-    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import Executor, Future
 
-    if isinstance(
-        value,
-        (
-            _threading.Event,
-            _threading.Barrier,
-            _threading.Semaphore,
-            _threading.Thread,
-            _socket_module.socket,
-            sqlite3.Connection,
-            sqlite3.Cursor,
-            asyncio.Task,
-            asyncio.Future,
-            asyncio.Event,
-            asyncio.Lock,
-            asyncio.Condition,
-            asyncio.Queue,
-            asyncio.AbstractEventLoop,
-            ThreadPoolExecutor,
-        ),
-    ):
-        return True
-    # Lock and RLock are factory functions, not classes, so they cannot be
-    # named in the tuple above.
-    if isinstance(value, type(_threading.Lock())) or isinstance(value, type(_threading.RLock())):
+    return (
+        _threading.Event,
+        _threading.Barrier,
+        _threading.Semaphore,
+        _threading.Thread,
+        type(_threading.Lock()),
+        type(_threading.RLock()),
+        _socket_module.socket,
+        sqlite3.Connection,
+        sqlite3.Cursor,
+        io.IOBase,
+        multiprocessing.process.BaseProcess,
+        asyncio.Task,
+        asyncio.Future,
+        asyncio.Event,
+        asyncio.Lock,
+        asyncio.Condition,
+        asyncio.Queue,
+        asyncio.AbstractEventLoop,
+        Executor,
+        Future,
+    )
+
+
+_FURNITURE: tuple[type, ...] = ()
+
+
+def _is_process_furniture(value: Any) -> bool:
+    """Whether this value *is* a handle. Not whether it contains one."""
+    global _FURNITURE
+    if not _FURNITURE:
+        _FURNITURE = _furniture_types()
+    if isinstance(value, _FURNITURE):
         return True
     if isinstance(value, (list, tuple, set, frozenset)) and len(value) <= 64:
         return any(_is_process_furniture(item) for item in value)
@@ -258,13 +275,58 @@ def _is_process_furniture(value: Any) -> bool:
     return False
 
 
-def _organ_state(organ: Any) -> dict[str, Any]:
+def _holds_furniture(value: Any, depth: int = 0) -> bool:
+    """Whether copying this would duplicate a handle somewhere inside it.
+
+    Different question from the one above, and the two must not be confused. A
+    value that *is* a lock has nothing to carry and is skipped. A value that
+    *holds* one — the world model's forward network keeps a stop event, the
+    self model keeps a lock beside its beliefs — has plenty to carry and must
+    be taken apart rather than skipped, which is how the network came to be
+    absent from every fork.
+
+    The scan matters because a deep copy of an open file duplicates the
+    descriptor, and collecting the copy closes the original underneath the
+    process still using it. That is not a floor in a measurement, it is a
+    broken runtime.
+    """
+    if _is_process_furniture(value):
+        return True
+    if isinstance(value, (str, bytes, int, float, bool, type(None), np.ndarray)):
+        return False
+    if depth >= _FURNITURE_DEPTH:
+        return False
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return any(_holds_furniture(item, depth + 1) for item in list(value)[:64])
+    if isinstance(value, dict):
+        return any(_holds_furniture(item, depth + 1) for item in list(value.values())[:64])
+    fields = getattr(value, "__dict__", None)
+    if isinstance(fields, dict):
+        return any(_holds_furniture(item, depth + 1) for item in list(fields.values())[:64])
+    return False
+
+
+#: How the capture marks a field it had to take apart rather than copy whole.
+_NESTED = "__nested__"
+
+#: How deep the capture goes into an organ's own objects. Two is enough to
+#: reach the world model's forward network through its wrapper, and shallow
+#: enough that a graph of references cannot turn a snapshot into a traversal.
+_ORGAN_DEPTH: int = 2
+
+
+def _organ_state(organ: Any, depth: int = 0, skip: frozenset[int] = frozenset()) -> dict[str, Any]:
     """A deep copy of the numbers an organ is carrying, and nothing else.
 
     Copied by value so that restoring one arm cannot hand the next arm a live
-    reference it then mutates. Anything that will not copy is left out and the
-    organ keeps whatever it had, which is visible as a floor the sham arms
-    cannot get below rather than as a silently shared variable.
+    reference it then mutates.
+
+    A field that will not copy is taken apart instead of dropped. The world
+    model's wrapper holds the forward network, the network holds a stop event
+    and a trainer handle, and a lock cannot be deep-copied — so the whole
+    network was silently skipped and its weights and hidden state drifted
+    across every fork. Dropping a field that will not copy is how a shared
+    variable becomes a floor that no experiment can get below.
     """
     if organ is None or not hasattr(organ, "__dict__"):
         return {}
@@ -272,10 +334,23 @@ def _organ_state(organ: Any) -> dict[str, Any]:
     for name, value in list(vars(organ).items()):
         if callable(value) or inspect.ismodule(value) or _is_process_furniture(value):
             continue
+        # Already carried under its own name. A phase holds references to
+        # services, and capturing them twice doubles the cost of every fork
+        # and writes the same values through two paths.
+        if id(value) in skip:
+            continue
+        if hasattr(value, "__dict__") and depth < _ORGAN_DEPTH and _holds_furniture(value):
+            out[name] = (_NESTED, _organ_state(value, depth + 1, skip))
+            continue
         try:
             out[name] = copy.deepcopy(value)
-        except (TypeError, ValueError, RecursionError, AttributeError):
-            continue
+        except Exception:  # noqa: BLE001 - every way a copy fails has one answer
+            # Take it apart instead. A multiprocessing queue raises RuntimeError
+            # rather than TypeError, an executor raises something else again,
+            # and enumerating the ways a copy can fail is how the world model
+            # came to be dropped from every fork.
+            if hasattr(value, "__dict__") and depth < _ORGAN_DEPTH:
+                out[name] = (_NESTED, _organ_state(value, depth + 1))
     return out
 
 
@@ -283,9 +358,12 @@ def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
     if organ is None:
         return
     for name, value in saved.items():
+        if isinstance(value, tuple) and len(value) == 2 and value[0] == _NESTED:
+            _restore_organ(getattr(organ, name, None), value[1])
+            continue
         try:
             setattr(organ, name, copy.deepcopy(value))
-        except (AttributeError, TypeError, ValueError):
+        except Exception:  # noqa: BLE001 - a field that will not be written stays
             continue
 
 
@@ -355,6 +433,129 @@ def _reanchor(runtime: SubjectRuntime, shift: float) -> None:
                 stamp = item.get("timestamp")
                 if isinstance(stamp, (int, float)) and stamp > _EPOCH_FLOOR:
                     item["timestamp"] = float(stamp) + shift
+
+
+#: Services left alone by the fork. The vault owns the run's database and the
+#: container owns the services themselves; rewinding either would break the
+#: machinery the measurement runs on rather than the state it measures.
+#: The services the fork considers at all. Everything the schema reads through
+#: an organ is already carried by name; what is left worth carrying is what
+#: those organs consult and what writes the state fields the schema reads. A
+#: hundred and ten services are built by the time the organism is up and almost
+#: all of them move during a turn, so "carry what moved" is no restriction —
+#: carrying them all costs about a second and a half each way against fifteen
+#: hundred restores in a run, which is half an hour of measuring nothing.
+_CANDIDATE_SERVICES: set[str] = {
+    "affect_grounding",
+    "drive_engine",
+    "executive_closure",
+    "goal_engine",
+    "homeostasis",
+    "homeostatic_coupling",
+    "inhibition_manager",
+    "intention_loop",
+    "memory_facade",
+    "metacognition",
+    "mind_model",
+    "motivation_engine",
+    "nociception",
+    "predictive_engine",
+    "soma_subsystem",
+    "temporal_binding",
+}
+
+_UNFORKED_SERVICES: frozenset[str] = frozenset(
+    {
+        "state_repository",
+        "vault",
+        "service_container",
+        "file_write_gateway",
+        # The mycelial topology is guarded against rebinding on purpose and is
+        # not per-arm state: it is the wiring the arms both run on. Writing to
+        # it raises, and the guard logs a critical before it does.
+        "mycelium",
+        "mycelial_network",
+    }
+)
+
+
+def _built_services() -> dict[str, Any]:
+    try:
+        from core.container import ServiceContainer
+
+        built = getattr(ServiceContainer, "_services", {}) or {}
+    except (AttributeError, ImportError):
+        return {}
+    out: dict[str, Any] = {}
+    for name in list(built):
+        try:
+            instance = built.get(name)
+        except (KeyError, RuntimeError, TypeError):
+            continue
+        instance = getattr(instance, "instance", instance)
+        if instance is not None and hasattr(instance, "__dict__"):
+            out[name] = instance
+    return out
+
+
+def _differs(left: Any, right: Any) -> bool:
+    """Whether two captures hold different numbers. Any doubt counts as yes."""
+    if left is None or right is None:
+        return left is not right
+    try:
+        return repr(left) != repr(right)
+    except Exception:  # noqa: BLE001 - unreadable is different
+        return True
+
+
+def _service_state(only: set[str] | None = None) -> dict[str, dict[str, Any]]:
+    """The mutable state of everything the container has already built."""
+    out: dict[str, dict[str, Any]] = {}
+    for name, instance in _built_services().items():
+        if name in _UNFORKED_SERVICES:
+            continue
+        if only is not None and name not in only:
+            continue
+        try:
+            captured = _organ_state(instance)
+        except Exception:  # noqa: BLE001 - a service that cannot be read is skipped
+            continue
+        if captured:
+            out[name] = captured
+    return out
+
+
+def _restore_services(saved: Mapping[str, dict[str, Any]]) -> None:
+    if not saved:
+        return
+    built = _built_services()
+    for name, fields in saved.items():
+        instance = built.get(name)
+        if instance is not None:
+            _restore_organ(instance, fields)
+
+
+def _effort_state() -> dict[str, float] | None:
+    try:
+        from core.soma.effort import get_effort_ledger
+
+        return dict(get_effort_ledger().peek())
+    except (ImportError, RuntimeError):
+        return None
+
+
+def _restore_effort(saved: dict[str, float] | None) -> None:
+    if saved is None:
+        return
+    try:
+        from core.soma.effort import get_effort_ledger
+
+        ledger = get_effort_ledger()
+        ledger.drain()
+        for kind, amount in saved.items():
+            ledger.note(kind, amount)
+    except (ImportError, RuntimeError):
+        return
 
 
 def _torch_random_state() -> Any:
@@ -460,6 +661,27 @@ class Snapshot:
     #: draw from is part of the computation.
     global_random: Any = None
     numpy_random: Any = None
+    #: Every service the container has already built, captured the same way
+    #: the organs are. The list of organs was a list of the ones already
+    #: thought of: conversation dynamics accumulates topic anchors, the self
+    #: model accumulates beliefs, and each of those left half a standard
+    #: deviation in the floor of a domain that reads it. What the fork has to
+    #: carry is everything that persists, not everything that was remembered.
+    services: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+    #: The phases' own accumulators. A phase is not stateless: it caches the
+    #: engine it talks to, and those engines are module-level singletons that
+    #: no container holds — conversation dynamics accumulates topic anchors
+    #: behind one, and that left half a standard deviation in the workspace
+    #: domain's floor with nothing in the container to carry.
+    phases: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+    #: The effort ledger's pending total. It is a process-wide singleton, and
+    #: an arm that thought harder left its exertion on the counter for the next
+    #: arm to drain — six tenths of a standard deviation of the body's newest
+    #: channel, before either arm had been displaced.
+    effort: dict[str, float] | None = None
+
     #: Wall clock when the snapshot was taken. Restoring rewinds the state but
     #: not the clock, so the second arm of a trial always sees more elapsed
     #: time than the first — the motivation phase decays every drive by
@@ -496,6 +718,11 @@ class SubjectRuntime:
     failures: dict[str, int] = field(default_factory=dict)
     failure_notes: dict[str, str] = field(default_factory=dict)
     frames_per_turn: int = 0
+    #: Which services and phases the fork carries, learned at bring-up by
+    #: living a turn and seeing what moved. None means carry everything, which
+    #: is what calibration itself runs under.
+    forked_services: set[str] | None = None
+    forked_phases: set[str] | None = None
     #: Called after every phase when a lesion is in force. See core.subject.clamp.
     after_phase: Any = None
     #: Host readings held constant for the duration of a paired trial. The body
@@ -560,6 +787,84 @@ class SubjectRuntime:
         }
         return self.frozen_host
 
+    async def calibrate_fork(self, conditions: Sequence[Condition]) -> dict[str, Any]:
+        """Find out which services and phases actually move, and carry only those.
+
+        A hundred and ten services are built by the time the organism is up and
+        almost none of them change during a turn. Capturing and restoring all
+        of them costs about a second each way, and a run makes fifteen hundred
+        restores. So the fork is calibrated rather than guessed: take a reading,
+        live a turn in each condition, take another, and carry whatever
+        differed. What never moves cannot carry a difference between two arms.
+        """
+        before_services = _service_state(_CANDIDATE_SERVICES)
+        before_phases = self._phase_state()
+        for condition in conditions:
+            await self.turn_once(condition)
+        after_services = _service_state(_CANDIDATE_SERVICES)
+        after_phases = self._phase_state()
+
+        def moved(before: dict[str, dict[str, Any]], after: dict[str, dict[str, Any]]) -> set[str]:
+            names = set(before) | set(after)
+            return {name for name in names if _differs(before.get(name), after.get(name))}
+
+        self.forked_services = moved(before_services, after_services)
+        self.forked_phases = moved(before_phases, after_phases)
+        return {
+            "services_carried": sorted(self.forked_services),
+            "services_seen": len(before_services | after_services.keys()),
+            "phases_carried": sorted(self.forked_phases),
+        }
+
+    def _phase_state(self, only: set[str] | None = None) -> dict[str, dict[str, Any]]:
+        # Everything the container already holds is carried under its own name,
+        # and the kernel is the machinery rather than the state. What is left
+        # is what a phase kept for itself — including the module-level
+        # singletons it caches, which no container knows about.
+        skip = frozenset(
+            {
+                id(self.kernel),
+                id(self),
+                *(id(obj) for obj in _built_services().values()),
+                # The organs are carried by name and are the largest objects in
+                # the process: the substrate alone holds a half-million weights,
+                # and copying it twice per fork is most of what a fork costs.
+                *(
+                    id(getattr(self.organs, field_name, None))
+                    for field_name in self.ORGAN_FIELDS
+                ),
+                # And the services the fork deliberately leaves alone. Reaching
+                # one of them through a phase is the same write the exclusion
+                # was written to prevent, and the mycelial topology logs a
+                # critical every time the guard refuses it.
+                *(
+                    id(obj)
+                    for name, obj in _built_services().items()
+                    if name in _UNFORKED_SERVICES
+                ),
+            }
+        )
+        out: dict[str, dict[str, Any]] = {}
+        for phase in getattr(self.kernel, "_phases", []) or []:
+            name = phase.__class__.__name__
+            if only is not None and name not in only:
+                continue
+            try:
+                captured = _organ_state(phase, skip=skip)
+            except Exception:  # noqa: BLE001 - a phase that cannot be read is skipped
+                continue
+            if captured:
+                out[name] = captured
+        return out
+
+    def _restore_phases(self, saved: Mapping[str, dict[str, Any]]) -> None:
+        if not saved:
+            return
+        for phase in getattr(self.kernel, "_phases", []) or []:
+            fields = saved.get(phase.__class__.__name__)
+            if fields:
+                _restore_organ(phase, fields)
+
     def _republish_body(self) -> None:
         """Tell the engine that judges the body what the body was just held at.
 
@@ -606,6 +911,9 @@ class SubjectRuntime:
             rng_state=self.rng.getstate(),
             moments=_moments_of(self.ontogeny_service),
             last_reading=getattr(self.ontogeny_service, "_last_reading", None),
+            phases=self._phase_state(self.forked_phases),
+            services=_service_state(self.forked_services),
+            effort=_effort_state(),
             taken_at=time.time(),
             global_random=random.getstate(),
             numpy_random=np.random.get_state(),
@@ -633,6 +941,9 @@ class SubjectRuntime:
         if snapshot.numpy_random is not None:
             np.random.set_state(snapshot.numpy_random)
         _restore_torch_random(snapshot.torch_random)
+        self._restore_phases(snapshot.phases)
+        _restore_services(snapshot.services)
+        _restore_effort(snapshot.effort)
         if snapshot.taken_at:
             _reanchor(self, time.time() - snapshot.taken_at)
 
@@ -1128,7 +1439,17 @@ async def start_organism(runtime: SubjectRuntime, *, quiet: bool = False) -> dic
         ontogeny=runtime.ontogeny,
     )
     runtime.organism = organism
-    return organism.summary()
+    summary = organism.summary()
+    # And learn what the fork has to carry. A hundred and ten services are
+    # built by now and almost none of them move during a turn; carrying all of
+    # them costs a second each way against fifteen hundred restores in a run.
+    try:
+        summary["fork"] = await runtime.calibrate_fork(CONDITIONS)
+    except Exception as exc:  # noqa: BLE001 - an uncalibrated fork carries everything
+        logger.warning("fork calibration failed; carrying every service: %s", exc)
+        runtime.forked_services = None
+        runtime.forked_phases = None
+    return summary
 
 
 def _build_retriever(runtime: SubjectRuntime) -> Any:

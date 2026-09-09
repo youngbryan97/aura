@@ -223,6 +223,11 @@ _DRIVES: tuple[str, ...] = ("social", "curiosity", "rest", "creation")
 #: Cognitive modes, one-hot into C.
 _MODES: tuple[str, ...] = ("reactive", "deliberate", "dreaming", "dormant")
 
+#: How many buckets a body of content is spread across. Four is enough for two
+#: recollections that share most of their words to land near each other and two
+#: that share none to land apart, and few enough not to crowd the schema.
+CONTENT_BUCKETS: int = 4
+
 _SCHEMAS: dict[str, Schema] = {
     "P": _sch(
         "P",
@@ -365,7 +370,10 @@ _SCHEMAS: dict[str, Schema] = {
             ("belief_version", "organ:self_model.version"),
             ("snapshot_count", "organ:self_model.snapshot_count"),
             ("pending_updates", "organ:self_model.pending_update_count"),
-            ("belief_digest", "organ:self_model.beliefs"),
+            *[
+                (f"belief_profile_{i}", "organ:self_model.beliefs")
+                for i in range(CONTENT_BUCKETS)
+            ],
             ("agency_acted", "organ:agency.acted"),
             ("agency_efficacy", "organ:agency.efficacy"),
             ("agency_authored_share", "organ:agency.authored_share"),
@@ -402,13 +410,19 @@ _SCHEMAS: dict[str, Schema] = {
             # and fills within a few turns, so its length is constant from then
             # on while its contents change every cycle — an active memory read
             # as a count is a domain nothing can be shown to reach.
-            ("retrieved_digest", "cognition.long_term_memory[*]"),
+            *[
+                (f"retrieved_profile_{i}", "cognition.long_term_memory[*]")
+                for i in range(CONTENT_BUCKETS)
+            ],
             # How strongly what is in mind was recalled. Retrieval ranks by
             # this and the number is what the workspace prices a recollection
             # by, so it is part of active memory's state rather than a
             # bookkeeping detail of the phase that produced it.
             ("recall_score", "cognition.memory_scores"),
-            ("working_digest", "cognition.working_memory[*]"),
+            *[
+                (f"working_profile_{i}", "cognition.working_memory[*]")
+                for i in range(CONTENT_BUCKETS)
+            ],
             ("summary_len", "cognition.rolling_summary"),
             ("ledger_load", "cognition.continuity_ledger"),
             ("thread_present", "cognition.active_thread_id"),
@@ -448,7 +462,10 @@ _SCHEMAS: dict[str, Schema] = {
         (
             ("goal_load", "cognition.active_goals"),
             ("initiative_load", "cognition.pending_initiatives"),
-            ("goal_hash", "cognition.active_goals"),
+            *[
+                (f"goal_profile_{i}", "cognition.active_goals")
+                for i in range(CONTENT_BUCKETS)
+            ],
             ("origin_is_user", "cognition.current_origin"),
             ("action_source_hash", "cognition.last_action_source"),
             *((f"drive_{name}", f"motivation.budgets.{name}") for name in _DRIVES),
@@ -533,12 +550,50 @@ def _hash_unit(text: Any) -> float:
     "these differ" — which is what a change of topic or of objective is. The
     downstream measures treat it as any other coordinate, and the honest
     reading of a moved hash feature is that the content changed.
+
+    Used only where the field is an identity: which objective, which actor.
+    Where the field is a body of content that changes a word at a time, see
+    `_content_buckets`, which is a coordinate rather than a name.
     """
     raw = str(text or "")
     if not raw:
         return 0.0
     digest = hashlib.blake2b(raw.encode("utf-8", "ignore"), digest_size=4).digest()
     return int.from_bytes(digest, "big") / float(1 << 32)
+
+
+#: How many tokens enter the profile. Bounded so a long document does not cost
+#: more to read than a short one.
+_CONTENT_TOKENS: int = 64
+
+
+def _content_buckets(text: Any, buckets: int = CONTENT_BUCKETS) -> list[float]:
+    """A body of content as a coordinate: sharing most words means being close.
+
+    These fields were one hash of the whole string. A hash has no magnitude —
+    two recollections differing by a word are as far apart as two with nothing
+    in common — and every measure downstream is a distance. So one word
+    changing in what she had in mind moved active memory's coordinate by a full
+    standard deviation, which put that whole scale into the floor two identical
+    sham arms could not get below, and out of reach of any intervention.
+
+    The profile is the share of tokens falling in each bucket. Two contents
+    sharing most of their tokens have nearly the same profile; two sharing none
+    differ by as much as the content did. Collisions merge two words into one
+    bucket, which makes the reading conservative — the safe direction for a
+    distance.
+    """
+    raw = str(text or "")
+    if not raw:
+        return [0.0] * buckets
+    tokens = raw.split() or [raw]
+    kept = tokens[:_CONTENT_TOKENS]
+    counts = [0.0] * buckets
+    for token in kept:
+        digest = hashlib.blake2b(token.encode("utf-8", "ignore"), digest_size=4).digest()
+        counts[int.from_bytes(digest, "big") % buckets] += 1.0
+    total = float(len(kept))
+    return [value / total for value in counts]
 
 
 def _percept_novelty(percepts: Any) -> float:
@@ -743,7 +798,7 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             _sat(_f(introspection.get("version")), 32.0),
             _sat(_f(introspection.get("snapshot_count")), 8.0),
             _sat(_f(introspection.get("pending_update_count")), 4.0),
-            _hash_unit(",".join(f"{k}={beliefs[k]}" for k in sorted(beliefs)[:16])),
+            *_content_buckets(" ".join(f"{k}={beliefs[k]}" for k in sorted(beliefs)[:16])),
             _sat(_f(agency.get("acted")), 16.0),
             _f(agency.get("efficacy")),
             _f(agency.get("authored_share")),
@@ -774,9 +829,9 @@ def _read_M(state: Any) -> np.ndarray:
             _sat(working, 24.0),
             _hash_unit(str(last)),
             _sat(retrieved, 8.0),
-            _hash_unit("|".join(str(item)[:120] for item in list(retrieved)[-4:])),
+            *_content_buckets(" ".join(str(item)[:240] for item in list(retrieved)[-4:])),
             max((_f(item) for item in _dig(state, "cognition.memory_scores", []) or []), default=0.0),
-            _hash_unit("|".join(str(item)[:120] for item in list(working)[-4:])),
+            *_content_buckets(" ".join(str(item)[:240] for item in list(working)[-4:])),
             _sat(str(_dig(state, "cognition.rolling_summary", "") or ""), 512.0),
             _sat(_dig(state, "cognition.continuity_ledger", {}) or {}, 8.0),
             1.0 if _dig(state, "cognition.active_thread_id") else 0.0,
@@ -837,7 +892,7 @@ def _read_D(state: Any) -> np.ndarray:
     head = [
         _sat(goals, 8.0),
         _sat(_dig(state, "cognition.pending_initiatives", []) or [], 4.0),
-        _hash_unit(str(goals[:3])),
+        *_content_buckets(" ".join(str(goal) for goal in goals[:3])),
         1.0 if str(_dig(state, "cognition.current_origin", "")).startswith("user") else 0.0,
         _hash_unit(_dig(state, "cognition.last_action_source", "")),
     ]
@@ -1266,17 +1321,21 @@ async def perturb_organs(organs: Organs, domain: str, delta: float) -> bool:
         except Exception:  # noqa: BLE001
             hit = False
     elif domain == "N":
-        # The organism keeps two developmental reservoirs: the one this battery
-        # reads, and the one the cognitive cycle actually steps through
-        # `core.ontogeny.lifetime.advance`. Novelty comes from the second, the
-        # workspace bids on novelty, and the affect phase reads it — so a
-        # displacement that moved only the first displaced the readout and not
-        # the organ, and development could not reach anything by construction.
+        # The reservoir the cognitive cycle steps, when that is not the one the
+        # state writer already moved. `start_organism` binds the two together,
+        # so in an assembled organism this is the same object and displacing it
+        # twice would double the intervention; before the organs are up they
+        # are different, and displacing only the readout would move what N
+        # reports without moving what novelty is computed from.
         try:
             from core.ontogeny.service import get_ontogeny
 
             reservoir = getattr(get_ontogeny(), "_state", None)
-            if reservoir is not None and hasattr(reservoir, "h"):
+            if (
+                reservoir is not None
+                and hasattr(reservoir, "h")
+                and reservoir is not organs.ontogeny
+            ):
                 reservoir.h = np.clip(
                     np.asarray(reservoir.h, dtype=np.float64) + delta, -1.0, 1.0
                 )
