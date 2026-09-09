@@ -160,12 +160,19 @@ CONSTRAINTS: tuple[Constraint, ...] = (
         term=Term.ELECTROPHYSIOLOGY,
         evidence="Human Patch-seq; Allen human cortical electrophysiology",
         what_it_pins="time constants, thresholds, adaptation, per cell class",
-        uses=Provenance.ENGINEERING_CHOICE,
-        where="core/consciousness/neural_mesh.py",
+        uses=Provenance.DERIVED,
+        where="core/connectome/cortical_constants.py",
         note=(
-            "One set of dynamics for all 4,096 units: dt, decay, noise and gain "
-            "are constants in MeshConfig. Human cortex is not homogeneous, and "
-            "cell-type composition tracks functional organisation."
+            "The leak is a ratio and transfers: a cortical membrane forgets its "
+            "input with a time constant of 10 ms, so one step loses dt/tau. The "
+            "STDP window and its asymmetry are Bi and Poo's, 16.8 ms against "
+            "33.7. What does NOT transfer is written down as chosen with the "
+            "reason: dt is this mesh's own 10 Hz clock over units with no "
+            "membrane, and a tanh has no measured gain."
+        ),
+        falsifier=(
+            "A derived constant disagrees with the paper it names, or a chosen "
+            "one is recorded without the reason no measurement reaches it."
         ),
     ),
     Constraint(
@@ -316,11 +323,15 @@ _MESH_STRUCTURAL: tuple[str, ...] = (
 #: The one mesh number with a measured basis, and what it is. Everything else in
 #: the list above is a choice until something moves it here.
 _MESH_MEASURED: dict[str, str] = {
-    "inhibitory_fraction": (
-        "0.20 is Dale's-law inhibitory fraction, which is close to the 15 to 25% "
-        "reported for cortex; her own source measures 3.98 excitatory cells per "
-        "inhibitory one against cortex's 4.035"
+    "inhibitory_fraction": "Potjans & Diesmann population sizes: 15,326 of 77,169",
+    "intra_column_density": (
+        "mean of the eight within-population probabilities in Potjans & "
+        "Diesmann's connection matrix"
     ),
+    "inter_column_density": (
+        "mean of the fifty-six between-population probabilities in the same matrix"
+    ),
+    "stdp_window": "Bi & Poo's potentiation time constant, 16.8 ms",
 }
 
 

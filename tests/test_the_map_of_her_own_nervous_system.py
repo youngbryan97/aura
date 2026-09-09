@@ -3068,3 +3068,84 @@ def test_the_witness_says_whether_it_has_measured_anything():
     diagnostics = witness.get_diagnostics()
     assert diagnostics["phi_measured"] is False
     assert diagnostics["phi_estimate"] == 0.0, "no history, so no reading"
+
+
+def test_the_meshs_numbers_come_from_a_paper_or_say_they_do_not():
+    """Thirteen of fourteen were choices with nothing behind them.
+
+    A number that cannot be derived is not a failing; a number that cannot be
+    derived and is not SAID to be a choice is.
+    """
+    from core.connectome.cortical_constants import (
+        MEASUREMENTS,
+        STILL_CHOSEN,
+        derived_mesh_constants,
+        provenance_report,
+    )
+
+    for one in MEASUREMENTS:
+        assert one.source and one.what_it_is
+        assert one.value > 0
+
+    derived = derived_mesh_constants()
+    for name, row in derived.items():
+        assert row["from"] and row["arithmetic"], name
+        assert isinstance(row["value"], float), name
+
+    for name, reason in STILL_CHOSEN.items():
+        assert len(reason) > 40, f"{name} is recorded as chosen with no reason"
+        assert name not in derived, f"{name} is both derived and chosen"
+
+    report = provenance_report()
+    assert report["counts"]["derived"] >= 8
+
+
+def test_the_mesh_reads_the_derived_constants_rather_than_repeating_them():
+    from core.connectome.cortical_constants import derived_mesh_constants
+    from core.consciousness.neural_mesh import MeshConfig
+
+    derived = derived_mesh_constants()
+    config = MeshConfig()
+    for field_name in (
+        "intra_column_density",
+        "inter_column_density",
+        "decay",
+        "stdp_window",
+        "stdp_depression",
+        "inhibitory_fraction",
+    ):
+        assert getattr(config, field_name) == pytest.approx(
+            derived[field_name]["value"], abs=1e-4
+        ), field_name
+    # dt is deliberately NOT the cortical step: this mesh ticks at 10 Hz over
+    # units with no membrane, and adopting a 0.25 ms step would be arithmetic
+    # dressed as fidelity.
+    assert config.dt != pytest.approx(derived["dt"]["value"])
+
+
+def test_the_measured_density_sits_closer_to_criticality_than_the_chosen_one():
+    """The reason for adopting it, run rather than asserted."""
+    from dataclasses import replace
+
+    import numpy as np
+
+    from core.connectome.criticality import branching_ratio_mr
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    def branching(config, steps=400, seed=3):
+        mesh = NeuralMesh(config)
+        rng = np.random.default_rng(seed)
+        counts = []
+        for index in range(steps):
+            if index % 40 == 0:
+                mesh.inject_sensory(rng.standard_normal(64).astype(np.float32) * 0.4)
+            mesh._tick_inner()
+            counts.append(float((np.abs(mesh.get_field_state()) > 0.1).sum()))
+        return branching_ratio_mr(np.asarray(counts))
+
+    measured = branching(MeshConfig())
+    chosen = branching(replace(MeshConfig(), intra_column_density=0.80, inter_column_density=0.05))
+    assert abs(measured.m - 1.0) < abs(chosen.m - 1.0), (
+        f"the measured density sits at {measured.m:.4f} and the chosen one at "
+        f"{chosen.m:.4f}; the reason for adopting it was that it is nearer 1.0"
+    )
