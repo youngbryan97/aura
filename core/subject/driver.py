@@ -1266,7 +1266,45 @@ class SubjectRuntime:
     #: What she can do to the world, in the order the drives are read. Each is
     #: a real filesystem change with a real reading back, and which one happens
     #: is decided by her state rather than fixed by this harness.
-    ACTIONS: ClassVar[tuple[str, ...]] = ("write_notes", "append_log", "make_room")
+    ACTIONS: ClassVar[tuple[str, ...]] = (
+        "write_notes",
+        "append_log",
+        "make_room",
+        "read_room",
+    )
+
+    #: Which action each drive reaches for. Written out rather than hashed:
+    #: `hash()` on a string is salted per process, so the drive that picked
+    #: `make_room` in one run picked `read_room` in the next and two runs of the
+    #: battery were not comparable in what she actually did. And a mapping by
+    #: what the need is for is a reading, where a hash is a coin.
+    DRIVE_ACTIONS: ClassVar[dict[str, str]] = {
+        "growth": "make_room",
+        "curiosity": "read_room",
+        "social": "write_notes",
+        "integrity": "append_log",
+        "energy": "append_log",
+    }
+
+    #: And what she does when she is attending to something. The broadcast
+    #: winner decides before the drives do, because that is the claim global
+    #: workspace theory makes — what wins the competition reaches the
+    #: specialised process, and acting is one. It also varies from turn to
+    #: turn, where the drives move over days: an action chosen by a standing
+    #: budget is the same action every time, and an outcome that is the same
+    #: every time cannot teach her anything about what she can do.
+    ATTENTION_ACTIONS: ClassVar[dict[str, str]] = {
+        "perception": "read_room",
+        "world_model": "read_room",
+        "ontogeny": "read_room",
+        "memory": "append_log",
+        "metacognition": "append_log",
+        "interoception": "append_log",
+        "exchange": "write_notes",
+        "self": "write_notes",
+        "deliberation": "make_room",
+        "substrate": "make_room",
+    }
 
     def _intends_to_act(self) -> bool:
         """Whether anything she is holding is urgent enough to do something about.
@@ -1291,23 +1329,35 @@ class SubjectRuntime:
         return False
 
     def _chosen_action(self) -> str:
-        """The action her most depleted drive picks.
+        """What she does, decided by what she is attending to.
 
         Not a constant and not a random draw: the budgets are part of the
         deliberation domain, so displacing that domain changes what she does,
         which changes what the filesystem holds, which changes what her senses
         report back. That is the whole of the return route through the world.
         """
+        attending = str(getattr(self.state.cognition, "attention_focus", "") or "")
+        source = attending.split(":", 1)[0].strip()
+        if source.startswith("affect_"):
+            source = "self"
+        chosen = self.ATTENTION_ACTIONS.get(source)
+        if chosen:
+            return chosen
         budgets = getattr(getattr(self.state, "motivation", None), "budgets", {}) or {}
         levels = []
-        for name in ("social", "curiosity", "creation", "rest", "energy"):
+        # Every budget the state carries, read from the state. This listed
+        # `creation` and `rest`, which no budget has ever been called, and
+        # omitted `growth` and `integrity`, which are two of the five that
+        # exist — so the drive that is most depleted on almost every tick was
+        # not among the ones considered.
+        for name in sorted(budgets):
             entry = budgets.get(name)
             if isinstance(entry, dict):
                 levels.append((float(entry.get("level", 100.0) or 0.0), name))
         if not levels:
             return self.ACTIONS[0]
         levels.sort()
-        return self.ACTIONS[hash(levels[0][1]) % len(self.ACTIONS)]
+        return self.DRIVE_ACTIONS.get(levels[0][1], self.ACTIONS[0])
 
     def _act(self, objective: str, *, actor: str = "self") -> None:
         """The action arm of the self/world loop, and its consequence.
@@ -1359,6 +1409,21 @@ class SubjectRuntime:
                     rooms = sorted(p.name for p in room.glob("room_*") if p.is_dir())
                     ok = path.is_dir()
                     observed = f"{len(rooms)} rooms exist"
+                elif kind == "read_room":
+                    # The one that can fail, and fails for a reason that is
+                    # hers: the room for a turn exists only if she chose to
+                    # make one then. An action repertoire in which nothing can
+                    # fail cannot teach efficacy — every attempt succeeded, so
+                    # the ledger's efficacy and authored share sat at one for
+                    # the whole of every run and the self-state read two
+                    # constants where two of its liveliest columns should be.
+                    path = room / f"room_{max(0, self.turn - 1):04d}"
+                    ok = path.is_dir()
+                    observed = (
+                        f"room {path.name} holds {len(list(path.iterdir()))} things"
+                        if ok
+                        else f"there is no room {path.name}"
+                    )
                 else:
                     path = room / "notes.txt"
                     gateway.write_text(
