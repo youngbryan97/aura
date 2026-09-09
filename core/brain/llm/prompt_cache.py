@@ -721,20 +721,28 @@ class PromptCacheLRU:
         # twice, on consecutive turns of one conversation — with 1,812 tokens
         # retained from the turn before.
         held = ""
-        if describe is not None and matched == 0 and self._cache.get(model_key):
+        if matched == 0:
+            root = self._cache.get(model_key) or {}
             try:
                 head: list[int] = []
-                node = self._cache[model_key]
-                while node and len(head) < 24:
-                    token = next(iter(node))
-                    if token == "cache":
+                node = root
+                while len(head) < 24:
+                    branches = [token for token in node if token != "cache"]
+                    if not branches:
                         break
+                    token = branches[0]
                     head.append(token)
                     node = node[token]
-                if head:
+                if not head:
+                    held = f"<{len(root)} branch(es), none walkable>"
+                elif describe is None:
+                    held = f"<{len(head)} tokens, no decoder>"
+                else:
                     held = describe(head)
-            except (AttributeError, KeyError, RuntimeError, StopIteration, TypeError, ValueError):
-                held = "<undecodable>"
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+                held = f"<unreadable: {type(exc).__name__}>"
+            if not held:
+                held = "<nothing stored under this key>"
         logger.info(
             "🧊 [PROMPT CACHE] miss — prefilling all %d tokens; key=%s known_keys=%d "
             "matched %d (%.1f%%) before diverging%s",
