@@ -1387,25 +1387,60 @@ function formatFlagLabel(flag) {
         .replace(/\b\w/g, ch => ch.toUpperCase());
 }
 
+// What each flag means, and whether it is about the software or about her.
+//
+// These are two different facts and they were one list. `beliefs_contested`
+// means her belief system is holding a contradiction it has not settled —
+// which is a system that revises beliefs doing its job — and it put the whole
+// interface into the amber state reserved for a runtime that is unwell.
+// Measured live 2026-09-09: one contested belief, an amber ring on the status
+// dot and amber borders across three panels, with the runtime healthy and
+// answering.
+//
+// `kind: 'impairment'` is something that stops her working. `kind: 'weather'`
+// is her inner state, which belongs in the feed's language rather than in a
+// warning colour. The label is a sentence, because "Beliefs Contested" is an
+// identifier with a space in it and tells a visitor nothing.
+const THE_FLAGS = {
+    booting: { kind: 'starting', says: 'Starting up.' },
+    thermal_guard: { kind: 'impairment', says: 'Running slower to keep the machine cool.' },
+    tool_unavailable: { kind: 'impairment', says: 'One of her tools is unavailable.' },
+    // Busy, not broken. This is the queue doing what a queue is for, and it
+    // is true for most of every turn — as an impairment it would leave the
+    // chrome amber almost permanently, which is how a warning colour stops
+    // meaning anything.
+    executive_hold: { kind: 'busy', says: 'Holding new work until the current turn finishes.' },
+    coherence_low: { kind: 'weather', says: 'Her parts agree less than usual right now.' },
+    fragmentation_high: { kind: 'weather', says: 'Her attention is spread across a lot at once.' },
+    contradictions_present: { kind: 'weather', says: 'She is holding beliefs that disagree.' },
+    beliefs_contested: { kind: 'weather', says: 'She is reconsidering something she believed.' },
+};
+
+function theFlag(flag) {
+    return THE_FLAGS[flag] || { kind: 'weather', says: formatFlagLabel(flag) };
+}
+
 function renderStatusFlags(flags) {
     state.uiFlags = Array.isArray(flags) ? flags.slice() : [];
     const host = $('health-flags');
     document.body.classList.toggle('ui-booting', state.uiFlags.includes('booting'));
-    document.body.classList.toggle('ui-degraded', state.uiFlags.some(flag =>
-        ['thermal_guard', 'coherence_low', 'fragmentation_high', 'contradictions_present', 'beliefs_contested', 'tool_unavailable', 'executive_hold'].includes(flag)
+    document.body.classList.toggle('ui-degraded', state.uiFlags.some(
+        (flag) => theFlag(flag).kind === 'impairment'
     ));
     if (!host) return;
     if (!state.uiFlags.length) {
-        host.innerHTML = '<span class="flag-chip success">all constitutional systems nominal</span>';
+        host.innerHTML = '<span class="flag-chip success">Everything is working.</span>';
         return;
     }
-    host.innerHTML = state.uiFlags.map(flag => {
+    host.innerHTML = state.uiFlags.map((flag) => {
+        const known = theFlag(flag);
         const tone =
-            flag === 'booting' ? 'warn' :
-            ['tool_unavailable', 'executive_hold'].includes(flag) ? 'accent' :
-            ['thermal_guard', 'coherence_low', 'fragmentation_high', 'contradictions_present', 'beliefs_contested'].includes(flag) ? 'error' :
-            'neutral';
-        return `<span class="flag-chip ${tone}">${escHtml(formatFlagLabel(flag))}</span>`;
+            known.kind === 'starting' ? 'warn'
+            : known.kind === 'impairment' ? 'error'
+            : known.kind === 'busy' ? 'accent'
+            : 'neutral';
+        return `<span class="flag-chip ${tone}" title="${escHtml(flag)}">`
+            + `${escHtml(known.says)}</span>`;
     }).join('');
 }
 

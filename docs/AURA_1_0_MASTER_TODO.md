@@ -646,8 +646,32 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   - **Three pages had no way in**: the first-run wizard, the drawings surface
     and the diagnostics page. Linked, and the wizard's settings writes fixed
     — 71dbf1342.
-  Still open: responsive layout, accessibility certification, truthful
-  progress, and the rest of the polish pass.
+  - **Accessibility and responsive layout were opinions; they are measurements
+    now.** `interface/static/a11y_audit.js` loads with the page and checks
+    contrast against every backdrop the text actually sits on, accessible
+    names, pointer target sizes, heading structure, document language and
+    image alternatives — reporting what it CHECKED as well as what it found.
+    Two earlier versions of it were wrong in the direction that reads as
+    success: one parsed only `rgb()` while the browser reports `color(srgb
+    ...)`, so 341 of 406 nodes looked broken; the next refused to judge
+    anything under a gradient, and the page ground is a gradient, so it
+    measured zero of 291.
+
+    Four things it found. Six of nine contrast failures were one token —
+    `--text-dim` at 3.02:1 where text wants 4.5 — and the feed's timestamps
+    thinned it further to 2.57, the least readable text in the interface. The
+    active pane was invisible and two per cent small, because an entrance
+    animation from `opacity: 0` and `scale(0.98)` never advanced and a running
+    animation holds its first keyframe: thirty-five neural cards laid out at
+    full size and unreadable, and every pointer target in the pane measuring
+    23.52 against a 24-pixel rule for that reason alone. The chat panel was
+    twenty-one pixels wide on a phone, because the narrow-width block sets
+    `grid-template-columns` on an element that is a flex ROW. And the page had
+    no `h1`, so nothing named it in the accessibility tree.
+
+    Zero failures at 1440x900, 1024x768 and 375x812, with no horizontal
+    overflow at any of them.
+  Still open: truthful progress, and the rest of the polish pass.
 
 ## 5. Reliability, security, and release
 
