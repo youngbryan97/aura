@@ -450,10 +450,37 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   reused, and no entry is stored at the stable boundary because the KV for that
   boundary is a mid-prefill state nobody keeps.
 
-  So the next step is named and small: snapshot the prompt cache at the last
-  stable boundary during prefill and insert it as its own entry. Then the
-  following turn takes the strict-prefix path for the 92.7% already matching,
-  and this item closes on a measurement rather than an argument.
+  The snapshot is built: the cache remembers where its last search for a key
+  ran out of trie, and the next prefill for that key takes one copy on the way
+  past that point, rounded down to a chunk boundary. A prefix needs no trim.
+
+  Three more things stood between a conversation and its own prefix, each found
+  by making the miss line say more than it did.
+
+  The readiness probe wiped the whole scope between turns. It asked for
+  `clear_prompt_cache` alongside `disable_prompt_cache`; the first means "wipe
+  the model+scope trie" and the second means "this request neither reads nor
+  writes", and only the second is what a twenty-character probe needs. Every
+  caller that asks to clear also asks to disable, so the wipe was redundant at
+  the caller and destructive for everyone else — fixed once where the flag is
+  consumed rather than nine times at the callers.
+
+  The cache was keyed on `id(model)`. That is an address: it changes when the
+  object is rebuilt and CPython reuses it after a collection. Live, one process
+  and one resident model produced `key=(5090059008, 'default')` and
+  `key=(5091808816, 'user_surface')`. It is keyed on the checkpoint's name now.
+
+  And the miss line could not say what the STORED prompts began with, only how
+  far the new one reached — so `matched 0` against an entry retained a moment
+  earlier was undiagnosable. It now names the tokens it found, or says the key
+  holds nothing, and carries the cache object's identity, which is what
+  separated the brainstem's cache from the resident model's in the logs above.
+
+  What is not yet measured end to end: a second turn that shares a prefix with
+  the first. Two consecutive short questions produced only ONE resident
+  generation — the second was served by a lighter lane — so the run proved the
+  fixes and not the reuse. The measurement needs turns that each force a
+  resident generation, and that is what remains here.
 
 ## 2. General RLC reasoning: the scientific critical path
 
