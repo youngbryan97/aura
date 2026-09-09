@@ -267,16 +267,26 @@ def test_a_surprising_world_bids_at_its_own_prediction_error():
         def surprise(self):
             return self.value
 
+    # With no running mean to compare against, any surprise is all of the
+    # surprise there is.
     ServiceContainer.register_instance("unified_world_model", _Model(0.63))
     bid = next(b for b in build_candidates(AuraState.default()) if b.source == "world_model")
-    assert bid.priority == pytest.approx(math.tanh(0.63))
+    assert bid.priority == pytest.approx(1.0)
 
-    # And two surprises past one are still told apart.
-    ServiceContainer.register_instance("unified_world_model", _Model(1.5))
+    # Against a model whose ordinary error is three, two surprises past one are
+    # still told apart — which a clip at one, or a squash flat past two and a
+    # half, could not do.
+    class _Settled(_Model):
+        def status(self):
+            return {"facets": {"learned": {"detail": {"mean_surprise": 3.0}}}}
+
+    ServiceContainer.register_instance("unified_world_model", _Settled(1.5))
     milder = next(b for b in build_candidates(AuraState.default()) if b.source == "world_model")
-    ServiceContainer.register_instance("unified_world_model", _Model(4.0))
+    ServiceContainer.register_instance("unified_world_model", _Settled(6.0))
     worse = next(b for b in build_candidates(AuraState.default()) if b.source == "world_model")
     assert worse.priority > milder.priority
+    assert milder.priority < 0.5 < worse.priority
+    del math
 
 
 def test_a_world_that_behaved_as_predicted_does_not_bid():

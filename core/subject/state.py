@@ -858,6 +858,21 @@ def _read_M(state: Any) -> np.ndarray:
     )
 
 
+def _surprise_ratio(current: Any, typical: Any) -> float:
+    """Surprise against its own running mean, in [0, 1). Half is unremarkable.
+
+    Scale-free on purpose: what matters about a prediction error is whether it
+    is larger than this model's errors usually are, and that reading stays
+    sensitive wherever the model's absolute error happens to sit.
+    """
+    now = max(0.0, _f(current))
+    usual = max(0.0, _f(typical))
+    total = now + usual
+    if total <= 1e-9:
+        return 0.0
+    return now / total
+
+
 def _read_W(state: Any, organs: Organs) -> np.ndarray:
     facts = _dig(state, "world.facts", {}) or {}
     status = _call(organs.world_model, "status", {}) or {}
@@ -874,7 +889,14 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
             _hash_unit(",".join(sorted(str(k) for k in facts)[:32])),
             _sat(_dig(state, "cold.concept_graph", {}) or {}, 32.0),
             _hash_unit(_dig(state, "cognition.user_emotional_trend", "neutral")),
-            math.tanh(_f(surprise)) if surprise is not None else 0.0,
+            # How surprising this moment is relative to how surprising things
+            # usually are, rather than the raw error squashed. Prediction error
+            # is unbounded above and `tanh` is flat past about two and a half,
+            # so a model whose ordinary error sits at three read 0.995 on every
+            # turn and the column was a constant — which is why displacing the
+            # world model moved the world model by two hundredths of a standard
+            # deviation while reaching three other domains.
+            _surprise_ratio(surprise, learned.get("mean_surprise")),
             # In the schema's order. Nine of these seventeen were one place out
             # from `model_hidden_norm` onward: the values were all real and all
             # attached to the wrong names, so every reading of this domain

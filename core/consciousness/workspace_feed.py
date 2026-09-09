@@ -51,6 +51,20 @@ def _clamp(value: Any, default: float = 0.0) -> float:
     return max(0.0, min(1.0, out))
 
 
+def _surprise_ratio(model: Any, surprise: Any) -> float:
+    """How surprising this moment is against how surprising they usually are."""
+    typical = 0.0
+    try:
+        status = model.status() if hasattr(model, "status") else {}
+        detail = ((status or {}).get("facets", {}).get("learned", {}) or {}).get("detail", {}) or {}
+        typical = max(0.0, float(detail.get("mean_surprise", 0.0) or 0.0))
+    except (AttributeError, TypeError, ValueError):
+        typical = 0.0
+    now = max(0.0, float(surprise or 0.0))
+    total = now + typical
+    return 0.0 if total <= 1e-9 else now / total
+
+
 def _intention_text(item: Any) -> str:
     """What this goal or initiative is, however the producer spelled it."""
     if not isinstance(item, dict):
@@ -327,11 +341,14 @@ def build_candidates(state: Any) -> list[Any]:
         model = ServiceContainer.get("unified_world_model", default=None)
         surprise = model.surprise() if model is not None else None
         if surprise is not None:
-            # Squashed, not clipped. Prediction error is unbounded above and a
-            # clip turns every surprise past one into the same maximum — so
-            # this bid sat at its ceiling on every turn and stopped being a
-            # reading of anything. The state schema already reads it this way.
-            level = _clamp(math.tanh(max(0.0, float(surprise))))
+            # Against the model's own running mean, not squashed and not
+            # clipped. Prediction error is unbounded above, so a clip turned
+            # every surprise past one into the same maximum and a squash went
+            # flat not far after that — either way this bid sat at its ceiling
+            # on every turn and stopped being a reading of anything. What
+            # matters is whether the moment is more surprising than this
+            # model's moments usually are.
+            level = _clamp(_surprise_ratio(model, surprise))
             if level > FLOOR:
                 bids.append(
                     CognitiveCandidate(
