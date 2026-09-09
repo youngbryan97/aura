@@ -73,11 +73,21 @@ def _is_clock(value: float) -> bool:
     return abs(value) >= EPOCH_FLOOR
 
 
-def _numbers(obj: Any, prefix: str, out: dict[str, float], depth: int = 0) -> None:
+def _numbers(
+    obj: Any,
+    prefix: str,
+    out: dict[str, float],
+    depth: int = 0,
+    skip: Any = frozenset(),
+) -> None:
     if len(out) >= MAX_PERIPHERY or depth > MAX_DEPTH:
         return
     for name in sorted(vars(obj)) if hasattr(obj, "__dict__") else ():
         if name.startswith("__") or len(out) >= MAX_PERIPHERY:
+            continue
+        # Not what the core's own schema already reads here. That number is
+        # part of K, and K predicting K is not a leak.
+        if name in skip or name.lstrip("_") in skip:
             continue
         value = getattr(obj, name, None)
         if isinstance(value, bool):
@@ -105,6 +115,53 @@ def _one_way(values: np.ndarray) -> np.ndarray:
     return ((up >= 0.99) | (down >= 0.99)) & (counts >= 4)
 
 
+def _core_attributes() -> dict[str, set[str]]:
+    """Which attribute of which organ the core's own schema already reads.
+
+    The periphery is the machine minus the core. Without this it was the
+    machine including the core: the walk goes through `kernel.organs` and every
+    container service, and the workspace, the substrate, the self model and the
+    world model *are* the core's organs. Their ignition level is G, their
+    valence is C, their beliefs are S. A copy of the core predicting the core is
+    not a leak, it is the same number twice, and a closure test run against a
+    set that contains what it is testing can only ever say no.
+    """
+    from core.subject.state import _SCHEMAS
+
+    out: dict[str, set[str]] = {}
+    for schema in _SCHEMAS.values():
+        for source in schema.sources:
+            if not source.startswith("organ:"):
+                continue
+            path = source[len("organ:") :]
+            organ, _, attribute = path.partition(".")
+            if organ and attribute:
+                out.setdefault(organ, set()).add(attribute.split(".")[0])
+    return out
+
+
+#: Container and organ names that hold one of the core's organs, by the organ
+#: key the schema uses for it. The same object reaches the walk under several
+#: names, and the core's own readings have to be excluded under all of them.
+_ORGAN_ALIASES: dict[str, str] = {
+    "workspace": "workspace",
+    "global_workspace": "workspace",
+    "substrate": "substrate",
+    "conscious_substrate": "substrate",
+    "liquid_substrate": "substrate",
+    "liquid_state": "substrate",
+    "self_model": "self_model",
+    "world_model": "world_model",
+    "unified_world_model": "world_model",
+    "free_energy": "free_energy",
+    "free_energy_engine": "free_energy",
+    "self_prediction": "self_prediction",
+    "agency": "agency",
+    "comparator": "comparator",
+    "ontogeny": "ontogeny",
+}
+
+
 def read_periphery(kernel: Any) -> dict[str, float]:
     """Every number the machine is carrying that is not part of K.
 
@@ -117,13 +174,20 @@ def read_periphery(kernel: Any) -> dict[str, float]:
     list of the ones already thought of, and the point is the one that was not.
     """
     out: dict[str, float] = {}
+    core = _core_attributes()
     _numbers(kernel, "kernel", out, depth=1)
     for phase in getattr(kernel, "_phases", []):
         _numbers(phase, phase.__class__.__name__, out)
     organs = getattr(kernel, "organs", None)
     if isinstance(organs, dict):
         for name, organ in organs.items():
-            _numbers(organ, f"organ.{name}", out, depth=1)
+            _numbers(
+                organ,
+                f"organ.{name}",
+                out,
+                depth=1,
+                skip=core.get(_ORGAN_ALIASES.get(name, name), frozenset()),
+            )
     # And every service the container has already built. That is where the
     # hidden state would be if there were any: a phase mostly holds references,
     # a service holds what it has accumulated.
@@ -134,7 +198,13 @@ def read_periphery(kernel: Any) -> dict[str, float]:
         for name in sorted(built):
             if len(out) >= MAX_PERIPHERY:
                 break
-            _numbers(built.get(name), f"service.{name}", out, depth=1)
+            _numbers(
+                built.get(name),
+                f"service.{name}",
+                out,
+                depth=1,
+                skip=core.get(_ORGAN_ALIASES.get(name, name), frozenset()),
+            )
     except (AttributeError, ImportError, LookupError, RuntimeError, TypeError, ValueError):
         # An absent container is an absent periphery. Named rather than bare:
         # every way this can fail is the container not being importable, not
