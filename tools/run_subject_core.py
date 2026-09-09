@@ -155,7 +155,11 @@ async def main() -> int:
     evidence: dict[str, Any] = {
         "notes": {},
         "campaign": campaign(
-            seed=args.seed, rounds=args.rounds, trials=args.trials, turns=args.turns
+            seed=args.seed,
+            rounds=args.rounds,
+            trials=args.trials,
+            turns=args.turns,
+            lesion_rounds=0 if args.skip_lesion else args.lesion_rounds,
         ),
     }
     _log(

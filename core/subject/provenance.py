@@ -90,7 +90,9 @@ def fingerprint(frozen: dict[str, Any]) -> str:
     return hashlib.blake2b(blob.encode(), digest_size=16).hexdigest()
 
 
-def campaign(*, seed: int, rounds: int, trials: int, turns: int) -> dict[str, Any]:
+def campaign(
+    *, seed: int, rounds: int, trials: int, turns: int, lesion_rounds: int = 0
+) -> dict[str, Any]:
     """Everything a second run would have to match to be the same measurement."""
     from core.subject.battery import THRESHOLDS
     from core.subject.causal import (
@@ -124,6 +126,10 @@ def campaign(*, seed: int, rounds: int, trials: int, turns: int) -> dict[str, An
             "substrate_step_seconds": SUBSTRATE_STEP_SECONDS,
         },
         "recording": {"rounds": rounds, "conditions": [c.name for c in CONDITIONS]},
+        # How long the lesion and rescue arms live. It changes what those two
+        # criteria are measured on, so it belongs in the fingerprint with
+        # everything else that does.
+        "lesion": {"rounds": lesion_rounds},
         "estimator": {"components_per_domain": COMPONENTS, "folds": FOLDS},
         "nulls": {"architectures": list(ARCHITECTURES)},
         "synergy_triples": [list(t) for t in TRIPLES],
