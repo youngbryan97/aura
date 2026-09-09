@@ -144,7 +144,25 @@ register_contract(
         # that is what a phase called "consciousness" ought to consult —
         # which is precisely the failure the contract layer exists to stop.
         reads=(),
-        writes=("cognition.phenomenal_state", "transition_cause"),
+        # And what `feed_workspace` writes through this phase.
+        #
+        # A contract names what the phase DOES, not what it types out. This
+        # phase calls `feed_workspace`, and when a broadcast ignites that sets
+        # `cognition.attention_focus` and appends the winning content to
+        # `cognition.long_term_memory` — writes that reach the context
+        # assembler and the unity monitor, made on this phase's behalf and
+        # declared by nobody.
+        #
+        # LIVE, 2026-09-09, every boot: `ConsciousnessPhase wrote undeclared
+        # state fields: cognition.long_term_memory → recorded contract
+        # violation and continued the tick`. The contract was right and the
+        # declaration was short.
+        writes=(
+            "cognition.phenomenal_state",
+            "cognition.attention_focus",
+            "cognition.long_term_memory",
+            "transition_cause",
+        ),
         preconditions=("state carries a cognition block",),
         branches=(
             BranchSpec(

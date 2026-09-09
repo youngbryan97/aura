@@ -6801,10 +6801,18 @@
       "scope": "<module>.write_text"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "callee": "<file_write_gateway>.ensure_directory",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
+      "path": "core/subject/driver.py",
+      "scope": "<module>.SubjectRuntime._act"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 2,
       "path": "core/subject/driver.py",
       "scope": "<module>.SubjectRuntime._act"
     },
@@ -16434,6 +16442,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "8d7d2f77619956776b32681ea477ff45e227e266af853f99a3dd5315dbd5fc34",
+  "inventory_sha256": "1191fad05eefc0db43e139ae128376275b8a392648baf3d7c8dd4b30db9a8fc8",
   "schema_version": 1
 }

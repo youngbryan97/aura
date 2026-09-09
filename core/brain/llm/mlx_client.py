@@ -3761,6 +3761,13 @@ def _origin_is_user_facing(origin: str | None) -> bool:
     return _normalized_origin(origin) in _USER_FACING_ORIGINS
 
 
+class _WarmupDeferredError(RuntimeError):
+    """The runtime chose not to spawn a worker, so there was nothing to warm.
+
+    A refusal, not a fault. It carries the reason the runtime gave.
+    """
+
+
 def _background_deferral_active(origin: str | None = None) -> str | None:
     """Mirror InferenceGate's background quiet policy inside the MLX client.
 
@@ -17295,6 +17302,28 @@ class MLXLocalClient:
                     timeout=remaining,
                 )
                 if warmup_text is None and not self.is_alive():
+                    # A worker that was never started is not a worker that
+                    # died.
+                    #
+                    # `_generate_inner` returns None and logs "stopped before
+                    # worker spawn" when a background deferral is in force —
+                    # the runtime deciding, on purpose, not to spawn a 27B
+                    # while the cortex is starting. The warm-up then found no
+                    # worker alive and called it dead: a degradation at
+                    # warning, a MARGINAL fault record, and a resilience hit
+                    # of frustration 0.13 and depletion 0.05, every boot, for
+                    # the runtime doing exactly what it meant to do.
+                    #
+                    # LIVE, 2026-09-09, three lines apart: `Background
+                    # generation for Aura-Qwen3.8-27B stopped before worker
+                    # spawn (cortex_startup_quiet)` then `FAULT
+                    # RUNTIME-MLX_CLIENT [MARGINAL] ...
+                    # warmup_precompile_worker_dead`.
+                    deferral = _background_deferral_active(
+                        owner_name or os.path.basename(self.model_path)
+                    )
+                    if deferral:
+                        raise _WarmupDeferredError(str(deferral))
                     raise RuntimeError("warmup_precompile_worker_dead")
                 # CP126 cdd743de + b6439433. A nonempty token from a
                 # max_tokens=1 "Hello" proves Metal shaders compiled — it does
@@ -17566,6 +17595,17 @@ class MLXLocalClient:
                                 owner_name=owner_name,
                                 warmup_timeout=warmup_timeout,
                             )
+                        except _WarmupDeferredError as deferred:
+                            # Nothing failed and nothing is recorded against
+                            # her: the runtime declined to spawn, and the
+                            # warm-up says so and stands down.
+                            logger.info(
+                                "⏸️ [MLX] Warmup deferred for %s: the runtime is not "
+                                "spawning workers right now (%s).",
+                                os.path.basename(self.model_path),
+                                deferred,
+                            )
+                            return False
                         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                             self._set_lane_state(
                                 "recovering", f"warmup_precompile_failed:{type(e).__name__}"
