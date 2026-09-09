@@ -12,7 +12,6 @@ from typing import Any
 
 from core.brain.llm.runtime_wiring import is_user_facing_origin, prepare_runtime_payload
 from core.container import ServiceContainer
-from core.conversation.word_markers import names_any
 from core.phases.dialogue_policy import enforce_dialogue_contract, validate_dialogue_response
 from core.phases.response_contract import ResponseContract, build_response_contract
 from core.runtime.errors import record_degradation
@@ -81,6 +80,25 @@ def _frame_perception(result, request: str) -> str | None:
             ),
         )
         return None
+
+
+def _tools_for_the_native_channel(skill_schemas: Any) -> dict[str, Any]:
+    """The skill schemas keyed by name, which is what the tool channel takes.
+
+    The old path serialised this list into a sentence. The channel wants a
+    mapping, so the client can tell a call naming a tool that was offered from
+    one naming a tool that was not.
+    """
+
+    offered: dict[str, Any] = {}
+    for schema in skill_schemas or ():
+        if not isinstance(schema, dict):
+            continue
+        function = schema.get("function") if isinstance(schema.get("function"), dict) else schema
+        name = str(function.get("name") or "").strip()
+        if name:
+            offered[name] = schema
+    return offered
 
 
 class StateMachine:
@@ -919,38 +937,46 @@ class StateMachine:
 
         import json
 
-        system_prompt = (
-            "You are an action-taking AI. Based on the user's input, choose the correct tool and extract the necessary arguments. "
-            "Your response must be a valid JSON object only.\n"
-            f"Available tools (OpenAI Function Schema): {json.dumps(skill_schemas)}\n"
-            "Output ONLY a JSON object with 'tool' (string) and 'params' (dict). "
-            "Do not include any explanation or markdown formatting."
-        )
-
+        # The model's own tool channel, not a paragraph asking for JSON.
+        #
+        # This used to paste the OpenAI schema into a system prompt — "Output
+        # ONLY a JSON object with 'tool' and 'params'. Do not include any
+        # explanation or markdown formatting" — and then `json.loads` whatever
+        # came back, behind a comment reading "Robust JSON extraction". That
+        # is a request where a contract belongs. The tokenizer renders tool
+        # definitions natively, the worker already logs "Rendering native
+        # chat/tool template", and `_extract_tool_call_payload` on the client
+        # reads the call back and refuses one that names a tool nobody
+        # offered. Every part of it existed; this caller went around it.
         try:
             logger.debug("SKILL: Formulating tool call for: %s...", user_input[:50])
             # v26.1 Resilience: 60s timeout for tool selection (increased from 20s)
-            raw_response = await asyncio.wait_for(
-                self.llm.generate(
-                    prompt=user_input,
-                    system_prompt=system_prompt,
+            acted = await asyncio.wait_for(
+                self.llm.think_and_act(
+                    objective=user_input,
+                    tools=_tools_for_the_native_channel(skill_schemas),
+                    max_turns=1,
                     max_tokens=512,
                     temperature=0.0,
-                    num_ctx=8192,  # Increased context window for complex tool schemas
                     priority=priority,
                     origin=origin,
+                    purpose="tool_selection",
                 ),
                 timeout=60.0,
             )
-
-            # Robust JSON extraction
-            logger.debug("SKILL: Raw tool selection response: %s...", raw_response[:100])
-            logger.debug("Skill selection raw response: %s", raw_response)
+            calls = list((acted or {}).get("tool_calls") or ())
+            raw_response = str((acted or {}).get("content") or "")
+            logger.debug("SKILL: native tool channel returned %d call(s)", len(calls))
 
             try:
-                parsed = json.loads(raw_response)
-                tool_name = parsed.get("tool")
-                params = parsed.get("params", {})
+                if calls:
+                    first = calls[0] or {}
+                    tool_name = first.get("tool") or first.get("name")
+                    params = first.get("args") or first.get("params") or {}
+                else:
+                    # Nothing called. Not an occasion for a second ask: the
+                    # turn is a conversation, and _handle_chat below owns it.
+                    raise KeyError("tool")
 
                 # Validation
                 if not tool_name:
@@ -1062,9 +1088,9 @@ class StateMachine:
 
     def _looks_like_live_coding_artifact_request(self, user_input: str) -> bool:
         text = str(user_input or "").lower()
-        wants_code = names_any(
-            text,
-            (
+        wants_code = any(
+            token in text
+            for token in (
                 "code",
                 "coding",
                 "program",
@@ -1080,9 +1106,9 @@ class StateMachine:
                 "implement",
             )
         )
-        wants_artifact = names_any(
-            text,
-            (
+        wants_artifact = any(
+            token in text
+            for token in (
                 "make",
                 "build",
                 "create",
