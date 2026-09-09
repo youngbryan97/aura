@@ -81,6 +81,7 @@ import time
 import uuid
 from functools import lru_cache, wraps
 from dataclasses import dataclass
+from core.runtime.what_stops_it import Stopping, stopping_with
 
 from interface.routes.chat_common import (
     MAX_CHAT_MESSAGE_BYTES,
@@ -103,6 +104,7 @@ class _ExecutingDelivery:
     admission: DeliveryAdmission
     task: asyncio.Task[Any]
     cancel_requested: bool = False
+    stopping: Stopping | None = None
 
 
 _executing_deliveries: dict[DeliveryIdentity, _ExecutingDelivery] = {}
@@ -120,6 +122,8 @@ def request_delivery_cancellation(record: DeliveryRecord) -> str:
         return "owner_changed"
     if not owner.cancel_requested:
         owner.cancel_requested = True
+        if owner.stopping is not None:
+            owner.stopping.stop(USER_CANCEL_REASON)
         owner.task.cancel(USER_CANCEL_REASON)
     return "cancellation_requested"
 
@@ -985,6 +989,7 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
         turn_token = _CHAT_DELIVERY_TURN_ID.set(admission.record.turn_id)
         key_token = _CHAT_DELIVERY_IDEMPOTENCY_KEY.set(admission.record.identity.idempotency_key)
         pending_claim_token = _CHAT_PENDING_DELIVERY_CLAIM.set(("", ()))
+        terminal_exchanges, terminal_exchange_token = _chat_preflight.bind_terminal_exchanges()
         fence_lost = asyncio.Event()
         heartbeat_task = get_task_tracker().create_task(
             _chat_delivery_heartbeat(journal, admission, fence_lost),
@@ -996,13 +1001,14 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                 with (
                     relational_principal_scope(observed_principal or exact_principal),
                     bind_chat_delivery_progress(journal, admission),
+                    stopping_with("chat_delivery", trace=admission.record.turn_id) as execution,
                 ):
                     await report_chat_delivery_progress(
                         phase="understanding",
                         message="Understanding the request and gathering its relevant context.",
                         details={"surface": request_access_profile(request).get("surface", "")},
                     )
-                    owner = _ExecutingDelivery(admission, asyncio.current_task())
+                    owner = _ExecutingDelivery(admission, asyncio.current_task(), stopping=execution.stopping)
                     _executing_deliveries[admission.record.identity] = owner
                     try:
                         try:
@@ -1262,6 +1268,13 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                 )
 
             _run_chat_delivery_commit_hooks(request, payload)
+            try:
+                await _chat_preflight.finalize_terminal_exchanges(terminal_exchanges, payload)
+            except _CHAT_RECOVERABLE_ERRORS as exc:
+                record_degradation(
+                    "chat.terminal_transcript", exc,
+                    action="retained the sealed delivery journal while transcript finalization failed",
+                )
 
             response.body = response.render(payload)
             response.headers["content-length"] = str(len(response.body))
@@ -1296,6 +1309,7 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                     record_degradation("chat.pending_delivery_ack", exc)
             return response
         finally:
+            _chat_preflight.reset_terminal_exchanges(terminal_exchange_token)
             pending_owner, pending_ids = _CHAT_PENDING_DELIVERY_CLAIM.get()
             if pending_owner and pending_ids:
                 try:

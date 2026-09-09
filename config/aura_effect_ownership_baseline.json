@@ -4093,6 +4093,14 @@
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
+      "path": "core/consciousness/fusion_certificate.py",
+      "scope": "<module>.write_certificate"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
       "path": "core/consciousness/mhaf_field.py",
       "scope": "<module>.MycelialHypergraphAttractorField._save"
     },
@@ -16426,6 +16434,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "51504016bea73bfc3455bbf60f298c08214bf37702819a2f847f4b59d54232c9",
+  "inventory_sha256": "8d7d2f77619956776b32681ea477ff45e227e266af853f99a3dd5315dbd5fc34",
   "schema_version": 1
 }
