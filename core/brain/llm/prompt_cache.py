@@ -693,6 +693,34 @@ class PromptCacheLRU:
                 divergent = describe(tokens[matched : matched + 24])
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 divergent = "<undecodable>"
+
+        # And what the STORED prompts start with, when nothing matched at all.
+        #
+        # A miss at token zero is the worst case and the one this line could
+        # not diagnose: it printed how far the new prompt reached and what
+        # came next, which for `matched 0` is just the top of the prompt. The
+        # question is what the entries in the trie begin with instead, and the
+        # trie knows.
+        #
+        # LIVE, 2026-09-08: `known_keys=2 matched 0 (0.0%) before diverging;
+        # divergent text begins: '<|im_start|>system\nYou are Aura Luna...'`,
+        # twice, on consecutive turns of one conversation — with 1,812 tokens
+        # retained from the turn before.
+        held = ""
+        if describe is not None and matched == 0 and self._cache.get(model_key):
+            try:
+                head: list[int] = []
+                node = self._cache[model_key]
+                while node and len(head) < 24:
+                    token = next(iter(node))
+                    if token == "cache":
+                        break
+                    head.append(token)
+                    node = node[token]
+                if head:
+                    held = describe(head)
+            except (AttributeError, KeyError, RuntimeError, StopIteration, TypeError, ValueError):
+                held = "<undecodable>"
         logger.info(
             "🧊 [PROMPT CACHE] miss — prefilling all %d tokens; key=%s known_keys=%d "
             "matched %d (%.1f%%) before diverging%s",
@@ -702,6 +730,7 @@ class PromptCacheLRU:
             matched,
             100.0 * matched / max(1, len(tokens)),
             (f"; divergent text begins: {divergent[:160]!r}" if divergent else "")
+            + (f"; a stored prompt begins: {held[:160]!r}" if held else "")
             + refused,
         )
         return None, tokens
