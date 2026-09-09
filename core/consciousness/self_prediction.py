@@ -5,7 +5,10 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from collections.abc import Mapping
 from typing import Any, Dict, List, Optional
+
+import numpy as np
 
 logger = logging.getLogger("Consciousness.SelfPrediction")
 
@@ -71,6 +74,15 @@ class SelfPredictionLoop:
         self._smoothed_error: float = 0.0   # EMA of recent prediction errors
         self._surprise_count: int = 0        # Total surprises since boot
 
+        # The situation the last prediction was made in, the row it produced,
+        # and the accumulated normal equations that turn the two into a model.
+        self._last_situation: dict[str, Any] = {}
+        self._pending_row: Any = None
+        self._gram: Any = None
+        self._moment: Any = None
+        self._weights: Any = None
+        self._fitted: int = 0
+
         # Per-dimension error tracking (for identifying what's unpredictable)
         self._valence_error_ema: float = 0.0
         self._drive_error_ema: float = 0.0
@@ -87,6 +99,7 @@ class SelfPredictionLoop:
         actual_valence: float,
         actual_drive: str,
         actual_focus_source: str,
+        situation: Optional[Mapping[str, Any]] = None,
     ):
         """One prediction cycle:
         1. Evaluate last prediction vs reality (compute error)
@@ -111,6 +124,15 @@ class SelfPredictionLoop:
                         f"drive={'wrong' if error.drive_error > 0.5 else 'ok'}, "
                         f"focus={'wrong' if error.focus_error > 0.5 else 'ok'})"
                     )
+
+            # Step 1b: Learn from what actually followed the situation the
+            # last prediction was made in. Nothing is learned on the first
+            # tick, because there was no prediction to be right or wrong about.
+            if self._pending_row is not None:
+                self._learn_valence(self._pending_row, actual_valence)
+                self._pending_row = None
+            if situation is not None:
+                self._last_situation = dict(situation)
 
             # Step 2: Record actuals
             self._valence_history.append(actual_valence)
@@ -161,19 +183,103 @@ class SelfPredictionLoop:
     # Internal: prediction
     # ------------------------------------------------------------------
 
+    #: The situation a prediction is made from, in a fixed order. The first
+    #: entry is the recency-weighted average of her own recent valence, which
+    #: is what this loop used to predict from and nothing else — so the learned
+    #: model contains the old one as a special case and cannot do worse than it
+    #: once the weights have settled. The rest is what is happening to her.
+    _SITUATION: tuple[str, ...] = (
+        "recent_valence",
+        "valence",
+        "arousal",
+        "engagement",
+        "body_pressure",
+        "drive_urgency",
+        "novelty",
+        "world_surprise",
+        "ignition",
+        "bias",
+    )
+
+    def _situation_row(self, recent_valence: float) -> np.ndarray:
+        seen = self._last_situation or {}
+        values = {
+            "recent_valence": recent_valence,
+            "valence": self._valence_history[-1] if self._valence_history else 0.0,
+            "bias": 1.0,
+        }
+        row = []
+        for name in self._SITUATION:
+            if name in values:
+                row.append(float(values[name]))
+                continue
+            try:
+                row.append(float(seen.get(name, 0.0) or 0.0))
+            except (TypeError, ValueError):
+                row.append(0.0)
+        return np.asarray(row, dtype=np.float64)
+
+    def _learn_valence(self, row: np.ndarray, observed: float) -> None:
+        """Fold one (situation, next valence) pair into the normal equations.
+
+        Accumulated rather than windowed, and solved by least squares with no
+        penalty to choose: the pseudo-inverse handles a rank-deficient design
+        on its own, which is what an unlived situation looks like.
+        """
+        if self._gram is None:
+            width = row.size
+            self._gram = np.zeros((width, width), dtype=np.float64)
+            self._moment = np.zeros(width, dtype=np.float64)
+        self._gram += np.outer(row, row)
+        self._moment += row * float(observed)
+        self._fitted += 1
+        self._weights = None
+
+    def _valence_weights(self) -> np.ndarray | None:
+        # Until she has lived more moments than the model has parameters, the
+        # fit is not a model, it is a memory of the moments themselves.
+        if self._gram is None or self._fitted < 2 * len(self._SITUATION):
+            return None
+        if self._weights is None:
+            try:
+                self._weights = np.linalg.lstsq(self._gram, self._moment, rcond=None)[0]
+            except np.linalg.LinAlgError:
+                return None
+        return self._weights
+
     def _predict_next(self) -> InternalStatePrediction:
-        """Statistical extrapolation from recent history.
-        No LLM — this must be fast and always-available.
+        """What she expects to feel next, from her history and her situation.
+
+        This was a pure autoregression: the next valence was the recency-
+        weighted average of the last sixty, the next drive the most frequent
+        recent drive, the next focus the most frequent recent winner. A model
+        of oneself built only from oneself cannot be wrong for a reason — its
+        error is a function of its own history and nothing else, so nothing
+        that happens to her can predict how surprised she will be. Measured
+        across ten cognitive domains, the self-state was the one domain whose
+        change no other domain helped predict at all.
+
+        So the situation enters. The old prediction is the first feature of the
+        new one, which makes the learned model a strict superset: if what is
+        happening carries no information about what she will feel, the weights
+        on it go to zero and this returns what it always returned.
         """
         # Predict valence: weighted average of recent history, recency-weighted
         if self._valence_history:
             weights = [i + 1 for i in range(len(self._valence_history))]
             total_w = sum(weights)
-            predicted_valence = sum(
+            recent_valence = sum(
                 v * w for v, w in zip(self._valence_history, weights)
             ) / total_w
         else:
-            predicted_valence = 0.0
+            recent_valence = 0.0
+        predicted_valence = recent_valence
+
+        row = self._situation_row(recent_valence)
+        self._pending_row = row
+        learned = self._valence_weights()
+        if learned is not None:
+            predicted_valence = float(np.clip(float(row @ learned), -1.0, 1.0))
 
         # Predict drive: most frequent recent drive
         if self._drive_history:
@@ -183,6 +289,13 @@ class SelfPredictionLoop:
             predicted_drive = counts.most_common(1)[0][0]
         else:
             predicted_drive = "curiosity"
+        # Unless the situation says which drive is pressing hardest. A drive
+        # that is depleted now is what she will be pulled toward next, and the
+        # heartbeat computes exactly that before this runs.
+        pressing = (self._last_situation or {}).get("dominant_drive")
+        urgency = float((self._last_situation or {}).get("drive_urgency", 0.0) or 0.0)
+        if pressing and urgency > 0.0:
+            predicted_drive = str(pressing)
 
         # Predict focus: most frequent recent focus source
         if self._focus_history:
@@ -192,6 +305,13 @@ class SelfPredictionLoop:
             predicted_focus = counts.most_common(1)[0][0]
         else:
             predicted_focus = "drive_curiosity"
+        # Unless she can see what is competing. The workspace winner is the
+        # strongest bid, so the strongest bid on the table is the honest
+        # prediction of it — and it makes what she expects to attend to a
+        # function of what is happening rather than of what happened.
+        contender = (self._last_situation or {}).get("strongest_bid")
+        if contender:
+            predicted_focus = str(contender)
 
         # Confidence: inversely proportional to recent prediction error
         confidence = max(0.1, 1.0 - self._smoothed_error)

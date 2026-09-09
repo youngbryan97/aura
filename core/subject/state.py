@@ -397,6 +397,11 @@ _SCHEMAS: dict[str, Schema] = {
             # on while its contents change every cycle — an active memory read
             # as a count is a domain nothing can be shown to reach.
             ("retrieved_digest", "cognition.long_term_memory[*]"),
+            # How strongly what is in mind was recalled. Retrieval ranks by
+            # this and the number is what the workspace prices a recollection
+            # by, so it is part of active memory's state rather than a
+            # bookkeeping detail of the phase that produced it.
+            ("recall_score", "cognition.memory_scores"),
             ("working_digest", "cognition.working_memory[*]"),
             ("summary_len", "cognition.rolling_summary"),
             ("ledger_load", "cognition.continuity_ledger"),
@@ -762,6 +767,7 @@ def _read_M(state: Any) -> np.ndarray:
             _hash_unit(str(last)),
             _sat(retrieved, 8.0),
             _hash_unit("|".join(str(item)[:120] for item in list(retrieved)[-4:])),
+            max((_f(item) for item in _dig(state, "cognition.memory_scores", []) or []), default=0.0),
             _hash_unit("|".join(str(item)[:120] for item in list(working)[-4:])),
             _sat(str(_dig(state, "cognition.rolling_summary", "") or ""), 512.0),
             _sat(_dig(state, "cognition.continuity_ledger", {}) or {}, 8.0),
@@ -1079,8 +1085,16 @@ def _perturb_M(state: Any, delta: float, ontogeny: Any) -> bool:
     cognition = getattr(state, "cognition", None)
     if cognition is not None:
         retrieved = list(getattr(cognition, "long_term_memory", []) or [])
+        scores = list(getattr(cognition, "memory_scores", []) or [])
         retrieved.append(f"probe recollection {delta:+.4f}")
+        # And how strongly it is in mind. Recall writes a match score beside
+        # every recollection and the workspace prices its memory bid from it,
+        # so a displacement that added text and no score displaced what was
+        # recalled without displacing its claim on attention — which is the
+        # half of active memory that anything downstream can act on.
+        scores.append(min(1.0, max(0.0, 0.5 + delta)))
         cognition.long_term_memory = retrieved[-8:]
+        cognition.memory_scores = scores[-8:]
         hit = True
     return hit
 
@@ -1099,12 +1113,17 @@ def _perturb_D(state: Any, delta: float, ontogeny: Any) -> bool:
     goals = _dig(state, "cognition.active_goals", None)
     hit = False
     if isinstance(goals, list):
+        # In the shape the goal engine writes, `priority` included. A goal with
+        # no stated priority is a goal the workspace cannot price, and an
+        # intention nothing can attend to is not an intention.
         goals.append(
             {
                 "id": "subject_core_probe",
                 "goal": f"probe intention {delta:+.4f}",
+                "description": f"probe intention {delta:+.4f}",
                 "origin": "probe",
                 "status": "pending",
+                "priority": min(1.0, max(0.0, 0.5 + delta)),
             }
         )
         hit = True
@@ -1112,11 +1131,18 @@ def _perturb_D(state: Any, delta: float, ontogeny: Any) -> bool:
     if isinstance(budgets, dict):
         for name in _DRIVES:
             entry = budgets.get(name)
-            if isinstance(entry, dict):
-                for key in ("current", "level"):
-                    if key in entry:
-                        entry[key] = _f(entry[key]) + delta
-                        hit = True
+            if not isinstance(entry, dict):
+                continue
+            # In units of the budget's own capacity. A drive level runs 0..100,
+            # so adding the raw displacement moved it by fifteen hundredths of
+            # one percent — a displacement of deliberation that deliberation
+            # could not have noticed, in the same way the body's was a
+            # displacement of one percent of a CPU.
+            span = _f(entry.get("capacity"), 100.0) or 100.0
+            for key in ("current", "level"):
+                if key in entry:
+                    entry[key] = max(0.0, min(span, _f(entry[key]) + delta * span))
+                    hit = True
     return hit
 
 
@@ -1219,6 +1245,24 @@ async def perturb_organs(organs: Organs, domain: str, delta: float) -> bool:
             )
             hit = True
         except Exception:  # noqa: BLE001
+            hit = False
+    elif domain == "N":
+        # The organism keeps two developmental reservoirs: the one this battery
+        # reads, and the one the cognitive cycle actually steps through
+        # `core.ontogeny.lifetime.advance`. Novelty comes from the second, the
+        # workspace bids on novelty, and the affect phase reads it — so a
+        # displacement that moved only the first displaced the readout and not
+        # the organ, and development could not reach anything by construction.
+        try:
+            from core.ontogeny.service import get_ontogeny
+
+            reservoir = getattr(get_ontogeny(), "_state", None)
+            if reservoir is not None and hasattr(reservoir, "h"):
+                reservoir.h = np.clip(
+                    np.asarray(reservoir.h, dtype=np.float64) + delta, -1.0, 1.0
+                )
+                hit = True
+        except Exception:  # noqa: BLE001 - an absent organ is an absent organ
             hit = False
     elif domain == "W" and organs.world_model is not None:
         try:

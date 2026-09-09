@@ -526,6 +526,12 @@ class CognitiveContext:
     current_mode: CognitiveMode = CognitiveMode.REACTIVE
     working_memory: list[dict] = field(default_factory=list)  # Recent exchanges
     long_term_memory: list[str] = field(default_factory=list) # Retrieved RAG context
+    # How well each recollection matched what was asked, in the same order.
+    # Retrieval ranks its candidates by this score and then threw it away,
+    # keeping only the text — so nothing downstream could tell a recollection
+    # that answered the question from one that barely matched, and the
+    # workspace had to bid every memory at the same flat priority.
+    memory_scores: list[float] = field(default_factory=list)
     active_goals: list[dict] = field(default_factory=list)
     pending_initiatives: list[dict] = field(default_factory=list)
     attention_focus: str | None = None   # What is Aura attending to right now

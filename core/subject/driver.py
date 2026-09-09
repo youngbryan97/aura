@@ -300,6 +300,63 @@ _RESERVOIR_FIELDS: tuple[str, ...] = (
 )
 
 
+#: Attributes holding a wall-clock instant that a later reader turns into an
+#: elapsed time. Restoring a snapshot rewinds these along with everything else,
+#: so the arm that runs second sees a longer interval than the arm that ran
+#: first — which is the machine's own speed entering the measurement.
+_CLOCK_ANCHORS: tuple[str, ...] = (
+    "last_tick",
+    "last_update",
+    "_last_update",
+    "last_thought_at",
+    "_last_pulse_t",
+    "_last_state_mutation_at",
+    "start_time",
+    "_last_disk_time",
+    "_last_thought_time",
+)
+
+#: Anything smaller than this is not a wall-clock instant. Epoch seconds passed
+#: a billion in 2001; a duration, a count or a rate never reaches it.
+_EPOCH_FLOOR: float = 1e9
+
+
+def _shift_anchors(obj: Any, shift: float) -> None:
+    if obj is None:
+        return
+    for name in _CLOCK_ANCHORS:
+        value = getattr(obj, name, None)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value > _EPOCH_FLOOR:
+            try:
+                setattr(obj, name, float(value) + shift)
+            except (AttributeError, TypeError, ValueError):
+                continue
+
+
+def _reanchor(runtime: SubjectRuntime, shift: float) -> None:
+    """Move every wall-clock anchor forward by the time the restore skipped."""
+    if shift <= 0.0:
+        return
+    state = runtime.state
+    for holder in (
+        state,
+        getattr(state, "motivation", None),
+        getattr(state, "cognition", None),
+        getattr(state, "soma", None),
+    ):
+        _shift_anchors(holder, shift)
+    for name in runtime.ORGAN_FIELDS:
+        _shift_anchors(getattr(runtime.organs, name, None), shift)
+    world = getattr(state, "world", None)
+    percepts = getattr(world, "recent_percepts", None)
+    if isinstance(percepts, list):
+        for item in percepts:
+            if isinstance(item, dict):
+                stamp = item.get("timestamp")
+                if isinstance(stamp, (int, float)) and stamp > _EPOCH_FLOOR:
+                    item["timestamp"] = float(stamp) + shift
+
+
 def _torch_random_state() -> Any:
     try:
         import torch
@@ -403,6 +460,12 @@ class Snapshot:
     #: draw from is part of the computation.
     global_random: Any = None
     numpy_random: Any = None
+    #: Wall clock when the snapshot was taken. Restoring rewinds the state but
+    #: not the clock, so the second arm of a trial always sees more elapsed
+    #: time than the first — the motivation phase decays every drive by
+    #: `now - last_tick`, so the arms differ by however long the first one took
+    #: before either has been displaced.
+    taken_at: float = 0.0
     #: Torch's global generator. The substrate draws its integration noise from
     #: `torch.randn` on every step, so two arms integrating the same state
     #: diverged by more than a standard deviation of the substrate's own
@@ -543,6 +606,7 @@ class SubjectRuntime:
             rng_state=self.rng.getstate(),
             moments=_moments_of(self.ontogeny_service),
             last_reading=getattr(self.ontogeny_service, "_last_reading", None),
+            taken_at=time.time(),
             global_random=random.getstate(),
             numpy_random=np.random.get_state(),
             torch_random=_torch_random_state(),
@@ -569,6 +633,8 @@ class SubjectRuntime:
         if snapshot.numpy_random is not None:
             np.random.set_state(snapshot.numpy_random)
         _restore_torch_random(snapshot.torch_random)
+        if snapshot.taken_at:
+            _reanchor(self, time.time() - snapshot.taken_at)
 
     # ── reading ──────────────────────────────────────────────────────────
 

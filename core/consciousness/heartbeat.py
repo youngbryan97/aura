@@ -511,10 +511,25 @@ class CognitiveHeartbeat:
             )
             state["qualia_norm"] = qualia_norm
 
+        # What was happening when the prediction was made, so the self-model
+        # can be a model of her in a situation rather than an average of her
+        # past. Everything here is already computed for this tick.
+        body_pressure = 1.0 - max(0.0, min(1.0, float(state.get("body_energy", 100.0)) / 100.0))
         await self.predictor.tick(
             actual_valence=actual_valence,
             actual_drive=actual_drive,
             actual_focus_source=actual_focus,
+            situation={
+                "arousal": state.get("affect_arousal", 0.0),
+                "engagement": state.get("affect_engagement", 0.0),
+                "body_pressure": body_pressure,
+                "drive_urgency": state.get("drive_urgency", 0.0),
+                "dominant_drive": actual_drive,
+                "novelty": self._novelty_now(),
+                "world_surprise": self._world_surprise_now(),
+                "ignition": getattr(winner, "priority", 0.0) if winner else 0.0,
+                "strongest_bid": getattr(winner, "source", "") if winner else "",
+            },
         )
         surprise = self.predictor.get_surprise_signal()
 
@@ -796,6 +811,27 @@ class CognitiveHeartbeat:
             state["qualia_metrics"] = {}
 
         return state
+
+    def _novelty_now(self) -> float:
+        """How unlike her ordinary life this moment is, or zero if unknown."""
+        try:
+            from core.ontogeny.lifetime import last_reading
+
+            reading = last_reading()
+            return float(getattr(reading, "novelty", 0.0) or 0.0) if reading else 0.0
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return 0.0
+
+    def _world_surprise_now(self) -> float:
+        """How far the world just departed from what was predicted."""
+        try:
+            from core.container import ServiceContainer
+
+            model = ServiceContainer.get("unified_world_model", default=None)
+            value = model.surprise() if model is not None else None
+            return 0.0 if value is None else float(value)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return 0.0
 
     async def _submit_candidates(self, state: dict[str, Any], tick: int):
         """Every subsystem submits its candidate for the GWT competition.

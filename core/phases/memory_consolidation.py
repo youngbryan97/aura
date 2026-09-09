@@ -102,6 +102,7 @@ class MemoryConsolidationPhase(BasePhase):
                     break
             if is_strict_proof_answer_prompt(proof_text, origin=proof_origin):
                 new_state.cognition.long_term_memory = []
+                new_state.cognition.memory_scores = []
                 new_state.response_modifiers["proof_memory_consolidation_skipped"] = True
                 return new_state
         except _MEMORY_CONSOLIDATION_ERRORS as exc:

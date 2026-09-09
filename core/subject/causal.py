@@ -181,7 +181,20 @@ class Edge:
 def _divergence(
     left: Sequence[CoreState], right: Sequence[CoreState], scale: dict[str, np.ndarray]
 ) -> tuple[dict[str, float], dict[str, list[float]]]:
-    """Per-domain distance between two runs, in units of ordinary variation."""
+    """Per-domain distance between two runs, in units of ordinary variation.
+
+    The distance is the largest standardized displacement among the domain's
+    live columns, not the root mean square across them. The question an edge
+    answers is whether displacing i changes j at all, and a mean over j's
+    columns makes that answer depend on how finely j was written down: split
+    the self-state into fifty columns instead of twenty-five and every
+    single-channel effect halves, though nothing about the organism changed.
+    An existence claim must not be a function of the schema's granularity.
+
+    The floor is computed the same way from two sham arms, so the maximum's
+    optimism — it is a maximum over the same columns in both — cancels in the
+    comparison the edge rule actually makes.
+    """
     peak: dict[str, float] = {}
     trace: dict[str, list[float]] = {}
     span = min(len(left), len(right))
@@ -196,7 +209,7 @@ def _divergence(
         for index in range(span):
             gap = (left[index].domain(domain) - right[index].domain(domain))[live] / unit[live]
             gap = np.clip(np.abs(gap), 0.0, DIVERGENCE_CEILING)
-            series.append(float(np.sqrt(np.mean(gap**2))))
+            series.append(float(gap.max()) if gap.size else 0.0)
         trace[domain] = series
         peak[domain] = max(series) if series else 0.0
     return peak, trace

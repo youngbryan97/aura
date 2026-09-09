@@ -46,6 +46,22 @@ def _clamp(value: Any, default: float = 0.0) -> float:
     return max(0.0, min(1.0, out))
 
 
+def _goal_priority(goal: Any) -> float:
+    """What a goal's claim on attention is, however the producer stated it."""
+    if not isinstance(goal, dict):
+        return 0.5
+    for key in ("urgency", "priority", "importance"):
+        if key in goal and goal[key] is not None:
+            value = goal[key]
+            if isinstance(value, str):
+                named = {"critical": 1.0, "high": 0.8, "medium": 0.5, "normal": 0.5, "low": 0.25}
+                if value.strip().lower() in named:
+                    return named[value.strip().lower()]
+                continue
+            return _clamp(value)
+    return 0.5
+
+
 def build_candidates(state: Any) -> list[Any]:
     """One bid per domain that has something to say, priced by the state."""
     from core.consciousness.global_workspace import CognitiveCandidate, ContentType
@@ -101,18 +117,20 @@ def build_candidates(state: Any) -> list[Any]:
     # decided anything. A memory bid should be a recollection.
     retrieved = list(getattr(cognition, "long_term_memory", []) or []) if cognition else []
     if retrieved:
-        # At the middle, not the maximum. A recollection's claim on attention
-        # is how well it matched what was asked, and that score is not carried
-        # into the context the retriever writes — so there is no reading here
-        # to price it by. The honest default for an unavailable reading is
-        # neutral: entered at 1.0 it won almost every competition and no other
-        # domain's bid decided anything, which is the same defect the exchange
-        # bid had. Plumbing the retrieval score through would replace this.
+        # A recollection's claim on attention is how well it matched what was
+        # asked. Retrieval ranks its candidates by exactly that and used to
+        # discard the number, so this bid entered at a flat neutral 0.5 —
+        # which meant nothing about what was recalled could ever change what
+        # won, and active memory had no route into attention at all. The score
+        # is carried now; neutral remains the fallback for a recollection that
+        # arrived by some path that did not rank it.
+        scores = list(getattr(cognition, "memory_scores", []) or [])
+        strength = _clamp(max(scores), 0.5) if scores else 0.5
         bids.append(
             CognitiveCandidate(
                 content=str(retrieved[-1])[:240],
                 source="memory",
-                priority=0.5,
+                priority=strength,
                 content_type=ContentType.MEMORIAL,
             )
         )
@@ -137,7 +155,12 @@ def build_candidates(state: Any) -> list[Any]:
 
     goals = list(getattr(cognition, "active_goals", []) or []) if cognition else []
     for goal in goals[-2:]:
-        urgency = _clamp(goal.get("urgency", 0.0) if isinstance(goal, dict) else 0.0)
+        # `priority` is what the goal engine writes; `urgency` is what this bid
+        # read, and no producer in the tree has ever written it. So every real
+        # goal bid zero and deliberation never once reached the workspace. A
+        # goal that is active and carries no stated priority still has a claim
+        # — it is on the list — so the fallback is neutral rather than silence.
+        urgency = _goal_priority(goal)
         if urgency > FLOOR:
             bids.append(
                 CognitiveCandidate(

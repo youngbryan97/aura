@@ -274,11 +274,19 @@ def phi_do(
         target_of[key] = basis(nxt[:, columns]) - basis(now[:, columns])
     covariates = phase_covariates(recording, where + 1)
 
-    self_fit: dict[tuple[str, ...], tuple[float, float]] = {}
-    full_fit: dict[tuple[str, ...], float] = {}
+    self_fit: dict[tuple[str, ...], tuple[np.ndarray, np.ndarray]] = {}
+    full_fit: dict[tuple[str, ...], np.ndarray] = {}
 
-    def measure(block: tuple[str, ...]) -> tuple[float, float]:
-        """Fit the block from itself, then from everything, and keep both."""
+    def measure(block: tuple[str, ...]) -> tuple[np.ndarray, np.ndarray]:
+        """Fit the block from itself, then from everything, fold by fold.
+
+        Kept per fold rather than summed, because the cut is chosen on some
+        folds and scored on the rest. A minimum over five hundred and eleven
+        noisy estimates sits about three standard errors below the truth
+        however unbiased each one is, and the bias is against the system: it is
+        punished for the width of a search it did not choose. Selecting on one
+        set of folds and reading the score off another removes it exactly.
+        """
         if block in self_fit:
             return self_fit[block]
         inside = set(block)
@@ -286,8 +294,10 @@ def phi_do(
         theirs = [source[key] for key in live if key not in inside]
         target = np.hstack([target_of[key] for key in block])
         wide = np.hstack([mine, *theirs]) if theirs else mine
-        own_sse = own_base = whole_sse = 0.0
-        for fold_train, fold_validate, fold_test in folds:
+        own_sse = np.zeros(len(folds))
+        own_base = np.zeros(len(folds))
+        whole_sse = np.zeros(len(folds))
+        for index_fold, (fold_train, fold_validate, fold_test) in enumerate(folds):
             own = fit_predict(
                 mine, target, train=fold_train, validate=fold_validate, test=fold_test
             )
@@ -303,15 +313,26 @@ def phi_do(
                 test=fold_test,
                 own_width=mine.shape[1],
             )
-            own_sse += own.sse
-            own_base += own.base
-            whole_sse += whole.sse
+            own_sse[index_fold] = own.sse
+            own_base[index_fold] = own.base
+            whole_sse[index_fold] = whole.sse
         self_fit[block] = (own_sse, own_base)
         full_fit[block] = whole_sse
         return self_fit[block]
 
-    scores: dict[str, float] = {}
-    best: tuple[float, tuple[tuple[str, ...], tuple[str, ...]], float, float] | None = None
+    def gain(side_a: tuple[str, ...], side_b: tuple[str, ...], mask: np.ndarray) -> float | None:
+        sse_a, base_a = measure(side_a)
+        sse_b, base_b = measure(side_b)
+        base = float((base_a + base_b)[mask].sum())
+        if base <= 0.0:
+            return None
+        loss_cut = float((sse_a + sse_b)[mask].sum()) / base
+        loss_full = float((full_fit[side_a] + full_fit[side_b])[mask].sum()) / base
+        if loss_cut <= 0.0:
+            return 0.0
+        return (loss_cut - loss_full) / loss_cut
+
+    cuts: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
     index = list(range(len(live)))
     for size in range(1, len(live) // 2 + 1):
         for chosen in itertools.combinations(index, size):
@@ -319,18 +340,47 @@ def phi_do(
             side_b = tuple(live[i] for i in index if i not in set(chosen))
             if size == len(live) - size and side_a > side_b:
                 continue  # each cut once, not twice with the halves swapped
-            sse_a, base_a = measure(side_a)
-            sse_b, base_b = measure(side_b)
-            base = base_a + base_b
-            if base <= 0.0:
+            cuts.append((side_a, side_b))
+
+    everything = np.ones(len(folds), dtype=bool)
+    scores: dict[str, float] = {}
+    best: tuple[float, tuple[tuple[str, ...], tuple[str, ...]], float, float] | None = None
+    for side_a, side_b in cuts:
+        value = gain(side_a, side_b, everything)
+        if value is None:
+            continue
+        key = f"{''.join(side_a)}|{''.join(side_b)}"
+        scores[key] = value
+        sse_a, base_a = measure(side_a)
+        sse_b, base_b = measure(side_b)
+        base = float((base_a + base_b).sum())
+        loss_cut = float((sse_a + sse_b).sum()) / base
+        loss_full = float((full_fit[side_a] + full_fit[side_b]).sum()) / base
+        if best is None or value < best[0]:
+            best = (value, (side_a, side_b), loss_full, loss_cut)
+
+    # The reported score, chosen on folds the score is not read from. For each
+    # fold in turn the weakest cut is found using the others and then scored on
+    # that fold alone; the average of those held-out readings is an estimate of
+    # the weakest cut's gain that the search cannot bias downward.
+    held_out: list[float] = []
+    for left_out in range(len(folds)):
+        select = everything.copy()
+        select[left_out] = False
+        score_on = np.zeros(len(folds), dtype=bool)
+        score_on[left_out] = True
+        weakest: tuple[float, tuple[tuple[str, ...], tuple[str, ...]]] | None = None
+        for side_a, side_b in cuts:
+            value = gain(side_a, side_b, select)
+            if value is None:
                 continue
-            loss_cut = (sse_a + sse_b) / base
-            loss_full = (full_fit[side_a] + full_fit[side_b]) / base
-            phi = 0.0 if loss_cut <= 0.0 else (loss_cut - loss_full) / loss_cut
-            key = f"{''.join(side_a)}|{''.join(side_b)}"
-            scores[key] = phi
-            if best is None or phi < best[0]:
-                best = (phi, (side_a, side_b), loss_full, loss_cut)
+            if weakest is None or value < weakest[0]:
+                weakest = (value, (side_a, side_b))
+        if weakest is None:
+            continue
+        out = gain(weakest[1][0], weakest[1][1], score_on)
+        if out is not None:
+            held_out.append(out)
 
     if best is None:
         return PartitionReport(
@@ -343,12 +393,18 @@ def phi_do(
             degenerate=True,
             note="no cut had a target with any variance",
         )
+    unselected = best[0]
+    phi = float(np.mean(held_out)) if held_out else unselected
     return PartitionReport(
-        phi=best[0],
+        phi=phi,
         best_cut=best[1],
         loss_full=best[2],
         loss_cut=best[3],
         scores=scores,
         domains=live,
         pairs=int(now.shape[0]),
+        note=(
+            f"cross-fitted over {len(held_out)} folds; the in-sample minimum over "
+            f"{len(cuts)} cuts is {unselected:.4f}"
+        ),
     )

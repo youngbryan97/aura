@@ -266,3 +266,53 @@ def test_the_exchange_bids_at_the_conversation_s_energy():
 
     state.cognition.conversation_energy = 0.0
     assert not any(b.source == "exchange" for b in build_candidates(state))
+
+
+def test_a_real_goal_can_bid_at_all() -> None:
+    """The bid read `urgency`; the goal engine writes `priority`.
+
+    No producer in the tree has ever written `urgency`, so every real goal bid
+    zero and deliberation never once reached the workspace.
+    """
+    from core.consciousness.workspace_feed import build_candidates
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.cognition.active_goals = [
+        {"id": "g1", "goal": "finish the proof", "priority": 0.8, "status": "pending"}
+    ]
+    sources = {getattr(bid, "source", "") for bid in build_candidates(state)}
+    assert "deliberation" in sources
+
+
+def test_a_goal_with_a_named_priority_is_understood() -> None:
+    from core.consciousness.workspace_feed import build_candidates
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.cognition.active_goals = [{"goal": "urgent thing", "priority": "critical"}]
+    bids = [b for b in build_candidates(state) if getattr(b, "source", "") == "deliberation"]
+    assert bids and bids[0].priority == 1.0
+
+
+def test_a_recollection_bids_at_how_well_it_matched() -> None:
+    """Retrieval ranks by a score and used to throw it away."""
+    from core.consciousness.workspace_feed import build_candidates
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.cognition.long_term_memory = ["a weak match", "the answer"]
+    state.cognition.memory_scores = [0.2, 0.9]
+    bids = [b for b in build_candidates(state) if getattr(b, "source", "") == "memory"]
+    assert bids and bids[0].priority == 0.9
+
+    state.cognition.memory_scores = []
+    bids = [b for b in build_candidates(state) if getattr(b, "source", "") == "memory"]
+    assert bids and bids[0].priority == 0.5
+
+
+def test_retrieval_keeps_the_score_it_ranked_by() -> None:
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "core" / "phases" / "memory_retrieval.py").read_text()
+    assert "cognition.memory_scores = scores" in source, "the ranking is discarded again"
