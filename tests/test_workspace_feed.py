@@ -399,3 +399,28 @@ def test_a_finished_goal_is_a_record_not_an_intention():
     assert len(bids) == 1
     assert bids[0].priority == pytest.approx(0.4)
     assert "still working" in bids[0].content
+
+
+def test_what_won_is_in_mind_at_the_strength_it_won_with():
+    """The two lists are read side by side and only one of them was written.
+
+    The workspace prices its memory bid from the score at the same index as the
+    recollection, so anything that writes one has to write the other or the
+    pairing comes apart without saying so.
+    """
+    from types import SimpleNamespace
+
+    from core.consciousness.workspace_feed import _remember_broadcast
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.cognition.long_term_memory = ["something recalled earlier"]
+    state.cognition.memory_scores = [0.4]
+    winner = SimpleNamespace(source="perception", content="a window moved", effective_priority=0.8)
+    _remember_broadcast(state, winner, ignited=True)
+
+    assert len(state.cognition.memory_scores) == len(state.cognition.long_term_memory)
+    assert state.cognition.memory_scores[-1] == pytest.approx(0.8)
+
+    bid = next(b for b in build_candidates(state) if b.source == "memory")
+    assert bid.priority == pytest.approx(0.8)

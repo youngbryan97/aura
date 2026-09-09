@@ -424,9 +424,22 @@ def _remember_broadcast(state: Any, winner: Any, ignited: bool) -> None:
         return
     line = f"[broadcast: {winner.source}] {str(winner.content)[:180]}"
     context = list(getattr(cognition, "long_term_memory", []) or [])
-    context = [item for item in context if not str(item).startswith("[broadcast: ")]
+    scores = list(getattr(cognition, "memory_scores", []) or [])
+    # The two lists are read side by side — the workspace prices its memory bid
+    # from the score at the same index — so anything that writes one has to
+    # write the other or the pairing silently comes apart. What is in mind
+    # because it won the competition is in mind at the strength it won with.
+    if len(scores) != len(context):
+        scores = scores[: len(context)] + [0.5] * max(0, len(context) - len(scores))
+    keep = [
+        index for index, item in enumerate(context) if not str(item).startswith("[broadcast: ")
+    ]
+    context = [context[index] for index in keep]
+    scores = [scores[index] for index in keep]
     context.append(line)
+    scores.append(_clamp(getattr(winner, "effective_priority", 0.5), 0.5))
     cognition.long_term_memory = context[-CONTEXT_LIMIT:]
+    cognition.memory_scores = scores[-CONTEXT_LIMIT:]
 
 
 #: Ticks the workspace may go without competing before the caller runs the
