@@ -25,6 +25,7 @@ from typing import Any
 import numpy as np
 
 from core.runtime.errors import record_degradation
+from core.state.percepts import read_percept
 
 __all__ = ["observation_of", "action_of", "observe_cycle"]
 
@@ -39,6 +40,14 @@ def _num(value: Any, default: float = 0.0) -> float:
     return default if out != out else out
 
 
+def _novelty(percepts: list[Any]) -> float:
+    """How much of the recent stream is unlike the rest of it."""
+    if not percepts:
+        return 0.0
+    tail = [read_percept(item).content for item in percepts[-8:]]
+    return len(set(tail)) / float(len(tail))
+
+
 def observation_of(state: Any) -> np.ndarray:
     """The situation, as the model sees it. Ordered, fixed width, no strings."""
     cognition = getattr(state, "cognition", None)
@@ -46,9 +55,21 @@ def observation_of(state: Any) -> np.ndarray:
     affect = getattr(state, "affect", None)
     soma = getattr(state, "soma", None)
     hardware = (getattr(soma, "hardware", {}) or {}) if soma else {}
+    percepts = list(getattr(world, "recent_percepts", []) or []) if world else []
+    newest = read_percept(percepts[-1]) if percepts else None
+    scores = list(getattr(cognition, "memory_scores", []) or []) if cognition else []
     return np.array(
         [
-            _num(len(getattr(world, "recent_percepts", []) or [])) if world else 0.0,
+            _num(len(percepts)),
+            # What arrived, not only how much. A model that sees the count of
+            # percepts and not their strength is being shown that something
+            # happened and not what.
+            _num(newest.salience) if newest is not None else 0.0,
+            _num(_novelty(percepts)),
+            # And how strongly what is in mind was recalled. A recollection
+            # that answered the question is a different situation from one that
+            # scraped in, and the ranking that says which is already computed.
+            max((_num(score) for score in scores), default=0.0),
             _num(hardware.get("cpu_usage")) / 100.0,
             _num(hardware.get("temperature")) / 100.0,
             _num(getattr(affect, "valence", 0.0)) if affect else 0.0,

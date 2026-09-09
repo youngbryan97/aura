@@ -27,6 +27,12 @@ def _background_curiosity_allowed() -> bool:
         require_conversation_ready=False,
     )
 
+#: The feelings that say a moment is going badly. Named from the affect
+#: vector's own channels rather than inferred from valence, because a low
+#: valence with nothing behind it is a mood and these are complaints.
+_DISTRESS: tuple[str, ...] = ("fear", "sadness", "anger", "frustration", "upset", "dread")
+
+
 class MotivationUpdatePhase(Phase):
     """
     Unitary Kernel Phase: Autonomous Will & Digital Metabolism.
@@ -312,9 +318,24 @@ class MotivationUpdatePhase(Phase):
 
     @staticmethod
     def _footing(state: AuraState) -> dict[str, float]:
-        """How solid each part of the moment is. Larger means worse."""
+        """How solid each part of the moment is. Larger means worse.
+
+        Five readings rather than three. A moment goes badly when the world is
+        not doing what was predicted and when something is felt to be wrong,
+        as much as when the argument has come apart — and a deliberation that
+        cannot see either of those is a deliberation the world and the feelings
+        cannot reach.
+        """
         cognition = getattr(state, "cognition", None)
         identity = getattr(state, "identity", None)
+        affect = getattr(state, "affect", None)
+        distress = 0.0
+        if affect is not None:
+            emotions = getattr(affect, "emotions", {}) or {}
+            distress = max(
+                (float(emotions.get(name, 0.0) or 0.0) for name in _DISTRESS),
+                default=0.0,
+            )
         return {
             "coherence between what I am saying and what I hold": 1.0
             - float(getattr(cognition, "coherence_score", 1.0) or 1.0),
@@ -323,7 +344,21 @@ class MotivationUpdatePhase(Phase):
             ),
             "how steady the sense of myself is": 1.0
             - float(getattr(identity, "stability", 1.0) or 1.0),
+            "how far the world is from what I predicted": MotivationUpdatePhase._world_surprise(),
+            "what is bothering me": distress,
         }
+
+    @staticmethod
+    def _world_surprise() -> float:
+        """How far the world just departed from the model of it. 0.0 if unknown."""
+        try:
+            from core.container import ServiceContainer
+
+            model = ServiceContainer.get("unified_world_model", default=None)
+            value = model.surprise() if model is not None else None
+            return 0.0 if value is None else max(0.0, min(1.0, float(value)))
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return 0.0
 
     @classmethod
     def _situational_pressure(cls, state: AuraState) -> float:
@@ -333,9 +368,25 @@ class MotivationUpdatePhase(Phase):
 
     @staticmethod
     def _weakest_footing(state: AuraState) -> str:
-        """Whatever is least solid right now, named. Read, not chosen."""
+        """Whatever is least solid right now, named. Read, not chosen.
+
+        Unless something she has just recalled bears on the moment more
+        strongly than anything is wrong with it. Retrieval scores how well each
+        recollection matched what was asked; a recollection that answered it is
+        a better thing to work on than a footing that is only slightly soft,
+        and comparing the two readings is what lets memory reach deliberation
+        at all.
+        """
         candidates = MotivationUpdatePhase._footing(state)
         worst = max(candidates, key=lambda key: candidates[key])
+        cognition = getattr(state, "cognition", None)
+        scores = list(getattr(cognition, "memory_scores", []) or []) if cognition else []
+        recalled = list(getattr(cognition, "long_term_memory", []) or []) if cognition else []
+        best = max((float(score) for score in scores), default=0.0)
+        if recalled and best > candidates[worst]:
+            index = scores.index(max(scores))
+            if index < len(recalled):
+                return f"what I just remembered: {str(recalled[index])[:80]}"
         return worst if candidates[worst] > 0.0 else "a capability I have not exercised lately"
 
 

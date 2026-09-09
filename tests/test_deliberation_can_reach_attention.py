@@ -91,3 +91,49 @@ def test_the_urgency_gate_can_be_passed_by_a_real_situation() -> None:
     rough = AuraState.default()
     rough.cognition.coherence_score = 0.3
     assert phase._assess_needs(rough)["urgency"] >= 0.3
+
+
+def test_the_world_and_the_feelings_reach_what_she_decides() -> None:
+    """A moment goes badly when the world surprises her or something hurts.
+
+    Deliberation could see the argument coming apart and could not see either
+    of the other two, so neither the world model nor affect could reach it.
+    """
+    phase = _phase()
+    calm = AuraState.default()
+    afraid = AuraState.default()
+    afraid.affect.emotions["fear"] = 0.8
+    assert phase._assess_needs(afraid)["urgency"] > phase._assess_needs(calm)["urgency"]
+
+    # And which of the five readings is worst is what she names.
+    incoherent = AuraState.default()
+    incoherent.cognition.coherence_score = 0.1
+    assert "coherence" in phase._assess_needs(incoherent)["goal"]
+    assert "bothering" in phase._assess_needs(afraid)["goal"]
+
+
+def test_a_strong_recollection_is_worth_working_on() -> None:
+    """Retrieval scores how well each recollection matched; nothing read it."""
+    phase = _phase()
+    state = AuraState.default()
+    state.cognition.long_term_memory = ["a weak note", "the thing that answers it"]
+    state.cognition.memory_scores = [0.1, 0.9]
+    assert "the thing that answers it" in phase._assess_needs(state)["goal"]
+
+    state.cognition.memory_scores = [0.01, 0.02]
+    assert "the thing that answers it" not in phase._assess_needs(state)["goal"]
+
+
+def test_the_world_model_is_shown_what_arrived_not_only_how_much() -> None:
+    from core.state.percepts import emit_percept
+    from core.world_model.observe_cycle import observation_of
+
+    quiet = AuraState.default()
+    loud = AuraState.default()
+    emit_percept(loud.world, "interaction", content="a message", intensity=0.9)
+    assert not (observation_of(quiet) == observation_of(loud)).all()
+
+    recalled = AuraState.default()
+    recalled.cognition.long_term_memory = ["the answer"]
+    recalled.cognition.memory_scores = [0.8]
+    assert not (observation_of(quiet) == observation_of(recalled)).all()
