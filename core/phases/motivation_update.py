@@ -336,6 +336,7 @@ class MotivationUpdatePhase(Phase):
                 (float(emotions.get(name, 0.0) or 0.0) for name in _DISTRESS),
                 default=0.0,
             )
+        soma = getattr(state, "soma", None)
         return {
             "coherence between what I am saying and what I hold": 1.0
             - float(getattr(cognition, "coherence_score", 1.0) or 1.0),
@@ -346,7 +347,44 @@ class MotivationUpdatePhase(Phase):
             - float(getattr(identity, "stability", 1.0) or 1.0),
             "how far the world is from what I predicted": MotivationUpdatePhase._world_surprise(),
             "what is bothering me": distress,
+            # The last three are the inputs an organism throttles its plans by
+            # and this one could not see: how unsettled the continuous process
+            # underneath is, what the work is costing her, and whether the
+            # moment is unlike anything she has met. Every one of them is a
+            # reading that already exists and that nothing consulted here.
+            "how unsettled the thinking underneath is": (
+                MotivationUpdatePhase._substrate_volatility()
+            ),
+            "what this is costing me": max(
+                0.0, min(1.0, float(getattr(soma, "exertion", 0.0) or 0.0))
+            ),
+            "how unlike anything I know this is": MotivationUpdatePhase._novelty(),
         }
+
+    @staticmethod
+    def _substrate_volatility() -> float:
+        """How fast the continuous substrate is moving. 0.0 if it is not there."""
+        try:
+            from core.runtime.service_registry import get_runtime_service
+
+            substrate = get_runtime_service("conscious_substrate", default=None)
+            reading = substrate.get_state_summary_nowait() if substrate is not None else None
+            if not isinstance(reading, dict) or reading.get("snapshot_stale"):
+                return 0.0
+            return max(0.0, min(1.0, float(reading.get("volatility", 0.0) or 0.0) / 100.0))
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return 0.0
+
+    @staticmethod
+    def _novelty() -> float:
+        """How unlike her ordinary life this moment is. 0.0 if unknown."""
+        try:
+            from core.ontogeny.lifetime import last_reading
+
+            reading = last_reading()
+            return max(0.0, min(1.0, float(getattr(reading, "novelty", 0.0) or 0.0)))
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return 0.0
 
     @staticmethod
     def _world_surprise() -> float:

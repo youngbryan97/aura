@@ -34,9 +34,6 @@ __all__ = ["register_broadcast_consumers"]
 
 logger = logging.getLogger("Aura.Consciousness.Broadcast")
 
-#: How many broadcasts the memory trace keeps. Bounded because it is written on
-#: every tick and read as recent context, not as a history.
-TRACE_LIMIT: int = 32
 
 
 def _winner(event: Any) -> Any:
@@ -151,28 +148,6 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
             record_degradation("broadcast_consumers", exc, severity="debug",
                                action="affect did not take the broadcast")
 
-    async def to_memory(event: Any) -> None:
-        """A bounded trace of what won, so recall can see what she attended to."""
-        winner = _winner(event)
-        if winner is None:
-            return
-        try:
-            trace = getattr(workspace, "broadcast_trace", None)
-            if trace is None:
-                trace = []
-                workspace.broadcast_trace = trace
-            trace.append(
-                {
-                    "source": str(winner.source)[:64],
-                    "content": str(winner.content)[:240],
-                    "priority": round(float(winner.effective_priority), 4),
-                }
-            )
-            del trace[:-TRACE_LIMIT]
-        except (AttributeError, TypeError, ValueError) as exc:
-            record_degradation("broadcast_consumers", exc, severity="debug",
-                               action="the broadcast trace was not written")
-
     async def to_deliberation(event: Any) -> None:
         """Whatever wins the workspace is a need being attended to.
 
@@ -211,11 +186,18 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
             record_degradation("broadcast_consumers", exc, severity="debug",
                                action="deliberation did not take the broadcast")
 
+    # No memory consumer. There was one, and it appended a bounded trace to an
+    # attribute on the workspace that nothing anywhere reads — a writer with no
+    # reader, inside the file written to remove writers with no readers. What
+    # actually carries a broadcast into memory is `_remember_broadcast` in
+    # `workspace_feed`, which writes the ignited winner into
+    # `cognition.long_term_memory`, where recall and the memory domain both
+    # look. A processor that writes where its destination cannot look is a
+    # processor that does not count.
     for name, consumer in (
         ("recurrent_cognition", to_recurrent_cognition),
         ("self_model", to_self_model),
         ("affect", to_affect),
-        ("memory", to_memory),
         ("deliberation", to_deliberation),
     ):
         try:

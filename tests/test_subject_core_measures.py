@@ -499,3 +499,41 @@ def test_turn_sampling_takes_one_row_per_cycle():
         notes={},
     )
     assert recording.by_turn().frames == 5
+
+
+def test_the_periphery_is_the_machine_minus_the_core():
+    """A closure test run against a set containing the core can only say no.
+
+    `read_periphery` walks the kernel, every phase, every organ and every built
+    service. The workspace, the substrate, the self model and the world model
+    *are* the core's organs: their ignition level is the workspace domain,
+    their valence is recurrent cognition, their beliefs are the self-state. A
+    copy of the core predicting the core is the same number twice.
+    """
+    from types import SimpleNamespace
+
+    from core.subject.closure import read_periphery
+
+    class _Workspace:
+        def __init__(self) -> None:
+            self.ignition_level = 0.7   # read by the core as G.ignition
+            self.tick = 12              # read by the core as G.tick
+            self.internal_cursor = 3    # not read by the core: real periphery
+
+    kernel = SimpleNamespace(_phases=[], organs={"global_workspace": _Workspace()})
+    seen = read_periphery(kernel)
+    assert any(name.endswith("internal_cursor") for name in seen), seen
+    assert not any(name.endswith("ignition_level") for name in seen), seen
+    assert not any(name.endswith(".tick") for name in seen), seen
+
+
+def test_a_stored_instant_is_not_periphery_state():
+    from types import SimpleNamespace
+
+    from core.subject.closure import read_periphery
+
+    holder = SimpleNamespace(_last_refresh_at=1_788_000_000.0, backlog=7)
+    kernel = SimpleNamespace(_phases=[], organs={"whatever": holder})
+    seen = read_periphery(kernel)
+    assert any(name.endswith("backlog") for name in seen)
+    assert not any(name.endswith("_last_refresh_at") for name in seen)

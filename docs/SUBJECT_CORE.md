@@ -452,6 +452,31 @@ a machine whose load is mostly not hers. So nothing she chose could return to
 her as a felt cost, and an experiment that holds the host still to keep two arms
 comparable held still the only body channel she had.
 
+**The intention generator could not fire.** It picks the most depleted drive
+and dispatches on its name, and it had branches for three of the five drives
+the state carries. The one it had no branch for — growth — starts at fifty
+where the others start at eighty to ninety-five, and decays, so it is the most
+depleted drive on almost every tick of an ordinary life. The assessment
+returned None every single time it ran. The urgency each branch would have
+carried was a fixed number, so a drive one point below the line asked as loudly
+as one empty for a week. And the initiative that survives governance is written
+to `pending_initiatives`, while the workspace's bid for deliberation read
+`active_goals` — the one thing deliberation produces within a turn could not
+reach attention at all.
+
+**Deliberation could see the argument coming apart and nothing else.** How
+badly a moment was going was three readings, all about coherence. A moment also
+goes badly when the world is not doing what was predicted, when something
+hurts, when the process underneath is unsettled, and when the work is costing
+more than it is worth — and every one of those is a reading that already
+existed, that nothing here consulted. Eight now, one per channel that bears on
+whether to act and on what.
+
+**A registered broadcast processor wrote where nothing reads.** One of the five
+appended a bounded trace of each winner to an attribute on the workspace, and
+nothing anywhere read it — a writer with no reader, inside the file written to
+remove writers with no readers.
+
 ## Findings from building the instrument
 
 **Strong connectivity does not separate a star from a mind, and neither does
@@ -463,6 +488,17 @@ invisible to a graph over the ten declared domains, which is why the closure
 test — does anything outside K predict K's future better than K does — is in
 the conjunction. Both facts are pinned by tests in
 `tests/test_subject_core_measures.py`.
+
+**The battery's own model was never asked.** It installs a deterministic mind
+so that two arms differ by the intervention and not by decoding, and it
+installed it as the kernel's `llm` organ. The phases prefer the container's
+`llm_router` and fall back to the organ only when the router is absent — and
+the router is present offline, with no model behind it. So the response phase
+asked it, got nothing, and raised on every turn of every run: fourteen thousand
+times in one of them. The reply never landed, the exchange never reached memory
+consolidation, self-review had nothing to review, and the whole arc from a
+question to an answer was missing from a measurement of whether the parts of
+her reach each other. A test double has to answer to the name its callers use.
 
 **A wide model losing to a narrow one is not evidence that cutting helps.** The
 partition search reported a confidently negative score four separate times, and

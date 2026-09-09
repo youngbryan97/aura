@@ -49,9 +49,13 @@ def _winner(source: str = "memory", priority: float = 0.7):
 
 def test_every_consumer_is_registered():
     workspace = _Workspace()
-    names = register_broadcast_consumers(workspace, substrate=_Substrate())
-    assert set(names) >= {"recurrent_cognition", "self_model", "affect", "memory"}
-    assert len(workspace.processors) == len(names)
+    registered = register_broadcast_consumers(workspace, substrate=_Substrate())
+    assert set(registered) == {
+        "recurrent_cognition",
+        "self_model",
+        "affect",
+        "deliberation",
+    }
 
 
 def test_the_winner_reaches_the_substrate_with_its_own_priority_as_the_weight():
@@ -62,18 +66,20 @@ def test_the_winner_reaches_the_substrate_with_its_own_priority_as_the_weight():
     assert substrate.injected == [(8, pytest.approx(0.42))]
 
 
-def test_the_winner_lands_in_a_bounded_memory_trace():
-    workspace = _Workspace()
-    register_broadcast_consumers(workspace, substrate=_Substrate())
+def test_the_winner_lands_where_memory_actually_looks():
+    """Not in a trace on the workspace, which nothing read.
 
-    async def many():
-        for index in range(50):
-            await workspace.broadcast(_winner(source=f"s{index}"))
+    `_remember_broadcast` in `workspace_feed` writes the ignited winner into
+    `cognition.long_term_memory`, where recall and the memory domain both look.
+    A consumer that appended to an attribute on the workspace instead was a
+    writer with no reader.
+    """
+    from pathlib import Path
 
-    asyncio.run(many())
-    trace = workspace.broadcast_trace
-    assert len(trace) == 32
-    assert trace[-1]["source"] == "s49"
+    feed = (
+        Path(__file__).resolve().parents[1] / "core" / "consciousness" / "workspace_feed.py"
+    ).read_text()
+    assert "cognition.long_term_memory = context" in feed
 
 
 def test_a_consumer_that_cannot_do_its_job_does_not_take_the_others_down():
@@ -84,8 +90,12 @@ def test_a_consumer_that_cannot_do_its_job_does_not_take_the_others_down():
             raise RuntimeError("no encoder here")
 
     register_broadcast_consumers(workspace, substrate=_Broken())
-    asyncio.run(workspace.broadcast(_winner()))
-    assert len(workspace.broadcast_trace) == 1
+    asyncio.run(workspace.broadcast(_winner(source="exchange", priority=0.5)))
+    # The substrate consumer failed; the others still ran.
+    assert workspace.last_drive_attention == {
+        "drive": "social",
+        "priority": pytest.approx(0.5),
+    }
 
 
 def test_no_workspace_means_no_consumers_rather_than_an_error():
@@ -186,3 +196,41 @@ def test_every_named_drive_is_a_budget_that_exists():
 
     budgets = set(_State.default().motivation.budgets)
     assert set(SOURCE_DRIVES.values()) <= budgets, set(SOURCE_DRIVES.values()) - budgets
+
+
+def test_every_registered_consumer_changes_something_its_domain_reads():
+    """A processor that writes where its destination cannot look does not count.
+
+    One of them did. `to_memory` appended a bounded trace to an attribute on
+    the workspace, and nothing anywhere read it — a writer with no reader,
+    inside the file written to remove writers with no readers. What carries a
+    broadcast into memory is `_remember_broadcast`, which writes where recall
+    and the memory domain both look.
+    """
+    from core.consciousness.broadcast_consumers import register_broadcast_consumers
+
+    workspace = _Workspace()
+    registered = register_broadcast_consumers(workspace, substrate=_Substrate())
+
+    #: consumer -> a place the domain it serves actually reads from.
+    lands_in = {
+        "recurrent_cognition": "the substrate's own stimulus input",
+        "self_model": "self_model.beliefs, which the self-state domain reads",
+        "affect": "workspace.last_broadcast_arousal, which AffectUpdatePhase reads",
+        "deliberation": "workspace.last_drive_attention, which MotivationUpdatePhase reads",
+    }
+    assert set(registered) == set(lands_in), (
+        f"a consumer was registered or removed without saying where it lands: {registered}"
+    )
+
+
+def test_the_workspace_no_longer_grows_a_trace_nobody_reads():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    hits = [
+        str(path.relative_to(root))
+        for path in root.joinpath("core").rglob("*.py")
+        if "broadcast_trace" in path.read_text(errors="ignore")
+    ]
+    assert not hits, f"broadcast_trace is back, written in {hits}"

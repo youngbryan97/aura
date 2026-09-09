@@ -427,8 +427,19 @@ def _place(value: Any) -> Any:
     return copy.deepcopy(value)
 
 
+def _guards_its_own_writes(organ: Any) -> bool:
+    """Whether this object polices what may be written to it.
+
+    A class that defines `__setattr__` has an opinion about its own mutation,
+    and a fork rewinding state is not the caller that opinion was written for.
+    The mycelial topology refuses the write and logs a critical before it does,
+    which is the guard working — so the fork stops asking.
+    """
+    return type(organ).__setattr__ is not object.__setattr__
+
+
 def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
-    if organ is None:
+    if organ is None or _guards_its_own_writes(organ):
         return
     for name, value in saved.items():
         if isinstance(value, tuple) and len(value) == 2 and value[0] == _NESTED:
