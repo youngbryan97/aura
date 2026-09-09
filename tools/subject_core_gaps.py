@@ -177,12 +177,18 @@ def main() -> int:
     parser.add_argument("--json", type=Path, default=None)
     args = parser.parse_args()
 
+    # The newest run under the directory, when there are runs. A report left
+    # at the root of the artifacts directory is from before runs were numbered,
+    # and reading it because it happens to be there reports on a campaign that
+    # ended weeks ago.
     run = args.run
-    if not (run / "subject_core_report.json").exists():
-        runs = sorted(run.glob("run_*"))
-        if not runs:
-            raise SystemExit(f"no report in {run}")
-        run = runs[-1]
+    numbered = sorted(
+        path for path in run.glob("run_*") if (path / "subject_core_report.json").exists()
+    )
+    if numbered:
+        run = numbered[-1]
+    elif not (run / "subject_core_report.json").exists():
+        raise SystemExit(f"no report in {run}")
     summary = report(run)
     if args.json:
         args.json.write_text(json.dumps(summary, indent=2))
