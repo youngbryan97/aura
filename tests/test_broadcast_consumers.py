@@ -234,3 +234,35 @@ def test_the_workspace_no_longer_grows_a_trace_nobody_reads():
         if "broadcast_trace" in path.read_text(errors="ignore")
     ]
     assert not hits, f"broadcast_trace is back, written in {hits}"
+
+
+def test_no_prefix_stripping_defines_psychology():
+    """`affect_joy` is not a drive called joy, and no budget has ever been one.
+
+    The consumer stripped `affect_` from a winner and treated the remainder as
+    a budget name. Five budgets exist and thirty emotions do not name any of
+    them, so almost every attended feeling credited a drive that is not there.
+    The mapping is written out by what the feeling is about.
+    """
+    from core.consciousness.broadcast_consumers import AFFECT_DRIVES
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    budgets = set(state.motivation.budgets)
+    assert set(AFFECT_DRIVES.values()) <= budgets
+
+    emotions = set(state.affect.emotions)
+    missing = emotions - set(AFFECT_DRIVES)
+    assert not missing, f"feelings that credit nothing: {sorted(missing)}"
+
+
+def test_an_attended_feeling_credits_the_need_it_is_about():
+    workspace = _Workspace()
+    register_broadcast_consumers(workspace, substrate=_Substrate())
+    asyncio.run(workspace.broadcast(_winner(source="affect_fear", priority=0.7)))
+    assert workspace.last_drive_attention["drive"] == "integrity"
+
+    workspace = _Workspace()
+    register_broadcast_consumers(workspace, substrate=_Substrate())
+    asyncio.run(workspace.broadcast(_winner(source="affect_frustration", priority=0.7)))
+    assert workspace.last_drive_attention["drive"] == "growth"

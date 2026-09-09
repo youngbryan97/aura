@@ -537,3 +537,69 @@ def test_a_stored_instant_is_not_periphery_state():
     seen = read_periphery(kernel)
     assert any(name.endswith("backlog") for name in seen)
     assert not any(name.endswith("_last_refresh_at") for name in seen)
+
+
+# ── the paired test ──────────────────────────────────────────────────────
+
+
+def test_the_paired_test_asks_how_consistent_not_how_large():
+    """On the mean, one enormous trial carries the whole test.
+
+    A pair that moved in seven of eight conditions with an effect of seven
+    tenths came out at q = 0.016 against a bar of 0.01, on evidence that is not
+    marginal at all — because the null built by flipping signs has a tail as
+    fat as the outlier that made the observed mean. The signed rank asks how
+    consistently the difference is positive, which is the question the
+    replication bar asks beside it.
+    """
+    import numpy as np
+
+    from core.subject.causal import _sign_flip_p
+
+    rng = np.random.default_rng(1)
+    consistent = np.full(48, 0.7) + rng.normal(0, 0.2, 48)
+    assert _sign_flip_p(consistent, seed=1) * 90 < 0.01
+
+    # And it cuts the other way: one huge trial and forty-seven nothings is not
+    # an edge, however large the average comes out.
+    one_trial = np.zeros(48)
+    one_trial[0] = 40.0
+    assert _sign_flip_p(one_trial, seed=1) > 0.4
+    assert float(one_trial.mean()) > 0.8  # the mean would have called it large
+
+    noise = rng.normal(0, 1, 48)
+    assert _sign_flip_p(noise, seed=1) > 0.05
+
+
+def test_a_difference_of_exactly_zero_votes_for_nothing():
+    import numpy as np
+
+    from core.subject.causal import _sign_flip_p
+
+    six = np.zeros(48)
+    six[:6] = 5.0
+    # Six of forty-eight is not consistency, and the forty-two zeros must not
+    # be ranked into agreement with them.
+    assert _sign_flip_p(six, seed=1) > 0.01
+
+
+def test_the_partition_score_carries_its_own_uncertainty():
+    """A point estimate with no spread beside it cannot establish a sign."""
+    report = phi_do(_toy("recurrent"))
+    blob = report.as_dict()
+    assert len(blob["held_out"]) >= 2
+    assert blob["standard_error"] >= 0.0
+    assert blob["lower_bound"] <= blob["phi_do"]
+    # The reference architecture is genuinely recurrent: its lower bound clears
+    # the bar, not only its point estimate.
+    assert blob["lower_bound"] > 0.05
+
+
+def test_a_null_is_a_distribution_not_one_draw():
+    """One instantiation of a random weight matrix can be lucky either way."""
+    values = [
+        phi_do(toy_recording(architecture("star", seed=7 + draw), steps=1500, seed=7 + draw)).phi
+        for draw in range(3)
+    ]
+    assert len(set(round(v, 4) for v in values)) > 1, "the draws are identical"
+    assert max(values) < 0.05

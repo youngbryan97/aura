@@ -208,6 +208,9 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
         dearest_cuts=phi.get("dearest_cuts"),
         surrogate_floor=nulls.get("surrogate_floor"),
         above_surrogate_floor=nulls.get("phi_above_floor"),
+        lower_bound=phi.get("lower_bound"),
+        standard_error=phi.get("standard_error"),
+        held_out=phi.get("held_out"),
     ))
     # The comparison the absolute threshold cannot make. A minimum over 511
     # noisy estimates is biased downward by the width of its own search, and the

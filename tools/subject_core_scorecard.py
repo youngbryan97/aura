@@ -124,6 +124,121 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _edge_lines(reports: list[dict[str, Any]]) -> list[str]:
+    """Which edges held in every run, which in some, which in none."""
+    held: dict[str, int] = {}
+    effects: dict[str, list[float]] = {}
+    for report in reports:
+        for record in report.get("edges", []) or []:
+            key = f"{record.get('source')}->{record.get('target')}"
+            effects.setdefault(key, []).append(float(record.get("effect", 0.0)))
+            if record.get("kept"):
+                held[key] = held.get(key, 0) + 1
+    runs = len(reports)
+    lines = [f"| edge | kept in | effect across runs |", "|---|---|---|"]
+    for key in sorted(held, key=lambda k: (-held[k], -max(effects[k]))):
+        values = ", ".join(f"{value:.2f}" for value in effects[key])
+        lines.append(f"| `{key}` | {held[key]}/{runs} | {values} |")
+    if len(lines) == 2:
+        lines.append("| — | 0 | no edge survived every bar in any run |")
+    return lines
+
+
+def _near_misses(reports: list[dict[str, Any]], limit: int = 12) -> list[str]:
+    """The pairs closest to carrying, and what stopped each one."""
+    best: dict[str, dict[str, Any]] = {}
+    for report in reports:
+        for record in report.get("edges", []) or []:
+            if record.get("kept"):
+                continue
+            key = f"{record.get('source')}->{record.get('target')}"
+            if key not in best or float(record.get("effect", 0.0)) > float(
+                best[key].get("effect", 0.0)
+            ):
+                best[key] = record
+    ranked = sorted(best.values(), key=lambda r: -float(r.get("effect", 0.0)))[:limit]
+    lines = ["| pair | effect | q | conditions carrying |", "|---|---|---|---|"]
+    for record in ranked:
+        conditions = ", ".join(record.get("conditions", ())) or "none"
+        lines.append(
+            f"| `{record['source']}->{record['target']}` | "
+            f"{float(record.get('effect', 0.0)):.2f} | {float(record.get('q', 1.0)):.4f} | "
+            f"{conditions} |"
+        )
+    return lines
+
+
+def report_markdown(card: dict[str, Any], reports: list[dict[str, Any]]) -> str:
+    """The scorecard as a document, generated rather than transcribed.
+
+    The completion specification asks for human-readable scorecards produced
+    from the raw artifacts. Anything typed by hand from a terminal is a claim
+    about a run rather than a reading of one, and drifts from it the moment
+    either changes.
+    """
+    campaign = (reports[-1].get("campaign") or {}) if reports else {}
+    frozen = campaign.get("frozen", {})
+    lines: list[str] = []
+    lines.append("# Intrinsic Subject Core — scorecard")
+    lines.append("")
+    lines.append(
+        f"{card['holds']} hold, {card['unresolved']} unresolved, {card['fails']} fail "
+        f"across {card['runs']} runs. Per-run totals {card['totals_per_run']} of "
+        f"{card['criteria'] and len(card['criteria'])}."
+    )
+    lines.append("")
+    lines.append("## The campaign")
+    lines.append("")
+    lines.append(f"- commit `{campaign.get('commit', '?')[:12]}` "
+                 f"({'dirty' if campaign.get('dirty') else 'clean'} tree)")
+    lines.append(f"- tree hash `{campaign.get('tree_hash', '?')}`")
+    lines.append(f"- fingerprint `{campaign.get('fingerprint', '?')}`")
+    prints = card.get("campaigns") or {}
+    if len(prints) > 1:
+        lines.append(
+            f"- **{len(prints)} different fingerprints across these runs — not one campaign**"
+        )
+    intervention = frozen.get("intervention", {})
+    recording = frozen.get("recording", {})
+    lines.append(
+        f"- {recording.get('rounds')} rounds over {len(recording.get('conditions', []))} "
+        f"conditions; {intervention.get('trials')} trials, "
+        f"{intervention.get('turns_per_arm')} turns per arm, delta "
+        f"{intervention.get('delta')}"
+    )
+    lines.append("")
+    lines.append("## Criteria")
+    lines.append("")
+    lines.append("| | criterion | held | § | needs |")
+    lines.append("|---|---|---|---|---|")
+    for row in card["criteria"]:
+        mark = {"holds": "✓", "fails": "✗"}.get(row["verdict"], "~")
+        lines.append(
+            f"| {mark} | `{row['criterion']}` | {row['held']}/{row['runs']} | "
+            f"{row['section']} | {row['bar']} |"
+        )
+    if card.get("numbers"):
+        lines.append("")
+        lines.append("## The numbers, across runs")
+        lines.append("")
+        lines.append("| quantity | values | median | spread |")
+        lines.append("|---|---|---|---|")
+        for label, entry in card["numbers"].items():
+            lines.append(
+                f"| {label} | {entry['values']} | {entry['median']} | {entry['spread']} |"
+            )
+    lines.append("")
+    lines.append("## Edges that survived every bar")
+    lines.append("")
+    lines.extend(_edge_lines(reports))
+    lines.append("")
+    lines.append("## The pairs closest to carrying")
+    lines.append("")
+    lines.extend(_near_misses(reports))
+    lines.append("")
+    return "\n".join(lines)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directories", nargs="+", type=Path)
@@ -134,6 +249,12 @@ def main() -> int:
         help="read the N most recent run_NNN directories beneath the one given",
     )
     parser.add_argument("--json", type=Path, default=None)
+    parser.add_argument(
+        "--markdown",
+        type=Path,
+        default=None,
+        help="write the scorecard as a document, generated from the artifacts",
+    )
     args = parser.parse_args()
 
     directories = list(args.directories)
@@ -143,7 +264,8 @@ def main() -> int:
         if not runs:
             raise SystemExit(f"no run_NNN directories under {root}")
         directories = runs[-args.latest :]
-    card = scorecard([load(d) for d in directories])
+    reports = [load(d) for d in directories]
+    card = scorecard(reports)
     card["runs_read"] = [str(d) for d in directories]
 
     print(
@@ -171,15 +293,25 @@ def main() -> int:
                 f"spread {entry['spread']}"
             )
 
-    if args.json:
+    if args.json or args.markdown:
         from core.governance_context import local_internal_governed_scope
         from core.runtime.file_write_gateway import get_file_write_gateway
 
+        gateway = get_file_write_gateway()
         with local_internal_governed_scope("subject_core.scorecard"):
-            get_file_write_gateway().write_text(
-                args.json, json.dumps(card, indent=2), source="subject_core.scorecard"
-            )
-        print(f"\nwrote {args.json}")
+            if args.json:
+                gateway.write_text(
+                    args.json, json.dumps(card, indent=2), source="subject_core.scorecard"
+                )
+            if args.markdown:
+                gateway.write_text(
+                    args.markdown,
+                    report_markdown(card, reports),
+                    source="subject_core.scorecard",
+                )
+        for target in (args.json, args.markdown):
+            if target:
+                print(f"\nwrote {target}")
     return 0
 
 

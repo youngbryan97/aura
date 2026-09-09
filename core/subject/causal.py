@@ -373,19 +373,40 @@ SIGN_FLIP_DRAWS: int = 200_000
 def _sign_flip_p(differences: np.ndarray, *, seed: int, draws: int = SIGN_FLIP_DRAWS) -> float:
     """One-sided paired test with no distributional assumption.
 
-    The pairing is the point: within a trial the displaced arm and the two
-    sham arms share a snapshot, so the difference between what the
-    intervention moved and what nothing moved is the quantity with a null of
-    zero. Flipping signs is the exact null for that difference.
+    The pairing is the point: within a trial the displaced arm and the two sham
+    arms share a snapshot, so the difference between what the intervention
+    moved and what nothing moved is the quantity with a null of zero. Flipping
+    signs is the exact null for that difference.
+
+    The statistic is the signed rank, not the mean. On the mean, a single trial
+    where the displacement happened to land hard carries the whole test, and
+    the null built by flipping signs has a fat tail for the same reason — so a
+    pair that moved in seven of eight conditions with an effect of seven tenths
+    came out at q = 0.016 against a bar of 0.01, on evidence that is not
+    marginal at all. The signed rank asks how consistently the difference is
+    positive rather than how large its average is, which is the question the
+    replication bar asks beside it, and it cuts both ways: an effect that is
+    one enormous trial and forty-seven nothings no longer certifies.
+
+    Exact zeros are dropped rather than ranked. A difference of zero is
+    evidence of nothing in either direction, and giving it a rank lets the
+    count of ties decide the answer.
     """
     if differences.size == 0:
         return 1.0
-    observed = float(differences.mean())
-    if observed <= 0:
+    kept = differences[np.abs(differences) > 1e-12]
+    if kept.size == 0 or float(kept.mean()) <= 0.0:
+        return 1.0
+    order = np.argsort(np.abs(kept), kind="stable")
+    ranks = np.empty(kept.size, dtype=np.float64)
+    ranks[order] = np.arange(1, kept.size + 1, dtype=np.float64)
+    signed = np.sign(kept) * ranks
+    observed = float(signed.sum())
+    if observed <= 0.0:
         return 1.0
     rng = np.random.default_rng(seed)
-    signs = rng.choice((-1.0, 1.0), size=(draws, differences.size))
-    null = (signs * differences).mean(axis=1)
+    flips = rng.choice((-1.0, 1.0), size=(draws, kept.size))
+    null = (flips * ranks).sum(axis=1)
     return float((1.0 + np.sum(null >= observed)) / (draws + 1.0))
 
 
@@ -439,7 +460,9 @@ def build_edges(
     """
     pairs = results.by_pair()
     tested: list[dict[str, Any]] = []
-    raw: list[tuple[str, str, float, float, tuple[str, ...], int, dict[str, float]]] = []
+    raw: list[
+        tuple[str, str, float, float, tuple[str, ...], int, dict[str, float], float, int]
+    ] = []
 
     for (source, target), trials in sorted(pairs.items()):
         if source == target:
@@ -466,13 +489,34 @@ def build_edges(
             by_condition[condition] = round(float(local.mean()), 4)
             if float(local.mean()) >= effect_min:
                 replicated.append(condition)
-        raw.append((source, target, effect, p, tuple(replicated), len(trials), by_condition))
+        # Where in the arm the response peaked, in frames after the
+        # displacement. An effect that always peaks at the last frame recorded
+        # is an effect the horizon cut off, and a horizon that is binding is a
+        # fact about the measurement rather than about the organism.
+        peaks = []
+        for trial in trials:
+            series = trial.trace.get(target) or []
+            if series:
+                peaks.append(int(np.argmax(series)))
+        peak_lag = float(np.median(peaks)) if peaks else 0.0
+        lags = max((len(trial.trace.get(target) or []) for trial in trials), default=0)
+        raw.append(
+            (source, target, effect, p, tuple(replicated), len(trials), by_condition, peak_lag, lags)
+        )
 
     q_values = benjamini_hochberg([item[3] for item in raw])
     edges: list[Edge] = []
-    for (source, target, effect, p, replicated, count, by_condition), q in zip(
-        raw, q_values, strict=True
-    ):
+    for (
+        source,
+        target,
+        effect,
+        p,
+        replicated,
+        count,
+        by_condition,
+        peak_lag,
+        lags,
+    ), q in zip(raw, q_values, strict=True):
         # Which conditions carried it, not only how many. A pair that misses
         # the replication bar in one condition and a pair that carries in none
         # both read as "not kept" from the count alone, and they are the two
@@ -487,6 +531,9 @@ def build_edges(
             "conditions": list(replicated),
             "by_condition": by_condition,
             "trials": count,
+            "peak_lag": peak_lag,
+            "lags": lags,
+            "at_the_horizon": bool(lags and peak_lag >= lags - 1),
             "kept": False,
         }
         if q < q_max and effect >= effect_min and len(replicated) >= replication_min:

@@ -94,7 +94,9 @@ def save_arms(directory: Path, results: Any, *, name: str = "intervention_arms.j
 
 def save_edge_table(directory: Path, tested: list[dict[str, Any]], *, name: str = "edges.csv") -> Path:
     """Every pair the battery tested, in the order it tested them."""
-    rows = ["source,target,effect,p,q,replication,trials,kept,conditions"]
+    rows = [
+        "source,target,effect,p,q,replication,trials,kept,peak_lag,lags,at_the_horizon,conditions"
+    ]
     for record in tested:
         rows.append(
             ",".join(
@@ -107,6 +109,9 @@ def save_edge_table(directory: Path, tested: list[dict[str, Any]], *, name: str 
                     str(record.get("replication", 0)),
                     str(record.get("trials", 0)),
                     "1" if record.get("kept") else "0",
+                    f"{float(record.get('peak_lag', 0.0)):.1f}",
+                    str(record.get("lags", 0)),
+                    "1" if record.get("at_the_horizon") else "0",
                     " ".join(record.get("conditions", ())),
                 ]
             )

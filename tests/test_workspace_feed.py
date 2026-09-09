@@ -250,19 +250,33 @@ def test_the_feed_stops_competing_once_something_else_is():
 
 def test_a_surprising_world_bids_at_its_own_prediction_error():
     """Its only route into the workspace was a heartbeat branch gated at a free
-    energy above 0.35, which is a different and much rarer event."""
-    from types import SimpleNamespace as _NS
+    energy above 0.35, which is a different and much rarer event.
+
+    Squashed rather than clipped. Prediction error is unbounded above, and a
+    clip turns every surprise past one into the same maximum — so this bid sat
+    at its ceiling on every turn and stopped being a reading of anything.
+    """
+    import math
 
     from core.container import ServiceContainer
 
     class _Model:
-        def surprise(self):
-            return 0.63
+        def __init__(self, value: float) -> None:
+            self.value = value
 
-    ServiceContainer.register_instance("unified_world_model", _Model())
+        def surprise(self):
+            return self.value
+
+    ServiceContainer.register_instance("unified_world_model", _Model(0.63))
     bid = next(b for b in build_candidates(AuraState.default()) if b.source == "world_model")
-    assert bid.priority == pytest.approx(0.63)
-    del _NS
+    assert bid.priority == pytest.approx(math.tanh(0.63))
+
+    # And two surprises past one are still told apart.
+    ServiceContainer.register_instance("unified_world_model", _Model(1.5))
+    milder = next(b for b in build_candidates(AuraState.default()) if b.source == "world_model")
+    ServiceContainer.register_instance("unified_world_model", _Model(4.0))
+    worse = next(b for b in build_candidates(AuraState.default()) if b.source == "world_model")
+    assert worse.priority > milder.priority
 
 
 def test_a_world_that_behaved_as_predicted_does_not_bid():
@@ -336,3 +350,22 @@ def test_retrieval_keeps_the_score_it_ranked_by() -> None:
 
     source = (Path(__file__).resolve().parents[1] / "core" / "phases" / "memory_retrieval.py").read_text()
     assert "cognition.memory_scores = scores" in source, "the ranking is discarded again"
+
+
+def test_a_finished_goal_is_a_record_not_an_intention():
+    """It bid at the priority of a completed thing and won everything.
+
+    The action arm appends a goal marked done on every turn it acts. Bid at
+    that priority it was a flat maximum, and a flat maximum in the competition
+    crowds every other domain out — the same defect the memory and exchange
+    bids had, and the reason displacing affect stopped changing what won.
+    """
+    state = AuraState.default()
+    state.cognition.active_goals = [
+        {"goal": "wrote the file", "status": "done", "priority": 1.0},
+        {"goal": "still working on this", "status": "pending", "priority": 0.4},
+    ]
+    bids = [b for b in build_candidates(state) if getattr(b, "source", "") == "deliberation"]
+    assert len(bids) == 1
+    assert bids[0].priority == pytest.approx(0.4)
+    assert "still working" in bids[0].content

@@ -61,14 +61,69 @@ SOURCE_DRIVES: dict[str, str] = {
 }
 
 
+#: Which need each feeling bears on. Written out rather than derived by
+#: stripping a prefix: `affect_joy` is not a drive called joy, and no budget has
+#: ever been called that. Prefix-stripping was defining psychology, and what it
+#: defined was five budgets and thirty emotions that mostly named none of them.
+#:
+#: The mapping is by what the feeling is about. Warmth and its absence are
+#: about company. Interest and its absence are about finding out. Fear and
+#: vulnerability are about holding together. Frustration and anger are about
+#: not yet being able, which is what growth is the drive for.
+AFFECT_DRIVES: dict[str, str] = {
+    "joy": "social",
+    "trust": "social",
+    "warmth": "social",
+    "belonging": "social",
+    "happiness": "social",
+    "gratitude": "social",
+    "loneliness": "social",
+    "longing": "social",
+    "sadness": "social",
+    "curiosity": "curiosity",
+    "interest": "curiosity",
+    "wonder": "curiosity",
+    "anticipation": "curiosity",
+    "surprise": "curiosity",
+    "excitement": "curiosity",
+    "boredom": "curiosity",
+    "apathy": "curiosity",
+    "fear": "integrity",
+    "dread": "integrity",
+    "vulnerability": "integrity",
+    "upset": "integrity",
+    "terror": "integrity",
+    "unhappiness": "integrity",
+    "frustration": "growth",
+    "anger": "growth",
+    "confused": "growth",
+    "disgust": "growth",
+    "pride": "growth",
+    "satisfaction": "growth",
+    "hope": "growth",
+    "relief": "growth",
+    "inspiration": "growth",
+    "nostalgia": "social",
+    "love": "social",
+    "empathy": "social",
+    "admiration": "social",
+    "contempt": "social",
+    "submission": "social",
+    "awe": "curiosity",
+    "amusement": "curiosity",
+    "indifference": "curiosity",
+    "cynicism": "integrity",
+    "remorse": "integrity",
+    "aggressiveness": "growth",
+}
+
+
 def _drive_served(source: str) -> str:
     """The budget a broadcast from this source replenishes, or an empty name."""
-    for prefix in ("drive_", "affect_"):
-        if source.startswith(prefix):
-            named = source[len(prefix) :]
-            # An affect channel is not a budget. Feeling something about the
-            # world is curiosity being met, not a drive called `joy`.
-            return named if prefix == "drive_" else "curiosity"
+    if source.startswith("drive_"):
+        return source[len("drive_") :]
+    if source.startswith("affect_"):
+        return AFFECT_DRIVES.get(source[len("affect_") :], "")
     return SOURCE_DRIVES.get(source, "")
 
 
