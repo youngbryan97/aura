@@ -218,7 +218,23 @@ _EMOTIONS: tuple[str, ...] = (
 )
 
 #: The motivation budgets read into D, likewise fixed.
-_DRIVES: tuple[str, ...] = ("social", "curiosity", "rest", "creation")
+#: Read from the state's own defaults rather than named here. The first
+#: version listed `rest` and `creation`, which no budget has ever been called —
+#: so two of deliberation's columns were a constant zero, and the probe that
+#: displaces this domain moved neither `growth`, the drive that is most
+#: depleted on almost every tick and therefore decides what she does, nor
+#: `integrity` or `energy`. A displacement that cannot reach the drive that
+#: decides is a displacement of deliberation that deliberation cannot notice.
+def _budget_names() -> tuple[str, ...]:
+    try:
+        from core.motivation.constants import MOTIVATION_BUDGET_DEFAULTS
+
+        return tuple(sorted(MOTIVATION_BUDGET_DEFAULTS))
+    except ImportError:  # pragma: no cover - the constants are not optional
+        return ("curiosity", "energy", "growth", "integrity", "social")
+
+
+_DRIVES: tuple[str, ...] = _budget_names()
 
 #: Cognitive modes, one-hot into C.
 _MODES: tuple[str, ...] = ("reactive", "deliberate", "dreaming", "dormant")

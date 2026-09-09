@@ -168,3 +168,28 @@ def test_every_footing_is_a_reading_of_a_different_domain() -> None:
     """Eight readings, and no two of them the same channel twice."""
     phase = _phase()
     assert len(phase._footing(AuraState.default())) == 8
+
+
+def test_the_deliberation_probe_reaches_the_drive_that_decides() -> None:
+    """Two of its columns named budgets that have never existed.
+
+    The schema listed `rest` and `creation`; the state carries curiosity,
+    energy, growth, integrity and social. So two of deliberation's columns were
+    a constant zero, and the probe that displaces this domain moved neither
+    growth — the drive that is most depleted on almost every tick and therefore
+    decides what she does — nor integrity or energy. A displacement that cannot
+    reach the drive that decides is one deliberation cannot notice.
+    """
+    from core.subject.state import _DRIVES, feature_names, perturb, read_core_state
+
+    budgets = set(AuraState.default().motivation.budgets)
+    assert set(_DRIVES) == budgets, f"{set(_DRIVES) ^ budgets}"
+
+    names = feature_names()
+    state = AuraState.default()
+    before = read_core_state(state).vector()
+    assert perturb(state, "D", 0.15)
+    after = read_core_state(state).vector()
+    moved = {names[i] for i in range(len(names)) if abs(after[i] - before[i]) > 1e-9}
+    assert "D.drive_growth" in moved
+    assert state.motivation.budgets["growth"]["level"] > 50.0
