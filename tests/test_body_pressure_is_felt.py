@@ -81,11 +81,18 @@ def test_the_body_phase_pushes_a_frame_into_the_substrate():
         def inject_perceptual_frame(self, frame_data):
             frames.append(dict(frame_data))
 
+    from core.state.percepts import emit_percept
+
     register_runtime_service("liquid_substrate", _Substrate(), required=False)
     state = AuraState.default()
     state.soma.hardware.update({"cpu_usage": 71.0, "ram_usage": 64.0, "temperature": 80.0})
     state.affect.valence = -0.4
-    state.world.recent_percepts.append({"source": "screen", "content": "a window moved"})
+    # In the shape percepts arrive in. The first version of this test wrote a
+    # `source` key, which the frame asked for and no producer in the tree has
+    # ever written — so the screen channel read zero however much she was
+    # looking at, and presence was a bare count where one percept and twenty
+    # read the same.
+    emit_percept(state.world, "vision", content="a window moved", intensity=0.8)
 
     ProprioceptiveLoop(container=None)._push_perceptual_frame(state)
 
@@ -95,8 +102,31 @@ def test_the_body_phase_pushes_a_frame_into_the_substrate():
     assert frame["memory_percent"] == pytest.approx(64.0)
     assert frame["thermal"] == pytest.approx(0.8)
     assert frame["valence"] == pytest.approx(-0.4)
-    assert frame["user_presence"] == 1.0
-    assert frame["screen_changed"] == 1.0
+    assert frame["user_presence"] == pytest.approx(0.8)
+    assert frame["screen_changed"] == pytest.approx(0.8)
+
+
+def test_the_frame_grades_what_arrived_rather_than_counting_it():
+    from core.phases.proprioceptive_loop import ProprioceptiveLoop
+    from core.runtime.service_registry import register_runtime_service
+    from core.state.aura_state import AuraState
+    from core.state.percepts import emit_percept
+
+    frames: list[dict] = []
+
+    class _Substrate:
+        def inject_perceptual_frame(self, frame_data):
+            frames.append(dict(frame_data))
+
+    register_runtime_service("liquid_substrate", _Substrate(), required=False)
+    state = AuraState.default()
+    emit_percept(state.world, "interaction", content="a message", intensity=0.9)
+    emit_percept(state.world, "resource_pressure", content="under load", intensity=0.6)
+    ProprioceptiveLoop(container=None)._push_perceptual_frame(state)
+    frame = frames[-1]
+    assert frame["social"] == pytest.approx(0.9)
+    assert frame["threat"] == pytest.approx(0.6)
+    assert frame["screen_changed"] == 0.0
 
 
 def test_a_channel_that_reported_nothing_is_left_out_of_the_frame():

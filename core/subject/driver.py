@@ -74,6 +74,11 @@ PHASE_TIMEOUT: float = 12.0
 #: because two arms must see the same integration and not the same wall clock.
 SUBSTRATE_STEP_SECONDS: float = 0.5
 
+#: The priority below which the will defers an initiative
+#: (`core/governance/will.py`). Read here rather than chosen, because "urgent
+#: enough to act on" is a decision the governance layer already makes.
+WILL_DEFERRAL_BAR: float = 0.3
+
 
 class DeterministicMind:
     """One answer, always, so two arms differ by the intervention and nothing else."""
@@ -1019,10 +1024,17 @@ class SubjectRuntime:
 
         if condition.after == "retrieve":
             self._retrieve(condition.objective)
-        elif condition.after == "act":
+        elif condition.after == "act" or self._intends_to_act():
             # Off the loop. The action is a real write and a real read-back, so
             # it carries an fsync, and an fsync on the event loop is the defect
             # this driver exists to measure rather than to commit.
+            #
+            # She acts when she has decided to, not only when the condition
+            # says so. A return route to perception that exists in one of eight
+            # conditions cannot replicate in three, and the specification asks
+            # for the loop to close through the world — deliberation, action,
+            # environment, perception. Which action is chosen and whether one
+            # happens at all are both read off her own intentions.
             await asyncio.to_thread(self._act, condition.objective, actor=self.actor)
         await capture("after")
 
@@ -1151,6 +1163,28 @@ class SubjectRuntime:
     #: a real filesystem change with a real reading back, and which one happens
     #: is decided by her state rather than fixed by this harness.
     ACTIONS: ClassVar[tuple[str, ...]] = ("write_notes", "append_log", "make_room")
+
+    def _intends_to_act(self) -> bool:
+        """Whether anything she is holding is urgent enough to do something about.
+
+        The bar is the will's own: an initiative below three tenths is deferred
+        by governance, so one at or above it is one she has decided on.
+        """
+        cognition = getattr(self.state, "cognition", None)
+        if cognition is None:
+            return False
+        holdings = list(getattr(cognition, "pending_initiatives", []) or [])
+        holdings += list(getattr(cognition, "active_goals", []) or [])
+        for item in holdings:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("status", "")) in {"done", "failed"}:
+                continue
+            for key in ("urgency", "priority"):
+                value = item.get(key)
+                if isinstance(value, (int, float)) and float(value) >= WILL_DEFERRAL_BAR:
+                    return True
+        return False
 
     def _chosen_action(self) -> str:
         """The action her most depleted drive picks.

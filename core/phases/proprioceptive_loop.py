@@ -24,7 +24,7 @@ except ImportError:
     psutil = None
 
 from ..state.aura_state import AuraState
-from ..state.percepts import emit_percept
+from ..state.percepts import emit_percept, read_percept
 from . import BasePhase
 
 logger = logging.getLogger("core.phases.proprioception")
@@ -98,17 +98,32 @@ class ProprioceptiveLoop(BasePhase):
             if substrate is None or not hasattr(substrate, "inject_perceptual_frame"):
                 return
             hardware = getattr(state.soma, "hardware", {}) or {}
-            percepts = list(getattr(state.world, "recent_percepts", []) or [])
+            raw = list(getattr(state.world, "recent_percepts", []) or [])
+            # Through the shared reading. The first version asked each percept
+            # for a `source` key that no producer writes, so the screen channel
+            # was zero however much she was looking at, and priced presence as
+            # a bare count — one percept and twenty read the same.
+            percepts = [read_percept(item) for item in raw[-8:]]
+            newest = percepts[-1] if percepts else None
+            visual = {"vision", "ambient_observation"}
+            social = {"interaction", "positive_interaction", "extended_dialogue", "deep_expression"}
+            threat = {"error", "internal_error", "threat_detected", "resource_pressure"}
             frame = {
                 "cpu_percent": float(hardware.get("cpu_usage", 0.0) or 0.0),
                 "memory_percent": float(hardware.get("ram_usage", hardware.get("vram_usage", 0.0)) or 0.0),
                 "thermal": float(hardware.get("temperature", 0.0) or 0.0) / 100.0,
                 "valence": float(getattr(state.affect, "valence", 0.0) or 0.0),
                 "arousal": float(getattr(state.affect, "arousal", 0.0) or 0.0),
-                "user_presence": 1.0 if percepts else 0.0,
-                "screen_changed": 1.0 if any(
-                    str(item.get("source", "")) == "screen" for item in percepts[-4:] if isinstance(item, dict)
-                ) else 0.0,
+                "user_presence": newest.salience if newest else 0.0,
+                "screen_changed": max(
+                    (item.intensity for item in percepts if item.kind in visual), default=0.0
+                ),
+                "social": max(
+                    (item.intensity for item in percepts if item.kind in social), default=0.0
+                ),
+                "threat": max(
+                    (item.intensity for item in percepts if item.kind in threat), default=0.0
+                ),
             }
             reading = state.response_modifiers.get("ontogenetic_novelty")
             if reading is not None:
