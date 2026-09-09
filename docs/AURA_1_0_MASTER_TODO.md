@@ -362,6 +362,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   caller cancellation now checks the existing bound cleanup receipt before
   deciding whether to recycle; 278 focused tests pass, resident replay pending.
   See [bound latent Stop](evidence/R09_BOUND_LATENT_STOP_2026-09-09.md).
+  UPDATE 2026-09-09: multi-part turns now keep the bounded default history
+  window. Source history no longer clips delivered answers or flattens code
+  before model budget allocation. The follow-up/recall selection passed 21
+  tests; live replay remains required. See
+  [follow-up source history](evidence/R09_FOLLOWUP_SOURCE_HISTORY_2026-09-09.md).
 - [x] R10 Verify executable examples semantically, not merely process exit zero.
   Closed 2026-09-08. The code truth engine executes module-level assertions and
   doctest examples in the symbolic sandbox, demotes claims when execution is

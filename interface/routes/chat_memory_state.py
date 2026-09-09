@@ -1650,14 +1650,8 @@ async def _recent_completed_conversation_exchanges(
             stamp_runtime_payload(
                 {
                     "exchange_id": str(entry.get("id") or ""),
-                    "user": _clip_conversation_text(
-                        user_text,
-                        limit=_RECENT_CONVERSATION_USER_CHARS,
-                    ),
-                    "aura": _clip_conversation_text(
-                        aura_text,
-                        limit=_RECENT_CONVERSATION_AURA_CHARS,
-                    ),
+                    "user": user_text,
+                    "aura": aura_text,
                     "timestamp": str(entry.get("completed_at") or entry.get("timestamp") or ""),
                     "session_id": str(entry.get("session_id") or "")[:64],
                     "action_episode": action_episode,
@@ -1694,14 +1688,8 @@ async def _recent_completed_conversation_exchanges(
     seen_legacy_keys: set[tuple[str, str]] = set()
     for entry in durable:
         exchange_id = str(entry.get("exchange_id") or "").strip()
-        user_text = _clip_conversation_text(
-            entry.get("user"),
-            limit=_RECENT_CONVERSATION_USER_CHARS,
-        )
-        aura_text = _clip_conversation_text(
-            entry.get("aura"),
-            limit=_RECENT_CONVERSATION_AURA_CHARS,
-        )
+        user_text = str(entry.get("user") or "").strip()
+        aura_text = str(entry.get("aura") or "").strip()
         key = (user_text, aura_text)
         if current and user_text == current:
             continue
@@ -1889,14 +1877,8 @@ def _load_durable_conversation_exchanges_sync(
                 (
                     position,
                     {
-                        "user": _clip_conversation_text(
-                            user_row.get("content"),
-                            limit=_RECENT_CONVERSATION_USER_CHARS,
-                        ),
-                        "aura": _clip_conversation_text(
-                            content,
-                            limit=_RECENT_CONVERSATION_AURA_CHARS,
-                        ),
+                        "user": str(user_row.get("content") or "").strip(),
+                        "aura": content,
                         "timestamp": str(row.get("created_at") or user_row.get("created_at") or ""),
                         "session_id": row_session_id,
                     },
@@ -1915,14 +1897,8 @@ def _load_durable_conversation_exchanges_sync(
                 int(state.get("position") or 0),
                 {
                     "exchange_id": str(state.get("exchange_id") or ""),
-                    "user": _clip_conversation_text(
-                        user_row.get("content"),
-                        limit=_RECENT_CONVERSATION_USER_CHARS,
-                    ),
-                    "aura": _clip_conversation_text(
-                        aura_row.get("content"),
-                        limit=_RECENT_CONVERSATION_AURA_CHARS,
-                    ),
+                    "user": str(user_row.get("content") or "").strip(),
+                    "aura": str(aura_row.get("content") or "").strip(),
                     "timestamp": str(
                         aura_row.get("created_at") or user_row.get("created_at") or ""
                     ),

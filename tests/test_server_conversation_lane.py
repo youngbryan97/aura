@@ -14450,7 +14450,7 @@ async def test_rejected_generation_cannot_open_metadata_less_second_owner(monkey
 
 
 @pytest.mark.asyncio
-async def test_recent_desktop_context_is_deep_but_strictly_bounded():
+async def test_recent_desktop_context_preserves_source_with_bounded_window_and_rendering():
     from interface.routes import chat as chat_routes
 
     async with chat_routes._get_convo_lock():
@@ -14473,14 +14473,9 @@ async def test_recent_desktop_context_is_deep_but_strictly_bounded():
     assert len(exchanges) == 12
     assert exchanges[0]["user"].startswith("user-8 ")
     assert exchanges[-1]["user"].startswith("user-19 ")
-    assert all(
-        len(entry["user"]) <= chat_routes._RECENT_CONVERSATION_USER_CHARS
-        for entry in exchanges
-    )
-    assert all(
-        len(entry["aura"]) <= chat_routes._RECENT_CONVERSATION_AURA_CHARS
-        for entry in exchanges
-    )
+    for index, entry in enumerate(exchanges, start=8):
+        assert entry["user"] == f"user-{index} " + ("u" * 4000)
+        assert entry["aura"] == f"aura-{index} " + ("a" * 5000)
     assert len(rendered) <= chat_routes._RECENT_CONVERSATION_RENDERED_CHARS
 
 
@@ -15145,13 +15140,18 @@ async def test_chat_restart_recovers_completed_exchange_from_canonical_persisten
     async with chat_routes._get_convo_lock():
         chat_routes._conversation_log.clear()
 
+    long_answer = (
+        "I will recover this completed exchange after process memory is cleared.\n"
+        + "Retained detail.\n" * 150
+        + "5. Preserve the final step.\n```python\nif pending:\n    undo()\n```"
+    )
     exchange_id = await chat_routes._begin_logged_exchange(
         "Remember the live desktop continuity contract."
     )
     await chat_routes._complete_logged_exchange(
         exchange_id,
         "Remember the live desktop continuity contract.",
-        "I will recover this completed exchange after process memory is cleared.",
+        long_answer,
         record_experience=False,
     )
     async with chat_routes._get_convo_lock():
@@ -15164,7 +15164,7 @@ async def test_chat_restart_recovers_completed_exchange_from_canonical_persisten
 
     assert recovered
     assert recovered[-1]["user"] == "Remember the live desktop continuity contract."
-    assert "recover this completed exchange" in recovered[-1]["aura"]
+    assert recovered[-1]["aura"] == long_answer
 
 
 @pytest.mark.asyncio
@@ -15450,7 +15450,8 @@ def test_self_contained_choice_does_not_request_stale_conversation_context():
 
 
 @pytest.mark.asyncio
-async def test_compound_choice_reaches_engine_as_deep_self_contained_turn(monkeypatch):
+@pytest.mark.parametrize("followup", [False, True])
+async def test_compound_turn_keeps_its_objective_and_delivered_history(monkeypatch, followup):
     from core.brain.types import ThinkingMode
     from core.providers import engine_connection_pool as pool_module
     from interface.routes import chat as chat_routes
@@ -15460,6 +15461,8 @@ async def test_compound_choice_reaches_engine_as_deep_self_contained_turn(monkey
         "which one you would use in a single-host async runtime, explain why, and "
         "verify your choice with one concrete failure scenario."
     )
+    if followup:
+        user_message = "Which of those five steps handles work that never committed, and why is it needed?"
     answer = (
         "Optimistic locking lets workers race and reject stale claims, whereas pessimistic "
         "locking serializes acquisition before work begins. I would choose pessimistic locking "
@@ -15489,7 +15492,12 @@ async def test_compound_choice_reaches_engine_as_deep_self_contained_turn(monkey
         async def acquire_engine_connection(self, *_args, **_kwargs):
             return None
 
-    recent = AsyncCallFixture(return_value=[{"user": "stale", "assistant": "stale"}])
+    from core.utils.injected_blocks import stamp_runtime_payload
+    preceding = stamp_runtime_payload({
+        "user": "Explain database crash recovery in five steps.",
+        "aura": "1. Read the log.\n2. Replay commits.\n3. Undo uncommitted writes.\n4. Check integrity.\n5. Reopen.",
+    })
+    recent = AsyncCallFixture(return_value=[preceding])
     monkeypatch.setattr(pool_module, "get_engine_connection_pool", lambda: _Pool())
     monkeypatch.setattr(_chat_memory_state, "_recent_completed_conversation_exchanges", recent)
     for name in (
@@ -15522,20 +15530,13 @@ async def test_compound_choice_reaches_engine_as_deep_self_contained_turn(monkey
 
     assert reply == answer
     assert len(calls) == 1
-    assert calls[0]["kwargs"]["mode"] is ThinkingMode.DEEP
-    assert calls[0]["context"]["compact_desktop_chat_contract"] is False
-    assert calls[0]["context"]["prompt_shape"]["imperative_parts"] == 4
-    assert calls[0]["context"]["recent_completed_exchanges"] == []
-    # The guarantee is that no prior exchange reaches the PROMPT (asserted
-    # above). This used to be written as "never looked at all", which stopped
-    # being true when the antecedent lookup landed: a pro-form follow-up
-    # ("why did it catch your attention?") carries no topic of its own, so the
-    # reliability gate needs the previous turn to have anything to check
-    # relevance against. That reader takes exactly one exchange and never
-    # feeds the prompt. Assert the distinction rather than forbidding the read.
-    assert all(
-        call[1].get("limit") == 1 for call in recent.calls
-    ), f"only the antecedent reader may run on a self-contained turn: {recent.calls}"
+    assert user_message in calls[0]["objective"]
+    if not followup:
+        assert calls[0]["kwargs"]["mode"] is ThinkingMode.DEEP
+        assert calls[0]["context"]["compact_desktop_chat_contract"] is False
+        assert calls[0]["context"]["prompt_shape"]["imperative_parts"] == 4
+    assert calls[0]["context"]["recent_completed_exchanges"] == [preceding]
+    assert any(call[1].get("limit", 0) >= 4 for call in recent.calls)
     assert trace["foreground_model_generation_count"] == 1
     assert trace["single_owner_generation_exhausted"] is True
 

@@ -4503,15 +4503,11 @@ async def _run_cognitive_engine_chat_turn(
         recent_context_limit = 0
     elif recent_context_needed:
         recent_context_limit = _RECENT_CONVERSATION_CONTEXT_EXCHANGES
-    elif self_contained_compound:
-        # A self-contained compound task must not inherit an older answer just
-        # because all desktop turns historically received a default transcript
-        # window. Explicit continuation/recall signals above still opt in.
-        recent_context_limit = 0
     elif require_engine:
         # The live desktop CognitiveEngine path must not depend on a classifier
         # before it can see the local thread. A small default window prevents
         # fluent but contextless replies while keeping compact chat bounded.
+        # Clause count does not establish independence from preceding turns.
         recent_context_limit = min(4, _RECENT_CONVERSATION_CONTEXT_EXCHANGES)
     else:
         recent_context_limit = 0
