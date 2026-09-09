@@ -7754,9 +7754,30 @@ def _mlx_worker_loop(
                 # reuse it — silently reinstating the full-history re-prefill
                 # this cache exists to prevent. Bypass jobs simply never read
                 # or write; only an explicit request clears.
+                # `clear_prompt_cache` means "do not reuse anything for MY
+                # request", and that is `disable_prompt_cache`, which is set
+                # beside it at every one of the callers that asks for it.
+                #
+                # It used to wipe the whole model+scope trie. That is a
+                # different act, nobody asked for it, and everybody paid: the
+                # scope is `user_surface`, so one contract lane — or the
+                # readiness probe, which runs BETWEEN user turns — threw away
+                # the conversation's cached prefix a moment before the next
+                # turn asked for it.
+                #
+                # LIVE, 2026-09-08: `Verifying conversation readiness ... with
+                # a visible probe`, then `cleared everything under
+                # key=(5026061904, 'user_surface')`, then three consecutive
+                # turns each `matched 0 (0.0%)` against 663 tokens retained
+                # from the turn before.
+                #
+                # Reuse is KV for a byte-identical token prefix, so a hit is
+                # correct by construction and keeping entries longer cannot
+                # make an answer wrong. What it costs is memory, and that is
+                # bounded by the LRU's own caps.
                 clear_prompt_cache = bool(job.get("clear_prompt_cache", False))
-                if clear_prompt_cache and prompt_cache_lru is not None:
-                    prompt_cache_lru.clear_model_key((id(model), _prompt_cache_scope_for_job(job)))
+                if clear_prompt_cache:
+                    disable_prompt_cache = True
 
                 strict_envelope_prefixed = False
                 operator_response_prefix = ""

@@ -1841,7 +1841,11 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         readiness_kwargs = probe.await_args_list[1].kwargs
         self.assertTrue(readiness_kwargs["health_probe"])
         self.assertTrue(readiness_kwargs["disable_prompt_cache"])
-        self.assertTrue(readiness_kwargs["clear_prompt_cache"])
+        # And NOT clear_prompt_cache: this probe runs between user turns and
+        # that flag wiped the whole `user_surface` scope, so every readiness
+        # check threw away the conversation's cached prefix a moment before
+        # the next turn asked for it.
+        self.assertNotIn("clear_prompt_cache", readiness_kwargs)
         self.assertEqual(readiness_kwargs["max_tokens"], 16)
 
     async def test_resident_primary_readiness_probe_bypasses_only_headroom_reservation(self):

@@ -6760,7 +6760,28 @@ class MLXLocalClient:
                     repetition_penalty=1.0,
                     health_probe=True,
                     disable_prompt_cache=True,
-                    clear_prompt_cache=True,
+                    # NOT clear_prompt_cache.
+                    #
+                    # `disable_prompt_cache` is what this probe needs: it
+                    # neither reads nor writes, so its twenty characters can
+                    # never be mistaken for a conversation's prefix.
+                    # `clear_prompt_cache` is a different instrument — it wipes
+                    # the whole model+scope trie — and this probe runs on the
+                    # `user_surface` scope BETWEEN user turns.
+                    #
+                    # So every readiness check threw away the conversation's
+                    # cached prefix a moment before the next turn asked for it.
+                    # LIVE, 2026-09-08: `Verifying conversation readiness ...
+                    # with a visible probe` and immediately `cleared everything
+                    # under key=(5026061904, 'user_surface')`, then three
+                    # consecutive turns each `matched 0 (0.0%)` against 663
+                    # tokens retained from the turn before.
+                    #
+                    # The same reasoning is already written in mlx_worker.py
+                    # beside the bypass flag — "health probes fire between user
+                    # turns, and clearing on every probe would evict the
+                    # conversation's cached prefix before the next turn could
+                    # reuse it" — and the explicit flag went on doing it.
                 ),
                 timeout=max(1.0, float(budget_s)),
             )

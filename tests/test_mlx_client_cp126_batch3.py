@@ -36,7 +36,13 @@ class TestReadinessProof:
         # The visible probe must NOT be gated behind "precompile produced no
         # text" — a single token from max_tokens=1 is not conversation proof.
         assert "if not warmup_text or not str(warmup_text).strip():" not in source
-        assert "_readiness_answer_accepted(readiness_text)" in source
+        # And the probe's answer is judged, wherever the judging lives. It used
+        # to be inline here and moved into `prove_visible_readiness` — "the one
+        # place that means the lane has been seen to answer" — so this asserted
+        # a call site rather than the property, and was red at HEAD.
+        assert "prove_visible_readiness" in source
+        judged = inspect.getsource(mc.MLXLocalClient.prove_visible_readiness)
+        assert "_readiness_answer_accepted(" in judged
 
 
 class TestResponseCorrelation:
