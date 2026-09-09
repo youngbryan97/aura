@@ -685,6 +685,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   secret handling, and fail-safe behavior without suppressing correct work.
 - [ ] Q05 Persistence, migration, corruption recovery, backups, and rollback.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
+  MEASURED 2026-09-09. The module-size ratchet is red and has been for a long
+  time — verified red twelve commits back, so it is inherited rather than a
+  regression. Total oversize is 178,305 lines against a budget of 145,896, and
+  a file may grow only if another shrinks by more.
+  Three of the entries are not grandfathered debt but new God objects the gate
+  says are never allowed to appear: `core/brain/llm/model_registry.py` at 2,170
+  lines against a 2,000-line ceiling, `MemoryConsolidator` at 32 methods and
+  `PhantomBrowser` at 32, both over the 30-method ceiling for a new class.
+  Those three are the bounded part and the place to start.
+  The rest is growth against recorded baselines — `InferenceGate` +18 methods
+  to 206, `MLXLocalClient` +30 to 195, `TaskCommitmentVerifier` +12 to 49 —
+  which is decomposition work rather than a fix, and it is what this item is
+  for.
   2026-09-08: [six subject evidence ownership findings repaired](evidence/SUBJECT_EFFECT_OWNERSHIP_2026-09-08.md),
   with no new raw-effect allowances. The aggregate debt test still measures
   1900 against its unchanged 1840 ceiling; raw debt is 833 against 854.
