@@ -357,6 +357,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   follow-up reached generation without the preceding answer. Crash-safe terminal
   history recovery now has real SQLite/outbox coverage; deployment and the two
   live failures remain. See [durable history recovery](evidence/R09_DURABLE_HISTORY_RECOVERY_2026-09-09.md).
+  UPDATE 2026-09-09, 02:10: ordinary Stop interrupted resident prefill at
+  1088/2924 tokens and kept the lane healthy without a model reload. Latent
+  caller cancellation now checks the existing bound cleanup receipt before
+  deciding whether to recycle; 278 focused tests pass, resident replay pending.
+  See [bound latent Stop](evidence/R09_BOUND_LATENT_STOP_2026-09-09.md).
 - [x] R10 Verify executable examples semantically, not merely process exit zero.
   Closed 2026-09-08. The code truth engine executes module-level assertions and
   doctest examples in the symbolic sandbox, demotes claims when execution is

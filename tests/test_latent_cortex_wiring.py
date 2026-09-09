@@ -2800,6 +2800,73 @@ async def test_client_latent_reason_timeout_keeps_clean_cooperatively_cancelled_
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("bad_binding", [None, "request", "payload", "worker", "cleanup"])
+async def test_client_latent_owner_stop_keeps_only_a_bound_clean_worker(monkeypatch, bad_binding):
+    from core.brain.llm import mlx_client
+    from core.brain.llm.latent_cortex.runtime_identity import latent_request_payload_sha256
+
+    client = MLXLocalClient(model_path="/models/test-32b")
+    client._process = _ResidentProcess()
+    client._init_done = True
+    client._req_q = queue.Queue()
+    client._cancel_seq = SimpleNamespace(value=0)
+    client._worker_identity = complete_worker_identity(
+        boot_id="b" * 32, pid=4242, model_path=client.model_path,
+    )
+    monkeypatch.setattr(mlx_client, "get_memory_pressure_snapshot",
+                        lambda: SimpleNamespace(refuse_heavy_local_generation=False))
+    reboots = []
+
+    async def reboot(reason, mark_failed=False):
+        assert client._request_lock.locked()
+        reboots.append(reason)
+
+    monkeypatch.setattr(client, "reboot_worker", reboot)
+    task = asyncio.create_task(client.latent_reason_async(
+        prompt="stop with proof", timeout_s=30, foreground_request=False,
+    ))
+    request = await asyncio.to_thread(client._req_q.get, True, 2)
+    future = client._pending_generations[request["id"]]
+    task.cancel()
+    for _ in range(100):
+        if client._cancel_seq.value == request["seq"]:
+            break
+        await asyncio.sleep(0.005)
+    assert client._cancel_seq.value == request["seq"]
+    assert client._active_generations == 1
+    assert client._current_request_id == request["id"]
+    assert client._request_lock.locked()
+    assert not task.done()
+    worker = dict(client._worker_identity)
+    if bad_binding == "worker":
+        worker["worker_boot_id"] = "c" * 32
+    receipt = attach_bound_runtime_integrity({
+        "episode_id": "cancel-episode", "input_tokens_sha256": "7" * 64,
+        "params_unchanged": True, "fast_weights_applied": False,
+        "fast_weights_erased": None, "worker_identity": worker,
+        "request_payload_sha256": latent_request_payload_sha256(
+            prompt="stop with proof", messages=None, domain="general", config=None, budget=None,
+            runtime_controls=None,
+        ),
+    }, worker_identity=worker)
+    if bad_binding == "payload":
+        receipt["request_payload_sha256"] = "wrong"
+    if bad_binding == "cleanup":
+        receipt["runtime_integrity"] = None
+    mlx_client._set_shared_future_result(future, {
+        "id": "wrong" if bad_binding == "request" else request["id"],
+        "status": "error", "message": "soft_cancelled", "receipt": receipt,
+    })
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert reboots == ([] if bad_binding is None else ["latent_reason_caller_cancelled"])
+    assert client._active_generations == 0
+    assert client._pending_generations == {}
+    assert client._current_request_id == ""
+    assert not client._request_lock.locked()
+
+
+@pytest.mark.asyncio
 async def test_client_latent_reason_caller_cancel_recycles_and_releases(monkeypatch):
     from core.brain.llm import mlx_client
 

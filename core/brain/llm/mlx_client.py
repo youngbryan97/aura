@@ -10022,6 +10022,25 @@ class MLXLocalClient:
             severity="error",
         )
 
+    async def _cancel_latent_request_cleanly(
+        self, fut: SharedFuture, *, req_id: str, expected_request_sha256: str, reason: str,
+    ) -> dict[str, Any] | None:
+        """Keep request ownership until its recurrent cleanup receipt is checked."""
+        if self._current_request_id != req_id:
+            return None
+        self.soft_cancel_active_generation(reason)
+        try:
+            cancel_ack = await _await_shared_future(fut, timeout_s=_LATENT_CANCEL_ACK_GRACE_S)
+        except (TimeoutError, BrokenPipeError, OSError):
+            return None
+        if self._clean_latent_cancel_ack(
+            cancel_ack,
+            expected_request_id=req_id,
+            expected_request_sha256=expected_request_sha256,
+        ):
+            return cancel_ack
+        return None
+
     async def unified_recurrent_shadow_probe_async(
         self,
         public_token_ids: Sequence[int],
@@ -11240,22 +11259,12 @@ class MLXLocalClient:
             try:
                 res = await _await_shared_future(fut, timeout_s=generation_budget)
             except TimeoutError:
-                self.soft_cancel_active_generation("latent_reason_deadline")
-                try:
-                    # Deliberately OUTSIDE the caller's budget, and small. The
-                    # deadline is already spent; this buys the worker one
-                    # decode step to answer, and the alternative to a clean
-                    # acknowledgement is rebooting a healthy 32B.
-                    cancel_ack = await _await_shared_future(
-                        fut, timeout_s=_LATENT_CANCEL_ACK_GRACE_S
-                    )
-                except (TimeoutError, BrokenPipeError, OSError):
-                    cancel_ack = None
-                if self._clean_latent_cancel_ack(
-                    cancel_ack,
-                    expected_request_id=req_id,
+                cancel_ack = await self._cancel_latent_request_cleanly(
+                    fut, req_id=req_id,
                     expected_request_sha256=expected_request_sha256,
-                ):
+                    reason="latent_reason_deadline",
+                )
+                if cancel_ack is not None:
                     receipt = dict(cancel_ack.get("receipt") or {})
                     progress = dict(self._latent_progress_by_request.get(req_id) or {})
                     logger.warning(
@@ -11587,8 +11596,16 @@ class MLXLocalClient:
             }
         except asyncio.CancelledError:
             if fut is not None:
-                self.soft_cancel_active_generation("latent_reason_caller_cancelled")
-                deferred_reboot = "latent_reason_caller_cancelled"
+                cancel_ack = await asyncio.shield(self._cancel_latent_request_cleanly(
+                    fut, req_id=req_id,
+                    expected_request_sha256=expected_request_sha256,
+                    reason="latent_reason_caller_cancelled",
+                ))
+                if cancel_ack is None:
+                    deferred_reboot = "latent_reason_caller_cancelled"
+                else:
+                    self._set_lane_state("ready")
+                    logger.info("Latent request %s stopped with verified cleanup; resident lane preserved.", req_id)
             raise
         except (BrokenPipeError, OSError, TimeoutError, queue.Full) as exc:
             deferred_reboot = f"latent_ipc_failed:{type(exc).__name__}"
