@@ -3893,18 +3893,33 @@ class CognitiveEngine:
                 from core.brain.llm_health_router import get_llm_router
                 from core.runtime.proof_policy import proof_model_tier
                 router = get_llm_router()
-                system_prompt = (
-                    "You are a precise solver. Solve the user's problem directly. "
-                    "Put your final answer strictly inside <answer>...</answer> tags. "
-                    "Do not include any conversational preamble."
+                from core.brain.llm.an_envelope_the_decoder_enforces import (
+                    AN_ANSWER,
+                    the_request_for,
                 )
+
+                # The envelope is structural here, not requested.
+                #
+                # This asked — "Put your final answer strictly inside
+                # <answer>...</answer> tags" — and then checked whether the
+                # envelope had arrived, failing the turn when it had not. A
+                # model asked for a delimiter produces one most of the time,
+                # and most of the time is what becomes a retry and then a
+                # person told the runtime could not get to an answer. The
+                # assistant turn now opens with the marker, so the model is
+                # inside the envelope and can only continue, and the decoder
+                # stops at the closing one.
+                system_prompt = "Solve the user's problem."
                 recovery_tier = proof_model_tier() if is_test_run else "primary"
                 # Last-resort recovery remains on the selected local lane.
                 content = await router.think(
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": objective}
-                    ],
+                    **the_request_for(
+                        AN_ANSWER,
+                        [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": objective},
+                        ],
+                    ),
                     origin=f"recovery_{origin}",
                     allow_cloud_fallback=False,
                     prefer_tier=recovery_tier,
@@ -3919,8 +3934,14 @@ class CognitiveEngine:
                 # promised. A strict answer that does not carry its envelope
                 # did not satisfy the contract, and saying it did is what the
                 # caller then parses and fails on.
+                # Put back around what came out, because what came out is the
+                # contents: the opening marker was the prompt's last token and
+                # the closing one ended the generation, so neither is in the
+                # text. Idempotent, so a model that wrote its own markers
+                # anyway does not end up with two envelopes.
+                content = AN_ANSWER.around(content)
                 cleaned = str(content or "").strip()
-                envelope_ok = "<answer>" in cleaned.lower() and "</answer>" in cleaned.lower()
+                envelope_ok = AN_ANSWER.holds(cleaned)
                 if cleaned and envelope_ok:
                     thought = Thought(
                         id=str(uuid.uuid4()),

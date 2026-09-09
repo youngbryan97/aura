@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
   "note": "Strings this runtime writes to steer a model, counted by tools/prompt_steering_inventory.py. Only goes down. Each one removed is replaced by a mechanism, not by a shorter instruction.",
-  "strings": 322,
+  "strings": 321,
   "files": 111
 }
