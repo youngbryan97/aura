@@ -137,3 +137,34 @@ def test_the_world_model_is_shown_what_arrived_not_only_how_much() -> None:
     recalled.cognition.long_term_memory = ["the answer"]
     recalled.cognition.memory_scores = [0.8]
     assert not (observation_of(quiet) == observation_of(recalled)).all()
+
+
+def test_the_body_the_substrate_and_novelty_reach_it_too() -> None:
+    """The inputs an organism throttles its plans by.
+
+    Deliberation could not see how unsettled the continuous process underneath
+    was, what the work was costing her, or whether the moment was unlike
+    anything she had met — three readings that already existed and that nothing
+    consulted here.
+    """
+    phase = _phase()
+    footing = phase._footing(AuraState.default())
+    for name in (
+        "how unsettled the thinking underneath is",
+        "what this is costing me",
+        "how unlike anything I know this is",
+    ):
+        assert name in footing, name
+
+    tired = AuraState.default()
+    tired.soma.exertion = 0.7
+    assert "costing" in phase._assess_needs(tired)["goal"]
+    assert phase._assess_needs(tired)["urgency"] > phase._assess_needs(AuraState.default())[
+        "urgency"
+    ]
+
+
+def test_every_footing_is_a_reading_of_a_different_domain() -> None:
+    """Eight readings, and no two of them the same channel twice."""
+    phase = _phase()
+    assert len(phase._footing(AuraState.default())) == 8
