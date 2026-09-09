@@ -646,6 +646,7 @@ from .chat_reply_shaping import (  # noqa: E402
     _project_self_condition_claims,
     _readable_result,
     _realize_expressive_affordances,
+    _remove_self_denials_the_record_refutes,
     _shape_with_live_substrate,
     _strip_scaffolding_tags,
     _strip_ungrounded_vocative_reply,
@@ -9485,6 +9486,10 @@ async def _stabilize_user_facing_reply(
     # typed absence into the prompt was not enough: evidence informs, it does
     # not enforce.
     reply_text = _append_sensory_claim_correction(user_message, reply_text)
+    # A claim about her own machinery, checked against the machinery. Same
+    # shape as the sense check above and for the same reason: carrying the
+    # record into the prompt is not enough.
+    reply_text = _remove_self_denials_the_record_refutes(reply_text)
     reply_text = _correct_unsourced_self_metrics(reply_text)
     reply_text = _flag_unstable_choice_commitment(user_message, reply_text)
     reply_text = _correct_unfulfilled_write_claims(reply_text, user_message)
