@@ -65,8 +65,8 @@ from core.cognition.what_would_have_to_be_true import a_way_to_get_there
 from core.cognition.when_the_move_is_forbidden import a_way_round
 from core.cognition.when_to_say_it_outright import whether_to_say_it
 from core.cognition.which_way_to_win import which_way_to_win
-from core.runtime.errors import record_degradation
 from core.conversation.word_markers import names_any
+from core.runtime.errors import record_degradation
 from core.runtime.watched_goal import BROWSERS, PURSUIT_SECONDS, a_cycle_took
 from core.runtime.what_she_learned import TRUST_CARRIED_OVER, named, recall, remember
 from core.skills.base_skill import BaseSkill
