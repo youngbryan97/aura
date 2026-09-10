@@ -55,10 +55,38 @@ def test_she_can_write_an_action_for_every_place_a_term_can_go(where):
     made = the_action_she_wrote(
         f"one she wrote for {where}", over=where, look_for=_identity()
     )
-    assert made.do_it(None) is not None, f"the action for {where} did nothing"
+    made.do_it(None)
+    # The claim is that she can WRITE one for every place, which is about the
+    # action reaching its installer. Whether an identity term then pays on
+    # held-out families is a separate question with a separate answer, and
+    # asserting `is not None` conflated them: the wrapper returns None both for
+    # an action that never fired and for one that fired, changed something and
+    # was correctly put back. Only the first is the failure this test is about.
+    assert made.do_it.last_outcome != "declined", (
+        f"the action for {where} never fired"
+    )
     assert any(one.name == made.name for one in the_actions_she_has()), (
         f"the action for {where} is not available to the next search"
     )
+
+
+def test_the_three_outcomes_are_told_apart():
+    """"It did nothing" and "it did something that did not pay" are not the same.
+
+    They returned the same None, which is the failure this module's own
+    docstring calls the worst of the three.
+    """
+    made = the_action_she_wrote(
+        "one for the outcome record", over="the words", look_for=_identity()
+    )
+    made.do_it(None)
+    assert made.do_it.last_outcome in {
+        "declined",
+        "did not pay",
+        "held out",
+        "unmeasured",
+        "kept",
+    }
 
 
 def test_surface_syntax_is_compiled_rather_than_silently_refused():

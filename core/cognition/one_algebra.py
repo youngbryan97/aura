@@ -438,13 +438,21 @@ def as_a_maker(term: Term) -> Callable[[dict[str, Any]], dict[str, Any]]:
     term that has not been given all its words yet.
     """
     takes = max(1, holes_in(term))
+    # What this maker is called. A positional term names itself through its
+    # `name` property; a piece of the floor is the same three fields and has no
+    # such property, so `term.name` raised AttributeError — past the caller's
+    # handler, which catches TypeError, ValueError and KeyError — and took down
+    # every operator she tried to write over a place that compiles to the
+    # floor. Asking the term what it is called, and falling back to how it
+    # writes itself down, works for both languages.
+    called = str(getattr(term, "name", None) or term)
 
     def make(words: dict[str, Any]) -> dict[str, Any]:
         made: dict[str, Any] = {}
         names = list(words)
         for chosen in _choose(names, takes):
             said = ", ".join(chosen)
-            made[f"{term.name} [{said}]"] = Made(
+            made[f"{called} [{said}]"] = Made(
                 term=term,
                 words=tuple(words[name] for name in chosen),
                 built_from=tuple(chosen),

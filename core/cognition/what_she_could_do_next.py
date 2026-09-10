@@ -231,11 +231,20 @@ def _and_takes_itself_back(
     That is not a gate, and it is not pretending to be one — refusing every
     change nobody can measure would stop development on any faculty without a
     probe, so what happens instead is that the number is visible.
+
+    And the wrapper says which of the three happened. It returned None for a
+    change that never ran AND for one that ran, changed something and was
+    correctly put back — the two outcomes this file's own docstring says must
+    never look alike. `acted.last_outcome` names it: "declined" when the action
+    gave nothing, "did not pay" when it was put back, and how it was kept when
+    it was kept. The counters were already keeping the tally; nothing carried
+    it back to the caller.
     """
     from functools import wraps
 
     @wraps(do_it)
     def acted(*args: Any, **kwargs: Any) -> Any:
+        acted.last_outcome = "declined"
         from core.cognition.what_she_can_take_back import only_if_it_pays
 
         before, probe = _how_things_stand()
@@ -243,6 +252,7 @@ def _and_takes_itself_back(
             said = do_it(*args, **kwargs)
             if said is None:
                 HOW_CHANGES_WERE_JUDGED["declined"] += 1
+                acted.last_outcome = "declined"
                 return None
             if judges_itself:
                 # The opt-out has to show its working. It was a boolean in a
@@ -258,6 +268,7 @@ def _and_takes_itself_back(
                 measured = the_evidence_in(said)
                 if measured is not None and not measured.paid:
                     HOW_CHANGES_WERE_JUDGED["did not pay"] += 1
+                    acted.last_outcome = "did not pay"
                     logger.info(
                         "%s measured itself on %s and did not pay (%.4f -> %.4f); "
                         "putting it back",
@@ -265,20 +276,25 @@ def _and_takes_itself_back(
                     )
                     return None
                 HOW_CHANGES_WERE_JUDGED[verdict] += 1
+                acted.last_outcome = str(verdict)
                 trial.keep(str(said))
                 return said
             paid = _held_out_says_it_paid(name, before, probe)
             if paid is False:
                 HOW_CHANGES_WERE_JUDGED["did not pay"] += 1
+                acted.last_outcome = "did not pay"
                 logger.info(
                     "%s changed something and did not pay on held-out families; "
                     "putting it back", name
                 )
                 return None
-            HOW_CHANGES_WERE_JUDGED["held out" if paid else "unmeasured"] += 1
+            outcome = "held out" if paid else "unmeasured"
+            HOW_CHANGES_WERE_JUDGED[outcome] += 1
+            acted.last_outcome = outcome
             trial.keep(str(said))
         return said
 
+    acted.last_outcome = ""
     return acted
 
 
