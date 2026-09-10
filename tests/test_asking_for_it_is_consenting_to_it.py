@@ -32,9 +32,34 @@ def test_the_permission_model_is_told_what_was_asked_for() -> None:
 
 
 def test_consent_covers_only_the_effect_that_was_named() -> None:
-    """Writing a file was asked for. Sending, deleting and spending were not."""
+    """Writing a file was asked for. Sending, deleting and spending were not.
+
+    Asserted on the SET the handoff admits rather than on the spelling of the
+    comparison. This matched the literal `ceiling == "read_write_artifacts"`,
+    which stopped existing the day the two ceilings moved into names imported
+    from the one place that decides them — and a literal assertion that stops
+    matching does not fail loudly, it fails on the next full run and looks
+    like a regression.
+    """
+    from core.brain import inference_gate
+    from core.phases.response_contract import (
+        _REQUESTED_ARTIFACT_CEILING,
+        _SELF_SERVICE_CEILING,
+    )
+
     body = _handoff_body()
-    assert 'ceiling == "read_write_artifacts"' in body
+    assert "user_explicitly_authorized" in body
+
+    admitted = {
+        inference_gate._SELF_SERVICE_EFFECT_CEILING,
+        inference_gate._REQUESTED_ARTIFACT_EFFECT_CEILING,
+    }
+    assert admitted == {_SELF_SERVICE_CEILING, _REQUESTED_ARTIFACT_CEILING}
+    # The effects a request does not carry consent for, whatever it asked.
+    assert "external_io" not in admitted
+    assert "privileged_mutation" not in admitted
+    # Quoted, because the handoff's own comment names these as the effects it
+    # does NOT authorise. What must not appear is a string literal.
     assert '"external_io"' not in body
     assert '"privileged_mutation"' not in body
 

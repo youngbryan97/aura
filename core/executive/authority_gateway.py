@@ -709,10 +709,21 @@ class AuthorityGateway:
     ) -> IntentSource:
         source_l = _normalized_memory_source(source)
         direct_source = _coerce_intent_source(source_l or "system")
-        if direct_source == IntentSource.USER:
-            return direct_source
         payload = dict(metadata or {})
         memory_type_l = _normalized_memory_source(memory_type)
+        # A high-risk write is not the person's just because a user-facing
+        # producer logged it.
+        #
+        # `chat_turn_logger` coerces to USER, and this returned on that before
+        # anything looked at what was being written, so a belief update — a
+        # change to what she believes — was waved through as the person's own
+        # intent on any conversation turn. The person said something; they did
+        # not author the belief, and the governance that exists for these
+        # writes is exactly the governance the shortcut skipped.
+        if direct_source == IntentSource.USER and not cls._memory_write_is_high_risk(
+            memory_type_l, payload
+        ):
+            return direct_source
         payload_sources = (
             source_l,
             _normalized_memory_source(payload.get("source")),
@@ -744,7 +755,12 @@ class AuthorityGateway:
         if research_derived and not identity_or_policy_rewrite:
             return IntentSource.AUTONOMOUS_RESEARCH
         if cls._memory_write_is_high_risk(memory_type, payload):
-            return direct_source
+            # Governed, never the person's. See the shortcut above.
+            return (
+                IntentSource.AUTONOMOUS
+                if direct_source == IntentSource.USER
+                else direct_source
+            )
 
         producer_is_conversation = bool(
             source_l in _CONVERSATION_MEMORY_PRODUCERS
