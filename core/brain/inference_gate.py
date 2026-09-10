@@ -14456,6 +14456,21 @@ class InferenceGate:
                             float(timeout_val)
                         )
                         context["request_deadline_s"] = float(timeout_val)
+                        # And tell whoever is waiting on this turn. Extending
+                        # only the deadline inside the gate left the HTTP route
+                        # giving up at its own admitted budget with the cortex
+                        # still generating. LIVE, 2026-09-10: "deadline 103s to
+                        # 251s", and the person was told the answer took too
+                        # long to finish cleanly.
+                        try:
+                            from core.runtime.the_turn_clock import ask_the_turn_for
+
+                            ask_the_turn_for(
+                                float(timeout_val),
+                                f"the answer clock priced this turn at {float(_needed):.0f}s",
+                            )
+                        except (ImportError, TypeError, ValueError) as exc:
+                            logger.debug("turn clock unavailable: %s", exc)
 
             # Only where the clock still has the last word. A turn somebody is
             # waiting for is no longer cancelled while it is producing tokens,

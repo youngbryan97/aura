@@ -14900,6 +14900,15 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         lane,
         _semantic_user_message,
     )
+    # One clock for this turn, opened with what the route granted. Whatever
+    # prices the turn again later asks this, and this wait reads what it said.
+    try:
+        from core.runtime.the_turn_clock import open_a_turn_clock
+
+        open_a_turn_clock(foreground_timeout)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat", exc, severity="debug",
+                           action="turn ran on the admitted budget alone")
     early_allow_chat_fastpaths = not is_benchmark and not desktop_requires_cognitive_engine
     pending_exchange_id: str | None = None
     foreground_slot_acquired = False
@@ -14961,7 +14970,26 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
 
     def _remaining_foreground_budget(*, reserve: float = 0.0) -> float:
         elapsed = time.monotonic() - request_started_at
-        return max(2.0, foreground_timeout - elapsed - reserve)
+        # What this turn was granted, or what it has since been shown it needs.
+        #
+        # The SLA above is set when the request is admitted, from the lane and
+        # a guess at the prompt's length. The answer clock prices the same turn
+        # again later from the prompt that was actually built and the rates the
+        # worker just measured, and that number was invisible here. LIVE,
+        # 2026-09-10: "deadline 103s to 251s", the gate honoured 251, this wait
+        # gave up at its own budget with the cortex still generating, and the
+        # person was told the answer took too long to finish cleanly.
+        granted = foreground_timeout
+        try:
+            from core.runtime.the_turn_clock import the_turn_clock
+
+            clock = the_turn_clock()
+            if clock is not None:
+                granted = max(granted, clock.budget())
+        except _CHAT_RECOVERABLE_ERRORS as exc:
+            record_degradation("chat", exc, severity="debug",
+                               action="used the admitted budget for this wait")
+        return max(2.0, granted - elapsed - reserve)
 
     async def _cancel_kernel_task_if_pending(reason: str) -> None:
         nonlocal kernel_task

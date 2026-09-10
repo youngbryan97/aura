@@ -151,7 +151,12 @@ def test_strict_proof_run_code_detector_handles_result_wording():
 
 
 def test_background_unitary_response_timeout_is_short():
-    assert UnitaryResponsePhase._timeout_for_request(
+    # A module function since the size ratchet stopped the phase class taking
+    # another method that reads no instance state. Called through the class it
+    # was an AttributeError, and this test had been red ever since.
+    from core.phases.response_generation_unitary import _timeout_for_request
+
+    assert _timeout_for_request(
         is_user_facing=False,
         model_tier="tertiary",
         deep_handoff=False,
@@ -159,12 +164,14 @@ def test_background_unitary_response_timeout_is_short():
 
 
 def test_user_facing_unitary_response_timeout_matches_foreground_lane():
-    assert UnitaryResponsePhase._timeout_for_request(
+    from core.phases.response_generation_unitary import _timeout_for_request
+
+    assert _timeout_for_request(
         is_user_facing=True,
         model_tier="primary",
         deep_handoff=False,
     ) == 180.0
-    assert UnitaryResponsePhase._timeout_for_request(
+    assert _timeout_for_request(
         is_user_facing=True,
         model_tier="secondary",
         deep_handoff=True,
