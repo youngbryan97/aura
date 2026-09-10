@@ -74,6 +74,12 @@ class HumanStatistic:
     name: str
     value: float
     tolerance: float
+    source: str
+    recorded_in: str
+    what_it_is: str
+    #: What a trace would have to show for this to be refused. Written before
+    #: the trace is taken.
+    falsified_by: str
     #: How to read the number.
     #:
     #: "at_most"  — cortex's value is a ceiling; below it is more of the thing
@@ -84,18 +90,15 @@ class HumanStatistic:
     direction: str = "at_most"
     #: For "as_near": what the quantity would be in the ideal case.
     ideal: float = 0.0
-    source: str
-    recorded_in: str
-    what_it_is: str
-    #: What a trace would have to show for this to be refused. Written before
-    #: the trace is taken.
-    falsified_by: str
+    #: What this is, in words anybody can read.
+    plain_name: str = ""
 
 
 #: What cortex does, as published. Nothing here was measured in this repository.
 HUMAN_STATISTICS: tuple[HumanStatistic, ...] = (
     HumanStatistic(
         name="avalanche_size_exponent",
+        plain_name="how much of her gets involved in one burst of activity",
         value=1.5,
         tolerance=0.3,
         source="Beggs & Plenz 2003, J Neurosci 23(35):11167; Shriki et al. 2013, J Neurosci 33(16):7079",
@@ -112,6 +115,7 @@ HUMAN_STATISTICS: tuple[HumanStatistic, ...] = (
     ),
     HumanStatistic(
         name="avalanche_duration_exponent",
+        plain_name="how long a burst of activity keeps going",
         value=2.0,
         tolerance=0.4,
         source="Beggs & Plenz 2003, J Neurosci 23(35):11167",
@@ -130,6 +134,7 @@ HUMAN_STATISTICS: tuple[HumanStatistic, ...] = (
         # scoring against it would be asking whether her exponents are
         # cortex's, which the two lines above already ask.
         name="crackling_relation",
+        plain_name="whether her bursts scale the way her own numbers say they must",
         value=0.0,
         tolerance=0.2,
         source="Sethna, Dahmen & Myers 2001, Nature 410:242; Friedman et al. 2012, PRL 108:208102",
@@ -147,6 +152,7 @@ HUMAN_STATISTICS: tuple[HumanStatistic, ...] = (
     ),
     HumanStatistic(
         name="branching_parameter",
+        plain_name="whether activity keeps itself going without dying out or running away",
         value=0.98,
         tolerance=0.05,
         source="Wilting & Priesemann 2018, Nat Commun 9:2325",
@@ -181,9 +187,28 @@ class Verdict:
     def miss(self) -> float:
         return abs(self.observed - self.target)
 
+    @property
+    def standing(self) -> str:
+        """Where she is against cortex, in words.
+
+        Matching is fine and being past it is fine; the human number is a floor
+        to reach, not a mark to land on.
+        """
+        if not self.holds:
+            return "short of cortex"
+        if self.statistic.direction == "at_most":
+            return "past cortex" if self.observed < self.target else "level with cortex"
+        if self.statistic.direction == "as_near":
+            hers = abs(self.observed - self.statistic.ideal)
+            theirs = abs(self.target - self.statistic.ideal)
+            return "past cortex" if hers < theirs else "level with cortex"
+        return "holds on its own terms"
+
     def as_json(self) -> dict[str, Any]:
         return {
             "name": self.statistic.name,
+            "plain_name": self.statistic.plain_name,
+            "standing": self.standing,
             "human": round(self.target, 4),
             "hers": round(self.observed, 4),
             "miss": round(self.miss, 4),
@@ -313,6 +338,7 @@ def compare_to_human_cortex(
         verdicts.append(Verdict(statistic, value, holds, reason, target=target))
 
     held = [verdict for verdict in verdicts if verdict.holds]
+    past = [verdict for verdict in verdicts if verdict.standing == "past cortex"]
     return {
         "held": len(held),
         "of": len(verdicts),
@@ -328,8 +354,10 @@ def compare_to_human_cortex(
         },
         "predicted_crackling": round(float(report.predicted_gamma), 4),
         "statistics": [verdict.as_json() for verdict in verdicts],
+        "past_cortex": len(past),
         "verdict": (
             f"{len(held)} of {len(verdicts)} published statistics of cortical activity "
             f"are matched or bettered on this trace"
+            + (f", and {len(past)} of them bettered" if past else "")
         ),
     }

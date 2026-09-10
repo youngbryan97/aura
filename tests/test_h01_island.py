@@ -353,3 +353,20 @@ def test_a_driven_column_settles_rather_than_drifting():
     early, late = np.mean(trace[100:200]), np.mean(trace[500:600])
     assert late > 0.05, "a driven tier that carries nothing"
     assert abs(late - early) < 0.1, "a driven tier that never settles"
+
+
+@pytest.mark.parametrize("seed", [1, 7, 42, 99, 12345, 2026, 7777])
+def test_reachability_is_guaranteed_not_just_degree(seed, monkeypatch):
+    """Every column having edges at both ends does not make it reachable.
+
+    Found when the rich club changed the long-range graph: on one seed a
+    sensory signal reached 15 of 16 executive columns while every column held
+    edges in both directions.
+    """
+    from core.connectome.neural import build_mesh_layer, signal_can_cross
+    from core.consciousness import neural_mesh as mesh_module
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    monkeypatch.setattr(mesh_module, "_MESH_SEED", seed)
+    report = signal_can_cross(build_mesh_layer(NeuralMesh(MeshConfig())))
+    assert report["executive_reached_from_sensory"] == report["executive_columns"]

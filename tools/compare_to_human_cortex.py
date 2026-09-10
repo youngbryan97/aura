@@ -158,10 +158,10 @@ def main() -> int:
         f"{report['predicted_crackling']} predicted by the two exponents\n"
     )
     for entry in report["statistics"]:
-        mark = "holds" if entry["holds"] else "no"
+        print(f"  {entry['plain_name']}")
         print(
-            f"  {entry['name']:30s} target {entry['human']:>7}  hers {entry['hers']:>8}  "
-            f"{mark}"
+            f"      cortex {entry['human']:>7}   hers {entry['hers']:>8}   "
+            f"{entry['standing']}"
         )
         if entry["reason"]:
             print(f"      {entry['reason']}")

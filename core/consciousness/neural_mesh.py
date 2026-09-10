@@ -231,6 +231,16 @@ SPIKE_SIGMA = 3.0
 SPIKE_STATISTICS_MINIMUM = 10
 
 
+def _from_human_connectome(name: str, fallback: float) -> float:
+    """One number from the human connectome reference, or the fallback."""
+    try:
+        from core.connectome.rich_club import HUMAN_RICH_CLUB
+
+        return float(HUMAN_RICH_CLUB[name])
+    except (ImportError, KeyError, TypeError, ValueError):
+        return float(fallback)
+
+
 def _is_human_island(index: int, cfg: Any) -> bool:
     """Whether this column takes its local wiring from H01. -1 means all of them."""
     declared = int(getattr(cfg, "human_island_columns", 0) or 0)
@@ -266,6 +276,28 @@ class MeshConfig:
     intra_column_density: float = field(default_factory=_cortical_intra_density)
     inter_column_density: float = field(default_factory=_cortical_inter_density)
     inter_column_distance_decay: float = 0.15   # strength ∝ exp(-d * decay)
+    #: How many columns belong to the rich club.
+    #:
+    #: Twelve of eighty-two regions in van den Heuvel and Sporns' human
+    #: connectome, which is one node in seven. Her long-range wiring had no
+    #: club at all: measured against degree-preserving rewiring of her own
+    #: graph, the normalised coefficient FALLS as the cutoff rises — 0.964,
+    #: 0.928, 0.851 — so her best-connected columns are less joined to each
+    #: other than their degrees alone would give. Cortex's rises above one.
+    #:
+    #: A graph with no hubs carries small cascades, because nothing recruits a
+    #: distant part of the network in a step or two, and her avalanche
+    #: exponents are 3.7 and 3.6 against cortex's 1.5 and 2.0.
+    hub_fraction: float = field(
+        default_factory=lambda: _from_human_connectome("hub_fraction", 12.0 / 82.0)
+    )
+    #: How much likelier two hubs are to connect than two ordinary columns.
+    #:
+    #: Not from a paper. The human measurement says a club EXISTS and how big
+    #: it is; the coupling that produces one in a 64-column graph is a property
+    #: of this graph, so it is set to whatever reproduces the published
+    #: property and no more. See `tools/measure_rich_club.py`.
+    hub_coupling: float = 6.0
     #: Derived, not chosen. Potjans and Diesmann's cortical column has 77,169
     #: cells in eight populations, 15,326 of them inhibitory, which is 0.1986.
     #: The table is in core/connectome/types.py and this reads it rather than
@@ -672,6 +704,17 @@ class NeuralMesh:
             self._tier_for(index).name.lower() for index in range(self.cfg.columns)
         ]
 
+        #: Which columns belong to the rich club. Drawn before the long-range
+        #: matrix, because it is what that matrix is built against.
+        from core.connectome.rich_club import hub_columns
+
+        self._hubs = hub_columns(
+            self.cfg.columns,
+            float(getattr(self.cfg, "hub_fraction", 0.0) or 0.0),
+            self._tier_names,
+            self._rng_inter,
+        )
+
         # Inter-column weight matrix (columns × columns), sparse, distance-weighted
         self._inter_W = self._build_inter_column_weights()
 
@@ -885,6 +928,15 @@ class NeuralMesh:
                     continue
                 dist = abs(i - j)
                 prob = self.cfg.inter_column_density * np.exp(-dist * self.cfg.inter_column_distance_decay)
+                if self._hubs[i] and self._hubs[j]:
+                    # Two hubs, and the distance term goes with them. Cortex's
+                    # club spans the brain — its members are wired to each
+                    # other whether they are neighbours or opposite poles —
+                    # which is the whole reason it shortens long paths. Keeping
+                    # the decay here left hub pairs at a probability of about
+                    # one in a hundred and produced no hubs at all: degree
+                    # topped out at 8 either way.
+                    prob = min(1.0, self.cfg.inter_column_density * self.cfg.hub_coupling)
                 if self._rng_inter.random() < prob:
                     strength = self._rng_inter.standard_normal() * 0.05
                     # Feedforward bias: sensory→assoc→exec gets 1.5× strength
@@ -994,11 +1046,59 @@ class NeuralMesh:
                 )
                 present[source, column] = True
                 added += 1
+        # And every executive column has to be REACHABLE from the sensory
+        # band, which having an in-edge does not guarantee. The two ends of the
+        # mesh the rest of the system touches are `inject_sensory` and
+        # `get_executive_projection`; an executive column no sensory signal can
+        # arrive at is tissue with nothing to do.
+        #
+        # Found when the rich club changed the graph: on one seed a signal
+        # reached 15 of 16, with every column holding edges at both ends. Degree
+        # is not reachability.
+        added += self._connect_what_the_readers_cannot_reach(affinity)
+
         if added:
             logger.debug(
                 "NeuralMesh connected %d column ends the unconditional draw left empty",
                 added,
             )
+        return added
+
+    def _connect_what_the_readers_cannot_reach(self, affinity: np.ndarray) -> int:
+        """Give every executive column a route from the sensory band."""
+        from collections import deque
+
+        n = self.cfg.columns
+        added = 0
+        for _ in range(n):
+            present = np.abs(self._inter_W) > 0
+            seen = set(range(min(self.cfg.sensory_end, n)))
+            queue = deque(seen)
+            while queue:
+                for target in np.flatnonzero(present[queue.popleft()]):
+                    if int(target) not in seen:
+                        seen.add(int(target))
+                        queue.append(int(target))
+            stranded = [
+                column
+                for column in range(self.cfg.association_end, n)
+                if column not in seen
+            ]
+            if not stranded:
+                break
+            column = stranded[0]
+            # From something the signal already reaches, chosen under the same
+            # distance affinity the rest of the graph was drawn under.
+            row = affinity[:, column].copy()
+            row[[index for index in range(n) if index not in seen]] = 0.0
+            total = row.sum()
+            source = (
+                int(self._rng_inter.choice(n, p=row / total))
+                if total > 0
+                else int(self._rng_inter.integers(0, max(1, self.cfg.sensory_end)))
+            )
+            self._inter_W[source, column] = self._rng_inter.standard_normal() * 0.05
+            added += 1
         return added
 
     def _build_feedback_weights(self):
