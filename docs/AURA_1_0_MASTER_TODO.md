@@ -348,6 +348,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     now; an unexplained clear flag still warns. FIXED.
 - [ ] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
+  UPDATE 2026-09-09, 18:47: the repaired desktop survived and delivered the
+  complete database-recovery answer in 19.60s, with 108ms stabilization. Fresh
+  process bootstrap now reads the existing scoped durable conversation store;
+  19 focused tests and release gates pass, restart proof pending. The next live
+  follow-up exposed an unrelated provenance fastpath taking over a question
+  about the database. See [durable window bootstrap](evidence/R09_DURABLE_WINDOW_BOOTSTRAP_2026-09-09.md).
   UPDATE 2026-09-09, 18:15: a source-matched reboot succeeded, but the live
   replay lost its completed model answer when actor-monitor cancellation
   unwound the desktop. Unavailable probe results now retain service custody
