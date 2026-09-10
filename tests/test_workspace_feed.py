@@ -432,5 +432,25 @@ def test_what_won_is_in_mind_at_the_strength_it_won_with():
     assert len(state.cognition.memory_scores) == len(state.cognition.long_term_memory)
     assert state.cognition.memory_scores[-1] == pytest.approx(0.8)
 
+    # And it does not bid itself back. What is in mind because it just won the
+    # competition enters this list at the strength it won with, so bidding it
+    # back made a loop: the winner became the strongest recollection, won
+    # again, and the competition settled on whatever had won once. The
+    # recollection that was there before still competes, at its own score.
     bid = next(b for b in build_candidates(state) if b.source == "memory")
-    assert bid.priority == pytest.approx(0.8)
+    assert bid.priority == pytest.approx(0.4)
+    assert "recalled earlier" in bid.content
+
+
+def test_what_just_won_does_not_bid_itself_back():
+    from types import SimpleNamespace
+
+    from core.consciousness.workspace_feed import _remember_broadcast
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    winner = SimpleNamespace(source="perception", content="a window moved", effective_priority=0.95)
+    _remember_broadcast(state, winner, ignited=True)
+    assert not any(b.source == "memory" for b in build_candidates(state))
+    # It is still in mind for the reply.
+    assert any("a window moved" in str(line) for line in state.cognition.long_term_memory)

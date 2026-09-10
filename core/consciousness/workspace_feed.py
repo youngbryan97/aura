@@ -39,6 +39,12 @@ logger = logging.getLogger("Aura.Consciousness.WorkspaceFeed")
 #: there rather than repeated here if it is available.
 FLOOR: float = 0.05
 
+#: How a line that reached the cycle by winning the competition is marked, so
+#: the memory bid can tell a recollection from something that has just been
+#: attended to. One string, used by the writer and the reader, because two
+#: spellings of it is how the pairing comes apart.
+_BROADCAST_MARK: str = "[broadcast: "
+
 #: Statuses that mean a goal is no longer an intention. A finished goal is a
 #: record of what happened and has no claim on attention.
 _FINISHED: frozenset[str] = frozenset({"done", "failed", "complete", "completed", "cancelled"})
@@ -172,20 +178,31 @@ def build_candidates(state: Any) -> list[Any]:
     # which is fresh on every cycle, so it entered at full priority every time
     # and won almost every competition, and the other domains' bids never
     # decided anything. A memory bid should be a recollection.
+    # A recollection's claim on attention is how well it matched what was
+    # asked. Retrieval ranks its candidates by exactly that and used to discard
+    # the number, so this bid entered at a flat neutral 0.5 — nothing about
+    # what was recalled could change what won, and active memory had no route
+    # into attention at all.
+    #
+    # What is in mind because it just won the competition is excluded. It
+    # enters this list at the strength it won with, so bidding it back made a
+    # loop: the winner became the strongest recollection, which won again, and
+    # the competition settled on whatever had won once. Something that has just
+    # had attention has no claim on it — the same reason the workspace fatigues
+    # a repeated winner, applied to the channel that was going round it. It
+    # stays in mind for the reply; it stops competing.
     retrieved = list(getattr(cognition, "long_term_memory", []) or []) if cognition else []
-    if retrieved:
-        # A recollection's claim on attention is how well it matched what was
-        # asked. Retrieval ranks its candidates by exactly that and used to
-        # discard the number, so this bid entered at a flat neutral 0.5 —
-        # which meant nothing about what was recalled could ever change what
-        # won, and active memory had no route into attention at all. The score
-        # is carried now; neutral remains the fallback for a recollection that
-        # arrived by some path that did not rank it.
-        scores = list(getattr(cognition, "memory_scores", []) or [])
-        strength = _clamp(max(scores), 0.5) if scores else 0.5
+    scores = list(getattr(cognition, "memory_scores", []) or []) if cognition else []
+    recalled = [
+        (str(text), scores[index] if index < len(scores) else 0.5)
+        for index, text in enumerate(retrieved)
+        if not str(text).startswith(_BROADCAST_MARK)
+    ]
+    if recalled:
+        strength = _clamp(max(score for _, score in recalled), 0.5)
         bids.append(
             CognitiveCandidate(
-                content=str(retrieved[-1])[:240],
+                content=recalled[-1][0][:240],
                 source="memory",
                 priority=strength,
                 content_type=ContentType.MEMORIAL,
@@ -440,7 +457,7 @@ def _remember_broadcast(state: Any, winner: Any, ignited: bool) -> None:
     cognition.attention_focus = f"{winner.source}: {str(winner.content)[:120]}"
     if not ignited:
         return
-    line = f"[broadcast: {winner.source}] {str(winner.content)[:180]}"
+    line = f"{_BROADCAST_MARK}{winner.source}] {str(winner.content)[:180]}"
     context = list(getattr(cognition, "long_term_memory", []) or [])
     scores = list(getattr(cognition, "memory_scores", []) or [])
     # The two lists are read side by side — the workspace prices its memory bid
