@@ -160,13 +160,18 @@ def build_mesh_layer(mesh: Any = None, *, threshold: float = 0.0) -> MeshLayer:
         matrix = getattr(mesh, attribute, None)
         if matrix is None:
             continue
-        for i in range(count):
-            row = matrix[i]
-            for j in range(count):
-                weight = float(row[j])
-                if i == j or abs(weight) <= threshold:
+        # The receiver is the ROW. `recurrent = W @ x` makes W[i, j] the weight
+        # from j into i, so an edge runs from the column index to the row index.
+        # Read the other way, this measured reachability on the transpose of
+        # the graph the mesh actually integrates — and agreed with a
+        # feedforward pathway that was built on the same mistake.
+        for target in range(count):
+            row = matrix[target]
+            for source in range(count):
+                weight = float(row[source])
+                if target == source or abs(weight) <= threshold:
                     continue
-                pair = (columns[i], columns[j])
+                pair = (columns[source], columns[target])
                 edges[pair] = edges.get(pair, 0.0) + weight
     possible = count * (count - 1)
     return MeshLayer(

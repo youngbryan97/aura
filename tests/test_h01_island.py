@@ -370,3 +370,66 @@ def test_reachability_is_guaranteed_not_just_degree(seed, monkeypatch):
     monkeypatch.setattr(mesh_module, "_MESH_SEED", seed)
     report = signal_can_cross(build_mesh_layer(NeuralMesh(MeshConfig())))
     assert report["executive_reached_from_sensory"] == report["executive_columns"]
+
+
+# ── One convention, and three builders that did not follow it ──────────────
+
+
+def test_the_receiver_is_the_row_everywhere():
+    """`recurrent = W @ x` makes W[i, j] the weight from j into i.
+
+    Three builders wrote `weights[source, target]` and one reader read them
+    that way too, so each agreed with itself and none agreed with the tick that
+    actually moves activity.
+    """
+    from core.consciousness.neural_mesh import (
+        CorticalTier,
+        MeshConfig,
+        NeuralMesh,
+    )
+
+    mesh = NeuralMesh(MeshConfig())
+    tiers = [column.tier for column in mesh.columns]
+
+    # Top-down feedback runs from a higher band into a lower one. Read on the
+    # wrong axis this matrix put its drive on the executive columns that sent
+    # it, so the columns it was written for received nothing at all.
+    present = np.abs(mesh._feedback_W) > 0
+    for target, source in zip(*np.nonzero(present), strict=True):
+        assert tiers[source].value >= tiers[target].value, (
+            "a feedback edge runs upward, so the matrix is on the wrong axis"
+        )
+    assert present.any(), "there is no feedback pathway at all"
+
+    # And a sensory column has to be able to SEND, which is its column of the
+    # inter-column matrix.
+    inter = np.abs(mesh._inter_W) > 0
+    sensory = [
+        index
+        for index, tier in enumerate(tiers)
+        if tier is CorticalTier.SENSORY
+    ]
+    assert inter[:, sensory].any(), "no sensory column sends anything"
+
+
+def test_the_feedback_pathway_changes_the_state():
+    """It delivered nothing, and an ablation of it was a no-op that passed."""
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    config = MeshConfig(
+        total_neurons=512,
+        columns=16,
+        neurons_per_column=32,
+        sensory_end=4,
+        association_end=10,
+    )
+    with_feedback = NeuralMesh(config)
+    without = NeuralMesh(config)
+    without.set_recurrent_feedback_enabled(False)
+    for _ in range(5):
+        with_feedback._tick_inner()
+        without._tick_inner()
+    difference = float(
+        np.linalg.norm(with_feedback.get_field_state() - without.get_field_state())
+    )
+    assert difference > 1e-6, "cutting the top-down pathway changed nothing"
