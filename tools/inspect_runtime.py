@@ -314,6 +314,7 @@ THE_PRIMITIVES: tuple[str, ...] = tuple(
         "verify.what_a_channel_hands_over",
         "verify.how_much_of_it_governs",
         "skill_management.what_the_probes_were_held_to",
+        "agi.what_the_forge_closed",
     )
 )
 
@@ -377,6 +378,19 @@ def _forge_target() -> Any:
     return how_the_target_has_held()
 
 
+def _forge_chain() -> Any:
+    """Where the forge's chain stops, named by the step that is empty."""
+    from core.agi.what_the_forge_closed import how_the_forge_closes
+    from core.skill_management.what_the_probes_were_held_to import (
+        how_the_target_has_held,
+    )
+
+    # Side by side here because core/agi may not import core/skill_management,
+    # and a chain that turns over on a target the drafter kept moving is not
+    # the same reading as one that turns over on a target that held.
+    return how_the_forge_closes(targets_held=how_the_target_has_held()).as_dict()
+
+
 def _how_much_governs() -> Any:
     """Every module under the production roots, by what it decides.
 
@@ -432,6 +446,7 @@ THE_SECTIONS: dict[str, Callable[[], Any]] = {
     "lesion_reachability": _lesion_reachability,
     "how_much_governs": _how_much_governs,
     "forge_target": _forge_target,
+    "forge_chain": _forge_chain,
 }
 
 
