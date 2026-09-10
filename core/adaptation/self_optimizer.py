@@ -386,7 +386,8 @@ def get_self_optimizer() -> SelfOptimizer:
     with _optimizer_lock:
         if _optimizer_instance is not None:
             return _optimizer_instance
-        from core.brain.llm.model_registry import BASE_DIR, get_adapter_path, get_model_path
+        from core.brain.llm.model_paths import BASE_DIR
+        from core.brain.llm.model_registry import get_adapter_path, get_model_path
         from core.event_bus import get_event_bus
 
         base_path = get_model_path()

@@ -70,7 +70,7 @@ class DistillationPipe:
     """Queries local teacher lanes and appends audited pairs to the LoRA dataset."""
 
     def __init__(self, dataset_path: str | None = None):
-        from core.brain.llm.model_registry import BASE_DIR
+        from core.brain.llm.model_paths import BASE_DIR
 
         self.dataset_path = (
             Path(dataset_path)

@@ -13,7 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from core.brain.llm.model_registry import resolve_installation_root
+# It lives in model_paths now: the registry was past the 2,000-line ceiling
+# and where the artifacts live had nothing to do with lanes or identity.
+from core.brain.llm.model_paths import resolve_installation_root
 
 
 def _primary(tmp_path: Path) -> Path:
@@ -109,9 +111,14 @@ def test_an_explicit_env_override_wins_over_both(tmp_path, monkeypatch):
     monkeypatch.setenv("AURA_ROOT", str(override))
     import importlib
 
-    from core.brain.llm import model_registry
+    # model_paths, not model_registry: the base directory is read at module
+    # scope and that scope moved when the registry was split at the 2,000-line
+    # ceiling. Reloading the registry re-imported an unchanged model_paths and
+    # the old value came back, which is a test of the wrong module rather than
+    # a failure of the override.
+    from core.brain.llm import model_paths, model_registry
 
-    reloaded = importlib.reload(model_registry)
+    reloaded = importlib.reload(model_paths)
     try:
         assert reloaded.BASE_DIR == override
         assert reloaded.get_models_dir() == override / "models"
@@ -120,6 +127,7 @@ def test_an_explicit_env_override_wins_over_both(tmp_path, monkeypatch):
         )
     finally:
         monkeypatch.delenv("AURA_ROOT", raising=False)
+        importlib.reload(model_paths)
         importlib.reload(model_registry)
 
 

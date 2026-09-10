@@ -29,7 +29,7 @@ class HeuristicSynthesizer:
     """Extracts and manages generalized heuristic rules from telemetry."""
 
     def __init__(self, heuristics_path: Optional[str] = None):
-        from core.brain.llm.model_registry import BASE_DIR
+        from core.brain.llm.model_paths import BASE_DIR
         self.heuristics_path = Path(heuristics_path) if heuristics_path else BASE_DIR / "data" / "heuristics.json"
         self._active_heuristics: List[Dict[str, Any]] = []
         self._load()
