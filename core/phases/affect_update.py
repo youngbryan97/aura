@@ -745,26 +745,26 @@ class AffectUpdatePhase(Phase):
         if energy is not None:
             if energy > 0.7:
                 # Active, flowing conversation → anticipation, trust
-                affect.emotions["anticipation"] = min(1.0, affect.emotions.get("anticipation", 0.5) + 0.08)
-                affect.emotions["joy"] = min(1.0, affect.emotions.get("joy", 0.0) + 0.05)
+                self._bump_emotion(affect, "anticipation", 0.08)
+                self._bump_emotion(affect, "joy", 0.05)
                 # High-energy conversation satisfies social hunger
                 affect.social_hunger = max(0.0, affect.social_hunger - 0.05)
             elif energy < 0.3 and trend == "cooling_off":
                 # Low energy alone can be a short normal message. Only treat it as
                 # social fading when the discourse tracker also sees withdrawal.
-                affect.emotions["sadness"] = min(1.0, affect.emotions.get("sadness", 0.0) + 0.04)
+                self._bump_emotion(affect, "sadness", 0.04)
                 affect.social_hunger = min(1.0, affect.social_hunger + 0.04)
 
         # ── User emotional trend → resonant affect ────────────────────────
         if trend == "engaged":
-            affect.emotions["trust"] = min(1.0, affect.emotions.get("trust", 0.0) + 0.06)
-            affect.emotions["joy"] = min(1.0, affect.emotions.get("joy", 0.0) + 0.04)
+            self._bump_emotion(affect, "trust", 0.06)
+            self._bump_emotion(affect, "joy", 0.04)
         elif trend == "warming_up":
-            affect.emotions["trust"] = min(1.0, affect.emotions.get("trust", 0.0) + 0.03)
-            affect.emotions["anticipation"] = min(1.0, affect.emotions.get("anticipation", 0.5) + 0.03)
+            self._bump_emotion(affect, "trust", 0.03)
+            self._bump_emotion(affect, "anticipation", 0.03)
         elif trend == "cooling_off":
             # User pulling back → Aura notices; slight sadness, social hunger rises
-            affect.emotions["sadness"] = min(1.0, affect.emotions.get("sadness", 0.0) + 0.05)
+            self._bump_emotion(affect, "sadness", 0.05)
             affect.social_hunger = min(1.0, affect.social_hunger + 0.06)
 
         # ── Discourse depth → curiosity satisfaction ──────────────────────
@@ -782,15 +782,15 @@ class AffectUpdatePhase(Phase):
         violations = set(dialogue_validation.get("violations", []) or [])
         if contract.get("requires_aura_stance") or contract.get("requires_aura_question"):
             if dialogue_validation.get("ok"):
-                affect.emotions["trust"] = min(1.0, affect.emotions.get("trust", 0.0) + 0.05)
-                affect.emotions["anticipation"] = min(1.0, affect.emotions.get("anticipation", 0.0) + 0.04)
+                self._bump_emotion(affect, "trust", 0.05)
+                self._bump_emotion(affect, "anticipation", 0.04)
                 affect.social_hunger = max(0.0, affect.social_hunger - 0.06)
             elif violations:
                 if "prompt_fishing_closer" in violations or "moderator_turn" in violations:
-                    affect.emotions["sadness"] = min(1.0, affect.emotions.get("sadness", 0.0) + 0.05)
+                    self._bump_emotion(affect, "sadness", 0.05)
                     affect.social_hunger = min(1.0, affect.social_hunger + 0.07)
                 if "missing_first_person_stance" in violations:
-                    affect.emotions["anger"] = min(1.0, affect.emotions.get("anger", 0.0) + 0.03)
+                    self._bump_emotion(affect, "anger", 0.03)
                 if "failed_to_offer_own_question" in violations:
                     affect.curiosity = min(1.0, affect.curiosity + 0.04)
 
@@ -809,16 +809,16 @@ class AffectUpdatePhase(Phase):
         reentry_required = bool(continuity.get("continuity_reentry_required", False))
 
         if failure_pressure > 0.0:
-            affect.emotions["fear"] = min(1.0, affect.emotions.get("fear", 0.0) + (0.10 * failure_pressure))
-            affect.emotions["sadness"] = min(1.0, affect.emotions.get("sadness", 0.0) + (0.06 * failure_pressure))
-            affect.emotions["anger"] = min(1.0, affect.emotions.get("anger", 0.0) + (0.04 * failure_pressure))
-            affect.emotions["trust"] = max(0.0, affect.emotions.get("trust", 0.0) - (0.03 * failure_pressure))
+            self._bump_emotion(affect, "fear", (0.10 * failure_pressure))
+            self._bump_emotion(affect, "sadness", (0.06 * failure_pressure))
+            self._bump_emotion(affect, "anger", (0.04 * failure_pressure))
+            self._bump_emotion(affect, "trust", -((0.03 * failure_pressure)))
             affect.social_hunger = min(1.0, affect.social_hunger + (0.03 * failure_pressure))
 
         if continuity_pressure > 0.0:
-            affect.emotions["anticipation"] = min(1.0, affect.emotions.get("anticipation", 0.0) + (0.04 * continuity_pressure))
-            affect.emotions["sadness"] = min(1.0, affect.emotions.get("sadness", 0.0) + (0.04 * continuity_pressure))
-            affect.emotions["fear"] = min(1.0, affect.emotions.get("fear", 0.0) + (0.05 * continuity_pressure))
+            self._bump_emotion(affect, "anticipation", (0.04 * continuity_pressure))
+            self._bump_emotion(affect, "sadness", (0.04 * continuity_pressure))
+            self._bump_emotion(affect, "fear", (0.05 * continuity_pressure))
             affect.curiosity = min(1.0, affect.curiosity + (0.03 * continuity_pressure))
             if reentry_required:
                 affect.social_hunger = min(1.0, affect.social_hunger + (0.02 * continuity_pressure))
@@ -852,27 +852,27 @@ class AffectUpdatePhase(Phase):
         attention = min(1.0, max(0.0, float(fused.get("attention_available", 0.5) or 0.5)))
 
         if engagement > 0.55:
-            affect.emotions["trust"] = min(1.0, affect.emotions.get("trust", 0.0) + (0.05 * engagement))
-            affect.emotions["anticipation"] = min(1.0, affect.emotions.get("anticipation", 0.0) + (0.04 * engagement))
+            self._bump_emotion(affect, "trust", (0.05 * engagement))
+            self._bump_emotion(affect, "anticipation", (0.04 * engagement))
             affect.social_hunger = max(0.0, affect.social_hunger - (0.04 * engagement))
 
         if hesitation > 0.55:
-            affect.emotions["fear"] = min(1.0, affect.emotions.get("fear", 0.0) + (0.04 * hesitation))
-            affect.emotions["sadness"] = min(1.0, affect.emotions.get("sadness", 0.0) + (0.03 * hesitation))
+            self._bump_emotion(affect, "fear", (0.04 * hesitation))
+            self._bump_emotion(affect, "sadness", (0.03 * hesitation))
             affect.social_hunger = min(1.0, affect.social_hunger + (0.03 * hesitation))
 
         if attention < 0.3 and vision.get("face_present"):
-            affect.emotions["sadness"] = min(1.0, affect.emotions.get("sadness", 0.0) + 0.03)
+            self._bump_emotion(affect, "sadness", 0.03)
             affect.social_hunger = min(1.0, affect.social_hunger + 0.03)
 
         voice_label = str(voice.get("label") or "")
         if voice_label == "calm":
-            affect.emotions["trust"] = min(1.0, affect.emotions.get("trust", 0.0) + 0.02)
+            self._bump_emotion(affect, "trust", 0.02)
         elif voice_label == "activated":
-            affect.emotions["anticipation"] = min(1.0, affect.emotions.get("anticipation", 0.0) + 0.03)
+            self._bump_emotion(affect, "anticipation", 0.03)
         elif voice_label == "stressed":
-            affect.emotions["fear"] = min(1.0, affect.emotions.get("fear", 0.0) + 0.04)
-            affect.emotions["anger"] = min(1.0, affect.emotions.get("anger", 0.0) + 0.02)
+            self._bump_emotion(affect, "fear", 0.04)
+            self._bump_emotion(affect, "anger", 0.02)
 
     def _regulate_stale_negative_affect(
         self,
