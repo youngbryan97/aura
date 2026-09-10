@@ -115,3 +115,14 @@ experiment, repeat until the 256-item custody queue filled, and then be shed.
 `write_memory` now carries the same high-stakes treatment as belief and state
 mutation. The focused seal test passed; live capture after deployment remains
 required.
+
+The first inference assessment repair did not cover the route's independent
+reply assessment. Generation received up to 40 complete exchanges, while this
+second boundary re-read four user messages and one Aura antecedent. A correct
+recollection whose subject appeared only in an older Aura reply was therefore
+classified as fabricated. The route now derives user-turn evidence, assistant
+grounding, and the active antecedent once from the same completed exchanges
+given to the model. Initial, continuation, repair, deterministic grounding,
+and final assessments share that evidence. A route-level regression reproduces
+the exact assistant-only grounding case. Sixteen context and persistence tests
+and 270 reliability/fabrication tests pass. Live replay remains required.

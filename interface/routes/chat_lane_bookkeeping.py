@@ -833,6 +833,8 @@ def _assess_the_engine_reply(
     assessment: Any,
     assessment_reasons: Any,
     assessment_text: Any,
+    antecedent: Any,
+    grounding: Any,
     recent_user_messages: Any,
     text: Any,
     visible: Any,
@@ -870,6 +872,8 @@ def _assess_the_engine_reply(
                 visible,
                 _devoiced,
                 recent_user_messages=recent_user_messages,
+                grounding=grounding,
+                antecedent=antecedent,
             )
             if "generic_assistant_language" not in set(
                 getattr(_devoiced_assessment, "reasons", ()) or ()

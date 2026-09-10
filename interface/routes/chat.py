@@ -4476,6 +4476,32 @@ async def _run_cognitive_engine_chat_turn(
         )
     else:
         recent_exchanges = []
+    transcript_user_messages = [
+        str(exchange.get("user") or "").strip()
+        for exchange in recent_exchanges
+        if isinstance(exchange, dict) and str(exchange.get("user") or "").strip()
+    ]
+    route_recent_user_messages = list(transcript_user_messages)
+    if visible and visible not in route_recent_user_messages:
+        route_recent_user_messages.append(visible)
+    route_assessment_grounding = [
+        text
+        for exchange in recent_exchanges
+        if isinstance(exchange, dict)
+        for text in (
+            str(exchange.get("user") or "").strip(),
+            str(exchange.get("aura") or "").strip(),
+        )
+        if text
+    ]
+    route_assessment_antecedent = next(
+        (
+            str(exchange.get("aura") or "").strip()
+            for exchange in reversed(recent_exchanges)
+            if isinstance(exchange, dict) and str(exchange.get("aura") or "").strip()
+        ),
+        "",
+    )
     recent_conversation_context = (
         _format_recent_conversation_context(recent_exchanges) if recent_exchanges else ""
     )
@@ -5628,13 +5654,13 @@ async def _run_cognitive_engine_chat_turn(
             )
             if str(reason or "").strip()
         }
-        retry_recent_user_messages = await _gather_recent_user_messages_for_relevance(
-            visible
-        )
+        retry_recent_user_messages = list(route_recent_user_messages)
         retry_assessment = assess_user_facing_reply(
             visible,
             retry_text,
             recent_user_messages=retry_recent_user_messages,
+            grounding=route_assessment_grounding,
+            antecedent=route_assessment_antecedent,
             generation_stop_reason=retry_stop_reason,
         )
         retry_requires_repair = _reply_assessment_requires_repair_with_memory_evidence(
@@ -5821,11 +5847,13 @@ async def _run_cognitive_engine_chat_turn(
             protected_foreground_lane=bool(require_engine),
             session_id=session_id,
         )
-        retry_recent_user_messages = await _gather_recent_user_messages_for_relevance(visible)
+        retry_recent_user_messages = list(route_recent_user_messages)
         retry_assessment = assess_user_facing_reply(
             visible,
             retry_repaired,
             recent_user_messages=retry_recent_user_messages,
+            grounding=route_assessment_grounding,
+            antecedent=route_assessment_antecedent,
         )
         if not (
             retry_stale
@@ -6288,25 +6316,15 @@ async def _run_cognitive_engine_chat_turn(
             numeric_answer_missing,
         )
 
-        recent_user_messages = await _gather_recent_user_messages_for_relevance(visible)
-        # LIVE DEFECT, 2026-08-03. Bryan asked "Why did it catch your attention
-        # specifically?" about a philosophy post Aura had just described, and
-        # she answered about acoustics and overtones. Every topic check keys
-        # off the CURRENT message, and the current message is a pro-form with
-        # no topic of its own — so the one turn where the subject can only come
-        # from the previous one was the one turn nothing checked. Hand the gate
-        # the antecedent.
-        antecedent_turn = ""
-        try:
-            prior_exchanges = await _chat_memory_state._recent_completed_conversation_exchanges(
-                current_user_message=visible,
-                session_id=str(session_id or ""),
-                limit=1,
+        recent_user_messages = list(route_recent_user_messages)
+        route_assessment_grounding.extend(
+            text
+            for text in (
+                retained_memory_evidence_context,
+                conversation_recall_context,
             )
-            if prior_exchanges:
-                antecedent_turn = str(prior_exchanges[-1].get("aura") or "").strip()
-        except (RuntimeError, TypeError, ValueError) as exc:
-            logger.debug("Antecedent lookup unavailable: %s", exc)
+            if text and text not in route_assessment_grounding
+        )
         assessment_text = (
             _ground_runtime_fact_status_reply(
                 visible,
@@ -6321,21 +6339,14 @@ async def _run_cognitive_engine_chat_turn(
             visible,
             assessment_text,
             recent_user_messages=recent_user_messages,
-            antecedent=antecedent_turn,
+            antecedent=route_assessment_antecedent,
             generation_stop_reason=thought_metadata.get("reply_generation_stop_reason"),
             # What she was ENTITLED to have known, so a real recall is not
             # mistaken for an invention. The fabricated-shared-history check
             # asks "does this content appear anywhere in what they said" —
             # and a memory she legitimately retrieved appears in neither the
             # visible request nor the recent turns, only here.
-            grounding=[
-                text
-                for text in (
-                    retained_memory_evidence_context,
-                    conversation_recall_context,
-                )
-                if text
-            ],
+            grounding=route_assessment_grounding,
         )
         # The engine path does not leave through _finalize_fastpath, so the
         # numeric floor installed there never saw these replies. Live
@@ -6361,6 +6372,8 @@ async def _run_cognitive_engine_chat_turn(
                 visible,
                 assessment_text,
                 recent_user_messages=recent_user_messages,
+                grounding=route_assessment_grounding,
+                antecedent=route_assessment_antecedent,
             )
         if (
             require_engine
@@ -6381,6 +6394,8 @@ async def _run_cognitive_engine_chat_turn(
                     visible,
                     retry_reply,
                     recent_user_messages=recent_user_messages,
+                    grounding=route_assessment_grounding,
+                    antecedent=route_assessment_antecedent,
                 )
                 if not _chat_desktop_repair._capability_inventory_reply_is_inadequate(
                     visible, retry_reply
@@ -6414,6 +6429,8 @@ async def _run_cognitive_engine_chat_turn(
                     visible,
                     grounded_inventory,
                     recent_user_messages=recent_user_messages,
+                    grounding=route_assessment_grounding,
+                    antecedent=route_assessment_antecedent,
                 )
                 if not _reply_assessment_requires_repair_with_memory_evidence(
                     grounded_assessment,
@@ -6509,6 +6526,8 @@ async def _run_cognitive_engine_chat_turn(
                 assessment=assessment,
                 assessment_reasons=assessment_reasons,
                 assessment_text=assessment_text,
+                antecedent=route_assessment_antecedent,
+                grounding=route_assessment_grounding,
                 recent_user_messages=recent_user_messages,
                 text=text,
                 visible=visible,
@@ -6532,6 +6551,8 @@ async def _run_cognitive_engine_chat_turn(
                         visible,
                         grounded_inventory,
                         recent_user_messages=recent_user_messages,
+                        grounding=route_assessment_grounding,
+                        antecedent=route_assessment_antecedent,
                     )
                     if not _reply_assessment_requires_repair_with_memory_evidence(
                         grounded_assessment,
@@ -6610,6 +6631,8 @@ async def _run_cognitive_engine_chat_turn(
                         visible,
                         grounded_self_process_reply,
                         recent_user_messages=recent_user_messages,
+                        grounding=route_assessment_grounding,
+                        antecedent=route_assessment_antecedent,
                     )
                     if not _reply_assessment_requires_repair_with_memory_evidence(
                         grounded_self_process_assessment,
@@ -6655,6 +6678,8 @@ async def _run_cognitive_engine_chat_turn(
                         visible,
                         grounded_completion,
                         recent_user_messages=recent_user_messages,
+                        grounding=route_assessment_grounding,
+                        antecedent=route_assessment_antecedent,
                     )
                     if not _reply_assessment_requires_repair_with_memory_evidence(
                         grounded_assessment,
@@ -6714,6 +6739,8 @@ async def _run_cognitive_engine_chat_turn(
                             visible,
                             refreshed_condition_reply,
                             recent_user_messages=recent_user_messages,
+                            grounding=route_assessment_grounding,
+                            antecedent=route_assessment_antecedent,
                         )
                         if not _reply_assessment_requires_repair_with_memory_evidence(
                             condition_assessment,
@@ -6777,6 +6804,8 @@ async def _run_cognitive_engine_chat_turn(
                         visible,
                         expected_recall_reply,
                         recent_user_messages=recent_user_messages,
+                        grounding=route_assessment_grounding,
+                        antecedent=route_assessment_antecedent,
                     )
                     if not _reply_assessment_requires_repair_with_memory_evidence(
                         condition_assessment,
@@ -6831,6 +6860,8 @@ async def _run_cognitive_engine_chat_turn(
                         visible,
                         context_challenge_context,
                         recent_user_messages=recent_user_messages,
+                        grounding=route_assessment_grounding,
+                        antecedent=route_assessment_antecedent,
                     )
                     if not _reply_assessment_requires_repair_with_memory_evidence(
                         context_repair_assessment,
@@ -6912,6 +6943,8 @@ async def _run_cognitive_engine_chat_turn(
                 visible,
                 repaired,
                 recent_user_messages=recent_user_messages,
+                grounding=route_assessment_grounding,
+                antecedent=route_assessment_antecedent,
             )
             if did_repair and not (
                 stale
@@ -7004,6 +7037,8 @@ async def _run_cognitive_engine_chat_turn(
                         visible,
                         devocatived,
                         recent_user_messages=recent_user_messages,
+                        grounding=route_assessment_grounding,
+                        antecedent=route_assessment_antecedent,
                     ),
                     visible,
                     devocatived,
@@ -7118,7 +7153,9 @@ async def _run_cognitive_engine_chat_turn(
                 context_repair_assessment = assess_user_facing_reply(
                     visible,
                     context_challenge_context,
-                    recent_user_messages=await _gather_recent_user_messages_for_relevance(visible),
+                    recent_user_messages=route_recent_user_messages,
+                    grounding=route_assessment_grounding,
+                    antecedent=route_assessment_antecedent,
                 )
                 if not _reply_assessment_requires_repair_with_memory_evidence(
                     context_repair_assessment,

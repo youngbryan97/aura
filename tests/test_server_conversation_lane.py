@@ -15549,6 +15549,87 @@ async def test_compound_turn_keeps_its_objective_and_delivered_history(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_route_assessment_hears_the_assistant_history_given_to_the_model(monkeypatch):
+    from core.providers import engine_connection_pool as pool_module
+    from interface.routes import chat as chat_routes
+
+    answer = (
+        "We were discussing database recovery, specifically how idempotent redo "
+        "operations make committed changes safe to replay."
+    )
+    calls = []
+
+    class _FakeCognitiveEngine:
+        async def think(self, objective, context=None, **kwargs):
+            calls.append({"objective": objective, "context": dict(context or {})})
+            return SimpleNamespace(
+                content=answer,
+                metadata=_bound_live_mind_controls_metadata(),
+            )
+
+    class _Pool:
+        async def acquire_engine_connection(self, *_args, **_kwargs):
+            return None
+
+    from core.utils.injected_blocks import stamp_runtime_payload
+
+    preceding = stamp_runtime_payload(
+        {
+            "user": "Can you explain the mechanism behind that result?",
+            "aura": (
+                "Database recovery uses idempotent redo operations so committed "
+                "changes can be replayed without being applied twice."
+            ),
+        }
+    )
+    monkeypatch.setattr(pool_module, "get_engine_connection_pool", lambda: _Pool())
+    monkeypatch.setattr(
+        _chat_memory_state,
+        "_recent_completed_conversation_exchanges",
+        AsyncCallFixture(return_value=[preceding]),
+    )
+    patch_chat_lane(
+        monkeypatch,
+        "_gather_recent_user_messages_for_relevance",
+        AsyncCallFixture(return_value=[]),
+    )
+    for name in (
+        "_build_conversation_recall_reply",
+        "_build_retained_memory_evidence_context",
+        "_build_context_challenge_repair_reply",
+        "_fetch_deep_memory_context",
+    ):
+        monkeypatch.setattr(chat_routes, name, AsyncCallFixture(return_value=""))
+    engine = _FakeCognitiveEngine()
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(
+            lambda name, default=None: engine if name == "cognitive_engine" else default
+        ),
+    )
+
+    trace = {}
+    question = "What topic were we discussing before I asked where that came from?"
+    reply = await chat_routes._run_cognitive_engine_chat_turn(
+        question,
+        visible_user_message=question,
+        origin="user",
+        timeout_s=120.0,
+        lane={"conversation_ready": True, "state": "ready", "foreground_endpoint": "Cortex"},
+        source="desktop_ui",
+        require_engine=True,
+        turn_trace=trace,
+    )
+
+    assert reply == answer
+    assert len(calls) == 1
+    assert calls[0]["context"]["recent_completed_exchanges"] == [preceding]
+    assert trace["cognitive_engine_reply_accepted"] is True
+    assert trace["response_path"] == "cognitive_engine"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("selected_mode", ["FAST", "SLOW", "DEEP"])
 async def test_ordinary_desktop_chat_turn_keeps_the_prompt_cache(monkeypatch, selected_mode):
     """The conversation lane is the one lane that MUST reuse KV.
