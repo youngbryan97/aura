@@ -121,22 +121,38 @@ def _episodic_memory() -> tuple[bool, str]:
     """Whether anything is remembered across turns."""
     try:
         from core.container import ServiceContainer
-        from core.service_names import Services
+        from core.service_names import ServiceNames
 
-        store = ServiceContainer.get(Services.EPISODIC, default=None)
+        store = ServiceContainer.get(ServiceNames.EPISODIC, default=None)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("episodic memory unavailable: %s", exc)
         return False, ""
     if store is None:
         return False, ""
-    for attribute in ("count", "size", "total_memories"):
-        reader = getattr(store, attribute, None)
+    # The store's own introspection summary, which is what it exposes. An
+    # earlier version of this looked for `count`, `size` and `total_memories`;
+    # the store has none of them, so the instrument returned False forever and
+    # the guard it feeds could never remove anything.
+    summary = getattr(store, "get_summary_cached", None) or getattr(
+        store, "get_summary", None
+    )
+    if callable(summary):
         try:
-            value = reader() if callable(reader) else reader
-        except (AttributeError, RuntimeError, TypeError, ValueError):
-            continue
-        if isinstance(value, int) and value > 0:
-            return True, f"{value} episodic memories are stored"
+            counted = summary()
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("episodic summary unavailable: %s", exc)
+            counted = None
+        if isinstance(counted, dict):
+            total = counted.get("total_episodes")
+            if isinstance(total, int) and total > 0:
+                return True, f"{total} episodic memories are stored"
+    recall = getattr(store, "recall_recent", None)
+    if callable(recall):
+        try:
+            if recall(limit=1):
+                return True, "the episodic store has something in it"
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("episodic recall unavailable: %s", exc)
     return False, ""
 
 
@@ -149,15 +165,18 @@ def _affect_substrate() -> tuple[bool, str]:
     """
     try:
         from core.container import ServiceContainer
-        from core.service_names import Services
+        from core.service_names import ServiceNames
 
-        engine = ServiceContainer.get(Services.AFFECT, default=None)
+        engine = ServiceContainer.get(ServiceNames.AFFECT, default=None)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("affect engine unavailable: %s", exc)
         return False, ""
     if engine is None:
         return False, ""
-    for attribute in ("get_current_state", "get_state", "current_state", "get_status"):
+    # The engine's real readers. `get_current_state` and `current_state` are not
+    # among them, and a list of names a class does not have is an instrument
+    # that always reads absent.
+    for attribute in ("get_snapshot", "get_state_sync", "get_status", "get_wheel"):
         reader = getattr(engine, attribute, None)
         if not callable(reader):
             continue

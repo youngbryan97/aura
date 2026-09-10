@@ -179,3 +179,68 @@ def test_the_real_instruments_never_raise():
         present, reading = instrument()
         assert isinstance(present, bool), name
         assert isinstance(reading, str), name
+
+
+# ── The instruments have to fire against the real thing ────────────────────
+#
+# Every one of them was written against an API the object does not have. The
+# episodic store has no `count`, `size` or `total_memories`; the affect engine
+# has no `get_current_state` or `current_state`; and `core.service_names` has no
+# `Services`, so both imports raised and both instruments returned "absent"
+# forever. Each part passed its own test and the guard could never remove
+# anything.
+
+
+def test_the_pipeline_instrument_fires_when_phases_have_run():
+    from core.pipeline.pass_manager import PassManager
+
+    manager = PassManager("self-denial-probe")
+    for name in ("first", "second", "third"):
+        manager.add_fn(name, lambda unit, am: None)
+    manager.run(object())
+
+    present, reading = self_denial.INSTRUMENTS["pipeline_phases"]()
+    assert present, "the pipeline instrument cannot see a pipeline that just ran"
+    assert "cognitive phases" in reading
+
+
+def test_the_memory_instrument_fires_against_the_real_store(tmp_path):
+    from core.container import ServiceContainer
+    from core.memory.episodic_memory import EpisodicMemory
+    from core.service_names import ServiceNames
+
+    store = EpisodicMemory(db_path=str(tmp_path / "episodes.db"))
+    ServiceContainer.register(ServiceNames.EPISODIC, store)
+    try:
+        assert self_denial.INSTRUMENTS["episodic_memory"]() == (False, "")
+        store.record_episode(context="c", action="a", outcome="o", success=True)
+        present, reading = self_denial.INSTRUMENTS["episodic_memory"]()
+        assert present, "the memory instrument cannot see a memory that was just stored"
+        # Either route is a real reading: the store's own summary when the write
+        # has landed, and a recall when it is still being held.
+        assert "episodic memories" in reading or "episodic store" in reading
+    finally:
+        ServiceContainer.register(ServiceNames.EPISODIC, None)
+        store.close()
+
+
+def test_the_affect_instrument_fires_against_the_real_engine():
+    from core.affect.damasio_v2 import AffectEngineV2
+    from core.container import ServiceContainer
+    from core.service_names import ServiceNames
+
+    ServiceContainer.register(ServiceNames.AFFECT, AffectEngineV2())
+    try:
+        present, reading = self_denial.INSTRUMENTS["affect_substrate"]()
+        assert present, "the affect instrument cannot see a running affect engine"
+        assert "affect substrate" in reading
+    finally:
+        ServiceContainer.register(ServiceNames.AFFECT, None)
+
+
+def test_the_service_names_the_instruments_ask_for_exist():
+    """The import that failed silently for the life of the first version."""
+    from core.service_names import ServiceNames
+
+    assert ServiceNames.EPISODIC
+    assert ServiceNames.AFFECT
