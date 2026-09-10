@@ -312,8 +312,16 @@ def test_the_clock_never_exceeds_the_wait_that_contains_it() -> None:
     from core.brain.inference_gate import InferenceGate as Gate
 
     source = inspect.getsource(Gate)
+    # Anchored on the cap, not on the first `primary_timeout` in the file.
+    # There are two: one on the path that SHRINKS the clock to fit the answer,
+    # which no ceiling concerns, and this one on the path that extends it.
+    # Reading the earlier one made the order look wrong over code that was
+    # right.
+    cap = "_cap = float(USER_FACING_COMPLETION_DEADLINE_MAX_S)"
     marker = "primary_timeout = max(8.0, timeout_val - _DELIVERY_MARGIN_S)"
-    assert marker in source
-    assert "_cap = float(USER_FACING_COMPLETION_DEADLINE_MAX_S)" in source
-    assert "timeout_val = min(_cap, _needed)" in source
-    assert source.index("timeout_val = min(_cap, _needed)") < source.index(marker)
+    assert cap in source
+    where = source.index(cap)
+    block = source[where : where + 800]
+    assert "timeout_val = min(_cap, _needed)" in block
+    assert marker in block
+    assert block.index("timeout_val = min(_cap, _needed)") < block.index(marker)
