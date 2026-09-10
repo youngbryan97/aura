@@ -16,7 +16,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 from tools.lint_module_size import (
     MAX_NEW_CLASS_METHODS,
     MAX_NEW_MODULE_LINES,
@@ -72,10 +71,24 @@ def test_uncompensated_growth_fails():
 
 def test_the_decomposition_this_gate_exists_to_encourage_passes():
     """Moving four hundred lines out of chat.py into two new modules must PASS.
+
     The tool's first design pinned every file individually and failed exactly
     this, which is how a gate gets deleted: it blocks the work it was meant to
-    cause."""
+    cause. The second design had the same shape one level up. It asked whether
+    the tree was under budget AFTER the decomposition, so once the tree drifted
+    past the budget — 178,382 against 145,896 today, from work by several
+    hands — the answer was no however much the decomposition helped, and the
+    gate was again refusing the only thing that fixes it.
+
+    So the question is asked differentially, which is what it always meant: the
+    decomposition must introduce no refusal the tree did not already have, and
+    it must reduce the one number the ratchet holds. Both are true whatever the
+    debt is, and neither can be satisfied by lowering the bar.
+    """
     measurements, baseline = _live()
+    budget = load_budget(BASELINE)
+    before, _ = check(measurements, baseline, budget=budget)
+
     traded = dict(measurements)
     chat = traded["interface/routes/chat.py"]
     traded[chat.path] = Measurement(
@@ -86,10 +99,18 @@ def test_the_decomposition_this_gate_exists_to_encourage_passes():
             f"interface/routes/{name}.py", 190, 4, "Small"
         )
 
-    failures, _ = check(traded, baseline, budget=load_budget(BASELINE))
+    after, _ = check(traded, baseline, budget=budget)
 
-    assert not any("total oversize" in f for f in failures), failures
-    assert not any("chat_streaming" in f for f in failures), failures
+    def _apart_from_the_total(failures: list[str]) -> set[str]:
+        # The budget line carries its own number, so it differs between the
+        # two runs by construction. What it says is checked below instead.
+        return {one for one in failures if not one.startswith("BUDGET")}
+
+    assert _apart_from_the_total(after) <= _apart_from_the_total(before), sorted(
+        _apart_from_the_total(after) - _apart_from_the_total(before)
+    )
+    assert not any("chat_streaming" in f for f in after), after
+    assert oversize_total(traded) < oversize_total(measurements)
 
 
 def test_a_god_class_may_never_grow_even_while_its_file_shrinks():
@@ -174,9 +195,16 @@ def test_a_file_that_shrank_must_be_re_recorded():
     measurements, baseline = _live()
     measurements = dict(measurements)
     real = measurements["core/brain/inference_gate.py"]
+    # Below what the BASELINE records, not below what the file measures today.
+    # The two were the same number when this was written, and they stopped
+    # being the same as soon as the file grew — 16,290 lines against a
+    # recorded 12,965 — so subtracting five hundred from today's measurement
+    # left it three thousand lines above its entry and nothing was stale. The
+    # rule is about the recorded value, so the fixture is built from it.
+    recorded = int(baseline["core/brain/inference_gate.py"]["lines"])
     measurements["core/brain/inference_gate.py"] = Measurement(
         path=real.path,
-        lines=real.lines - 500,
+        lines=recorded - 500,
         max_class_methods=real.max_class_methods,
         largest_class=real.largest_class,
     )
