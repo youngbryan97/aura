@@ -118,9 +118,21 @@ def _symmetric_kl(left, right, floor: float = 1e-12) -> float:
 
 
 def chat_ids(tokenizer, prompt: str) -> list[int]:
+    """The prompt as this template's own token ids.
+
+    Through the one preparer rather than by handing the template a message
+    list. Three adaptations have to happen before a transcript reaches a chat
+    template, and every render site that composed them by hand eventually met
+    a template that raised — the resident 27B's raises "Unexpected message
+    role" on the typed evidence role, which is a warmup failure on every boot.
+    """
+    from core.brain.llm.chat_format import for_this_template
+
     try:
         text = tokenizer.apply_chat_template(
-            [{"role": "user", "content": prompt}], tokenize=False, add_generation_prompt=True
+            for_this_template(tokenizer, [{"role": "user", "content": prompt}]),
+            tokenize=False,
+            add_generation_prompt=True,
         )
     except (AttributeError, TypeError, ValueError):
         text = prompt

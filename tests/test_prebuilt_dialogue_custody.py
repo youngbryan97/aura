@@ -37,9 +37,16 @@ def test_budget_eviction_removes_whole_exchanges():
         )
     ]
     current = {"role": "user", "content": "why?"}
+    # A background caller, which is what asks for a count window now. The
+    # foreground stopped applying a character budget here on 2026-09-09:
+    # `_fit_prompt_to_window` allocates its history with the output reserve
+    # known, and a second blind budget underneath it cut history that fitted.
+    # The invariant this test holds is the eviction's shape, and eviction is
+    # what a windowed caller still gets.
     compact = gate._compact_prebuilt_messages(
         [{"role": "system", "content": "identity"}, *history, current],
         budget_profile="contract",
+        history_limit=8,
     )
     contents = [message["content"] for message in compact]
     assert sum(map(len, contents)) <= 2800

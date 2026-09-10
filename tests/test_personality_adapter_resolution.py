@@ -1,6 +1,6 @@
 import json
 
-import core.brain.llm.model_registry as model_registry
+import core.brain.llm.model_paths as model_paths
 from core.brain.llm.model_registry import resolve_personality_adapter
 
 ADAPTER_TEST_PAYLOAD = "adapter-test-payload"
@@ -33,7 +33,12 @@ def test_default_mlx_personality_adapter_is_opt_in(monkeypatch, tmp_path):
         json.dumps({"model": "models/Qwen2.5-32B-Instruct-8bit"})
     )
 
-    monkeypatch.setattr(model_registry, "BASE_DIR", tmp_path)
+    # model_paths owns the base directory; the name bound in model_registry is
+    # only for the frozen path tables built at import. Patching that name left
+    # the call reading the real repository, which is the exact lie its own
+    # comment warns about ("a second name for one value is how a patched test
+    # comes to lie about what it patched").
+    monkeypatch.setattr(model_paths, "BASE_DIR", tmp_path)
     monkeypatch.delenv("AURA_LORA_PATH", raising=False)
     monkeypatch.delenv("AURA_ENABLE_PERSONALITY_LORA", raising=False)
     monkeypatch.delenv("AURA_ENABLE_MLX_LORA", raising=False)
