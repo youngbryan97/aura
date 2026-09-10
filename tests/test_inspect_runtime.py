@@ -159,6 +159,7 @@ def test_everything_the_maturity_pass_built_is_askable_from_here() -> None:
         "core.runtime.what_the_environment_is_asked": "environment_settings",
         "core.verify.how_much_of_it_governs": "how_much_governs",
         "core.skill_management.what_the_probes_were_held_to": "forge_target",
+        "core.agi.what_the_forge_closed": "forge_chain",
     }
     missing = sorted(name for name, section in wanted.items() if section not in THE_SECTIONS)
     assert missing == [], f"no section reads {missing}"
