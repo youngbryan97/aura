@@ -152,6 +152,21 @@ class InteroceptiveChannel:
         self.acceleration *= 0.5
 
 
+
+def _resource_observer():
+    """The shared host observer, or None when it cannot be reached.
+
+    None is a real answer: a caller that cannot get the shared reading falls
+    back to its own rather than reporting a body of zeros.
+    """
+    try:
+        from core.runtime.resource_observation import get_resource_observer
+
+        return get_resource_observer()
+    except (ImportError, AttributeError, RuntimeError):
+        return None
+
+
 class EmbodiedInteroception:
     """The body-sense layer.
 
@@ -312,16 +327,35 @@ class EmbodiedInteroception:
             return
 
         # 1. CPU → metabolic load
+        #
+        # Through the shared observer, not `psutil` directly. There were three
+        # bodies before this one: the proprioceptive loop publishing into the
+        # state every phase reads, `core/senses/soma.py` on its own timer, and
+        # the resilience engine going to `psutil` on every call. This layer was
+        # a fourth, and the one figure that decides how the body is felt came
+        # from the host by a route her own sensing never touched. One reading,
+        # with its provenance attached, is also the reading an experiment can
+        # hold still — the sham floor cannot be got below a channel that reads
+        # the real machine between two arms.
+        observer = _resource_observer()
         try:
-            cpu = psutil.cpu_percent(interval=0) / 100.0
+            if observer is not None:
+                cpu = float(observer.compute().cpu_percent) / 100.0
+            else:
+                cpu = psutil.cpu_percent(interval=0) / 100.0
             self.channels["metabolic_load"].update(cpu)
         except _EMBODIED_INTEROCEPTION_RECOVERABLE_ERRORS:
             self.channels["metabolic_load"].fail_safe()
 
         # 2. RAM → resource pressure
         try:
-            mem = psutil.virtual_memory()
-            self.channels["resource_pressure"].update(mem.percent / 100.0)
+            if observer is not None:
+                self.channels["resource_pressure"].update(
+                    float(observer.memory().percent) / 100.0
+                )
+            else:
+                mem = psutil.virtual_memory()
+                self.channels["resource_pressure"].update(mem.percent / 100.0)
         except _EMBODIED_INTEROCEPTION_RECOVERABLE_ERRORS:
             self.channels["resource_pressure"].fail_safe()
 

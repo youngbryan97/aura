@@ -983,6 +983,69 @@ def _restore_moments(service: Any, saved: dict[str, Any] | None) -> None:
             )
 
 
+
+class _HeldObserver:
+    """The shared host observer, answering every question the same way.
+
+    A thin memoising face over the real one rather than a second
+    implementation of the protocol: the first call of each shape passes
+    through and its answer stands until the hold is released. What the machine
+    is doing is the environment, and an experiment that compares two arms has
+    to hold the environment still or the comparison is between two machines.
+    """
+
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+        self._answers: dict[tuple, Any] = {}
+
+    @property
+    def provenance(self) -> Any:
+        return self._inner.provenance
+
+    def _held(self, name: str, args: tuple, kwargs: dict) -> Any:
+        key = (name, args, tuple(sorted(kwargs.items())))
+        if key not in self._answers:
+            self._answers[key] = getattr(self._inner, name)(*args, **kwargs)
+        return self._answers[key]
+
+    def __getattr__(self, name: str) -> Any:
+        attribute = getattr(self._inner, name)
+        if not callable(attribute):
+            return attribute
+        return lambda *args, **kwargs: self._held(name, args, kwargs)
+
+
+def _delegate_to_the_real_observer() -> None:
+    """Give the held face a real method per protocol member.
+
+    `isinstance` against a runtime-checkable protocol looks the members up
+    statically, so `__getattr__` alone does not satisfy it and the installer
+    refuses the object. Written out of the protocol's own attribute list rather
+    than by hand, so the face cannot fall behind what the protocol asks for.
+    """
+    try:
+        from core.runtime.resource_observation import ResourceObserver
+    except (ImportError, AttributeError):  # pragma: no cover - shipped together
+        return
+    for name in getattr(ResourceObserver, "__protocol_attrs__", ()):  # type: ignore[attr-defined]
+        if name == "provenance" or hasattr(_HeldObserver, name):
+            continue
+
+        def make(method: str):
+            def call(self, *args: Any, **kwargs: Any) -> Any:
+                return self._held(method, args, kwargs)
+
+            call.__name__ = method
+            call.__qualname__ = f"_HeldObserver.{method}"
+            return call
+
+        setattr(_HeldObserver, name, make(name))
+
+
+_delegate_to_the_real_observer()
+
+
 @dataclass
 class Snapshot:
     """Everything a fork has to carry for two arms to start from one place."""
@@ -1109,6 +1172,10 @@ class SubjectRuntime:
     #: matched-environment control every arm of a comparison needs.
     frozen_host: dict[str, float] | None = None
     frozen_latency: dict[str, float] | None = None
+    #: The host observer held still for a trial, and whatever was installed
+    #: before it.
+    _held_observer: Any = None
+    _previous_observer: Any = None
     #: The clock every arm shares, or None to run on the machine's. See
     #: `core.subject.clock`: the phases that read elapsed time have to be
     #: handed the same interval in both arms or the machine's own speed is in
@@ -1171,6 +1238,7 @@ class SubjectRuntime:
             key: float(latency.get(key, 0.0) or 0.0)
             for key in ("last_thought_ms", "perception_lag_ms", "token_velocity")
         }
+        self._hold_observer()
         return self.frozen_host
 
     async def calibrate_fork(self, conditions: Sequence[Condition]) -> dict[str, Any]:
@@ -1299,6 +1367,43 @@ class SubjectRuntime:
     def thaw_host(self) -> None:
         self.frozen_host = None
         self.frozen_latency = None
+        self._release_observer()
+
+    def _hold_observer(self) -> None:
+        """Hold the shared host observer still for the arms that follow.
+
+        The state's body readings are held by `freeze_host`, and every layer
+        that reads the machine through the shared observer went round that hold
+        — embodied interoception samples it once a second of the organism's
+        life, so two arms seconds apart read a different machine and the
+        difference was in the floor of every edge into the body. This is the
+        same act at the observer's own seam: the first reading of each kind
+        stands for all three arms.
+        """
+        try:
+            from core.runtime.resource_observation import (
+                get_resource_observer,
+                set_resource_observer_for_test,
+            )
+        except (ImportError, AttributeError):
+            return
+        if self._held_observer is not None:
+            return
+        held = _HeldObserver(get_resource_observer())
+        self._previous_observer = set_resource_observer_for_test(held)
+        self._held_observer = held
+
+    def _release_observer(self) -> None:
+        if self._held_observer is None:
+            return
+        try:
+            from core.runtime.resource_observation import set_resource_observer_for_test
+
+            set_resource_observer_for_test(self._previous_observer)
+        except (ImportError, AttributeError):
+            pass
+        self._held_observer = None
+        self._previous_observer = None
 
     def snapshot(self) -> Snapshot:
         return Snapshot(
