@@ -65,6 +65,13 @@ HANDWRITTEN = {
     # rule exists to hold. It was generated once, on 2026-09-07, and the
     # written rule survived by one command.
     "subject",
+    # Two packages whose rule names a MODULE rather than a package. Narrative
+    # classification reads core.conversation.word_markers and cycle
+    # observation reads core.state.percepts; the generator emits package-level
+    # rules only, so regenerating either one widens it to the whole of
+    # core.conversation or the whole of core.state and the narrowing is gone
+    # with the gate still green.
+    "consciousness", "world_model",
     # The judge must not be able to reach the defendant. core/phenomenology
     # decides whether evidence supports a claim about this system, so its rule
     # is "imports nothing from core" rather than "what it imports today" — a
