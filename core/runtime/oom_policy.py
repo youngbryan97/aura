@@ -157,7 +157,9 @@ class OomPolicy:
             logger.debug("footprint probe failed for %s", policy.name, exc_info=True)
             return 0
 
-    def badness(self, policy: OrganPolicy, total_bytes: int) -> int:
+    def badness(
+        self, policy: OrganPolicy, total_bytes: int, *, footprint_bytes: int | None = None
+    ) -> int:
         """Proportional footprint in thousandths, plus the adjustment.
 
         Matches the kernel's shape: an organ holding half of memory scores
@@ -169,7 +171,8 @@ class OomPolicy:
             return OOM_SCORE_ADJ_MIN
         if total_bytes <= 0:
             return policy.oom_score_adj
-        share = self._safe_footprint(policy) / float(total_bytes)
+        footprint = self._safe_footprint(policy) if footprint_bytes is None else footprint_bytes
+        share = footprint / float(total_bytes)
         return int(round(share * BADNESS_SCALE)) + policy.oom_score_adj
 
     def scoring_table(self, total_bytes: int | None = None) -> list[dict[str, Any]]:
@@ -177,19 +180,19 @@ class OomPolicy:
         total = total_bytes if total_bytes is not None else _total_memory_bytes()
         with self._lock:
             organs = list(self._organs.values())
-        rows = [
-            {
+        rows = []
+        for p in organs:
+            footprint = self._safe_footprint(p)
+            rows.append({
                 "organ": p.name,
-                "badness": self.badness(p, total),
-                "footprint_bytes": self._safe_footprint(p),
+                "badness": self.badness(p, total, footprint_bytes=footprint),
+                "footprint_bytes": footprint,
                 "oom_score_adj": p.oom_score_adj,
                 "sheddable": p.shed is not None,
                 "immune": p.immune,
                 "recoverable": p.recoverable,
                 "rationale": p.rationale,
-            }
-            for p in organs
-        ]
+            })
         rows.sort(key=lambda r: (-r["badness"], r["organ"]))
         return rows
 

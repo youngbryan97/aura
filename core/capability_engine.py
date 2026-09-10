@@ -3650,6 +3650,13 @@ class CapabilityEngine(AuraBaseModule):
             "skill_status", {"skill": skill_name, "state": state, "timestamp": time.time()}
         )
 
+    def registered_skill_names_snapshot(self) -> tuple[str, ...] | None:
+        """Read the published registry without triggering discovery or probes."""
+        with self._catalog_guard():
+            if not self._catalog_loaded:
+                return None
+            return tuple(self._skills)
+
     def get_available_skills(self) -> list[str]:
         """Returns a list of all registered skill names."""
         self._ensure_catalog_loaded()

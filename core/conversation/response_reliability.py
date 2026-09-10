@@ -1889,9 +1889,27 @@ def _registered_capability_names() -> frozenset[str]:
     that fires when it cannot check is worse than one that stays quiet.
     """
     try:
-        from core.skills.discovery import build_skill_catalog
+        from core.capability_engine import live_capability_engine
 
-        catalogue = build_skill_catalog()
+        engine = live_capability_engine()
+        if engine is not None:
+            declared_names = engine.registered_skill_names_snapshot()
+            if declared_names is None:
+                return frozenset()
+        else:
+            import asyncio
+
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                from core.skills.discovery import build_skill_catalog
+
+                catalogue = build_skill_catalog()
+                declared_names = tuple(item.name for item in catalogue.accepted)
+            else:
+                # Discovery belongs to catalog publication, never to synchronous
+                # reply validation on the event loop. Unknown cannot contradict.
+                return frozenset()
     except Exception as exc:  # noqa: BLE001 - no catalogue means no contradiction
         record_degradation(
             "response_reliability",
@@ -1901,8 +1919,8 @@ def _registered_capability_names() -> frozenset[str]:
         )
         return frozenset()
     names: set[str] = set()
-    for declaration in getattr(catalogue, "accepted", ()) or ():
-        name = str(getattr(declaration, "name", "") or "").strip().lower()
+    for declared_name in declared_names:
+        name = str(declared_name or "").strip().lower()
         if not name:
             continue
         names.add(name)
@@ -1927,9 +1945,7 @@ def _claims_a_capability_it_does_not_have(user_message: Any, reply_text: Any) ->
     raw = str(reply_text or "")
     if not raw.strip():
         return False
-    registered = _registered_capability_names()
-    if not registered:
-        return False
+    registered = None
     prompt = _normalize(user_message)
     for sentence in re.split(r"(?<=[.!?])\s+|\n", raw):
         match = _TOOL_CLAIMED_AS_HERS_RE.search(sentence)
@@ -1940,6 +1956,10 @@ def _claims_a_capability_it_does_not_have(user_message: Any, reply_text: Any) ->
         named = (match.group("called") or match.group("mine") or "").strip().lower()
         if not named or named in prompt:
             continue
+        if registered is None:
+            registered = _registered_capability_names()
+            if not registered:
+                return False
         if named in registered or named.replace("_", "") in registered:
             continue
         return True

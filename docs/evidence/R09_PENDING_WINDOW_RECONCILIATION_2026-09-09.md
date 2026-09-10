@@ -24,3 +24,27 @@ Smoke passed 164 tests with one skipped in 116.78 seconds. Lint and compilation
 passed.
 
 Live replay of this repair is pending. R09 is not closed by these checks.
+
+## Live replay, 17:48 onward
+
+The shell repair at ad42ee1f1 was deployed to the canonical checkout and loaded
+by browser reload. PID 77385 continued running its earlier Python revision;
+this isolates shell validation and does not validate the newer allocator.
+
+Turn `aura-chat-47fb6801-06f7-4e7b-90c0-5167f5a670f3` requested a short
+explanation of redo after a committed transaction. A second window opened
+during generation restored the pending question. Without a manual reload,
+it later displayed the full answer beside that question. A subsequent DOM
+inspection still contained exactly one answer. The answer correctly explained
+that a durable commit log can precede flushing modified pages to disk.
+
+The worker measured 2336 prefill tokens in 25.55 seconds and 247 generated
+tokens in 52.74 seconds. Total request time was 266454.62 ms, including
+51006.04 ms of reply stabilization. Event-loop freezes occurred during the
+turn. The stall trace at `data/error_logs/stalls/stall_1789001530.txt` showed
+reply validation rebuilding the source skill catalog synchronously. The
+watchdog remained alive and reported its unhealthy state rather than being
+restarted by the controller.
+
+The pending-window subcase is live-verified. Latency and the broader R09
+obligations remain open.
