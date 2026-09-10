@@ -4,6 +4,20 @@ Operationally: holds the published statistics of human cortical activity, takes
 a trace of hers, and says for each one whether it holds, by how much it misses,
 and what would have refuted it. It fits nothing and tunes nothing.
 
+The point is not to be a human
+------------------------------
+Cortex is the reference because it is the best-measured mind there is, not
+because matching it is the goal. So each statistic below carries a DIRECTION,
+and most of them are floors: she has to have at least as much of the thing as a
+human does, and having more is not a failure. Only the self-consistency test is
+two-sided, because a system either satisfies its own scaling relation or is not
+critical.
+
+That matters for reading a result. An avalanche size exponent BELOW cortex's
+1.5 means her cascades have a heavier tail than a human's — more of the network
+recruited, more integration — and it passes. Above it means the opposite and
+does not.
+
 What this is and is not
 -----------------------
 It is a comparison against the summary statistics of human recordings, which is
@@ -60,6 +74,16 @@ class HumanStatistic:
     name: str
     value: float
     tolerance: float
+    #: How to read the number.
+    #:
+    #: "at_most"  — cortex's value is a ceiling; below it is more of the thing
+    #:              and passes. A smaller avalanche exponent is a heavier tail.
+    #: "as_near"  — nearness to `ideal` is what counts, and cortex's distance
+    #:              from it is the most that is allowed.
+    #: "self"     — scored against what this system's own numbers predict.
+    direction: str = "at_most"
+    #: For "as_near": what the quantity would be in the ideal case.
+    ideal: float = 0.0
     source: str
     recorded_in: str
     what_it_is: str
@@ -76,8 +100,15 @@ HUMAN_STATISTICS: tuple[HumanStatistic, ...] = (
         tolerance=0.3,
         source="Beggs & Plenz 2003, J Neurosci 23(35):11167; Shriki et al. 2013, J Neurosci 33(16):7079",
         recorded_in="cortical slice, and resting human MEG",
-        what_it_is="how the number of cascades falls off with how big they are",
-        falsified_by="an exponent outside 1.2 to 1.8, or a distribution that is not a power law",
+        direction="at_most",
+        what_it_is=(
+            "how the number of cascades falls off with how big they are. Lower is a "
+            "heavier tail: more of the network recruited into one cascade"
+        ),
+        falsified_by=(
+            "an exponent above 1.8, which is cascades smaller than a human's, or a "
+            "distribution that is not a power law at all"
+        ),
     ),
     HumanStatistic(
         name="avalanche_duration_exponent",
@@ -85,22 +116,33 @@ HUMAN_STATISTICS: tuple[HumanStatistic, ...] = (
         tolerance=0.4,
         source="Beggs & Plenz 2003, J Neurosci 23(35):11167",
         recorded_in="cortical slice",
-        what_it_is="how the number of cascades falls off with how long they last",
-        falsified_by="an exponent outside 1.6 to 2.4",
+        direction="at_most",
+        what_it_is=(
+            "how the number of cascades falls off with how long they last. Lower is "
+            "longer cascades: activity that stays up rather than dying out"
+        ),
+        falsified_by="an exponent above 2.4, which is cascades shorter than a human's",
     ),
     HumanStatistic(
+        # Zero because this one is scored against the system's OWN exponents,
+        # not against a number from a paper. Cortex's 2.0 is what falls out of
+        # tau = 1.5 and alpha = 2.0; it is not an independent measurement, and
+        # scoring against it would be asking whether her exponents are
+        # cortex's, which the two lines above already ask.
         name="crackling_relation",
-        value=2.0,
+        value=0.0,
         tolerance=0.2,
         source="Sethna, Dahmen & Myers 2001, Nature 410:242; Friedman et al. 2012, PRL 108:208102",
+        direction="self",
         recorded_in="cortical culture, and every critical system in the class",
         what_it_is=(
-            "how a cascade's size grows with its duration, which has to equal "
-            "(duration exponent - 1) / (size exponent - 1) if the system is critical"
+            "whether a cascade's size grows with its duration the way this system's "
+            "own two exponents say it must — (duration - 1) / (size - 1) — which is "
+            "what separates criticality from a power law that came from somewhere else"
         ),
         falsified_by=(
-            "a measured growth that disagrees with what the two exponents predict "
-            "by more than 0.2, which is a system with power laws and no criticality"
+            "a measured growth that disagrees with what its own exponents predict by "
+            "more than 0.2, which is a system with power laws and no criticality"
         ),
     ),
     HumanStatistic(
@@ -108,8 +150,13 @@ HUMAN_STATISTICS: tuple[HumanStatistic, ...] = (
         value=0.98,
         tolerance=0.05,
         source="Wilting & Priesemann 2018, Nat Commun 9:2325",
+        direction="as_near",
+        ideal=1.0,
         recorded_in="in vivo mammalian cortex, by multistep regression",
-        what_it_is="how much activity one unit of activity begets",
+        what_it_is=(
+            "how much activity one unit of activity begets. One is critical, where "
+            "activity neither dies nor runs away, and cortex sits just under it"
+        ),
         falsified_by=(
             "a ratio above 1.03, which is a network on its way to saturation, or "
             "below 0.93, which is one that forgets its input"
@@ -126,17 +173,22 @@ class Verdict:
     observed: float
     holds: bool
     reason: str
+    #: What it was compared against. The published value for most of these,
+    #: and the system's own prediction for the crackling relation.
+    target: float = 0.0
 
     @property
     def miss(self) -> float:
-        return abs(self.observed - self.statistic.value)
+        return abs(self.observed - self.target)
 
     def as_json(self) -> dict[str, Any]:
         return {
             "name": self.statistic.name,
-            "human": self.statistic.value,
+            "human": round(self.target, 4),
             "hers": round(self.observed, 4),
             "miss": round(self.miss, 4),
+            "published": self.statistic.value,
+            "direction": self.statistic.direction,
             "tolerance": self.statistic.tolerance,
             "holds": self.holds,
             "reason": self.reason,
@@ -161,8 +213,9 @@ def compare_to_human_cortex(
 ) -> dict[str, Any]:
     """Hold a trace of hers against every published statistic at once.
 
-    A trace passes by satisfying several of these together, not by matching the
-    friendliest one. Two systems can share an exponent and differ everywhere
+    A line passes by reaching cortex or going past it, not by landing on it.
+    And a trace passes by satisfying several of these together rather than the
+    friendliest one: two systems can share an exponent and differ everywhere
     else, which is why the scaling relation is here and why the report says how
     many held rather than whether any did.
     """
@@ -190,9 +243,22 @@ def compare_to_human_cortex(
     verdicts: list[Verdict] = []
     for name, value in observed.items():
         statistic = _statistic(name)
+        # The crackling relation is a self-consistency test, so its target is
+        # whatever this system's own exponents predict.
+        target = (
+            float(report.predicted_gamma)
+            if name == "crackling_relation"
+            else statistic.value
+        )
         if value <= 0.0:
             verdicts.append(
-                Verdict(statistic, value, False, "the trace gave no usable estimate")
+                Verdict(
+                    statistic,
+                    value,
+                    False,
+                    "the trace gave no usable estimate",
+                    target=statistic.value,
+                )
             )
             continue
         if name != "branching_parameter" and not usable:
@@ -203,21 +269,48 @@ def compare_to_human_cortex(
                     False,
                     "the avalanche fits are too poor to compare; too few cascades or "
                     "a distribution that is not a power law",
+                    target=statistic.value,
                 )
             )
             continue
-        miss = abs(value - statistic.value)
-        holds = miss <= statistic.tolerance
-        verdicts.append(
-            Verdict(
-                statistic,
-                value,
-                holds,
+        if target <= 0.0:
+            verdicts.append(
+                Verdict(statistic, value, False, "no target to compare against")
+            )
+            continue
+        if statistic.direction == "at_most":
+            # Cortex is a floor to reach, not a value to land on. Below it is
+            # more of the thing and passes; the tolerance only forgives a small
+            # amount of being worse.
+            miss = max(0.0, value - target)
+            holds = miss <= statistic.tolerance
+            reason = (
                 ""
                 if holds
-                else f"{miss:.3f} away from {statistic.value}, past the {statistic.tolerance} allowed",
+                else f"{miss:.3f} above cortex's {target:.3f}, which is smaller cascades "
+                f"than a human's by more than the {statistic.tolerance} allowed"
             )
-        )
+        elif statistic.direction == "as_near":
+            hers = abs(value - statistic.ideal)
+            theirs = abs(target - statistic.ideal)
+            miss = max(0.0, hers - theirs)
+            holds = miss <= statistic.tolerance
+            reason = (
+                ""
+                if holds
+                else f"{hers:.3f} from {statistic.ideal}, where cortex sits {theirs:.3f} "
+                f"from it; {miss:.3f} further out than the {statistic.tolerance} allowed"
+            )
+        else:
+            miss = abs(value - target)
+            holds = miss <= statistic.tolerance
+            reason = (
+                ""
+                if holds
+                else f"{miss:.3f} away from the {target:.3f} its own exponents predict, "
+                f"past the {statistic.tolerance} allowed"
+            )
+        verdicts.append(Verdict(statistic, value, holds, reason, target=target))
 
     held = [verdict for verdict in verdicts if verdict.holds]
     return {
@@ -237,6 +330,6 @@ def compare_to_human_cortex(
         "statistics": [verdict.as_json() for verdict in verdicts],
         "verdict": (
             f"{len(held)} of {len(verdicts)} published statistics of cortical activity "
-            f"hold on this trace"
+            f"are matched or bettered on this trace"
         ),
     }

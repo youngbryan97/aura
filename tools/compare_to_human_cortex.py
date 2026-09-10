@@ -46,6 +46,11 @@ def main() -> int:
     )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--drive", type=float, default=0.1)
+    parser.add_argument(
+        "--regulate",
+        action="store_true",
+        help="run the criticality regulator alongside, as the live mesh does",
+    )
     parser.add_argument("--json", default="")
     arguments = parser.parse_args()
 
@@ -53,6 +58,23 @@ def main() -> int:
 
     from core.connectome.human_dynamics import compare_to_human_cortex
     from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    regulator = None
+    if arguments.regulate:
+        # The live mesh runs under this. An offline mesh does not, so every
+        # number measured without it is of a mesh with its gain and noise
+        # pinned at one — which is not the mesh that answers anybody.
+        import asyncio
+
+        from core.consciousness.criticality_regulator import (
+            CriticalityConfig,
+            CriticalityRegulator,
+        )
+
+        regulator = CriticalityRegulator(
+            CriticalityConfig(num_columns=MeshConfig().columns)
+        )
+        loop = asyncio.new_event_loop()
 
     config = MeshConfig()
     mesh = NeuralMesh(config)
@@ -74,6 +96,15 @@ def main() -> int:
             rng.standard_normal(width).astype(np.float32) * arguments.drive
         )
         mesh._tick_inner()
+        if regulator is not None:
+            loop.run_until_complete(
+                regulator.tick(mesh.column_activations, mesh.inter_column_weights)
+            )
+            adjustments = regulator.get_adjustments()
+            mesh.set_criticality_adjustment(
+                gain=float(adjustments.get("gain", 1.0)),
+                noise=float(adjustments.get("noise", 1.0)),
+            )
         stamps = np.concatenate([column.last_spike_time for column in mesh.columns])
         fired = (stamps != previous).astype(np.float64)
         previous = stamps.copy()
@@ -102,6 +133,16 @@ def main() -> int:
         f"{100 * float((spikes.sum(axis=1) > 0).mean()):.1f}% of bins had one",
         flush=True,
     )
+    if regulator is not None:
+        state = regulator.get_state()
+        print(
+            f"regulator: branching {state.branching_ratio:.4f}, score "
+            f"{regulator.get_criticality_score():.4f}, adjustments "
+            f"{ {k: round(v, 4) for k, v in regulator.get_adjustments().items()} }",
+            flush=True,
+        )
+        loop.close()
+
     report = compare_to_human_cortex(
         trace,
         percentile=arguments.percentile,
@@ -119,7 +160,7 @@ def main() -> int:
     for entry in report["statistics"]:
         mark = "holds" if entry["holds"] else "no"
         print(
-            f"  {entry['name']:30s} human {entry['human']:>5}  hers {entry['hers']:>8}  "
+            f"  {entry['name']:30s} target {entry['human']:>7}  hers {entry['hers']:>8}  "
             f"{mark}"
         )
         if entry["reason"]:
