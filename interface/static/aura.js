@@ -4268,7 +4268,10 @@ function humanOrgan(name) {
     const known = {
         'affect.affectengine': 'her feelings',
         'aurakernel.statelock': 'her current state',
-        voice_engine: 'her hearing',
+        // The VOICE service: speak_stream and synthesize_speech. It is
+        // her voice, and calling it her hearing said the opposite of
+        // what the signal meant.
+        voice_engine: 'her voice',
         sensory_gate: 'her senses',
         consciousness: 'her awareness',
         workspace: 'her working memory',

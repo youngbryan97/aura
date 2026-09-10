@@ -6316,6 +6316,37 @@ _EXECUTION_CONTEXT_RE = re.compile(
 _BARE_OUTPUT_LABEL_RE = re.compile(r"\boutput\s*[:=]\s*\S", re.IGNORECASE)
 
 
+def _carries_source(raw: str) -> bool:
+    """Whether the reply contains source code, established by parsing it.
+
+    A word list could not see the strongest signal there is. The live
+    fabrication was a Python function and the line "Output: 94867200.0", and
+    the reply held no word from the context list — `print(` is not `printed`,
+    and there is no reason it would be. Showing code and labelling what it
+    produced is a claim that it ran, however it is worded, and whether a block
+    of text is code is a question the parser answers.
+    """
+    try:
+        import ast
+
+        from core.brain.llm.code_generator import extract_python_code
+    except ImportError:
+        return False
+    code = extract_python_code(raw)
+    if not code or "\n" not in code.strip():
+        # One line that happens to parse is any English sentence with a verb
+        # in it; a program has more than one line, or a call in it at least.
+        return False
+    try:
+        tree = ast.parse(code)
+    except (SyntaxError, ValueError):
+        return False
+    return any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Import, ast.ImportFrom, ast.Call))
+        for node in ast.walk(tree)
+    )
+
+
 def _quotes_a_result(raw: str) -> re.Match[str] | None:
     """A claim that a value came back from something that ran."""
     direct = _QUOTED_OUTPUT_CLAIM_RE.search(raw)
@@ -6326,7 +6357,7 @@ def _quotes_a_result(raw: str) -> re.Match[str] | None:
     # Output: 5" still counts while a reply that worked the answer out in the
     # open does not.
     labelled = _BARE_OUTPUT_LABEL_RE.search(raw)
-    if labelled and _EXECUTION_CONTEXT_RE.search(raw):
+    if labelled and (_EXECUTION_CONTEXT_RE.search(raw) or _carries_source(raw)):
         return labelled
     attributed = _VALUE_ATTRIBUTED_RE.search(raw)
     if not attributed:

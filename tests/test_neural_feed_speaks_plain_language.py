@@ -51,7 +51,7 @@ CASES = [
     ),
     (
         "Signal Routed: voice_engine -> sensory_gate | Payload: {'event': 'threshold_shift'}",
-        "voice engine passed a signal to sensory gate.",
+        "her voice passed a signal to her senses.",
     ),
     (
         "WS: Client connected. Total: 3",

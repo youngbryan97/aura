@@ -106,8 +106,22 @@ CLAIMS_A_RUN = [
     "and the output is:\n\n5",
     "The code ran and the output was 5.",
     "I just ran it and got 3.14159.",
-    "Output: 7",
 ]
+
+# A bare "Output: 7" with nothing around it is NOT here, and that is the
+# decision the check makes on purpose. LIVE, 2026-08-28: twelve list questions
+# in a row came back "I couldn't get to an answer I'd stand behind on that
+# one", every one rejected because the word "Output:" appeared in a reply that
+# had worked its answer out in the open with nothing claiming to have run. The
+# label alone is ordinary English for "here is what I got". It becomes a
+# receipt when the reply names an instrument or carries source code, which is
+# what FABRICATED does and what the parser above now sees.
+DOES_NOT_CLAIM_A_RUN = ["Output: 7", "output = 12"]
+
+
+@pytest.mark.parametrize("reply", DOES_NOT_CLAIM_A_RUN)
+def test_a_bare_label_with_nothing_behind_it_is_not_a_receipt(reply):
+    assert not _has_unfounded_tool_execution_claim(reply), reply
 
 # Ordinary answers that name a value. An earlier version of this check
 # annihilated correct arithmetic for phrasing its conclusion normally, so
