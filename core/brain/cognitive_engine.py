@@ -5152,14 +5152,11 @@ class CognitiveEngine:
                 "[END RECENT COMPLETED CONVERSATION]"
             )
 
-        # A continuation is the same assistant turn, not a second cognitive
-        # request. Re-introducing history, dynamic advice, runtime telemetry,
-        # and repair directives around the partial changed the problem between
-        # segments and made the continuation prompt larger than the original.
-        # The original request plus the exact assistant prefix is the transport
-        # contract; sampler controls remain causal through router kwargs.
+        # Completion still needs the admitted conversation: references in the
+        # request or partial can depend on any earlier exchange. Keep that
+        # transcript while omitting newly assembled telemetry and advice.
+        # Sampler controls remain causal through router kwargs.
         if continuation_contract or obligation_contract:
-            history_messages = []
             contract_grounding_blocks = []
             task_grounding_blocks = []
             ambient_grounding_blocks = []

@@ -14009,6 +14009,7 @@ async def test_continuation_handoff_preserves_long_structured_partial(monkeypatc
     from core.brain import cognitive_engine as ce_module
     from core.brain.cognitive_engine import CognitiveEngine
     from core.brain.types import ThinkingMode
+    from core.utils.injected_blocks import stamp_runtime_payload
 
     calls = []
 
@@ -14039,6 +14040,10 @@ async def test_continuation_handoff_preserves_long_structured_partial(monkeypatc
         "user_surface_continuation_partial": partial,
         "user_surface_continuation_resume_handle": "e" * 32,
         "visible_user_message": "Explain Dijkstra completely.",
+        "recent_completed_exchanges": [
+            stamp_runtime_payload({"user": f"Earlier question {i}", "aura": f"Earlier answer {i}"})
+            for i in range(40)
+        ],
     }
 
     thought = await CognitiveEngine()._direct_desktop_quick_reply(
@@ -14051,7 +14056,15 @@ async def test_continuation_handoff_preserves_long_structured_partial(monkeypatc
 
     assert thought is not None
     call = calls[0]
-    assert len(call["messages"]) == 3
+    assert len(call["messages"]) == 83
+    assert call["messages"][1:81] == [
+        message
+        for i in range(40)
+        for message in (
+            {"role": "user", "content": f"Earlier question {i}"},
+            {"role": "assistant", "content": f"Earlier answer {i}"},
+        )
+    ]
     assert call["messages"][-1] == {"role": "assistant", "content": partial}
     assert call["user_surface_continuation_partial"] == partial
     assert call["user_surface_continuation_resume_handle"] == "e" * 32
@@ -14104,6 +14117,7 @@ async def test_obligation_handoff_uses_exact_parent_partial_and_segment(monkeypa
     from core.brain import cognitive_engine as ce_module
     from core.brain.cognitive_engine import CognitiveEngine
     from core.brain.types import ThinkingMode
+    from core.utils.injected_blocks import stamp_runtime_payload
 
     calls = []
 
@@ -14133,6 +14147,10 @@ async def test_obligation_handoff_uses_exact_parent_partial_and_segment(monkeypa
         "user_surface_obligation_segment": segment,
         "visible_user_message": segment,
         "max_tokens": 640,
+        "recent_completed_exchanges": [
+            stamp_runtime_payload({"user": "Which algorithm?", "aura": "Dijkstra."}),
+            {"user": "Unattested question", "aura": "Unattested answer"},
+        ],
     }
 
     thought = await CognitiveEngine()._direct_desktop_quick_reply(
@@ -14145,6 +14163,10 @@ async def test_obligation_handoff_uses_exact_parent_partial_and_segment(monkeypa
 
     assert thought is not None
     call = calls[0]
+    assert call["messages"][1:-3] == [
+        {"role": "user", "content": "Which algorithm?"},
+        {"role": "assistant", "content": "Dijkstra."},
+    ]
     assert call["messages"][-3:] == [
         {"role": "user", "content": parent},
         {"role": "assistant", "content": partial},
