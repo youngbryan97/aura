@@ -477,6 +477,14 @@ _SCHEMAS: dict[str, Schema] = {
         (
             ("goal_load", "cognition.active_goals"),
             ("initiative_load", "cognition.pending_initiatives"),
+            # How hard the open intentions are pressing, which is the quantity
+            # every other domain moves and the one this domain had no column
+            # for. The load is a count: an intention generated on every turn
+            # left it flat while its urgency tracked the coherence, the
+            # surprise, the distress, the strain and the novelty of the moment,
+            # and none of that could reach deliberation's own state.
+            ("initiative_urgency", "cognition.pending_initiatives[*].urgency"),
+            ("goal_urgency", "cognition.active_goals[*].urgency"),
             *[
                 (f"goal_profile_{i}", "cognition.active_goals")
                 for i in range(CONTENT_BUCKETS)
@@ -939,12 +947,30 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
     )
 
 
+def _urgency_of(items: Any) -> float:
+    """The hardest any of these intentions is pressing, or nothing."""
+    if not isinstance(items, list):
+        return 0.0
+    best = 0.0
+    for item in items:
+        if not isinstance(item, Mapping):
+            continue
+        stated = item.get("urgency")
+        if stated is None:
+            continue
+        best = max(best, _f(stated))
+    return max(0.0, min(1.0, best))
+
+
 def _read_D(state: Any) -> np.ndarray:
     goals = _dig(state, "cognition.active_goals", []) or []
     budgets = _dig(state, "motivation.budgets", {}) or {}
+    initiatives = _dig(state, "cognition.pending_initiatives", []) or []
     head = [
         _sat(goals, 8.0),
-        _sat(_dig(state, "cognition.pending_initiatives", []) or [], 4.0),
+        _sat(initiatives, 4.0),
+        _urgency_of(initiatives),
+        _urgency_of(goals),
         # The newest, not the oldest. `goals[:3]` takes the first three, which
         # stop changing the moment there are three — so this domain's whole
         # content profile was a constant after the third turn of every run.
