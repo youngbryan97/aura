@@ -80,6 +80,11 @@ class GrowthResult:
     ticks: int
     #: Density per tier at the peak, and at the end.
     peak_density: dict[str, float] = field(default_factory=dict)
+    #: What each band reached before anything was cut, which is the same for all
+    #: three because overproduction starts everywhere at once.
+    overshot_to: dict[str, float] = field(default_factory=dict)
+    #: Which tick each band was cut at. Sensory first, executive last.
+    pruned_at: dict[str, int] = field(default_factory=dict)
     adult_density: dict[str, float] = field(default_factory=dict)
     target_density: dict[str, float] = field(default_factory=dict)
     #: Synapses made, and synapses removed.
@@ -100,6 +105,8 @@ class GrowthResult:
         return {
             "ticks": self.ticks,
             "peak_density": {key: round(value, 5) for key, value in self.peak_density.items()},
+            "overshot_to": {key: round(value, 5) for key, value in self.overshot_to.items()},
+            "pruned_at": dict(self.pruned_at),
             "adult_density": {key: round(value, 5) for key, value in self.adult_density.items()},
             "target_density": {
                 key: round(value, 5) for key, value in self.target_density.items()
@@ -107,8 +114,8 @@ class GrowthResult:
             "grown": self.grown,
             "pruned": self.pruned,
             "overshoot": {
-                key: round(self.peak_density[key] / self.target_density[key], 3)
-                for key in self.peak_density
+                key: round(self.overshot_to[key] / self.target_density[key], 3)
+                for key in self.overshot_to
                 if self.target_density.get(key)
             },
             "carried_by_use": round(self.carried_by_use, 6),
@@ -149,6 +156,38 @@ def _carried_through(mesh: Any, config: Any, drive: float, seed: int) -> float:
                 float(np.mean([np.mean(np.abs(column.x)) for column in executive]))
             )
     return float(np.mean(carried)) if carried else 0.0
+
+
+def _prune_band(
+    mesh: Any,
+    band: str,
+    targets: dict[str, float],
+    traffic: list[Any],
+    random_weights: list[Any],
+    rng: Any,
+) -> int:
+    """Cut one band back to its adult density, and cut a copy at random.
+
+    The copy is the null. Both cuts remove the same number of synapses from the
+    same columns; only the choice of which differs.
+    """
+    import numpy as np
+
+    removed = 0
+    for index, column in enumerate(mesh.columns):
+        if column.tier.name.lower() != band:
+            continue
+        present = np.flatnonzero(column.W)
+        keep = int(round(targets.get(band, 0.0) * column.n * (column.n - 1)))
+        surplus = max(0, present.size - keep)
+        if not surplus:
+            continue
+        quietest = present[np.argsort(traffic[index].ravel()[present])[:surplus]]
+        column.W.ravel()[quietest] = 0.0
+        chosen = rng.choice(present, size=surplus, replace=False)
+        random_weights[index].ravel()[chosen] = 0.0
+        removed += surplus
+    return removed
 
 
 def _tier_density(mesh: Any, tier_name: str) -> float:
@@ -232,11 +271,26 @@ def grow_mesh(
     result.peak_density = {
         name: _tier_density(mesh, name) for name in ("sensory", "association", "executive")
     }
+    result.overshot_to = dict(result.peak_density)
 
-    # ── Run, and count what each synapse carries ─────────────────────────
+    # ── Run, count what each synapse carries, and cut each band at its time ──
+    #
+    # Not one cut at the end. Huttenlocher's second finding is that areas peak
+    # at DIFFERENT ages — auditory cortex at about three months, middle frontal
+    # gyrus at about three and a half years — so a sensory band finishes while
+    # an executive one is still overshooting. TIER_PEAK holds that order, and
+    # this is where it is spent.
     width = config.sensory_end * config.neurons_per_column
     traffic = [np.zeros_like(column.W) for column in mesh.columns]
-    for _ in range(ticks):
+    random_weights = [np.array(column.W, copy=True) for column in mesh.columns]
+    cut_at = {
+        name: max(1, int(round(ticks * TIER_PEAK.get(name, 1.0))))
+        for name in ("sensory", "association", "executive")
+    }
+    result.pruned_at = dict(cut_at)
+    pruned_bands: set[str] = set()
+
+    for tick in range(1, ticks + 1):
         mesh.inject_sensory(rng.standard_normal(width).astype(np.float32) * drive)
         mesh._tick_inner()
         for index, column in enumerate(mesh.columns):
@@ -249,25 +303,22 @@ def grow_mesh(
             # scored.
             column_x = np.abs(column.x)
             traffic[index] += np.abs(column.W) * column_x[None, :] * column_x[:, None]
+        for band, when in cut_at.items():
+            if tick == when and band not in pruned_bands:
+                pruned_bands.add(band)
+                result.pruned += _prune_band(
+                    mesh, band, targets, traffic, random_weights, rng
+                )
+                result.peak_density.setdefault(band, _tier_density(mesh, band))
 
-    # ── Prune back to the adult density ──────────────────────────────────
-    #
-    # And prune a copy at random, by the same count, so the comparison has a
-    # null. The two are scored on whether a signal injected into the sensory
-    # band still reaches the executive one.
-    random_weights = [np.array(column.W, copy=True) for column in mesh.columns]
-    for index, column in enumerate(mesh.columns):
-        tier = column.tier.name.lower()
-        present = np.flatnonzero(column.W)
-        keep = int(round(targets.get(tier, 0.0) * column.n * (column.n - 1)))
-        surplus = max(0, present.size - keep)
-        if not surplus:
-            continue
-        quietest = present[np.argsort(traffic[index].ravel()[present])[:surplus]]
-        column.W.ravel()[quietest] = 0.0
-        chosen = rng.choice(present, size=surplus, replace=False)
-        random_weights[index].ravel()[chosen] = 0.0
-        result.pruned += surplus
+    # Anything the run was too short to reach is cut at the end rather than
+    # left overgrown, so a short run is a fast childhood and not a different
+    # animal.
+    for band in ("sensory", "association", "executive"):
+        if band not in pruned_bands:
+            result.pruned += _prune_band(
+                mesh, band, targets, traffic, random_weights, rng
+            )
     result.adult_density = {
         name: _tier_density(mesh, name) for name in ("sensory", "association", "executive")
     }

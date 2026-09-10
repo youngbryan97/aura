@@ -30,6 +30,22 @@ def test_the_bands_peak_in_the_order_cortex_does():
     assert TIER_PEAK["sensory"] < TIER_PEAK["association"] < TIER_PEAK["executive"]
 
 
+def test_the_order_is_spent_rather_than_declared():
+    """A table nothing reads is a claim with no mechanism behind it.
+
+    The first version of this module cut every band at the end of the run and
+    left TIER_PEAK unread by anything but the test above.
+    """
+    _, result = grow_mesh(ticks=400, seed=7)
+    assert result.pruned_at, "no band records when it was cut"
+    assert (
+        result.pruned_at["sensory"]
+        < result.pruned_at["association"]
+        < result.pruned_at["executive"]
+    )
+    assert result.pruned_at["executive"] < 400
+
+
 def test_growth_overshoots_and_comes_back():
     mesh, result = grow_mesh(ticks=200, seed=7)
     for band, peak in result.peak_density.items():

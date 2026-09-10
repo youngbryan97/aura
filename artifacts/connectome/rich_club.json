@@ -1,0 +1,27 @@
+{
+  "source": {
+    "source": "van den Heuvel & Sporns 2011, J Neurosci 31(44):15775-15786",
+    "recorded_in": "human diffusion imaging, 82 regions",
+    "hub_fraction": 0.14634146341463414,
+    "normalised_coefficient_exceeds": 1.0,
+    "falsified_by": "a normalised coefficient at or below one at every cutoff, which is a graph whose hubs are no more connected to each other than their degrees require"
+  },
+  "sweep": [
+    {
+      "coupling": 1.0,
+      "median_peak": 1.0736,
+      "clubs": 3,
+      "of": 3,
+      "max_degree": 8.0,
+      "median_size_exponent": 3.1167
+    },
+    {
+      "coupling": 20.0,
+      "median_peak": 2.7184,
+      "clubs": 3,
+      "of": 3,
+      "max_degree": 20.0,
+      "median_size_exponent": 3.0596
+    }
+  ]
+}
