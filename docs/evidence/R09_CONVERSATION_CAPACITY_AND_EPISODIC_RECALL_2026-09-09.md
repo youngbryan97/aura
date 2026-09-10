@@ -106,3 +106,12 @@ user turns and prior Aura replies from that exact message sequence. A grounded
 moonlit-courtyard recollection remains rejected. The focused inference and
 shared-history suites passed 233 tests. This repair still requires deployment
 and a successful live replay before R09 can close.
+
+The deferred-write loss also had a control-point cause. Ontogeny's admission
+contract places external and state-changing actions above its random
+exploration ceiling, but the implementation omitted `write_memory` from that
+set. An approved episode could therefore become `ontogeny:deferred` as an
+experiment, repeat until the 256-item custody queue filled, and then be shed.
+`write_memory` now carries the same high-stakes treatment as belief and state
+mutation. The focused seal test passed; live capture after deployment remains
+required.
