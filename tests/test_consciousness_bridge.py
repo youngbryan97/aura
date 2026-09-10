@@ -1,5 +1,7 @@
 """Comprehensive tests for the Consciousness Bridge subsystems.
 
+Operationally: exercises the mesh, the neurochemical system, interoception, oscillatory binding, the somatic gate and the unified field in one process, with no live boot, and checks that a change in one reaches the next.
+
 Tests are organized by module, with integration tests at the end that verify
 cross-component dynamics.  Each test is self-contained (no live Aura boot needed).
 

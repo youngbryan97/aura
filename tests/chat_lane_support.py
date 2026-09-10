@@ -30,6 +30,7 @@ LANE_MODULES = (
     "interface.routes.chat_common",
     "interface.routes.chat_conversation_repair",
     "interface.routes.chat_delivery",
+    "interface.routes.chat_history",
     "interface.routes.chat_desktop_objective",
     "interface.routes.chat_desktop_evidence",
     "interface.routes.chat_desktop_objective_gates",

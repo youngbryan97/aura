@@ -3,6 +3,8 @@
 Validates that deepened consciousness modules actually compute,
 provide context blocks, close feedback loops, and degrade gracefully.
 
+Operationally: measures how many levels of the consciousness stack a single turn actually reaches, and refuses a level that reports itself without running.
+
 These tests run WITHOUT a live LLM — they exercise the consciousness
 infrastructure directly with local/default state.
 """

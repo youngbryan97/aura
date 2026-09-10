@@ -220,13 +220,22 @@ def test_the_subsystems_that_owned_affect_are_estimators_now():
     from core.being.welfare_state import WelfareState
     from core.interiority.service import InteriorityService
 
+    # The estimator belongs to the subsystem, not necessarily to the class:
+    # interiority's is a module-level function now, and asking only the class
+    # for it reported that the subsystem had stopped estimating when it had
+    # only stopped being a method.
+    import sys
+
     for owner, method in (
         (DamasioMarkers, "_estimate_canonical"),
         (WelfareState, "_estimate_canonical"),
         (InteriorityService, "_estimate_canonical"),
     ):
-        assert hasattr(owner, method), f"{owner.__name__} no longer estimates"
-        source = inspect.getsource(getattr(owner, method))
+        estimator = getattr(owner, method, None) or getattr(
+            sys.modules[owner.__module__], method, None
+        )
+        assert estimator is not None, f"{owner.__name__} no longer estimates"
+        source = inspect.getsource(estimator)
         assert "core.canonical.state" in source
 
 

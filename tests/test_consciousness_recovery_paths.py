@@ -1,3 +1,8 @@
+"""test consciousness recovery paths.
+
+Operationally: takes each consciousness subsystem's failure path and checks it degrades where it says it does, rather than silently returning a value nobody can tell apart from a measurement.
+"""
+
 from __future__ import annotations
 
 import asyncio

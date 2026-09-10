@@ -1,3 +1,8 @@
+"""test phi consciousness.
+
+Operationally: runs the phase that computes phi and checks the number it produces is the number that reaches the state, rather than a default written over it.
+"""
+
 import asyncio
 import time
 from types import SimpleNamespace

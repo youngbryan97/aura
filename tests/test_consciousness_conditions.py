@@ -3,6 +3,8 @@ test_consciousness_conditions.py -- Comprehensive Test Suite for the 20 Core
 Conditions of Consciousness/Soul in Aura
 ==========================================================================
 
+Operationally: asserts the conditions the consciousness layer says it needs, against the runtime rather than against a description of it.
+
 PHILOSOPHICAL BASIS
 -------------------
 This test suite evaluates 20 conditions argued to be individually necessary
