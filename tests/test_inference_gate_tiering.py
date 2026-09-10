@@ -1341,7 +1341,11 @@ def test_simple_foreground_prompt_uses_small_prebuilt_history_and_prompt_budget(
     assert profile == "simple"
     assert total_chars <= 9_000
     assert len(compact[0]["content"]) <= 5_200
-    assert len([msg for msg in compact if msg["role"] in {"user", "assistant"}]) <= 4
+    dialogue = [msg for msg in compact if msg["role"] in {"user", "assistant"}]
+    # The message-count window expands to its initiating question rather than
+    # presenting an orphan answer. The total budget above remains unchanged.
+    assert len(dialogue) <= 5
+    assert [msg["role"] for msg in dialogue] == ["user", "assistant"] * ((len(dialogue) - 1) // 2) + ["user"]
     assert compact[-1]["content"] == current_user
 
 
@@ -1397,7 +1401,11 @@ def test_required_desktop_foreground_prompt_keeps_standard_mind_budget(monkeypat
     assert len(compact[0]["content"]) == InferenceGate._SCAFFOLD_FLOOR_CHARS
     assert "LIVE MIND CONTEXT" in compact[0]["content"]
     assert "must_answer_from_full_mind_path" in compact[0]["content"]
-    assert len([msg for msg in compact if msg["role"] in {"user", "assistant"}]) <= 6
+    dialogue = [msg for msg in compact if msg["role"] in {"user", "assistant"}]
+    assert len(dialogue) <= 7
+    assert [msg["role"] for msg in dialogue] == ["user", "assistant"] * (
+        len(dialogue) // 2
+    ) + ["user"]
     assert compact[-1]["content"] == current_user
 
 

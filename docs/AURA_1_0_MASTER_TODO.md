@@ -377,6 +377,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   before model budget allocation. The follow-up/recall selection passed 21
   tests; live replay remains required. See
   [follow-up source history](evidence/R09_FOLLOWUP_SOURCE_HISTORY_2026-09-09.md).
+  UPDATE 2026-09-09: the downstream prompt allocator now preserves complete
+  exchanges and evicts whole pairs within the unchanged aggregate budget;
+  183 focused tests pass. Live reconnect exposed a separate empty-pane-only
+  hydration defect: an in-flight question did not receive its completed answer
+  until reload. See [dialogue budget custody](evidence/R09_DIALOGUE_BUDGET_CUSTODY_2026-09-09.md).
 - [x] R10 Verify executable examples semantically, not merely process exit zero.
   Closed 2026-09-08. The code truth engine executes module-level assertions and
   doctest examples in the symbolic sandbox, demotes claims when execution is

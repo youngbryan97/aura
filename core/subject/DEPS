@@ -41,6 +41,8 @@ include_rules = [
     "+core.consciousness.consciousness_bridge",
     "+core.consciousness.system",
     "+core.container",
+    # Read the actual budget vocabulary for the measured drive coordinates.
+    "+core.motivation.constants",
     "+core.runtime.service_registry",
     "+core.service_registration",
     "+core.soma.effort",
