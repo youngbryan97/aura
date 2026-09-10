@@ -213,9 +213,13 @@ class TheLatticeSheHolds:
         # How long is not a number anybody picks. This set has a record of
         # how long it goes between taking on a place, and being still for
         # longer than it has ever been still is what says it has stopped.
-        # Nothing to wait for on the first offer, which is right: a set that
-        # has never grown has no gap to beat.
-        if acts - self._offered_at <= self._longest_gap:
+        #
+        # A set that has never grown has no gap to beat, and this said the
+        # opposite: with no record, ``0 <= 0`` refused, and a board that was
+        # all there from the first glance could never be believed at all. The
+        # sixteen places of a real four-by-four arrive together whenever she
+        # looks at a board that is already laid out.
+        if self._longest_gap and acts - self._offered_at <= self._longest_gap:
             return False
         self.across_at, self.down_at = across, down
         self._built_from, self.from_acts = held, acts

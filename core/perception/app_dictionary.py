@@ -322,6 +322,90 @@ def _sdef_in_the_bundle(app_path: str) -> str:
     return ""
 
 
+def _the_older_scripting_files(app_path: str) -> dict[str, tuple[str, ...]]:
+    """Classes and their writable text, from the format before ``.sdef``.
+
+    Cocoa applications published their dictionary as a pair of OpenStep-style
+    plists — ``X.scriptSuite`` for the structure and ``X.scriptTerminology``
+    for the words a person uses — and many still ship only those. ``sdef``
+    converts them, which is why nothing here noticed: on a machine with the
+    command line tools and no Xcode, ``sdef`` refuses, the bundle fallback
+    looked for a ``.sdef`` that does not exist, and TextEdit read as an
+    application publishing no dictionary at all. She could not write into it
+    through the interface it publishes, and the planner left a text file on
+    disk instead.
+
+    Returns ``{class name: (text property, ...)}`` in the same shape the sdef
+    reader produces, so everything downstream is unchanged.
+    """
+    resources = Path(str(app_path or "")) / "Contents" / "Resources"
+    try:
+        suites = sorted(resources.glob("*.scriptSuite"))
+    except OSError as exc:
+        logger.debug("could not list %s: %s", resources, exc)
+        return {}
+
+    classes: dict[str, tuple[str, ...]] = {}
+    for suite_path in suites:
+        suite = _read_an_old_plist(suite_path)
+        words = _read_an_old_plist(suite_path.with_suffix(".scriptTerminology"))
+        if not suite:
+            continue
+        named = words.get("Classes") or {}
+        for key, declared in (suite.get("Classes") or {}).items():
+            if not isinstance(declared, dict):
+                continue
+            spoken = str((named.get(key) or {}).get("Name") or key).strip().lower()
+            if not spoken or spoken in _NEVER_A_DOCUMENT:
+                continue
+            found: list[str] = []
+            # Attributes hold plain values; relationships hold the text
+            # storage a document's words actually live in. TextEdit's body is
+            # `textStorage`, spoken as `text`, and it is a relationship.
+            for section in ("Attributes", "ToOneRelationships"):
+                for prop_key in (declared.get(section) or {}):
+                    prop_words = ((named.get(key) or {}).get(section) or {}).get(prop_key) or {}
+                    prop = str(prop_words.get("Name") or prop_key).strip().lower()
+                    if prop in _TEXT_PROPERTY_PREFERENCE and prop not in found:
+                        found.append(prop)
+            if found:
+                classes[spoken] = tuple(dict.fromkeys(classes.get(spoken, ()) + tuple(found)))
+    return classes
+
+
+def _read_an_old_plist(path: Path) -> dict[str, Any]:
+    """One OpenStep-style plist, as a dictionary.
+
+    ``plistlib`` reads XML and binary and refuses this one, so the conversion
+    goes through ``plutil``, which ships with macOS and needs no Xcode.
+    """
+    if not path.exists():
+        return {}
+    try:
+        result = get_subprocess_gateway().run(
+            ["/usr/bin/plutil", "-convert", "xml1", "-o", "-", str(path)],
+            capture_output=True,
+            read_only=True,
+            timeout=_SDEF_TIMEOUT_S,
+            source="perception.app_dictionary.plutil",
+            accelerator_capability="none",
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.debug("could not convert %s: %s", path, exc)
+        return {}
+    raw = result.stdout
+    if isinstance(raw, str):
+        raw = raw.encode("utf-8", errors="replace")
+    if not raw:
+        return {}
+    try:
+        said = plistlib.loads(raw)
+    except (ValueError, plistlib.InvalidFileException) as exc:
+        logger.debug("could not read %s: %s", path, exc)
+        return {}
+    return said if isinstance(said, dict) else {}
+
+
 def _sdef_named_in_the_plist(bundle: Path) -> str:
     """What the application calls its own dictionary, from its Info.plist."""
     plist = bundle / "Contents" / "Info.plist"
@@ -392,10 +476,15 @@ def read_dictionary(app: Any) -> AppFacts:
     else:
         raw = _run_sdef(path)
         if not raw.strip():
-            facts = AppFacts(
-                name=name,
-                path=path,
-                unavailable_reason="it publishes no scripting dictionary",
+            older = _the_older_scripting_files(path)
+            facts = (
+                AppFacts(name=name, path=path, scriptable=True, classes=older)
+                if older
+                else AppFacts(
+                    name=name,
+                    path=path,
+                    unavailable_reason="it publishes no scripting dictionary",
+                )
             )
         else:
             try:

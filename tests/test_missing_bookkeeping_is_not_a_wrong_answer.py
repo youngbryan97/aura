@@ -43,7 +43,11 @@ def test_a_proof_about_the_text_still_withholds(proof: str) -> None:
         "authored_answer_incomplete:nobody_checked",
         "live_mind_controls_unbound",
         "architecture_context_unbound",
-        "live_mind_snapshot_unbound",
+        # The name the turn contract actually emits. `live_mind_snapshot_unbound`
+        # stood here and in the classifier for months and nothing has ever
+        # emitted it, so the entry that was supposed to let a snapshot-less
+        # turn serve its answer could not match the proof that withheld it.
+        "live_mind_snapshot_not_ready",
     ],
 )
 def test_a_proof_about_the_receipts_does_not(proof: str) -> None:

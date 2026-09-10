@@ -58,6 +58,19 @@ _COUNTED_DELIVERABLE = re.compile(
     re.IGNORECASE,
 )
 
+def names_a_deliverable(text: object) -> bool:
+    """Whether the words name a thing to be MADE, rather than mention one.
+
+    An indefinite article or a count is what separates the two. "Create a
+    concise report" asks for a report to exist; "what's the plan?" and "then
+    report the answer" mention one and ask for words. A reader that matched the
+    bare noun could not tell them apart, and read the verb in "check your work,
+    then report the answer" as a demand for a document — so a train problem was
+    answered with a ticket receipt instead of a number.
+    """
+    return bool(_COUNTED_DELIVERABLE.search(str(text or "")))
+
+
 #: Openings that ask for something to be made. The learned surface below is
 #: the mechanism; these settle the plain cases and teach it.
 _PRODUCING = re.compile(

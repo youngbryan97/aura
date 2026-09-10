@@ -265,17 +265,16 @@ _EXTERNAL_EFFECT_RE = re.compile(
     r"notes?|documents?|docs?|repos?|repositor(?:y|ies)|projects?|"
     r"screenshots?|downloads?|desktop|computer|browsers?|tabs?|windows?|"
     r"emails?|calendar|terminal|websites?|pages?|urls?|spreadsheets?|"
-    r"presentations?|reminders?|web|internet|online|articles?|sources?|"
-    # Things a person asks to be PRODUCED. The list already held documents,
-    # notes, spreadsheets and presentations, and not the commonest word for
-    # the same kind of thing: "maybe you should create a concise report from
-    # those measurements" was read as asking for words in this reply, because
-    # an asking clause with no recognised external object has words as its
-    # deliverable by elimination. The elimination is only as good as the list.
-    r"reports?|summar(?:y|ies)|write-?ups?|analyses|analysis|"
-    r"charts?|graphs?|tables?|plans?|drafts?|outlines?|slides?|decks?)\b",
+    r"presentations?|reminders?|web|internet|online|articles?|sources?)\b",
     re.IGNORECASE,
 )
+# Things a person asks to be PRODUCED are read by the language substrate
+# rather than listed here. Listed as bare nouns they matched the word wherever
+# it fell, and "check your work, then report the answer" reads "report" as a
+# document — so a train catch-up problem was answered with a ticket receipt.
+# What separates naming a thing to be made from mentioning one is an
+# indefinite article or a count, which `names_a_deliverable` already knows and
+# is already tested on: "create a concise report" yes, "what's the plan" no.
 _EXTERNAL_MEDIUM_RE = re.compile(
     r"\b(?:using|via|with)\s+(?:the\s+)?(?:web|internet|browser|web\s+search|"
     r"online\s+(?:search|sources?))\b",
@@ -460,6 +459,16 @@ _CONVERSATIONAL_ASK_RE = re.compile(
 )
 
 
+def _names_a_deliverable(text: str) -> bool:
+    """Whether the words name an artifact to be made. Substrate, not a list."""
+    try:
+        from core.language.asking_clauses import names_a_deliverable
+
+        return names_a_deliverable(text)
+    except (ImportError, TypeError, ValueError):
+        return False
+
+
 def looks_like_inline_answer_request(text: str) -> bool:
     """True when the turn's deliverable is words in the current reply.
 
@@ -481,6 +490,7 @@ def looks_like_inline_answer_request(text: str) -> bool:
     sanitized = strip_negated_action_spans(normalized).lower()
     if (
         _EXTERNAL_EFFECT_RE.search(sanitized)
+        or _names_a_deliverable(sanitized)
         or _EXTERNAL_MEDIUM_RE.search(sanitized)
         or _DIRECT_EXECUTION_PREFIX_RE.search(sanitized)
         or any(re.search(pattern, sanitized, re.IGNORECASE) for pattern in _DESKTOP_PATTERNS)
