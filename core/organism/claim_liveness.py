@@ -44,16 +44,20 @@ silent for six hours" rather than quietly rewriting history.
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from core.runtime.errors import record_degradation
 
+logger = logging.getLogger("Aura.Organism.ClaimLiveness")
+
 __all__ = [
     "Liveness",
     "channel_liveness",
     "effective_evidence",
+    "unmeasured_only_here",
     "liveness_report",
 ]
 
@@ -69,16 +73,39 @@ class Liveness:
     age_s: float | None
     stale_after_s: float | None
 
+    #: Whether this process ever ran the publisher that writes this channel.
+    #: False means there is no measurement here, which is a different fact
+    #: from a measurement that stopped arriving — see ``unmeasured_here``.
+    sampled_here: bool = True
+
     @property
     def supports(self) -> bool:
         """The channel exists and has been written recently enough."""
         return self.declared and self.fresh
+
+    @property
+    def unmeasured_here(self) -> bool:
+        """No reading because nothing took one in THIS process.
+
+        An offline test run, a tool, a partial boot: the publisher is
+        registered against the runtime's cadence and that cadence is not
+        turning. A claim reading this has no evidence, and it has not been
+        contradicted either. Saying "the telemetry stopped arriving" of a
+        process that never started it is the same inversion this module was
+        written to catch, pointed the other way.
+        """
+        return self.declared and not self.fresh and self.age_s is None and not self.sampled_here
 
     def reason(self) -> str:
         if not self.declared:
             return f"channel {self.channel!r} is not declared"
         if not self.fresh:
             if self.age_s is None:
+                if not self.sampled_here:
+                    return (
+                        f"channel {self.channel!r} has no publisher running in this "
+                        "process, so nothing measured it here"
+                    )
                 return f"channel {self.channel!r} has never been written"
             return (
                 f"channel {self.channel!r} last wrote {self.age_s:.0f}s ago "
@@ -95,8 +122,56 @@ class Liveness:
             "age_s": None if self.age_s is None else round(self.age_s, 1),
             "stale_after_s": self.stale_after_s,
             "supports": self.supports,
+            "sampled_here": self.sampled_here,
+            "unmeasured_here": self.unmeasured_here,
             "reason": self.reason(),
         }
+
+
+#: Declared once per process, the first time a claim asks about a channel.
+_DECLARATIONS_LOADED = False
+
+
+def _load_the_declarations() -> None:
+    """Ask every channel group to declare itself. Idempotent and import-only.
+
+    A declaration is metadata — an id, a unit, limits, and the path of the file
+    that owns it — so loading one costs nothing and pulls in no organ. That is
+    the property the groups are written to have, and it is what makes this safe
+    to do from a liveness check.
+    """
+
+    global _DECLARATIONS_LOADED
+    if _DECLARATIONS_LOADED:
+        return
+    _DECLARATIONS_LOADED = True
+    try:
+        from core.fsw import phenomena_channels
+
+        phenomena_channels.declare()
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("channel declarations unavailable: %s", exc)
+
+
+def _a_publisher_ran_for(channel: str) -> bool:
+    """Whether a registered publisher owning this channel has run here.
+
+    The register is how a subsystem says which function writes its channels
+    (``core/fsw/telemetry_samplers.py``). A publisher that has run and left
+    the channel empty is a real fault in the organ behind it. One that has
+    never run means this process is not the one taking readings, and the
+    claim bound to that channel is unevidenced here rather than refuted.
+    """
+    try:
+        from core.fsw.telemetry_samplers import samplers_report
+
+        for row in samplers_report()["samplers"]:
+            if row["runs"] and channel in (row.get("channels") or ()):
+                return True
+    except (ImportError, AttributeError, KeyError, TypeError) as exc:
+        logger.debug("sampler register unreadable: %s", exc)
+        return True  # cannot tell; the sharper reading is the safe direction
+    return False
 
 
 def channel_liveness(name: str) -> Liveness:
@@ -116,10 +191,31 @@ def channel_liveness(name: str) -> Liveness:
         dictionary = get_telemetry()
         spec = dictionary.spec(channel)
         if spec is None:
+            # The declaration may simply not have been loaded in THIS process.
+            #
+            # A channel group declares its ids, units and limits in one module
+            # that imports nothing, and the runtime calls it at boot. A process
+            # that never booted the runtime — the validation suite, a tool —
+            # then finds no spec and reports "undeclared", which reads as the
+            # runtime having dropped a channel when it is this process not
+            # having asked.
+            #
+            # LIVE, 2026-09-09: `phenomena_dispositions_are_reachable` decayed
+            # off `empathy.autonomy` and `care.depleted`, both of which are
+            # declared at 0x1711 and 0x1715 and were reporting in the running
+            # desktop at the time.
+            _load_the_declarations()
+            spec = dictionary.spec(channel)
+        if spec is None:
             return Liveness(channel, False, False, "undeclared", None, None)
         sample = dictionary.value(channel)
         if sample is None:
-            return Liveness(channel, True, False, "never_written", None, spec.stale_after_s)
+            took_one = _a_publisher_ran_for(channel)
+            return Liveness(
+                channel, True, False,
+                "never_written" if took_one else "not_sampled_here",
+                None, spec.stale_after_s, sampled_here=took_one,
+            )
         age = max(0.0, time.time() - float(sample.at))
         fresh = age <= float(spec.stale_after_s)
         return Liveness(
@@ -172,6 +268,23 @@ def effective_evidence(
         + "; ".join(entry.reason() for entry in failing)
     )
     return Evidence.UNMEASURED, note, liveness
+
+
+def unmeasured_only_here(channels: Sequence[str]) -> bool:
+    """Whether every channel that fails is failing for want of an instrument.
+
+    True says: nothing here contradicts the claim, and nothing here supports
+    it either, because the publishers that write these channels are not
+    running in this process. A claim in that position is unevidenced, which
+    the registry already has a word for — NOT_MEASURED — and reporting it as
+    decayed instead turns every offline test run into a false alarm about the
+    live system.
+    """
+    bound = [str(c) for c in channels if str(c or "").strip()]
+    if not bound:
+        return False
+    failing = [entry for entry in (channel_liveness(c) for c in bound) if not entry.supports]
+    return bool(failing) and all(entry.unmeasured_here for entry in failing)
 
 
 def liveness_report(claims: Sequence[Any]) -> dict[str, Any]:

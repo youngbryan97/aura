@@ -1163,6 +1163,16 @@ def _sample_standard_telemetry() -> None:
         )
     except Exception:  # noqa: BLE001 - optional telemetry must not stop the rate group
         logger.debug("orchestration telemetry sample failed", exc_info=True)
+    try:
+        # Every subsystem that declared channels of its own registered the
+        # function that writes them. Running the register here is what puts
+        # those readings on the same cadence as the ones above, instead of
+        # leaving each one waiting for a caller nobody wrote.
+        from core.fsw.telemetry_samplers import run_registered_samplers
+
+        run_registered_samplers()
+    except Exception:  # noqa: BLE001 - optional telemetry must not stop the rate group
+        logger.debug("registered telemetry samplers failed", exc_info=True)
 
 
 async def _run_periodic_read_off_loop(read: Callable[[], Any]) -> Any:

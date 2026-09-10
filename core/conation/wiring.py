@@ -92,6 +92,19 @@ def boot() -> dict[str, Any]:
         record_degradation("conation_wiring", exc, severity="debug",
                            action="conation invariants not registered")
         result["invariants"] = False
+    try:
+        from core.fsw.telemetry_samplers import register_sampler
+
+        register_sampler(
+            "conation", tick,
+            owner="core/conation/wiring.py",
+            channels=tuple(result.get("telemetry") or ()),
+        )
+        result["sampling"] = True
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("conation_wiring", exc, severity="warning",
+                           action="conation channels declared with no publisher on the cadence")
+        result["sampling"] = False
     _wired = True
     return result
 

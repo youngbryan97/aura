@@ -137,14 +137,32 @@ def load_invariants() -> list[str]:
 
 
 def declare_telemetry() -> list[str]:
+    """Declare the disposition channels and register the publisher for them.
+
+    Declaring alone is what left every one of these channels reading "never
+    written" through hours of live running: ``sample`` below holds the only
+    ``write`` for all of them and nothing called it. Registration next to the
+    declaration is what stops that being possible again.
+    """
     try:
         from core.fsw.phenomena_channels import declare
 
-        return declare()
+        names = declare()
     except _RECOVERABLE as exc:
         record_degradation("phenomena_wiring", exc, severity="debug",
                            action="phenomena telemetry not declared")
         return []
+    try:
+        from core.fsw.telemetry_samplers import register_sampler
+
+        register_sampler(
+            "phenomena", sample,
+            owner="core/phenomena_wiring.py", channels=tuple(names),
+        )
+    except _RECOVERABLE as exc:
+        record_degradation("phenomena_wiring", exc, severity="warning",
+                           action="phenomena channels declared with no publisher on the cadence")
+    return names
 
 
 def boot() -> dict[str, Any]:

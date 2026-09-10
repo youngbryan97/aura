@@ -653,6 +653,15 @@ class ValidationSuite:
     #: clean the number looked.
     _UNSUPPORTING = (Outcome.FAIL, Outcome.ERROR, Outcome.NOT_MEASURED)
 
+    @staticmethod
+    def _unmeasured_only_here(channels: tuple[str, ...]) -> bool:
+        try:
+            from core.organism.claim_liveness import unmeasured_only_here
+
+            return unmeasured_only_here(channels)
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return False
+
     def unsupported_claims(self) -> list[dict[str, Any]]:
         """Claims whose test last failed, could not run, or measured nothing.
 
@@ -673,7 +682,16 @@ class ValidationSuite:
                     {
                         **claim.to_dict(),
                         "reason": liveness_note,
-                        "outcome": "evidence_decayed",
+                        # A claim whose channels are silent because THIS
+                        # process runs no publisher for them has no evidence
+                        # here; it has not decayed. The distinction is the
+                        # difference between a live organ that stopped
+                        # reporting and a test process that never asked.
+                        "outcome": (
+                            str(Outcome.NOT_MEASURED)
+                            if self._unmeasured_only_here(claim.live_channels)
+                            else "evidence_decayed"
+                        ),
                     }
                 )
                 continue
@@ -5761,15 +5779,35 @@ def _canary_artifact_bundle(
         verification = json.loads(
             (artifact_root / "verification.json").read_text(encoding="utf-8")
         )
+        source_hashes = dict(result["source_sha256s"])
         current_hashes = {
             relative: hashlib.sha256((root / relative).read_bytes()).hexdigest()
-            for relative in result["source_sha256s"]
+            for relative in source_hashes
         }
         verifier_sha = hashlib.sha256(
             (root / verifier_relative).read_bytes()
         ).hexdigest()
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
         return None
+
+    # A certificate pins the source it was measured over. When that source
+    # changes, the certificate stops covering the code that runs — which is
+    # not the same fact as the capability having regressed, and reporting it
+    # as False said the second when only the first was known. The same
+    # confusion cost a day on CP546. Name the files and report NOT_MEASURED,
+    # so the remedy reads "re-run the canary" rather than "the model got worse".
+    drifted = sorted(
+        relative
+        for relative, sealed in source_hashes.items()
+        if current_hashes.get(relative) != sealed
+    )
+    if drifted:
+        raise NothingMeasured(
+            f"{relative_artifact_root.rsplit('/', 1)[-1]} was sealed over source "
+            f"that has since changed, so it measures code that no longer runs: "
+            + ", ".join(drifted)
+            + f" — re-run {verifier_relative.replace('/verify_', '/run_')} and its verifier"
+        )
     return result, verification, current_hashes, verifier_sha, artifact_root
 
 
