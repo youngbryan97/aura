@@ -38,6 +38,15 @@ the pattern joining them, and :func:`graft_report` says what a recipient would
 need for the pattern to close. It transplants the specification, not the code,
 and says so.
 
+**A wiring bill can go unpaid.** Cortex's long-range wiring is sparse, and not
+because sparse computes better: white matter already takes about half the volume
+of the human cerebrum, and every long axon costs skull space and a lifetime of
+glucose. The density Potjans and Diesmann measured is what survived that
+bargain. A mesh has no skull and no blood supply, so the number is a floor
+rather than a target, and `tools/beyond_cortex.py` asks what her dynamics do
+above it — measured against the same published statistics of cortical activity,
+including whether she is still critical when she gets there.
+
 None of the three is claimed to make Aura better on its own. Each ships with the
 measurement that would show it did, and the delay compiler ships with the null
 that would show it did not.
