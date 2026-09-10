@@ -40,9 +40,16 @@ Working list. Deleted when every line is done and green.
 
 ## Open
 
-- [ ] close the cascade gap. Her bursts are smaller and shorter than a human's;
-      the rich club is the first structure aimed at it and the sweep past the
-      human setting is running
+- [ ] close the cascade gap. Her bursts are smaller and shorter than a human's
+      — burst size exponent 3.36 against cortex's 1.5 — and three things have
+      been tried against it. The rich club is real and does not close it
+      (3.117 to 3.060 as the coupling goes 1 to 20). Fixing the criticality
+      regulator's dead sensor moves it 3.53 to 3.36 and the branching ratio
+      0.908 to 0.931. The regulator is then pinned at every one of its clamps
+      — gain 2.0, noise 2.0, E/I 1.3 — asking for more than it is allowed, and
+      the mesh's own `set_criticality_adjustment` refuses anything above 2.0
+      as well. Two chosen ceilings, both binding, and neither has a
+      measurement behind it. That is the next lever
 
 - [ ] the full offline suite green
 - [ ] a certificate for the resident 27B. The mechanism is proven end to end on
