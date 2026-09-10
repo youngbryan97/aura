@@ -254,7 +254,6 @@ _SCHEMAS: dict[str, Schema] = {
             ("percept_unfelt", "world.recent_percepts[*].consumed_by"),
             ("percept_strength", "world.recent_percepts[*].intensity"),
             ("spatial_present", "world.spatial_context"),
-            ("entity_load", "world.known_entities"),
             ("objective_len", "cognition.current_objective"),
             ("objective_hash", "cognition.current_objective"),
         ),
@@ -663,7 +662,6 @@ def _read_P(state: Any, now: float) -> np.ndarray:
             _unfelt_share(percepts),
             strength,
             1.0 if _dig(state, "world.spatial_context") else 0.0,
-            _sat(_dig(state, "world.known_entities", {}) or {}, 8.0),
             _sat(str(objective), 64.0),
             _hash_unit(objective),
         ],
@@ -1237,6 +1235,17 @@ def _perturb_W(state: Any, delta: float, ontogeny: Any) -> bool:
     if not isinstance(facts, dict):
         return False
     facts["subject_core_probe"] = {"delta": delta, "at": time.time()}
+    # And the entities she takes to be there. A world model displaced only in a
+    # scratch dict is displaced in the one part of the world state that nothing
+    # consults; who and what is in the room is read by the workspace, the
+    # social layer and the schema alike.
+    entities = _dig(state, "world.known_entities", None)
+    if isinstance(entities, dict):
+        entities["subject_core_probe"] = {
+            "kind": "probe",
+            "salience": min(1.0, max(0.0, 0.5 + delta)),
+            "at": time.time(),
+        }
     return True
 
 
@@ -1318,7 +1327,9 @@ def perturb(state: Any, domain: str, delta: float, *, ontogeny: Any = None) -> b
     return bool(writer(state, float(delta), ontogeny))
 
 
-async def perturb_organs(organs: Organs, domain: str, delta: float) -> bool:
+async def perturb_organs(
+    organs: Organs, domain: str, delta: float, *, state: Any = None
+) -> bool:
     """Displace the part of a domain that lives in an organ rather than in state.
 
     Each write here goes through the organ's own public path — the substrate's
@@ -1401,10 +1412,23 @@ async def perturb_organs(organs: Organs, domain: str, delta: float) -> bool:
         except Exception:  # noqa: BLE001 - an absent organ is an absent organ
             hit = False
     elif domain == "W" and organs.world_model is not None:
+        # An observation vector, which is what the forward model takes. A dict
+        # went in and was padded to zeros, so the displacement of the world
+        # model was a call that changed nothing: this domain moved itself by
+        # seventeen thousandths of a standard deviation while every other
+        # domain moved itself by two to ten, and a domain that cannot be
+        # displaced cannot be shown to influence anything.
+        #
+        # The displacement is applied to the situation the cycle actually
+        # reports, so the model is shown a world slightly other than the one it
+        # is in — which is what displacing a model of the world means.
         try:
-            organs.world_model.observe(
-                {"subject_core_probe": delta, "at": time.time()}, learn=True
-            )
+            from core.world_model.observe_cycle import action_of, observation_of
+
+            if state is None:
+                raise ValueError("displacing the world model needs the situation")
+            observation = observation_of(state) + float(delta)
+            organs.world_model.observe(observation, action_of(state), learn=True)
             hit = True
         except Exception:  # noqa: BLE001
             hit = False

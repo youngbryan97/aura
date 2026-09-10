@@ -108,7 +108,7 @@ async def run_agency(
             async def apply(rt: SubjectRuntime) -> None:
                 if not hit["done"]:
                     in_state = perturb(rt.state, "S", delta, ontogeny=rt.ontogeny)
-                    in_organ = await perturb_organs(rt.organs, "S", delta)
+                    in_organ = await perturb_organs(rt.organs, "S", delta, state=rt.state)
                     hit["done"] = bool(in_state or in_organ)
 
             frames = await runtime.turn_once(

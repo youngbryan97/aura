@@ -244,7 +244,7 @@ async def _arm(
             return
         domain, delta = displace
         in_state = perturb(rt.state, domain, delta, ontogeny=rt.ontogeny)
-        in_organ = await perturb_organs(rt.organs, domain, delta)
+        in_organ = await perturb_organs(rt.organs, domain, delta, state=rt.state)
         if domain == "I" and rt.frozen_host is not None:
             # The body readings are held still for the duration of a trial so
             # the host's own load cannot drift between arms. That hold also
