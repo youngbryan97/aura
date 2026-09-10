@@ -94,9 +94,34 @@ class CriticalityConfig:
     noise_clamp: Tuple[float, float] = (0.5, 2.0)
     ei_ratio_clamp: Tuple[float, float] = (0.7, 1.3)
 
-    # Activation threshold: a column is considered "active" when its
-    # mean absolute activation exceeds this value.
-    activation_threshold: float = 0.15
+    # How far above its own baseline a column has to go to count as active,
+    # in standard deviations of its own activity.
+    #
+    # It was an absolute 0.15 on a quantity that is the MEAN of 64 units, and a
+    # mean of 64 signed units is far smaller than any one of them. Measured
+    # over 1,200 ticks on the live mesh: column activations ran between
+    # -0.0014 and +0.0010, and not one column crossed 0.15 on any tick. So
+    # `_compute_branching_sample` returned its neutral 1.0 every time, the
+    # branching ratio read exactly 1.0000, the criticality score read 1.0000,
+    # and the gain PID had an error of zero forever. The regulator has been
+    # reporting a perfectly critical network while the unbiased estimator on
+    # the same run read 0.908 — a controller with a dead sensor, reporting
+    # success.
+    #
+    # Three, which is what Shriki et al. thresholded human MEG sensors at: a
+    # statement about a signal and its own variability, which transfers to a
+    # quantity whose scale nobody can know in advance.
+    activation_sigma: float = 3.0
+
+    # How many samples the per-column variance needs before a threshold may be
+    # built on it. Ten puts the relative error of an estimated standard
+    # deviation under a quarter; below that it is small for no reason and
+    # everything crosses.
+    activation_minimum_samples: int = 10
+
+    # Kept so a caller that wants a fixed level can still ask for one. Zero
+    # means the sigma rule above decides.
+    activation_threshold: float = 0.0
 
     # Population-activity history kept for the multistep regression estimator.
     # The per-tick mean is biased towards zero when only part of a system is
@@ -247,6 +272,12 @@ class CriticalityRegulator:
         self._prev_activations: Optional[np.ndarray] = None
         # Previous tick's "active" mask (for branching ratio).
         self._prev_active: Optional[np.ndarray] = None
+        #: Each column's own baseline, by Welford over the whole run. A column
+        #: is active when it leaves this by `activation_sigma` of its own
+        #: standard deviation; see the config for why it is not a fixed level.
+        self._activation_mean: np.ndarray = np.zeros(0, dtype=np.float64)
+        self._activation_m2: np.ndarray = np.zeros(0, dtype=np.float64)
+        self._activation_samples: int | None = None
 
         # --- Branching ratio ---
         # Rolling buffer of per-tick branching ratios, averaged every interval.
@@ -424,8 +455,30 @@ class CriticalityRegulator:
         if weights.shape != (n, n):
             weights = np.zeros((n, n), dtype=np.float64)
 
-        # Which columns are active RIGHT NOW
-        active = activations > threshold  # (n,) bool
+        # Which columns are active RIGHT NOW, against each column's own
+        # baseline rather than a fixed level. Welford over the whole run, so
+        # there is no window length nobody measured.
+        if self._activation_samples is None or len(self._activation_mean) != n:
+            self._activation_mean = np.zeros(n, dtype=np.float64)
+            self._activation_m2 = np.zeros(n, dtype=np.float64)
+            self._activation_samples = 0
+        self._activation_samples += 1
+        deviation = activations - self._activation_mean
+        self._activation_mean = self._activation_mean + deviation / self._activation_samples
+        self._activation_m2 = self._activation_m2 + deviation * (
+            activations - self._activation_mean
+        )
+        if threshold > 0.0:
+            active = np.abs(activations) > threshold
+        elif self._activation_samples >= self.cfg.activation_minimum_samples:
+            sigma = np.sqrt(
+                np.maximum(self._activation_m2 / (self._activation_samples - 1), 1e-18)
+            )
+            active = np.abs(activations - self._activation_mean) > (
+                self.cfg.activation_sigma * sigma
+            )
+        else:
+            active = np.zeros(n, dtype=bool)
 
         # --- Branching ratio (per-tick sample) ---
         if self._prev_active is not None and self._prev_activations is not None:
