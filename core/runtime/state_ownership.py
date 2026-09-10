@@ -383,13 +383,53 @@ def is_live_state_path(path: Path | str) -> bool:
     #
     # A checkout is identified by its own location rather than by name, so a
     # worktree beneath .claude/worktrees/ is covered without listing it.
-    try:
-        source_root = Path(__file__).resolve().parent.parent.parent
-    except (OSError, RuntimeError, ValueError):
-        return True
-    if candidate == source_root or source_root in candidate.parents:
-        return False
+    for root in _source_roots():
+        if candidate == root or root in candidate.parents:
+            return False
     return True
+
+
+
+@functools.lru_cache(maxsize=1)
+def _source_roots() -> tuple[Path, ...]:
+    """Every checkout of this repository, main worktree and linked ones.
+
+    The running module names one of them: the directory three levels above
+    this file. That is enough when a process only ever writes inside its own
+    checkout, and it is not enough for the subject-core battery, which runs
+    from a worktree pinned to the commit under test and writes its artifacts
+    into the one campaign directory in the main checkout. That write landed
+    inside the live root, outside the running checkout, and was refused as
+    live instance state.
+
+    A linked worktree's ``.git`` is a file naming its git directory, whose
+    grandparent is the main checkout, so the pair is read off disk rather
+    than guessed. Cached because the answer cannot change within a process
+    and this sits on the write path.
+    """
+    try:
+        here = Path(__file__).resolve().parent.parent.parent
+    except (OSError, RuntimeError, ValueError):
+        return ()
+    roots = [here]
+    marker = here / ".git"
+    try:
+        if marker.is_file():
+            text = marker.read_text(encoding="utf-8", errors="replace").strip()
+            if text.startswith("gitdir:"):
+                gitdir = Path(text.split(":", 1)[1].strip()).expanduser()
+                if not gitdir.is_absolute():
+                    gitdir = (here / gitdir).resolve(strict=False)
+                # <main>/.git/worktrees/<name> -> <main>
+                for parent in gitdir.resolve(strict=False).parents:
+                    if parent.name == ".git":
+                        roots.append(parent.parent)
+                        break
+    except (OSError, RuntimeError, ValueError, UnicodeDecodeError):
+        # A checkout whose .git cannot be read still protects itself; it
+        # simply does not learn about its siblings.
+        pass
+    return tuple(dict.fromkeys(roots))
 
 
 def assert_state_path_allowed(path: Path | str, *, source: str = "unknown") -> None:

@@ -333,3 +333,49 @@ def test_an_unresolvable_path_is_refused_by_the_guard(monkeypatch):
         pytest.skip("a LIVE runtime is permitted to touch live state")
     with pytest.raises(StateOwnershipViolation):
         assert_state_path_allowed("/tmp/\x00/unresolvable", source="probe")
+
+
+def test_a_worktree_may_write_into_the_checkout_it_was_forked_from():
+    """The subject-core battery runs from a worktree and writes to main.
+
+    A campaign pins the commit under test in a linked worktree so the source
+    cannot move under three runs, and writes every artifact into the one
+    campaign directory in the main checkout. That directory sits under
+    ~/.aura/live-source, inside the live root, and the guard knew only about
+    the checkout the running module belongs to — so the write read as an
+    attempt on live instance state and the run died on its first action.
+
+    A checkout is not instance state whichever checkout it is.
+    """
+    from core.runtime.state_ownership import _source_roots
+
+    roots = _source_roots()
+    assert ROOT in roots, roots
+    for root in roots:
+        assert not is_live_state_path(root / "artifacts" / "subject_core" / "run_001")
+
+
+def test_the_sibling_checkout_is_read_off_disk_not_guessed(tmp_path, monkeypatch):
+    """A linked worktree's .git names its git directory; its grandparent is main."""
+    from core.runtime import state_ownership
+
+    main = tmp_path / "main"
+    (main / ".git" / "worktrees" / "leaf").mkdir(parents=True)
+    leaf = tmp_path / "leaf"
+    leaf.mkdir()
+    (leaf / ".git").write_text(f"gitdir: {main / '.git' / 'worktrees' / 'leaf'}\n")
+    monkeypatch.setattr(
+        state_ownership, "__file__", str(leaf / "core" / "runtime" / "state_ownership.py")
+    )
+    state_ownership._source_roots.cache_clear()
+    try:
+        assert state_ownership._source_roots() == (leaf, main)
+    finally:
+        state_ownership._source_roots.cache_clear()
+
+
+def test_the_live_instance_state_is_still_refused_from_every_checkout():
+    """Widening the source set must not widen what a test run may write."""
+    live = live_state_root()
+    for tail in ("data/memory.db", "run/aura.pid", "logs/desktop-launch.log"):
+        assert is_live_state_path(live / tail), tail
