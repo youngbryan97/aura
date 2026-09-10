@@ -51,7 +51,19 @@ Working list. Deleted when every line is done and green.
       as well. Two chosen ceilings, both binding, and neither has a
       measurement behind it. That is the next lever
 
-- [ ] the full offline suite green
+- [ ] the full offline suite green. Everything found so far is fixed except two
+      pre-existing failures that were already failing at this session's first
+      commit and sit in territory another agent is editing:
+      * `test_a_god_object_only_shrinks` — the tree is 32,690 lines over its
+        size budget, dominated by `mlx_client`, `mlx_worker` and
+        `inference_gate`. Refreshing the baseline would launder it; closing it
+        means a repo-wide extraction. `neural_mesh` took its own 213 off.
+      * `test_being_stuck_is_a_choice_not_a_state` — two tests end
+        `out_of_time` after 3 of the 6 cycles they need, because a cycle
+        spends about four seconds inside the STEP (`seconds_in_steps` 8.4
+        against `seconds_deciding` 0.5) waiting on kqueue with every I/O
+        stubbed. That is a live latency problem, not a test problem, and the
+        wait needs naming before the budget is touched
 - [ ] a certificate for the resident 27B. The mechanism is proven end to end on
       the reflex 1.5B through the worker's own code path — alpha 0.0 before,
       the probe runs, alpha 0.2 after, and a second call skips a checkpoint
