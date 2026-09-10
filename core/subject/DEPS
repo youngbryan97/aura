@@ -49,6 +49,7 @@ include_rules = [
     "+core.soma.effort",
 
     # Everything else.
+    "+core.world_model",
     "-core",
     "-interface",
     "-skills",
