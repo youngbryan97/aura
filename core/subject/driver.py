@@ -75,7 +75,6 @@ PHASE_TIMEOUT: float = 12.0
 #: and a turn takes about half a second, so ten steps' worth is the honest
 #: equivalent — taken as one step of that length rather than ten of a twentieth,
 #: because two arms must see the same integration and not the same wall clock.
-SUBSTRATE_STEP_SECONDS: float = 0.5
 
 #: The priority below which the will defers an initiative
 #: (`core/governance/will.py`). Read here rather than chosen, because "urgent
@@ -1427,6 +1426,7 @@ class SubjectRuntime:
             self.layer_steps = await step_once(
                 self.organism, self.frame_index, self.layer_steps
             )
+            await self._integrate_substrate(self.frame_index)
             self.frame_index += 1
             reading = self.read(condition.name, tag, env)
             frames.append(reading)
@@ -1512,17 +1512,6 @@ class SubjectRuntime:
                 await asyncio.wait_for(
                     substrate.update(source="subject_core_turn"), timeout=PHASE_TIMEOUT
                 )
-                # And integrate it. The dynamics step is what the free-running
-                # loop does twenty times a second, and it is the only thing
-                # that marks the state snapshot fresh — with the loop stopped,
-                # every consumer that checks staleness sees an infinitely old
-                # substrate and skips it, so the substrate would be present,
-                # perturbable, and invisible to everything downstream. One step
-                # per turn at a fixed interval keeps the computation and drops
-                # the jitter.
-                await asyncio.wait_for(
-                    substrate._step_dynamics(SUBSTRATE_STEP_SECONDS), timeout=PHASE_TIMEOUT
-                )
             except BaseException as exc:  # noqa: BLE001
                 self.failures["substrate"] = self.failures.get("substrate", 0) + 1
                 self.failure_notes["substrate"] = f"{type(exc).__name__}: {exc}"[:200]
@@ -1533,6 +1522,44 @@ class SubjectRuntime:
                 self.failures["heartbeat"] = self.failures.get("heartbeat", 0) + 1
                 self.failure_notes["heartbeat"] = f"{type(exc).__name__}: {exc}"[:200]
         self._train_world_model()
+
+
+    async def _integrate_substrate(self, frame: int) -> None:
+        """The substrate's own iterations for this frame, at its own step size.
+
+        One Euler step of half a second is not thirteen of a tenth. The
+        substrate is a nonlinear stochastic recurrent system: the tanh is
+        evaluated at different intermediate states, the noise draws are
+        independent, and the clip can bite in the middle — so a single large
+        step is a different trajectory rather than a coarse version of the same
+        one. Here it takes the iterations its own configured rate calls for in
+        one frame, each at its own configured integration constant, which is
+        what its loop does.
+
+        Scheduled off the frame index like every other layer, so nothing is
+        carried across the fork and two arms integrate identically.
+        """
+        substrate = self.organs.substrate
+        if substrate is None:
+            return
+        config = getattr(substrate, "config", None)
+        rate = float(getattr(config, "update_rate", 20.0) or 20.0)
+        dt = float(getattr(config, "time_constant", 0.1) or 0.1)
+        step = getattr(substrate, "_step_dynamics", None)
+        if not callable(step):
+            return
+        from core.subject.steppable import Layer, frame_seconds, iterations_at
+
+        _, count = iterations_at(
+            Layer("substrate", "", "", rate, ()), frame, frame_seconds()
+        )
+        for _ in range(count):
+            try:
+                await asyncio.wait_for(step(dt), timeout=PHASE_TIMEOUT)
+            except BaseException as exc:  # noqa: BLE001
+                self.failures["substrate"] = self.failures.get("substrate", 0) + 1
+                self.failure_notes["substrate"] = f"{type(exc).__name__}: {exc}"[:200]
+                return
 
     def _train_world_model(self) -> None:
         """The gradient steps the training lane would have taken, on this clock.
@@ -2009,54 +2036,64 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
     return runtime
 
 
-#: How finely the measured frame step is recorded. Rounded so that two runs on
-#: the same machine share a timeline exactly rather than differing in the
-#: fourth decimal, and so the number in the report is one a reader can compare.
-_CLOCK_GRAIN: float = 0.005
-
-
-#: How many turns the clock calibration times, and how many it throws away
-#: first. The first turns of a life are the cheapest — nothing has accumulated
-#: and no action has been taken — so timing them alone put the step at a third
-#: of what an ordinary frame costs.
-_CLOCK_WARMUP_TURNS: int = 2
+#: What one turn of the organism is worth, in seconds of its own life.
+#:
+#: The free-running layers declare their rates in hertz — the mesh at ten, the
+#: field at twenty, the oscillators at a hundred — so a counted schedule needs
+#: to know how much life a frame is worth before it can run them at those
+#: rates. The first version measured it: it timed the machine's frames and made
+#: the experiment's second as long as the host happened to take. That puts the
+#: host back into the timeline it was installed to remove, and it means two
+#: machines running the same commit give the organism different amounts of life
+#: per turn — which is exactly the comparison a second-machine replication is
+#: for.
+#:
+#: So it is fixed, and it is the simplest statement that can be made: a turn is
+#: one second. A turn is the organism's unit of experience, the layer rates are
+#: per second, and at one second a turn the bridge integrates ten times per
+#: turn, which is its own declared cadence. The frame follows from it and from
+#: how many readings a turn takes, which is a property of the phase list rather
+#: than of the machine.
+SECONDS_PER_TURN: float = 1.0
 
 
 async def calibrate_clock(
     runtime: SubjectRuntime, conditions: Sequence[Condition], *, turns: int = 3
 ) -> dict[str, float]:
-    """Time this machine's frames, then put the run on a clock of its own.
+    """Count this organism's frames per turn, then put the run on its own clock.
 
-    The step is measured rather than chosen: whatever a frame costs here is
-    what the experiment's clock advances by, so every threshold inside the
-    organism sees a timeline of about the right shape while both arms of every
-    intervention see exactly the same one.
-
-    Timed on `time.monotonic`, which this never replaces.
+    The count is a property of the phase list. The machine's real pace is timed
+    beside it, on `time.monotonic` — which this never replaces, so asyncio's
+    timeouts still fire — and reported rather than used, because how fast the
+    host runs is not how much life a turn is worth.
     """
     from core.subject.clock import ExperimentClock
 
-    for index in range(_CLOCK_WARMUP_TURNS):
-        await runtime.turn_once(conditions[index % len(conditions)])
     frames = 0
     started = time.monotonic()
     for index in range(max(1, turns)):
         condition = conditions[index % len(conditions)]
         frames += len(await runtime.turn_once(condition))
     elapsed = max(1e-6, time.monotonic() - started)
-    measured = elapsed / max(1, frames)
-    step = max(_CLOCK_GRAIN, round(measured / _CLOCK_GRAIN) * _CLOCK_GRAIN)
+    per_turn = max(1, round(frames / max(1, turns)))
+    step = SECONDS_PER_TURN / per_turn
     clock = ExperimentClock(step)
     clock.install()
     runtime.clock = clock
+    reading = {
+        "seconds_per_turn": SECONDS_PER_TURN,
+        "frames_per_turn": per_turn,
+        "step": round(step, 6),
+        "real_seconds_per_frame": round(elapsed / max(1, frames), 5),
+    }
     logger.info(
-        "subject-core: experiment clock installed at %.3fs a frame "
-        "(measured %.4f over %d frames)",
+        "subject-core: experiment clock at %.4fs a frame, %d frames a turn "
+        "(the machine took %.4fs a frame)",
         step,
-        measured,
-        frames,
+        per_turn,
+        reading["real_seconds_per_frame"],
     )
-    return {"step": step, "measured": round(measured, 5), "frames": frames}
+    return reading
 
 
 async def quiesce_organism(runtime: SubjectRuntime) -> list[str]:

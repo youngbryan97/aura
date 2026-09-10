@@ -81,6 +81,15 @@ _NEGATIVE_AFFECT_WEIGHTS = {
     "vulnerability": 0.45,
 }
 
+
+def _weighted_mean(reading, weights: dict[str, float]) -> float:
+    """The weighted average of one side of the affect vocabulary, in [0, 1]."""
+    total = sum(weights.values())
+    if total <= 0.0:
+        return 0.0
+    return sum(reading(name) * weight for name, weight in weights.items()) / total
+
+
 _REASSURANCE_PERCEPTS = {
     "positive_interaction",
     "interaction",
@@ -715,8 +724,20 @@ class AffectUpdatePhase(Phase):
         def activation(emotion: str) -> float:
             return max(0.0, float(e.get(emotion, 0.0) or 0.0) - float(baselines.get(emotion, 0.0) or 0.0))
 
-        pos = sum(activation(emotion) * weight for emotion, weight in _POSITIVE_AFFECT_WEIGHTS.items())
-        neg = sum(activation(emotion) * weight for emotion, weight in _NEGATIVE_AFFECT_WEIGHTS.items())
+        # Weighted means, not weighted sums. A sum over twenty-two positive
+        # channels scales with how many emotion names the dictionary happens to
+        # contain rather than with how she feels — adding one more shifts every
+        # valence she will ever have — and it put the input to `tanh` past the
+        # point where the function has a slope. Measured over a life of
+        # forty-eight turns across all eight conditions, valence stayed inside
+        # 0.902 to 0.913 while the emotions underneath it ranged from a tenth
+        # to four fifths: happiness rising by a tenth moved valence by one
+        # hundred-thousandth. Every consumer of valence was reading a constant.
+        #
+        # As a mean each side is in [0, 1], the difference is in [-1, 1], and
+        # the squash is used where it bends.
+        pos = _weighted_mean(activation, _POSITIVE_AFFECT_WEIGHTS)
+        neg = _weighted_mean(activation, _NEGATIVE_AFFECT_WEIGHTS)
 
         affect.valence = float(max(-1.0, min(1.0, math.tanh((pos - neg) * 1.6))))
         raw_peak = max((float(value or 0.0) for value in e.values()), default=0.5)

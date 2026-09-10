@@ -131,10 +131,11 @@ def campaign(
         EDGE_REPLICATION,
         SIGN_FLIP_DRAWS,
     )
-    from core.subject.driver import CONDITIONS, SUBSTRATE_STEP_SECONDS
+    from core.subject.driver import CONDITIONS, SECONDS_PER_TURN
     from core.subject.irreducibility import COMPONENTS, FOLDS
     from core.subject.nulls import ARCHITECTURES
     from core.subject.state import DOMAINS, feature_names
+    from core.subject.steppable import LAYERS
     from core.subject.synergy import TRIPLES
 
     schema = feature_names()
@@ -151,7 +152,21 @@ def campaign(
             "divergence_ceiling": DIVERGENCE_CEILING,
             "trials": trials,
             "turns_per_arm": turns,
-            "substrate_step_seconds": SUBSTRATE_STEP_SECONDS,
+        },
+        # What the free-running layers run at, which is what makes a counted
+        # schedule the same organism as a timed one. The rates are each
+        # layer's own configuration, and the frame they are counted against
+        # follows from one turn being worth one second and from how many
+        # readings a turn takes — a property of the phase list, not of the
+        # machine, so two machines give the organism the same life.
+        "seconds_per_turn": SECONDS_PER_TURN,
+        "layer_rates": {layer.name: layer.hz for layer in LAYERS},
+        "layer_body": {
+            layer.name: [
+                call.method if call.every == 1 else f"{call.method}/{call.every}"
+                for call in layer.body
+            ]
+            for layer in LAYERS
         },
         "recording": {"rounds": rounds, "conditions": [c.name for c in CONDITIONS]},
         # How long the lesion and rescue arms live. It changes what those two

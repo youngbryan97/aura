@@ -203,9 +203,11 @@ async def main() -> int:
     # which is half a standard deviation of deliberation's spread and one and a
     # half of the workspace's, from nothing but how long the machine took.
     evidence["notes"]["clock"] = await calibrate_clock(runtime, CONDITIONS)
+    reading = evidence["notes"]["clock"]
     _log(
-        f"experiment clock at {evidence['notes']['clock']['step']:.3f}s a frame "
-        f"(measured {evidence['notes']['clock']['measured']:.4f})"
+        f"experiment clock at {reading['step']:.4f}s a frame, "
+        f"{reading['frames_per_turn']} frames a turn "
+        f"(the machine took {reading['real_seconds_per_frame']:.4f}s a frame)"
     )
 
     _log(f"recording {args.rounds} rounds over {len(CONDITIONS)} conditions")
